@@ -6,10 +6,9 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore } from "@uniwork/core/auth";
-import { useCreateDocumentFile, useDocument, useDocumentLimits } from "@uniwork/core/documents/hooks";
+import { useDocument, useDocumentLimits } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
 import { useDownloadDocumentSource, useEnsureMyFolder } from "@uniwork/core/documents/hooks-library";
-import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { paths } from "@uniwork/core/paths";
 import { canEditDocument } from "@uniwork/core/permissions";
 import { isMyFolder } from "@uniwork/core/types/document";
@@ -34,7 +33,7 @@ import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
-import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
+import { useDocumentFileUpload } from "./use-document-file-upload";
 import { useDropUpload } from "./use-drop-upload";
 import { useSourcePreview } from "./source-preview-dialog";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
@@ -91,7 +90,7 @@ export interface DocumentsPageViewProps {
  * create, upload and save await the server.
  */
 export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, officeFrameVersion }: DocumentsPageViewProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
   const enabled = gate === "on";
   const limits = useDocumentLimits({ enabled });
@@ -109,8 +108,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const [chip, setChip] = useState<TypeChip>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("folder");
   const [navOpen, setNavOpen] = useState(false);
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
@@ -126,7 +123,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     enabled: enabled && !!folderId,
     retry: shouldRetryFolderDetail,
   });
-  const createFile = useCreateDocumentFile(wsId);
   const ensureMyFolder = useEnsureMyFolder(wsId);
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
@@ -185,6 +181,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     (folderDoc !== null &&
       canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
+  const fileUpload = useDocumentFileUpload({
+    wsId,
+    parentId: parentForCreate,
+    limits,
+    onOpen,
+    description: t(parentForCreate && !isMyFolder(folderDoc) ? "documents.upload.description_folder" : "documents.upload.description"),
+    rootDestination: "my_folder",
+  });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
@@ -197,9 +201,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const drop = useDropUpload({
     enabled: enabled && canCreate && !folderInvalid,
     maxBytes: limits.upload_max_bytes,
-    upload: async (file) => {
-      await createFile.mutateAsync(parentForCreate ? { file, meta: { parent_id: parentForCreate } } : { file, meta: { destination: "my_folder" } });
-    },
+    upload: fileUpload.uploadDroppedFile,
   });
 
   const goHome = (next: LibraryView, nextFolder: string | null = null) => {
@@ -221,18 +223,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     }
   };
 
-  const uploadFile = async (file: File) => {
-    const invalid = documentUploadValidationMessage(file, limits.upload_max_bytes, t, i18n.language);
-    if (invalid) return setUploadError(invalid);
-    setUploadError(null);
-    try {
-      const doc = await createFile.mutateAsync(parentForCreate ? { file, meta: { parent_id: parentForCreate } } : { file, meta: { destination: "my_folder" } });
-      setUploadOpen(false);
-      onOpen(doc.id);
-    } catch (error) {
-      setUploadError(documentErrorMessage(error, t, "documents.page.upload_failed", { locale: i18n.language, file, maxBytes: limits.upload_max_bytes }));
-    }
-  };
 
   const newRootFolder = async (title?: string): Promise<boolean> => {
     const id = await creator.newFolder(null, title);
@@ -325,7 +315,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     pending: creator.pending,
     unavailable: creator.unavailable,
     onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
-    onUpload: () => setUploadOpen(true),
+    onUpload: fileUpload.openUpload,
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };
 
@@ -513,19 +503,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
       <DocumentsSidebarSheet open={navOpen} onOpenChange={setNavOpen} {...sidebar} />
 
-      <DocumentUploadDialog
-        open={uploadOpen}
-        onOpenChange={(next) => {
-          if (!next) setUploadError(null);
-          setUploadOpen(next);
-        }}
-        title={t("documents.upload.title")}
-        description={t(parentForCreate && !isMyFolder(folderDoc) ? "documents.upload.description_folder" : "documents.upload.description")}
-        hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
-        pending={createFile.isPending}
-        error={uploadError}
-        onSubmit={(file) => void uploadFile(file)}
-      />
+      <DocumentUploadDialog {...fileUpload.dialogProps} />
 
       {sourcePreview.dialog}
       {officeViewer.dialog}

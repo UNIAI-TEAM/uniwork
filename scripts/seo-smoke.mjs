@@ -79,7 +79,7 @@ for (const userAgent of ["Googlebot", "bingbot", "OAI-SearchBot", "PerplexityBot
     const html = text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
     assert.match(html, /<h1\b/, `${userAgent} readable HTML`);
     assert.match(html, /UniWork/, `${userAgent} product identity`);
-    if (path.includes("office-files")) assert.match(html, /10 MiB/, `${userAgent} source-backed limit`);
+    if (path.includes("office-files")) assert.match(html, /\.xlsx/, `${userAgent} source-backed formats table`);
     crawlerChecks.push({ userAgent, path, status: response.status });
   }
 }

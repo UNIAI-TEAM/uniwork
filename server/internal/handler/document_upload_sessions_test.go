@@ -631,3 +631,136 @@ func TestConfigAdvertisesChunkedUploadThresholdOnlyWithMultipart(t *testing.T) {
 		t.Fatalf("chunked_upload_threshold_bytes = %v on a store without multipart", got)
 	}
 }
+
+// holdEditLock takes the document's edit lock for the token's user.
+func (w *uploadSessionWorld) holdEditLock(t *testing.T, token, docID, editor string) string {
+	t.Helper()
+	res, out := doJSON(t, w.srv, "POST", lockPath(docID, ""), token,
+		map[string]any{"editor_id": editor, "client": "web_page"})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("acquire edit lock: %d %v", res.StatusCode, out)
+	}
+	return out["lock_id"].(string)
+}
+
+// lockFields is the fields object of a coded error body.
+func lockFields(t *testing.T, out map[string]any) map[string]any {
+	t.Helper()
+	fields, _ := out["error"].(map[string]any)["fields"].(map[string]any)
+	if fields == nil {
+		t.Fatalf("error has no fields: %v", out)
+	}
+	return fields
+}
+
+// countMultipartSessions is the tenant's file_multipart_uploads row count.
+func (w *uploadSessionWorld) countMultipartSessions(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := w.pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM file_multipart_uploads WHERE organization_id = $1`, w.orgID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// TestVersionUploadSessionCreateRefusedWhileLockedHandler is BIGUP-LOCKCHECK
+// S-1/S-2 at the HTTP layer: a version session create answers 423
+// document_locked with the gate's body while another person holds the lock,
+// and no session row or multipart upload is created; the caller's own lock and
+// no lock pass; a same-actor replay of a create made before the lock was taken
+// is refused with no new session or upload; the frame create route behaves the
+// same.
+func TestVersionUploadSessionCreateRefusedWhileLockedHandler(t *testing.T) {
+	w := newUploadSessionWorld(t)
+	shareEditToWorkspace(t, w.srv, w.token, w.docID, w.wsID)
+	path := "/api/v1/documents/" + w.docID + "/upload-sessions"
+
+	// No lock: the version create passes.
+	res, out := doJSONHeaders(t, w.srv, "POST", path, w.token,
+		map[string]string{"Idempotency-Key": util.NewID()}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
+	if res.StatusCode != 201 {
+		t.Fatalf("create with no lock = %d %v", res.StatusCode, out)
+	}
+
+	// R1-1: the replay case below repeats the SAME actor's input and key, so
+	// the create that seeds it happens now, with no lock held.
+	replayKey := util.NewID()
+	replayBody := sessionOpenBody("big.md", uploadSessionTestSize, nil)
+	res, out = doJSONHeaders(t, w.srv, "POST", path, w.token,
+		map[string]string{"Idempotency-Key": replayKey}, replayBody)
+	if res.StatusCode != 201 {
+		t.Fatalf("pre-lock create for the replay case = %d %v", res.StatusCode, out)
+	}
+
+	// Another member holds the lock: the owner's create is 423 with the
+	// holder body, and nothing was created for it.
+	heldLock := w.holdEditLock(t, w.outsiderToken, w.docID, util.NewID())
+	before := w.countMultipartSessions(t)
+	res, out = doJSONHeaders(t, w.srv, "POST", path, w.token,
+		map[string]string{"Idempotency-Key": util.NewID()}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
+	if code, class := errCodeClass(out); res.StatusCode != http.StatusLocked || code != "document_locked" || class != "" {
+		t.Fatalf("create while another holds = %d code=%q class=%q (%v)", res.StatusCode, code, class, out)
+	}
+	fields := lockFields(t, out)
+	if fields["holder_id"] != w.outsiderID || fields["held_by_me"] != false {
+		t.Fatalf("423 fields = %v, want holder %s", fields, w.outsiderID)
+	}
+	for _, k := range []string{"holder_id", "holder_name", "since", "expires_at", "held_by_me", "current_revision"} {
+		if _, ok := fields[k]; !ok {
+			t.Fatalf("423 lacks %s: %v", k, fields)
+		}
+	}
+	if _, ok := fields["lock_id"]; ok {
+		t.Fatalf("423 leaks the lock id: %v", fields)
+	}
+	if after := w.countMultipartSessions(t); after != before {
+		t.Fatalf("refused create left session rows: %d -> %d", before, after)
+	}
+	if got := w.store.openUploadCount(); got != before {
+		t.Fatalf("refused create left a multipart upload: %d uploads for %d rows", got, before)
+	}
+
+	// The frame create route is the same rule.
+	frameToken := w.mintFrameToken(t, w.docID)
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/office-frame/documents/"+w.docID+"/upload-sessions", frameToken,
+		map[string]string{"Idempotency-Key": util.NewID()}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
+	if code, _ := errCodeClass(out); res.StatusCode != http.StatusLocked || code != "document_locked" {
+		t.Fatalf("frame create while another holds = %d %v", res.StatusCode, out)
+	}
+
+	// R1-1: the same actor repeats the exact pre-lock input and key while
+	// another person holds the lock: the lock check runs before the
+	// idempotency replay, so the repeat is refused and creates no session.
+	sessBefore := w.countMultipartSessions(t)
+	uploadsBefore := w.store.openUploadCount()
+	res, out = doJSONHeaders(t, w.srv, "POST", path, w.token,
+		map[string]string{"Idempotency-Key": replayKey}, replayBody)
+	if code, _ := errCodeClass(out); res.StatusCode != http.StatusLocked || code != "document_locked" {
+		t.Fatalf("same-actor replay under another's lock = %d %v", res.StatusCode, out)
+	}
+	if after := w.countMultipartSessions(t); after != sessBefore {
+		t.Fatalf("refused same-actor replay left session rows: %d -> %d", sessBefore, after)
+	}
+	if got := w.store.openUploadCount(); got != uploadsBefore {
+		t.Fatalf("refused same-actor replay left a multipart upload: %d -> %d", uploadsBefore, got)
+	}
+
+	// The holder's own create passes (held_by_me).
+	res, out = doJSONHeaders(t, w.srv, "POST", path, w.outsiderToken,
+		map[string]string{"Idempotency-Key": util.NewID()}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
+	if res.StatusCode != 201 {
+		t.Fatalf("holder create = %d %v", res.StatusCode, out)
+	}
+
+	// An expired tenure (past TTL, not swept) passes.
+	if _, err := w.pool.Exec(context.Background(),
+		`UPDATE document_edit_locks SET expires_at = now() - interval '1 second' WHERE id = $1`, heldLock); err != nil {
+		t.Fatal(err)
+	}
+	res, out = doJSONHeaders(t, w.srv, "POST", path, w.token,
+		map[string]string{"Idempotency-Key": util.NewID()}, sessionOpenBody("big.md", uploadSessionTestSize, nil))
+	if res.StatusCode != 201 {
+		t.Fatalf("create under an expired lock = %d %v", res.StatusCode, out)
+	}
+}

@@ -83,9 +83,10 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 		tags:        []string{"documents"}, sdi: sdi.UploadOfficeFrameFileSDI{}, sdo: sdo.DocumentUploadSDO{}, status: http.StatusCreated, auth: true,
 	})
 	f.Post("/office-frame/documents/{documentID}/upload-sessions", h.CreateFrameUploadSession, apiOp{
-		summary:     "Open a large frame save session",
-		description: "Frame token only, edit access: như POST /api/v1/documents/{id}/upload-sessions nhưng cho lưu từ khung khi tệp vượt ngưỡng một lượt. Phiên ghi document_id của token (token chỉ hợp lệ cho đúng tài liệu đó) và chỉ route frame đọc/hoàn tất/huỷ được nó: route /api/v1/upload-sessions/{id} trả 404 cho phiên này. Cùng ngưỡng, mã lỗi và thứ tự từ chối như route tài liệu; hoàn tất trả 200 DocumentUploadSDO để commit qua /office-frame/documents/{id}/versions/commit.",
-		tags:        []string{"documents"}, sdi: sdi.CreateUploadSessionSDI{}, sdo: sdo.UploadSessionSDO{}, status: http.StatusCreated, auth: true,
+		summary: "Open a large frame save session",
+		description: "Frame token only, edit access: như POST /api/v1/documents/{id}/upload-sessions nhưng cho lưu từ khung khi tệp vượt ngưỡng một lượt. Phiên ghi document_id của token (token chỉ hợp lệ cho đúng tài liệu đó) và chỉ route frame đọc/hoàn tất/huỷ được nó: route /api/v1/upload-sessions/{id} trả 404 cho phiên này. Cùng ngưỡng, mã lỗi và thứ tự từ chối như route tài liệu; hoàn tất trả 200 DocumentUploadSDO để commit qua /office-frame/documents/{id}/versions/commit. " +
+			"Tài liệu đang bị người khác giữ khóa sửa (hoặc một agent) -> 423 document_locked trước khi mở phiên, cùng fields như cổng commit; người giữ token đang giữ khóa hoặc không có khóa sống thì qua.",
+		tags: []string{"documents"}, sdi: sdi.CreateUploadSessionSDI{}, sdo: sdo.UploadSessionSDO{}, status: http.StatusCreated, auth: true,
 	})
 	f.Get("/office-frame/documents/{documentID}/upload-sessions/{sessionID}", h.GetFrameUploadSession, apiOp{
 		summary:     "Read a large frame save session",

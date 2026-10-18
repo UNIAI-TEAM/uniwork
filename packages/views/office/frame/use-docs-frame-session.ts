@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
+import { chunkedUploadThreshold } from "@uniwork/core/documents/chunked-upload";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { useDocumentLimits } from "@uniwork/core/documents/limits";
 import { officeFrameKeys, useOfficeFrameSourceToken, useOfficeFrameToken } from "@uniwork/core/documents/office-frame-hooks";
@@ -19,6 +20,7 @@ import {
   postDocDownload,
   readOnly,
   saveBlockedMaxBytes,
+  saveCopyHandler,
   shapeOf,
   toFrameLimits,
   unauthorized,
@@ -70,6 +72,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const editLock = isSource ? null : options.editLock;
   const lockedOut = editLock != null && !editLock.held;
   const viewOnly = isSource || options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false) || lockedOut;
+  const copyRefused = isSource || options.readonly || tokenQuery.data?.can_edit === false;
   const editLockId = editLock?.held ? editLock.lockId : undefined;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [slow, setSlow] = useState(false);
@@ -86,8 +89,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const documentLimits = useDocumentLimits();
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, documentLimits, isSource });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, documentLimits, isSource };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource };
   // The current frame was initialised read-only because the lock was not held: holding it later
   // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
   const initLockedOut = useRef(false);
@@ -177,19 +180,21 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
       async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current, scopeId: doc, viewOnly: refused, isSource: source, editLockId: lockId } = latest.current;
-        if ((write || (source && type === "api.export")) && refused) { if (source) current.onSourceWriteRefused?.(type === "api.export" ? "export" : "write"); throw readOnly(type); }
+        const { options: current, scopeId: doc, viewOnly: refused, copyRefused: noCopy, isSource: source, editLockId: lockId, documentLimits: limits } = latest.current;
+        if ((write || (source && type === "api.export")) && (type === "api.saveCopy" ? noCopy : refused)) { if (source) current.onSourceWriteRefused?.(type === "api.export" ? "export" : "write"); throw readOnly(type); }
         const run = pick(current.api);
         if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
         const { token: frameToken } = await currentToken();
+        const threshold = chunkedUploadThreshold(limits);
         try {
-          return (await run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal, ...(lockId ? { editLockId: lockId } : {}) } as never)) as FrameRequests[K]["result"];
+          return (await run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal, ...(lockId && type !== "api.saveCopy" ? { editLockId: lockId } : {}), ...(threshold !== null ? { chunkedUploadThresholdBytes: threshold } : {}) } as never)) as FrameRequests[K]["result"];
         } catch (error) {
           throw error instanceof DocsProtocolError ? error : docsFrameError(error);
         }
       };
 
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
+    const saveCopy = proxy("api.saveCopy", true, (api) => api.saveCopy);
     const open = proxy("api.open", false, (api) => api.open);
     const upload = proxy("api.save", true, (api) => api.save);
     // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
@@ -344,6 +349,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
           current.onSavedAs?.(rebind.documentId, name);
           return saved;
         },
+        "api.saveCopy": saveCopyHandler({ remote, latest, queryClient, run: saveCopy }),
         "api.recents": proxy("api.recents", false, (api) => api.recents),
         "api.export": proxy("api.export", false, (api) => api.export),
         "api.attachments.add": proxy("api.attachments.add", true, (api) => api.addAttachments),
@@ -573,9 +579,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       });
   }, [frameOrigin, iframeRef]);
 
-  const tokenFailure = !token && (tokenQuery.isError || (tokenQuery.isSuccess && tokenQuery.data === null))
-    ? shapeOf(tokenQuery.error ?? unauthorized())
-    : null;
+  const tokenFailure = !token && (tokenQuery.isError || (tokenQuery.isSuccess && tokenQuery.data === null)) ? shapeOf(tokenQuery.error ?? unauthorized()) : null;
   const failure = fatal ?? tokenFailure;
   const refetchToken = tokenQuery.refetch;
   const retry = useCallback(() => {
