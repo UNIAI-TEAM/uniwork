@@ -248,6 +248,38 @@ describe("createDocsFrameApi", () => {
     expect(calls.some((c) => c.path.endsWith("/versions/commit"))).toBe(false);
   });
 
+  it("a save aborted after its upload answered file_claim_expired sends no retry leg (UNI-1907)", async () => {
+    const controller = new AbortController();
+    const expired = () => json({ error: { code: "document_upload_invalid", message: "expired", fields: { reason: "file_claim_expired" } } }, 409);
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => { controller.abort(); return expired(); },
+    });
+    await expect(createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" },
+      { ...call(), signal: controller.signal },
+    )).rejects.toMatchObject({ code: "cancelled" });
+    expect(calls.filter((c) => c.path === "/api/v1/office-frame/documents/doc-1/uploads")).toHaveLength(1);
+    expect(calls.some((c) => c.path.endsWith("/versions/commit"))).toBe(false);
+  });
+
+  it("a save aborted during its single-request upload aborts the fetch and commits nothing (UNI-1907)", async () => {
+    const controller = new AbortController();
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": (init) => {
+        controller.abort();
+        expect(init.signal?.aborted).toBe(true);
+        return json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "z" });
+      },
+    });
+    await expect(createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" },
+      { ...call(), signal: controller.signal },
+    )).rejects.toMatchObject({ code: "cancelled" });
+    expect(calls.some((c) => c.path.endsWith("/versions/commit"))).toBe(false);
+  });
+
   it("lists recents, degrading a malformed answer to none", async () => {
     const ok = fakeFetch({ "GET /api/v1/office-frame/documents/doc-1/recents?limit=5": () => json({ items: [{ document_id: "doc-9", title: "Old.docx", updated_at: "2026-10-01T00:00:00Z" }] }) });
     await expect(createDocsFrameApi({ apiUrl: API, fetch: ok.fetch }).recents?.({ limit: 5 }, call())).resolves.toEqual({

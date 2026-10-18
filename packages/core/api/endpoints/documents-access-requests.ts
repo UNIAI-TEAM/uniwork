@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { request } from "../http";
+import { ApiError, request } from "../http";
 import { parseWithFallback } from "../schema";
 
 // Access requests on one document (access addendum §3, §4.3; W-DOC07,
@@ -70,12 +70,20 @@ const ListSchema = z.object({
 });
 
 /** GET /api/v1/documents/{documentID}/access-requests — the pending, unexpired
- *  requests; empty for a reader who does not administer the document. */
+ *  requests; empty for a reader who does not administer the document. Resolves
+ *  null when the server has no such route (404): the feature is not available
+ *  there, which the share dialog shows as no section rather than an error. */
 export async function listDocumentAccessRequests(
   documentId: string,
   signal?: AbortSignal,
-): Promise<DocumentAccessRequest[]> {
-  const raw = await request(`/api/v1/documents/${enc(documentId)}/access-requests`, { signal });
+): Promise<DocumentAccessRequest[] | null> {
+  let raw: unknown;
+  try {
+    raw = await request(`/api/v1/documents/${enc(documentId)}/access-requests`, { signal });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
   const parsed = parseWithFallback<{ requests: DocumentAccessRequest[] }>(raw, ListSchema, { requests: [] }, {
     endpoint: "GET /api/v1/documents/{id}/access-requests",
   });
