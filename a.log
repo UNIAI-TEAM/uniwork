@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+37ee9b86362b947ff0b10e4719a145c8a26c064b
+7b5ea5e2357b2589436099f5a55290d9cfe48250
+37ee9b863 fix(web): set experimental.proxyTimeout above the UniWork AI turn deadline
+dcc6fb6ab test(web): pin experimental.proxyTimeout above the UniWork AI turn deadline
+2ce6c4cbe test(e2e): S9 must wait for a real answer, not an error line
+9ab37fafc test(web): match the frame AI source as Next does for a `:p*` catch-all
+a11d6f924 fix(web): proxy the Office frame AI routes to the API origin
+1cea7941d test(web): expect the Office frame AI routes proxied to the API origin
+
+SYNCED_EXIT=1

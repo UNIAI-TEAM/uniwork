@@ -1,0 +1,28 @@
+$ pnpm --filter @uniwork/web exec vitest run 2>&1 | tail -25; rc=${PIPESTATUS[0]}; echo; echo "WEB_VITEST_EXIT=$rc"
+
+  [
+    "Docs",
++   "Slides",
+  ]
+
+ ❯ features/landing/guide-product-facts.test.ts:10:119
+      8|     expect(table.rows.map(row => row[1])).toEqual([".docx", ".xlsx", "…
+      9|     expect(table.rows.find(row => row[0] === "Sheets")?.[2]).not.toCon…
+     10|     expect(table.rows.filter(row => row[2].includes(locale === "vi" ? …
+       |                                                                                                                       ^
+     11|     expect(guideContent("office-files-and-ai", locale).sections.find(s…
+     12|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed | 25 passed (26)
+      Tests  2 failed | 221 passed (223)
+   Start at  13:41:11
+   Duration  9.45s (transform 6.66s, setup 2.05s, import 13.19s, tests 2.33s, environment 6.91s)
+
+undefined
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run
+
+WEB_VITEST_EXIT=1
