@@ -1,0 +1,38 @@
+$ for i in 1 2 3; do WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e docs-rename-save || echo "RENAME_SPEC_FAIL run=$i"; done; echo RENAME_REPEAT_DONE
+
+Running 2 tests using 1 worker
+
+  -  1 [chromium] › web/e2e/docs-rename-save.spec.ts:60:5 › a rename before the save is the name Save as proposes
+  -  2 [chromium] › web/e2e/docs-rename-save.spec.ts:88:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar
+
+  2 skipped
+
+WEB_E2E_REQUIRE_BUILD is set and 2 test(s) were skipped:
+  - chromium > docs-rename-save.spec.ts > a rename before the save is the name Save as proposes
+  - chromium > docs-rename-save.spec.ts > a host-declined save (api.save "cancelled") shows no failure in the status bar
+RENAME_SPEC_FAIL run=1
+
+Running 2 tests using 1 worker
+
+  -  1 [chromium] › web/e2e/docs-rename-save.spec.ts:60:5 › a rename before the save is the name Save as proposes
+  -  2 [chromium] › web/e2e/docs-rename-save.spec.ts:88:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar
+
+  2 skipped
+
+WEB_E2E_REQUIRE_BUILD is set and 2 test(s) were skipped:
+  - chromium > docs-rename-save.spec.ts > a rename before the save is the name Save as proposes
+  - chromium > docs-rename-save.spec.ts > a host-declined save (api.save "cancelled") shows no failure in the status bar
+RENAME_SPEC_FAIL run=2
+
+Running 2 tests using 1 worker
+
+  -  1 [chromium] › web/e2e/docs-rename-save.spec.ts:60:5 › a rename before the save is the name Save as proposes
+  -  2 [chromium] › web/e2e/docs-rename-save.spec.ts:88:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar
+
+  2 skipped
+
+WEB_E2E_REQUIRE_BUILD is set and 2 test(s) were skipped:
+  - chromium > docs-rename-save.spec.ts > a rename before the save is the name Save as proposes
+  - chromium > docs-rename-save.spec.ts > a host-declined save (api.save "cancelled") shows no failure in the status bar
+RENAME_SPEC_FAIL run=3
+RENAME_REPEAT_DONE

@@ -1,0 +1,143 @@
+$ npx vitest run --root web/docs/bridge --environment jsdom webapi.test --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+ ✓ webapi.test.ts > paths > round-trips file ids and rejects foreign paths 12ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > opens init.documentId through api.open once 8ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > uses init.open without a round-trip 3ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > fetches a url source without cookies 6ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > error: reports a fatal error to the host and opens nothing 3ms
+ ✓ webapi.test.ts > boot open (consumePendingOpenDocx) > timeout: opens nothing 1ms
+ ✓ webapi.test.ts > host open request -> onOpenDocx > delivers to listeners after boot and answers {opened, title} 2ms
+ ✓ webapi.test.ts > host open request -> onOpenDocx > queues an open that arrives before the renderer booted 1ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > success: reopens a bridge path 2ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > ignores non-bridge paths without a request 1ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > error / timeout -> null 1ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > openDocx: success opens the picked file 2ms
+ ✓ webapi.test.ts > openDocxPath / openDocx > openDocx: cancelled / error / timeout -> null 1ms
+ ✓ webapi.test.ts > saveDocx > success: sends bytes + etag, tracks the new etag, emits saved 2ms
+ ✓ webapi.test.ts > saveDocx > conflict: tells the host, asks the user; Cancel stays unsaved with a visible reason 20ms
+ ✓ webapi.test.ts > saveDocx > conflict dialog: focus starts on Cancel, Overwrite is destructive, Esc cancels, Tab stays inside 16ms
+ ✓ webapi.test.ts > saveDocx > conflict -> Save as a copy…: absent without saveCopy capability, present when saveCopy granted and editable, absent when view-only (UNI-1872) 16ms
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+ ✓ webapi.test.ts > saveDocx > conflict -> Save as a copy… -> confirm: sends api.saveCopy with open bytes and localized copy name, shows Done alert without re-pointing open document (UNI-1872) 10ms
+ ✓ webapi.test.ts > saveDocx > conflict -> Save as a copy…: unsupported and generic/refusal errors show failed alert and keep edits safe (UNI-1872) 11ms
+ ✓ webapi.test.ts > saveDocx > conflict -> Save as a copy…: too_large with details.max_bytes returns to step 1 with limit alert (UNI-1872) 17ms
+ ✓ webapi.test.ts > saveDocx > conflict -> Overwrite… -> confirm: re-reads the head etag and saves over the newer version 7ms
+ ✓ webapi.test.ts > saveDocx > conflict -> Reload latest: the latest version replaces the document, no error banner 7ms
+ ✓ webapi.test.ts > saveDocx > conflict on an autosave: reported to the host, no prompt 2ms
+ ✓ webapi.test.ts > saveDocx > error: shows the localized sentence of the failure, never the host message 2ms
+ ✓ webapi.test.ts > saveDocx > timeout: reports a timed-out save 1ms
+ ✓ webapi.test.ts > saveDocx > network failure: a translated message, not the raw browser error 1ms
+ ✓ webapi.test.ts > saveDocx > timeout after the host committed: the next save is based on that version, no conflict 1ms
+ ✓ webapi.test.ts > saveDocx > timeout while someone else saved (other size): keeps the old etag, so the conflict is asked 4ms
+ ✓ webapi.test.ts > saveDocx > timeout while someone else committed a same-size version: not adopted, the conflict is asked (RF-7) 3ms
+ ✓ webapi.test.ts > saveDocx > a host-declined save (api.save "cancelled") is silent, like a cancelled Save As 2ms
+ ✓ webapi.test.ts > saveDocx > rejects a path that is not a UniWork document 1ms
+ ✓ webapi.test.ts > saveDocxAs / saveDocxNew > saveDocxAs success: new file id, source passed, editor path switches 1ms
+ ✓ webapi.test.ts > saveDocxAs / saveDocxNew > saveDocxAs cancelled -> {ok:false} without an error 1ms
+ ✓ webapi.test.ts > saveDocxAs / saveDocxNew > saveDocxAs error / timeout 3ms
+ ✓ webapi.test.ts > saveDocxAs / saveDocxNew > saveDocxNew is a silent saveAs 1ms
+ ✓ webapi.test.ts > getRecentFiles > success: maps files to bridge paths 1ms
+ ✓ webapi.test.ts > getRecentFiles > error / timeout / malformed -> [] 1ms
+ ✓ webapi.test.ts > exportPdf / print > success: server PDF of the current file is downloaded 5ms
+ ✓ webapi.test.ts > exportPdf / print > dirty: sends the live docx bytes (transferred) with the file id 2ms
+ ✓ webapi.test.ts > exportPdf / print > clean: exports the stored version only, without serializing 1ms
+ ✓ webapi.test.ts > exportPdf / print > never-saved document: exports the live bytes without a file id 1ms
+ ✓ webapi.test.ts > exportPdf / print > serializer failure: falls back to the stored version; unregister stops it 2ms
+ ✓ webapi.test.ts > exportPdf / print > dirty + export error: still falls back to print 15ms
+ ✓ webapi.test.ts > exportPdf / print > unsaved document: in-frame print, no request 2ms
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+ ✓ webapi.test.ts > exportPdf / print > error / timeout: falls back to in-frame print 4ms
+ ✓ webapi.test.ts > exportPdf / print > cancelled: no fallback 1ms
+ ✓ webapi.test.ts > exportPdf / print > deferred print parts become one export 2ms
+ ✓ webapi.test.ts > exportPdf / print > host print request: pdf mode exports, dialog mode prints 2ms
+ ✓ webapi.test.ts > exportPdf / print > host print request goes through the browser print path and answers after it settles 23ms
+ ✓ webapi.test.ts > exportPdf / print > host print request reports printed:false when the browser refuses to print 3ms
+ ✓ webapi.test.ts > exportPdf / print > exportHtml downloads locally 1ms
+ ✓ webapi.test.ts > onRenamedDocx > maps a host rename of a known file to old/new paths 3ms
+ ✓ webapi.test.ts > onRenamedDocx > ignores renames of files this frame never opened 1ms
+ ✓ webapi.test.ts > onRenamedDocx > a save result that carries a new name is a rename the renderer hears (S01B-V1) 1ms
+ ✓ webapi.test.ts > onRenamedDocx > a file.renamed during an in-flight save is never clobbered by the save result 1ms
+ ✓ webapi.test.ts > fetchImage / convertAltChunkHtml > fetchImage: data: URLs locally, http(s) through image.fetch 1ms
+ ✓ webapi.test.ts > fetchImage / convertAltChunkHtml > fetchImage: not found / error / timeout -> null 1ms
+ ✓ webapi.test.ts > fetchImage / convertAltChunkHtml > convertAltChunkHtml: bytes on success, null otherwise 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save: runs the editor save flow and answers with the new version 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict: the frame shows the one conflict dialog; Cancel answers cancelled 4ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Overwrite… confirmed: answers ok with the new version 6ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Reload latest: answers ok without a versionId 6ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict without the download capability: no download choice 7ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict with the download capability: the bytes go to api.download, then Reload 30ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict with the download capability and my version over init.downloadMaxBytes: the download choice is aria-disabled up front 61ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict: a version exactly at init.downloadMaxBytes can still be downloaded 56ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict -> Overwrite gets 401: the session line, closing answers unauthorized 9ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save conflict: the editor result carries the localized conflict sentence, not the server message 3ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save while a save runs: busy, not conflict 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > save timeout / no document 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > saveAs: drives the editor Save As with the host name 1ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > saveAs: a renderer that serializes first (real delay) still gets the host name 22ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > saveAs: times out only when the editor never starts Save As 3ms
+ ✓ webapi.test.ts > host save / saveAs requests (editor flows) > saveAs cancelled / no editor 2ms
+ ✓ webapi.test.ts > replacing a dirty document > openDocxPath asks first; Cancel keeps the document, Discard opens 4ms
+ ✓ webapi.test.ts > replacing a dirty document > openDocx asks after the pick, and not at all when clean 4ms
+ ✓ webapi.test.ts > fatal open failure > shows a blocking notice and refuses every save until the host opens a document 2ms
+ ✓ webapi.test.ts > fatal open failure > init timeout (no host answered) lands in the same fatal state 1ms
+ ✓ webapi.test.ts > dirty + title events > answers the host close check from the guard 1ms
+ ✓ webapi.test.ts > dirty + title events > polls the close guard and pushes dirty changes 1ms
+ ✓ webapi.test.ts > dirty + title events > an edit event reports dirty without waiting for the poll 3ms
+ ✓ webapi.test.ts > dirty + title events > pushes document.title changes 4ms
+ ✓ webapi.test.ts > projectApi (in-memory, AI-only) > keeps chats per file and rebinds temp chats 1ms
+ ✓ webapi.test.ts > draft recovery (C18) > keeps an encrypted copy while dirty and offers it on the next load: Restore = recovered 16ms
+ ✓ webapi.test.ts > draft recovery (C18) > Discard opens the server version and deletes the copy 9ms
+ ✓ webapi.test.ts > draft recovery (C18) > a copy under another key is skipped without a prompt and never deleted 8ms
+ ✓ webapi.test.ts > draft recovery (C18) > a document opened in the frame other than the init document is never drafted 5ms
+ ✓ webapi.test.ts > draft recovery (C18) > a blocked save still writes the draft (SIZE-F1 persistDraft -> drafts.flush) 8ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > answers uniworkState readOnly so the renderer makes the editor read-only 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > answers readOnly for a file the host marks writable:false even with the save grant 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > stays editable with the save grant 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > refuses saveDocx without calling api.save 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > answers a host save request unsupported and never starts the editor flow 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > refuses Save As too unless the host grants saveAs separately 1ms
+ ✓ webapi.test.ts > view-only (host withholds the save grant) > allows a saved copy when the host grants saveAs 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > clean: reloads through api.open (the event version) and hands the head to the renderer 52ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > the Save after a head reload is based on the reply (etag = its revision), not the old copy 52ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > dirty: the content is not replaced and the warn bar shows 3ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > an AI turn is running: no reload, the AI bar; the turn ends, the version loads 1555ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 403 (revoked) locks the frame: the bar, then every save is refused without a request 5ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 401 > Save: the bar is the only surface, the reason that means "stay dirty, nothing more to say" 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 401 > Save As and the first save: a result without an error shows no editor toast either 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 401 > the first save of a new document 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 403 > Save: the bar is the only surface, the reason that means "stay dirty, nothing more to say" 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 403 > Save As and the first save: a result without an error shows no editor toast either 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 403 > the first save of a new document 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 410 > Save: the bar is the only surface, the reason that means "stay dirty, nothing more to say" 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 410 > Save As and the first save: a result without an error shows no editor toast either 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 410 > the first save of a new document 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > an error the bar does not own (a 500, the network) keeps the editor toast text 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > doc.blocked on a dirty frame: the bar and the lock at once, Save and Save As refused, edits kept 2ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > doc.blocked with an organisation reason: the bar only, the editor usable, Save still reaches the host 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > doc.blocked deleted on a clean frame: the delete bar, a not_found answer to the host 4ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 410 (deleted): the delete bar and a not_found answer to the host 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > a save answered 401: the sign-in-again bar, no lock 1ms
+ ✓ webapi.test.ts > new version on UniWork (doc.remoteVersion) > an Overwrite refused for an organisation reason leaves the organisation bar behind 8ms
+ ✓ webapi.test.ts > the comments version notifier (G8-12 §3.3) > the open file and every landed save reach frameDocVersion; only the save is announced 4ms
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+ ✓ webapi.test.ts > save size gate (SIZE-F1, UNI-1861) > warns at warn_ratio and blocks above limits.max_bytes before any api.save request 59ms
+ ✓ webapi.test.ts > open_refused and refuse-tier guard (SIZE-F1) > reportOpenRefused emits one open_refused (no error event), marks uniworkState readOnly, blocks all saves, and resets on another documentId 2ms
+ ✓ webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > webCapabilities defaults save/saveAs/exportPdf/exportHtml to false and hostGrants maps them from init.capabilities 1ms
+ ✓ webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > refuses saveAs without the saveAs grant even when save is granted 1ms
+ ✓ webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > refuses exportPdf without the exportPdf grant and exportHtml without the exportHtml grant 1ms
+ ✓ webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > host Print runs on the print grant alone: no exportPdf grant needed (RFW2-1) 3ms
+ ✓ webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > readOnly profile forces view-only, refuses save/saveAs/exportHtml even when granted, and keeps granted print and exportPdf 3ms
+
+ Test Files  1 passed (1)
+      Tests  124 passed (124)
+   Start at  09:54:41
+   Duration  3.94s (transform 1.01s, setup 0ms, import 1.23s, tests 2.31s, environment 310ms)
+

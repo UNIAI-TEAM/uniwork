@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK
+6e724e44242facb67bc6d35ccaa49d3f964b4f31
+713d0b047df9327795e7ced811c9d7442adaa26c
+6e724e44 fix(web): follow host renames through in-flight saves and silence declined saves (UNI-1909)
+713d0b04 merge: fork main f6395d85d (FRAME-RO-01 UNI-1876) into DH-1
+b04409a2 fix(shell): reset UniWork maps on account change, refresh late upload on cancel, and keep selected updater filter option
+SYNCED_OK

@@ -1,0 +1,153 @@
+$ npx vitest run --root web/modules markdown/webapi.test.ts html/webapi.test.ts sheets/bridge.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ✓ html/webapi.test.ts > htmlApi > open -> save without edits writes the exact input bytes 15ms
+ ✓ html/webapi.test.ts > htmlApi > uniworkState reports readOnly for a frame without the save grant, editable otherwise 3ms
+ ✓ html/webapi.test.ts > htmlApi > the preview is a static copy: no script, mapped pictures, pushed to the renderer 14ms
+ ✓ html/webapi.test.ts > htmlApi > A1b: a picture typed after the first edit gets its URL from the host and the static preview follows 10ms
+ ✓ markdown/webapi.test.ts > markdownApi: open and save > opens the document as text with the BOM and CRLF intact 15ms
+ ✓ markdown/webapi.test.ts > markdownApi: open and save > open -> save without edits writes the exact input bytes, with If-Match, never auto 6ms
+ ✓ markdown/webapi.test.ts > markdownApi: open and save > the next save uses the new etag; dirty is mirrored to the host 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: open and save > Save As goes through api.saveAs with a .md name and the source file 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: open and save > a failed save reads in the UI language, never the raw browser error 5ms
+ ✓ markdown/webapi.test.ts > markdownApi: open and save > the next edit after a failed save tells the host the document is dirty again 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: open and save > a cancelled host dialog is a quiet cancel 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: open and save > a host-declined in-place save (api.save "cancelled") is a quiet cancel too 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > shows Reload latest / Overwrite / Cancel in the UI language, Overwrite destructive, Reload latest primary, Cancel focused 61ms
+ ✓ html/webapi.test.ts > htmlApi > the scripts preview: preview.html next to the frame, the page over one MessagePort 104ms
+ ✓ html/webapi.test.ts > htmlApi > the scripts preview falls back when preview.html never answers 52ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > Overwrite… asks to confirm, then re-reads the head etag and saves again 105ms
+ ✓ html/webapi.test.ts > htmlApi > the scripts preview inlines mapped stylesheets, scripts and pictures (UNI-1232 A1) 53ms
+ ✓ html/webapi.test.ts > htmlApi > openInDesktopApp sends app.open only with the desktopOpen grant, without a request timeout 3ms
+ ✓ html/webapi.test.ts > htmlApi > a failed app.open is quiet: the host shows its own alert 1ms
+ ✓ html/webapi.test.ts > htmlApi > print / export PDF prints the static copy of the document 4ms
+ ✓ html/webapi.test.ts > htmlApi > single-file HTML export inlines the mapped pictures 5ms
+ ✓ html/webapi.test.ts > htmlApi > scripts + visual edit on (visual edit needs save); new-tab present, Word export and AI hidden 1ms
+ ✓ html/webapi.test.ts > htmlApi > view only without the save grant 1ms
+ ✓ html/webapi.test.ts > htmlApi: draft recovery (C18) > a dirty draft written by one frame load is restored by the next as module html 11ms
+ ✓ html/webapi.test.ts > htmlApi: new version on UniWork > a clean newer version restarts the frame and the next boot shows the information bar 55ms
+ ✓ html/webapi.test.ts > htmlApi: save size gate (SIZE-F1, UNI-1861) > blocks save and saveAs above limits.max_bytes without api.save / api.saveAs 12ms
+ ✓ html/webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > refuses saveAs without saveAs grant, exportHtml without exportHtml grant, and exportPdf without exportPdf grant 1ms
+ ✓ html/webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > readOnly profile forces viewOnly, save:false, saveAs:false, htmlVisualEdit:false, and keeps print and exportPdf 3ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > Reload latest drops the edits and reloads the frame (the host re-runs the handshake) 105ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > a host `save` opens the one conflict dialog in the frame and reports modal 54ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > a host `save` -> Overwrite… confirmed answers ok with the new version 104ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > a host `save` -> Reload answers ok without a versionId, then the frame reloads 156ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > a host `save` -> Reload answers with the head that was loaded, not the stale file meta 104ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > the download choice shows only with the download capability 259ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > my version over init.downloadMaxBytes: the download choice is aria-disabled up front 105ms
+ ✓ markdown/webapi.test.ts > markdownApi: save conflicts > a cap equal to my version leaves the download choice enabled 217ms
+ ✓ sheets/bridge.test.ts > capabilities > web defaults: AI, autosave and the C11 sidecar-only keys are off; the recovery tick is on 3ms
+ ✓ sheets/bridge.test.ts > capabilities > the engine stub turns the whole workbook surface off 1ms
+ ✓ sheets/bridge.test.ts > capabilities > recalc fallback stays hidden even when the engine supports it (C11) 1ms
+ ✓ sheets/bridge.test.ts > capabilities > host grants switch open / recents / save / saveAs on (AI family: ./ai.test.ts) 2ms
+ ✓ sheets/bridge.test.ts > open > boot: the host document bytes reach the engine; the renderer gets a bridge path 16ms
+ ✓ sheets/bridge.test.ts > open > init.open bytes are used without another api.open round trip 2ms
+ ✓ sheets/bridge.test.ts > open > File > Open uses file.pick with the xlsx types (xls only when the engine converts) 2ms
+ ✓ sheets/bridge.test.ts > open > without the filePick grant File > Open does nothing 2ms
+ ✓ sheets/bridge.test.ts > open > a view-only frame (no save grant) never reports dirty, whatever the renderer counts 2ms
+ ✓ sheets/bridge.test.ts > open > a host `open` request queues the document and drives the renderer open action 2ms
+ ✓ sheets/bridge.test.ts > save > open -> edit -> save: the engine bytes reach api.save with the etag, never `auto` 3ms
+ ✓ sheets/bridge.test.ts > save > large edit sets arrive through the chunked transfer and are spliced back in 1ms
+ ✓ sheets/bridge.test.ts > save > save as: api.saveAs with an .xlsx name and the source file; a cancelled dialog is a cancel 2ms
+ ✓ sheets/bridge.test.ts > save > a host `save` request runs the renderer save flow and answers with the saved file 2ms
+ ✓ sheets/bridge.test.ts > save > a host `saveAs` request names the copy 1ms
+ ✓ sheets/bridge.test.ts > save > a host-declined in-place save (api.save "cancelled") ends as a cancel, not an error 2ms
+ ✓ sheets/bridge.test.ts > engine crash and failed session swap > an engine crash during a save keeps the edits saveable under the same session id (RF 2) 2ms
+ ✓ sheets/bridge.test.ts > engine crash and failed session swap > the host accepted the bytes but the engine cannot reopen them: dirty and drafts clear, the error surfaces (RF 8) 2ms
+ ✓ sheets/bridge.test.ts > save failures > a network failure surfaces the localized sentence without the browser jargon 2ms
+ ✓ sheets/bridge.test.ts > save failures > a 401 is the new-version bar alone: the save ends cancelled, so the editor raises no error toast 4ms
+ ✓ sheets/bridge.test.ts > save failures > a 403 is the new-version bar alone: the save ends cancelled, so the editor raises no error toast 2ms
+ ✓ sheets/bridge.test.ts > save failures > a 403 (organisation) is the new-version bar alone: the save ends cancelled, so the editor raises no error toast 2ms
+ ✓ sheets/bridge.test.ts > save failures > a 410 is the new-version bar alone: the save ends cancelled, so the editor raises no error toast 2ms
+ ✓ sheets/bridge.test.ts > save failures > Save As answered 403 is the bar alone too 2ms
+ ✓ sheets/bridge.test.ts > save failures > an error the bar does not own still throws for the editor to report 1ms
+ ✓ sheets/bridge.test.ts > save conflicts > Overwrite re-reads the head etag and saves again 2ms
+ ✓ sheets/bridge.test.ts > save conflicts > Reload latest cancels the save and reopens the newest version through the open action 1ms
+ ✓ sheets/bridge.test.ts > save conflicts > Cancel keeps the edits and fails the save with the localized reason 1ms
+ ✓ sheets/bridge.test.ts > save conflicts > a host-initiated save opens the conflict dialog in the frame; Cancel answers cancelled 1ms
+ ✓ sheets/bridge.test.ts > save conflicts > a host-initiated save -> Overwrite answers ok with the new version 2ms
+ ✓ sheets/bridge.test.ts > save conflicts > a host-initiated save -> Reload answers ok without a versionId 1ms
+ ✓ sheets/bridge.test.ts > save conflicts > a host-initiated save -> Overwrite failed with 403, closed: answers forbidden 2ms
+ ✓ sheets/bridge.test.ts > save conflicts > an Overwrite refused with 403 leaves the bar alone, the save ends cancelled 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: host save conflict copy > the renderer save result says the document changed elsewhere, no retry hint 106ms
+ ✓ markdown/webapi.test.ts > markdownApi: host requests > host save runs the renderer save flow; clean documents answer at once 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: host requests > host save {reason: navigate} uses the close-save flow 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: host requests > host saveAs passes the host name to api.saveAs 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: host requests > host print runs the renderer PDF export into the print dialog 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: host requests > a host open after boot is refused (one document per frame load) 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: host requests > file.renamed updates the path, the title and the renderer 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: view only and capabilities > web defaults hide AI, autosave and open-in-Docs; grants turn save/images on 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: view only and capabilities > without the save grant: view only, every write refused, never dirty 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: view only and capabilities > a file that is not UTF-8 opens view only (saving would rewrite its bytes) 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: view only and capabilities > no autosave on the web: the shared preference answers off 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: pictures and exports > relative pictures resolve through OpenPayload.assets 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: pictures and exports > pasted pictures upload with the images grant, else embed as data: URIs 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: pictures and exports > WebP pastes upload as assets, an SVG stays a data: URI (UNI-1232 A1) 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: pictures and exports > a mapped URL the host answers 401/403 to shows the missing-picture placeholder, not a broken icon 9ms
+ ✓ markdown/webapi.test.ts > markdownApi: pictures and exports > A1b: a picture typed after the first edit asks the host for its URL and redraws; a refused image gets a fresh one 8ms
+ ✓ markdown/webapi.test.ts > markdownApi: pictures and exports > exportDocx downloads the renderer-built bytes; open-in-Docs is refused 5ms
+ ✓ markdown/webapi.test.ts > markdownApi: draft recovery (C18) > writes the renderer text encrypted while dirty, never while clean 9ms
+ ✓ markdown/webapi.test.ts > markdownApi: draft recovery (C18) > Restore on boot loads the draft text as a recovered (dirty) document; a save deletes it 60ms
+ ✓ markdown/webapi.test.ts > markdownApi: draft recovery (C18) > Discard keeps the server text and deletes the draft 8ms
+ ✓ markdown/webapi.test.ts > markdownApi: draft recovery (C18) > uniworkState reports readOnly for a frame without the save grant, editable otherwise 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: draft recovery (C18) > a view-only document is never drafted 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: new version on UniWork > clean: the frame reloads on the event version, and no bar is left behind 52ms
+ ✓ markdown/webapi.test.ts > markdownApi: new version on UniWork > the frame restarts for a clean version: the info bar and the reading position survive > stashes the notice and the scrolled elements before the reload, then shows the bar on the next boot 56ms
+ ✓ markdown/webapi.test.ts > markdownApi: new version on UniWork > the frame restarts for a clean version: the info bar and the reading position survive > a boot with nothing stashed shows no bar 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: new version on UniWork > the frame restarts for a clean version: the info bar and the reading position survive > storage that throws only means no bar: the reload still happens 51ms
+ ✓ markdown/webapi.test.ts > markdownApi: new version on UniWork > dirty: nothing is reloaded and the warn bar offers Reload 2ms
+ ✓ markdown/webapi.test.ts > markdownApi: new version on UniWork > a revoked document locks saving with the status bar 51ms
+ ✓ markdown/webapi.test.ts > markdownApi: new version on UniWork > doc.blocked locks at once on a dirty document: the bar, saves refused, no reload 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: new version on UniWork > doc.blocked with an organisation reason: the bar only, the editor usable, Save still reaches the host 1ms
+ ✓ markdown/webapi.test.ts > markdownApi: save size gate (SIZE-F1, UNI-1861) > warns at warn_ratio, blocks above limits.max_bytes, and serves doc.download from live text 8ms
+ ✓ markdown/webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > refuses saveAs and exportDocx without the saveAs grant even when save is granted 1ms
+ ✓ markdown/webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > allows saveAs in view-only mode when saveAs is granted (without save) 1ms
+ ✓ markdown/webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > refuses exportPdf without the exportPdf grant 1ms
+ ✓ markdown/webapi.test.ts > FRAME-RO-01: capability flags and readOnly profile (UNI-1876) > readOnly profile forces viewOnly, save:false, saveAs:false, refuses save/saveAs/exportDocx, and keeps print and exportPdf 1ms
+ ✓ sheets/bridge.test.ts > save conflicts > the dialog stays open past the host-save timer without a timeout answer 703ms
+ ✓ sheets/bridge.test.ts > save conflicts > the real dialog: workbook wording, DOM order Reload latest, Overwrite…, Cancel, focus Cancel; download only with the capability 112ms
+ ✓ sheets/bridge.test.ts > view-only (no save grant) > view-only: the workbook counts as UniWork view-only for the AI (read tools only) 2ms
+ ✓ sheets/bridge.test.ts > view-only (no save grant) > the workbook opens read-only and every save is refused before the engine runs 1ms
+ ✓ sheets/bridge.test.ts > too large and open refusal (SIZE-F1) > the open fails with too_large and the host hears open_refused + fatal too_large; saves are refused 2ms
+ ✓ sheets/bridge.test.ts > too large and open refusal (SIZE-F1) > engine out of memory emits one open_refused + fatal too_large, blocks saves, and resets when another documentId opens 2ms
+ ✓ sheets/bridge.test.ts > too large and open refusal (SIZE-F1) > classifies real OOM form (Rust alloc error without "out of memory" suffix) as engine_out_of_memory + fatal too_large without overwriting an existing err.code (d2-3, d3-1) 1ms
+ ✓ sheets/bridge.test.ts > too large and open refusal (SIZE-F1) > classifies real OOM form (EngineCrashedError wrapping Rust alloc failure) as engine_out_of_memory + fatal too_large without overwriting an existing err.code (d2-3, d3-1) 1ms
+ ✓ sheets/bridge.test.ts > too large and open refusal (SIZE-F1) > classifies real OOM form (V8 Cannot allocate Wasm memory) as engine_out_of_memory + fatal too_large without overwriting an existing err.code (d2-3, d3-1) 1ms
+ ✓ sheets/bridge.test.ts > too large and open refusal (SIZE-F1) > classifies real OOM form (V8 Array buffer allocation failed) as engine_out_of_memory + fatal too_large without overwriting an existing err.code (d2-3, d3-1) 1ms
+ ✓ sheets/bridge.test.ts > too large and open refusal (SIZE-F1) > does not classify bare engine_crashed "(unreachable)" with no memory text as open_refused and preserves its own code (d3-1) 1ms
+ ✓ sheets/bridge.test.ts > too large and open refusal (SIZE-F1) > treats zip "cannot be inflated" as a corrupt file (not open_refused) and keeps declared/total uncompressed size gates as too_large_to_open (d2-4) 2ms
+ ✓ sheets/bridge.test.ts > keyboard accelerators (the desktop File menu keys) > Ctrl+S saves, Ctrl+Shift+S saves as, Ctrl+P prints; the browser defaults are suppressed 2ms
+ ✓ sheets/bridge.test.ts > keyboard accelerators (the desktop File menu keys) > view-only: Ctrl+S is swallowed but saves nothing 1ms
+ ✓ sheets/bridge.test.ts > engine unavailable > the stub answers engine-unavailable for every operation; close is a no-op 1ms
+ ✓ sheets/bridge.test.ts > engine unavailable > the open fails with the typed code and the host hears about it once (non-fatal) 1ms
+ ✓ sheets/bridge.test.ts > hidden and browser features > recalc fallback and pivot refresh reject while hidden 1ms
+ ✓ sheets/bridge.test.ts > hidden and browser features > pivot refresh reaches the engine once it supports it 1ms
+ ✓ sheets/bridge.test.ts > hidden and browser features > CSV export downloads UTF-8 with a BOM; print and PDF go through the print dialog 1ms
+ ✓ sheets/bridge.test.ts > hidden and browser features > merge and AI-only entries answer typed no-ops; the desktop recovery dialog never opens 1ms
+ ✓ sheets/bridge.test.ts > hidden and browser features > a renamed file reaches the renderer by its new name 1ms
+ ✓ sheets/bridge.test.ts > hidden and browser features > close-check reports the dirty flag and never autosave 1ms
+ ✓ sheets/bridge.test.ts > draft recovery (C18) > the recovery tick stores an encrypted xlsx draft without any save 8ms
+ ✓ sheets/bridge.test.ts > draft recovery (C18) > a clean, view-only or other document writes nothing 4ms
+ ✓ sheets/bridge.test.ts > draft recovery (C18) > Restore opens the draft bytes as restoredFromRecovery and keeps the workbook dirty 12ms
+ ✓ sheets/bridge.test.ts > draft recovery (C18) > Discard opens the server bytes and deletes the draft 8ms
+ ✓ sheets/bridge.test.ts > draft recovery (C18) > a successful save deletes the draft 5ms
+ ✓ sheets/bridge.test.ts > new version on UniWork (doc.remoteVersion) > clean: the renderer is sent through its open flow with the head bytes 52ms
+ ✓ sheets/bridge.test.ts > new version on UniWork (doc.remoteVersion) > dirty: nothing is opened and the warn bar offers Reload 2ms
+ ✓ sheets/bridge.test.ts > new version on UniWork (doc.remoteVersion) > a revoked document locks saving with the status bar 52ms
+ ✓ sheets/bridge.test.ts > new version on UniWork (doc.remoteVersion) > doc.blocked locks at once with pending edits: the bar, saves refused, nothing re-opened 2ms
+ ✓ sheets/bridge.test.ts > new version on UniWork (doc.remoteVersion) > doc.blocked with an organisation reason: the bar only, the sheet usable, Save still reaches the host 1ms
+ ✓ sheets/bridge.test.ts > the comments version notifier (G8-12 §3.3) > the open workbook and every landed save reach frameDocVersion; only the save is announced 1ms
+ ✓ sheets/bridge.test.ts > save size gate (SIZE-F1, UNI-1861) > blocks save and save-as above limits.max_bytes without api.save / api.saveAs and resolves canceled so the editor raises no error toast 12ms
+ ✓ sheets/bridge.test.ts > FRAME-RO-01: capability flags, readOnly profile, and Escape (UNI-1876) > sheetsWebCapabilities defaults print/exportPdf/exportHtml to false and sheetsHostGrants maps them 0ms
+ ✓ sheets/bridge.test.ts > FRAME-RO-01: capability flags, readOnly profile, and Escape (UNI-1876) > save: false with saveAs: true refuses in-place save and allows Save As 1ms
+ ✓ sheets/bridge.test.ts > FRAME-RO-01: capability flags, readOnly profile, and Escape (UNI-1876) > save: true with saveAs: false allows in-place save and refuses Save As and exportCsv (D2) 1ms
+ ✓ sheets/bridge.test.ts > FRAME-RO-01: capability flags, readOnly profile, and Escape (UNI-1876) > print and exportPdf capabilities gate host print and desktopApi printWorkbook / exportPdf independently 2ms
+ ✓ sheets/bridge.test.ts > FRAME-RO-01: capability flags, readOnly profile, and Escape (UNI-1876) > readOnly profile clamps save/saveAs/exportHtml off, marks workbook readOnly + uniworkBound, and keeps granted print and exportPdf (D3) 1ms
+
+ Test Files  3 passed (3)
+      Tests  143 passed (143)
+   Start at  09:54:45
+   Duration  4.09s (transform 3.77s, setup 0ms, import 4.91s, tests 3.19s, environment 1.10s)
+
