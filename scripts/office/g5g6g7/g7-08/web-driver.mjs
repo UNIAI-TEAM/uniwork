@@ -23,6 +23,7 @@ import {
   oracleVersionAndSave, oracleXlsxEdit, oracleXlsxRead,
   parseDocxStructure, parsePptxStructure, parseXlsxWorkbookBytes,
 } from './oracles.mjs';
+import { observePdfTextEdit } from './pdf-text-edit.mjs';
 import { DEFAULT_REPO_ROOT, getRowById } from './rows.mjs';
 import {
   isSaveIntentPath, parseCommitBaseRevision, readFrameHead, readVersionCount,
@@ -298,6 +299,9 @@ export async function runWebMatrixRow(runEntry, {
     browser = await chromium.launch({ headless: true });
     web = await webLogin(browser, { key: 'g708-web', id: userId, email, password }, { webOrigin, locale: 'vi' });
     await installProtocolSniffer(web.page);
+    // w2l: the PDF frame logs "pdfium is unavailable" when its core fails; F-E1 reads availability from it.
+    const frameConsole = [];
+    web.page.on('console', (msg) => { if (/pdfium/i.test(msg.text())) frameConsole.push(msg.text()); });
 
     let inAiTurn = false;
     let saveIntentsDuringAiTurn = 0;
@@ -345,13 +349,9 @@ export async function runWebMatrixRow(runEntry, {
     const screenshotPath = preconditions?.frame?.screenshotPath ?? null;
     if (precondVerdict.status !== VERDICT.PASS) return { ...precondVerdict, documentId, preconditions, screenshotPath };
 
-    if (row.id === 'F-E1') {
-      const pdfEditBtn = await frame.$('[data-tool="edit_text"], [data-capability="pdf_text_edit"]');
-      if (!pdfEditBtn) {
-        const fe1Verdict = evaluateRowObserved(row, { hostSupportsPdfTextEdit: false, offeredTools: ['read_pages', 'search_text', 'goto_page', 'get_outline'], controls: [], executedTools: [] });
-        return { ...fe1Verdict, documentId, preconditions, screenshotPath };
-      }
-    }
+    // w2l (F-E1): what the pinned PDF frame renders decides, never a made-up tool list. Available -> the real
+    // edit path runs; unavailable -> the AI turn still runs and the real offered tools must not name a text-edit tool.
+    const pdfTextEdit = row.id === 'F-E1' ? await observePdfTextEdit(frame, { notes: () => frameConsole }) : null;
 
     if (provider === 'byok') {
       const modelChip = await frame.$(FRAME_AI_SELECTORS.modelChip);
@@ -447,6 +447,12 @@ export async function runWebMatrixRow(runEntry, {
       executedTools: row.operation === 'edit' ? executedTools : wire.executedTools,
       controls, replyText, panelFootprintText: panelFootprintText || replyText,
     };
+    if (pdfTextEdit) {
+      rawObserved.hostSupportsPdfTextEdit = pdfTextEdit.available;
+      // The ribbon text-edit buttons the frame really shows are the controls a hidden tool must not leave behind.
+      if (pdfTextEdit.editText.present) controls.push({ capability: 'edit_text', present: true, disabled: pdfTextEdit.editText.disabled === true });
+      if (pdfTextEdit.insertText.present) controls.push({ capability: 'insert_text', present: true, disabled: pdfTextEdit.insertText.disabled === true });
+    }
 
     if (row.id === 'D-R1') {
       const parsed = parseDocxStructure(fixture.bytes);
@@ -457,7 +463,7 @@ export async function runWebMatrixRow(runEntry, {
     }
 
     let editStage = null;
-    if (row.operation === 'edit') {
+    if (row.operation === 'edit' && pdfTextEdit?.available !== false) {
       if (row.format === 'html') {
         const preview = await frame.$eval(FRAME_AI_SELECTORS.htmlPreviewFrame, (el) => ({
           sandbox: el.getAttribute('sandbox') ?? '',
@@ -492,7 +498,7 @@ export async function runWebMatrixRow(runEntry, {
     }
 
     const verdict = evaluateRowObserved(row, rawObserved);
-    const details = row.operation === 'edit' ? {
+    const details = row.operation === 'edit' && editStage ? {
       ...verdict.details, explicitSave: true, versionsBefore, versionsAfterAiTurn,
       versionsAfterSave: rawObserved.versionsAfterSave, versionDelta: (rawObserved.versionsAfterSave ?? 0) - versionsAfterAiTurn,
       doubleClickVersionsCreated: rawObserved.doubleClickVersionsCreated,
@@ -500,7 +506,8 @@ export async function runWebMatrixRow(runEntry, {
       oldVersionSha256: rawObserved.oldVersionSha256, ...editStage.details,
       roundTrip: rawObserved.roundTrip ?? null,
       ...(rawObserved.oldDocxPath ? { oldDocxPath: rawObserved.oldDocxPath, newDocxPath: rawObserved.newDocxPath, partsDiffPath: rawObserved.partsDiffPath } : {}),
-    } : verdict.details;
+      ...(pdfTextEdit ? { pdfTextEdit } : {}),
+    } : { ...verdict.details, ...(pdfTextEdit ? { pdfTextEdit } : {}) };
     return { ...verdict, details, documentId, usage, preconditions, screenshotPath };
   } catch (err) {
     // R4-3 + R5-2: any throw after the observer is attached is unknown usage unless no frame AI POST was seen.
