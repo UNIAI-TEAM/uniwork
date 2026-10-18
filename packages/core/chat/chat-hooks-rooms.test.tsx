@@ -6,7 +6,12 @@ import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat";
 import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import type { User } from "../types/user";
 import { chatKeys } from "./chat-keys";
-import { useChatRoomMessages, useChatUnreadBadge, useSetChatRoomMuted } from "./chat-hooks-rooms";
+import {
+  useChatRoomMessages,
+  useChatUnreadBadge,
+  useSetChatRoomAvatar,
+  useSetChatRoomMuted,
+} from "./chat-hooks-rooms";
 
 const user: User = {
   id: "u1",
@@ -126,5 +131,25 @@ describe("room mute", () => {
     await act(async () => answer(false));
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(muted()).toBe(false);
+  });
+});
+
+describe("group avatar", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("useSetChatRoomAvatar uploads a file, removes on null, and refreshes the room list", async () => {
+    const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const upload = vi.spyOn(chatApi, "uploadChatRoomAvatar").mockResolvedValue(null);
+    const remove = vi.spyOn(chatApi, "removeChatRoomAvatar").mockResolvedValue(null);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useSetChatRoomAvatar("ws1"), { wrapper: wrapper(qc) });
+    const file = new File(["png"], "g.png", { type: "image/png" });
+
+    await act(() => result.current.mutateAsync({ roomId: "g1", file }));
+    expect(upload).toHaveBeenCalledWith("ws1", "g1", file);
+    expect(remove).not.toHaveBeenCalled();
+    await act(() => result.current.mutateAsync({ roomId: "g1", file: null }));
+    expect(remove).toHaveBeenCalledWith("ws1", "g1");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
   });
 });

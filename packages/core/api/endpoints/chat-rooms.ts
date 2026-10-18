@@ -69,6 +69,38 @@ export async function inviteChatGroupMembers(
   return parsed.room ?? null;
 }
 
+/** Sets a group's avatar; PNG, JPEG, GIF or WebP up to 2 MiB. */
+export async function uploadChatRoomAvatar(
+  workspaceId: string,
+  roomId: string,
+  file: File,
+): Promise<ChatRoomRecord | null> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/avatar`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/avatar",
+  });
+  return parsed.room ?? null;
+}
+
+export async function removeChatRoomAvatar(
+  workspaceId: string,
+  roomId: string,
+): Promise<ChatRoomRecord | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/avatar`,
+    { method: "DELETE" },
+  );
+  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
+    endpoint: "DELETE /api/v1/workspaces/{ws}/chat/rooms/{roomID}/avatar",
+  });
+  return parsed.room ?? null;
+}
+
 export async function leaveChatRoom(workspaceId: string, roomId: string): Promise<boolean> {
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/leave`,
