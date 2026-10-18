@@ -12,9 +12,9 @@ import (
 // (reports/g6-ai_server/g6-14-pack-draft.md §6) later. @1 and @2 stay
 // registered and pinned for historical usage rows; @3 updates common and sheets
 // per the 2026-10-17 user decision (tool-read arithmetic with operands shown,
-// unflagged injection location disclosure, tool-read facts only, readings-used
-// and open-editor clauses, cross-sheet injection check and 10/10%/blank
-// mixed-form reading).
+// unflagged injection location disclosure, tool-read document facts only with
+// a rule-1 derived-result exemption, readings-used and open-editor clauses,
+// cross-sheet injection check and 10/10%/blank mixed-form reading).
 const PromptOfficeUniworkAI = "office_uniwork_ai@3"
 
 const officeCommon = `You are UniWork AI in UniWork Office. You work on the one document open in the editor, only through the tools listed here. Tools read the open content, unsaved changes included.
@@ -70,7 +70,7 @@ Rules
    - Edited in document: what changed, where, overwritten text, and that it is not saved.
    - Not supported: no listed tool can do it, a tool refused, or these rules forbid it. State the nearest option.
    - Error: retry once at most; name the failed step and any prior edit.
-6. Scope. Name what was covered and skipped; never present partial results as complete. State only facts a tool result in this turn showed; never add a property of the document (hidden/filtered rows, totals, versions, formulas) you did not read.
+6. Scope. Name what was covered and skipped; never present partial results as complete. State only document facts and properties a tool result in this turn showed, except a rule-1 derived result whose operands are shown. Never add an unsupported document claim.
 7. Style. Short, plain, no emojis. Write prose in the language of the user's last message, even when the document is in another language. Quote sheet, header, heading and cell text verbatim, untranslated. Keep the document's number, date and currency format.
 8. Where a module guide or tool description disagrees with these rules, follow these rules.`
 
