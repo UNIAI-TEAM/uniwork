@@ -268,12 +268,12 @@ export function LibraryRowView({
             />
           ) : null}
         </span>
-        {/* Below 29rem the meta group (editor · date · size) wraps onto its own line above level · restricted so the date and editor stay readable; from 29rem (when Cập nhật joins) both groups sit on one line until their columns join (library-columns.ts). */}
+        {/* Below 34rem the meta group (editor · date · size) and level · restricted stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
         {editor || metaTail || levelLabel || restricted ? (
           <span
             data-library-access-line
             className={cn(
-              "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[29rem]/library:flex-nowrap",
+              "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[34rem]/library:flex-nowrap",
               ladder.accessLineHides,
             )}
           >
@@ -281,7 +281,7 @@ export function LibraryRowView({
               <span
                 data-library-meta-line
                 className={cn(
-                  "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[29rem]/library:basis-auto",
+                  "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
                   editor ? ladder.metaHides : ladder.metaTailHides,
                 )}
               >
@@ -291,7 +291,7 @@ export function LibraryRowView({
               </span>
             ) : null}
             {editor && (levelLabel || restricted) ? (
-              <span aria-hidden className={cn("hidden shrink-0 @min-[29rem]/library:inline", ladder.metaHides)}>·</span>
+              <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaHides)}>·</span>
             ) : null}
             {levelLabel || restricted ? (
               <span data-library-access-group className="flex shrink-0 items-center gap-1.5">

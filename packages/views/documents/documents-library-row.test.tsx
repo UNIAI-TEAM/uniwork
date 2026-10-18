@@ -152,8 +152,8 @@ describe("access column", () => {
   });
 });
 
-describe("narrow secondary line at 390 (< 29rem, UNI-1902)", () => {
-  it("wraps meta (editor · date · size) above level · restricted below 29rem with a non-truncating date and no orphan separator", () => {
+describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
+  it("wraps meta (editor · date · size) above level · restricted below 34rem with a non-truncating date and no orphan separator", () => {
     renderList([
       doc("a", "Hợp đồng mẫu.docx", {
         my_level: "manage",
@@ -171,13 +171,13 @@ describe("narrow secondary line at 390 (< 29rem, UNI-1902)", () => {
       }),
     ]);
     const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;
-    expect(line).toHaveClass("flex-wrap", "@min-[29rem]/library:flex-nowrap");
+    expect(line).toHaveClass("flex-wrap", "@min-[34rem]/library:flex-nowrap");
 
     const metaGroup = line.querySelector("[data-library-meta-line]") as HTMLElement;
     const accessGroup = line.querySelector("[data-library-access-group]") as HTMLElement;
     expect(metaGroup).toBeTruthy();
     expect(accessGroup).toBeTruthy();
-    expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[29rem]/library:basis-auto", "@min-[42rem]/library:hidden");
+    expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[34rem]/library:basis-auto", "@min-[42rem]/library:hidden");
     expect(accessGroup).toHaveClass("shrink-0");
 
     const editorEl = within(metaGroup).getByText("An");
@@ -199,7 +199,7 @@ describe("narrow secondary line at 390 (< 29rem, UNI-1902)", () => {
 
     const interDot = Array.from(line.children).find((el) => el.textContent === "·") as HTMLElement;
     expect(interDot).toBeTruthy();
-    expect(interDot).toHaveClass("hidden", "@min-[29rem]/library:inline", "@min-[42rem]/library:hidden");
+    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[42rem]/library:hidden");
 
     const lineB = document.querySelector('[data-library-row="b"] [data-library-access-line]') as HTMLElement;
     const metaB = lineB.querySelector("[data-library-meta-line]") as HTMLElement;
