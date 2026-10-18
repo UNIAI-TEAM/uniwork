@@ -71,6 +71,17 @@ describe("DocumentUploadDialog", () => {
     expect(bar).toHaveClass("**:data-[slot=progress-indicator]:transition-none");
   });
 
+  it("keeps the size hint visible once a file is picked (P-3)", () => {
+    renderDialog({ hint: "Tối đa 200 MB mỗi tệp." });
+    expect(screen.getByText("Tối đa 200 MB mỗi tệp.")).toBeInTheDocument();
+
+    const input = screen.getByLabelText(t("documents.upload.pick")) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File(["x"], "a.pdf", { type: "application/pdf" })] },
+    });
+    expect(screen.getByText("Tối đa 200 MB mỗi tệp.")).toBeInTheDocument();
+  });
+
   it("draws the progress track with a visible boundary (R2-F3)", () => {
     renderDialog({
       chunkedProgress: { phase: "uploading", sentBytes: 50, totalBytes: 100 },

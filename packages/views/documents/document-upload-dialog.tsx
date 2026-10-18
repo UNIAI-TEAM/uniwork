@@ -193,7 +193,7 @@ export function DocumentUploadDialog({
                 {file ? t("documents.upload.selected", { name: file.name }) : t("documents.upload.no_file")}
               </p>
             </div>
-            {!file && hint ? (
+            {hint ? (
               <p className="text-caption text-muted-foreground">{hint}</p>
             ) : null}
             {showResumeHint ? (
