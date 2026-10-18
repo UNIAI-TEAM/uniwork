@@ -879,6 +879,12 @@ describe('item 15 (round j, J-1): an integer after a location noun is exempt onl
     assert.equal(verdict(slideCase, readAsk('read_slide', 'slides', slides, 'There are 4 slides (slide 3 is the last).', { numbers: [4], items: [{ ...item, value: 4 }] })), 'fail', 'a wrong count stays a failure');
   });
 
+  it('is no shown operand of a derivation', () => {
+    const parts = { slideCount: 3, slides: [{ texts: ['Alpha 22'] }, { texts: ['Beta 3'] }, { texts: ['Gamma'] }] };
+    assert.equal(verdict(pptx, sAsk('The total is 25, from 22 and 3.', parts)), 'pass', 'the control: both operands are shown');
+    assert.equal(verdict(pptx, sAsk('The total is 25, from 22 and what is on slide 3.', parts)), 'fail', 'the 3 of a location shows no operand');
+  });
+
   it('gives report.numbers no exemption', () => {
     assert.equal(verdict(pptx, sAsk('The total is 25.')), 'pass', 'the control: no location, no report.numbers 3');
     const ask = readAsk('read_slide', 'slides', slides, 'The total is 25 (slide 3).', { numbers: [25, 3] });

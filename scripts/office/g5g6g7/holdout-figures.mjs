@@ -449,6 +449,47 @@ export function countsOf(text) {
   return out;
 }
 
+/** The sheet names ONE successful result lists: `sheetName`, `sheetNames`, `sheets[].name`. A failed result lists none. */
+export function sheetNamesOf(text) {
+  let root;
+  try {
+    root = JSON.parse(String(text));
+  } catch {
+    return [];
+  }
+  if (!root || typeof root !== 'object' || Array.isArray(root) || isFailedResultPayload(root)) return [];
+  const names = [root.sheetName, ...(Array.isArray(root.sheetNames) ? root.sheetNames : []), ...(Array.isArray(root.sheets) ? root.sheets.map((s) => s?.name) : [])];
+  return names.filter((n) => typeof n === 'string' && n !== '');
+}
+
+// The location nouns of the reply, in ONE table (round j, J-1): an integer right after one is a LOCATION ("slide 3",
+// "trang 2"), the place a value was read, not a figure. The vi "trang" is a page or a slide, "trang chiếu" a slide.
+const LOCATION_KINDS = new Map([['slide', ['slides']], ['page', ['pages']], ['sheet', ['sheets']], ['trang', ['pages', 'slides']], ['trang chieu', ['slides']]]);
+const LOCATION_RE = /(?<![\p{L}\d])(trang\s+chieu|trang|slide|page|sheet)(?:\s*#|\s+no\.?|\s+so)?\s*$/u;
+
+/**
+ * The kinds ('slides', 'pages', 'sheets') whose element a prose figure is the ORDINAL of, or null: a plain integer
+ * directly after a singular location noun, with nothing between but "#", "no." or "số". The plural is a kind name
+ * ("slides: 3"), never a location.
+ */
+export function locationKindsOf(text, q) {
+  if (q.unit || q.currency || !/^\d+$/.test(q.raw) || q.readings.length !== 1 || q.readings[0].n < 1) return null;
+  const m = LOCATION_RE.exec(foldAscii(String(text ?? '').slice(Math.max(0, q.start - 40), q.start)));
+  return m ? LOCATION_KINDS.get(m[1].replace(/\s+/g, ' ')) : null;
+}
+
+/**
+ * Does a successful read of this turn hold the location? A slide or page index is at most the count of that kind in ONE
+ * result (slideCount, pageCount, the array length); a sheet index is at most the sheet count, or a sheet is named that
+ * way. Nothing else holds a location, and a held location is exempt from the trace only: it credits nothing (J-1).
+ */
+export function heldLocation(kinds, q, ctx) {
+  if (!kinds || !Array.isArray(ctx.counts)) return false;
+  const index = q.readings[0].n;
+  if (ctx.counts.some((c) => kinds.includes(c.kind) && c.n >= index)) return true;
+  return kinds.includes('sheets') && ctx.sheetNames instanceof Set && ctx.sheetNames.has(q.raw);
+}
+
 const SENTENCE_END_RE = /[.!?;\n]/;
 const CONNECTORS = new Set(['is', 'are', 'was', 'were', 'be', 'la', 'co', 'gom', 'bang', 'of', 'only', 'total', 'in']);
 // Words that may stand right before a kind phrase without modifying it ("the slides", "number of sheets"); any other word

@@ -37,7 +37,7 @@
 
 import { anchorMatches, countTopicKey, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
-import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, echoesQuestion, figureQuantity, kindsNear, kindsOfName, labelKindOf, operandsOf, quantitiesOf, readLeaves, tracedFigure, withProsePercent } from './holdout-figures.mjs';
+import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, echoesQuestion, figureQuantity, heldLocation, kindsNear, kindsOfName, labelKindOf, locationKindsOf, operandsOf, quantitiesOf, readLeaves, sheetNamesOf, tracedFigure, withProsePercent } from './holdout-figures.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
@@ -260,6 +260,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const attributed = Array.isArray(ask.toolResults) ? ask.toolResults : null;
   const reads = [];
   const counts = [];
+  const sheetNames = new Set();
   const sourceCurrencies = currenciesIn(sourceText);
   const pushLeaves = (text, compute) => {
     for (const q of readLeaves(text)) reads.push({ q, compute });
@@ -275,13 +276,17 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       const pairedCall = matchingCalls[occ] ?? matchingCalls.at(-1);
       if (!pairedCall || pairedCall.denied || r?.denied) continue;
       if (pairedCall.isRead) pushLeaves(String(r.text ?? ''), isComputeCall(name));
-      if (pairedCall.isCountSource) counts.push(...countsOf(String(r.text ?? '')));
+      if (pairedCall.isCountSource) {
+        counts.push(...countsOf(String(r.text ?? '')));
+        sheetNamesOf(String(r.text ?? '')).forEach((n) => sheetNames.add(n));
+      }
     }
   } else if (successfulReads.length > 0) {
     const anyCompute = successfulReads.some((c) => isComputeCall(c.name));
     for (const chunk of String(ask.toolResultsText ?? '').split('\n').filter(Boolean)) {
       pushLeaves(chunk, anyCompute);
       counts.push(...countsOf(chunk));
+      sheetNamesOf(chunk).forEach((n) => sheetNames.add(n));
     }
   }
   const queryText = [caseDoc.query?.vi, caseDoc.query?.en].filter((s) => typeof s === 'string').join('\n');
@@ -292,18 +297,23 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const countItems = items.filter((it) => it.kind === 'count');
   const namedKinds = new Set(countItems.flatMap((it) => kindsOfName(it.anchor)));
   // `labelKind` marks the level digit of a heading-level phrase in prose ("level 2 headings"): a label, never a count (R21-1).
-  const proseQs = quantitiesOf(parsed.text, { prose: true }).map((q) => ({ ...q, labelKind: labelKindOf(parsed.text, q, namedKinds) }));
+  // `location` marks an integer right after a location noun ("slide 3"); `heldLocation` is true when a successful read holds it (J-1).
+  const proseQs = quantitiesOf(parsed.text, { prose: true }).map((q) => {
+    const location = locationKindsOf(parsed.text, q);
+    return { ...q, labelKind: labelKindOf(parsed.text, q, namedKinds), location, heldLocation: heldLocation(location, q, { counts, sheetNames }) };
+  });
   const itemQs = items.flatMap((it) => quantitiesOf(String(it.value ?? '')));
   // `fromReport` lets a plain number of report.numbers trace to a "%" leaf; prose figures never carry it (round h, H-1).
   const reportQs = figures.map((f) => {
     const q = withProsePercent(figureQuantity(f), proseQs);
     return q ? { ...q, fromReport: true } : q;
   });
-  const operands = operandsOf(reads.map((r) => r.q), [proseQs, itemQs, reportQs.filter(Boolean)]);
+  const operands = operandsOf(reads.map((r) => r.q), [proseQs.filter((q) => !q.heldLocation), itemQs, reportQs.filter(Boolean)]);
   // Trace (d): a count of a kind the reply names. report.items names a kind by its anchor; the prose names one beside a
   // figure ("3 slides"). A figure that report.items marks as a count traces only through this (see traceClaim).
   const proseKinds = new Map();
   for (const q of proseQs) {
+    if (q.location) continue; // "slide 3" is where a value was read, it names no count of slides (R21-2, J-1)
     for (const r of q.readings) proseKinds.set(r.n, new Set([...(proseKinds.get(r.n) ?? []), ...kindsNear(parsed.text, q)]));
   }
   // Only a count item whose anchor is a kind of the table marks its figure: a count of something trace (d) does not know
@@ -361,8 +371,9 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       if (bad || extraByPolicy) strictExtras.push(value);
     });
     for (const t of tracedProse) {
-      // A prose figure that echoes a question number (same value and marker) is neither checked nor counted (I-1).
-      if (t.by || echoesQuestion(t.q, questionQs)) continue;
+      // A prose figure that echoes a question number (same value and marker) is neither checked nor counted (I-1); nor is a
+      // location ordinal that a successful read holds (J-1). Both are exempt from the trace and credit nothing.
+      if (t.by || t.q.heldLocation || echoesQuestion(t.q, questionQs)) continue;
       untraceable.push({ where: 'prose', value: t.q.raw, why: t.currency ? 'currency' : t.unitOnly ? 'unit' : 'no_source' });
       strictExtras.push(t.q.raw);
     }
