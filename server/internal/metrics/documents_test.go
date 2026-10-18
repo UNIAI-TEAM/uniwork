@@ -25,6 +25,7 @@ func TestDocumentMetricsExposeSaveAndWorkerSignals(t *testing.T) {
 	d.IncDocumentVersionsProtectedOverflow()
 	d.ObserveDocumentSave("page", "ok", 0.012)
 	d.ObserveDocumentSave("file", "conflict", 0.4)
+	d.ObserveDocumentSave("file", "unchanged", 0.02)
 	d.IncDocumentConflict("file", "document_version_conflict")
 	d.IncDocumentQuotaRejected("page")
 	d.ObserveDocumentWorkerSweep("purge", "error", 3.5)
@@ -38,8 +39,9 @@ func TestDocumentMetricsExposeSaveAndWorkerSignals(t *testing.T) {
 		"uniwork_document_versions_protected_overflow_total 1",
 		`uniwork_document_saves_total{kind="page",outcome="ok"} 1`,
 		`uniwork_document_saves_total{kind="file",outcome="conflict"} 1`,
+		`uniwork_document_saves_total{kind="file",outcome="unchanged"} 1`,
 		`uniwork_document_save_duration_seconds_count{kind="page"} 1`,
-		`uniwork_document_save_duration_seconds_count{kind="file"} 1`,
+		`uniwork_document_save_duration_seconds_count{kind="file"} 2`,
 		`uniwork_document_conflicts_total{code="document_version_conflict",kind="file"} 1`,
 		`uniwork_document_quota_rejects_total{kind="page"} 1`,
 		`uniwork_document_worker_sweeps_total{result="error",worker="purge"} 1`,

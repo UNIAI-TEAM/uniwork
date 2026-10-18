@@ -609,6 +609,167 @@ func TestShelvedWriteBlockAllowed(t *testing.T) {
 	})
 }
 
+// TestShelvedUpdateDocumentAccess is Q-AR2 for PUT /access (SH-S2, UNI-1781):
+// on a shelved document a new grant, a raise (DocumentLevel.rank of the
+// requested level vs the live grant), or turning the home row from
+// restricted to workspace-visible is 409 document_shelved with nothing
+// written — including dry_run. Revoke-only (Level == nil) and a lower of an
+// existing grant pass. An outsider hits the access gate first (404/403),
+// never document_shelved.
+func TestShelvedUpdateDocumentAccess(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	mgr := Human(env.tn.aclOwner.ID)
+
+	t.Run("new user grant is refused", func(t *testing.T) {
+		d := shelve(t, env, pageDoc(t, env).ID)
+		before := accessStateSnapshot(t, env.f, d.ID)
+		_, err := env.svc.UpdateDocumentAccess(env.f.ctx, mgr, d.ID, UpdateDocumentAccessInput{
+			Items: []DocumentAccessBatchItem{{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID,
+				Level: docLevelPtr(DocumentLevelView),
+			}},
+		})
+		wantShelvedWrite(t, err)
+		if after := accessStateSnapshot(t, env.f, d.ID); after != before {
+			t.Fatalf("refused grant wrote:\n before=%s\n after =%s", before, after)
+		}
+	})
+
+	t.Run("dry_run of a new grant is refused", func(t *testing.T) {
+		d := shelve(t, env, pageDoc(t, env).ID)
+		before := accessStateSnapshot(t, env.f, d.ID)
+		_, err := env.svc.UpdateDocumentAccess(env.f.ctx, mgr, d.ID, UpdateDocumentAccessInput{
+			DryRun: true,
+			Items: []DocumentAccessBatchItem{{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID,
+				Level: docLevelPtr(DocumentLevelView),
+			}},
+		})
+		wantShelvedWrite(t, err)
+		if after := accessStateSnapshot(t, env.f, d.ID); after != before {
+			t.Fatalf("refused dry_run wrote:\n before=%s\n after =%s", before, after)
+		}
+	})
+
+	t.Run("raise view to edit is refused", func(t *testing.T) {
+		page := pageDoc(t, env)
+		if _, err := env.svc.ShareDocument(env.f.ctx, mgr, page.ID, DocumentShareInput{
+			PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID, Level: DocumentLevelView,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		d := shelve(t, env, page.ID)
+		before := accessStateSnapshot(t, env.f, d.ID)
+		_, err := env.svc.UpdateDocumentAccess(env.f.ctx, mgr, d.ID, UpdateDocumentAccessInput{
+			Items: []DocumentAccessBatchItem{{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID,
+				Level: docLevelPtr(DocumentLevelEdit),
+			}},
+		})
+		wantShelvedWrite(t, err)
+		if after := accessStateSnapshot(t, env.f, d.ID); after != before {
+			t.Fatalf("refused raise wrote:\n before=%s\n after =%s", before, after)
+		}
+		got, ok := liveShareLevel(t, env, d, DocumentPrincipalUser, env.tn.outsider.ID)
+		if !ok || got != DocumentLevelView {
+			t.Fatalf("live share after refused raise = %q present=%v, want view", got, ok)
+		}
+	})
+
+	t.Run("home row restricted to view is refused", func(t *testing.T) {
+		d := shelve(t, env, pageDocOf(t, env, "restricted").ID)
+		before := accessStateSnapshot(t, env.f, d.ID)
+		_, err := env.svc.UpdateDocumentAccess(env.f.ctx, mgr, d.ID, UpdateDocumentAccessInput{
+			Items: []DocumentAccessBatchItem{{
+				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: d.WorkspaceID,
+				Level: docLevelPtr(DocumentLevelView),
+			}},
+		})
+		wantShelvedWrite(t, err)
+		if after := accessStateSnapshot(t, env.f, d.ID); after != before {
+			t.Fatalf("refused home-row grant wrote:\n before=%s\n after =%s", before, after)
+		}
+		got := env.doc(t, d.ID)
+		if got.Visibility != "restricted" {
+			t.Fatalf("visibility after refused home-row grant = %q, want restricted", got.Visibility)
+		}
+	})
+
+	t.Run("revoke-only batch succeeds", func(t *testing.T) {
+		page := pageDoc(t, env)
+		if _, err := env.svc.ShareDocument(env.f.ctx, mgr, page.ID, DocumentShareInput{
+			PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID, Level: DocumentLevelView,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		d := shelve(t, env, page.ID)
+		res, err := env.svc.UpdateDocumentAccess(env.f.ctx, mgr, d.ID, UpdateDocumentAccessInput{
+			Items: []DocumentAccessBatchItem{{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("revoke-only: %v", err)
+		}
+		if len(res.Results) != 1 || res.Results[0].Status != DocumentAccessStatusRevoked {
+			t.Fatalf("revoke-only result = %+v", res.Results)
+		}
+		if _, ok := liveShareLevel(t, env, d, DocumentPrincipalUser, env.tn.outsider.ID); ok {
+			t.Fatal("live share still present after revoke-only batch")
+		}
+	})
+
+	t.Run("lower edit to view succeeds", func(t *testing.T) {
+		page := pageDoc(t, env)
+		if _, err := env.svc.ShareDocument(env.f.ctx, mgr, page.ID, DocumentShareInput{
+			PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID, Level: DocumentLevelEdit,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		d := shelve(t, env, page.ID)
+		res, err := env.svc.UpdateDocumentAccess(env.f.ctx, mgr, d.ID, UpdateDocumentAccessInput{
+			Items: []DocumentAccessBatchItem{{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID,
+				Level: docLevelPtr(DocumentLevelView),
+			}},
+		})
+		if err != nil {
+			t.Fatalf("lower: %v", err)
+		}
+		if len(res.Results) != 1 || res.Results[0].Status != DocumentAccessStatusUpdated {
+			t.Fatalf("lower result = %+v", res.Results)
+		}
+		got, ok := liveShareLevel(t, env, d, DocumentPrincipalUser, env.tn.outsider.ID)
+		if !ok || got != DocumentLevelView {
+			t.Fatalf("live share after lower = %q present=%v, want view", got, ok)
+		}
+	})
+
+	t.Run("outsider hits the access gate", func(t *testing.T) {
+		d := shelve(t, env, pageDoc(t, env).ID)
+		_, err := env.svc.UpdateDocumentAccess(env.f.ctx, Human(env.tn.outsider.ID), d.ID, UpdateDocumentAccessInput{
+			Items: []DocumentAccessBatchItem{{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.member.ID,
+				Level: docLevelPtr(DocumentLevelView),
+			}},
+		})
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("outsider UpdateDocumentAccess on shelved = %v, want not_found (never document_shelved)", err)
+		}
+	})
+}
+
+func liveShareLevel(t *testing.T, env *docStorageEnv, doc db.Document, principalType, principalID string) (DocumentLevel, bool) {
+	t.Helper()
+	shares, err := env.f.q.ListDocumentShares(env.f.ctx, db.ListDocumentSharesParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return shareLevelInSlice(shares, principalType, principalID)
+}
+
 // TestShelvedUploadSessionAbortStaysAllowed is the abort half: aborting a
 // shelved upload session frees the staged bytes of a session the client no
 // longer wants, so the shelve must not strand them. The session is opened on a

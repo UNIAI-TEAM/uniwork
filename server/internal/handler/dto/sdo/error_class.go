@@ -169,6 +169,12 @@ var errorClassByCode = map[string]string{
 //     the lock state, use another route, wait); "conflict", "permission" or
 //     "gone" would send the client down the wrong path, so it branches on
 //     the code.
+//   document_access_rejected (422, fields.rejected[]) one or more items in
+//     PUT /documents/{documentID}/access failed semantic validation (SH-S2,
+//     UNI-1781; per-item fields.rejected[].code: principal_not_in_organization,
+//     level_not_allowed, duplicate_principal, break_glass_required). The dialog
+//     highlights the rejected rows in place instead of running permission or
+//     reload recovery.
 
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.

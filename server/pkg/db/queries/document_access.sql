@@ -52,6 +52,19 @@ WHERE id = sqlc.arg(id)
   AND document_id = sqlc.arg(document_id)
   AND revoked_at IS NULL;
 
+-- The grant a share_id names, INCLUDING a revoked one: the notification
+-- consumer recovers the level a delayed document.shared event originally
+-- granted when the share was revoked before delivery (SH-S3 R1-09). Keyed by
+-- the id the event carries and bound to the document's tenant pair, so it can
+-- never recover another recipient's row.
+-- name: GetDocumentShareByID :one
+SELECT *
+FROM document_shares
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id);
+
 -- "Shared with me" candidates: live shares naming the person, the whole
 -- organization, or one of the workspaces the service passes in (the ones the
 -- person reaches through WorkspaceService; membership is never read in SQL).

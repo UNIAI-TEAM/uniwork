@@ -8,6 +8,7 @@ import { isMyFolder, type DocumentSummary } from "@uniwork/core/types/document";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
+import { DocumentShareScopeBadge } from "./document-share-scope-badge";
 import { DocumentTypeIcon, documentIconFormat } from "./document-type-icon";
 import {
   DOCUMENT_SEARCH_FILTERS,
@@ -119,7 +120,7 @@ export function DocumentsSearchResults({
     search.filter !== "document" &&
     trimmedQuery.length > 0 &&
     myFolderLabel.toLocaleLowerCase().includes(trimmedQuery.toLocaleLowerCase());
-  const visibleItems: Pick<DocumentSummary, "id" | "kind" | "title" | "system_kind" | "path">[] =
+  const visibleItems: (Pick<DocumentSummary, "id" | "kind" | "title" | "system_kind" | "path"> & Partial<Pick<DocumentSummary, "share_scope" | "workspace_id">>)[] =
     matchesMyFolder && !search.items.some((item) => item.id === myFolderId || isMyFolder(item))
       ? [{ id: myFolderId!, kind: "folder", title: myFolderLabel, system_kind: "my_folder" }, ...search.items]
       : search.items;
@@ -229,6 +230,12 @@ export function DocumentsSearchResults({
                           {t("documents.home.search.path", { path: full })}
                         </span>
                       </span>
+                      <DocumentShareScopeBadge
+                        shareScope={item.share_scope}
+                        workspaceId={item.workspace_id}
+                        compact
+                        focusable={false}
+                      />
                     </button>
                   </li>
                 );

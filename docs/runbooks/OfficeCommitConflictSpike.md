@@ -4,7 +4,7 @@
 
 ## Triệu chứng
 
-- Alert `OfficeCommitConflictSpike`: hơn 20 % lệnh Lưu file (`uniwork_document_saves_total{kind="file"}`) trong 30 phút bị `document_version_conflict` (`uniwork_document_conflicts_total{kind="file",code="document_version_conflict"}`), với ít nhất 20 lệnh Lưu.
+- Alert `OfficeCommitConflictSpike`: hơn 20 % lệnh Lưu file (`uniwork_document_saves_total{kind="file"}`) trong 30 phút bị `document_version_conflict` (`uniwork_document_conflicts_total{kind="file",code="document_version_conflict"}`), với ít nhất 20 lệnh Lưu. Mẫu số bỏ `outcome="unchanged"` (lưu trùng byte trả 200, UNI-1900): chuỗi lưu trùng không được pha loãng tỷ lệ để che một đợt xung đột.
 - Người dùng thấy hộp thoại xung đột ("Tải bản mới nhất" / "Ghi đè" / "Hủy"). Không mất dữ liệu: bản cục bộ được giữ.
 
 ## Kiểm tra

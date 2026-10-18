@@ -260,7 +260,7 @@ type MoveDocumentSDI struct {
 type ShareDocumentSDI struct {
 	PrincipalType string `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
 	PrincipalID   string `json:"principal_id" description:"ULID người/workspace, hoặc ULID tổ chức khi principal_type=organization" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level         string `json:"level" description:"view, comment, edit hoặc manage (manage không nhận cho workspace chứa tài liệu -> 422 level_not_allowed)" example:"view"`
+	Level         string `json:"level" description:"view, comment, edit hoặc manage (manage không nhận cho workspace chứa tài liệu và organization -> 422 level_not_allowed)" example:"view"`
 }
 
 // BreakGlassSDI is POST /api/v1/documents/{documentID}/break-glass: a workspace
@@ -275,6 +275,25 @@ type BreakGlassSDI struct {
 type ShareDocumentBatchSDI struct {
 	PrincipalIDs []string `json:"principal_ids" description:"ULID người dùng cùng tổ chức với tài liệu; tối đa 50 id phân biệt sau khi cắt khoảng trắng và gộp trùng lặp" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\",\"01J8X4K2M0N1P2Q3R4S5T6U7V9\"]"`
 	Level        string   `json:"level" description:"Cấp quyền, cùng tập giá trị với POST /shares" example:"view"`
+}
+
+// UpdateDocumentAccessSDI is PUT /api/v1/documents/{documentID}/access (SH-S2,
+// UNI-1781): batch grant/update/revoke/keep across users, workspaces and the
+// organization, with optional dry_run preview.
+type UpdateDocumentAccessSDI struct {
+	Items  []DocumentAccessItemSDI `json:"items" description:"1–100 mục phân quyền; trùng (principal_type, principal_id) -> 422 document_access_rejected"`
+	DryRun bool                    `json:"dry_run,omitempty" description:"true = chỉ tính preview và kết quả dự kiến, không ghi DB" example:"false"`
+}
+
+// DocumentAccessItemSDI is one principal change in UpdateDocumentAccessSDI;
+// the element type is named on purpose so the isolation reference scanner sees
+// DocumentAccessItemSDI.principal_id. level is required on the wire: an absent
+// key is a 400 (R1-10), an explicit null is the revoke.
+type DocumentAccessItemSDI struct {
+	PrincipalType string  `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
+	PrincipalID   string  `json:"principal_id" description:"ULID người dùng, workspace hoặc tổ chức" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Level         *string `json:"level" description:"Bắt buộc: view, comment, edit, manage, hoặc null để thu hồi grant trực tiếp hiện tại (dòng Workspace gốc: tắt về restricted); thiếu khóa -> 400" example:"edit"`
+	OnExisting    string  `json:"on_existing,omitempty" description:"update (mặc định) hoặc keep (giữ nguyên grant đang có)" example:"update"`
 }
 
 // CreateDocumentLinkSDI is POST /api/v1/documents/{documentID}/links:
@@ -310,6 +329,14 @@ type ListMentionCandidatesSDI struct {
 	Limit *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 50; ngoài khoảng bị kẹp" example:"20"`
 	// Include is honoured only for a caller who may list the workspace's members.
 	Include *string `query:"include" description:"no_access = thêm cả người chưa xem được tài liệu, mỗi dòng có can_view (G8-18); chỉ có hiệu lực khi người gọi xem được danh sách thành viên workspace, ngược lại bị bỏ qua" example:"no_access"`
+}
+
+// ListDocumentShareCandidatesSDI documents GET
+// /api/v1/documents/{documentID}/share-candidates (SH-S2, UNI-1781).
+type ListDocumentShareCandidatesSDI struct {
+	Q      *string `query:"q" description:"Từ khóa tìm theo tên, email và slug (gấp dấu uw_fold_search)" example:"nguyen"`
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"bmd1eWVuAHVzZXIAMDFKOA"`
+	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 50" example:"20"`
 }
 
 // UploadSessionProbeSDI is the client's probe of the file it is about to

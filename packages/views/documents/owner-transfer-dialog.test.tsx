@@ -176,7 +176,9 @@ describe("ShareDialog owner transfer (DOC6-W01)", () => {
     renderDialog(target({ my_level: "edit" }));
     await screen.findByText(t("documents.share.manage_only"));
     expect(screen.queryByRole("button", { name: t("documents.share.owner.transfer_button") })).toBeNull();
-    expect(requestMock.mock.calls.some(([p]) => p === "/api/v1/documents/d1/shares")).toBe(false);
+    // U-SH4: every reader loads the overview for their own level and sources, so the
+    // read is expected; the gate is the missing button, not a missing request.
+    expect(requestMock.mock.calls.some(([p]) => p === "/api/v1/documents/d1/shares")).toBe(true);
   });
 
   it("offers active workspace members only, never the current owner, and keeps Edit by default", async () => {

@@ -16,6 +16,7 @@ import {
 import type { DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
+import type { CreateShareOptions } from "./documents-create";
 import type { DocumentUploadDialogProps } from "./document-upload-dialog";
 
 interface UseDocumentFileUploadOptions {
@@ -25,6 +26,9 @@ interface UseDocumentFileUploadOptions {
   onOpen: (documentId: string) => void;
   /** Dialog description; defaults to the generic upload sentence. */
   description?: string;
+  /** True when the open folder already shares with the home workspace: the
+   *  upload dialog shows the inherited state and never re-sends it (TV1-15). */
+  parentShared?: boolean;
   /**
    * Small-file creates with no parent carry this destination marker (the
    * server resolves it, e.g. `"my_folder"`) instead of a `parent_id`.
@@ -51,6 +55,7 @@ export function useDocumentFileUpload({
   limits,
   onOpen,
   description,
+  parentShared = false,
   rootDestination,
   resolveRootParent,
   rootParentId,
@@ -97,10 +102,12 @@ export function useDocumentFileUpload({
   // workspace root (when configured) gets the destination marker instead —
   // the branches can't share a unioned `meta` object for the discriminated
   // input, so each call site picks its own.
-  const createInput = (file: File): CreateDocumentFileInput =>
-    parentId
-      ? { file, meta: { parent_id: parentId } }
-      : { file, meta: rootDestination ? { destination: rootDestination } : undefined };
+  const createInput = (file: File, share?: boolean): CreateDocumentFileInput => {
+    const visibility = share ? ({ visibility: "workspace" } as const) : {};
+    return parentId
+      ? { file, meta: { parent_id: parentId, ...visibility } }
+      : { file, meta: rootDestination ? { destination: rootDestination, ...visibility } : undefined };
+  };
   const chunked = useChunkedDocumentUpload(target, {
     onProgress: (p) => {
       const activeDrop = dropToastRef.current;
@@ -129,12 +136,14 @@ export function useDocumentFileUpload({
    * record saved at the root is ignored: a fresh session opens under the
    * resolved parent.
    */
-  const resolveChunkedTarget = async (file: File, filename: string): Promise<UploadSessionTarget | undefined> => {
-    if (parentId || !resolveRootParent) return undefined;
+  const resolveChunkedTarget = async (share?: boolean): Promise<UploadSessionTarget | undefined> => {
+    const visibility = share ? { visibility: "workspace" } : {};
+    if (parentId) return share ? { kind: "workspace", workspaceId: wsId, parentId, ...visibility } : undefined;
+    if (!resolveRootParent) return share ? { kind: "workspace", workspaceId: wsId, ...visibility } : undefined;
     const rootId = rootParentId ?? resolvedRootParent ?? (await resolveRootParent());
-    if (!rootId) return undefined;
+    if (!rootId) return share ? { kind: "workspace", workspaceId: wsId, ...visibility } : undefined;
     if (resolvedRootParent === null) setResolvedRootParent(rootId);
-    return { kind: "workspace", workspaceId: wsId, parentId: rootId };
+    return { kind: "workspace", workspaceId: wsId, parentId: rootId, ...visibility };
   };
   const threshold = chunkedUploadThreshold(limits);
 
@@ -154,7 +163,7 @@ export function useDocumentFileUpload({
       );
       dropToastRef.current = { id: toastId, file, percent: 0 };
       try {
-        await chunked.start({ file, filename: file.name, target: await resolveChunkedTarget(file, file.name) });
+        await chunked.start({ file, filename: file.name, target: await resolveChunkedTarget() });
       } finally {
         if (dropToastRef.current?.id === toastId) dropToastRef.current = null;
         toast.dismiss(toastId);
@@ -164,7 +173,7 @@ export function useDocumentFileUpload({
     await createFile.mutateAsync(createInput(file));
   };
 
-  const uploadFile = async (file: File): Promise<void> => {
+  const uploadFile = async (file: File, options?: CreateShareOptions): Promise<void> => {
     const invalid = documentUploadValidationMessage(
       file,
       limits.upload_max_bytes,
@@ -181,7 +190,7 @@ export function useDocumentFileUpload({
         const res = await chunked.start({
           file,
           filename: file.name,
-          target: await resolveChunkedTarget(file, file.name),
+          target: await resolveChunkedTarget(options?.shareWithWorkspace),
         });
         if (!mountedRef.current) return;
         if (res.kind === "document") {
@@ -190,7 +199,7 @@ export function useDocumentFileUpload({
         }
         return;
       }
-      const doc = await createFile.mutateAsync(createInput(file));
+      const doc = await createFile.mutateAsync(createInput(file, options?.shareWithWorkspace));
       if (!mountedRef.current) return;
       setUploadOpen(false);
       onOpen(doc.id);
@@ -226,7 +235,8 @@ export function useDocumentFileUpload({
     }),
     pending: createFile.isPending,
     error: uploadError,
-    onSubmit: (file) => void uploadFile(file),
+    parentShared,
+    onSubmit: (file, options) => void uploadFile(file, options),
     chunkedProgress: chunked.progress,
     onPause: chunked.pause,
     onResume: chunked.resume,

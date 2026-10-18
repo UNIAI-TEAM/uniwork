@@ -279,7 +279,8 @@ func (s *DocumentChangesService) openSnapshot(ctx context.Context, actor Actor, 
 	}
 	n, err := q.InsertDocumentChangeSnapshotItems(ctx, db.InsertDocumentChangeSnapshotItemsParams{
 		SnapshotID: id, OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
+		MaxLevel: subtreeMaxLevel(),
+		SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
 		ActorID: actor.ID, AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
 		ShareWorkspaces: nonNilStrings(scope.shareWorkspaces),
 	})

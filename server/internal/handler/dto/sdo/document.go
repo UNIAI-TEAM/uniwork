@@ -218,6 +218,19 @@ type DocumentSummaryDTO struct {
 	UpdatedAt     string                      `json:"updated_at" example:"2026-09-27T09:00:00Z"`
 	// Path rides only on a search (q) result row (E6/FD-05, UNI-1465).
 	Path []DocumentPathItemSDO `json:"path,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha trực tiếp; cắt ở tổ tiên đầu tiên người gọi không đọc được; chỉ có trên dòng kết quả tìm bằng q" example:"[{\"id\":\"01J8X4DOC0N1P2Q3R4S5T6U7W9\",\"title\":\"Tài liệu nội bộ\"}]"`
+	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
+	// addendum §6.4, §7); absent for agent actors (C-01 §4).
+	ShareScope *DocumentShareScopeSDO `json:"share_scope,omitempty" description:"Tóm tắt phạm vi chia sẻ trên dòng danh sách (Workspace gốc, số người dùng, số workspace khác, toàn tổ chức, liên kết công khai còn sống); vắng mặt với tác nhân agent" example:"{\"home_workspace\":true,\"users\":2,\"workspaces\":1,\"organization\":false,\"public_link\":false}"`
+}
+
+// DocumentShareScopeSDO is the share_scope block of DocumentSummaryDTO
+// (SH-S3, UNI-1782; addendum §6.4, §7).
+type DocumentShareScopeSDO struct {
+	HomeWorkspace bool `json:"home_workspace" description:"true = dòng Workspace gốc đang bật (visibility = workspace) hoặc còn grant sống cho chính workspace gốc" example:"true"`
+	Users         int  `json:"users" description:"Số grant trực tiếp còn sống cho người dùng (principal_type = user)" example:"2"`
+	Workspaces    int  `json:"workspaces" description:"Số grant trực tiếp còn sống cho workspace khác (principal_type = workspace, khác workspace gốc)" example:"1"`
+	Organization  bool `json:"organization" description:"true = có grant trực tiếp còn sống cho toàn tổ chức" example:"false"`
+	PublicLink    bool `json:"public_link" description:"true = có ít nhất một liên kết công khai chưa thu hồi và chưa hết hạn" example:"false"`
 }
 
 // DocumentListSDO is the page shape shared by list, recent and
@@ -271,21 +284,42 @@ type DocumentArchiveImpactSDO struct {
 	TooLarge  bool `json:"too_large" description:"true = cây con vượt trần: không có số đếm, nút xác nhận bị khóa và thông báo folder_too_large" example:"false"`
 }
 
+// DocumentAccessSourceDTO is one source entry on a user share row or in my_sources
+// on GET /api/v1/documents/{documentID}/shares (SH-S2, UNI-1781).
+type DocumentAccessSourceDTO struct {
+	Via           string `json:"via" enums:"owner,member,share,org_admin,break_glass,work_product" example:"share"`
+	PrincipalType string `json:"principal_type,omitempty" enums:"user,workspace,organization,work_product" example:"organization"`
+	PrincipalID   string `json:"principal_id,omitempty" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	Name          string `json:"name,omitempty" example:"Acme Corp"`
+	Level         string `json:"level" enums:"view,comment,edit,manage" example:"edit"`
+}
+
+// DocumentHomeWorkspaceAccessDTO is the home_workspace block on GET /documents/{id}/shares
+// (SH-S2, UNI-1781).
+type DocumentHomeWorkspaceAccessDTO struct {
+	WorkspaceID   string  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	WorkspaceName string  `json:"workspace_name" example:"Kỹ thuật"`
+	Visibility    string  `json:"visibility" enums:"workspace,restricted" example:"workspace"`
+	Level         *string `json:"level" enums:"view,comment,edit" example:"view"`
+}
+
 // DocumentShareDTO is one live grant row with what it grants right now.
 // `active` is false when the row no longer reaches anyone (a user who left,
 // a workspace gone from the organization). `effective_level` is the level the
 // principal holds through every path, not just this row.
 type DocumentShareDTO struct {
-	ID             string  `json:"id" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
-	PrincipalType  string  `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
-	PrincipalID    string  `json:"principal_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Level          string  `json:"level" description:"Mức của chính grant này: view, comment, edit hoặc manage" example:"view"`
-	Active         bool    `json:"active" description:"Grant còn tới được principal không" example:"true"`
-	EffectiveLevel *string `json:"effective_level,omitempty" description:"Mức hiệu lực của principal qua mọi đường" example:"edit"`
-	EffectiveVia   *string `json:"effective_via,omitempty" example:"member"`
-	GrantedBy      string  `json:"granted_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	GrantedByKind  string  `json:"granted_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	ID             string                    `json:"id" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
+	PrincipalType  string                    `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
+	PrincipalID    string                    `json:"principal_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Level          string                    `json:"level" description:"Mức của chính grant này: view, comment, edit hoặc manage" example:"view"`
+	Active         bool                      `json:"active" description:"Grant còn tới được principal không" example:"true"`
+	EffectiveLevel *string                   `json:"effective_level,omitempty" description:"Mức hiệu lực của principal qua mọi đường" example:"edit"`
+	EffectiveVia   *string                   `json:"effective_via,omitempty" example:"member"`
+	Sources        []DocumentAccessSourceDTO `json:"sources,omitempty" description:"Mọi nguồn cấp quyền cho người dùng này (SH-S2)"`
+	Warnings       []string                  `json:"warnings,omitempty" description:"Cảnh báo trên dòng người dùng, ví dụ direct_below_group (SH-S2)"`
+	GrantedBy      string                    `json:"granted_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	GrantedByKind  string                    `json:"granted_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt      string                    `json:"created_at" example:"2026-09-27T09:00:00Z"`
 }
 
 // DocumentShareBatchSDO is 201 of POST /documents/{id}/shares/batch:
@@ -313,16 +347,18 @@ type DocumentLinkDTO struct {
 }
 
 // DocumentAccessSDO is GET /documents/{id}/shares (C-01 §5.3): the caller's
-// own level always; the grants, acl owner and live links only for a caller at
-// manage level. Everyone else reads `my_level`/`via` alone.
+// own level and my_sources always; the grants, acl owner, home_workspace and
+// live links only for a caller who may administer the document.
 type DocumentAccessSDO struct {
-	MyLevel    string                       `json:"my_level" description:"view, comment, edit hoặc manage; chuỗi rỗng khi admin_scope và chưa có quyền đọc" example:"manage"`
-	Via        string                       `json:"via" description:"member, share, link, owner, ai_context hoặc break_glass; chuỗi rỗng khi chưa có quyền đọc" example:"member"`
-	AdminScope bool                         `json:"admin_scope,omitempty" description:"true = người gọi quản trị tài liệu restricted bằng vai trò owner/admin workspace" example:"true"`
-	ACLOwner   *DocumentPersonAccessDTO     `json:"acl_owner,omitempty" description:"Người nắm ACL owner; chỉ khi manage hoặc admin_scope"`
-	Shares     []DocumentShareDTO           `json:"shares,omitempty" description:"Grant sống; chỉ khi manage hoặc admin_scope"`
-	Links      []DocumentLinkDTO            `json:"links,omitempty" description:"Liên kết công khai sống; chỉ khi manage hoặc admin_scope"`
-	BreakGlass []DocumentBreakGlassGrantDTO `json:"break_glass,omitempty" description:"Grant truy cập khẩn cấp còn hiệu lực, mới nhất trước; chỉ khi manage hoặc admin_scope"`
+	MyLevel       string                          `json:"my_level" description:"view, comment, edit hoặc manage; chuỗi rỗng khi admin_scope và chưa có quyền đọc" example:"manage"`
+	Via           string                          `json:"via" description:"member, share, link, owner, ai_context hoặc break_glass; chuỗi rỗng khi chưa có quyền đọc" example:"member"`
+	MySources     []DocumentAccessSourceDTO       `json:"my_sources" description:"Các nguồn cấp quyền hiện tại của chính người gọi (SH-S2)"`
+	AdminScope    bool                            `json:"admin_scope,omitempty" description:"true = người gọi quản trị tài liệu restricted bằng vai trò owner/admin workspace" example:"true"`
+	ACLOwner      *DocumentPersonAccessDTO        `json:"acl_owner,omitempty" description:"Người nắm ACL owner; chỉ khi manage hoặc admin_scope"`
+	HomeWorkspace *DocumentHomeWorkspaceAccessDTO `json:"home_workspace,omitempty" description:"Trạng thái dòng Workspace gốc; chỉ khi manage hoặc admin_scope (SH-S2)"`
+	Shares        []DocumentShareDTO              `json:"shares,omitempty" description:"Grant sống; chỉ khi manage hoặc admin_scope"`
+	Links         []DocumentLinkDTO               `json:"links,omitempty" description:"Liên kết công khai sống; chỉ khi manage hoặc admin_scope"`
+	BreakGlass    []DocumentBreakGlassGrantDTO    `json:"break_glass,omitempty" description:"Grant truy cập khẩn cấp còn hiệu lực, mới nhất trước; chỉ khi manage hoặc admin_scope"`
 }
 
 // DocumentBreakGlassGrantDTO is one emergency view grant (DOC-05; UNI-1628): a
@@ -606,6 +642,82 @@ type MentionCandidateDTO struct {
 // the people the picker may show, ordered by display name.
 type MentionCandidateListSDO struct {
 	Candidates []MentionCandidateDTO `json:"candidates"`
+}
+
+// DocumentAccessBatchSDO is the 200 response of PUT /api/v1/documents/{documentID}/access
+// (SH-S2, UNI-1781).
+type DocumentAccessBatchSDO struct {
+	BatchID string                        `json:"batch_id" description:"ULID định danh lô thao tác" example:"01J8X4BAT0N1P2Q3R4S5T6U7V8"`
+	DryRun  bool                          `json:"dry_run" description:"true khi chỉ chạy thử không ghi DB" example:"false"`
+	Results []DocumentAccessItemResultSDO `json:"results" description:"Kết quả từng mục theo đúng thứ tự gửi lên"`
+	Preview DocumentAccessPreviewSDO      `json:"preview" description:"Tác động dự kiến và cảnh báo"`
+}
+
+// DocumentAccessItemResultSDO is the outcome for one item in DocumentAccessBatchSDO.
+type DocumentAccessItemResultSDO struct {
+	Index         int     `json:"index" description:"Vị trí mục trong items gửi lên (0-indexed)" example:"0"`
+	PrincipalType string  `json:"principal_type" description:"user, workspace hoặc organization" enums:"user,workspace,organization" example:"user"`
+	PrincipalID   string  `json:"principal_id" description:"ULID principal" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Status        string  `json:"status" description:"granted, updated, revoked, kept hoặc unchanged" enums:"granted,updated,revoked,kept,unchanged" example:"granted"`
+	ShareID       string  `json:"share_id,omitempty" description:"ULID dòng document_shares khi có" example:"01J8X4SHR0N1P2Q3R4S5T6U7V8"`
+	Level         *string `json:"level" description:"Mức quyền sau thao tác; null khi thu hồi hoặc không có grant" example:"view"`
+	PreviousLevel *string `json:"previous_level" description:"Mức quyền trực tiếp trước thao tác; null khi chưa có grant" example:"edit"`
+}
+
+// DocumentAccessWarningSDO is one warning entry in DocumentAccessPreviewSDO.Warnings.
+type DocumentAccessWarningSDO struct {
+	Code  string `json:"code" description:"wide_scope, direct_below_group hoặc downgrade" enums:"wide_scope,direct_below_group,downgrade" example:"direct_below_group"`
+	Index int    `json:"index" description:"Vị trí mục trong items gây ra cảnh báo" example:"0"`
+}
+
+// DocumentAccessPreviewSDO is the preview block of DocumentAccessBatchSDO.
+type DocumentAccessPreviewSDO struct {
+	Users    []DocumentAccessPreviewUserSDO  `json:"users" description:"Trước/sau quyền hiệu lực của từng mục user"`
+	Groups   []DocumentAccessPreviewGroupSDO `json:"groups" description:"Số thành viên và số người giảm quyền của từng mục workspace/organization"`
+	Warnings []DocumentAccessWarningSDO      `json:"warnings" description:"Danh sách cảnh báo kèm index mục tương ứng"`
+}
+
+// DocumentAccessPreviewLevelSDO is one effective level + via pair in DocumentAccessPreviewUserSDO.
+type DocumentAccessPreviewLevelSDO struct {
+	Level string `json:"level" description:"view, comment, edit, manage hoặc chuỗi rỗng khi không có quyền" enums:"view,comment,edit,manage," example:"view"`
+	Via   string `json:"via" description:"owner, member, share, org_admin, break_glass, work_product hoặc chuỗi rỗng khi không có quyền" example:"share"`
+}
+
+// DocumentAccessPreviewUserSDO is one user item's before/after effective standing.
+type DocumentAccessPreviewUserSDO struct {
+	UserID      string                        `json:"user_id" description:"ULID người dùng" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	DisplayName string                        `json:"display_name" description:"Tên hiển thị" example:"Nguyễn Văn An"`
+	Before      DocumentAccessPreviewLevelSDO `json:"before" description:"Quyền hiệu lực trước thao tác"`
+	After       DocumentAccessPreviewLevelSDO `json:"after" description:"Quyền hiệu lực sau thao tác"`
+}
+
+// DocumentAccessPreviewGroupSDO is one workspace/organization item's summary counts.
+type DocumentAccessPreviewGroupSDO struct {
+	PrincipalType string  `json:"principal_type" description:"workspace hoặc organization" enums:"workspace,organization" example:"workspace"`
+	PrincipalID   string  `json:"principal_id" description:"ULID workspace hoặc tổ chức" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	Level         *string `json:"level" description:"Mức quyền nhóm sau thao tác; null khi thu hồi" example:"edit"`
+	MemberCount   int     `json:"member_count" description:"Tổng số thành viên đang hoạt động trong nhóm" example:"12"`
+	LosingCount   int     `json:"losing_count" description:"Số thành viên bị giảm mức quyền hiệu lực khi hạ/thu hồi grant nhóm" example:"0"`
+}
+
+// DocumentShareCandidateDTO is one item in GET /api/v1/documents/{documentID}/share-candidates
+// (SH-S2, UNI-1781).
+type DocumentShareCandidateDTO struct {
+	PrincipalType   string  `json:"principal_type" enums:"user,workspace,organization" example:"user"`
+	PrincipalID     string  `json:"principal_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Name            string  `json:"name" example:"Nguyễn Văn An"`
+	Secondary       string  `json:"secondary,omitempty" example:"an.nguyen@example.com"`
+	AvatarURL       *string `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
+	IconEmoji       *string `json:"icon_emoji,omitempty" example:"📁"`
+	DirectLevel     *string `json:"direct_level" enums:"view,comment,edit,manage" example:"view"`
+	IsHomeWorkspace bool    `json:"is_home_workspace" example:"false"`
+}
+
+// DocumentShareCandidateListSDO is the 200 response of GET
+// /api/v1/documents/{documentID}/share-candidates (SH-S2, UNI-1781).
+type DocumentShareCandidateListSDO struct {
+	Items      []DocumentShareCandidateDTO `json:"items"`
+	NextCursor *string                     `json:"next_cursor" description:"Cursor trang kế; null khi hết trang"`
 }
 
 // UploadSessionSDO answers the create and GET routes of the large upload flow
