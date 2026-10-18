@@ -37,6 +37,27 @@
     --brand: 220.4 91.7% 47.1%;
     --brand-foreground: 0 0% 100%;
     --success-solid: 149.4 71.1% 29.8%;
+    /* UniChat redesign (UNI-1895): chat wall, bubbles, chips and the card tints of tokens.css. */
+    --chat-wall: 216.9 41.9% 93.9%;
+    --chat-bubble-own: 220.4 91.7% 47.1%;
+    --chat-bubble-own-foreground: 0 0% 100%;
+    --chat-bubble-own-meta: 220 80.5% 92%;
+    --chat-bubble-other: 0 0% 100%;
+    --chat-chip: 0 0% 100%;
+    --chat-chip-foreground: 220 15.1% 27.3%;
+    --tint-blue: 216 100% 95.1%;
+    --tint-blue-foreground: 209 89.9% 38.8%;
+    --tint-yellow: 46.8 100% 92%;
+    --tint-yellow-foreground: 34.8 100% 28%;
+    --tint-orange: 16.2 100% 94.9%;
+    --tint-orange-foreground: 23.9 100% 32.9%;
+    --tint-teal: 171.4 51.2% 92%;
+    --tint-teal-foreground: 175.1 78.9% 24.1%;
+    --tint-green: 148.2 51.5% 93.5%;
+    --tint-green-foreground: 152.9 71% 25.7%;
+    --tint-red: 0 81% 95.9%;
+    --tint-red-foreground: 0 73.9% 39%;
+    --destructive-solid: 358.1 65.9% 48.2%;
   }
 
   .dark:root {
@@ -62,5 +83,25 @@
     --brand: 218.2 100% 67.6%;
     --brand-foreground: 224.2 42.2% 8.8%;
     --success-solid: 149.4 71.1% 29.8%;
+    --chat-wall: 240 4.8% 8.2%;
+    --chat-bubble-own: 218.2 100% 67.6%;
+    --chat-bubble-own-foreground: 224.2 42.2% 8.8%;
+    --chat-bubble-own-meta: 219.5 43.2% 17.3%;
+    --chat-bubble-other: 240 5% 15.7%;
+    --chat-chip: 240 5% 15.7%;
+    --chat-chip-foreground: 240 4.9% 83.9%;
+    --tint-blue: 219 45.5% 17.3%;
+    --tint-blue-foreground: 207.8 100% 68.2%;
+    --tint-yellow: 44.3 56.8% 14.5%;
+    --tint-yellow-foreground: 43.3 96.4% 56.3%;
+    --tint-orange: 21.5 47% 16.3%;
+    --tint-orange-foreground: 21.5 100% 71%;
+    --tint-teal: 172.9 48.6% 13.7%;
+    --tint-teal-foreground: 173.2 64.8% 54.3%;
+    --tint-green: 140.8 37.1% 13.7%;
+    --tint-green-foreground: 141.9 69.2% 58%;
+    --tint-red: 0 40.2% 17.1%;
+    --tint-red-foreground: 0 90.6% 70.8%;
+    --destructive-solid: 358.1 65.9% 48.2%;
   }
 }
