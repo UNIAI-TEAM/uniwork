@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; echo "HEAD_PROBE_DONE"
+048b38b240cebff016a3d1a2ea87fdcb8b6c6973
+048b38b24 docs(office): point the split modules' cross-references at each other
+e98eb4c88 fix(office): treat any throw after the wire observer as unknown usage
+947f1b782 refactor(office): split the wire observation out of save-observe and align the dry-run stub
+61fd9fa1c fix(office): match every frame model route the router registers
+e083d6ae4 test(office): pin the frame model routes the server actually registers
+140f7f043 test(office): split the matrix-level wire tests and fail closed on a missed model route
+af8c704a7 refactor(office): let the wire observer keep only its own helpers
+bf8ff6490 fix(office): settle the real-run wire observer before reading usage
+HEAD_PROBE_DONE

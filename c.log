@@ -1,0 +1,43 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/g7-08/*.test.mjs 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "G708_EXIT=$rc"
+    # Subtest: R3-1: the injected page observer records requests, offered tools and every response
+    ok 5 - R3-1: the injected page observer records requests, offered tools and every response
+      ---
+      duration_ms: 0.586497
+      ...
+    # Subtest: G708-R4-1: the observer counts a BYOK vendor turn in its own shape
+    ok 6 - G708-R4-1: the observer counts a BYOK vendor turn in its own shape
+      ---
+      duration_ms: 0.31536
+      ...
+    # Subtest: R3-1: a completion without usage through the injected page is BLOCKED, never counted
+    ok 7 - R3-1: a completion without usage through the injected page is BLOCKED, never counted
+      ---
+      duration_ms: 0.191928
+      ...
+    # Subtest: R3-1: a model request the observer never answered is BLOCKED, and a listener failure never throws into the page
+    ok 8 - R3-1: a model request the observer never answered is BLOCKED, and a listener failure never throws into the page
+      ---
+      duration_ms: 0.370412
+      ...
+    # Subtest: R3-3: a turn that threw after a model request is an unknown-usage stop, not a bare crash
+    ok 9 - R3-3: a turn that threw after a model request is an unknown-usage stop, not a bare crash
+      ---
+      duration_ms: 0.377134
+      ...
+    1..9
+ok 23 - G7-08 w2g wire-observe pure helpers
+  ---
+  duration_ms: 6.546838
+  type: 'suite'
+  ...
+1..23
+# tests 64
+# suites 7
+# pass 64
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 453.058029
+
+G708_EXIT=0
