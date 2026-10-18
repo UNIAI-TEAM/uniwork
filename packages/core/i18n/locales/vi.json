@@ -8934,10 +8934,9 @@
     },
     "unichat": {
       "hero": {
-        "eyebrow": "UniChat · cho máy tính và điện thoại",
-        "line1": "Nhắn xong,",
-        "line2": "việc đã có chỗ.",
-        "sub": "UniChat là chat của workspace UniWork trong một ứng dụng riêng. Tin nhắn thành việc, kênh gắn với dự án, cuộc gọi có tóm tắt. Cùng tài khoản, cùng tin nhắn, cùng việc.",
+        "line1": "Chat cho công việc.",
+        "line2": "Trên máy tính và điện thoại.",
+        "sub": "Tin nhắn thành việc, kênh gắn với dự án, cuộc gọi có tóm tắt. Cùng tài khoản và tin nhắn với UniWork.",
         "download": "Tải UniChat",
         "web": "Mở chat trên web",
         "also": "Có cả bản {{list}}.",
@@ -9000,7 +8999,6 @@
         }
       },
       "story": {
-        "eyebrow": "Tính năng",
         "title": "Mọi cuộc trao đổi đều quy về việc.",
         "sub": "Không còn chép tin nhắn sang bảng việc, không còn hỏi lại \"ai đang làm cái này\".",
         "task": {
@@ -9059,7 +9057,6 @@
         }
       },
       "devices": {
-        "eyebrow": "Ở đâu cũng là một",
         "title": "Đọc trên điện thoại, trả lời trên máy tính.",
         "body": "Cùng một chat, dù bạn mở trên web hay trong UniChat. UniChat chỉ tập trung vào chat; việc, cuộc họp và tài liệu vẫn mở đầy đủ trên web.",
         "web": "Web",
@@ -9070,7 +9067,6 @@
         "phoneBody": "iPhone và Android, có thông báo đẩy"
       },
       "data": {
-        "eyebrow": "Dữ liệu của nhóm",
         "title": "Tin nhắn ở lại trong workspace của nhóm.",
         "body": "Lưu trong workspace UniWork của nhóm và theo phân quyền của tổ chức, như khi bạn chat trên web.",
         "account": "Một tài khoản UniWork",
@@ -9080,17 +9076,13 @@
         "revoke": "Hết quyền là hết truy cập",
         "revokeBody": "Thành viên bị vô hiệu hóa không vào được nữa"
       },
-      "closing": {
-        "line1": "Đưa cuộc trò chuyện của nhóm",
-        "line2": "về cạnh công việc."
-      },
+      "closing": "Đưa cuộc trò chuyện của nhóm về cạnh công việc.",
       "download": {
         "title": "Tải UniChat",
         "version": "Bản máy tính {{version}}",
         "requirements": "Yêu cầu: {{value}}",
         "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
         "unavailable": "UniChat chưa phát hành bản cho máy tính. Trong lúc chờ, bạn vẫn chat với nhóm trên web trong UniWork.",
-        "eyebrow": "Tải về",
         "sub": "Đăng nhập bằng tài khoản UniWork và thấy đúng các workspace bạn là thành viên."
       },
       "installersError": "Không tải được danh sách bản cài đặt. Kiểm tra kết nối rồi thử lại.",
@@ -9107,9 +9099,7 @@
         "q3": "Tin nhắn của nhóm được lưu ở đâu?",
         "a3": "Trong workspace UniWork của nhóm và theo phân quyền của tổ chức, như khi bạn chat trên web.",
         "q4": "Cài UniChat trên điện thoại thế nào?",
-        "a4": "Khi bản điện thoại được phát hành, nút App Store và Google Play hiện ở mục Tải UniChat. Trong giai đoạn thử nghiệm, chỉ người được mời mới cài được qua TestFlight hoặc Google Play.",
-        "eyebrow": "Hỏi đáp",
-        "sub": "Cần xem UniChat chạy cùng UniWork với đội của bạn?"
+        "a4": "Khi bản điện thoại được phát hành, nút App Store và Google Play hiện ở mục Tải UniChat. Trong giai đoạn thử nghiệm, chỉ người được mời mới cài được qua TestFlight hoặc Google Play."
       },
       "security": "Xem cách UniWork xử lý dữ liệu và quyền truy cập"
     },

@@ -67,14 +67,14 @@ afterEach(() => {
 });
 
 describe("the UniChat page", () => {
-  it.each(["vi", "en"] as const)("says the work has a home, then four steps, the downloads and four questions in %s", async (language) => {
+  it.each(["vi", "en"] as const)("names the app for work, then four steps, the downloads and four questions in %s", async (language) => {
     await setLocale(language);
     await render({ flags: {}, unichat_installers: installers, unichat_stores: stores });
     const copy = (language === "vi" ? viMessages : enMessages).landing.unichat;
     expect(container.querySelector("h1")?.textContent).toBe(`${copy.hero.line1}${copy.hero.line2}`);
     expect(container.textContent).toContain(copy.hero.sub);
-    expect([...container.querySelectorAll(".uc-step h3")].map((h) => h.textContent?.slice(2))).toEqual([copy.story.task.title, copy.story.project.title, copy.story.followUp.title, copy.story.call.title]);
-    expect([...container.querySelectorAll("#unichat-faq .app-faq-q")].map((q) => q.textContent)).toEqual([copy.faq.q1, copy.faq.q2, copy.faq.q3, copy.faq.q4]);
+    expect([...container.querySelectorAll(".uc-pick strong")].map((h) => h.textContent)).toEqual([copy.story.task.title, copy.story.project.title, copy.story.followUp.title, copy.story.call.title]);
+    expect([...container.querySelectorAll("#unichat-faq [data-slot=accordion-trigger]")].map((q) => q.textContent)).toEqual([copy.faq.q1, copy.faq.q2, copy.faq.q3, copy.faq.q4]);
     expect(container.querySelector("#unichat-download-title")?.textContent).toBe(copy.download.title);
     expect(container.textContent).not.toContain("landing.");
   });
@@ -145,19 +145,18 @@ describe("the UniChat page", () => {
     expect(download().querySelectorAll("[role=status]")).toHaveLength(1);
   });
 
-  it("replays the stage and follows the chosen step", async () => {
+  it("replays the stage and shows the chosen feature", async () => {
     await render({ flags: {} });
     const art = container.querySelector(".uc-art");
     await act(async () => { container.querySelector<HTMLButtonElement>(".uc-replay")?.click(); });
     expect(container.querySelector(".uc-art")).not.toBe(art);
-    // The setup's IntersectionObserver reports every step in view, so the steps are chosen by click here.
-    const steps = [...container.querySelectorAll<HTMLButtonElement>(".uc-step button")];
-    await act(async () => { steps[0]?.click(); });
-    expect(steps.map((step) => step.getAttribute("aria-pressed"))).toEqual(["true", "false", "false", "false"]);
-    expect(container.querySelector(".uc-sstage .uc-dialog")).not.toBeNull();
-    await act(async () => { steps[2]?.click(); });
-    expect(steps[2]?.getAttribute("aria-pressed")).toBe("true");
-    expect(container.querySelector(".uc-sstage .uc-fus")).not.toBeNull();
-    expect(container.querySelector(".uc-sstage .uc-dialog")).toBeNull();
+    const picks = [...container.querySelectorAll<HTMLButtonElement>(".uc-pick")];
+    expect(picks.map((pick) => pick.getAttribute("aria-pressed"))).toEqual(["true", "false", "false", "false"]);
+    expect(container.querySelector(".uc-preview .uc-dialog")).not.toBeNull();
+    await act(async () => { picks[2]?.click(); });
+    expect(picks.map((pick) => pick.getAttribute("aria-pressed"))).toEqual(["false", "false", "true", "false"]);
+    expect(container.querySelector(".uc-preview")?.getAttribute("data-step")).toBe("followUp");
+    expect(container.querySelector(".uc-preview .uc-fus")).not.toBeNull();
+    expect(container.querySelector(".uc-preview .uc-dialog")).toBeNull();
   });
 });

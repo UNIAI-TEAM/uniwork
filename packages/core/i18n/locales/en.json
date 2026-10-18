@@ -8939,10 +8939,9 @@
     },
     "unichat": {
       "hero": {
-        "eyebrow": "UniChat · for desktop and phone",
-        "line1": "Chat it out,",
-        "line2": "the work has a home.",
-        "sub": "UniChat is your UniWork workspace chat in an app of its own. Messages become tasks, channels link to projects, calls come with summaries. Same account, same messages, same work.",
+        "line1": "Chat built for work.",
+        "line2": "On your desktop and phone.",
+        "sub": "Messages become tasks, channels link to projects, calls come with summaries. Same account and messages as UniWork.",
         "download": "Download UniChat",
         "web": "Open chat on the web",
         "also": "Also for {{list}}.",
@@ -9005,7 +9004,6 @@
         }
       },
       "story": {
-        "eyebrow": "Features",
         "title": "Every conversation ends up as work.",
         "sub": "No more copying messages onto a task board, no more asking \"who's on this?\".",
         "task": {
@@ -9064,7 +9062,6 @@
         }
       },
       "devices": {
-        "eyebrow": "One chat everywhere",
         "title": "Read on your phone, reply on your desktop.",
         "body": "The same chat whether you open it on the web or in UniChat. UniChat focuses on chat; tasks, meetings and documents still open in full on the web.",
         "web": "Web",
@@ -9075,7 +9072,6 @@
         "phoneBody": "iPhone and Android, with push notifications"
       },
       "data": {
-        "eyebrow": "Your team's data",
         "title": "Messages stay in your team's workspace.",
         "body": "Stored in your team's UniWork workspace under your organization's permissions, just as when you chat on the web.",
         "account": "One UniWork account",
@@ -9085,17 +9081,13 @@
         "revoke": "Access ends with membership",
         "revokeBody": "Deactivated members can no longer get in"
       },
-      "closing": {
-        "line1": "Bring your team's conversations",
-        "line2": "next to the work."
-      },
+      "closing": "Bring your team's conversations next to the work.",
       "download": {
         "title": "Download UniChat",
         "version": "Desktop version {{version}}",
         "requirements": "Requires: {{value}}",
         "unsigned": "This build is not code-signed, so your operating system may warn you the first time you open it.",
         "unavailable": "UniChat for desktop is not released yet. Meanwhile, you can chat with your team on the web in UniWork.",
-        "eyebrow": "Download",
         "sub": "Sign in with your UniWork account and see exactly the workspaces you belong to."
       },
       "installersError": "Couldn't load the installer list. Check your connection and try again.",
@@ -9112,9 +9104,7 @@
         "q3": "Where are my team's messages stored?",
         "a3": "In your team's UniWork workspace, under your organization's permissions, just as when you chat on the web.",
         "q4": "How do I install UniChat on my phone?",
-        "a4": "When the mobile app is released, App Store and Google Play buttons appear under Download UniChat. During testing, only invited people can install it through TestFlight or Google Play.",
-        "eyebrow": "FAQ",
-        "sub": "Want to see UniChat with UniWork for your team?"
+        "a4": "When the mobile app is released, App Store and Google Play buttons appear under Download UniChat. During testing, only invited people can install it through TestFlight or Google Play."
       },
       "security": "See how UniWork handles data and access"
     },

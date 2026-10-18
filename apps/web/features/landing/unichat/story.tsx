@@ -1,15 +1,14 @@
 "use client";
-import { Bell, Bookmark, ChevronDown, Folder, Hash, Phone } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Bell, Bookmark, ChevronDown, ChevronRight, Folder, Hash, ListChecks, Phone, type LucideIcon } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@uniwork/ui/lib/utils";
 import { Container } from "../layout-primitives";
-import { AppPill } from "../apps/app-sections";
 import { DEMO_MEMBERS } from "../product-demo-data";
 
 const [MAI_AN, AN_NHIEN, KHANH_VY, , GIA_MINH] = DEMO_MEMBERS;
 const STEPS = ["task", "project", "followUp", "call"] as const;
 type Step = typeof STEPS[number];
+const ICONS: Record<Step, LucideIcon> = { task: ListChecks, project: Folder, followUp: Bell, call: Phone };
 const ALSO = ["voice", "poll", "stickers", "threads", "pins", "search"] as const;
 
 function StepStage({ step }: { step: Step }) {
@@ -53,39 +52,31 @@ function StepStage({ step }: { step: Step }) {
 }
 
 /**
- * What the chat does for the work, told in four steps beside one stage. The
- * stage follows the reader's scroll on a wide screen and the chosen step
- * everywhere; on a phone it sits above the steps.
+ * What the chat does for the work: four features to pick from beside one
+ * stage, the way the home page's "your team's way of working" chapter picks
+ * an audience. On a narrow screen the stage sits above the list.
  */
 export function UniChatStory() {
   const { t } = useTranslation();
   const [active, setActive] = useState<Step>("task");
-  const list = useRef<HTMLOListElement>(null);
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined" || !list.current) return;
-    const observer = new IntersectionObserver((entries) => {
-      const hit = entries.find((entry) => entry.isIntersecting);
-      const step = hit?.target.getAttribute("data-step") as Step | null | undefined;
-      if (step) setActive(step);
-    }, { rootMargin: "-45% 0px -45% 0px" });
-    list.current.querySelectorAll("[data-step]").forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, []);
   return <section id="unichat-features" className="app-section" aria-labelledby="unichat-features-title">
     <Container>
       <div className="app-section-head">
-        <AppPill>{t("landing.unichat.story.eyebrow")}</AppPill>
         <h2 id="unichat-features-title" className="app-h2">{t("landing.unichat.story.title")}</h2>
         <p className="app-lead">{t("landing.unichat.story.sub")}</p>
       </div>
-      <div className="uc-story">
-        <div className="uc-story-stage"><div className="uc-sstage" aria-hidden><StepStage key={active} step={active} /></div></div>
-        <ol ref={list} className="uc-steps">
-          {STEPS.map((step, index) => <li key={step} data-step={step} className={cn("uc-step", active === step && "is-on")}>
-            <h3><button type="button" aria-pressed={active === step} onClick={() => setActive(step)}><span className="uc-step-n">{String(index + 1).padStart(2, "0")}</span>{t(`landing.unichat.story.${step}.title`)}</button></h3>
-            <p>{t(`landing.unichat.story.${step}.body`)}</p>
-          </li>)}
-        </ol>
+      <div className="uc-showcase">
+        <div className="uc-picks">
+          {STEPS.map((step) => {
+            const Icon = ICONS[step];
+            return <button key={step} type="button" className="uc-pick" data-step={step} aria-pressed={active === step} aria-controls="unichat-feature-stage" onClick={() => setActive(step)}>
+              <span className="uc-pick-icon"><Icon aria-hidden /></span>
+              <span className="uc-pick-copy"><strong>{t(`landing.unichat.story.${step}.title`)}</strong><small>{t(`landing.unichat.story.${step}.body`)}</small></span>
+              <ChevronRight aria-hidden className="uc-pick-chevron" />
+            </button>;
+          })}
+        </div>
+        <div id="unichat-feature-stage" className="uc-preview" data-step={active} aria-hidden><StepStage key={active} step={active} /></div>
       </div>
       <div className="uc-also"><span>{t("landing.unichat.story.also.label")}</span><ul>{ALSO.map((key) => <li key={key}>{t(`landing.unichat.story.also.${key}`)}</li>)}</ul></div>
     </Container>
