@@ -780,3 +780,40 @@ test("rewrite_json patches a matched JSON response, resolves now_plus_ms, and pa
   assert.equal(echo.ok, true);
   assert.equal(echo.url, "/api/v1/other");
 });
+
+test("the proxy log names the error code of a JSON 4xx answer (never the body) so a row can tell offline_lease_revoked from any other 403", async (t) => {
+  const upstream = http.createServer((req, res) => {
+    req.resume();
+    if (req.url === "/revoked") {
+      const body = JSON.stringify({ error: { code: "offline_lease_revoked", message: "SECRET-BODY-TEXT" } });
+      res.writeHead(403, { "content-type": "application/json", "content-length": String(Buffer.byteLength(body)) });
+      res.end(body);
+    } else if (req.url === "/denied") {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(JSON.stringify({ code: "access_denied" }));
+    } else if (req.url === "/html") {
+      res.writeHead(403, { "content-type": "text/html" });
+      res.end("<html>nope</html>");
+    } else if (req.url === "/gzip") {
+      res.writeHead(403, { "content-type": "application/json", "content-encoding": "gzip" });
+      res.end(Buffer.from([0x1f, 0x8b]));
+    } else {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: { code: "not_an_error" } }));
+    }
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  const proxy = await startFaultProxy({ target: `http://127.0.0.1:${upstream.address().port}` });
+  t.after(async () => {
+    await proxy.close();
+    await new Promise((resolve) => upstream.close(resolve));
+  });
+  for (const path of ["/revoked", "/denied", "/html", "/gzip", "/fine"]) await (await fetch(`${proxy.origin}${path}`)).arrayBuffer().catch(() => undefined);
+  const log = await (await fetch(`${proxy.origin}/__fault/log`)).text();
+  const entries = Object.fromEntries(log.trim().split("\n").map((line) => JSON.parse(line)).map((entry) => [entry.path, entry]));
+  assert.equal(entries["/revoked"].errorCode, "offline_lease_revoked");
+  assert.equal(entries["/revoked"].status, 403);
+  assert.equal(entries["/denied"].errorCode, "access_denied");
+  for (const path of ["/html", "/gzip", "/fine"]) assert.equal("errorCode" in entries[path], false, `${path}: no code recorded`);
+  assert.equal(log.includes("SECRET-BODY-TEXT"), false, "the body never reaches the log");
+});

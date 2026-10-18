@@ -44,8 +44,9 @@ const OFFLINE_KEYS = Object.freeze({
     "diskMountMb", "diskLeaveBytes", "layerBudgetBytes", "clockSkewMinutes", "renewRefusalStatus"],
   // refusal codes of an offline action (fork shared/offline-library.ts OfflineFailureCode): a driver accepts these and no other
   codes: ["openRefusalCodes"],
-  states: ["faultedStates", "recoveredStates", "firstLaunchStates", "tamperAccepts", "tamperNeverStates"],
-  text: ["lockReason"],
+  // shortLeaseStates: what a row reads once the rewritten short lease is granted (fork lease/clock.ts: < 4 h left = lease-expiring)
+  states: ["faultedStates", "recoveredStates", "firstLaunchStates", "shortLeaseStates", "tamperAccepts", "tamperNeverStates"],
+  text: ["lockReason", "renewRefusalCode"],
 });
 
 /** Every `expect.offline` key, whatever its kind: the app-driver coverage test reads a row's keys against this. */

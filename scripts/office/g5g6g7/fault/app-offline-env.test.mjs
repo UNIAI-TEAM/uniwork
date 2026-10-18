@@ -4,13 +4,13 @@
 // Run: node --test scripts/office/g5g6g7/fault/app-offline-env.test.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { revokeOrgOfflineLeases } from "./app-tenant.mjs";
 import {
-  FAKETIME_CANDIDATES, REAL_VM, faketimeEnv, fillToLeave, findFaketime, freeBytes, keyringControl, mountTmpfs, probeTmpfsMount, releaseFill, sparseFill, unmountTmpfs,
+  FAKETIME_CANDIDATES, REAL_VM, faketimeEnv, fillToLeave, findFaketime, freeBytes, keyringControl, mountTmpfs, probeTmpfsMount, releaseFill, scopeUsageBytes, sparseFill, unmountTmpfs,
 } from "./app-offline-env.mjs";
 
 const scratch = () => {
@@ -38,8 +38,23 @@ test("mountTmpfs mounts a size-capped, user-owned, private tmpfs through sudo -n
     const failed = mountTmpfs(join(dir, "again"), 512, { run: () => ({ status: 32, stderr: "mount: permission denied\n" }) });
     assert.equal(failed.ok, false);
     assert.match(failed.line, /mount -t tmpfs -o size=512m .* exited 32: mount: permission denied/);
-    assert.deepEqual(unmountTmpfs(join(dir, "userdata"), { run: () => ({ status: 0 }) }), { ok: true });
-    assert.match(unmountTmpfs("x", { run: () => ({ status: 32, stderr: "busy\n" }) }).line, /umount -l x exited 32: busy/);
+    // the answer of an unmount is the READ-BACK (R2-11): mounted before, not a mount point after = ok
+    let mounted = true;
+    const run = (cmd, args) => {
+      if (cmd === "mountpoint") return { status: mounted ? 0 : 1 };
+      mounted = false;
+      return { status: 0 };
+    };
+    assert.deepEqual(unmountTmpfs(join(dir, "userdata"), { run }), { ok: true });
+    // a umount that "succeeds" but leaves the mount point is a failure
+    const stuck = unmountTmpfs("x", { run: (cmd) => (cmd === "mountpoint" ? { status: 0 } : { status: 32, stderr: "busy\n" }) });
+    assert.equal(stuck.ok, false);
+    assert.match(stuck.line, /umount -l x exited 32: busy; x is still a mount point/);
+    // a umount that exits non-zero but whose read-back shows the mount gone is clean
+    let gone = false;
+    assert.deepEqual(unmountTmpfs("x", { run: (cmd) => { if (cmd === "mountpoint") { const was = gone; gone = true; return { status: was ? 1 : 0 }; } return { status: 1, stderr: "x" }; } }), { ok: true });
+    // a directory that was never mounted (the mount itself failed) needs nothing
+    assert.deepEqual(unmountTmpfs("never", { run: (cmd) => (cmd === "mountpoint" ? { status: 1 } : { status: 99 }) }), { ok: true });
   } finally {
     clean();
   }
@@ -60,7 +75,7 @@ test("fillToLeave writes real bytes until only leaveBytes are free, and releaseF
     assert.equal(fill.freeBefore, total);
     assert.equal(fill.freeAfter, 1024, "exactly leaveBytes remain");
     assert.equal(freeBytes(dir, { stat }), 1024);
-    releaseFill(fill.path);
+    assert.deepEqual(releaseFill(fill.path), { ok: true });
     assert.equal(existsSync(fill.path), false);
     assert.equal(freeBytes(dir, { stat }), total);
   } finally {
@@ -68,15 +83,66 @@ test("fillToLeave writes real bytes until only leaveBytes are free, and releaseF
   }
 });
 
-test("sparseFill makes one sparse file of budget - leave bytes in the library scope, without writing them", () => {
+test("sparseFill sizes one sparse file from the scope's MEASURED usage so the scope sits leave bytes under the budget", () => {
   const { dir, clean } = scratch();
   try {
     const budget = 64 * 1024 * 1024;
-    const fill = sparseFill(join(dir, "scope"), budget, 4096);
-    assert.equal(fill.apparentBytes, budget - 4096);
-    assert.equal(statSync(fill.path).size, budget - 4096, "the apparent size is what the store's budget counts");
-    releaseFill(fill.path);
+    const scope = join(dir, "scope");
+    mkdirSync(join(scope, "offline-library"), { recursive: true });
+    writeFileSync(join(scope, "offline-library", "a.rec"), Buffer.alloc(3000));
+    assert.equal(scopeUsageBytes(scope), 3000);
+    const fill = sparseFill(scope, budget, 4096);
+    assert.equal(fill.usedBefore, 3000);
+    assert.equal(fill.apparentBytes, budget - 4096 - 3000);
+    assert.equal(statSync(fill.path).size, budget - 4096 - 3000, "the apparent size is what the store's budget counts");
+    assert.equal(fill.scopeBytes, budget - 4096, "the scope sits exactly leaveBytes under the budget");
+    assert.deepEqual(releaseFill(fill.path), { ok: true });
     assert.equal(existsSync(fill.path), false);
+  } finally {
+    clean();
+  }
+});
+
+test("R2-11: the filler path is handed to the caller BEFORE the first byte, and a fill that throws removes its own partial file", () => {
+  const { dir, clean } = scratch();
+  try {
+    const seen = [];
+    let writes = 0;
+    // a stub filesystem whose free space is large; the very first write fails with ENOSPC after the file exists
+    const stat = () => ({ bavail: 8 * 1024 * 1024, bsize: 1 });
+    assert.throws(
+      () => fillToLeave(dir, 1024, { stat, onPath: (path) => { seen.push([path, existsSync(path)]); writes += 1; mkdirSync(dir, { recursive: true }); writeFileSync(path, "partial"); /* a half-created filler */ throw new Error("ENOSPC"); } }),
+      /ENOSPC/,
+    );
+    assert.equal(writes, 1);
+    assert.equal(seen[0][1], false, "the caller owns the path before it exists");
+    // a throw from the write loop itself: simulate with an unwritable directory target
+    assert.throws(() => fillToLeave(join(dir, "missing", "deeper"), 1024, { stat, onPath: (path) => seen.push([path, false]) }));
+    assert.equal(existsSync(join(dir, "missing", "deeper", ".fl02-filler")), false, "no partial filler is left");
+    assert.equal(seen.at(-1)[0], join(dir, "missing", "deeper", ".fl02-filler"), "the path was still reported first");
+    // sparseFill: the same ownership
+    const owned = [];
+    assert.throws(() => sparseFill(join(dir, "file-not-dir"), 1024, 0, { onPath: (path) => { owned.push(path); throw new Error("boom"); } }), /boom/);
+    assert.equal(owned.length, 1);
+  } finally {
+    clean();
+  }
+});
+
+test("R2-11: releaseFill answers the READ-BACK: gone = ok, a path it cannot remove = a named failure", () => {
+  const { dir, clean } = scratch();
+  try {
+    const file = join(dir, "filler");
+    writeFileSync(file, "x");
+    assert.deepEqual(releaseFill(file), { ok: true });
+    assert.deepEqual(releaseFill(file), { ok: true }, "an already removed filler is clean");
+    // a directory where the filler should be cannot be removed by a non-recursive rm
+    const stuck = join(dir, "stuck");
+    mkdirSync(stuck);
+    writeFileSync(join(stuck, "inner"), "x");
+    const failed = releaseFill(stuck);
+    assert.equal(failed.ok, false);
+    assert.match(failed.line, /filler/);
   } finally {
     clean();
   }
@@ -150,7 +216,8 @@ test("app-keyring.sh: control mode is additive, off by default, keeps the passwo
   assert.match(script, /unset KEYRING_PASSWORD/);
   assert.match(script, /mkfifo "\$WORK\/ctl\.in" "\$WORK\/ctl\.out"/);
   assert.match(script, /export APP_KEYRING_CTL="\$WORK\/ctl"/);
-  const syntax = spawnSync("bash", ["-n", path.pathname.replace(/^\/([A-Za-z]:)/, "$1")], { encoding: "utf8" });
+  // the script goes in on stdin: a PATH `bash` that is WSL cannot read a Windows drive path, but it parses a pipe on every host
+  const syntax = spawnSync("bash", ["-n"], { encoding: "utf8", input: script });
   if (syntax.error?.code === "ENOENT") return;
   assert.equal(syntax.status, 0, syntax.stderr);
 });
@@ -160,12 +227,16 @@ test("app-keyring.sh: control mode is additive, off by default, keeps the passwo
 test("revokeOrgOfflineLeases runs uniwork-admin revoke-offline-leases for the run's org, or names why it could not", () => {
   const calls = [];
   const run = (cmd, args, options) => { calls.push({ cmd, args, cwd: options.cwd, db: options.env.DATABASE_URL }); return { status: 0 }; };
-  assert.equal(revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "postgres://u:p@h/db", orgId: "01JORG" }, { run }), null);
+  const ok = revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "postgres://u:p@h/db", orgId: "01JORG" }, { run: (cmd, args, options) => ({ ...run(cmd, args, options), stdout: "01JORG offline policy epoch now 3, 2 live lease(s) revoked\n" }) });
+  assert.equal(ok.failure, null);
+  // the CLI's own stdout line, parsed: the org it hit, the epoch and how many leases it revoked (R2-9)
+  assert.deepEqual(ok.evidence, { line: "01JORG offline policy epoch now 3, 2 live lease(s) revoked", orgId: "01JORG", epoch: 3, revoked: 2 });
+  assert.deepEqual(revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "u", orgId: "x" }, { run: () => ({ status: 0, stdout: "garbage\n" }) }).evidence, { line: "garbage", orgId: null, epoch: null, revoked: null });
   assert.deepEqual(calls[0].args.slice(0, 5), ["run", "./cmd/uniwork-admin", "revoke-offline-leases", "--org-id", "01JORG"]);
   assert.equal(calls[0].cwd, "/repo/server");
-  assert.match(revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "", orgId: "x" }, { run }), /no DATABASE_URL/);
-  assert.match(revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "u", orgId: "x" }, { run: () => ({ status: null, error: Object.assign(new Error("x"), { code: "ENOENT" }) }) }), /go is not on PATH/);
-  const failed = revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "u", orgId: "x" }, { run: () => ({ status: 1, stderr: "uniwork-admin: no organization x postgres://user:secret@h/db\n" }) });
+  assert.match(revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "", orgId: "x" }, { run }).failure, /no DATABASE_URL/);
+  assert.match(revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "u", orgId: "x" }, { run: () => ({ status: null, error: Object.assign(new Error("x"), { code: "ENOENT" }) }) }).failure, /go is not on PATH/);
+  const failed = revokeOrgOfflineLeases({ repoRoot: "/repo", databaseUrl: "u", orgId: "x" }, { run: () => ({ status: 1, stderr: "uniwork-admin: no organization x postgres://user:secret@h/db\n" }) }).failure;
   assert.match(failed, /exited 1: uniwork-admin: no organization x/);
   assert.doesNotMatch(failed, /secret/, "a database URL never reaches a verdict line");
 });

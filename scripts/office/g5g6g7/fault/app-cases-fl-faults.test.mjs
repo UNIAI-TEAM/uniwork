@@ -18,6 +18,8 @@ import { renderCaseRules } from "./server-cases-lib.mjs";
 import { loadFaultCases } from "./server-cases-lib.mjs";
 
 const W2_ROWS = ["FL-02", "FL-04a", "FL-05", "FL-06", "FL-09"];
+/** the fork's library layer budget: 2 GiB quota + one 256 MiB staging copy + 16 MiB of frames (offline-library/store.ts:36-47) */
+const FORK_LAYER_BUDGET = 2 * 1024 ** 3 + 256 * 1024 ** 2 + 16 * 1024 ** 2;
 
 /** Runs the registered driver of `rowId`; `tweak(world)` changes one behavior before it runs. */
 async function run(rowId, tweak = () => {}) {
@@ -115,12 +117,12 @@ test("FL-02: no sudo mount -> the sparse fallback crosses the layer budget of th
   assert.deepEqual(failed, []);
   assert.equal(world.vmCalls.some((call) => call[0] === "mount"), false, "no mount was attempted");
   const sparse = world.vmCalls.find((call) => call[0] === "sparse");
-  assert.equal(sparse[2], 2415919104, "layerBudgetBytes of the row");
+  assert.equal(sparse[2], FORK_LAYER_BUDGET, "layerBudgetBytes of the row");
   assert.match(byName.mechanism_reported.actual, /^sparse - tmpfs not used: sudo -n true exited 1/);
   const report = JSON.parse(artifacts("offline-disk-mechanism.json"));
   assert.equal(report.mechanism, "sparse");
   assert.match(report.probe, /a password is required/);
-  assert.equal(report.fill.budgetBytes, 2415919104);
+  assert.equal(report.fill.budgetBytes, FORK_LAYER_BUDGET);
 });
 
 test("FL-02: a mount that fails after the probe falls back to sparse and names the mount line", async () => {
@@ -145,11 +147,10 @@ test("FL-02: a fill that leaves the disk free is not a fault - fault_really_happ
 test("FL-02: a product that reads B ready on a full disk fails b_row_faulted and b_never_ready_while_faulted", async () => {
   const { failed } = await run("FL-02", (w) => {
     const pin = w.product.pin;
-    w.product.pin = (input) => {
-      const keep = w.diskFull;
-      w.diskFull = false;
-      const result = pin(input);
-      w.diskFull = keep;
+    w.product.pin = async (input) => {
+      const result = await pin(input);
+      // the product ignores the full disk and commits B anyway
+      if (w.rows.get(input.documentId)?.state === "disk-full") w.rows.set(input.documentId, { state: "ready", name: "doc" });
       return result;
     };
   });
@@ -160,9 +161,9 @@ test("FL-02: a product that reads B ready on a full disk fails b_row_faulted and
 test("FL-02: a partial blob left in the store while the disk is full fails nothing_partial_in_the_store", async () => {
   const { failed } = await run("FL-02", (w) => {
     const pin = w.product.pin;
-    w.product.pin = (input) => {
-      const result = pin(input);
-      if (w.diskFull) w.writeLibrary(input.documentId);
+    w.product.pin = async (input) => {
+      const result = await pin(input);
+      if (w.rows.get(input.documentId)?.state === "disk-full") w.writeLibrary(input.documentId);
       return result;
     };
   });
@@ -172,9 +173,9 @@ test("FL-02: a partial blob left in the store while the disk is full fails nothi
 test("FL-02: a full disk that destroys the older pinned copy fails kept_old_copy", async () => {
   const { failed } = await run("FL-02", (w) => {
     const pin = w.product.pin;
-    w.product.pin = (input) => {
-      const result = pin(input);
-      if (w.diskFull) {
+    w.product.pin = async (input) => {
+      const result = await pin(input);
+      if (w.rows.get(input.documentId)?.state === "disk-full") {
         for (const name of w.pristine.keys()) rmSync(join(w.libraryDir(), name), { force: true });
       }
       return result;
@@ -280,23 +281,12 @@ test("FL-04a: a copy that does not open BEFORE the expiry fails open_served_befo
   assert.ok(failed.includes("open_served_before_expiry"));
 });
 
-test("FL-04a: a draft removed by the expiry fails draft_kept", async () => {
-  const { failed } = await run("FL-04a", (world) => {
-    const rowsFor = world.product.rowsFor;
-    world.product.rowsFor = (dep) => {
-      const rows = rowsFor(dep);
-      if (rows.some((row) => row.state === "lease-expired")) world.writeRecord(world.syncStoreDir("drafts"), "draft", Buffer.from("edited"));
-      return rows;
-    };
-    // a draft exists before the fault and the expiry rewrites it
-    const pin = world.product.pin;
-    world.product.pin = (input) => {
-      const result = pin(input);
-      world.writeRecord(world.syncStoreDir("drafts"), "draft", Buffer.from("typed"));
-      return result;
-    };
-  });
-  assert.ok(failed.includes("draft_kept"));
+test("R2-7: FL-04a and FL-06 make no draft-retention claim (no checkpoint is seeded, so none is measured)", async () => {
+  for (const [id, run_] of [["FL-04a", run], ["FL-06", run]]) {
+    const { byName, world } = await run_(id);
+    assert.equal(byName.draft_kept, undefined, `${id}: no draft_kept assertion`);
+    assert.equal("draftKept" in world.row.expect.offline, false, `${id}: the row carries no draftKept`);
+  }
 });
 
 // ---- FL-05: clock moved back --------------------------------------------------------
@@ -384,8 +374,8 @@ test("FL-06: the org revoke runs while the network is cut and the next renewal i
   const { world, byName, failed } = await run("FL-06");
   assert.deepEqual(failed, []);
   assert.deepEqual(world.vmCalls.filter((call) => call[0] === "revoke"), [["revoke"]]);
-  assert.equal(byName.renew_refused_after_revoke.expected, "PUT offline-lease answered 403");
-  assert.match(byName.renew_refused_after_revoke.actual, /403/);
+  assert.equal(byName.renew_refused_after_revoke.expected, "PUT offline-lease answered 403 offline_lease_revoked");
+  assert.match(byName.renew_refused_after_revoke.actual, /403 offline_lease_revoked/);
 });
 
 test("FL-06: a revoke CLI that fails is BLOCKED with its line, not a FAIL", async () => {
@@ -396,7 +386,7 @@ test("FL-06: a revoke CLI that fails is BLOCKED with its line, not a FAIL", asyn
 
 test("FL-06: a revoke that never took effect (renewal still 200) fails renew_refused_after_revoke", async () => {
   const { failed } = await run("FL-06", (world) => {
-    world.ctx.revokeOfflineLeases = async () => null;
+    world.ctx.revokeOfflineLeases = async () => ({ failure: null, evidence: { line: "x", orgId: "01JORGANIZATION000000000", epoch: 2, revoked: 1 } });
   });
   assert.ok(failed.includes("renew_refused_after_revoke"));
   assert.ok(failed.includes("row_revoked"));

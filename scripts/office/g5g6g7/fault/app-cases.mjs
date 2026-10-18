@@ -35,7 +35,7 @@ import { BLOCKED_DRIVERS, EXTRA_EXITS } from "./app-case-drivers-blocked.mjs";
 import { OFFLINE_DRIVERS } from "./app-case-drivers-offline.mjs";
 import { OFFLINE_FAULT_DRIVERS } from "./app-case-drivers-offline-faults.mjs";
 import { REAL_VM } from "./app-offline-env.mjs";
-import { liftBlocker, createOfflineFlagGuard } from "./app-offline-flag.mjs";
+import { liftBlocker, uncleanBlocker, createOfflineFlagGuard } from "./app-offline-flag.mjs";
 import {
   BLOCKED_EXIT_CODE, appTraceArtifacts, blockedAfterFailure, blockedCase, caseResult, envFileValue, expandExits, failEvidenceLines, filterTrace, parseProxyLog,
   noServerReason, parseTraceText, predictedFor, runEvidenceOf, runExitCode, runResult, selectAppCases,
@@ -294,6 +294,8 @@ async function runOne({ row, run, runs, caseDir, shared }) {
       ? { documentId: null, assertions: [], blocker: error.message }
       : { documentId: null, assertions: [{ name: "run_execution", expected: "no unhandled error", actual: errorText(error), ok: false }] };
   } finally {
+    // a driver that could not prove its resource cleanup (R2-11) stops every later row
+    if (outcome?.cleanupFailure) shared.offlineFlag.markUnclean(outcome.cleanupFailure);
     for (const session of sessions) await closeApp(session).catch(() => {});
     await fetch(`${proxy.origin}/__fault/rules`, { method: "DELETE" }).catch(() => {});
     // the FL rows switch the org capability on through an admin override; the tenant
@@ -306,6 +308,8 @@ async function runOne({ row, run, runs, caseDir, shared }) {
   // a run whose capability could not be lifted is not a clean PASS: the row keeps its own
   // product verdict, but one that would PASS becomes BLOCKED with the lift's reason
   if (liftReason && !outcome.blocker && outcome.assertions.every((a) => a.ok)) outcome = { ...outcome, blocker: liftBlocker(liftReason) };
+  // unproven cleanup (R2-11) is BLOCKED whatever else the row measured: its verdict ran on a VM it did not restore
+  if (outcome.cleanupFailure && !outcome.blocker) outcome = { ...outcome, blocker: uncleanBlocker(outcome.cleanupFailure) };
   const docId = outcome.documentId ?? [...docs.keys()][0] ?? null;
   const traceLines = docId ? readTrace(docId) : [];
   const proxyRaw = await proxyLogRaw().catch(() => "");
@@ -413,6 +417,13 @@ export async function runAppCases({ caseId = null, runDir, casesPath = DEFAULT_C
         const result = finishCase(row, blockedCase(row, liftBlocker(liftFailure)), caseDir, runDir, forkSha);
         process.stdout.write(`${row.id}: BLOCKED — ${liftBlocker(liftFailure)}
 `);
+        results.push(result);
+        continue;
+      }
+      const uncleanReason = offlineFlag.unclean();
+      if (uncleanReason && !downReason) {
+        const result = finishCase(row, blockedCase(row, uncleanBlocker(uncleanReason)), caseDir, runDir, forkSha);
+        process.stdout.write(`${row.id}: BLOCKED — ${uncleanBlocker(uncleanReason)}\n`);
         results.push(result);
         continue;
       }

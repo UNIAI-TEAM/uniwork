@@ -11,7 +11,7 @@ import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { AppBlocked } from "./app-session.mjs";
-import { OFFLINE_DRIVERS, libraryStoreDir } from "./app-case-drivers-offline.mjs";
+import { OFFLINE_DRIVERS, libraryBlobs, libraryStoreDir } from "./app-case-drivers-offline.mjs";
 import { ACCOUNT_A, ACCOUNT_B, createWorld } from "./app-cases-fl-fakes.mjs";
 
 /** Runs the registered driver of `rowId`; `tweak(world)` makes the product wrong before it runs. */
@@ -83,7 +83,8 @@ test("FL-01: the faulted store reading is taken while the rule is armed and writ
       assert.ok(readdirSync(world.runDir).includes(name), `${name} was written`);
     }
     const faulted = JSON.parse(readFileSync(join(world.runDir, "offline-store-faulted.json"), "utf8"));
-    assert.equal(faulted.library.length, 0, "while faulted no committed record exists yet");
+    // the fork's reservation writes the pin row and the index before the download (manager.ts reserve); no blob may exist yet
+    assert.equal(libraryBlobs(faulted, [...world.rows.keys()]).length, 0, "while faulted no committed blob exists yet");
   } finally {
     world.clean();
   }

@@ -15,6 +15,20 @@ import { performance } from "node:perf_hooks";
 import { harnessPaths, isMainModule, origin as buildOrigin } from "../harness/lib.mjs";
 import { createRuleEngine, stripQuery } from "./rules.mjs";
 
+const ERROR_SNIFF_BYTES = 4096;
+
+/** `error.code` (or `code`) of a JSON error answer when it is a plain code token, else null. */
+export function errorCodeOf(body) {
+  try {
+    const parsed = JSON.parse(body.toString("utf8"));
+    const code = parsed?.error?.code ?? parsed?.code;
+    return typeof code === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
+
 const CONTROL_PREFIX = "/__fault";
 
 function sleep(ms) {
@@ -193,7 +207,7 @@ export async function startFaultProxy({
     return { idempotencyKey: true, keyTag };
   }
 
-  function recordLog({ startTime, method, path, status, idempotencyKey, keyTag, ruleId }) {
+  function recordLog({ startTime, method, path, status, idempotencyKey, keyTag, ruleId, errorCode }) {
     const entry = {
       ts: new Date().toISOString(),
       method: String(method || "GET").toUpperCase(),
@@ -203,6 +217,9 @@ export async function startFaultProxy({
       idempotencyKey: Boolean(idempotencyKey),
       keyTag: keyTag ?? null,
       ruleId: ruleId ?? null,
+      // the error code of a JSON 4xx/5xx answer (`error.code`), never the body: an app row
+      // must tell `offline_lease_revoked` from any other 403 (G7-03b R2-9)
+      ...(errorCode ? { errorCode } : {}),
     };
     const serialized = `${JSON.stringify(entry)}\n`;
     logEntries.push(serialized);
@@ -328,7 +345,7 @@ export async function startFaultProxy({
     bufferedBody = null,
   }) {
     let logged = false;
-    const logOnce = (status) => {
+    const logOnce = (status, errorCode = null) => {
       if (logged) return;
       logged = true;
       recordLog({
@@ -339,6 +356,7 @@ export async function startFaultProxy({
         idempotencyKey,
         keyTag,
         ruleId,
+        errorCode,
       });
     };
 
@@ -398,13 +416,22 @@ export async function startFaultProxy({
         if (!res.headersSent && !res.writableEnded) {
           res.writeHead(statusCode, proxyRes.headers);
         }
+        // the first 4 KiB of an uncompressed 4xx/5xx answer, read on the side only to name its error code
+        const sniffError = statusCode >= 400 && !proxyRes.headers["content-encoding"];
+        const sniffed = [];
+        let sniffedBytes = 0;
         proxyRes.on("data", (chunk) => {
+          if (sniffError && sniffedBytes < ERROR_SNIFF_BYTES) {
+            const piece = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            sniffed.push(piece);
+            sniffedBytes += piece.length;
+          }
           if (!res.writableEnded && !res.destroyed) {
             res.write(chunk);
           }
         });
         proxyRes.on("end", () => {
-          logOnce(statusCode);
+          logOnce(statusCode, sniffError ? errorCodeOf(Buffer.concat(sniffed)) : null);
           if (!res.writableEnded && !res.destroyed) {
             res.end();
           }

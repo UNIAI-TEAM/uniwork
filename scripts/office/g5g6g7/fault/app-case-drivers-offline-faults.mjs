@@ -11,26 +11,61 @@
 //   FL-06  `go` + the run's DATABASE_URL (uniwork-admin revoke-offline-leases)
 //   FL-09  the runner under `APP_KEYRING_CONTROL=1 … app-keyring.sh`
 //   FL-04a nothing beyond the harness (proxy rewrite_json + cut rules)
+//
+// What these drivers know about the fork (apps/shell/src/main/uniwork-sync, aae163aed):
+//   - a lease with < 4 h left projects `lease-expiring` above `ready` (lease/clock.ts:128-138,
+//     offline-library/record.ts:70-88), so a SHORT lease is observed as `lease-expiring`;
+//   - the library's reservation writes the pin row and the index BEFORE any download
+//     (manager.ts reserve), so a fill must come after it and the content write must meet it;
+//   - the clock-rollback latch is PERSISTED (lease/manager.ts:394-409): the lease record
+//     changes while the lease itself is not extended;
+//   - the library layer's budget is 2 GiB + 256 MiB + 16 MiB (offline-library/store.ts:36-47).
+//
+// Every resource a row takes from the VM (a mount, a filler file, a locked keyring) is
+// OWNED before the operation that may create it and its cleanup is CHECKED with a
+// read-back (review r2 R2-11): an unproven cleanup makes the row BLOCKED and stops the
+// later rows, never a PASS on a VM that was not restored.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { AppBlocked } from "./app-session.mjs";
 import { assertion } from "./app-cases-lib.mjs";
 import { countAssertion } from "./app-case-drivers.mjs";
 import {
-  INDEX_RECORD_NAME, OFFLINE_STATE_TIMEOUT_MS, armOpenCut, awaitRowState, captureRowShots, collectOfflineState, downloadNow, downloadRequests, libraryStoreDir,
-  listPlaintextCopies, noWriteAssertions, offlineBoolAssertion, offlineCountAssertion, offlineFresh, offlineOpen, offlineSnapshot, pinDocument,
-  pinRecordNames, preStoreAssertion, resultAssertion, rowOf, ruleHitAssertion, runGuarded, storeArgs, storeDelta, watchRowStatesOrBlocked,
-  upstreamDownloads, withOfflineCapability, writeStoreEvidence,
+  INDEX_RECORD_NAME, OFFLINE_DOWNLOAD_TIMEOUT_MS, OFFLINE_STATE_TIMEOUT_MS, S11_LOCK_SELECTOR, armOpenCut, awaitRowState, captureRowShots, collectOfflineState, downloadNow, downloadRequests,
+  libraryBlobs, libraryStoreDir, listPlaintextCopies, noWriteAssertions, offlineBoolAssertion, offlineCountAssertion, offlineFresh, offlineOpen, offlineSnapshot,
+  pinDocument, pinRecordNames, preStoreAssertion, resultAssertion, rowOf, ruleHitAssertion, runGuarded, storeArgs, storeDelta, upstreamDownloads,
+  watchRowStatesOrBlocked, withOfflineCapability, writeStoreEvidence,
 } from "./app-case-drivers-offline.mjs";
 import { deltaAssertion } from "./app-case-drivers.mjs";
 
 const blocked = (blocker) => ({ documentId: null, assertions: [], blocker });
 
-/** The S3 row of one document and its S11 lock reason, from a fresh snapshot (null fields when it cannot answer). */
+/** The window a rewritten lease expiry may differ from the clock the runner read around the grant (ms). */
+const LEASE_TOLERANCE_MS = 10_000;
+/** A page of a tmpfs: a write smaller than the free space still needs one whole page. */
+const TMPFS_PAGE_BYTES = 4096;
+
+/**
+ * The S3 row of one document, as the app's own snapshot shows it right now: its state,
+ * S11 reason, whether a tab of the copy is open, the expiry of the lease behind it and
+ * the committed version (null fields when it cannot answer). The row is the approved
+ * product reading - no store file, no ciphertext.
+ */
 const rowReading = async (session, documentId) => {
   const row = rowOf(await offlineSnapshot(session), documentId);
-  return { state: row?.state ?? null, lockReason: row?.lockReason ?? null };
+  return {
+    state: row?.state ?? null,
+    lockReason: row?.lockReason ?? null,
+    open: row?.open === true,
+    leaseUntil: typeof row?.leaseUntil === "string" ? row.leaseUntil : null,
+    version: Number.isInteger(row?.version) ? row.version : null,
+  };
 };
+
+/** Whether the S11 lock panel is on screen right now (a read; never a click or an open). */
+const lockPanelVisible = (session) =>
+  session.shell.locator(S11_LOCK_SELECTOR).first().isVisible().then((visible) => visible === true).catch(() => false);
 
 /** A refusal that names its code and the S11 reason: the pair the rows assert (an `ok` open never matches). */
 const refusalAssertion = (ctx, name, opened, { lockReason = true } = {}) => {
@@ -41,14 +76,44 @@ const refusalAssertion = (ctx, name, opened, { lockReason = true } = {}) => {
   return assertion(name, `${codes.join("|")}${reason ? ` / ${reason}` : ""}`, actual, ok);
 };
 
-/** A store slice (`drafts`, `offline-leases`, ...) must be unchanged between two readings: nothing removed or rewritten. */
-const sliceUntouched = (before, after, store) => {
-  const delta = storeDelta(
-    { records: (before.records ?? []).filter((record) => record.store === store) },
-    { records: (after.records ?? []).filter((record) => record.store === store) },
-  );
-  return delta.removed.length === 0 && delta.changed.length === 0;
-};
+/**
+ * Runs a row's body with the resources it takes from the VM OWNED (review r2 R2-11).
+ * `own(name, cleanup)` registers a cleanup BEFORE the operation that may create the
+ * resource; every cleanup runs afterwards, last registered first, whatever the body
+ * did, and each result is checked: a cleanup that answers `{ok:false}` or throws is a
+ * failure. Any failure makes the row BLOCKED (`blocker` + `cleanupFailure`, which the
+ * runner turns into a fail-stop of the later rows); the body's own error is not lost.
+ */
+export async function withOwnedResources(body) {
+  const cleanups = [];
+  let outcome = null;
+  let thrown = null;
+  try {
+    outcome = await body((name, cleanup) => cleanups.push({ name, cleanup }));
+  } catch (error) {
+    thrown = error;
+  }
+  const failures = [];
+  for (const { name, cleanup } of cleanups.reverse()) {
+    try {
+      const result = await cleanup();
+      if (result && result.ok === false) failures.push(`${name}: ${result.line ?? "failed"}`);
+    } catch (error) {
+      failures.push(`${name}: ${error?.message ?? error}`);
+    }
+  }
+  if (failures.length === 0) {
+    if (thrown) throw thrown;
+    return outcome;
+  }
+  const reason = failures.join("; ");
+  const base = outcome ?? blocked("");
+  const bodyNote = thrown ? ` (the row also threw: ${thrown?.message ?? thrown})` : "";
+  return { ...base, blocker: `cleanup unproven: ${reason}${bodyNote}`, cleanupFailure: reason };
+}
+
+/** A promise's answer, or null when it has not settled in `ms` (a pin that waits on a held download never does). */
+const settled = (promise, ms) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 
 // ---- FL-02: disk full while the library writes ----------------------------------------
 async function fl02(ctx) {
@@ -59,43 +124,90 @@ async function fl02(ctx) {
   const recovered = ctx.expect.offline("recoveredStates");
   const blocker = await withOfflineCapability(ctx);
   if (blocker) return blocked(blocker);
-  const userData = ctx.userDataDir();
-  const vm = ctx.vm;
-  // the mechanism, decided BEFORE the app launches: a tmpfs must be the userData the app starts on
-  const probe = vm.probeTmpfsMount();
-  const mount = probe.ok ? vm.mountTmpfs(userData, mountMb) : { ok: false, line: probe.line };
-  const mechanism = mount.ok ? "tmpfs" : "sparse";
-  const filler = { path: null };
-  let session;
-  try {
+  return withOwnedResources(async (own) => {
+    const userData = ctx.userDataDir();
+    const vm = ctx.vm;
+    const filler = { path: null };
+    let session = null;
+    // every resource is owned before the call that may create it; they are undone in reverse:
+    // the app closes, the held download lets go, the filler goes, then the mount
+    const probe = vm.probeTmpfsMount();
+    let mount = { ok: false, line: probe.line };
+    if (probe.ok) {
+      own("unmount of the tmpfs", () => vm.unmountTmpfs(userData));
+      mount = vm.mountTmpfs(userData, mountMb);
+    }
+    const mechanism = mount.ok ? "tmpfs" : "sparse";
+    own("removal of the filler file", () => (filler.path ? vm.releaseFill(filler.path) : { ok: true }));
+    own("release of the held content download", async () => {
+      await ctx.release("hold-content").catch(() => undefined);
+      return { ok: true };
+    });
+    own("close of the app", async () => {
+      if (session) await ctx.close(session).catch(() => undefined);
+      return { ok: true };
+    });
     const docA = await ctx.newDocument();
     const docB = await ctx.newDocument();
     session = await ctx.launch();
     const pinA = await pinDocument(session, { documentId: docA.id, workspaceId: ctx.tenant.workspaceId });
     const readyA = await awaitRowState(ctx, session, docA.id, ctx.expect.offline("firstLaunchStates"));
     const before = collectOfflineState(storeArgs(ctx, [docA.id, docB.id]));
-    // the fault: a really full filesystem (tmpfs), or the library layer's own budget crossed
-    // a fill the VM cannot make is a precondition, not a product claim: BLOCKED with the line (no tmpfs AND no fallback)
+    // what B's content write will need, MEASURED: A is the same fixture, so its committed ciphertext is the size B's will be
+    const intendedWrite = libraryBlobs(before, [docA.id]).reduce((sum, record) => sum + record.sizeBytes, 0);
+
+    // 1. B's pin and reservation FIRST: the fork writes the pin row and the index before the download,
+    //    and a hold rule keeps the content request at the proxy so the fill lands between the two
+    await ctx.setRules(ctx.caseRules(["hold-content"]));
+    const pinBPromise = pinDocument(session, { documentId: docB.id, workspaceId: ctx.tenant.workspaceId });
+    const held = await ctx.waitHeld("hold-content", OFFLINE_STATE_TIMEOUT_MS);
+    if (!held) {
+      if (!(await ctx.appAlive(session).catch(() => false))) throw new AppBlocked("the app stopped before B's content download reached the proxy (harness down; no product claim)");
+      const early = await settled(pinBPromise, 1_000);
+      // a store_full this early, before any fill, is the reservation phase: nothing here is the content write
+      if (early?.code === "store_full") return blocked("harness order: B's pin was refused store_full before the fill (the reservation phase), so the disk-full row cannot be exercised on its content write");
+      return { documentId: docB.id, assertions: [resultAssertion("pin_b_accepted", early), assertion("b_content_download_held", "B's content GET reached the proxy and was held", "it never reached the proxy", false)] };
+    }
+    const reserved = collectOfflineState(storeArgs(ctx, [docA.id, docB.id]));
+    const reservedPin = pinRecordNames([docB.id]).every((name) => reserved.library.some((record) => record.name === name));
+    if (!reservedPin) {
+      return blocked("harness order: B's pin row was not in the store while its content download was held (the reservation writes the pin row and the index before the download, manager.ts reserve), so the fill would hit the reservation, not the content write");
+    }
+
+    // 2. the fill, with the content write still to come
     let fill;
     try {
       if (mechanism === "tmpfs") {
-        fill = vm.fillToLeave(userData, leave);
+        fill = vm.fillToLeave(userData, leave, { onPath: (path) => { filler.path = path; } });
       } else {
         const scope = join(libraryStoreDir(userData, ctx.deploymentId(), ctx.tenant.app.userId), "..");
-        fill = vm.sparseFill(scope, budget, leave);
+        // leave less than the write needs, or the write would still fit under the budget
+        const sparseLeave = Math.max(0, Math.min(leave, intendedWrite - 1));
+        fill = vm.sparseFill(scope, budget, sparseLeave, { onPath: (path) => { filler.path = path; } });
       }
     } catch (error) {
       return blocked(mechanism === "tmpfs" ? `the tmpfs could not be filled: ${error.message}` : `no tmpfs (${mount.line}) and the sparse fallback failed: ${error.message}`);
     }
     filler.path = fill.path;
-    const faultReal = mechanism === "tmpfs" ? fill.freeAfter <= leave + 4096 : fill.apparentBytes >= budget - leave;
-    const pinB = await pinDocument(session, { documentId: docB.id, workspaceId: ctx.tenant.workspaceId });
+    // the fault is real when the filesystem has less room than the write needs (ENOSPC), or the scope's
+    // measured usage plus the write crosses the layer's budget (store_full) - not when a file merely exists
+    const faultReal = mechanism === "tmpfs"
+      ? fill.freeAfter < Math.max(intendedWrite, TMPFS_PAGE_BYTES)
+      : fill.scopeBytes <= budget && fill.scopeBytes + intendedWrite > budget;
+
+    // 3. the content write meets the fault
+    const boundary = (await ctx.proxyLog()).length;
+    await ctx.release("hold-content");
+    const pinB = await settled(pinBPromise, OFFLINE_DOWNLOAD_TIMEOUT_MS);
     const watch = await watchRowStatesOrBlocked(ctx, session, docB.id, { until: faulted, timeout: OFFLINE_STATE_TIMEOUT_MS });
+    const contentServed = upstreamDownloads((await ctx.proxyLog()).slice(boundary), docB.id).filter((entry) => entry.status === 200);
     const faultedState = collectOfflineState(storeArgs(ctx, [docA.id, docB.id]));
     const aReading = await rowReading(session, docA.id);
     const shots = await captureRowShots(ctx, session, { s3: true });
     // free the space and retry: the retry is the product's, the space is the VM's
-    vm.releaseFill(filler.path);
+    await ctx.clearRules();
+    const freed = fill.path ? vm.releaseFill(fill.path) : { ok: true };
+    if (!freed.ok) return blocked(`the filler could not be removed before the retry: ${freed.line}`);
     const retry = await downloadNow(session, docB.id);
     const recoveredRow = await awaitRowState(ctx, session, docB.id, recovered);
     const log = await ctx.proxyLog();
@@ -103,7 +215,13 @@ async function fl02(ctx) {
     writeStoreEvidence(ctx.runDirOut(), { before, faulted: faultedState, after });
     writeFileSync(
       join(ctx.runDirOut(), "offline-disk-mechanism.json"),
-      `${JSON.stringify({ mechanism, probe: probe.ok ? "sudo mount ok" : probe.line, mount: mount.ok ? "mounted" : mount.line ?? null, mountMb: mechanism === "tmpfs" ? mountMb : null, leaveBytes: leave, fill: mechanism === "tmpfs" ? { freeBefore: fill.freeBefore, freeAfter: fill.freeAfter } : { apparentBytes: fill.apparentBytes, budgetBytes: budget } }, null, 2)}\n`,
+      `${JSON.stringify({
+        mechanism, probe: probe.ok ? "sudo mount ok" : probe.line, mount: mount.ok ? "mounted" : mount.line ?? null, mountMb: mechanism === "tmpfs" ? mountMb : null, leaveBytes: leave,
+        intendedWriteBytes: intendedWrite,
+        fill: mechanism === "tmpfs"
+          ? { freeBefore: fill.freeBefore, freeAfter: fill.freeAfter }
+          : { apparentBytes: fill.apparentBytes, usedBefore: fill.usedBefore, scopeBytes: fill.scopeBytes, budgetBytes: budget },
+      }, null, 2)}\n`,
     );
     // everything the library held before B was pinned is A's (its pin row, its blobs) plus the shared index
     const aNames = new Set(before.library.map((record) => record.name));
@@ -116,11 +234,21 @@ async function fl02(ctx) {
       documentId: docB.id,
       assertions: [
         assertion("mechanism_reported", "tmpfs (real ENOSPC) or sparse (store_full)", `${mechanism}${mount.ok ? "" : ` - tmpfs not used: ${mount.line}`}`, true),
-        assertion("fault_really_happened", mechanism === "tmpfs" ? `free <= ${leave} B (+1 page) on the userData filesystem` : `a sparse filler of ${budget - leave} B in the library scope`, mechanism === "tmpfs" ? `${fill.freeAfter} B free` : `${fill.apparentBytes} B apparent`, faultReal),
+        assertion(
+          "fault_really_happened",
+          mechanism === "tmpfs"
+            ? `free < max(${intendedWrite} B intended write, ${TMPFS_PAGE_BYTES} B page) on the userData filesystem`
+            : `scope usage <= ${budget} B budget < scope usage + ${intendedWrite} B intended write`,
+          mechanism === "tmpfs" ? `${fill.freeAfter} B free` : `${fill.scopeBytes} B in the scope (${fill.apparentBytes} B filler)`,
+          faultReal,
+        ),
         resultAssertion("pin_a_accepted", pinA),
         assertion("a_ready_before_fault", ctx.expect.offline("firstLaunchStates").join("|"), readyA?.state ?? "never", Boolean(readyA)),
         preStoreAssertion(before, docA.id),
+        assertion("b_reserved_before_fill", "B's pin row in the store while its content download was held", "present", reservedPin),
         resultAssertion("pin_b_accepted", pinB),
+        // the evidence comes from the CONTENT write phase: B's content request was served after the fill
+        assertion("fault_hit_the_content_write", ">= 1 upstream content download of B answered after the fill", contentServed.length, contentServed.length >= 1),
         assertion("b_row_faulted", faulted.join("|"), watch.states.join(" → ") || "(no row seen)", Boolean(watch.found)),
         assertion("b_never_ready_while_faulted", "never ready", watch.states.join(" → ") || "(no row seen)", !watch.states.includes("ready")),
         assertion("nothing_partial_in_the_store", "only B's pin row added while faulted (no blob)", strayAdded.length === 0 ? "pin row only" : strayAdded.join(", "), strayAdded.length === 0),
@@ -133,57 +261,94 @@ async function fl02(ctx) {
         await deltaAssertion(ctx, docB.id),
       ],
     };
-  } finally {
-    if (session) await ctx.close(session).catch(() => {});
-    if (filler.path) vm.releaseFill(filler.path);
-    if (mechanism === "tmpfs") vm.unmountTmpfs(userData);
-  }
+  });
 }
+
+/**
+ * The short lease the row's own `rewrite_json` rule serves, proved against the clock:
+ * the app's `leaseUntil` is `ttlMs` after a moment between `from` and `to` (the runner's
+ * readings around the grant), so the rewrite took - a normal lease would be hours away.
+ */
+const leaseRewriteAssertion = (reading, ttlMs, from, to) => {
+  const until = Date.parse(reading?.leaseUntil ?? "");
+  const grantedAtMs = until - ttlMs;
+  const ok = Number.isFinite(until) && grantedAtMs >= from - LEASE_TOLERANCE_MS && grantedAtMs <= to + LEASE_TOLERANCE_MS;
+  return assertion(
+    "lease_until_is_the_rewritten_expiry",
+    `leaseUntil = a grant between the runner's readings + ${ttlMs} ms (tolerance ${LEASE_TOLERANCE_MS} ms)`,
+    Number.isFinite(until) ? `leaseUntil - ${ttlMs} ms is ${grantedAtMs - from} ms after the pin started` : "no leaseUntil on the row",
+    ok,
+  );
+};
 
 // ---- FL-04a: the read lease expires while the offline copy is open --------------------
 async function fl04a(ctx) {
   const faulted = ctx.expect.offline("faultedStates");
   const recoveredStates = ctx.expect.offline("recoveredStates");
+  const shortLeaseStates = ctx.expect.offline("shortLeaseStates");
   const blocker = await withOfflineCapability(ctx);
   if (blocker) return blocked(blocker);
   // the lease the app is granted lives `ttlMs`, read from the rule the row carries (no number of this file's own)
   const shortLease = ctx.caseRules(["short-lease"]);
   const ttlMs = shortLease[0].action.patch.expires_at.now_plus_ms;
+  const startedAt = Date.now();
   const { doc, session } = await offlineFresh(ctx, { rules: shortLease });
   const pinned = await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
-  const ready = await awaitRowState(ctx, session, doc.id, ctx.expect.offline("firstLaunchStates"));
+  // a lease with < 4 h left is `lease-expiring` in the fork (lease/clock.ts:128-138): that is the state a short grant shows, never `ready`
+  const granted = await awaitRowState(ctx, session, doc.id, shortLeaseStates);
+  const grantedBy = Date.now();
   const grantLog = await ctx.proxyLog();
   const before = collectOfflineState(storeArgs(ctx, [doc.id]));
   // offline from here: no renewal can extend the lease, and a Mở can only reach the cache
   await ctx.setRules(ctx.caseRules(["cut-lease", "cut-open"]));
   const openedBefore = await offlineOpen(session, doc.id);
+  const openedAt = Date.now();
+  const openReading = await rowReading(session, doc.id);
+  const until = Date.parse(granted?.row?.leaseUntil ?? "");
+  // the SAME tab must lock when the lease lapses: nothing below opens the document again until the lock was read
   const expired = await awaitRowState(ctx, session, doc.id, faulted, { timeout: ttlMs + OFFLINE_STATE_TIMEOUT_MS });
   const reading = await rowReading(session, doc.id);
-  const opened = await offlineOpen(session, doc.id);
+  const lockedInPlace = await lockPanelVisible(session);
   const shots = await captureRowShots(ctx, session, { s11: true, s3: true });
   const faultedState = collectOfflineState(storeArgs(ctx, [doc.id]));
+  // only now a second open, which must be refused
+  const opened = await offlineOpen(session, doc.id);
   // the expiry is lifted by a real renewal: the network and the lease route are back
   await ctx.clearRules();
   const retry = await downloadNow(session, doc.id);
   const recovery = await awaitRowState(ctx, session, doc.id, recoveredStates);
+  const recoveredReading = await rowReading(session, doc.id);
   const log = await ctx.proxyLog();
   const after = collectOfflineState(storeArgs(ctx, [doc.id]));
   writeStoreEvidence(ctx.runDirOut(), { before, faulted: faultedState, after });
+  const renewedUntil = Date.parse(recoveredReading.leaseUntil ?? "");
   return {
     documentId: doc.id,
     assertions: [
       resultAssertion("pin_accepted", pinned),
-      assertion("first_launch_ready", ctx.expect.offline("firstLaunchStates").join("|"), ready?.state ?? "never", Boolean(ready)),
-      // the short expiry really was served to the app: the rewrite rule's own log line
+      assertion("short_lease_granted", shortLeaseStates.join("|"), granted?.state ?? "never", Boolean(granted)),
+      // the short expiry really was served to the app: the rewrite rule's own log line AND the expiry the app holds
       ruleHitAssertion("lease_expiry_rewritten", grantLog, "short-lease", { documentId: doc.id }),
+      leaseRewriteAssertion(granted?.row, ttlMs, startedAt, grantedBy),
       assertion("open_served_before_expiry", "ok (the cached copy opens while the lease holds)", openedBefore?.ok === true ? "opened" : openedBefore?.code ?? "no answer", openedBefore?.ok === true),
+      assertion("opened_promptly", "the open answered before leaseUntil", Number.isFinite(until) ? `${until - openedAt} ms to spare` : "no leaseUntil", Number.isFinite(until) && openedAt < until),
+      assertion("copy_is_open_before_expiry", "the row reports an open tab of the copy", openReading.open ? "open" : "not open", openReading.open),
       assertion("row_lease_expired", faulted.join("|"), expired?.state ?? "never", Boolean(expired)),
       assertion("row_names_the_lock_reason", ctx.expect.offline("lockReason"), reading.lockReason ?? "none", reading.lockReason === ctx.expect.offline("lockReason")),
+      // the already-open copy locks WHERE IT IS: same tab (the row still reports it open, no second open ran), lock panel up, reason named
+      assertion(
+        "open_tab_locks_in_place",
+        `the lock panel is up, reason ${ctx.expect.offline("lockReason")}, the tab still open - before any reopen`,
+        `panel=${lockedInPlace} reason=${reading.lockReason ?? "none"} open=${reading.open}`,
+        lockedInPlace && reading.lockReason === ctx.expect.offline("lockReason") && reading.open,
+      ),
       refusalAssertion(ctx, "open_refused_lease_expired", opened),
-      offlineBoolAssertion(ctx, "content_not_served", "contentNotServed", opened?.ok === false),
-      offlineBoolAssertion(ctx, "draft_kept", "draftKept", sliceUntouched(before, faultedState, "drafts")),
+      // no content once locked: the lock covered the tab already and a reopen is refused too
+      offlineBoolAssertion(ctx, "content_not_served", "contentNotServed", lockedInPlace && opened?.ok === false),
       resultAssertion("renew_accepted", retry),
       assertion("row_recovered_by_renewal", recoveredStates.join("|"), recovery?.state ?? "never", Boolean(recovery)),
+      // recovery keeps a FULL-TTL lease: the renewed expiry is far beyond the short one
+      assertion("recovered_lease_is_full_ttl", `leaseUntil beyond now + ${ttlMs} ms`, recoveredReading.leaseUntil ?? "no leaseUntil", Number.isFinite(renewedUntil) && renewedUntil > Date.now() + ttlMs),
       ...shots,
       ...noWriteAssertions(ctx, log, doc.id),
       await deltaAssertion(ctx, doc.id),
@@ -204,6 +369,8 @@ async function fl05(ctx) {
   const { doc, session } = await offlineFresh(ctx);
   const pinned = await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
   const ready = await awaitRowState(ctx, session, doc.id, ctx.expect.offline("firstLaunchStates"));
+  // the approved product reading of the lease: the expiry and the committed version the S3 row reports
+  const leaseBefore = await rowReading(session, doc.id);
   const before = collectOfflineState(storeArgs(ctx, [doc.id]));
   await ctx.close(session);
   // the second launch runs `skewMinutes` behind the latest wall clock the first one saw
@@ -231,12 +398,20 @@ async function fl05(ctx) {
   const log = await ctx.proxyLog();
   const after = collectOfflineState(storeArgs(ctx, [doc.id]));
   writeStoreEvidence(ctx.runDirOut(), { before, faulted: faultedState, after });
+  const expiryBefore = Date.parse(leaseBefore.leaseUntil ?? "");
+  const expiryDuring = reading.leaseUntil === null ? null : Date.parse(reading.leaseUntil);
+  // NOT the ciphertext: the fork persists the clock_rollback latch (lease/manager.ts:394-409), so the
+  // lease record is rewritten while the lease is not extended. Extension is read from the semantic
+  // fields of the approved reading - the expiry may not move later and the committed version stays.
+  const expiryHeld = Number.isFinite(expiryBefore) && (expiryDuring === null || expiryDuring <= expiryBefore);
+  const versionHeld = leaseBefore.version === null || reading.version === null || reading.version === leaseBefore.version;
   return {
     documentId: doc.id,
     assertions: [
       resultAssertion("pin_accepted", pinned),
       assertion("first_launch_ready", ctx.expect.offline("firstLaunchStates").join("|"), ready?.state ?? "never", Boolean(ready)),
       preStoreAssertion(before, doc.id),
+      assertion("lease_expiry_read_before", "the ready row reports leaseUntil", leaseBefore.leaseUntil ?? "no leaseUntil", Number.isFinite(expiryBefore)),
       // the fault really happened: the app's own wall clock is behind the runner's
       assertion("wall_clock_moved_back", `>= ${skewMinutes} min behind (libfaketime, tolerance 1 min)`, behindMs === null ? "no answer" : `${(behindMs / 60_000).toFixed(1)} min`, behindMs !== null && behindMs >= (skewMinutes - 1) * 60_000),
       assertion("relaunch_signed_in", "signed in", signedIn ? "signed in" : "not signed in", Boolean(signedIn)),
@@ -245,8 +420,8 @@ async function fl05(ctx) {
       assertion("row_names_the_lock_reason", ctx.expect.offline("lockReason"), reading.lockReason ?? "none", reading.lockReason === ctx.expect.offline("lockReason")),
       offlineBoolAssertion(ctx, "content_not_served", "contentNotServed", opened?.ok === false),
       offlineCountAssertion(ctx, "no_plaintext_copy_materialized", "plaintextCopies", copies.length),
-      // no renewal got through while the clock was back, and the lease record is untouched
-      offlineBoolAssertion(ctx, "never_extends_lease", "neverExtendsLease", leaseGrants.length === 0 && sliceUntouched(before, faultedState, "offline-leases")),
+      // no renewal got through while the clock was back, and the lease's expiry and generation did not move
+      offlineBoolAssertion(ctx, "never_extends_lease", "neverExtendsLease", leaseGrants.length === 0 && expiryHeld && versionHeld),
       resultAssertion("retry_accepted", retry),
       assertion("row_recovered_after_real_clock", recoveredStates.join("|"), recovery?.state ?? "never", Boolean(recovery)),
       ...shots,
@@ -259,24 +434,36 @@ async function fl05(ctx) {
 // ---- FL-06: the lease is revoked on D while the app is offline ------------------------
 async function fl06(ctx) {
   const faulted = ctx.expect.offline("faultedStates");
+  const shortLeaseStates = ctx.expect.offline("shortLeaseStates");
   const blocker = await withOfflineCapability(ctx);
   if (blocker) return blocked(blocker);
-  const { doc, session } = await offlineFresh(ctx);
+  // a SHORT lease (the row's rewrite rule, as FL-04a): once half of it is spent the next online pass
+  // owes a renewal, which is what meets the revoke - a fresh 24 h lease is never renewed in the wait
+  const shortLease = ctx.caseRules(["short-lease"]);
+  const ttlMs = shortLease[0].action.patch.expires_at.now_plus_ms;
+  const startedAt = Date.now();
+  const { doc, session } = await offlineFresh(ctx, { rules: shortLease });
   const pinned = await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
-  const ready = await awaitRowState(ctx, session, doc.id, ctx.expect.offline("firstLaunchStates"));
+  const granted = await awaitRowState(ctx, session, doc.id, shortLeaseStates);
+  const grantedBy = Date.now();
   const before = collectOfflineState(storeArgs(ctx, [doc.id]));
   // offline: the proxy resets every /api/ request, then the lease is revoked on D
   await ctx.setRules(ctx.caseRules(["cut-network"]));
-  const revokeFailure = await ctx.revokeOfflineLeases();
-  if (revokeFailure) return blocked(revokeFailure);
+  const revoke = await ctx.revokeOfflineLeases();
+  if (revoke.failure) return blocked(revoke.failure);
+  // the renewal is due when half of the short lease is gone (fork lease/clock.ts shouldRenew): wait that out
+  const until = Date.parse(granted?.row?.leaseUntil ?? "");
+  const dueInMs = Number.isFinite(until) ? Math.max(0, until - ttlMs / 2 - Date.now()) + 5_000 : ttlMs;
+  await ctx.sleep(dueInMs);
   const boundary = (await ctx.proxyLog()).length;
-  // back online: the next renew meets the revoked lease
+  // back online: the due renewal meets the revoked lease
   await ctx.clearRules();
   const retry = await downloadNow(session, doc.id);
   const row = await awaitRowState(ctx, session, doc.id, faulted);
   const window = (await ctx.proxyLog()).slice(boundary);
   const renews = window.filter((entry) => entry.method === "PUT" && String(entry.path).endsWith("/office/offline-lease"));
   const refusedStatus = ctx.expect.offline("renewRefusalStatus");
+  const refusedCode = ctx.expect.offline("renewRefusalCode");
   // a Mở can only reach the cache now, which is what raises S11
   await armOpenCut(ctx);
   const opened = await offlineOpen(session, doc.id);
@@ -285,19 +472,32 @@ async function fl06(ctx) {
   const copies = listPlaintextCopies(ctx.userDataDir(), ctx.deploymentId(), { accountIds: [ctx.tenant.app.userId] });
   const log = await ctx.proxyLog();
   writeStoreEvidence(ctx.runDirOut(), { before, faulted: faultedState, after: faultedState });
+  const evidence = revoke.evidence;
   return {
     documentId: doc.id,
     assertions: [
       resultAssertion("pin_accepted", pinned),
-      assertion("first_launch_ready", ctx.expect.offline("firstLaunchStates").join("|"), ready?.state ?? "never", Boolean(ready)),
+      assertion("short_lease_granted", shortLeaseStates.join("|"), granted?.state ?? "never", Boolean(granted)),
+      leaseRewriteAssertion(granted?.row, ttlMs, startedAt, grantedBy),
       preStoreAssertion(before, doc.id),
-      // the renewal after the revoke was refused: a PUT on the lease route answered the expected status
-      assertion("renew_refused_after_revoke", `PUT offline-lease answered ${refusedStatus}`, renews.map((entry) => entry.status).join(",") || "(no renew seen)", renews.some((entry) => entry.status === refusedStatus)),
+      // the revoke hit THIS run's organization and ended at least one live lease: the CLI's own stdout
+      assertion(
+        "revoke_cli_hit_this_org",
+        `${ctx.tenant.orgId}, >= 1 live lease revoked`,
+        evidence?.line ?? "no CLI line",
+        evidence?.orgId === ctx.tenant.orgId && Number.isInteger(evidence?.revoked) && evidence.revoked >= 1,
+      ),
+      // the renewal after the revoke was refused with the EXACT code (an unrelated 403 does not count)
+      assertion(
+        "renew_refused_after_revoke",
+        `PUT offline-lease answered ${refusedStatus} ${refusedCode}`,
+        renews.map((entry) => `${entry.status}${entry.errorCode ? ` ${entry.errorCode}` : ""}`).join(",") || "(no renew seen)",
+        renews.some((entry) => entry.status === refusedStatus && entry.errorCode === refusedCode),
+      ),
       assertion("retry_answered", "an answer (a refusal is expected)", retry?.ok === true ? "ok" : retry?.code ?? "no answer", Boolean(retry)),
       assertion("row_revoked", faulted.join("|"), row?.state ?? "never", Boolean(row)),
       refusalAssertion(ctx, "open_refused_permission_revoked", opened),
       offlineCountAssertion(ctx, "no_plaintext_copy_left", "plaintextCopies", copies.length),
-      offlineBoolAssertion(ctx, "draft_kept", "draftKept", sliceUntouched(before, faultedState, "drafts")),
       ...shots,
       ...noWriteAssertions(ctx, log, doc.id),
       await deltaAssertion(ctx, doc.id),
@@ -312,14 +512,17 @@ async function fl09(ctx) {
   if (unavailable) return blocked(unavailable);
   const blocker = await withOfflineCapability(ctx);
   if (blocker) return blocked(blocker);
-  const { doc, session } = await offlineFresh(ctx);
-  const pinned = await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
-  const ready = await awaitRowState(ctx, session, doc.id, ctx.expect.offline("firstLaunchStates"));
-  const before = collectOfflineState(storeArgs(ctx, [doc.id]));
-  await ctx.close(session);
-  const lock = ctx.vm.keyring.lock();
-  if (!lock.ok) return blocked(lock.line);
-  try {
+  return withOwnedResources(async (own) => {
+    const { doc, session } = await offlineFresh(ctx);
+    const pinned = await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
+    const ready = await awaitRowState(ctx, session, doc.id, ctx.expect.offline("firstLaunchStates"));
+    const before = collectOfflineState(storeArgs(ctx, [doc.id]));
+    await ctx.close(session);
+    // the unlock is owned BEFORE the lock attempt: a lock whose reply was lost may still have taken effect, and
+    // the shared keyring must never stay locked for the next row; its answer is the wrapper's own read-back
+    own("unlock of the keyring", () => ctx.vm.keyring.unlock());
+    const lock = ctx.vm.keyring.lock();
+    if (!lock.ok) return blocked(lock.line);
     const second = await ctx.launch({ requireSignIn: false });
     await armOpenCut(ctx);
     const boundary = (await ctx.proxyLog()).length;
@@ -368,10 +571,7 @@ async function fl09(ctx) {
         await deltaAssertion(ctx, doc.id),
       ],
     };
-  } finally {
-    // never leave the shared keyring locked for the next row, whatever happened above (an unlock on an unlocked keyring answers ok)
-    ctx.vm.keyring.unlock();
-  }
+  });
 }
 
 export const OFFLINE_FAULT_DRIVERS = {

@@ -6,7 +6,7 @@
 // (child_process.spawnSync shaped) so the logic is unit-tested without a VM.
 
 import { spawnSync } from "node:child_process";
-import { closeSync, existsSync, ftruncateSync, mkdirSync, openSync, rmSync, statfsSync, writeSync } from "node:fs";
+import { closeSync, existsSync, ftruncateSync, mkdirSync, openSync, readdirSync, rmSync, statSync, statfsSync, writeSync } from "node:fs";
 import { join } from "node:path";
 
 const sh = (run, command, args, options = {}) => {
@@ -41,10 +41,20 @@ export function mountTmpfs(dir, sizeMb, { run = spawnSync, uid = process.getuid?
   return { ok: true };
 }
 
-/** Unmounts what `mountTmpfs` mounted (lazy: a closing app may still hold a file). */
+/** Whether `dir` is a mount point right now (`mountpoint -q`: 0 = a mount). */
+export const isMountPoint = (dir, { run = spawnSync } = {}) => sh(run, "mountpoint", ["-q", dir]).status === 0;
+
+/**
+ * Unmounts what `mountTmpfs` mounted (lazy: a closing app may still hold a file)
+ * and PROVES it (review r2 R2-11): the answer is the read-back, not the exit
+ * code - a directory that is still a mount point afterwards is `{ok:false}`. A
+ * directory that was never mounted (the mount itself failed) is clean already.
+ */
 export function unmountTmpfs(dir, { run = spawnSync } = {}) {
+  if (!isMountPoint(dir, { run })) return { ok: true };
   const res = sh(run, "sudo", ["-n", "umount", "-l", dir]);
-  return res.status === 0 ? { ok: true } : { ok: false, line: `umount -l ${dir} exited ${res.status}: ${firstLine(res.stderr)}` };
+  if (!isMountPoint(dir, { run })) return { ok: true };
+  return { ok: false, line: `umount -l ${dir} exited ${res.status}: ${firstLine(res.stderr) || "still a mount point"}; ${dir} is still a mount point` };
 }
 
 /** Free bytes a non-root user can still write on the filesystem of `dir`. */
@@ -57,13 +67,19 @@ export const freeBytes = (dir, { stat = statfsSync } = {}) => {
  * Fills `dir`'s filesystem until `leaveBytes` are free, with one real file
  * (`.fl02-filler`): the tmpfs is then really full for the app's next write, which
  * is the ENOSPC the row needs. Returns `{path, freeBefore, freeAfter}`.
+ *
+ * The caller owns the file BEFORE it exists (review r2 R2-11): `onPath` is told
+ * the path before the first byte is written, and a fill that throws removes its
+ * own partial file, so no path of a half-written filler is ever lost.
  */
-export function fillToLeave(dir, leaveBytes, { stat = statfsSync } = {}) {
+export function fillToLeave(dir, leaveBytes, { stat = statfsSync, onPath = () => {} } = {}) {
   const path = join(dir, ".fl02-filler");
+  onPath(path);
   const freeBefore = freeBytes(dir, { stat });
   const toWrite = Math.max(0, freeBefore - leaveBytes);
-  const fd = openSync(path, "w");
+  let fd;
   try {
+    fd = openSync(path, "w");
     const chunk = Buffer.alloc(1024 * 1024, 0x2e);
     let left = toWrite;
     while (left > 0) {
@@ -71,14 +87,41 @@ export function fillToLeave(dir, leaveBytes, { stat = statfsSync } = {}) {
       writeSync(fd, chunk, 0, n);
       left -= n;
     }
+  } catch (error) {
+    if (fd !== undefined) closeSync(fd);
+    fd = undefined;
+    rmSync(path, { force: true });
+    throw error;
   } finally {
-    closeSync(fd);
+    if (fd !== undefined) closeSync(fd);
   }
   return { path, freeBefore, freeAfter: freeBytes(dir, { stat }) };
 }
 
-/** Frees what `fillToLeave` took (the row's "free space, then retry"). */
-export const releaseFill = (path) => rmSync(path, { force: true });
+/**
+ * Frees what a fill took (the row's "free space, then retry") and PROVES it
+ * (review r2 R2-11): `{ok:true}` only when the file is gone afterwards.
+ */
+export function releaseFill(path) {
+  try {
+    rmSync(path, { force: true });
+  } catch (error) {
+    return { ok: false, line: `removing the filler ${path} failed: ${error?.message ?? error}` };
+  }
+  return existsSync(path) ? { ok: false, line: `the filler ${path} is still there after its removal` } : { ok: true };
+}
+
+/** The apparent bytes of every file under `dir` (what the library layer's budget counts: files by size). */
+export function scopeUsageBytes(dir) {
+  if (!existsSync(dir)) return 0;
+  let total = 0;
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    const stat = statSync(full);
+    total += stat.isDirectory() ? scopeUsageBytes(full) : stat.size;
+  }
+  return total;
+}
 
 /**
  * The fallback when the VM cannot mount: a SPARSE file in the library's scope
@@ -86,17 +129,32 @@ export const releaseFill = (path) => rmSync(path, { force: true });
  * across the account scope, files by size) is crossed and the next record write
  * answers `store_full` - the contract's fallback. No root, no real disk used.
  * `scopeDir` is `<userData>/uniwork-sync/library/store/<deployment>/<account>`.
+ *
+ * The filler is sized from the MEASURED usage of the scope (review r2 R2-4): it
+ * takes the headroom down to `leaveBytes`, so the scope sits `leaveBytes` under
+ * the budget and any write bigger than that crosses it. `onPath` owns the file
+ * before it exists and a failed fill removes its own partial file (R2-11).
+ * Returns `{path, apparentBytes, usedBefore, scopeBytes}`.
  */
-export function sparseFill(scopeDir, budgetBytes, leaveBytes) {
+export function sparseFill(scopeDir, budgetBytes, leaveBytes, { onPath = () => {} } = {}) {
   mkdirSync(scopeDir, { recursive: true });
   const path = join(scopeDir, ".fl02-sparse-filler");
-  const fd = openSync(path, "w");
+  onPath(path);
+  const usedBefore = scopeUsageBytes(scopeDir);
+  const apparentBytes = Math.max(0, budgetBytes - leaveBytes - usedBefore);
+  let fd;
   try {
-    ftruncateSync(fd, Math.max(0, budgetBytes - leaveBytes));
+    fd = openSync(path, "w");
+    ftruncateSync(fd, apparentBytes);
+  } catch (error) {
+    if (fd !== undefined) closeSync(fd);
+    fd = undefined;
+    rmSync(path, { force: true });
+    throw error;
   } finally {
-    closeSync(fd);
+    if (fd !== undefined) closeSync(fd);
   }
-  return { path, apparentBytes: Math.max(0, budgetBytes - leaveBytes) };
+  return { path, apparentBytes, usedBefore, scopeBytes: scopeUsageBytes(scopeDir) };
 }
 
 // ---- FL-05: libfaketime around Electron ---------------------------------------------

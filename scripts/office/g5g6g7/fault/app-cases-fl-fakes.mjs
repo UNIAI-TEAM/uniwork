@@ -19,7 +19,7 @@ import { join } from "node:path";
 import {
   S11_LOCK_SELECTOR, S3_PANEL_SELECTOR, S3_TAB_SELECTOR, copiesRootDir, leaseStoreDir, libraryStoreDir, recordName,
 } from "./app-case-drivers-offline.mjs";
-import { FAKETIME_CANDIDATES, faketimeEnv } from "./app-offline-env.mjs";
+import { FAKETIME_CANDIDATES, faketimeEnv, scopeUsageBytes } from "./app-offline-env.mjs";
 import { caseExpect } from "./case-expect.mjs";
 import { loadFaultCases, renderCaseRules } from "./server-cases-lib.mjs";
 
@@ -74,6 +74,19 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     keyringSticky: false,
     keyringBroken: false,
     rollbackLatched: false,
+    // a product that extends the lease while the clock is back (a test turns it on)
+    extendOnRollback: false,
+    // R2-9: time the driver slept (ctx.sleep), the content requests a hold rule keeps, the copies an open tab shows
+    sleptMs: 0,
+    held: new Map(),
+    opened: new Set(),
+    // R2-11: cleanup results a test can break
+    unmountFails: false,
+    releaseFails: false,
+    fillThrowsAfterPath: false,
+    lockFailsButLocks: false,
+    finalUnlockFails: false,
+    unlockCalls: 0,
     // the VM: a runner that HAS tmpfs, libfaketime and the keyring control channel, until a test takes one away
     tmpfsMountable: true,
     mountFails: false,
@@ -106,13 +119,26 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     }) ?? null;
 
   /** One GET of the content route through the fake proxy: a hit resets, else the upstream answers 200. */
+  const downloadPath = (documentId) => `/api/v1/documents/${documentId}/download`;
   const download = (documentId) => {
-    const path = `/api/v1/documents/${documentId}/download`;
+    const path = downloadPath(documentId);
     const rule = matchingRule("GET", path);
     world.log.push({ method: "GET", path, status: rule ? "reset" : 200, ruleId: rule?.id ?? null });
     return !rule;
   };
   world.download = download;
+  /** the same GET, but a `hold` rule keeps it until the driver releases it (the proxy's own behaviour), then the upstream answers 200 */
+  const downloadHeld = async (documentId) => {
+    const path = downloadPath(documentId);
+    const rule = matchingRule("GET", path);
+    if (rule?.action.type === "hold") {
+      await new Promise((resolve) => world.held.set(rule.id, resolve));
+      world.log.push({ method: "GET", path, status: 200, ruleId: rule.id });
+      return true;
+    }
+    world.log.push({ method: "GET", path, status: rule ? "reset" : 200, ruleId: rule?.id ?? null });
+    return !rule;
+  };
 
   const writeLibrary = (documentId, account = world.signedInAs ?? ACCOUNT_A) => {
     const dir = libraryDir(account);
@@ -127,11 +153,13 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
 
   const blobNames = (documentId, account = ACCOUNT_A) => [recordName(`blob/${documentId}/g1/main`)].filter((name) => readdirSync(libraryDir(account)).includes(name));
 
+  const FULL_LEASE_MS = 24 * 60 * 60 * 1000;
   /**
-   * The lease route through the fake proxy: a reset cuts it, a revoked lease answers 403, a `rewrite_json`
-   * rule serves a SHORT lease (it lapses once nothing can renew it), anything else is a normal 200 that also
-   * lifts a latched clock rollback. Every grant moves the document's lease record, so "the lease was not
-   * extended" is a real store comparison.
+   * The lease route through the fake proxy: a reset cuts it, a revoked lease answers 403 `offline_lease_revoked`,
+   * a `rewrite_json` rule serves a SHORT lease (it projects `lease-expiring` like the fork's < 4 h rule and
+   * lapses once nothing can renew it), anything else is a full 24 h grant that also lifts a latched clock
+   * rollback. Every grant moves the document's lease record, so "the lease was not extended" is a real store
+   * comparison.
    */
   const leasePut = (documentId) => {
     const path = `/api/v1/documents/${documentId}/office/offline-lease`;
@@ -141,11 +169,13 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       return "cut";
     }
     if (world.revoked) {
-      world.log.push({ method: "PUT", path, status: 403, ruleId: rule?.id ?? null });
+      world.log.push({ method: "PUT", path, status: 403, ruleId: rule?.id ?? null, errorCode: world.revokeErrorCode ?? "offline_lease_revoked" });
       return "revoked";
     }
     world.log.push({ method: "PUT", path, status: 200, ruleId: rule?.id ?? null });
-    world.leases.set(documentId, { short: rule?.action.type === "rewrite_json", polls: 0 });
+    const short = rule?.action.type === "rewrite_json";
+    const ttlMs = short ? rule.action.patch.expires_at.now_plus_ms : FULL_LEASE_MS;
+    world.leases.set(documentId, { short, ttlMs, grantedAt: Date.now(), polls: 0, expired: false });
     world.rollbackLatched = false;
     writeRecord(world.leaseDir(), `lease/${documentId}`, Buffer.from(`lease-${documentId}-${++world.leaseSeq}`));
     return "granted";
@@ -153,37 +183,58 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
   world.leasePut = leasePut;
   const leaseCut = () => world.rules.some((rule) => rule.id === "cut-lease" || rule.id === "cut-network");
   const keystoreDown = () => world.keyringLocked || world.keyringBroken;
+  /** the fork renews only a lease that is due: none yet, expired, latched, or half its TTL gone (the driver's sleeps are the clock) */
+  const leaseDue = (documentId) => {
+    const lease = world.leases.get(documentId);
+    return !lease || lease.expired || world.rollbackLatched || (lease.short && world.sleptMs >= lease.ttlMs / 2);
+  };
 
   /** the row the product shows: the stored row with the lease / clock / revoke overlay (null while the keystore is down) */
   const viewOf = (documentId, row) => {
     if (keystoreDown()) return null;
-    if (world.revokedSeen.has(documentId)) return { documentId, ...row, state: "revoked", lockReason: "permission_revoked" };
-    if (world.rollbackLatched && row.state === "ready") return { documentId, ...row, state: "locked", lockReason: "clock_rollback" };
     const lease = world.leases.get(documentId);
-    if (lease?.short && leaseCut() && row.state === "ready") {
-      lease.polls += 1;
-      if (lease.polls > world.expireAfterPolls) return { documentId, ...row, state: "lease-expired", lockReason: "lease_expired" };
+    const base = {
+      documentId,
+      version: 1,
+      ...row,
+      open: world.opened.has(documentId),
+      leaseUntil: lease ? new Date(lease.grantedAt + lease.ttlMs).toISOString() : null,
+    };
+    if (world.revokedSeen.has(documentId)) return { ...base, state: "revoked", lockReason: "permission_revoked" };
+    if (world.rollbackLatched && row.state === "ready") return { ...base, state: "locked", lockReason: "clock_rollback" };
+    if (lease?.short && row.state === "ready") {
+      if (lease.expired) lease.polls = world.expireAfterPolls + 1;
+      else if (leaseCut()) lease.polls += 1;
+      if (lease.polls > world.expireAfterPolls) {
+        lease.expired = true;
+        // the tab that already shows the copy locks in place: the lock panel rises with no open call
+        if (world.opened.has(documentId) && !world.lockStaysHidden) world.visible.add(S11_LOCK_SELECTOR);
+        return { ...base, state: "lease-expired", lockReason: "lease_expired" };
+      }
+      return { ...base, state: "lease-expiring" };
     }
-    return { documentId, ...row };
+    return base;
   };
 
-  /** a pin that met a full disk: only the pin row (and the index listing it) lands, never a blob */
-  const writePinOnly = (documentId, account = world.signedInAs ?? ACCOUNT_A) => {
+  /** the fork's reservation (manager.ts reserve): the pin row and the index land BEFORE any download */
+  const reserve = (documentId, account = world.signedInAs ?? ACCOUNT_A) => {
     const dir = libraryDir(account);
     writeRecord(dir, "index", Buffer.from(`index-${documentId}`));
     writeRecord(dir, `pin/${documentId}`, Buffer.from(`pin-${documentId}`));
   };
 
   world.product = {
-    /** pin: the download goes through the proxy; a cut one is `interrupted`, a full disk `disk-full`, else the copy is written and `ready` */
-    pin: ({ documentId }) => {
+    /** pin: reservation first, then the download through the proxy; a cut one is `interrupted`, a full disk `disk-full`, else the copy is written and `ready` */
+    pin: async ({ documentId }) => {
       if (keystoreDown()) return { ok: false, code: "keystore_locked", lockReason: "keystore_locked" };
-      if (!download(documentId)) {
+      // a disk that is already full refuses the reservation itself: that is store_full before any content moved
+      if (world.diskFull) return { ok: false, code: "store_full" };
+      reserve(documentId);
+      if (!(await downloadHeld(documentId))) {
         world.rows.set(documentId, { state: "interrupted", name: "doc" });
         return { ok: true };
       }
       if (world.diskFull) {
-        writePinOnly(documentId);
         world.rows.set(documentId, { state: "disk-full", name: "doc" });
         return { ok: true };
       }
@@ -192,9 +243,9 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       leasePut(documentId);
       return { ok: true };
     },
-    downloadNow: (documentId) => {
+    downloadNow: async (documentId) => {
       if (keystoreDown()) return { ok: false, code: "keystore_locked", lockReason: "keystore_locked" };
-      if (!download(documentId)) {
+      if (!(await downloadHeld(documentId))) {
         world.rows.set(documentId, { state: "interrupted", name: "doc" });
         return { ok: false, code: "interrupted" };
       }
@@ -202,10 +253,13 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
         world.rows.set(documentId, { state: "disk-full", name: "doc" });
         return { ok: false, code: "store_full" };
       }
-      const lease = leasePut(documentId);
-      if (lease === "revoked") {
-        world.revokedSeen.add(documentId);
-        return { ok: false, code: "revoked", lockReason: "permission_revoked" };
+      // only a due lease is renewed (a fresh one is left alone: the fork's online pass skips it)
+      if (leaseDue(documentId)) {
+        const lease = leasePut(documentId);
+        if (lease === "revoked") {
+          world.revokedSeen.add(documentId);
+          return { ok: false, code: "revoked", lockReason: "permission_revoked" };
+        }
       }
       world.rows.set(documentId, { state: "ready", name: "doc" });
       world.writeLibrary(documentId);
@@ -213,7 +267,10 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     },
     /** a cut content route sends the open to the cache, which checks keystore, revoke, clock, lease and bytes in turn */
     open: (documentId) => {
-      if (download(documentId)) return { ok: true };
+      if (download(documentId)) {
+        world.opened.add(documentId);
+        return { ok: true };
+      }
       const refuse = (code, lockReason) => {
         world.visible.add(S11_LOCK_SELECTOR);
         return { ok: false, code, ...(lockReason ? { lockReason } : {}) };
@@ -232,12 +289,14 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
         world.rows.set(documentId, { state: "corrupt", name: "doc" });
         return refuse("corrupt");
       }
+      world.opened.add(documentId);
       return { ok: true };
     },
     /** sign-out wipes the account's offline scope and the rows */
     signOut: () => {
       rmSync(libraryDir(), { recursive: true, force: true });
       world.rows.clear();
+      world.opened.clear();
       world.signedInAs = null;
     },
     /** what the rows are after a launch with `deployment`: another deployment is its own, empty scope */
@@ -258,22 +317,32 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     },
     unmountTmpfs: (dir) => {
       world.vmCalls.push(["unmount", dir]);
-      return { ok: true };
+      return world.unmountFails ? { ok: false, line: `umount -l ${dir} exited 32: target is busy; ${dir} is still a mount point` } : { ok: true };
     },
-    fillToLeave: (dir, leave) => {
+    fillToLeave: (dir, leave, options = {}) => {
       world.vmCalls.push(["fill", dir, leave]);
+      // the real helper tells the caller its path BEFORE the first byte (R2-11)
+      options.onPath?.(join(dir, ".fl02-filler"));
+      if (world.fillThrowsAfterPath) throw new Error("ENOSPC: no space left on device, write");
       world.diskFull = true;
       return { path: join(dir, ".fl02-filler"), freeBefore: 400 * 1024 * 1024, freeAfter: world.fillLeavesBytes ?? leave };
     },
     releaseFill: (path) => {
       world.vmCalls.push(["release", path]);
+      if (world.releaseFails) return { ok: false, line: `the filler ${path} is still there after its removal` };
       world.diskFull = false;
+      return { ok: true };
     },
-    sparseFill: (scopeDir, budget, leave) => {
+    sparseFill: (scopeDir, budget, leave, options = {}) => {
       world.vmCalls.push(["sparse", scopeDir, budget, leave]);
+      const path = join(scopeDir, ".fl02-sparse-filler");
+      options.onPath?.(path);
       if (world.sparseFails) throw new Error("EACCES: permission denied, open '.fl02-sparse-filler'");
       world.diskFull = true;
-      return { path: join(scopeDir, ".fl02-sparse-filler"), apparentBytes: budget - leave };
+      // sized from the scope's measured usage, like the real helper: the scope ends `leave` bytes under the budget
+      const usedBefore = scopeUsageBytes(scopeDir);
+      const apparentBytes = Math.max(0, budget - leave - usedBefore);
+      return { path, apparentBytes, usedBefore, scopeBytes: usedBefore + apparentBytes };
     },
     findFaketime: () => (world.faketimeInstalled ? { path: faketimeLibrary } : { line: "libfaketime is not installed on the runner VM (apt-get install -y libfaketime)" }),
     faketimeEnv,
@@ -283,10 +352,15 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
         world.vmCalls.push(["keyring", "lock"]);
         if (world.keyringLockFails) return { ok: false, line: "the keyring wrapper answered lock with: fail: the collection is still unlocked after Lock" };
         world.keyringLocked = true;
+        // the lock took effect but the channel's reply was lost: a lock the row cannot count on, one it must still undo
+        if (world.lockFailsButLocks) return { ok: false, line: "the keyring control channel did not answer lock (exit 1): timed out" };
         return { ok: true };
       },
       unlock: () => {
         world.vmCalls.push(["keyring", "unlock"]);
+        world.unlockCalls += 1;
+        // the first unlock is the row's own; a later one is the cleanup's
+        if (world.finalUnlockFails && world.unlockCalls >= 2) return { ok: false, line: "the keyring wrapper answered unlock with: fail: the collection is still locked after unlock" };
         world.keyringLocked = false;
         return { ok: true };
       },
@@ -386,7 +460,14 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     };
     currentDeployment = dep;
     // the product sees the wall clock go back across a restart and locks; a process born on a locked keystore stays broken
-    if (session.clockBehindMs > 0) world.rollbackLatched = true;
+    if (session.clockBehindMs > 0) {
+      world.rollbackLatched = true;
+      // the fork PERSISTS the latch (lease/manager.ts:394-409): the lease record is rewritten, its expiry untouched
+      for (const [documentId, lease] of world.leases) {
+        writeRecord(world.leaseDir(), `lease/${documentId}`, Buffer.from(`lease-${documentId}-latched-${++world.leaseSeq}`));
+        if (world.extendOnRollback) lease.grantedAt += 60 * 60 * 1000;
+      }
+    }
     world.keyringBroken = world.keyringSticky && world.keyringLocked;
     world.sessions.push(session);
     return session;
@@ -395,7 +476,7 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
   const ctx = {
     row: world.row,
     expect: caseExpect(world.row, null),
-    tenant: { apiOrigin: "http://d", workspaceId: "01JWORKSPACE0000000000000", app: { userId: ACCOUNT_A }, foreign: { userId: ACCOUNT_B } },
+    tenant: { apiOrigin: "http://d", orgId: "01JORGANIZATION000000000", workspaceId: "01JWORKSPACE0000000000000", app: { userId: ACCOUNT_A }, foreign: { userId: ACCOUNT_B } },
     userDataDir: () => userData,
     deploymentId: () => "default",
     runDirOut: () => runDir,
@@ -417,12 +498,28 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     proxyLog: async () => world.log.map((entry) => ({ ...entry })),
     versionDelta: async () => 0,
     vm: world.vm,
-    // the admin CLI on D: null = revoked, else the line the runner would report
+    // the runner's own sleep: the fake advances its lease clock instead of waiting
+    sleep: async (ms) => { world.sleptMs += ms; },
+    // a `hold` rule: the request waits in the proxy until released
+    waitHeld: async (id) => {
+      for (let i = 0; i < 200; i += 1) {
+        if (world.held.has(id)) return { id, held: 1 };
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      return null;
+    },
+    release: async (id) => {
+      world.held.get(id)?.();
+      world.held.delete(id);
+    },
+    // the admin CLI on D: `{failure, evidence}` like revokeOrgOfflineLeases (the CLI's own stdout line parsed)
     revokeOfflineLeases: async () => {
       world.vmCalls.push(["revoke"]);
-      if (world.revokeFails) return "uniwork-admin revoke-offline-leases exited 1: no organization";
+      if (world.revokeFails) return { failure: "uniwork-admin revoke-offline-leases exited 1: no organization", evidence: null };
       world.revoked = true;
-      return null;
+      const revoked = world.revokedCount ?? world.leases.size;
+      const orgId = world.revokeOrgId ?? ctx.tenant.orgId;
+      return { failure: null, evidence: { line: `${orgId} offline policy epoch now 2, ${revoked} live lease(s) revoked`, orgId, epoch: 2, revoked } };
     },
   };
   world.ctx = ctx;

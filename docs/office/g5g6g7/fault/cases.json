@@ -2886,7 +2886,21 @@
       "status": "ready",
       "scenario": "disk full khi tải lần đầu: giữ bản cũ, hiện lỗi",
       "source": "spec §5.1 (\"Disk full giữ bản cũ\"); S3 › disk-full",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "hold-content",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$",
+            "nth": 1
+          },
+          "action": {
+            "type": "hold",
+            "until": "release"
+          },
+          "once": true
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
@@ -2915,7 +2929,7 @@
           "keptOldCopy": true,
           "diskMountMb": 512,
           "diskLeaveBytes": 1024,
-          "layerBudgetBytes": 2415919104
+          "layerBudgetBytes": 2432696320
         },
         "notes": {
           "client": [
@@ -3093,8 +3107,8 @@
           "uploadPosts": 0
         },
         "offline": {
-          "firstLaunchStates": [
-            "ready"
+          "shortLeaseStates": [
+            "lease-expiring"
           ],
           "faultedStates": [
             "lease-expired"
@@ -3104,7 +3118,6 @@
             "lease_unusable"
           ],
           "contentNotServed": true,
-          "draftKept": true,
           "recoveredStates": [
             "ready"
           ]
@@ -3340,6 +3353,21 @@
       "source": "spec §5.1; S3 › revoked",
       "proxyRules": [
         {
+          "id": "short-lease",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$"
+          },
+          "action": {
+            "type": "rewrite_json",
+            "patch": {
+              "expires_at": {
+                "now_plus_ms": 120000
+              }
+            }
+          }
+        },
+        {
           "id": "cut-network",
           "match": {
             "path": "^/api/"
@@ -3374,8 +3402,8 @@
           "uploadPosts": 0
         },
         "offline": {
-          "firstLaunchStates": [
-            "ready"
+          "shortLeaseStates": [
+            "lease-expiring"
           ],
           "faultedStates": [
             "revoked"
@@ -3386,7 +3414,7 @@
           ],
           "renewRefusalStatus": 403,
           "plaintextCopies": 0,
-          "draftKept": true
+          "renewRefusalCode": "offline_lease_revoked"
         },
         "notes": {
           "client": [
