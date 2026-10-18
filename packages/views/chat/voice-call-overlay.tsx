@@ -1,15 +1,16 @@
 "use client";
 
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { CircleDot, Phone, PhoneOff } from "lucide-react";
+import { CircleDot, MicOff, Phone, RefreshCw, VideoOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getActiveChatVoiceRecording } from "@uniwork/core/api/endpoints/chat-voice";
-import { Notice } from "../common/notice";
 import { useCallRingtone } from "./use-call-ringtone";
 import { voiceCallDeviceMessage, voiceCallEndedMessage } from "./voice-call-copy";
 import { VoiceCallEndedPanel } from "./voice-call-ended-panel";
-import { VoiceCallLabeledAction, type VoiceCallPanelMode } from "./voice-call-floating-panel";
+import { VoiceCallIdentityProvider, useVoiceCallIdentityValue } from "./voice-call-face";
+import { VoiceCallHangupIcon, VoiceCallLabeledAction, type VoiceCallPanelMode } from "./voice-call-floating-panel";
 import { PreConnectFloatingCall } from "./voice-call-pre-connect";
+import { VoiceCallStrip } from "./voice-call-strip";
 import type {
   VoiceCallDeviceError,
   VoiceCallDisconnectInfo,
@@ -101,6 +102,7 @@ export function VoiceCallOverlay({
   const { t } = useTranslation();
   const [panelMode, setPanelMode] = useState<VoiceCallPanelMode>("expanded");
   const incomingRecording = useIncomingRecording(workspaceId, state);
+  const identity = useVoiceCallIdentityValue(workspaceId, state);
   useReturnFocus(state.status !== "idle");
 
   const handleConnectFailed = useCallback(() => {
@@ -160,7 +162,7 @@ export function VoiceCallOverlay({
       <p role="status" className="sr-only" data-testid="voice-call-ended-announcer">
         {endedAnnouncement}
       </p>
-      {renderPanel()}
+      <VoiceCallIdentityProvider value={identity}>{renderPanel()}</VoiceCallIdentityProvider>
     </>
   );
 
@@ -180,29 +182,19 @@ export function VoiceCallOverlay({
         incomingRecording || incomingDeviceError ? (
           <div className="flex flex-col gap-2">
             {incomingRecording ? (
-              <Notice
-                tone="warning"
-                icon={CircleDot}
-                layout="inline"
-                live="off"
-                className="rounded-xl border border-warning/30"
-              >
+              <VoiceCallStrip tone="warning" icon={CircleDot}>
                 {t("chat.voice_call_recording_join_warning")}
-              </Notice>
+              </VoiceCallStrip>
             ) : null}
             {incomingDeviceError ? (
-              <Notice
+              <VoiceCallStrip
                 tone="destructive"
-                icon={PhoneOff}
-                layout="inline"
-                live="assertive"
-                className="rounded-xl border border-destructive/35"
+                icon={incomingDeviceError.kind === "audioinput" ? MicOff : VideoOff}
+                role="alert"
+                title={voiceCallDeviceMessage(incomingDeviceError, t)}
               >
-                {voiceCallDeviceMessage(incomingDeviceError, t)}
-                {incomingDeviceError.failure === "denied" ? (
-                  <span className="mt-0.5 block font-normal">{t("meetings.devicePreviewDeniedHint")}</span>
-                ) : null}
-              </Notice>
+                {incomingDeviceError.failure === "denied" ? t("meetings.devicePreviewDeniedHint") : null}
+              </VoiceCallStrip>
             ) : null}
           </div>
         ) : undefined;
@@ -215,7 +207,7 @@ export function VoiceCallOverlay({
               ? t("chat.voice_call_incoming_recorded_description", { status: statusLabel })
               : undefined
           }
-          pulse
+          pulse="incoming"
           alert
           notice={notice}
         >
@@ -224,14 +216,20 @@ export function VoiceCallOverlay({
             ariaLabel={t("chat.voice_call_decline")}
             tone="decline"
             onClick={onDecline}
-            icon={<PhoneOff aria-hidden className="size-6" />}
+            icon={<VoiceCallHangupIcon className="size-6.5" />}
           />
           <VoiceCallLabeledAction
             label={incomingDeviceError ? t("common.retry") : t("chat.voice_call_accept")}
             ariaLabel={incomingDeviceError ? t("common.retry") : t("chat.voice_call_accept")}
             tone="accept"
             onClick={onAccept}
-            icon={<Phone aria-hidden className="size-6" />}
+            icon={
+              incomingDeviceError ? (
+                <RefreshCw aria-hidden className="size-6.5" />
+              ) : (
+                <Phone aria-hidden className="size-6.5" />
+              )
+            }
           />
         </PreConnectFloatingCall>
       );
@@ -242,13 +240,13 @@ export function VoiceCallOverlay({
         ? t("chat.voice_call_group_calling")
         : t("chat.voice_call_calling");
       return (
-        <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse>
+        <PreConnectFloatingCall peerName={state.peerName} statusLabel={statusLabel} pulse="outgoing">
           <VoiceCallLabeledAction
             label={t("chat.voice_call_end")}
             ariaLabel={t("chat.voice_call_end")}
             tone="decline"
             onClick={cancelPreConnect}
-            icon={<PhoneOff aria-hidden className="size-6" />}
+            icon={<VoiceCallHangupIcon className="size-6.5" />}
           />
         </PreConnectFloatingCall>
       );
@@ -268,7 +266,7 @@ export function VoiceCallOverlay({
             ariaLabel={cancelLabel}
             tone="decline"
             onClick={cancelPreConnect}
-            icon={<PhoneOff aria-hidden className="size-6" />}
+            icon={<VoiceCallHangupIcon className="size-6.5" />}
           />
         </PreConnectFloatingCall>
       );

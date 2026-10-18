@@ -45,6 +45,8 @@ const COLORS = [
   "meeting-bar-bg", "meeting-bar-border", "meeting-bar-foreground",
   "meeting-bar-chip-bg", "meeting-bar-chip-hover",
   "meeting-tile-name-bg", "meeting-tile-name-foreground",
+  "call-plane", "call-plane-raised", "call-stage", "call-tile", "call-hairline",
+  "call-muted-foreground", "call-accent", "call-speaking", "call-ring",
 ] as const;
 
 const twMerge = extendTailwindMerge({

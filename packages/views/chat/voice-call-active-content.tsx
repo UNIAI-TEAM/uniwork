@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useAiCapabilities } from "@uniwork/core/ai";
 import { useRoomMediaShortcuts } from "../meetings/meeting-room-shortcuts";
 import { useCallDuration } from "./use-call-duration";
 import { useVoiceCallPanelDrag } from "./use-voice-call-panel-drag";
@@ -26,6 +27,7 @@ import type {
 import { VoiceCallRecIndicator } from "./voice-call-recording-controls";
 import {
   useVoiceCallActions,
+  useVoiceCallMedia,
   useVoiceCallStatus,
 } from "./voice-call-room-context";
 import { VoiceCallVideoStage } from "./voice-call-video-stage";
@@ -65,7 +67,11 @@ export function ActiveVoiceCallContent({
   // Recording state belongs to the call, not to the record button: the REC
   // badge and the "someone started recording" notice live in every panel size.
   const recording = useVoiceCallRecording({ workspaceId, roomId, callId });
-  const participants = useVoiceCallParticipantsPanel();
+  // The server posts an AI summary of every finished call when the workspace has AI on.
+  const aiSummary = Boolean(useAiCapabilities(workspaceId).data?.enabled);
+  const participants = useVoiceCallParticipantsPanel({ isCaller, aiSummary });
+  const { participantTiles } = useVoiceCallMedia();
+  const peerSpeaking = !multiParty && participantTiles.some((tile) => !tile.isLocal && tile.isSpeaking);
   const { live, startedAt } = useVoiceCallSessionLifecycle({
     callKind,
     isCaller,
@@ -133,6 +139,7 @@ export function ActiveVoiceCallContent({
       }
       indicator={recording.recording ? <VoiceCallRecIndicator /> : undefined}
       mode={panelMode}
+      speaking={peerSpeaking}
       onMinimize={onMinimize}
       onMaximize={onMaximize}
       panelRef={panelRef}
@@ -174,6 +181,7 @@ export function ActiveVoiceCallContent({
           peerName={peerName}
           callKind={callKind}
           size={panelMode === "fullscreen" ? "fullscreen" : "compact"}
+          aiSummary={aiSummary}
         />
       ) : null}
     </VoiceCallFloatingPanel>

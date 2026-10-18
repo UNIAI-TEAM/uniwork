@@ -1,14 +1,12 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Circle, CircleDot, Square } from "lucide-react";
+import { CircleDot, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
-import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
 import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import type { VoiceCallRecordingState } from "./use-voice-call-recording";
+import { VoiceCallControl, VoiceCallRecordGlyph } from "./voice-call-control";
 
 /**
  * While anyone records, everyone sees it — in every panel size, as a dot
@@ -19,9 +17,9 @@ export function VoiceCallRecIndicator() {
   return (
     <span
       data-testid="voice-call-rec-indicator"
-      className="inline-flex items-center gap-1.5 rounded-sm bg-destructive-soft px-2 py-0.5 text-micro font-semibold text-destructive-soft-foreground"
+      className="inline-flex h-5 items-center gap-1.25 rounded-md bg-destructive-soft px-1.75 text-micro font-semibold text-destructive-soft-foreground"
     >
-      <span className="size-1.5 rounded-full bg-destructive-solid motion-safe:animate-pulse" aria-hidden />
+      <span className="size-1.5 rounded-full bg-destructive motion-safe:animate-pulse" aria-hidden />
       {t("chat.voice_call_record_live")}
     </span>
   );
@@ -36,12 +34,12 @@ export function VoiceCallRecIndicator() {
 export function VoiceCallRecordControl({
   recording: state,
   disabled,
-  className,
+  large = false,
 }: {
   recording: VoiceCallRecordingState;
   disabled?: boolean;
-  /** The row's round size, so the record control matches its neighbours. */
-  className?: string;
+  /** Fullscreen: the bigger circle with its name under it, like its neighbours. */
+  large?: boolean;
 }) {
   const { t } = useTranslation();
   const { recording, recordingEnabled, pending, start, stop } = state;
@@ -62,40 +60,21 @@ export function VoiceCallRecordControl({
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type="button"
-              // Recording reads as the soft red with a stop square, so it never
-              // looks like the solid-red hang-up beside it.
-              variant={recording ? "destructive" : "meetingChip"}
-              size="icon"
-              className={cn(
-                "size-13 rounded-full",
-                className,
-                recording ? "border-destructive/60" : "border-transparent",
-              )}
-              aria-label={label}
-              aria-pressed={recording}
-              aria-disabled={unavailable || pending || undefined}
-              aria-describedby={unavailable ? hintId : undefined}
-              disabled={disabled}
-              onClick={toggle}
-            />
-          }
-        >
-          {recording ? (
-            <Square aria-hidden className="size-4 fill-current" />
-          ) : (
-            <Circle
-              aria-hidden
-              className={cn("size-5", recordingEnabled ? "fill-destructive text-destructive" : "text-muted-foreground")}
-            />
-          )}
-        </TooltipTrigger>
-        <TooltipContent>{tooltip}</TooltipContent>
-      </Tooltip>
+      {/* Recording reads as the soft red with a stop square, so it never
+          looks like the solid-red hang-up beside it. */}
+      <VoiceCallControl
+        label={label}
+        tooltip={unavailable ? tooltip : undefined}
+        pressed={recording}
+        tone={recording ? "recording" : unavailable ? "unavailable" : "record"}
+        large={large}
+        ariaDisabled={unavailable || pending}
+        describedBy={unavailable ? hintId : undefined}
+        disabled={disabled}
+        onClick={toggle}
+      >
+        {recording ? <Square aria-hidden className="size-4.5 fill-current" /> : <VoiceCallRecordGlyph hollow={unavailable} />}
+      </VoiceCallControl>
       {unavailable ? (
         <span id={hintId} className="sr-only">
           {tooltip}

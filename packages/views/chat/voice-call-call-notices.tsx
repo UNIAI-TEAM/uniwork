@@ -1,28 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MicOff, RefreshCw, VideoOff, Volume2, WifiOff } from "lucide-react";
+import { RefreshCw, VideoOff, MicOff, Volume2, WifiOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { cn } from "@uniwork/ui/lib/utils";
-import { Notice } from "../common/notice";
 import { voiceCallDeviceMessage } from "./voice-call-copy";
 import { useVoiceCallActions, useVoiceCallMedia, useVoiceCallStatus } from "./voice-call-room-context";
-
-/* Soft strips on the dark call plane: the tone's soft pair plus a hairline of
-   its signal colour. Actions sit under the text as pills — the primary on the
-   brand fill, the rest on the meeting bar's chip — so a narrow panel never
-   squeezes the message into a column. */
-const STRIP = "mb-3 rounded-xl border";
-const STRIP_WITH_ACTIONS = `${STRIP} items-start`;
-const ACTIONS = "mt-2.5 flex flex-wrap gap-2";
-const PILL = "h-8 rounded-full px-3.5 font-semibold";
+import { VoiceCallStrip, VoiceCallStripAction } from "./voice-call-strip";
 
 /**
  * The meeting room's connection strip, for a call: amber while LiveKit heals
  * the link itself, red once it is gone — and then the viewer decides (retry
- * or leave) instead of the call hanging up behind their back.
+ * or leave) instead of the call hanging up behind their back. The panel's
+ * status line already announces the state; the strip is the visible half.
  */
 function VoiceCallConnectionNotice({ onLeave, leaveLabel }: { onLeave: () => void; leaveLabel: string }) {
   const { t } = useTranslation();
@@ -30,31 +20,27 @@ function VoiceCallConnectionNotice({ onLeave, leaveLabel }: { onLeave: () => voi
   const { retryConnection } = useVoiceCallActions();
   if (connectionState === "reconnecting") {
     return (
-      // The panel's status line already announces the state; the strip is the visible half.
-      <Notice tone="warning" icon={RefreshCw} live="off" layout="inline" className={cn(STRIP, "border-warning/30")}>
+      <VoiceCallStrip tone="warning" icon={RefreshCw} spin className="mb-3">
         {t("chat.voice_call_reconnecting")}
-      </Notice>
+      </VoiceCallStrip>
     );
   }
   if (connectionState !== "lost") return null;
   return (
-    <Notice
+    <VoiceCallStrip
       tone="destructive"
       icon={WifiOff}
-      live="off"
-      layout="inline"
-      className={cn(STRIP_WITH_ACTIONS, "border-destructive/35")}
-    >
-      {t("chat.voice_call_connection_lost")}
-      <div className={ACTIONS}>
-        <Button type="button" className={PILL} onClick={retryConnection}>
-          {t("chat.voice_call_reconnect")}
-        </Button>
-        <Button type="button" variant="meetingChip" className={PILL} onClick={onLeave}>
-          {leaveLabel}
-        </Button>
-      </div>
-    </Notice>
+      title={t("chat.voice_call_connection_lost")}
+      className="mb-3"
+      actions={
+        <>
+          <VoiceCallStripAction primary onClick={retryConnection}>
+            {t("chat.voice_call_reconnect")}
+          </VoiceCallStripAction>
+          <VoiceCallStripAction onClick={onLeave}>{leaveLabel}</VoiceCallStripAction>
+        </>
+      }
+    />
   );
 }
 
@@ -76,30 +62,20 @@ function VoiceCallDeviceNotice() {
     }
   };
   return (
-    <Notice
+    <VoiceCallStrip
       tone="warning"
       icon={mic ? MicOff : VideoOff}
-      layout="inline"
-      className={cn(STRIP_WITH_ACTIONS, "border-warning/30")}
-    >
-      {voiceCallDeviceMessage(deviceError, t)}{" "}
-      {t(mic ? "chat.voice_call_device_in_call_mic" : "chat.voice_call_device_in_call_camera")}
-      {deviceError.failure === "denied" ? (
-        <span className="mt-0.5 block font-normal">{t("meetings.devicePreviewDeniedHint")}</span>
-      ) : null}
-      <div className={ACTIONS}>
-        <Button
-          type="button"
-          variant="meetingChip"
-          className={PILL}
-          disabled={pending}
-          aria-busy={pending || undefined}
-          onClick={() => void retry()}
-        >
+      role="status"
+      className="mb-3"
+      title={`${voiceCallDeviceMessage(deviceError, t)} ${t(mic ? "chat.voice_call_device_in_call_mic" : "chat.voice_call_device_in_call_camera")}`}
+      actions={
+        <VoiceCallStripAction disabled={pending} aria-busy={pending || undefined} onClick={() => void retry()}>
           {t(mic ? "meetings.deviceNoticeRetryMic" : "meetings.deviceNoticeRetryCamera")}
-        </Button>
-      </div>
-    </Notice>
+        </VoiceCallStripAction>
+      }
+    >
+      {deviceError.failure === "denied" ? t("meetings.devicePreviewDeniedHint") : null}
+    </VoiceCallStrip>
   );
 }
 
@@ -109,17 +85,14 @@ function VoiceCallAudioUnlockNotice() {
   const { unlockAudio } = useVoiceCallActions();
   if (!needsAudioUnlock) return null;
   return (
-    <Notice
+    <VoiceCallStrip
       tone="info"
       icon={Volume2}
-      layout="inline"
-      className={cn(STRIP_WITH_ACTIONS, "border-info/30")}
-    >
-      {t("chat.voice_call_enable_audio")}
-      <div className={ACTIONS}>
-        <Button
-          type="button"
-          className={PILL}
+      role="status"
+      className="mb-3"
+      actions={
+        <VoiceCallStripAction
+          primary
           onClick={() => {
             void unlockAudio().then((ok) => {
               if (!ok) toast.error(t("chat.voice_call_enable_audio_failed"));
@@ -127,9 +100,11 @@ function VoiceCallAudioUnlockNotice() {
           }}
         >
           {t("chat.voice_call_enable_audio_action")}
-        </Button>
-      </div>
-    </Notice>
+        </VoiceCallStripAction>
+      }
+    >
+      {t("chat.voice_call_enable_audio")}
+    </VoiceCallStrip>
   );
 }
 

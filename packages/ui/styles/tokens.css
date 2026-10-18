@@ -345,6 +345,21 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
+
+  /* UniChat call plane — the floating call card, its pill and the fullscreen
+     call. Navy and dark in BOTH themes like the meeting stage, so the values
+     repeat under .dark. The card washes from --call-plane-raised (top) to
+     --call-plane. --call-muted-foreground on --call-plane: 12.1;
+     --on-solid on --call-accent: 4.86. */
+  --call-plane: #0b1220;
+  --call-plane-raised: #141e35;
+  --call-stage: #151a23;
+  --call-tile: #1e2532;
+  --call-hairline: #2c3546;
+  --call-muted-foreground: #c9d0db;
+  --call-accent: #2f6bf0;
+  --call-speaking: #7aa7ff;
+  --call-ring: #2dd4bf;
 }
 
 .dark {
@@ -566,6 +581,15 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
+  --call-plane: #0b1220;
+  --call-plane-raised: #141e35;
+  --call-stage: #151a23;
+  --call-tile: #1e2532;
+  --call-hairline: #2c3546;
+  --call-muted-foreground: #c9d0db;
+  --call-accent: #2f6bf0;
+  --call-speaking: #7aa7ff;
+  --call-ring: #2dd4bf;
 }
 
 /* Accent themes. The second theming axis: light/dark picks the palette, the
@@ -771,6 +795,15 @@ html.dark[data-accent] {
   --color-meeting-bar-chip-hover: var(--meeting-bar-chip-hover);
   --color-meeting-tile-name-bg: var(--meeting-tile-name-bg);
   --color-meeting-tile-name-foreground: var(--meeting-tile-name-foreground);
+  --color-call-plane: var(--call-plane);
+  --color-call-plane-raised: var(--call-plane-raised);
+  --color-call-stage: var(--call-stage);
+  --color-call-tile: var(--call-tile);
+  --color-call-hairline: var(--call-hairline);
+  --color-call-muted-foreground: var(--call-muted-foreground);
+  --color-call-accent: var(--call-accent);
+  --color-call-speaking: var(--call-speaking);
+  --color-call-ring: var(--call-ring);
   /* Elevation as Tailwind utilities (shadow-surface / shadow-menu /
      shadow-floating) beside the raw slots the primitives already read. */
   --shadow-surface: var(--surface-shadow);
