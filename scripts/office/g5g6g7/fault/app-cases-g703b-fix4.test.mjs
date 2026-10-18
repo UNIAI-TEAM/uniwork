@@ -7,7 +7,8 @@ import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { captureRowShots } from "./app-case-drivers-offline.mjs";
+import { OFFLINE_DRIVERS, captureRowShots } from "./app-case-drivers-offline.mjs";
+import { createWorld } from "./app-cases-fl-fakes.mjs";
 import { createAppDocument } from "./app-tenant.mjs";
 
 const FAULT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -79,3 +80,50 @@ test("CL1-2: the same capture on a dead app is still BLOCKED, never a FAIL", asy
   const ctx = { appAlive: async () => false, artifactPath: (name) => join(FAULT_DIR, "never-written", name) };
   await assert.rejects(captureRowShots(ctx, session, { s11: true }), /the app stopped before s11-lock-panel\.png could be captured/);
 });
+
+// ---- CL1-3: the offline tab is hidden by design with no session ------------------
+
+const [HIDDEN_FL07, HIDDEN_FL08] = ["s3_tab_hidden_while_signed_out", "s3_tab_hidden_on_deployment_b"];
+
+async function runRow(id, tweak = () => {}) {
+  const world = createWorld(id);
+  try {
+    tweak(world);
+    const outcome = await OFFLINE_DRIVERS[id](world.ctx);
+    const byName = Object.fromEntries(outcome.assertions.map((a) => [a.name, a]));
+    return { world, outcome, byName, failed: outcome.assertions.filter((a) => !a.ok).map((a) => a.name) };
+  } finally {
+    world.clean();
+  }
+}
+
+for (const [id, hidden] of [["FL-07", HIDDEN_FL07], ["FL-08", HIDDEN_FL08]]) {
+  test(`CL1-3: ${id} asserts the offline tab is absent with no session and keeps the sync center pane as the shot`, async () => {
+    const { byName, failed, world } = await runRow(id);
+    assert.deepEqual(failed, []);
+    assert.equal(byName[hidden].ok, true);
+    assert.match(byName[hidden].actual, /offlineTabs=0/);
+    assert.equal(byName.s3_pane_names_no_document.ok, true);
+    assert.equal(byName.s3_shot.expected, "s3-signed-out-pane.png");
+    assert.equal(byName.s3_tab_selected, undefined, "a tab the product does not show is never required selected");
+    assert.deepEqual(world.row.artifacts.filter((a) => a.endsWith(".png")), ["s3-signed-out-pane.png"]);
+  });
+
+  test(`CL1-3: ${id} fails when the product shows an offline tab with no session`, async () => {
+    const { failed, byName } = await runRow(id, (world) => { world.signedOutTab = true; });
+    assert.ok(failed.includes(hidden), JSON.stringify(byName[hidden]));
+  });
+
+  test(`CL1-3: ${id} fails when the signed-out pane names the document`, async () => {
+    const { failed } = await runRow(id, (world) => { world.paneText = `Đã đăng xuất. ${id} run 1`; });
+    assert.ok(failed.includes("s3_pane_names_no_document"));
+    assert.ok(!failed.includes(hidden), "the tab is still absent");
+  });
+
+  test(`CL1-3: ${id} fails (not passes) when the pane never shows, with the shot missing too`, async () => {
+    const { failed } = await runRow(id, (world) => { world.paneMissing = true; });
+    assert.ok(failed.includes(hidden));
+    assert.ok(failed.includes("s3_pane_names_no_document"));
+    assert.ok(failed.includes("s3_shot"));
+  });
+}

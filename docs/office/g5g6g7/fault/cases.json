@@ -3510,7 +3510,7 @@
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh pane đồng bộ khi đã đăng xuất (tab offline ẩn: bản đã bị xóa ở đăng xuất, chưa có org nên chưa có capability)"
           ]
         }
       },
@@ -3524,7 +3524,7 @@
         "case-result.json",
         "offline-store-before.json",
         "offline-store-after.json",
-        "s3-offline-tab.png"
+        "s3-signed-out-pane.png"
       ]
     },
     {
@@ -3570,7 +3570,7 @@
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh pane đồng bộ trên deployment B (tab offline ẩn: không ai đăng nhập, không có org, không có bản giữ)"
           ]
         }
       },
@@ -3584,7 +3584,7 @@
         "case-result.json",
         "offline-store-before.json",
         "offline-store-after.json",
-        "s3-offline-tab.png"
+        "s3-signed-out-pane.png"
       ]
     },
     {

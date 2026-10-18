@@ -21,7 +21,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { AppBlocked, closeApp, signOut, signedOutFacts } from "./app-session.mjs";
 import { assertion, commitPosts, uploadPosts } from "./app-cases-lib.mjs";
 import { countAssertion, deltaAssertion } from "./app-case-drivers.mjs";
@@ -64,6 +64,9 @@ export const SYNC_SETTINGS_SECTION = "sync";
 export const S3_TAB_ID = "offline";
 export const S3_TAB_SELECTOR = '[role="tab"][id$="-tab-offline"]';
 export const S3_PANEL_SELECTOR = '[role="tabpanel"][id$="-panel-offline"]';
+/** the sync center pane itself (renderer/src/SyncCenterPane.tsx:466 `<section className="sc">`) and its status line, which renders only once the snapshot is in */
+export const SYNC_PANE_SELECTOR = "section.sc";
+export const SYNC_STATUS_SELECTOR = "section.sc .sc-status-line";
 /**
  * S11 = the lock panel of a copy that cannot be opened
  * (renderer/src/UniworkLockPanel.tsx:210-211 renders `.uw-lock-layer` wrapping
@@ -648,9 +651,14 @@ export async function deploymentEvidence(session, userDataDir) {
  * R1-11): the offline tab is opened and selected first, a declared shot that did
  * not capture FAILs, and a capture that failed while the app died is the
  * harness's precondition - BLOCKED, never FAIL.
+ *
+ * `s3Hidden` (G7-03b fix4 CL1-3) is the S3 shot of a row whose session is gone:
+ * the product hides the offline tab there BY DESIGN (see `signedOutPaneReading`),
+ * so the row asserts the tab is absent and keeps the pane as the shot.
  */
-export async function captureRowShots(ctx, session, { s3 = false, s11 = false } = {}) {
+export async function captureRowShots(ctx, session, { s3 = false, s11 = false, s3Hidden = null } = {}) {
   const shots = [];
+  if (s3Hidden) shots.push(...(await captureSignedOutPane(ctx, session, s3Hidden)));
   // the lock panel is what a refused open just raised: it is grabbed before the
   // settings pane is opened over it
   if (s11) shots.push(await captureDeclaredShot(ctx, session, "s11_shot", "s11-lock-panel.png", S11_LOCK_SELECTOR));
@@ -670,6 +678,54 @@ export async function captureRowShots(ctx, session, { s3 = false, s11 = false } 
     }
   }
   return shots;
+}
+
+/**
+ * What the sync center pane shows with no session, read once the snapshot is in
+ * (the status line only renders then, so a pane still on its skeleton is not
+ * read as "no tab"). The fork shows the offline tab signed out only while the
+ * capability is on or the last owner's pin index still holds copies
+ * (shared view.ts:186-189 `visible: capabilityOn || lockedCount > 0`,
+ * renderer sync-center-model.ts:505-507 `syncTabsOf` -> [], SyncCenterPane.tsx
+ * :676 `if (!current) return null`). An explicit sign-out wipes the account's
+ * library scope (wiring.ts:1083-1090 `lockAndWipe`) and a signed-out session has
+ * no active org (wiring.ts:995 `feedOrgId`), so after `accountLogout` and on a
+ * deployment nobody signed in on there is no tab. `namedHits` counts how many
+ * of `names` the pane text holds (a count, never the name).
+ */
+async function signedOutPaneReading(session, names) {
+  await session.shell
+    .evaluate(
+      ([settingsEvent, section]) => {
+        window.dispatchEvent(new CustomEvent(settingsEvent, { detail: { section } }));
+      },
+      [OPEN_SETTINGS_EVENT, SYNC_SETTINGS_SECTION],
+    )
+    .catch(() => undefined);
+  try {
+    await session.shell.waitForFunction((selector) => document.querySelector(selector) !== null, SYNC_STATUS_SELECTOR, { timeout: 30_000 });
+    return await session.shell.evaluate(
+      ([paneSelector, tabSelector, needles]) => {
+        const text = document.querySelector(paneSelector)?.textContent ?? "";
+        return { pane: true, offlineTabs: document.querySelectorAll(tabSelector).length, namedHits: needles.filter((n) => n && text.includes(n)).length };
+      },
+      [SYNC_PANE_SELECTOR, S3_TAB_SELECTOR, names],
+    );
+  } catch {
+    return { pane: false, offlineTabs: null, namedHits: null };
+  }
+}
+
+async function captureSignedOutPane(ctx, session, { name, artifact = "s3-signed-out-pane.png", names = [] }) {
+  const reading = await signedOutPaneReading(session, names);
+  if (!reading.pane && !(await ctx.appAlive(session).catch(() => false))) {
+    throw new AppBlocked("the app stopped before the sync center pane could be read (harness down; no product claim)");
+  }
+  return [
+    assertion(name, "the sync center pane is showing and holds no offline tab", reading.pane ? `pane=showing offlineTabs=${reading.offlineTabs}` : "pane=not showing", reading.pane && reading.offlineTabs === 0),
+    assertion("s3_pane_names_no_document", "0 document names in the pane", reading.pane ? reading.namedHits : "pane not showing", reading.pane && reading.namedHits === 0),
+    await captureDeclaredShot(ctx, session, "s3_shot", artifact, SYNC_PANE_SELECTOR),
+  ];
 }
 
 /** Whether the offline tab is selected AND its panel is visible, read right now (not what a wait once saw). */
@@ -954,6 +1010,9 @@ async function fl03(ctx) {
   };
 }
 
+/** the names A's document goes by in the pane: the title the runner created it with and the fixture's file name */
+const documentNamesOf = (ctx) => [`${ctx.row.id} run ${ctx.run?.index ?? 1}`, ctx.fixture?.path ? basename(ctx.fixture.path) : ""];
+
 /** `N row(s)` plus the sha256 of each row's name - never a name (R2-10). */
 const nameDigest = (rows) =>
   rows.length === 0 ? "0 row(s)" : `${rows.length} row(s), sha256(name) ${rows.map((row) => createHash("sha256").update(String(row.name ?? ""), "utf8").digest("hex")).join(",")}`;
@@ -977,7 +1036,7 @@ async function fl07(ctx) {
   // the S3 shot while A is signed out: the count-only surface that must keep no
   // document name. There is no S11 lock path without a session (the product shows
   // the signed-out summary, not a lock panel), so the row declares the S3 shot only.
-  const shots = await captureRowShots(ctx, session, { s3: true });
+  const shots = await captureRowShots(ctx, session, { s3Hidden: { name: "s3_tab_hidden_while_signed_out", names: documentNamesOf(ctx) } });
   await ctx.signInAs(session, b);
   const asB = await signedInAsAssertion(session, "signed_in_as_account_b", b);
   const bRead = await requireAnsweredSnapshot(ctx, session, "snapshot_as_account_b");
@@ -1038,7 +1097,7 @@ async function fl08(ctx) {
   const delta = storeDelta(before, after);
   writeStoreEvidence(ctx.runDirOut(), { before, after });
   // S3 on deployment B: the empty library the row claims, captured as evidence
-  const shots = await captureRowShots(ctx, bSession, { s3: true });
+  const shots = await captureRowShots(ctx, bSession, { s3Hidden: { name: "s3_tab_hidden_on_deployment_b", names: documentNamesOf(ctx) } });
   return {
     documentId: doc.id,
     assertions: [

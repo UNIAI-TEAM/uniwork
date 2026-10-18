@@ -17,7 +17,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  S11_LOCK_SELECTOR, S3_PANEL_SELECTOR, S3_TAB_SELECTOR, copiesRootDir, leaseStoreDir, libraryStoreDir, recordName,
+  S11_LOCK_SELECTOR, S3_PANEL_SELECTOR, S3_TAB_SELECTOR, SYNC_PANE_SELECTOR, SYNC_STATUS_SELECTOR, copiesRootDir, leaseStoreDir, libraryStoreDir, recordName,
 } from "./app-case-drivers-offline.mjs";
 import { FAKETIME_CANDIDATES, faketimeEnv, scopeUsageBytes } from "./app-offline-env.mjs";
 import { caseExpect } from "./case-expect.mjs";
@@ -435,13 +435,26 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
   };
   world.window = window;
 
+  /**
+   * The fork's rule (CL1-3): the offline tab shows signed in, and not signed out - an explicit sign-out
+   * wipes the library scope and a signed-out session has no org, so no capability (view.ts:186-189) -
+   * nor on a deployment nobody signed in on. `world.signedOutTab` is a product that kept the tab.
+   */
+  const tabShown = () => world.tabAvailable !== false && (world.signedOutTab === true || (Boolean(world.signedInAs) && currentDeployment === world.deployment));
+
   /** runs a page function against the fake window (and the fake DOM the S3 helpers poll) */
   const inPage = async (fn, arg) => {
     const previous = { window: globalThis.window, document: globalThis.document, CustomEvent: globalThis.CustomEvent };
     globalThis.window = window;
     globalThis.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init?.detail; } };
     globalThis.document = {
-      querySelector: (selector) => (selector === S3_TAB_SELECTOR && world.tabAvailable !== false ? { getAttribute: () => (world.tabSelected ? "true" : "false") } : null),
+      querySelector: (selector) => {
+        if (selector === S3_TAB_SELECTOR) return tabShown() ? { getAttribute: () => (world.tabSelected ? "true" : "false") } : null;
+        if (selector === SYNC_STATUS_SELECTOR) return world.paneMissing ? null : {};
+        if (selector === SYNC_PANE_SELECTOR) return world.paneMissing ? null : { textContent: world.paneText ?? "Đã đăng xuất. Có thể đăng nhập lại." };
+        return null;
+      },
+      querySelectorAll: (selector) => (selector === S3_TAB_SELECTOR && tabShown() ? [{}] : []),
     };
     try {
       return await fn(arg);
@@ -489,14 +502,14 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
         },
         locator: (selector) => ({
           first() { return this; },
-          waitFor: async () => { if (world.tabAvailable === false || !world.alive) throw new Error("tab never visible"); },
+          waitFor: async () => { if (!tabShown() || !world.alive) throw new Error("tab never visible"); },
           getAttribute: async () => (world.tabSelected ? "true" : "false"),
           // a tab whose selection never takes (world.selectionFails) leaves a stale panel behind - R2-3
           click: async () => { if (!world.selectionFails) world.tabSelected = true; world.visible.add(S3_PANEL_SELECTOR); },
           isVisible: async () => world.alive && world.visible.has(selector),
         }),
         waitForFunction: async (fn, arg) => { if (!(await inPage(fn, arg))) throw new Error("timeout"); },
-        waitForSelector: async (selector) => { if (!world.alive || !world.visible.has(selector)) throw new Error(`selector ${selector} never appeared`); },
+        waitForSelector: async (selector) => { if (!world.alive || !(world.visible.has(selector) || (selector === SYNC_PANE_SELECTOR && !world.paneMissing))) throw new Error(`selector ${selector} never appeared`); },
         screenshot: async () => Buffer.from("PNG"),
       },
     };

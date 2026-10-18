@@ -101,7 +101,7 @@ for (const [label, slice] of Object.entries(MALFORMED)) {
 // ---- R2-3: a selected-tab failure is a failed assertion -------------------------------
 
 test("R2-3: a tab whose selection never takes fails s3_tab_selected and s3_shot even with the panel still present", async () => {
-  for (const id of ["FL-01", "FL-07"]) {
+  for (const id of ["FL-01", "FL-03"]) {
     const { failed, byName } = await run(id, (world) => {
       world.selectionFails = true;
     });
@@ -111,7 +111,7 @@ test("R2-3: a tab whose selection never takes fails s3_tab_selected and s3_shot 
 });
 
 test("R2-3: a panel that is not visible right before the capture fails s3_tab_selected", async () => {
-  const { failed } = await run("FL-08", (world) => {
+  const { failed } = await run("FL-01", (world) => {
     const click = world.ctx.launch;
     world.ctx.launch = async (options) => {
       const session = await click(options);
@@ -127,7 +127,7 @@ test("R2-3: a panel that is not visible right before the capture fails s3_tab_se
 });
 
 test("R2-3: a selected tab with its visible panel passes s3_tab_selected", async () => {
-  const { byName } = await run("FL-07");
+  const { byName } = await run("FL-01");
   assert.equal(byName.s3_tab_selected.ok, true);
 });
 

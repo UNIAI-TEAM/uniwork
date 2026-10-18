@@ -196,7 +196,7 @@ test("FL-03: a failed S11 capture fails the row's shot assertion; S3 and S11 are
 
 test("FL-07: it declares the S3 shot only (signed-out S3 is the surface; no S11 lock path exists without a session)", async () => {
   const { byName, world } = await run("FL-07");
-  assert.deepEqual(world.row.artifacts.filter((a) => a.endsWith(".png")), ["s3-offline-tab.png"]);
+  assert.deepEqual(world.row.artifacts.filter((a) => a.endsWith(".png")), ["s3-signed-out-pane.png"]);
   assert.equal(byName.s3_shot.ok, true);
   assert.equal(byName.s11_shot, undefined);
 });
