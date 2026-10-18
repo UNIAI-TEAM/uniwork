@@ -76,3 +76,17 @@ func TestOfficeFormatFlagsAreOnByDefaultAndEngineStaysOff(t *testing.T) {
 		t.Fatalf("office_engine = %+v ok=%v, want declared and default on", engine, ok)
 	}
 }
+
+func TestOfficeTxtOpenFlagIsOffByDefaultPublicAndReviewed(t *testing.T) {
+	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
+	f, ok := Lookup("office_txt_open")
+	if !ok {
+		t.Fatal("office_txt_open is not declared")
+	}
+	if f.Default || !f.Public || f.Owner != "office" || !f.ReviewAt.Equal(day(2027, 3, 31)) {
+		t.Fatalf("office_txt_open = %+v, want default off, public, owner office, review 2027-03-31", f)
+	}
+	if v, published := flags["office_txt_open"]; !published || v {
+		t.Fatalf("office_txt_open published=%v value=%v, want published and false", published, v)
+	}
+}

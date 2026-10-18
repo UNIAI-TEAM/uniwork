@@ -64,7 +64,7 @@ var documentSourceTypeExts = map[string][]string{
 // documentSourceAppExts are the formats the Office app opens (view-only for a
 // source file).
 var documentSourceAppExts = map[string]bool{
-	"docx": true, "xlsx": true, "pptx": true, "pdf": true, "md": true, "html": true,
+	"docx": true, "xlsx": true, "pptx": true, "pdf": true, "md": true, "html": true, "txt": true,
 }
 
 // DocumentSourceService composes the four domains. Each domain service may be
@@ -423,9 +423,14 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 		return nil, nil
 	}
 	policy := s.docs.documentFilePolicy()
+	txtOpen := s.docs.txtOpenEnabled(ctx, dq.viewerID, dq.workspaceID, dq.orgID)
 	out := make([]DocumentSourceItem, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, documentSourceItem(src, r, policy))
+		it := documentSourceItem(src, r, policy)
+		if it.Extension == "txt" && !txtOpen {
+			it.CanOpenInApp = false
+		}
+		out = append(out, it)
 	}
 	return out, nil
 }

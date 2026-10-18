@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -647,6 +648,110 @@ func TestDocumentSourceChatMarkdownOpens(t *testing.T) {
 				t.Fatalf("opened %s body = %q, want %q", tc.ext, got, tc.body)
 			}
 		})
+	}
+}
+
+func TestDocumentSourceTxtOpenGateAndPlainTextNarrowing(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+	tn := env.tn
+	store := newMemStorage()
+	tasks := NewTaskService(env.f.pool, env.f.q, env.svc.ws, store)
+	chat := NewChatService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{})
+	chat.SetFiles(env.fs)
+	svc := NewDocumentSourceService(DocumentSourceDeps{Documents: env.svc, Tasks: tasks, Chat: chat})
+	frame := NewOfficeFrameService(env.svc, "office-frame-test-secret-0123456789abcdef")
+	frame.SetSources(svc)
+
+	roomID := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	s.roomMember(tn.orgID, tn.wsA, roomID, tn.owner.ID, "active")
+	s.roomMember(tn.orgID, tn.wsA, roomID, tn.member.ID, "active")
+
+	send := func(filename, contentType, clientID string, body []byte) string {
+		t.Helper()
+		msg, err := chat.SendFileMessage(s.ctx, tn.owner.ID, tn.wsA, roomID, SendFileMessageInput{
+			Filename: filename, Body: bytes.NewReader(body), ClientMsgID: clientID,
+		})
+		if err != nil {
+			t.Fatalf("SendFileMessage(%s): %v", filename, err)
+		}
+		t.Cleanup(func() {
+			_, _ = env.f.pool.Exec(context.Background(), `DELETE FROM chat_messages WHERE id = $1`, msg.ID)
+		})
+		var fileID string
+		if err := env.f.pool.QueryRow(s.ctx, `SELECT file_id::text FROM chat_messages WHERE id = $1`, msg.ID).Scan(&fileID); err != nil {
+			t.Fatalf("chat file_id(%s): %v", filename, err)
+		}
+		s.exec(`INSERT INTO files (id, organization_id, storage, object_key, original_filename, status, content_type, size_bytes, ready_at)
+			VALUES ($1, $2, 'local', $3, $4, 'ready', $5, $6, now())`,
+			fileID, tn.orgID, "src/"+strings.ToLower(fileID), filename, contentType, len(body))
+		return "chat:" + msg.ID
+	}
+
+	txtID := send("ghi-chu.txt", "text/plain", "chat-txt-gate-1", []byte("dong 1\ndong 2\n"))
+	csvID := send("bang.csv", "text/plain", "chat-csv-gate-1", []byte("a,b\n1,2\n"))
+	logID := send("server.log", "text/plain", "chat-log-gate-1", []byte("line\n"))
+	mdLongID := send("ghi-chu.markdown", "text/markdown", "chat-mdlong-gate-1", []byte("# md\n"))
+
+	// Flag off (default): .txt has CanOpenInApp == false and MintSource refuses with ErrNotFound.
+	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{})
+	if err != nil {
+		t.Fatalf("List (flag off): %v", err)
+	}
+	byID := map[string]DocumentSourceItem{}
+	for _, it := range page.Items {
+		byID[it.ID] = it
+	}
+	for _, id := range []string{txtID, csvID, logID} {
+		if byID[id].CanOpenInApp {
+			t.Fatalf("flag off: %s CanOpenInApp = true, want false", id)
+		}
+		if _, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, id); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("flag off: MintSource(%s) = %v, want ErrNotFound", id, err)
+		}
+	}
+	// Flag off: .markdown sources still mint and authorize (flag-off leaves
+	// pre-existing non-.txt sources untouched).
+	mtok, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, mdLongID)
+	if err != nil || mtok.Claims.ModuleName() != OfficeFrameModuleMarkdown {
+		t.Fatalf("flag off: MintSource(.markdown) = %+v, %v; want module markdown", mtok, err)
+	}
+	if _, _, err := frame.AuthorizeSource(s.ctx, mtok.Claims); err != nil {
+		t.Fatalf("flag off: AuthorizeSource(.markdown) = %v", err)
+	}
+
+	// Flag on: .txt opens as markdown; .csv and .log with text/plain stay not openable.
+	env.svc.SetFlags(staticDocFlags{"office_txt_open": true})
+	page, err = svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{})
+	if err != nil {
+		t.Fatalf("List (flag on): %v", err)
+	}
+	byID = map[string]DocumentSourceItem{}
+	for _, it := range page.Items {
+		byID[it.ID] = it
+	}
+	if !byID[txtID].CanOpenInApp {
+		t.Fatal("flag on: .txt CanOpenInApp = false, want true")
+	}
+	for _, id := range []string{csvID, logID} {
+		if byID[id].CanOpenInApp {
+			t.Fatalf("flag on: %s CanOpenInApp = true, want false", id)
+		}
+		if _, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, id); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("flag on: MintSource(%s) = %v, want ErrNotFound", id, err)
+		}
+	}
+	tok, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, txtID)
+	if err != nil || tok.Claims.ModuleName() != OfficeFrameModuleMarkdown {
+		t.Fatalf("flag on: MintSource(.txt) = %+v, %v", tok, err)
+	}
+	if _, item, err := frame.AuthorizeSource(s.ctx, tok.Claims); err != nil || !item.CanOpenInApp {
+		t.Fatalf("flag on: AuthorizeSource(.txt) = %+v, %v", item, err)
+	}
+	// Turning the flag back off invalidates AuthorizeSource for an already-minted .txt token.
+	env.svc.SetFlags(staticDocFlags{"office_txt_open": false})
+	if _, _, err := frame.AuthorizeSource(s.ctx, tok.Claims); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("flag off after mint: AuthorizeSource(.txt) = %v, want ErrNotFound", err)
 	}
 }
 
