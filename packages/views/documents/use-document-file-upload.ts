@@ -17,6 +17,7 @@ import type { DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import type { DocumentUploadDialogProps } from "./document-upload-dialog";
+
 interface UseDocumentFileUploadOptions {
   wsId: string;
   parentId: string | null;
@@ -121,11 +122,12 @@ export function useDocumentFileUpload({
    * Chunked sessions can't carry `rootDestination`, so a no-parent start
    * first asks `resolveRootParent` for the real parent (a Home-root upload
    * must never land at the workspace root). Explicit on `start` because the
-   * hook's own target still points at the root on this call — unless the file
-   * already has a resume record saved at the root, which `start` continues.
+   * hook's own target still points at the root on this call. An old resume
+   * record saved at the root is ignored: a fresh session opens under the
+   * resolved parent.
    */
   const resolveChunkedTarget = async (file: File, filename: string): Promise<UploadSessionTarget | undefined> => {
-    if (parentId || !resolveRootParent || chunked.findResumable(file, filename)) return undefined;
+    if (parentId || !resolveRootParent) return undefined;
     const rootId = resolvedRootParent ?? (await resolveRootParent());
     if (!rootId) return undefined;
     if (resolvedRootParent === null) setResolvedRootParent(rootId);
