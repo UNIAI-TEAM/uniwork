@@ -75,15 +75,19 @@ async function fl02(ctx) {
     const readyA = await awaitRowState(ctx, session, docA.id, ctx.expect.offline("firstLaunchStates"));
     const before = collectOfflineState(storeArgs(ctx, [docA.id, docB.id]));
     // the fault: a really full filesystem (tmpfs), or the library layer's own budget crossed
+    // a fill the VM cannot make is a precondition, not a product claim: BLOCKED with the line (no tmpfs AND no fallback)
     let fill;
-    if (mechanism === "tmpfs") {
-      fill = vm.fillToLeave(userData, leave);
-      filler.path = fill.path;
-    } else {
-      const scope = join(libraryStoreDir(userData, ctx.deploymentId(), ctx.tenant.app.userId), "..");
-      fill = vm.sparseFill(scope, budget, leave);
-      filler.path = fill.path;
+    try {
+      if (mechanism === "tmpfs") {
+        fill = vm.fillToLeave(userData, leave);
+      } else {
+        const scope = join(libraryStoreDir(userData, ctx.deploymentId(), ctx.tenant.app.userId), "..");
+        fill = vm.sparseFill(scope, budget, leave);
+      }
+    } catch (error) {
+      return blocked(mechanism === "tmpfs" ? `the tmpfs could not be filled: ${error.message}` : `no tmpfs (${mount.line}) and the sparse fallback failed: ${error.message}`);
     }
+    filler.path = fill.path;
     const faultReal = mechanism === "tmpfs" ? fill.freeAfter <= leave + 4096 : fill.apparentBytes >= budget - leave;
     const pinB = await pinDocument(session, { documentId: docB.id, workspaceId: ctx.tenant.workspaceId });
     const watch = await watchRowStatesOrBlocked(ctx, session, docB.id, { until: faulted, timeout: OFFLINE_STATE_TIMEOUT_MS });

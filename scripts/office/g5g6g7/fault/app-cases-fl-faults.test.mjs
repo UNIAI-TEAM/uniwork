@@ -130,6 +130,13 @@ test("FL-02: a mount that fails after the probe falls back to sparse and names t
   assert.equal(JSON.parse(artifacts("offline-disk-mechanism.json")).mechanism, "sparse");
 });
 
+test("FL-02: no tmpfs and a sparse fallback that cannot be written is BLOCKED with both lines, never a FAIL", async () => {
+  const { outcome, world } = await run("FL-02", (w) => { w.tmpfsMountable = false; w.sparseFails = true; });
+  assert.ok(outcome.blocker.startsWith("no tmpfs (sudo -n true exited 1: a password is required) and the sparse fallback failed: EACCES"), outcome.blocker);
+  assert.deepEqual(outcome.assertions, []);
+  assert.ok(world.vmCalls.some((call) => call[0] === "sparse"));
+});
+
 test("FL-02: a fill that leaves the disk free is not a fault - fault_really_happened fails", async () => {
   const { failed } = await run("FL-02", (w) => { w.fillLeavesBytes = 300 * 1024 * 1024; });
   assert.ok(failed.includes("fault_really_happened"));

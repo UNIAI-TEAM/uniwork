@@ -77,6 +77,7 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     // the VM: a runner that HAS tmpfs, libfaketime and the keyring control channel, until a test takes one away
     tmpfsMountable: true,
     mountFails: false,
+    sparseFails: false,
     faketimeInstalled: true,
     keyringControl: true,
     keyringLockFails: false,
@@ -270,6 +271,7 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     },
     sparseFill: (scopeDir, budget, leave) => {
       world.vmCalls.push(["sparse", scopeDir, budget, leave]);
+      if (world.sparseFails) throw new Error("EACCES: permission denied, open '.fl02-sparse-filler'");
       world.diskFull = true;
       return { path: join(scopeDir, ".fl02-sparse-filler"), apparentBytes: budget - leave };
     },
