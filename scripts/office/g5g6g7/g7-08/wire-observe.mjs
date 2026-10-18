@@ -2,7 +2,8 @@
 // the frame's registered model-CALL routes, the per-shape usage readers, the
 // passive real-run observer and the fail-closed reading of a whole turn
 // (review r3 findings G708-R2-7, R3-1, R3-3; review r4 findings G708-R4-1,
-// R4-3). Pure by contract: no filesystem, no Playwright import - the driver
+// R4-3; review r5 finding G708-R5-1). Pure by contract: no filesystem, no
+// Playwright import - the driver
 // hands the observer an injected page it only listens on, so every scored field
 // is either measured or BLOCKED, never defaulted (contract w1b). The Save /
 // version side of the same driver lives in `save-observe.mjs`.
@@ -182,12 +183,25 @@ export function usageFromModelResponseBody(body, shape = null) {
   return { prompt_tokens: input, completion_tokens: output };
 }
 
+function geminiChunkHasFinishReason(chunk) {
+  const cands = Array.isArray(chunk?.candidates) ? chunk.candidates : [];
+  return cands.some((c) => typeof c?.finishReason === 'string' && c.finishReason !== '');
+}
+
 /**
- * R3-1 + R4-1: the usage of one SSE stream, or null when the stream carried no
- * complete usage. Every chunk is read in the route's shape and the latest value
- * of each count wins, because each protocol reports cumulative counts and may
- * split them across chunks (Anthropic's `message_start` / `message_delta`).
- * Text that is not an SSE stream is tried as a single JSON body.
+ * R3-1 + R4-1 + R5-1: the usage of one SSE stream, or null when the stream
+ * carried no complete usage. Latest value of each count wins. A stream is
+ * complete only with its terminal marker:
+ * - anthropic: a `message_delta` with `usage.output_tokens` AND a later
+ *   `message_stop` (a cut after `message_start` is unknown, not the start's
+ *   initial `output_tokens`);
+ * - openai: a complete JSON chunk with both usage counts AND a later
+ *   `data: [DONE]` (UniWork facade writes the pair then `[DONE]` at
+ *   `openai_facade.go:382-396`; BYOK `/chat/completions` is the vendor body
+ *   through `proxy.go:193,219`, same `[DONE]` trailer);
+ * - gemini: the last usage-bearing chunk also carries a candidate
+ *   `finishReason` (usageMetadata is cumulative, so a cut undercounts).
+ * A non-stream JSON body is unchanged. A line cut mid-JSON is not a chunk.
  */
 export function usageFromSseText(text, shape = null) {
   const raw = String(text ?? '');
@@ -195,10 +209,19 @@ export function usageFromSseText(text, shape = null) {
   let input = null;
   let output = null;
   let sawChunk = false;
+  let anthropicDeltaOutput = false;
+  let anthropicStopAfterDelta = false;
+  let openaiCompleteUsage = false;
+  let openaiDoneAfterUsage = false;
+  let lastUsageHasFinish = false;
   for (const line of raw.split('\n')) {
     if (!line.startsWith('data:')) continue;
     const payload = line.slice(5).trim();
-    if (payload === '' || payload === '[DONE]') continue;
+    if (payload === '') continue;
+    if (payload === '[DONE]') {
+      if (openaiCompleteUsage) openaiDoneAfterUsage = true;
+      continue;
+    }
     let chunk;
     try {
       chunk = JSON.parse(payload);
@@ -209,6 +232,17 @@ export function usageFromSseText(text, shape = null) {
     const pair = usagePairFromDoc(chunk, shape);
     if (pair.input !== null) input = pair.input;
     if (pair.output !== null) output = pair.output;
+    if (chunk?.type === 'message_delta' && typeof chunk?.usage?.output_tokens === 'number') {
+      anthropicDeltaOutput = true;
+    }
+    if (chunk?.type === 'message_stop' && anthropicDeltaOutput) anthropicStopAfterDelta = true;
+    if (typeof pair.input === 'number' && typeof pair.output === 'number') {
+      openaiCompleteUsage = true;
+      openaiDoneAfterUsage = false;
+    }
+    if (pair.input !== null || pair.output !== null) {
+      lastUsageHasFinish = geminiChunkHasFinishReason(chunk);
+    }
   }
   if (!sawChunk) {
     try {
@@ -218,6 +252,9 @@ export function usageFromSseText(text, shape = null) {
     }
   }
   if (typeof input !== 'number' || typeof output !== 'number') return null;
+  if (shape === 'anthropic' && (!anthropicDeltaOutput || !anthropicStopAfterDelta)) return null;
+  if (shape === 'openai' && (!openaiCompleteUsage || !openaiDoneAfterUsage)) return null;
+  if (shape === 'gemini' && !lastUsageHasFinish) return null;
   return { prompt_tokens: input, completion_tokens: output };
 }
 

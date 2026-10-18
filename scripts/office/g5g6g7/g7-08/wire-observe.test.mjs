@@ -154,7 +154,7 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
 
     // R4-1: the Anthropic `/messages` stream - input on message_start, output on
     // message_delta, both cumulative (ai/proxy.go:433-441).
-    const anthropicSse = 'data: {"type":"message_start","message":{"usage":{"input_tokens":41}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: [DONE]\n';
+    const anthropicSse = 'data: {"type":"message_start","message":{"usage":{"input_tokens":41}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: {"type":"message_stop"}\n';
     assert.deepEqual(usageFromSseText(anthropicSse, 'anthropic'), { prompt_tokens: 41, completion_tokens: 9 });
     assert.deepEqual(
       usageFromModelResponseBody({ usage: { input_tokens: 6, output_tokens: 3 } }, 'anthropic'),
@@ -166,7 +166,7 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
       { prompt_tokens: 7, completion_tokens: 7 },
     );
     assert.deepEqual(
-      usageFromSseText('data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4}}\n', 'gemini'),
+      usageFromSseText('data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4},"candidates":[{"finishReason":"STOP"}]}\n', 'gemini'),
       { prompt_tokens: 8, completion_tokens: 4 },
     );
     // A shape whose own block is absent is an unknown, never 0 - the wrong-shape body
@@ -282,7 +282,7 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     const { settle } = observeModelWire(page, { requests, responses, aiPaths });
     const byokUrl = 'http://web.test/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages';
     page.emit('request', fakeRequest('POST', byokUrl, '{}'));
-    page.emit('response', fakeResponse(200, byokUrl, 'data: {"type":"message_start","message":{"usage":{"input_tokens":41}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n'));
+    page.emit('response', fakeResponse(200, byokUrl, 'data: {"type":"message_start","message":{"usage":{"input_tokens":41}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: {"type":"message_stop"}\n'));
     await settle();
 
     assert.equal(requests.length, 1, 'the registered BYOK route is matched');
