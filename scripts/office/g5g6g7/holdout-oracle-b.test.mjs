@@ -964,3 +964,28 @@ describe('item 17 (round k, R22-2): the heading-level count phrase accepts a pre
     assert.equal(verdict(two, readAsk('get_document_context', 'docs', headings, 'There are headings at level 2.', { numbers: [2], items: [{ ...item, value: 2 }] })), 'fail');
   });
 });
+
+describe('item 18 (round k, K-3): the heading-level label digit is never a shown derivation operand', () => {
+  const result = { blocks: [{ index: 0, style: 'Heading2', preview: 'Alpha 4' }, { index: 1, style: 'Heading2', preview: 'Beta 2' }, { index: 2, style: 'Heading2', preview: 'Gamma' }, { index: 3, style: 'Heading2', preview: 'Delta' }] };
+  const derived = (value) => mkCase({
+    id: 'HO-DOCX-987',
+    format: 'docx',
+    category: 'lookup',
+    tools: { allowed: ['read_document'], required: ['read_document'] },
+    expected: { numeric: [{ name: 'v', value, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: value }, structural: [], writes: 0, text: 'x' },
+  });
+  const say = (value, text) => verdict(derived(value), readAsk('get_document_context', 'docs', result, text, { numbers: [value] }));
+
+  it('fails a product or a sum whose second operand is only the label digit of the wording', () => {
+    assert.equal(say(8, 'There are 4 level 2 headings, so 8 is 4x2.'), 'fail');
+    assert.equal(say(6, 'There are 4 level 2 headings, so 6 is 4+2.'), 'fail');
+  });
+
+  it('keeps the control passing when the 2 is shown as an operand of its own, and the plain correct count', () => {
+    assert.equal(say(6, 'There are 4 level 2 headings, so 6 is 4+2, and Beta has 2.'), 'pass');
+    const h2 = countCaseOf({ id: 'HO-DOCX-986', format: 'docx', anchor: 'heading_level_2', value: 4, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
+    const item = { kind: 'count', anchor: 'heading_level_2', value: 4 };
+    assert.equal(verdict(h2, readAsk('get_document_context', 'docs', result, 'There are 4 level 2 headings.', { numbers: [4], items: [item] })), 'pass');
+  });
+});
