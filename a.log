@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1645c-el1b-desktop; git log --oneline -3
+a50329ef9c6551697dfc8b731ad2196a1c72b7cb
+a50329ef9c6551697dfc8b731ad2196a1c72b7cb
+a50329ef Merge remote-tracking branch 'origin/main' into feature/UNI-1645c-el1b-desktop
+db02bfde fix(shell): re-issue the will-quit gate's quit on a macrotask and hold only with locks to release
+99f4fcf4 test(shell): pin EL-1(b) will-quit gate re-entrant re-quit and hold-with-nothing-to-release
