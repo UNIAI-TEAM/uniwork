@@ -1,0 +1,151 @@
+# Documents — Phụ lục: phân loại những hàng một lần xóa vĩnh viễn để lại (RETENTION-01, UNI-1904)
+
+> **Trạng thái:** in-progress — v0.2, viết 2026-10-18, Advisor đã chốt 04:05 và w1 đã code (`?-1` → A: purge xóa hàng
+> `document_break_glass_grants` của tài liệu; `B-1` → D, `B-2` → C theo `lead-verify-ret-c0.md`). Thẻ RETENTION-01 (UNI-1904).
+
+**Nguồn:** `review-be-rs-r1.md` § BE-RS-4 (một "maybe-false": helper xóa không đụng `document_break_glass_grants`, `office_offline_leases`,
+`office_launch_sessions`, `office_jobs`, `document_commit_intents`, snapshot items), `packet-rs.md` § BE-RS-4 (DEFERRED: tập dọn y hệt
+`purgeOneDocument` trước refactor; phân loại lưu trữ là thẻ riêng).
+**Quan hệ:** [phụ lục khôi phục/xóa vĩnh viễn](2026-10-17-documents-restore-purge-addendum.md) (§2 P-4 chia `hardDeleteDocumentTx`), [phụ lục Lưu trữ](2026-10-17-documents-archive-addendum.md) (`shelved`).
+**Hiện trạng:** đọc ở root G5-G7 `1c7760c5f`.
+
+Phạm vi v0.1: **chỉ đọc code và viết hợp đồng**. v0.2 (w1) thêm **một câu SQL + một call site** cho `?-1` — không migration, không bảng
+mới, không FK, không event mới.
+
+## 0. Tập dọn hôm nay (A)
+
+`PurgeDocument` (`document_lifecycle.go:1058`): tx → `LockDocumentTree` (`:1074`) → `LockDocumentByID` (`:1078`) → `effectiveLevel` (`:1086`) →
+`decideArchiveRootAccess` (`:1090`) → đòi `archived_at` (`:1093`) → `managedArchivedSubtree` (`:1097`) → `archiveBound` (`:1101`) → khóa từng nút
+(`:1106`) → `hardDeleteDocumentTx` (`:1110`) → commit (`:1127`).
+`PurgeExpired` (`:1150`): keyset `ListDocumentsForPurge` (`:1170`, lô `documentSweepBatch = 200`) → `purgeOneDocument` (`:1185`, actor
+`audit.System("documents.purge")`) → asset mồ côi quá `documentAssetRetentionDays = 7` (`:1200-1237`, `purgeOneAsset` `:1424`).
+
+`hardDeleteDocumentTx` (`:1276-1418`) làm đúng những việc sau, tất cả trong transaction của người gọi:
+
+| Việc | file:line |
+|---|---|
+| Đọc file id của versions + assets | `document_lifecycle.go:1277` (`ListDocumentFileIDs`) |
+| Con trực tiếp ngoài tập xóa | `:1289` (`ListDocumentChildrenOutsideSet`) |
+| Re-root con **còn trong thùng rác** | `:1296` (`RerootArchivedChildrenOutsideSet`) |
+| Re-root con **đang sống**: tên `(n)` + `NextDocumentPosition` + `DetachDocumentToRoot` | `:1302-1326` |
+| `document_versions` | `:1330` |
+| `document_assets` | `:1334` |
+| `document_shares` | `:1338` |
+| `document_share_links` | `:1342` |
+| `document_access_logs` | `:1346` |
+| `comment_reactions` (qua `USING document_comments`) | `:1353` |
+| `document_comment_mentions` | `:1357` |
+| `document_comment_revisions` | `:1361` |
+| `document_comments` | `:1365` |
+| `document_favorites` | `:1369` |
+| `document_break_glass_grants` (w1) | `:1373` (`DeleteDocumentBreakGlassGrants`) |
+| hàng `documents` | `:1377` (`DeleteArchivedDocument`, 0 hàng → bỏ qua) |
+| nhả tham chiếu tệp qua FileService | `:1393` (`files.ReleaseInTx`) |
+| audit + outbox `document.deleted` (`manual_purge` khi actor là người) | `:1403-1414` |
+
+SQL tương ứng: `server/pkg/db/queries/document_gc.sql` — `ListDocumentsForPurge:13`, `ListDocumentFileIDs:28`, `DeleteDocumentVersions:40`,
+`DeleteDocumentAssets:46`, `DeleteDocumentShares:52`, `DeleteDocumentShareLinks:58`, `DeleteDocumentAccessLogs:64`,
+`DeleteDocumentCommentReactionsByDocument:73`, `DeleteDocumentCommentMentionsByDocument:83`, `DeleteDocumentCommentRevisionsByDocument:89`,
+`DeleteDocumentComments:95`, `DeleteDocumentFavorites:101`, `DeleteArchivedDocument:109`, `ListOrphanedDocumentAssets:119`; w1 thêm
+`document_break_glass.sql` → `DeleteDocumentBreakGlassGrants`.
+
+**Kết luận A:** 12 bảng (11 bảng cũ + `document_break_glass_grants` từ w1) + hàng `documents` + tham chiếu tệp, cộng hai lần ghi `UPDATE` lên
+cây (`parent_id`, `position`, `title`, `search_text` của con sống; `parent_id` của con trong thùng rác). Không đụng bảng nào khác.
+
+## 1. Bảng giữ id tài liệu — phân loại
+
+Quét `server/migrations/*.up.sql` cho `document_id`, `source_document_id`, `token_document_id`, `result_document_id`, `snapshot_id`,
+`lock_id`, `root_id`, `node_id`, `target_id`, `resource_id`, và đối chiếu struct trong `server/pkg/db/generated/models.go`.
+
+Đã kiểm và **không** giữ id tài liệu (không vào bảng): `chat_message_links` (`target_type` CHECK chỉ `'task'`), `chat_thread_task_links`,
+`project_resources` (`resource_type IN ('github_repo','local_directory')`), `usage_events.ref_id`, `notifications.resource_id` (generic, xem C-4),
+`audit_events.resource_id` (generic, C-1), `admin_actions.target_id`, `document_settings` (khóa theo `organization_id`), `file_upload_sessions`,
+`file_derivatives` (chỉ file id), `mcp_grants`, `attachments`, `task_source_contexts`, `ai_conversations`/`ai_messages`.
+
+| # | Bảng | Loại | Bằng chứng | Khi hàng `documents` đã mất, người đọc làm gì |
+|---|---|---|---|---|
+| A-1 | `documents` | **A** | `:1377` | 404 (`GetDocumentByID` → `pgx.ErrNoRows`) |
+| A-2 | `document_versions` | **A** | `:1330` | `GetDocumentVersion` theo `document_id`; mọi caller đã đọc `documents` trước → 404 |
+| A-3 | `document_assets` | **A** | `:1334` | chỉ đọc qua tài liệu |
+| A-4 | `document_shares` | **A** | `:1338` | `resolveLevelInTenant` chạy trên hàng `db.Document` đã đọc |
+| A-5 | `document_share_links` | **A** | `:1342` | đọc công khai theo token → `documents` → 404 |
+| A-6 | `document_access_logs` | **A** | `:1346` | báo cáo truy cập liệt kê theo tài liệu |
+| A-7 | `document_comments` | **A** | `:1365` | `loadInResource` → 404 |
+| A-8 | `document_comment_mentions` | **A** | `:1357` | theo bình luận |
+| A-9 | `document_comment_revisions` | **A** | `:1361` | theo bình luận |
+| A-10 | `comment_reactions` | **A** | `:1353` | theo bình luận |
+| A-11 | `document_favorites` | **A** | `:1369` | danh sách yêu thích theo tài liệu |
+| A-12 | tham chiếu tệp (`files`) | **A** | `:1393` | FileService nhả tham chiếu, byte do GC của FileService quyết |
+| B-1 | `office_jobs` — hàng **đang sống** (`accepted`, `running`) | **D** (lead chốt) | không có câu DELETE nào trong `server/pkg/db/queries/office_jobs.sql` (các `-- name:` ở `:8,26,33,40,52,60,68,79,94,110,126,141,152,160`) | `OfficeJob` (`document_office_capability.go:1891-1907`) và `CancelOfficeJobForDocument` (`:1911-1928`) ủy quyền tài liệu **trước**; `GetOfficeJob` (`document_office.go:695-706`) `get` rồi `authorize`; `OpenOfficeJobOutput` (`:711-745`) `authorizeDocument` trước; `StartOfficeJob` (`:249-253`) và `StartOfficeJobForDocument` (`:621`) cũng vậy; `acceptConversion` (`document_copy_convert.go:41-53`) chỉ chạy sau khi `CopyDocument` ủy quyền nguồn (`document_copy.go:95`). **Không hàng nào đọc được.** `lead-verify-ret-c0.md`: `RunReconciler` → `ReconcileOfficeJobs` (`document_office_reconcile.go:237`) đọc `ListLiveOfficeJobs`, `Refresh` tự kết thúc mọi hàng sống — câu trả lời của engine, engine `not_found` → `reconcileLost`, hoặc quá `deadline_at + 5s` (`officeDeadlineGrace`) → `timed_out` (`:47-50`, `:84-88`) — **không** đọc hàng `documents` (`grantFor` chỉ dùng hàng job, `document_office.go:549`). Nên giữ tệp output chỉ kéo dài tới hạn của job, **không vô hạn**: không phải hệ quả của purge |
+| B-2 | `document_edit_locks` — nhiệm kỳ **chưa kết thúc** | **C** (lead chốt) | `ListExpiredDocumentEditLocks` (`document_edit_locks.sql:157-168`) có `AND EXISTS (SELECT 1 FROM documents d WHERE d.id = document_edit_locks.document_id)` (`:167`) — câu này **nói rõ** hàng ấy thuộc consumer xóa, không phải bỏ sót; `expireDocumentEditLock` (`document_edit_lock_sweep.go:118-160`) cũng thoát sớm khi `LockDocumentByID` → `ErrNoRows` (`:127-130`). Đường kết thúc theo thiết kế: consumer `DocumentEditLockReleaser` (`document_edit_lock_consumer.go:47,84`, `releaseDeleted` `:173-228`) trên lane notify (`cmd/server/main.go:488`), kết thúc nhiệm kỳ với `document_deleted`, audit + `document.lock_changed`, **kể cả khi hàng `documents` đã mất**. `TestDeleteReleasesEditLock` (`document_edit_lock_workers_test.go:631`) ghim cả lần giao lại. Thêm nữa: purge đòi `archived_at`, mà archive đã nhả mọi nhiệm kỳ (`document_lifecycle.go:354`, `:916`, `:1003`), nên nhiệm kỳ còn sống lúc purge không phải trạng thái bình thường |
+| C-1 | `audit_events` | **C** | ADR 0012; `event_retention.go:36` và `:197-213` chỉ xóa `outbox_events`/`webhook_inbox`/`meeting_provider_events` | đọc theo `resource_id` generic, không join `documents` |
+| C-2 | `documents.source_document_id` (tự trỏ) | **C** | đọc `document_lifecycle.go:768-775` (`pristineCopyCleanup`), `document_search.go:759`; ghi `document_copy.go:268`, `document_copy_convert.go:170` | không câu nào join theo cột này; không có trong `sdo.DocumentDTO` (`handler/dto/sdo/document.go:15`) nên client không bao giờ thấy. Hàng bản sao đã xóa → 404, không phải lỗi |
+| C-3 | `notifications` (hàng `resource_type='document'`) | **C** | không có câu DELETE nào cho `notifications` | `Service.List` (`notification/service.go:220-265`) hỏi `FilterReadableDocuments`; thiếu hàng → `DocumentGone` (`:248-253`) → `ResourceDeleted = true` và `snippetKeys` (`:91`) bị bỏ, nên tiêu đề/đoạn trích không lộ. `digest.go:165-205` bỏ hẳn slot; deep link push (`push_consumer.go:168-200`) chỉ dựng URL theo workspace → 404 |
+| C-4 | `idempotency_keys` | **C** | không có retention (`idempotency.sql` chỉ có `:5,14,23,33`) | mọi replay đọc lại tài liệu trước: `document_commit.go:301-320` (`preflightDocument`), `document_copy.go:175-187` → `errDocumentDeleted()` 410, `document_copy_convert.go:41-53`, `document_lifecycle.go:820-840` → `ErrNotFound`, `document_comments.go:396-410` (`loadInResource`) |
+| C-5 | `graph_nodes`/`graph_edges`/`graph_node_facts`/`graph_dirty` | **C** | `NodeDocument` **không** nằm trong `Projected` (`graph/catalogue.go:42`), `catalogue_test.go:68` khẳng định điều đó; `topicNodes` (`graph/projector/refs.go:17-52`) không có topic `document.*` | projector không có gì để ghi hay để quên |
+| D-1 | `office_offline_leases` | **D** (+ **C** cho phần bất đồng bộ) | `OfficeLeaseRevoker` (`office_lease_consumer.go:53-56` có `document.deleted`, `:90-91` → `revokeDocument` `:199-220`) chạy lane notify; `OfficeLeaseSweeper` (`office_lease_sweep.go:19-24`, `Sweep` `:69`, query `office_offline_leases.sql:147-155`) xóa 7 ngày sau khi hết hạn/thu hồi; `OfficeLeaseTTL = 24h` (`office_lease.go:29`) | `readableFile` (`office_lease.go:556-583`) `LockOfficeLeaseDocument` → `ErrNoRows` → `officeLeaseBlocked(ACL, ErrNotFound)`; `checkRenewal` (`:586-604`) từ chối hàng thiếu (`officeLeaseRevoked`) |
+| D-2 | `office_launch_sessions` | **D** | `DeleteExpiredOfficeLaunchSessions` (`office_launch.sql:53-62`) xóa 24h sau `expires_at`/`revoked_at`/`redeemed_at`; chạy trong `DocumentWorkers.purgeOfficeLaunch` (`document_workers.go:170-187`, nhịp purge mỗi giờ) → `PurgeExpired` (`office_launch.go:371-376`). Vé sống 120s (`officeLaunchTTL` `:23`) | `Exchange` (`office_launch.go:231-300`) `LockDocumentByID` → `ErrNoRows` → `ErrNotFound` (`:277-280`) — vé chưa dùng của tài liệu đã xóa **không đổi được gì** |
+| D-3 | `document_commit_intents` | **D** | `SweepDocumentCommitIntents` (`document_commit_intents.sql:95-105`) xóa sau `retain_until` khi claim không sống; `DefaultCommitIntentRetention = 7 ngày` (`document_commit_intent.go:53`), nhịp 10 phút (`:70`), nối ở `document_workers.go:141-151` | `LookupCommitIntent` (`:394-440`) đọc `documents` trước → 404; khóa đã bị quét → 410 `commit_intent_unknown` |
+| D-4 | `document_edit_requests` | **D** | `ExpirePendingDocumentEditRequests` (`document_edit_locks.sql:256-263`) + `DeleteClosedDocumentEditRequests` (`:267-275`) xóa 7 ngày sau khi đóng; nhịp `DocumentEditLockSweeper` (`document_edit_lock_sweep.go:81-116, 163-183`) | chỉ đọc bên trong `GetDocumentEditLockState` sau khi ủy quyền tài liệu; `CreateDocumentEditRequest` (`document_edit_lock_requests.go:56-72`) đòi `documents` và từ chối `archived_at` |
+| D-5 | `document_change_snapshots` + `_items` | **D** | `DocumentChangeSnapshotSweeper` (`document_changes_sweep.go:76-120`), `SweepExpiredDocumentChangeSnapshots` (`document_changes.sql:85-98`) + `DeleteDocumentChangeSnapshotItems` (`:99-105`) trong một transaction; `DocumentChangeSnapshotTTL = 15 phút` (`document_changes.go:27`), nhịp 1 phút (`document_changes_sweep.go:19`) | `snapshotEvidence` (`document_changes_feed.go:680`) thiếu hàng → không bằng chứng; `purgeAnswer` (`:535`) trả 410 `change_cursor_expired` — client resync, không nhận `document_deleted` (`:142-149`) |
+| D-6 | `ai_uniwork_conversations` | **D** (+ **C**) | `ConversationCleanupConsumer` (`ai/conversation_store_pg.go:656-717`, đăng ký lane slow ở `cmd/server/main.go:450`) gọi `DeleteByDocument` (`:250-260`); TTL `30 phút`/`24 giờ` (`ai/conversation_store.go:26,29`) quét bởi `Sweep` (`conversation_store_pg.go:323-339`, nhịp 1 phút `:45`) | `AIUniworkService.Chat` (`ai_uniwork.go:234+`) giải scope tài liệu trước; `documentScope` (`:388-410`) thất bại thì xóa transcript của người dùng và trả lỗi |
+| D-7 | `file_multipart_uploads` | **D** (phiên) | `ExpireMultipartUploads` (`document_upload_sessions.go:1776-1845`) claim hàng hết hạn (`ClaimExpiredFileMultipartUploads` `file_multipart_uploads.sql:159+`, status → `expired`), hủy phiên FileService, audit `document.upload_session_gc`; `UploadSessionTTL = 24h` (`:34`); nối ở `document_workers.go:143-151` | `authorizeNonFrameUploadSession` (`:1847-1878`) và `authorizeFrameUploadSession` (`:1880-1912`) đọc tài liệu trước; `loadCompletedUploadSessionResult` (`:1464-1500`) `GetDocument(ResultDocumentID)` → `ErrNotFound` |
+| ?-1 | `document_break_glass_grants` | **A** (Advisor chốt 04:05, w1) | w1 thêm `DeleteDocumentBreakGlassGrants` (`document_break_glass.sql`) gọi trong `hardDeleteDocumentTx` cạnh các delete khác — trước đó bảng **không có sweeper, không có câu DELETE** (chỉ `INSERT`/`SELECT`/`UPDATE`); TTL 24h (`document_break_glass.go:26,98`). Bảng **nằm trong** gói xuất tenant (`tenant_export_tables.go:79`) | mọi người đọc đều đi sau một lần ủy quyền tài liệu: `listLiveBreakGlass` (`document_break_glass.go:197-215`), `breakGlassExpiry` (`:231`), `DocumentAdminSummary` (`:262`), `resolveLevelInTenantFromShares` (`document_permissions.go:242-256`), `liveBreakGlassFor` (`document_list_access.go:80-96`), báo cáo (`document_access_report.go:395-401`) → tài liệu mất thì 404 **trước**. Lỗ duy nhất là hàng sống của tài liệu đã xóa lọt vào zip xuất dữ liệu — w1 đóng bằng cách xóa hàng của tài liệu trong purge |
+| ?-2 | `office_jobs` — hàng **đã kết thúc** | **backlog** (Q-RT2 đóng: retention toàn bảng, không phải hệ quả của purge — dòng FU §2) | không có retention nào cho `office_jobs` (không câu DELETE, không sweeper) | như B-1: không đọc được. `FileGCOfficeJobRefTenants` (`office_jobs.sql:160-164`) **không** lọc theo state, nên hàng đã kết thúc vẫn khai tenant cho `output_file_id` mãi |
+| ?-3 | `file_multipart_uploads` — hàng | **backlog** (Q-RT3 đóng: phiên đã bị hủy nên byte không rò — dòng FU §2) | **Không có câu DELETE** (0 lần `DELETE` trong `file_multipart_uploads.sql`) | như D-7: không đọc được |
+| ?-4 | `documents` bản sao trỏ tới nguồn đã xóa (`source_document_id`) | **C** (Q-RT4 đóng theo lead: vô hại) | như C-2 | không rò; chỉ là tham chiếu treo trong hàng nội bộ |
+
+## 2. Phạm vi w1 (đã chốt: chỉ xóa break-glass)
+
+Advisor chốt 04:05 (Q1 YES); lead `lead-verify-ret-c0.md` đóng hai hàng B. w1 = **một câu SQL + một call site**, không bảng mới,
+không FK, không event mới:
+
+- **?-1 → A — `document_break_glass_grants`.** Câu mới `DeleteDocumentBreakGlassGrants :exec` (`server/pkg/db/queries/document_break_glass.sql`):
+  `DELETE FROM document_break_glass_grants WHERE organization_id = sqlc.arg(organization_id) AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)` — mang tenant pair, **không** `-- tenant:` exemption. Gọi trong `hardDeleteDocumentTx`
+  (`document_lifecycle.go`), trong vòng lặp delete cạnh `DeleteDocumentFavorites`, trước `DeleteArchivedDocument`: cùng transaction,
+  không audit riêng, không event riêng (`document.deleted` của chính tài liệu đã ghi lại việc này). Hàng này chạy cho từng nút trong
+  cây bị xóa, nên grant của một tài liệu con trong cây cũng đi theo.
+
+**B-1 → D (`office_jobs` hàng sống).** `lead-verify-ret-c0.md`: reconciler tự kết thúc mọi hàng sống ở hạn của job
+(`document_office_reconcile.go:47-50,84-88`), không đọc hàng `documents`. Tệp output được giữ tới hạn job, **không vô hạn**; không phải
+hệ quả của purge. Không thêm gì cho B-1.
+
+**B-2 → C (`document_edit_locks` nhiệm kỳ chưa kết thúc).** Kết thúc bất đồng bộ là thiết kế: consumer `DocumentEditLockReleaser`
+(`document_edit_lock_consumer.go:173-228`, `releaseDeleted`) trên lane notify kết thúc nhiệm kỳ với `document_deleted`, kể cả khi hàng
+`documents` đã mất; `TestDeleteReleasesEditLock` (`document_edit_lock_workers_test.go:631`) ghim nó. Archive (điều kiện tiên quyết của
+purge) đã nhả mọi nhiệm kỳ. Không thêm gì cho B-2.
+
+Ngoài w1 (ghi lại, **không** làm ở vòng này): `?-2` và `?-3` — retention của cả bảng, không phải hệ quả của purge — xem §4.
+
+FU: table-wide retention for terminal office_jobs rows, closed file_multipart_uploads rows and expired document_break_glass_grants rows
+(no sweeper today) — backlog card, not this lane.
+
+Không thêm gì cho **D**: mọi hàng D đã tự hết hạn qua sweeper đã có, và người đọc đã trả 404/410. Không xóa tay hàng D trong purge: làm vậy
+chỉ nhân đôi đường dọn và tạo hai nguồn sự thật cho cùng một vòng đời.
+
+## 3. Test (đã red-prove)
+
+- **RT-5** (`?-1`, đã làm): `TestDocumentManualPurge` PG-5 (`document_lifecycle_test.go`) — purge một thư mục đã lưu trữ có grant break-glass
+  trên cả thư mục lẫn con: `SELECT count(*) FROM document_break_glass_grants WHERE document_id = ANY(...)` = 0, từng grant id cũng 0, và
+  zip xuất tenant của tổ chức (`buildZip`) không còn tên tài liệu/grant nào của cây đã xóa. **Đối chứng**: grant của một tài liệu khác trong
+  cùng tổ chức vẫn còn (cả trong bảng lẫn trong zip). Đỏ khi bỏ call: dòng `break-glass rows of the purged subtree = 2 ... want 0`, rồi
+  `grant ... survived the purge (n=1)`, rồi `tenant export still names the purged break-glass row ...`.
+- **RT-4** (giữ A): PG-1 giữ nguyên — 11 bảng + `documents` = 0 sau purge.
+- **RT-6** (hợp đồng repo): `TestEveryQueryNamesItsTenant` cho câu mới (có `organization_id = $n`); route purge đã nằm trong
+  `isolation_matrix_test.go` (`case "purge"` `:441`); `audit_coverage_test.go` giữ `PurgeDocument` (`:2237`) — không audit mới nên không đổi.
+- **RT-1 / RT-2 / RT-3 / RT-7** không còn áp dụng: B-1 và B-2 đã bị hạ khỏi w1 (xem §2).
+
+## 4. Câu hỏi cho Advisor (đã đóng)
+
+- **Q-RT1 (`?-1`).** **Chốt: có (a)** — xóa hàng của tài liệu trong purge. Đã code ở w1 (xem §2, §3).
+- **Q-RT2 (`?-2`, `office_jobs` đã kết thúc).** Chốt: thẻ riêng (retention của cả bảng), **không** w1 — xem dòng FU ở §2.
+- **Q-RT3 (`?-3`, hàng `file_multipart_uploads`).** Đóng theo lead: phiên đã bị hủy nên byte không rò; retention của cả bảng là thẻ riêng —
+  xem dòng FU ở §2, không làm ở w1.
+- **Q-RT4 (`?-4`, bản sao trỏ nguồn đã xóa).** Đóng theo lead: vô hại — cột không lộ ra client, không câu nào join; để nguyên.
+- **Q-RT5 (B-1 có thuộc w1?).** Đóng theo lead: **không** — B-1 là D, reconciler tự kết thúc ở hạn job; w1 chỉ còn `?-1`.
+
+## 5. Không đổi
+
+Không bảng mới, không FK/cascade, không event/catalogue mới, không đổi `end_reason`, không đổi payload `document.deleted`, không đổi
+`packages/core`. Mọi câu SQL mới mang tenant pair và nằm trong transaction purge đang có.

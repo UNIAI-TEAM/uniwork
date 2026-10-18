@@ -1270,9 +1270,10 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 // hardDeleteDocumentTx deletes one locked archived document, re-roots the
 // surviving direct children that are not in the delete set, removes every row
 // of its dependent orbit (versions, assets, shares, share links, access logs,
-// comment reactions/mentions/revisions/comments, favorites), releases its
-// FileService references, and records the document.deleted audit and outbox
-// rows inside the caller's transaction (RESTORE-01 §2 P-4/P-6).
+// comment reactions/mentions/revisions/comments, favorites, break-glass
+// grants), releases its FileService references, and records the
+// document.deleted audit and outbox rows inside the caller's transaction
+// (RESTORE-01 §2 P-4/P-6).
 func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor, deleting []string) (bool, int, error) {
 	fileIDs, err := q.ListDocumentFileIDs(ctx, db.ListDocumentFileIDsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
@@ -1367,6 +1368,13 @@ func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Querie
 		},
 		func(ctx context.Context) error {
 			return q.DeleteDocumentFavorites(ctx, db.DeleteDocumentFavoritesParams{
+				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})
+		},
+		// The break-glass table has no sweeper of its own, so a grant of a
+		// document that no longer exists would stay forever and enter the
+		// tenant export (RETENTION-01, UNI-1904). It goes with the document.
+		func(ctx context.Context) error {
+			return q.DeleteDocumentBreakGlassGrants(ctx, db.DeleteDocumentBreakGlassGrantsParams{
 				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})
 		},
 	} {

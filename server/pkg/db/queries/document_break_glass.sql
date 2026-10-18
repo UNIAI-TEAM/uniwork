@@ -44,3 +44,14 @@ WHERE id = sqlc.arg(id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id)
   AND revoked_at IS NULL;
+
+-- The purge deletes a document's grants with it: this table has no sweeper of
+-- its own, so a live grant of a document that no longer exists would stay
+-- forever and enter the tenant export (RETENTION-01, UNI-1904). Runs in the
+-- purge transaction, next to the document's other dependent rows; no audit of
+-- its own, the document.deleted row already records the deletion.
+-- name: DeleteDocumentBreakGlassGrants :exec
+DELETE FROM document_break_glass_grants
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id);
