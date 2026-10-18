@@ -605,7 +605,9 @@ describe("Chunked document upload in views", () => {
     const input = await screen.findByLabelText(t("documents.upload.pick"));
     fireEvent.change(input, { target: { files: [bigFile] } });
 
-    fireEvent.click(await screen.findByRole("button", { name: t("documents.upload.submit") }));
+    expect(await screen.findByText(t("documents.upload.resume_hint"))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("d-resumed"));
     expect(calls).toContain("GET /api/v1/upload-sessions/sess-resume-1");
     expect(calls).not.toContain(`POST /api/v1/workspaces/${WS}/documents/upload-sessions`);

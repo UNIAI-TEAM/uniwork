@@ -188,6 +188,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onOpen,
     description: t(parentForCreate && !isMyFolder(folderDoc) ? "documents.upload.description_folder" : "documents.upload.description"),
     rootDestination: "my_folder",
+    rootParentId: myFolderId,
     resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id,
   });
 

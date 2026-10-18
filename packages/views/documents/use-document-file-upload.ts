@@ -36,6 +36,8 @@ interface UseDocumentFileUploadOptions {
    * The first resolved id is remembered for the rest of the hook's life.
    */
   resolveRootParent?: () => Promise<string>;
+  /** The already-known parent for no-parent chunked uploads; skips `resolveRootParent`. */
+  rootParentId?: string | null;
 }
 
 /**
@@ -51,6 +53,7 @@ export function useDocumentFileUpload({
   description,
   rootDestination,
   resolveRootParent,
+  rootParentId,
 }: UseDocumentFileUploadOptions) {
   const { t, i18n } = useTranslation();
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -81,7 +84,7 @@ export function useDocumentFileUpload({
   // (e.g. the ensured My Folder). State so the hook's target — and with it
   // resume-lookup keys — converges on it after the first root chunked start.
   const [resolvedRootParent, setResolvedRootParent] = useState<string | null>(null);
-  const chunkedParentId = parentId ?? resolvedRootParent;
+  const chunkedParentId = parentId ?? rootParentId ?? resolvedRootParent;
   const target = useMemo<UploadSessionTarget>(
     () => ({
       kind: "workspace" as const,
@@ -128,7 +131,7 @@ export function useDocumentFileUpload({
    */
   const resolveChunkedTarget = async (file: File, filename: string): Promise<UploadSessionTarget | undefined> => {
     if (parentId || !resolveRootParent) return undefined;
-    const rootId = resolvedRootParent ?? (await resolveRootParent());
+    const rootId = rootParentId ?? resolvedRootParent ?? (await resolveRootParent());
     if (!rootId) return undefined;
     if (resolvedRootParent === null) setResolvedRootParent(rootId);
     return { kind: "workspace", workspaceId: wsId, parentId: rootId };
