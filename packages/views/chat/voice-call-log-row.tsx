@@ -11,6 +11,9 @@ import { formatMessageTime } from "./chat-message-time";
 import { formatVoiceCallDuration } from "./voice-call-duration";
 import { formatVoiceCallParticipantLabels } from "./voice-call-participant-labels";
 import { VoiceCallRecordingDialog } from "./voice-call-recording-dialog";
+import { useChatVoiceRecordings } from "@uniwork/core/chat";
+import { describeVoiceRecording } from "./chat-voice-recordings-sheet";
+import type { NameContextEntry } from "./native-chat-message-mapping";
 
 function voiceCallLogLabel(
   message: ChatMessage,
@@ -55,12 +58,15 @@ export function VoiceCallLogRow({
   roomId,
   message,
   currentUserId,
+  nameContext = [],
   onViewSummary,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
   currentUserId: string;
+  /** Names who started the recording in its player's description. */
+  nameContext?: NameContextEntry[];
   /** UNI summarised this call: "Xem tóm tắt" jumps to that summary. */
   onViewSummary?: () => void;
 }) {
@@ -85,6 +91,13 @@ export function VoiceCallLogRow({
   const recordingId = message.voiceCall?.recording_id?.trim();
   const recordingReady =
     message.voiceCall?.recording_status === "COMPLETE" && Boolean(recordingId);
+  // The player says which recording it is, as the recordings list does; the list loads when it opens.
+  const { data: recordings } = useChatVoiceRecordings(workspaceId, roomId, recordingOpen);
+  const recordingItem = recordingOpen ? recordings?.find((item) => item.id === recordingId) : undefined;
+  const described = recordingItem
+    ? describeVoiceRecording(recordingItem, { locale: i18n.language, t, currentUserId, nameContext, youLabel: t("chat.you") })
+    : null;
+  const recordingDescription = described ? `${described.when} · ${described.whoLine}` : undefined;
 
   return (
     <>
@@ -154,6 +167,7 @@ export function VoiceCallLogRow({
           workspaceId={workspaceId}
           roomId={roomId}
           recordingId={recordingId}
+          description={recordingDescription}
         />
       ) : null}
     </>

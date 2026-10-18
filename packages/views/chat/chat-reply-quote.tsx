@@ -9,6 +9,7 @@ import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-u
 import { isChatMediaUrlFresh } from "@uniwork/core/chat";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 import { senderNameClass, senderQuoteClass } from "./sender-colors";
+import { formatChatFileSize } from "./chat-file-size";
 
 function isImageFileMessage(message: ChatMessage): boolean {
   return message.kind === "file" && Boolean(message.file?.content_type?.startsWith("image/"));
@@ -71,7 +72,7 @@ export function ChatReplyQuote({
   /** Scrolls to the quoted message; the quote becomes a button when set. */
   onJump?: (messageId: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const previewUrl = quotedImageUrl(message);
   const isImage = isImageFileMessage(message);
   const label = replyPreviewLabel(message, {
@@ -84,7 +85,7 @@ export function ChatReplyQuote({
     return (
       <span className="flex min-w-0 items-center gap-2.5">
         {isImage ? (
-          <QuoteThumbnail url={previewUrl} label={label} className="size-10 bg-muted text-muted-foreground" />
+          <QuoteThumbnail url={previewUrl} label={label} className="size-10 rounded-lg bg-surface text-muted-foreground" />
         ) : null}
         <span className="flex min-w-0 flex-col">
           {senderLabel ? (
@@ -103,6 +104,12 @@ export function ChatReplyQuote({
       </span>
     );
   }
+
+  // A quoted file says how big it is too: "Danh-sach-khach-moi.xlsx · 48 KB" (canvas).
+  const fileSize =
+    message.kind === "file" && !isImage && message.file?.size_bytes
+      ? formatChatFileSize(message.file.size_bytes, i18n.language)
+      : null;
 
   // A side bar and a light wash in the quoted sender's colour; on my brand
   // bubble both turn to the bubble's own white so the quote stays legible.
@@ -135,7 +142,7 @@ export function ChatReplyQuote({
             isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground",
           )}
         >
-          {label}
+          {fileSize ? `${label} · ${fileSize}` : label}
         </span>
       </span>
     </>
@@ -162,9 +169,13 @@ export function ChatReplyQuote({
 }
 
 /**
- * Above the composer while replying: a card on the chat wall led by a brand
- * bar — who is quoted, what they said, and the way out.
+ * The strip at the top of the composer pill while replying or editing: a
+ * brand bar on a soft fill, what it is about, and the way out (canvas).
  */
+export const COMPOSER_QUOTE_BAR_CLASS =
+  "mt-1 flex items-center gap-2.5 rounded-[18px] border-l-3 border-brand bg-muted py-1.5 pr-1 pl-3";
+
+/** Inside the composer pill while replying: who is quoted, what they said, and the way out. */
 export function ChatReplyComposerBar({
   message,
   senderLabel,
@@ -176,28 +187,22 @@ export function ChatReplyComposerBar({
 }) {
   const { t } = useTranslation();
   return (
-    // Same column as the composer below, inset past its attach and send
-    // buttons (48px + gap each side), so the card caps the message field.
-    <div className="bg-chat-wall px-3 pt-2 sm:px-6">
-      <div className="mx-auto w-full max-w-183 px-14">
-        <div className="flex items-center gap-2.5 rounded-2xl border-l-3 border-brand bg-surface py-1.5 pr-1 pl-3 shadow-chat-bubble">
-          <Reply aria-hidden className="size-4.5 shrink-0 text-brand" />
-          <span className="min-w-0 flex-1">
-            <ChatReplyQuote message={message} senderLabel={senderLabel} compact />
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-lg"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            aria-label={t("chat.cancel_reply")}
-            title={t("chat.cancel_reply")}
-            onClick={onCancel}
-          >
-            <X aria-hidden />
-          </Button>
-        </div>
-      </div>
+    <div className={COMPOSER_QUOTE_BAR_CLASS}>
+      <Reply aria-hidden className="size-4.5 shrink-0 text-brand" />
+      <span className="min-w-0 flex-1">
+        <ChatReplyQuote message={message} senderLabel={senderLabel} compact />
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-10 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+        aria-label={t("chat.cancel_reply")}
+        title={t("chat.cancel_reply")}
+        onClick={onCancel}
+      >
+        <X className="size-4.5" aria-hidden />
+      </Button>
     </div>
   );
 }

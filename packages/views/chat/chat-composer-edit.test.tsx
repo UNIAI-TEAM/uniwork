@@ -117,3 +117,29 @@ describe("ChatComposer text-only (thread reply)", () => {
     expect(screen.getByRole("button", { name: "Gửi" })).toBeDisabled();
   });
 });
+
+describe("ChatComposer reply", () => {
+  it("heads the pill with the quoted message, and its X cancels the reply and keeps the caret in the field", () => {
+    const onCancelReply = vi.fn();
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+          replyTo={{ id: "m1", sender: "u2", body: "Bản banner cuối", ts: 0, reactions: {} }}
+          replyToSenderLabel="Hoàng Lan"
+          onCancelReply={onCancelReply}
+        />,
+      ),
+    );
+    expect(screen.getByText("Trả lời Hoàng Lan")).toBeInTheDocument();
+    expect(screen.getByText("Bản banner cuối")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    expect(onCancelReply).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("textbox", { name: "Nhập tin nhắn…" })).toHaveFocus();
+  });
+});

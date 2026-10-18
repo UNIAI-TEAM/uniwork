@@ -4,7 +4,7 @@ import { StickyNote } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatMessage } from "./chat-messages";
-import { ChatCard } from "./chat-card";
+import { ChatCard, ChatCardPinnedStatus } from "./chat-card";
 
 type NotePayload = NonNullable<ChatMessage["note"]>;
 
@@ -42,6 +42,7 @@ export function ChatNoteMessageRow({
       showSenderName={showSenderName}
       compactTop={compactTop}
       avatar={avatar}
+      status={note.pinToTop ? <ChatCardPinnedStatus /> : undefined}
     >
       <p className="whitespace-pre-wrap text-body leading-relaxed text-foreground text-pretty [overflow-wrap:anywhere]">
         {note.body}

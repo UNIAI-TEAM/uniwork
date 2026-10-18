@@ -11,7 +11,6 @@ import {
 } from "@uniwork/core/chat/reminder-utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatCard, ChatCardStatus } from "./chat-card";
-import { formatMessageTime } from "./chat-message-time";
 
 /** setTimeout cannot wait longer than about 24.8 days. */
 const MAX_TIMER_MS = 2_147_000_000;
@@ -66,7 +65,8 @@ export function ChatReminderMessageRow({
     if (!Number.isFinite(remindAtMs)) return "";
     const date = new Date(remindAtMs);
     const now = new Date(nowMs);
-    const time = formatMessageTime(remindAtMs, i18n.language);
+    // "lúc 9:00": a schedule reads the hour as said, not padded like a message's stamp (canvas).
+    const time = date.toLocaleTimeString(i18n.language, { hour: "numeric", minute: "2-digit" });
     if (isSameCalendarDay(now, date)) {
       return t("chat.reminder_schedule_today", { time });
     }

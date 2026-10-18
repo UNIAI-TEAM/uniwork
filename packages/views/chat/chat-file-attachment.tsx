@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Download, Eye, EyeOff, FileText } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
-import { tintClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
+import { tintClass, tintForegroundClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -30,6 +30,9 @@ const imageAspectByMessage = new Map<string, number>();
 /** The family a file belongs to, by extension: its type tile wears that tint. */
 const FILE_TINTS: Record<string, Tint> = { pdf: "red", docx: "blue", xlsx: "green" };
 
+/** The app a file opens in, named after its size ("86 KB · Word"); proper names, not copy. */
+const FILE_KINDS: Record<string, string> = { pdf: "PDF", doc: "Word", docx: "Word", xls: "Excel", xlsx: "Excel" };
+
 /** A soft control on the bubble: a white wash on my brand bubble, the muted fill on theirs. */
 function bubbleControlClass(isOwn: boolean): string {
   return isOwn
@@ -37,37 +40,56 @@ function bubbleControlClass(isOwn: boolean): string {
     : cn(CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER, "text-foreground");
 }
 
-/** The file's name, size and a download button: every attachment has one. */
+/**
+ * The file's name, size and kind and a download button: every attachment has
+ * one. `meta` (its time) ends the size line (canvas).
+ */
 function FileCard({
   file,
   isOwn,
   busy,
   onDownload,
+  meta,
 }: {
   file: ChatFile | undefined;
   isOwn: boolean;
   busy: boolean;
   onDownload: () => void;
+  meta?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const name = file?.filename || t("chat.file_untitled");
   const dot = name.lastIndexOf(".");
   const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  const kind = FILE_KINDS[ext];
+  // A PDF is a page, not a type label: its tile shows a document (canvas).
+  const showExt = ext && ext.length <= 4 && ext !== "pdf";
   return (
     <div className="flex min-w-64 items-center gap-3">
       <span
         aria-hidden
         className={cn(
-          "flex size-12 shrink-0 items-center justify-center rounded-lg font-display text-micro font-extrabold uppercase",
-          tintClass[FILE_TINTS[ext] ?? "gray"],
+          "flex size-12 shrink-0 items-center justify-center rounded-xl font-display text-micro font-extrabold uppercase",
+          !showExt && isOwn
+            ? "bg-chat-bubble-own-foreground/18 text-chat-bubble-own-foreground"
+            : isOwn
+              ? cn("bg-surface", tintForegroundClass[FILE_TINTS[ext] ?? "gray"])
+              : tintClass[FILE_TINTS[ext] ?? "gray"],
         )}
       >
-        {ext && ext.length <= 4 ? ext : <FileText className="size-6" />}
+        {showExt ? ext : <FileText className="size-6" />}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-body font-semibold">{name}</p>
-        <p className={cn("text-caption tabular-nums", isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
+        <p
+          className={cn(
+            "flex items-center gap-1.5 text-caption tabular-nums",
+            isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground",
+          )}
+        >
           {formatChatFileSize(file?.size_bytes ?? 0, i18n.language)}
+          {kind ? ` · ${kind}` : null}
+          {meta}
         </p>
       </div>
       <Button
@@ -249,6 +271,7 @@ function PdfAttachment({
   isOwn,
   busy,
   onDownload,
+  meta,
 }: {
   workspaceId: string;
   roomId: string;
@@ -256,6 +279,8 @@ function PdfAttachment({
   isOwn: boolean;
   busy: boolean;
   onDownload: () => void;
+  /** Its time, at the end of the preview toggle's line (canvas). */
+  meta?: ReactNode;
 }) {
   const { t } = useTranslation();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -268,13 +293,13 @@ function PdfAttachment({
     previewOpen,
   );
   return (
-    <div className="w-80 max-w-full space-y-2 p-1">
+    <div className="w-101 max-w-full space-y-2">
       <FileCard file={message.file} isOwn={isOwn} busy={busy} onDownload={onDownload} />
       {!previewOpen ? null : status === "ready" && url ? (
         <iframe
           title={t("chat.file_pdf_preview")}
           src={url}
-          className="h-72 w-full rounded-lg border border-border bg-background"
+          className="h-72 w-full rounded-[10px] bg-background"
         />
       ) : status === "error" ? (
         <p className="px-1 text-caption" role="alert">
@@ -283,21 +308,24 @@ function PdfAttachment({
       ) : (
         <div role="status" className="h-72 w-full">
           <span className="sr-only">{t("chat.file_loading")}</span>
-          <Skeleton className="size-full rounded-lg" />
+          <Skeleton className="size-full rounded-[10px]" />
         </div>
       )}
-      <Button
-        type="button"
-        variant="toolbar"
-        size="sm"
-        className={cn("h-8 rounded-full px-3 font-semibold", bubbleControlClass(isOwn))}
-        aria-expanded={previewOpen}
-        aria-label={previewOpen ? t("chat.message_list.pdf_preview_hide") : t("chat.message_list.pdf_preview_show")}
-        onClick={() => setPreviewOpen((open) => !open)}
-      >
-        {previewOpen ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
-        {previewOpen ? t("chat.message_list.pdf_preview_hide") : t("chat.message_list.pdf_preview_show")}
-      </Button>
+      <div className="flex items-center gap-2 pr-1">
+        <Button
+          type="button"
+          variant="toolbar"
+          size="sm"
+          className={cn("h-8.5 rounded-full px-3 font-semibold", bubbleControlClass(isOwn))}
+          aria-expanded={previewOpen}
+          aria-label={previewOpen ? t("chat.message_list.pdf_preview_hide") : t("chat.message_list.pdf_preview_show")}
+          onClick={() => setPreviewOpen((open) => !open)}
+        >
+          {previewOpen ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+          {previewOpen ? t("chat.message_list.pdf_preview_hide") : t("chat.message_list.pdf_preview_show")}
+        </Button>
+        {meta}
+      </div>
     </div>
   );
 }
@@ -309,6 +337,7 @@ export function ChatFileAttachment({
   message,
   isOwn = false,
   sender,
+  meta,
 }: {
   workspaceId: string;
   roomId: string;
@@ -317,6 +346,8 @@ export function ChatFileAttachment({
   isOwn?: boolean;
   /** Who sent the photo, for the viewer's top bar. */
   sender?: ChatFileSender;
+  /** The message's time, drawn inside a file or PDF card; a photo carries its own. */
+  meta?: ReactNode;
 }) {
   const file = message.file;
   const { busy, download: downloadMessage } = useChatFileDownload(workspaceId, roomId);
@@ -343,10 +374,11 @@ export function ChatFileAttachment({
         isOwn={isOwn}
         busy={busy}
         onDownload={download}
+        meta={meta}
       />
     );
   }
-  return <FileCard file={file} isOwn={isOwn} busy={busy} onDownload={download} />;
+  return <FileCard file={file} isOwn={isOwn} busy={busy} onDownload={download} meta={meta} />;
 }
 
 /** Image and PDF attachments sit edge to edge in the bubble; a file card gets padding. */

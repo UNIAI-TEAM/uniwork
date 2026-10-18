@@ -6,9 +6,11 @@ import { Picker } from "emoji-mart";
 
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void;
+  /** emoji-mart's own strings (search, category names) in the app's language; English when unset. */
+  i18n?: object;
 }
 
-export function EmojiPicker({ onSelect }: EmojiPickerProps) {
+export function EmojiPicker({ onSelect, i18n }: EmojiPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -31,6 +33,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
       previewPosition: "none",
       skinTonePosition: "search",
       maxFrequentRows: 2,
+      ...(i18n ? { i18n } : {}),
     });
 
     container.appendChild(picker as unknown as Node);
@@ -38,7 +41,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
     return () => {
       container.replaceChildren();
     };
-  }, [handleSelect]);
+  }, [handleSelect, i18n]);
 
   return <div ref={containerRef} />;
 }

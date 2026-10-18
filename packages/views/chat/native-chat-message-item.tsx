@@ -231,6 +231,7 @@ function MessageBody({
         roomId={roomId}
         message={message}
         currentUserId={currentUserId}
+        nameContext={nameContext}
         onViewSummary={summaryId && jump ? () => jump(summaryId) : undefined}
       />
     );

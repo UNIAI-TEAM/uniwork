@@ -126,7 +126,6 @@ export function VoiceCallSummaryRow({
             </h4>
             <ul className="space-y-1.5">
               {summary.action_items.map((item, index) => {
-                const canCreate = Boolean(item.source_message_id.trim());
                 const detail =
                   item.owner || item.due ? (
                     <span className="mt-0.5 block text-caption text-muted-foreground tabular-nums">
@@ -135,33 +134,27 @@ export function VoiceCallSummaryRow({
                   ) : null;
                 return (
                   <li key={`${index}-${item.source_message_id}-${item.title}`}>
-                    {canCreate ? (
-                      // The whole row stays the button (the bigger target); the
-                      // pill on its right says what pressing it does.
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex w-full items-center gap-3 rounded-xl py-2 pr-2 pl-3 text-left transition-colors duration-(--duration-fast)",
-                          CHAT_ON_BUBBLE_FILL,
-                          CHAT_ON_BUBBLE_HOVER,
-                        )}
-                        onClick={() => setCreateFor(item)}
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-body font-semibold text-foreground">{item.title}</span>
-                          {detail}
-                        </span>
-                        <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-brand-subtle px-3 text-label font-semibold text-brand-subtle-foreground">
-                          <Plus aria-hidden className="size-3.5" />
-                          {t("chat.link.create_task")}
-                        </span>
-                      </button>
-                    ) : (
-                      <div className={cn("rounded-xl px-3 py-2", CHAT_ON_BUBBLE_FILL)}>
+                    {/* The whole row stays the button (the bigger target); the pill on its right says what
+                        pressing it does. An item UNI could not tie to a message is made from the summary
+                        itself (canvas: every item offers it). */}
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-xl py-2 pr-2 pl-3 text-left transition-colors duration-(--duration-fast)",
+                        CHAT_ON_BUBBLE_FILL,
+                        CHAT_ON_BUBBLE_HOVER,
+                      )}
+                      onClick={() => setCreateFor(item)}
+                    >
+                      <span className="min-w-0 flex-1">
                         <span className="block text-body font-semibold text-foreground">{item.title}</span>
                         {detail}
-                      </div>
-                    )}
+                      </span>
+                      <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-brand-subtle px-3 text-label font-semibold text-brand-subtle-foreground">
+                        <Plus aria-hidden className="size-3.5" />
+                        {t("chat.link.create_task")}
+                      </span>
+                    </button>
                   </li>
                 );
               })}
@@ -177,7 +170,7 @@ export function VoiceCallSummaryRow({
           if (!next) setCreateFor(null);
         }}
         workspaceId={workspaceId}
-        messageId={createFor?.source_message_id ?? ""}
+        messageId={createFor ? createFor.source_message_id.trim() || message.id : ""}
         messageBody={createFor?.title ?? ""}
       />
     </>

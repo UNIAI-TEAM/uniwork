@@ -9,9 +9,32 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { initialsOf } from "./chat-initials";
+import { foldVi } from "./chat-search-fold";
 import { chatPersonFaceClass } from "./chat-person-card";
 
 const PANEL_CLASS = "flex flex-col overflow-hidden rounded-xl bg-popover shadow-floating ring-1 ring-border";
+
+/**
+ * The name split around the first place the typed query matches it, accents
+ * ignored ("mi" marks "Minh" in "Võ Minh"), or null when it does not.
+ */
+export function splitMentionMatch(label: string, query: string): [string, string, string] | null {
+  const needle = foldVi(query.trim().split(/\s+/)[0] ?? "");
+  if (!needle) return null;
+  // Fold char by char so a folded index maps back onto the name.
+  const chars = Array.from(label);
+  const ends: number[] = [];
+  let folded = "";
+  for (const char of chars) {
+    folded += foldVi(char);
+    ends.push(folded.length);
+  }
+  const at = folded.indexOf(needle);
+  if (at < 0) return null;
+  const from = ends.findIndex((end) => end > at);
+  const to = ends.findIndex((end) => end >= at + needle.length) + 1;
+  return [chars.slice(0, from).join(""), chars.slice(from, to).join(""), chars.slice(to).join("")];
+}
 
 /** The DOM id of one option, so the composer can point aria-activedescendant at it. */
 export function mentionOptionId(listId: string, index: number): string {
@@ -31,7 +54,7 @@ function useMentionListPosition(anchorRef: RefObject<HTMLElement | null>, open: 
         position: "fixed",
         left: rect.left,
         width: rect.width,
-        maxWidth: "24rem",
+        maxWidth: "21.25rem",
         bottom: window.innerHeight - rect.top + 8,
         zIndex: 50,
       });
@@ -49,6 +72,7 @@ function useMentionListPosition(anchorRef: RefObject<HTMLElement | null>, open: 
 
 export function ChatMentionAutocomplete({
   listId,
+  query = "",
   candidates,
   selectedIndex,
   onSelect,
@@ -57,6 +81,8 @@ export function ChatMentionAutocomplete({
   memberAvatarByUserId = {},
 }: {
   listId: string;
+  /** What follows the @: marked in each name, in the brand (canvas). */
+  query?: string;
   candidates: ChatMentionCandidate[];
   selectedIndex: number;
   onSelect: (candidate: ChatMentionCandidate) => void;
@@ -100,6 +126,7 @@ export function ChatMentionAutocomplete({
             const selected = index === selectedIndex;
             const isAll = candidate.kind === "all";
             const initials = isAll ? "@" : initialsOf(candidate.label);
+            const match = isAll ? null : splitMentionMatch(candidate.label, query);
 
             return (
               <button
@@ -137,7 +164,21 @@ export function ChatMentionAutocomplete({
                 )}
                 <span className="min-w-0 flex-1">
                   <span className={cn("block truncate text-foreground", isAll ? "font-semibold" : "font-medium")}>
-                    {isAll ? `@${candidate.label}` : candidate.label}
+                    {isAll ? (
+                      `@${candidate.label}`
+                    ) : match ? (
+                      // One text node for assistive tech; the marked copy is for the eye.
+                      <>
+                        <span className="sr-only">{candidate.label}</span>
+                        <span aria-hidden>
+                          {match[0]}
+                          <span className="text-brand">{match[1]}</span>
+                          {match[2]}
+                        </span>
+                      </>
+                    ) : (
+                      candidate.label
+                    )}
                   </span>
                   {!isAll && candidate.email ? (
                     <span className="block truncate text-caption text-muted-foreground">{candidate.email}</span>

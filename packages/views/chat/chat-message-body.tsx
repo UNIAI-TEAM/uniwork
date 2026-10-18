@@ -92,6 +92,26 @@ function linkify(text: string, linkClass: string, keyPrefix = ""): ReactNode[] {
   return out;
 }
 
+const BOLD_PATTERN = /\*\*([^*\n]+)\*\*/g;
+
+/** Linkified text with its **bold** spans set in bold (canvas: the agreed date in a message). */
+function formatText(text: string, linkClass: string, keyPrefix: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const match of text.matchAll(BOLD_PATTERN)) {
+    const start = match.index ?? 0;
+    if (start > last) out.push(...linkify(text.slice(last, start), linkClass, `${keyPrefix}p${last}`));
+    out.push(
+      <strong key={`${keyPrefix}b${start}`} className="font-semibold">
+        {linkify(match[1] ?? "", linkClass, `${keyPrefix}b${start}`)}
+      </strong>,
+    );
+    last = start + match[0].length;
+  }
+  if (last < text.length) out.push(...linkify(text.slice(last), linkClass, `${keyPrefix}p${last}`));
+  return out;
+}
+
 const MENTION_PATTERN = /\[@([^\]]+)\]\(mention:\/\/(member|all)\/([^)]+)\)/g;
 
 function sameMentionId(left: string, right: string): boolean {
@@ -111,7 +131,8 @@ function mentionLabel(label: string, id: string, nameContext: ChatNameContextEnt
 }
 
 /**
- * Text with its mentions drawn as chips and its links made clickable. One
+ * Text with its mentions drawn as chips, its links made clickable and its
+ * **bold** set in bold. One
  * path for every message: the same words render the same whether or not
  * they mention someone. A mention of someone no longer in the room keeps
  * the name written into the message, never their id.
@@ -126,7 +147,7 @@ function renderMessageText(
   let last = 0;
   for (const match of body.matchAll(MENTION_PATTERN)) {
     const start = match.index ?? 0;
-    if (start > last) out.push(...linkify(body.slice(last, start), classes.link, `s${last}`));
+    if (start > last) out.push(...formatText(body.slice(last, start), classes.link, `s${last}`));
     const [, label = "", kind, id = ""] = match;
     const name = kind === "all" ? allLabel : mentionLabel(label, id, nameContext);
     out.push(
@@ -136,7 +157,7 @@ function renderMessageText(
     );
     last = start + match[0].length;
   }
-  if (last < body.length) out.push(...linkify(body.slice(last), classes.link, `s${last}`));
+  if (last < body.length) out.push(...formatText(body.slice(last), classes.link, `s${last}`));
   return out;
 }
 

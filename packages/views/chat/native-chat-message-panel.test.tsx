@@ -140,9 +140,7 @@ function messageArticle(text: string): HTMLElement {
 }
 
 describe("NativeChatMessagePanel", () => {
-  it("renders messages and clears an active reply, handing focus back to the composer", () => {
-    const onReplyToChange = vi.fn();
-    const onFocusComposer = vi.fn();
+  it("renders messages and leaves an active reply's bar to the composer", () => {
     const replyTo = {
       id: "m1",
       sender: "u2",
@@ -151,13 +149,12 @@ describe("NativeChatMessagePanel", () => {
       reactions: {},
     };
 
-    render(wrap(panel({ replyTo, onReplyToChange, onFocusComposer })));
+    render(wrap(panel({ replyTo })));
 
     expect(screen.getAllByText("Hi team").length).toBeGreaterThan(0);
     expect(screen.getByText("Reply")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
-    expect(onReplyToChange).toHaveBeenCalledWith(null);
-    expect(onFocusComposer).toHaveBeenCalled();
+    // The quote heads the composer pill now (ChatComposer `replyTo`), not the timeline's foot.
+    expect(screen.queryByRole("button", { name: "Hủy" })).not.toBeInTheDocument();
   });
 
   it("names every message's sender and time, mine as “Bạn”, and keeps the list silent", () => {
@@ -285,7 +282,7 @@ describe("NativeChatMessagePanel", () => {
     render(wrap(panel({ threadsEnabled: true })));
 
     await user.click(screen.getByRole("button", { name: "1 trả lời" }));
-    await user.click(await screen.findByRole("button", { name: "Bỏ theo dõi" }));
+    await user.click(await screen.findByRole("button", { name: "Theo dõi", pressed: true }));
 
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith(

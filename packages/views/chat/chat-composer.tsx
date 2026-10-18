@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from "react";
-import { Check, CircleAlert, Mic, Paperclip, Send, Upload } from "lucide-react";
+import { Check, Mic, Paperclip, Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
@@ -13,6 +13,8 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ComposerAttachMenu, ComposerToolbarButton, type ComposerAttachAction } from "./chat-composer-attach-menu";
 import {
+  ComposerCharCounter,
+  ComposerDropOverlay,
   ComposerEditBar,
   ComposerPriorityChip,
   ComposerReadOnlyBar,
@@ -21,6 +23,8 @@ import {
   type ComposerReadOnlyReason,
 } from "./chat-composer-parts";
 import { ChatExpressionPicker } from "./chat-expression-picker";
+import type { ChatMessage } from "./chat-messages";
+import { ChatReplyComposerBar } from "./chat-reply-quote";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
@@ -70,10 +74,20 @@ type ChatComposerProps = {
   onRecordVoice?: () => void;
   /** Set with `disabled` when the room is read-only for this person: the field becomes one centred line. */
   readOnlyReason?: ComposerReadOnlyReason;
+  /** `readOnlyReason="blocked"`: I blocked the DM peer (else they blocked me); the pill says which. */
+  blockedByMe?: boolean;
+  /** "Bỏ chặn" in the blocked pill, shown when I blocked them. */
+  onUnblock?: () => void;
+  unblocking?: boolean;
   /** Puts the field into edit mode: the edit bar above it, the text prefilled, Save instead of Send. */
   editing?: ChatComposerEditing | null;
   /** A thread reply: text, emoji and stickers only — no attach menu, no voice. */
   textOnly?: boolean;
+  /** The message being answered: its quote heads the pill until sent or cancelled. */
+  replyTo?: ChatMessage | null;
+  /** Who wrote `replyTo` ("Bạn" for me), named in the quote. */
+  replyToSenderLabel?: string;
+  onCancelReply?: () => void;
   ref?: Ref<ChatComposerHandle>;
 };
 
@@ -97,8 +111,14 @@ export function ChatComposer({
   showCreatePoll = true,
   onRecordVoice,
   readOnlyReason,
+  blockedByMe,
+  onUnblock,
+  unblocking,
   editing = null,
   textOnly = false,
+  replyTo = null,
+  replyToSenderLabel,
+  onCancelReply,
   ref,
 }: ChatComposerProps) {
   const { t } = useTranslation();
@@ -256,17 +276,7 @@ export function ChatComposer({
 
   return (
     <div className="relative flex shrink-0 flex-col gap-1.5 bg-chat-wall px-3 pt-1 pb-3 sm:px-6 sm:pb-5" {...dropZoneProps}>
-      {isDragOver ? (
-        <div
-          className="pointer-events-none absolute inset-x-4 inset-y-2 z-10 flex items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-brand bg-brand-subtle"
-          aria-live="polite"
-        >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground" aria-hidden>
-            <Upload className="size-4.5" />
-          </span>
-          <span className="text-body-lg font-semibold text-brand-subtle-foreground">{t("chat.file_drop_hint")}</span>
-        </div>
-      ) : null}
+      {isDragOver ? <ComposerDropOverlay /> : null}
       <input
         ref={fileInputRef}
         type="file"
@@ -287,13 +297,21 @@ export function ChatComposer({
         {typingLabel}
       </p>
       {disabled && readOnlyReason ? (
-        <ComposerReadOnlyBar reason={readOnlyReason} placeholder={placeholder} textareaRef={textareaRef} />
+        <ComposerReadOnlyBar
+          reason={readOnlyReason}
+          placeholder={placeholder}
+          textareaRef={textareaRef}
+          blockedByMe={blockedByMe}
+          onUnblock={onUnblock}
+          unblocking={unblocking}
+        />
       ) : voiceActive ? (
         <ComposerVoiceBar
           state={voiceRecorder.state}
           error={voiceRecorder.error}
           elapsedMs={voiceRecorder.elapsedMs}
           recording={voiceRecorder.recording}
+          levels={voiceRecorder.levels}
           canSend={Boolean(onSendVoice)}
           onCancel={voiceRecorder.cancel}
           onStop={() => void voiceRecorder.stop()}
@@ -324,9 +342,23 @@ export function ChatComposer({
             <div
               className={cn(
                 "flex min-h-12 min-w-0 flex-1 flex-col rounded-3xl bg-chat-bubble-other px-1.5 py-0.5 shadow-chat-bubble transition-shadow duration-(--duration-fast)",
-                remaining < 0 ? "ring-2 ring-destructive" : "focus-within:ring-2 focus-within:ring-ring/30",
+                remaining < 0
+                  ? "ring-2 ring-destructive"
+                  : editing
+                    ? "ring-2 ring-brand/30"
+                    : "focus-within:ring-2 focus-within:ring-ring/30",
               )}
             >
+              {!editing && replyTo ? (
+                <ChatReplyComposerBar
+                  message={replyTo}
+                  senderLabel={replyToSenderLabel}
+                  onCancel={() => {
+                    onCancelReply?.();
+                    textareaRef.current?.focus();
+                  }}
+                />
+              ) : null}
               {editing ? (
                 <ComposerEditBar
                   preview={deserializeMessageBodyToComposerDraft(editing.message.body)}
@@ -378,6 +410,7 @@ export function ChatComposer({
                   {mentions.open ? (
                     <ChatMentionAutocomplete
                       listId={mentionListId}
+                      query={mentions.query}
                       candidates={mentions.visibleCandidates}
                       selectedIndex={mentions.activeIndex}
                       onSelect={mentions.insert}
@@ -495,20 +528,7 @@ export function ChatComposer({
               {editing.error}
             </p>
           ) : null}
-          {showCounter ? (
-            <p
-              id={counterId}
-              className={cn(
-                "mt-1.5 mr-15 flex items-center justify-end gap-1.5 text-caption tabular-nums",
-                remaining <= 0 ? "font-semibold text-destructive" : "font-medium text-muted-foreground",
-              )}
-            >
-              {remaining < 0 ? <CircleAlert className="size-3.5 shrink-0" aria-hidden /> : null}
-              {remaining < 0
-                ? t("chat.composer_state.chars_over", { count: -remaining })
-                : t("chat.composer_state.chars_left", { count: remaining })}
-            </p>
-          ) : null}
+          {showCounter ? <ComposerCharCounter id={counterId} remaining={remaining} /> : null}
         </form>
       )}
     </div>

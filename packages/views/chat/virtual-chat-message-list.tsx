@@ -25,7 +25,11 @@ interface VirtualChatMessageListProps {
   renderMessage: (index: number) => ReactNode;
 }
 
-/** Keep the scrollport on the newest message while measures settle. */
+/**
+ * Keep the scrollport on the newest message while measures settle. The
+ * follow-up frames only pin while still pinned: a jump to a message
+ * (search, pin bar, quote, deep link) unpins, and must not be undone.
+ */
 export function pinChatScrollToBottom(
   scrollEl: HTMLDivElement,
   stickToBottomRef: RefObject<boolean>,
@@ -36,7 +40,7 @@ export function pinChatScrollToBottom(
   stickToBottomRef.current = true;
   programmaticScrollRef.current = true;
   const apply = () => {
-    scrollEl.scrollTop = scrollEl.scrollHeight;
+    if (stickToBottomRef.current) scrollEl.scrollTop = scrollEl.scrollHeight;
   };
   apply();
   // measureElement grows the spacer after paint; keep pinning for two frames.
@@ -119,6 +123,11 @@ export function VirtualChatMessageList({
 
   const lastMessageId = messages[messages.length - 1]?.id;
   const hadMessagesRef = useRef(false);
+  // Read by the first-paint pin: a list that opens on a jump target is scrolled to it, not to the bottom.
+  const jumpTargetLoadedRef = useRef(false);
+  jumpTargetLoadedRef.current = Boolean(
+    highlightMessageId && messages.some((message) => message.id === highlightMessageId),
+  );
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -128,10 +137,12 @@ export function VirtualChatMessageList({
     }
     const firstPaint = !hadMessagesRef.current;
     hadMessagesRef.current = true;
-    // First page for this mount / after empty → always land on newest.
-    if (firstPaint || stickToBottomRef.current) {
+    // First page for this mount / after empty → land on newest, unless it
+    // opens on a message to jump to (a deep link, or a search that answered first).
+    const jumping = jumpTargetLoadedRef.current;
+    if ((firstPaint && !jumping) || stickToBottomRef.current) {
       pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef, {
-        force: firstPaint,
+        force: firstPaint && !jumping,
       });
     }
   }, [messages.length, lastMessageId, scrollRef, stickToBottomRef, programmaticScrollRef]);
@@ -164,15 +175,29 @@ export function VirtualChatMessageList({
     const index = messages.findIndex((message) => message.id === highlightMessageId);
     if (index < 0) return;
     scrolledHighlightRef.current = highlightMessageId;
-    programmaticScrollRef.current = true;
     stickToBottomRef.current = false;
-    virtualizer.scrollToIndex(index, { align: "center" });
-    requestAnimationFrame(() => {
-      programmaticScrollRef.current = false;
-      // The row is mounted once the virtualizer has scrolled to it.
-      requestAnimationFrame(() => onHighlightShownRef.current?.(highlightMessageId));
-    });
-  }, [highlightMessageId, messages, programmaticScrollRef, stickToBottomRef, virtualizer]);
+    const align = () => {
+      programmaticScrollRef.current = true;
+      virtualizer.scrollToIndex(index, { align: "center" });
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false;
+      });
+    };
+    align();
+    // The row is mounted once the virtualizer has scrolled to it.
+    requestAnimationFrame(() => requestAnimationFrame(() => onHighlightShownRef.current?.(highlightMessageId)));
+    // Photos above it measure in after the jump and push it down: centre it
+    // again while they load, unless the reader takes the scroll first.
+    const timers = [400, 1200].map((ms) => window.setTimeout(align, ms));
+    const el = scrollRef.current;
+    const stop = () => timers.forEach((timer) => window.clearTimeout(timer));
+    const events = ["wheel", "touchmove", "keydown", "pointerdown"] as const;
+    for (const name of events) el?.addEventListener(name, stop, { passive: true, once: true });
+    return () => {
+      stop();
+      for (const name of events) el?.removeEventListener(name, stop);
+    };
+  }, [highlightMessageId, messages, programmaticScrollRef, scrollRef, stickToBottomRef, virtualizer]);
 
   if (messages.length === 0) {
     return empty ?? null;

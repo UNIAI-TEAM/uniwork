@@ -71,7 +71,10 @@ function ChatFileMessageRowImpl({
   // under it. A photo keeps a 3px rim and its time on its corner (canvas).
   const contentType = message.file ? resolveChatFileContentType(message.file) : undefined;
   const gif = contentType === "image/gif" && !replyToMessage;
-  const photo = edgeToEdge && !gif && !isChatPdfContentType(contentType);
+  const pdf = isChatPdfContentType(contentType);
+  const photo = edgeToEdge && !gif && !pdf;
+  // A file or PDF card carries its time on its own line (canvas); a photo on its corner, a GIF under it.
+  const cardMeta = !edgeToEdge || pdf ? <ChatMessageMeta message={message} isOwn={isOwn} showTime inline="end" /> : undefined;
 
   return (
     <article
@@ -86,7 +89,7 @@ function ChatFileMessageRowImpl({
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
-      <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
+      <div className={cn("flex max-w-[min(85%,27rem)] gap-2", isOwn && "flex-row-reverse")}>
         {isOwn ? null : showAvatar ? (
           // A file is a run of its own: its avatar sits at the foot, as a run's last bubble's does.
           <span className="shrink-0 self-end">
@@ -117,7 +120,7 @@ function ChatFileMessageRowImpl({
                   "max-w-full overflow-hidden",
                   !gif && chatBubbleShape(isOwn, !compactTop),
                   !gif && (isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
-                  gif ? "flex flex-col gap-1" : photo ? "p-0.75" : edgeToEdge ? "p-1" : "px-3 py-2",
+                  gif ? "flex flex-col gap-1" : photo ? "p-0.75" : "p-2",
                 )}
               >
                 {showSenderName && !isOwn && showAvatar ? (
@@ -125,7 +128,7 @@ function ChatFileMessageRowImpl({
                     className={cn(
                       "text-label font-semibold",
                       senderNameClass(message.sender, isOwn),
-                      gif ? "px-1" : edgeToEdge ? "px-2.25 pt-1 pb-1.25" : "mb-1",
+                      gif ? "px-1" : photo ? "px-2.25 pt-1 pb-1.25" : "mb-1 px-1",
                     )}
                     aria-hidden
                   >
@@ -133,7 +136,7 @@ function ChatFileMessageRowImpl({
                   </p>
                 ) : null}
                 {replyToMessage ? (
-                  <div className={cn(edgeToEdge ? "px-1 pt-1" : undefined)}>
+                  <div className={cn(photo ? "px-1 pt-1" : undefined)}>
                     <ChatReplyQuote
                       message={replyToMessage}
                       isOwn={isOwn}
@@ -156,16 +159,11 @@ function ChatFileMessageRowImpl({
                     message={message}
                     isOwn={isOwn}
                     sender={{ userId: message.sender, name: senderLabel, avatarUrl: senderAvatarUrl, ts: message.ts }}
+                    meta={cardMeta}
                   />
                   {photo ? <ChatMessageMeta message={message} isOwn={isOwn} showTime inline="media" /> : null}
                 </div>
-                {gif ? (
-                  <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall />
-                ) : photo ? null : (
-                  <div className={cn(edgeToEdge ? "px-2 pb-0.5" : undefined)}>
-                    <ChatMessageMeta message={message} isOwn={isOwn} showTime />
-                  </div>
-                )}
+                {gif ? <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall /> : null}
               </div>
               <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
               <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />

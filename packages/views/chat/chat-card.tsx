@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Pin } from "lucide-react";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
@@ -123,12 +124,12 @@ export function ChatCard({
   );
 }
 
-/** A small state pill for a card header: closed, due, live. */
+/** A small state pill for a card header: closed, due, live, pinned. */
 export function ChatCardStatus({
   tone = "muted",
   children,
 }: {
-  tone?: "muted" | "success" | "warning" | "info";
+  tone?: "muted" | "success" | "warning" | "info" | "brand";
   children: ReactNode;
 }) {
   return (
@@ -139,9 +140,21 @@ export function ChatCardStatus({
         tone === "success" && "bg-success-soft text-success-soft-foreground",
         tone === "warning" && "bg-warning-soft text-warning-soft-foreground",
         tone === "info" && "bg-info-soft text-info-soft-foreground",
+        tone === "brand" && "bg-brand-subtle text-brand",
       )}
     >
       {children}
     </span>
+  );
+}
+
+/** "Đã ghim" in a note's or post's header while it is pinned to the top of the room (canvas). */
+export function ChatCardPinnedStatus() {
+  const { t } = useTranslation();
+  return (
+    <ChatCardStatus tone="brand">
+      <Pin aria-hidden className="rotate-45" />
+      {t("chat.card_pinned")}
+    </ChatCardStatus>
   );
 }

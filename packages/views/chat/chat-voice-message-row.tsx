@@ -201,7 +201,10 @@ function ChatVoiceMessageRowImpl({
   const reveal = useMessageActionsReveal();
   // A task made from this message follows it as one more bubble of the run (canvas).
   const { links } = useChatMessageLinksFor(message.id);
-  const taskCard = !message.deliveryStatus && taskLinksOf(links).length > 0;
+  const taskLinks = taskLinksOf(links);
+  const hasTasks = !message.deliveryStatus && taskLinks.length > 0;
+  // Made from it: the card carries the time; linked: a line under a bubble that keeps it (canvas).
+  const taskCard = hasTasks && taskLinks.some((link) => link.relation === "created_from");
 
   return (
     <article
@@ -258,7 +261,7 @@ function ChatVoiceMessageRowImpl({
                 meta={taskCard ? null : <ChatMessageMeta message={message} isOwn={isOwn} showTime={lastOfRun} inline="end" />}
               />
             </div>
-            {taskCard ? (
+            {hasTasks ? (
               <MessageTaskCard
                 workspaceId={workspaceId}
                 messageId={message.id}

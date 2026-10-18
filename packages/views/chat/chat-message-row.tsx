@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Bell, CircleAlert } from "lucide-react";
+import { Bell, ChevronRight, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -83,8 +83,8 @@ export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority
 
 /**
  * "4 trả lời · chưa đọc" under a thread root: a raised white pill on the wall,
- * a brand dot while there is something unread, and when the last reply came
- * (canvas). It opens the thread.
+ * a brand dot after the words while there is something unread (else when the
+ * last reply came), and a chevron (canvas). It opens the thread.
  */
 export function ChatThreadRepliesLink({
   message,
@@ -101,19 +101,20 @@ export function ChatThreadRepliesLink({
     <button
       type="button"
       className={cn(
-        "mt-1 inline-flex h-8.5 w-fit items-center gap-2 rounded-full bg-chat-bubble-other px-3 shadow-chat-bubble transition-colors duration-(--duration-fast)",
+        "mt-1 inline-flex h-8.5 w-fit items-center gap-2 rounded-full bg-chat-bubble-other pr-2.5 pl-3 shadow-chat-bubble transition-colors duration-(--duration-fast)",
         CHAT_ON_BUBBLE_HOVER,
         isOwn && "self-end",
       )}
       onClick={() => onThread(message)}
     >
-      {message.threadUnread ? <span aria-hidden className="size-2 rounded-full bg-brand" /> : null}
       <span className="text-label font-semibold text-brand">
         {message.threadUnread
           ? t("chat.thread_replies_unread", { count: message.replyCount })
           : t("chat.thread_replies", { count: message.replyCount })}
       </span>
-      {message.lastReplyAt ? (
+      {message.threadUnread ? (
+        <span aria-hidden className="size-2 rounded-full bg-brand" />
+      ) : message.lastReplyAt ? (
         <time
           dateTime={new Date(message.lastReplyAt).toISOString()}
           aria-hidden
@@ -122,6 +123,7 @@ export function ChatThreadRepliesLink({
           {formatMessageTime(message.lastReplyAt, i18n.language)}
         </time>
       ) : null}
+      <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
     </button>
   );
 }
@@ -205,9 +207,12 @@ function ChatMessageRowImpl({
   const showName = !isOwn && showSenderName && showAvatar;
   const urgent = message.priority === "urgent";
   // A task made from this message follows it as one more bubble of the run,
-  // and the run's time moves down onto it (canvas).
+  // and the run's time moves down onto it; a linked one is a line under the
+  // bubble, which keeps its time (canvas).
   const { links } = useChatMessageLinksFor(message.id);
-  const taskCard = !isPending && Boolean(workspaceId) && taskLinksOf(links).length > 0;
+  const taskLinks = taskLinksOf(links);
+  const hasTasks = !isPending && Boolean(workspaceId) && taskLinks.length > 0;
+  const taskCard = hasTasks && taskLinks.some((link) => link.relation === "created_from");
   const meta = (
     <ChatMessageMeta
       message={message}
@@ -312,7 +317,7 @@ function ChatMessageRowImpl({
 
             {bare && !taskCard ? meta : null}
 
-            {taskCard && workspaceId ? (
+            {hasTasks && workspaceId ? (
               <MessageTaskCard
                 workspaceId={workspaceId}
                 messageId={message.id}

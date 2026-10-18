@@ -1,6 +1,7 @@
 /**
- * "12 B", "2,5 KB", "1,2 MB" in the reader's locale: Vietnamese writes the
- * decimal with a comma, and a file size is read, not parsed.
+ * "12 B", "48 KB", "1,2 MB" in the reader's locale: Vietnamese writes the
+ * decimal with a comma, and a file size is read, not parsed. Kilobytes are
+ * whole; larger units keep one decimal (canvas).
  */
 export function formatChatFileSize(bytes: number, locale: string): string {
   const safe = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
@@ -12,5 +13,6 @@ export function formatChatFileSize(bytes: number, locale: string): string {
     value /= 1024;
     unit += 1;
   }
-  return `${value.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${units[unit]}`;
+  const digits = unit === 0 ? 0 : 1;
+  return `${value.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${units[unit]}`;
 }

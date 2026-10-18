@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatGifItem, ChatStickerItem, ChatStickerPack } from "./chat-expression-catalog";
-import { formatChatMediaMessageBody, normalizeExpressionSearchQuery } from "./chat-expression-utils";
+import { emojiPickerStrings, formatChatMediaMessageBody, normalizeExpressionSearchQuery } from "./chat-expression-utils";
 import { filterStickerPacks, loadChatStickerPacks } from "./chat-sticker-packs";
 import { ComposerToolbarButton } from "./chat-composer-attach-menu";
 
@@ -222,7 +222,8 @@ export function ChatExpressionPicker({
   onSelectEmoji: (emoji: string) => void;
   onSendMedia: (body: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const emojiStrings = useMemo(() => emojiPickerStrings(i18n.language, t), [i18n.language, t]);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<ExpressionTab>("sticker");
   const [expanded, setExpanded] = useState(false);
@@ -482,7 +483,7 @@ export function ChatExpressionPicker({
           <TabsContent value="emoji" className="min-h-0 overflow-y-auto">
             <Suspense fallback={<PickerGridSkeleton columns={4} label={t("common.loading")} />}>
               <div className="h-full min-h-70 overflow-hidden [&_em-emoji-picker]:!w-full [&_em-emoji-picker]:!border-0">
-                <EmojiPicker onSelect={handleEmojiSelect} />
+                <EmojiPicker onSelect={handleEmojiSelect} i18n={emojiStrings} />
               </div>
             </Suspense>
           </TabsContent>

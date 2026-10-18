@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Bell, BellOff, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bell, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFollowChatThread, useUnfollowChatThread } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -41,19 +41,21 @@ export function ChatThreadBar({
         {subtitle ? <p className="truncate text-label text-muted-foreground">{subtitle}</p> : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        {/* A pill toggle: the brand wash while the thread is followed. */}
+        {/* A pill toggle (canvas): "Theo dõi" pressed in the brand wash while followed; the title says what a tap does. */}
         <Button
           type="button"
           variant={following ? "brandSubtle" : "secondary"}
           size="sm"
           className="h-8.5 gap-1.5 rounded-full pr-3.5 pl-2.5 font-semibold"
+          aria-pressed={following}
+          title={following ? t("chat.thread_unfollow") : undefined}
           disabled={toggle.isPending}
           onClick={() =>
             toggle.mutate(threadRootId, { onError: (err) => toastChatError(err, t, t("chat.errors.internal")) })
           }
         >
-          {following ? <BellOff aria-hidden /> : <Bell aria-hidden />}
-          {following ? t("chat.thread_unfollow") : t("chat.thread_follow")}
+          <Bell aria-hidden />
+          {t("chat.thread_follow")}
         </Button>
         <Button
           type="button"
@@ -102,14 +104,19 @@ export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () 
     <button
       type="button"
       aria-label={newCount > 0 ? t("chat.jump_latest_new", { count: newCount }) : t("chat.search_back_to_latest")}
-      className="absolute right-6 bottom-4 flex size-12 items-center justify-center rounded-full bg-surface-raised text-chat-chip-foreground shadow-menu transition-colors duration-(--duration-fast) hover:bg-surface-hover"
+      // A pill centred over the foot of the timeline: what it does in words, and how many are new (canvas).
+      className={cn(
+        "absolute bottom-3 left-1/2 flex h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface-raised pl-3.5 text-body font-semibold whitespace-nowrap text-chat-chip-foreground shadow-menu transition-colors duration-(--duration-fast) hover:bg-surface-hover",
+        newCount > 0 ? "pr-2" : "pr-3.5",
+      )}
       onClick={onClick}
     >
-      <ArrowDown className="size-5" aria-hidden />
+      <ArrowDown className="size-4.5" aria-hidden />
+      <span aria-hidden>{t("chat.search_back_to_latest")}</span>
       {newCount > 0 ? (
         <span
           aria-hidden
-          className="absolute -top-1.5 -right-1 h-5.5 min-w-5.5 rounded-full bg-primary px-1.5 text-center text-caption leading-5.5 font-semibold text-primary-foreground tabular-nums"
+          className="h-6 min-w-6 rounded-full bg-primary px-1.75 text-center text-caption leading-6 font-semibold text-primary-foreground tabular-nums"
         >
           {newCount > 99 ? "99+" : newCount}
         </span>

@@ -28,8 +28,8 @@ import type { ChatMessageLinkRecord } from "@uniwork/core/api/endpoints/chat-lin
 import type { ChatMessage } from "./chat-messages";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import { ChatMessageLinksProvider } from "./chat-message-links-context";
+import { ChatPeerReadAtContext } from "./chat-message-parts";
 import { CHAT_WALL } from "./chat-wall";
-import { ChatReplyComposerBar } from "./chat-reply-quote";
 import { toastChatError } from "./chat-error-message";
 import { VirtualChatMessageList, updateStickToBottomFromScroll, useReaderScrollAt } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
@@ -76,6 +76,7 @@ export function NativeChatMessagePanel({
   onCloseThread,
   openThreadRootId = null,
   threadSubtitle,
+  roomTitle,
   intro,
 }: {
   workspaceId: string;
@@ -115,6 +116,8 @@ export function NativeChatMessagePanel({
   openThreadRootId?: string | null;
   /** Under the thread bar's title (the room's name, in the side panel). */
   threadSubtitle?: string;
+  /** The room's name, for the create-task dialog's quote (the side panel's subtitle when unset). */
+  roomTitle?: string;
   /** Where the room begins: shown when empty, and above the first message once all history is loaded. */
   intro?: ReactNode;
 }) {
@@ -169,7 +172,7 @@ export function NativeChatMessagePanel({
     ),
   );
   const typingUserIds = useSidebarTypingStore(useShallow((state) => selectSidebarTypingUserIds(state, roomId)));
-  const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(workspaceId);
+  const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(workspaceId, roomTitle ?? threadSubtitle);
 
   const allMessages = useMemo(
     () =>
@@ -244,6 +247,7 @@ export function NativeChatMessagePanel({
   const { actions, dialogs: actionDialogs } = useNativeChatMessageActions({
     workspaceId,
     roomId,
+    currentUserId,
     messages,
     replyTo,
     onReplyToChange,
@@ -502,7 +506,8 @@ export function NativeChatMessagePanel({
         <div
           ref={scrollRef}
           onScroll={onScroll}
-          className={`min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain ${CHAT_WALL}`}
+          // A size container: a message's actions bar fits itself to the timeline's width.
+          className={`@container/timeline min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain ${CHAT_WALL}`}
           role="log"
           aria-live="off"
           aria-label={t("chat.messages_region")}
@@ -512,24 +517,26 @@ export function NativeChatMessagePanel({
           {/* One readable column however wide the window is; the side thread is narrower (canvas). */}
           <div className={sideThreadPanel ? "w-full p-4" : "mx-auto w-full max-w-195 px-3 pt-5 pb-3 sm:px-7"}>
             <ChatMessageLinksProvider value={linksValue}>
-              <VirtualChatMessageList
-                key={roomId}
-                messages={messages}
-                scrollRef={scrollRef}
-                stickToBottomRef={stickToBottomRef}
-                programmaticScrollRef={programmaticScrollRef}
-                highlightMessageId={highlightMessageId}
-                onHighlightShown={focusChatMessage}
-                header={listHeader}
-                empty={
-                  latestPending ? (
-                    <ChatMessagesSkeleton className="px-0" />
-                  ) : (
-                    (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
-                  )
-                }
-                renderMessage={renderMessage}
-              />
+              <ChatPeerReadAtContext.Provider value={receiptReadAt}>
+                <VirtualChatMessageList
+                  key={roomId}
+                  messages={messages}
+                  scrollRef={scrollRef}
+                  stickToBottomRef={stickToBottomRef}
+                  programmaticScrollRef={programmaticScrollRef}
+                  highlightMessageId={highlightMessageId}
+                  onHighlightShown={focusChatMessage}
+                  header={listHeader}
+                  empty={
+                    latestPending ? (
+                      <ChatMessagesSkeleton className="px-0" />
+                    ) : (
+                      (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
+                    )
+                  }
+                  renderMessage={renderMessage}
+                />
+              </ChatPeerReadAtContext.Provider>
             </ChatMessageLinksProvider>
             {threadRoot || anchorMessages ? null : <ChatTypingBubble userIds={typingUserIds} nameContext={nameContext} />}
           </div>
@@ -544,16 +551,6 @@ export function NativeChatMessagePanel({
           <ChatJumpToLatestButton onClick={scrollToLatest} newCount={countNewSince(messages, awaySinceId, currentUserId)} />
         ) : null}
       </div>
-      {replyTo ? (
-        <ChatReplyComposerBar
-          message={replyTo}
-          senderLabel={layout.find((_, index) => messages[index]?.id === replyTo.id)?.senderLabel}
-          onCancel={() => {
-            onReplyToChange(null);
-            onFocusComposer?.();
-          }}
-        />
-      ) : null}
       {actionDialogs}
       {taskLinkDialogs}
     </div>
