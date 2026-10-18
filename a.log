@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+ff75a5a780b6416de1cebca6c6efe08666ef892f
+ff75a5a78 docs(documents): note identical-byte Save is 200 with the current version (UNI-1900)
+612f07ee6 test(documents): pin identical-byte file Save as a 200 no-op (UNI-1900)
+54d16a18e feat(documents): skip a new file version when Save bytes match the current checksum (UNI-1900)
+f6aebb640 chore: merge BIGUP-LOCKCHECK refuse a large new version up front when the edit lock is held (UNI-1890, 85dbcd447) into the G5-G7 root
+85dbcd447 chore(merge): BIGUP-LOCKCHECK web half into the lockcheck branch (UNI-1890)
+f998562f4 chore(merge): G5-G7 root 98c210422 into BIGUP-LOCKCHECK (UNI-1890)
+7f73e2144 test(documents): wait for the upload limits before dropping in the chunked upload tests
+f53062023 fix(documents): keep lock_id out of the pre-check refusal fields (UNI-1890 R1-2)

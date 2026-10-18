@@ -1,0 +1,388 @@
+$ unset OPENAI_API_KEY; AI_PROVIDER=fake bash scripts/test-go.sh; rc=$?; echo; echo "TEST_GO_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/cmd/files-backfill	1.799s	coverage: 37.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/graph-rebuild	4.688s	coverage: 70.6% of statements
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.041s	coverage: 6.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal	2.510s	coverage: [no statements]
+ok  	github.com/unicomhub/uniwork/server/internal/ai	31.374s	coverage: 87.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.399s	coverage: 79.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/audit	4.152s	coverage: 77.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/auth	0.120s	coverage: 86.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/billing	0.107s	coverage: 81.6% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/config	0.013s	coverage: 95.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/document	7.316s	coverage: 88.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub	0.002s	coverage: 87.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/bodystore	0.004s	coverage: 51.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/imapclient	5.657s	coverage: 60.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/netguard	0.003s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/retention	0.002s	coverage: 84.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient	0.305s	coverage: 93.8% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/events	0.002s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/featureflags	0.003s	coverage: 88.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files	0.007s	coverage: 95.2% of statements
+	github.com/unicomhub/uniwork/server/internal/files/filescontract		coverage: 0.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	0.024s	coverage: 91.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph	1.915s	coverage: 96.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/graph/projector	15.436s	coverage: 81.6% of statements
+2026/10/18 03:41:53 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.531ms request_id=cursor/yRtehQVcAW-000001 correlation_id=01M56HM16FFHAK2F7VVA4J997W
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.348ms request_id=cursor/yRtehQVcAW-000002 correlation_id=01M56HM16NEQQF7T6C5WWPBBH7
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.253ms request_id=cursor/yRtehQVcAW-000003 correlation_id=01M56HM16Q9Q2SJ29PS0X3CEN2
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/orgs/01M56HM16R5DY56GWX97B2QDW1/workspaces status=201 duration=7.276ms request_id=cursor/yRtehQVcAW-000004 correlation_id=01M56HM16V88G9QBEBCRA24241
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/workspaces/01M56HM16WENT66GWSDPGQY3J2/tasks status=200 duration=5.349ms request_id=cursor/yRtehQVcAW-000005 correlation_id=01M56HM172EF1S05CD168NCJA9
+2026/10/18 03:41:53 INFO http request method=PATCH path=/api/v1/tasks/01M56HM176GDVCQP9BPT12RDJS status=200 duration=2.658ms request_id=cursor/yRtehQVcAW-000006 correlation_id=01M56HM1783NFZQV8XCTBD0XPJ
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/me/mfa/setup status=200 duration=576µs request_id=cursor/yRtehQVcAW-000007 correlation_id=01M56HM17BR914RJZEYKSXYZQ8
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/me/mfa/confirm status=200 duration=738µs request_id=cursor/yRtehQVcAW-000008 correlation_id=01M56HM17CJWS7XF3X65H28ED7
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/admin/me status=404 duration=127µs request_id=cursor/yRtehQVcAW-000009 correlation_id=01M56HM17DR464HF844WX7GC2W
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/admin/organizations status=401 duration=29µs request_id=cursor/yRtehQVcAW-000010 correlation_id=01M56HM17DR464HF8450RK3YKN
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/admin/me status=200 duration=150µs request_id=cursor/yRtehQVcAW-000011 correlation_id=01M56HM17FHP3F8J943DMMNBBS
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/admin/organizations status=200 duration=1.222ms request_id=cursor/yRtehQVcAW-000012 correlation_id=01M56HM17FHP3F8J943FQ9DENK
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/admin/organizations status=200 duration=925µs request_id=cursor/yRtehQVcAW-000013 correlation_id=01M56HM17HFTYE4WN0DPEQBEQ2
+2026/10/18 03:41:53 WARN http request method=POST path=/api/v1/admin/organizations/01M56HM16R5DY56GWX97B2QDW1/suspend status=403 duration=150µs request_id=cursor/yRtehQVcAW-000014 correlation_id=01M56HM17JZ35XQ7KR75CMQZ02
+2026/10/18 03:41:53 WARN http request method=POST path=/api/v1/admin/organizations/01M56HM16R5DY56GWX97B2QDW1/suspend status=400 duration=212µs request_id=cursor/yRtehQVcAW-000015 correlation_id=01M56HM17K646ER07TRSXEE73K
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/admin/organizations/01M56HM16R5DY56GWX97B2QDW1/suspend status=200 duration=1.893ms request_id=cursor/yRtehQVcAW-000016 correlation_id=01M56HM17K646ER07TRV09RX0Z
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/workspaces/01M56HM16WENT66GWSDPGQY3J2/tasks status=403 duration=508µs request_id=cursor/yRtehQVcAW-000017 correlation_id=01M56HM17NRKT2VTJTHVHG4VJ8
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/admin/organizations/01M56HM16R5DY56GWX97B2QDW1 status=200 duration=3.911ms request_id=cursor/yRtehQVcAW-000018 correlation_id=01M56HM17P3GCZD1Q298CHH48Q
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/admin/trace/01M56HM17K646ER07TRV09RX0Z status=200 duration=793µs request_id=cursor/yRtehQVcAW-000019 correlation_id=01M56HM17T0XDFJ81GR90GW383
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/admin/organizations/01M56HM16R5DY56GWX97B2QDW1/unsuspend status=200 duration=791µs request_id=cursor/yRtehQVcAW-000020 correlation_id=01M56HM17VXNXXX8A346KPA39V
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/workspaces/01M56HM16WENT66GWSDPGQY3J2/tasks status=200 duration=773µs request_id=cursor/yRtehQVcAW-000021 correlation_id=01M56HM17WZ36BKP6XW2J1EBZZ
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/admin/system status=200 duration=2.098ms request_id=cursor/yRtehQVcAW-000022 correlation_id=01M56HM17X37RR1B57MJ5J0PX1
+2026/10/18 03:41:53 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/auth/register status=200 duration=8.146ms request_id=cursor/yRtehQVcAW-000023 correlation_id=01M56HM1G4QDVRYVSYC9B7Y8AA
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.21ms request_id=cursor/yRtehQVcAW-000024 correlation_id=01M56HM1GC1Y03DMQM0HQPF4RA
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/orgs status=201 duration=5.899ms request_id=cursor/yRtehQVcAW-000025 correlation_id=01M56HM1GD2VDDZQN5SX5VZF5X
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/orgs/01M56HM1GF4F67Y4J554NYH7KE/workspaces status=201 duration=6.746ms request_id=cursor/yRtehQVcAW-000026 correlation_id=01M56HM1GMJ7FCNMJXQM3N8CMK
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/workspaces/01M56HM1GPE961GD8PQBNVNP4N/tasks status=200 duration=4.527ms request_id=cursor/yRtehQVcAW-000027 correlation_id=01M56HM1GVP7X1GZ7AE0QXS12R
+2026/10/18 03:41:53 INFO http request method=PATCH path=/api/v1/tasks/01M56HM1GX8YZKM6EZ36Q6KB4T status=200 duration=2.377ms request_id=cursor/yRtehQVcAW-000028 correlation_id=01M56HM1GZ8HDW9RT4A1E9VB53
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/me/mfa/setup status=200 duration=528µs request_id=cursor/yRtehQVcAW-000029 correlation_id=01M56HM1H2D76W1P7XBEJVFEHV
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/me/mfa/confirm status=200 duration=1.056ms request_id=cursor/yRtehQVcAW-000030 correlation_id=01M56HM1H3MEEXG8XXHMCT2FS1
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/config status=200 duration=500µs request_id=cursor/yRtehQVcAW-000031 correlation_id=01M56HM1H5XMMBXWKPDTMV8E4A
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/admin/flags/overrides status=200 duration=645µs request_id=cursor/yRtehQVcAW-000032 correlation_id=01M56HM1H680T40SZRR6JDBDYY
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/admin/flags status=200 duration=465µs request_id=cursor/yRtehQVcAW-000033 correlation_id=01M56HM1H756ASM3ASV4Q585JE
+2026/10/18 03:41:53 WARN http request method=PUT path=/api/v1/admin/flags/agents_assignee/overrides status=400 duration=164µs request_id=cursor/yRtehQVcAW-000034 correlation_id=01M56HM1H87990914DV6K16VEQ
+2026/10/18 03:41:53 WARN http request method=PUT path=/api/v1/admin/flags/nope/overrides status=404 duration=111µs request_id=cursor/yRtehQVcAW-000035 correlation_id=01M56HM1H87990914DVA6V6HVQ
+2026/10/18 03:41:53 INFO http request method=PUT path=/api/v1/admin/flags/agents_assignee/overrides status=200 duration=1.154ms request_id=cursor/yRtehQVcAW-000036 correlation_id=01M56HM1H87990914DVASP1D9A
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/config status=200 duration=678µs request_id=cursor/yRtehQVcAW-000037 correlation_id=01M56HM1HB04SCNNQAP7G0Q07K
+2026/10/18 03:41:53 INFO http request method=GET path=/api/v1/config status=200 duration=92µs request_id=cursor/yRtehQVcAW-000038 correlation_id=01M56HM1HC2VJ0AKMJCHXX22Z5
+2026/10/18 03:41:53 INFO http request method=DELETE path=/api/v1/admin/flags/agents_assignee/overrides status=200 duration=1.135ms request_id=cursor/yRtehQVcAW-000039 correlation_id=01M56HM1HC2VJ0AKMJCM7ECB7B
+2026/10/18 03:41:53 WARN http request method=DELETE path=/api/v1/admin/flags/agents_assignee/overrides status=404 duration=490µs request_id=cursor/yRtehQVcAW-000040 correlation_id=01M56HM1HD9ADV8JH6RZ4WV6AT
+2026/10/18 03:41:53 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.359ms request_id=cursor/yRtehQVcAW-000041 correlation_id=01M56HM1T093562QGQM83BKXR4
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.086ms request_id=cursor/yRtehQVcAW-000042 correlation_id=01M56HM1T57G4ZD64P68ECFARC
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.994ms request_id=cursor/yRtehQVcAW-000043 correlation_id=01M56HM1T602W3RZ4W927Q7TSS
+2026/10/18 03:41:53 INFO http request method=POST path=/api/v1/orgs/01M56HM1T8TDK1Q35965ZDH7FC/workspaces status=201 duration=6.13ms request_id=cursor/yRtehQVcAW-000044 correlation_id=01M56HM1TC1SRN4FV6RCGBFX5F
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/active-task status=422 duration=64µs request_id=cursor/yRtehQVcAW-000045 correlation_id=01M56HM1TJFD9X86VSY9HBGFZ1
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/usage status=422 duration=68µs request_id=cursor/yRtehQVcAW-000046 correlation_id=01M56HM1TJFD9X86VSYD3E01BQ
+2026/10/18 03:41:53 WARN http request method=POST path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/cancel status=422 duration=22µs request_id=cursor/yRtehQVcAW-000047 correlation_id=01M56HM1TJFD9X86VSYDJ8X9TM
+2026/10/18 03:41:53 WARN http request method=POST path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/rerun status=422 duration=33µs request_id=cursor/yRtehQVcAW-000048 correlation_id=01M56HM1TK2KXZJYJ1D0K405N5
+2026/10/18 03:41:53 WARN http request method=POST path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/terminate status=422 duration=40µs request_id=cursor/yRtehQVcAW-000049 correlation_id=01M56HM1TK2KXZJYJ1D1Q9TKFE
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/pull-requests status=422 duration=16µs request_id=cursor/yRtehQVcAW-000050 correlation_id=01M56HM1TK2KXZJYJ1D2BKXAEA
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/workspaces/01M56HM1TD18ACZF60D3Y2XKVQ/vcs/connections status=422 duration=14µs request_id=cursor/yRtehQVcAW-000051 correlation_id=01M56HM1TMAXK3AJA4R4VM8BMR
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/workspaces/01M56HM1TD18ACZF60D3Y2XKVQ/squads status=422 duration=13µs request_id=cursor/yRtehQVcAW-000052 correlation_id=01M56HM1TMAXK3AJA4R7C7TGGF
+2026/10/18 03:41:53 WARN http request method=POST path=/api/v1/workspaces/01M56HM1TD18ACZF60D3Y2XKVQ/squads status=422 duration=67µs request_id=cursor/yRtehQVcAW-000053 correlation_id=01M56HM1TMAXK3AJA4RAZ4KPYH
+2026/10/18 03:41:53 WARN http request method=GET path=/api/v1/workspaces/01M56HM1TD18ACZF60D3Y2XKVQ/workdir status=422 duration=44µs request_id=cursor/yRtehQVcAW-000054 correlation_id=01M56HM1TMAXK3AJA4RC6JZS5J
+2026/10/18 03:41:54 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.755ms request_id=cursor/yRtehQVcAW-000055 correlation_id=01M56HM23VEYTQCTT23GXZT5FS
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.254ms request_id=cursor/yRtehQVcAW-000056 correlation_id=01M56HM240E68R5N9J9AV7VDEB
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/orgs status=201 duration=6.271ms request_id=cursor/yRtehQVcAW-000057 correlation_id=01M56HM242RESDEQC9W758N3MR
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/orgs/01M56HM243AVR7SG8PH98W5GFJ/workspaces status=201 duration=9.874ms request_id=cursor/yRtehQVcAW-000058 correlation_id=01M56HM248E62PRB44M6APSYTA
+2026/10/18 03:41:54 WARN http request method=POST path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/cancel status=422 duration=78µs request_id=cursor/yRtehQVcAW-000059 correlation_id=01M56HM24MMF75P7RQ041MMSKV
+2026/10/18 03:41:54 WARN http request method=POST path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/terminate status=422 duration=62µs request_id=cursor/yRtehQVcAW-000060 correlation_id=01M56HM24MMF75P7RQ04YQH80Z
+2026/10/18 03:41:54 WARN http request method=POST path=/api/v1/tasks/01J8X4TASKN1P2Q3R4S5T6U7/rerun status=422 duration=77µs request_id=cursor/yRtehQVcAW-000061 correlation_id=01M56HM24MMF75P7RQ063YRT1P
+2026/10/18 03:41:54 WARN http request method=POST path=/api/v1/workspaces/01M56HM24BMJRA3V7NEN0K05H3/squads status=422 duration=32µs request_id=cursor/yRtehQVcAW-000062 correlation_id=01M56HM24MMF75P7RQ09DTEC9B
+2026/10/18 03:41:54 WARN http request method=POST path=/api/v1/workspaces/01M56HM24BMJRA3V7NEN0K05H3/vcs/connections status=422 duration=44µs request_id=cursor/yRtehQVcAW-000063 correlation_id=01M56HM24NH7DXFYPY24Q1K099
+2026/10/18 03:41:54 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.014ms request_id=cursor/yRtehQVcAW-000064 correlation_id=01M56HM2DBE4ZQ32ATHXXBJMM3
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.544ms request_id=cursor/yRtehQVcAW-000065 correlation_id=01M56HM2DH1F240MBN3GNK2PTK
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/orgs status=201 duration=7.025ms request_id=cursor/yRtehQVcAW-000066 correlation_id=01M56HM2DJKGJ44R7VEN57J113
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/orgs/01M56HM2DMD2ZBHF3AHHAMY39G/workspaces status=201 duration=8.117ms request_id=cursor/yRtehQVcAW-000067 correlation_id=01M56HM2DTDG6D65J5885J9DM7
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/workspaces/01M56HM2DXZ4QRJHRPH1SWV93Z/tasks status=200 duration=4.217ms request_id=cursor/yRtehQVcAW-000068 correlation_id=01M56HM2E2PH7K9EM7H892MENH
+2026/10/18 03:41:54 INFO http request method=PATCH path=/api/v1/tasks/01M56HM2E44FJK57W95M4FM95J status=200 duration=2.51ms request_id=cursor/yRtehQVcAW-000069 correlation_id=01M56HM2E6JBHJSMK7TGN83DRX
+2026/10/18 03:41:54 INFO http request method=GET path=/api/v1/orgs/unicom/agents status=200 duration=968µs request_id=cursor/yRtehQVcAW-000070 correlation_id=01M56HM2E9BCQ950GKXHRH52J9
+2026/10/18 03:41:54 INFO http request method=PATCH path=/api/v1/agents/01M56HM2DRG19R4YVWPZY82FCK status=200 duration=1.059ms request_id=cursor/yRtehQVcAW-000071 correlation_id=01M56HM2EANX6DY840NWPCZB6E
+2026/10/18 03:41:54 INFO http request method=GET path=/api/v1/workspaces/01M56HM2DXZ4QRJHRPH1SWV93Z/agents status=200 duration=957µs request_id=cursor/yRtehQVcAW-000072 correlation_id=01M56HM2EC8GPR7RF38W51E84R
+2026/10/18 03:41:54 INFO http request method=PATCH path=/api/v1/tasks/01M56HM2E44FJK57W95M4FM95J status=200 duration=10.81ms request_id=cursor/yRtehQVcAW-000073 correlation_id=01M56HM2EDSYQEAC2HKM0CT75W
+2026/10/18 03:41:54 WARN http request method=POST path=/api/v1/orgs/unicom/agents status=400 duration=1.25ms request_id=cursor/yRtehQVcAW-000074 correlation_id=01M56HM2ER2QMXB1E8H5A5VH68
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/orgs/unicom/agents status=201 duration=974µs request_id=cursor/yRtehQVcAW-000075 correlation_id=01M56HM2ESJQHTCS4A80R4NQMH
+2026/10/18 03:41:54 WARN http request method=PATCH path=/api/v1/tasks/01M56HM2E44FJK57W95M4FM95J status=422 duration=1.039ms request_id=cursor/yRtehQVcAW-000076 correlation_id=01M56HM2ETF5DSYCHP6R2FK71C
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/workspaces/01M56HM2DXZ4QRJHRPH1SWV93Z/agents status=201 duration=917µs request_id=cursor/yRtehQVcAW-000077 correlation_id=01M56HM2EW3XQ559AYT876N533
+2026/10/18 03:41:54 INFO http request method=PATCH path=/api/v1/tasks/01M56HM2E44FJK57W95M4FM95J status=200 duration=2.403ms request_id=cursor/yRtehQVcAW-000078 correlation_id=01M56HM2EX0SPC4AAEH4V9AWAB
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/tasks/01M56HM2E44FJK57W95M4FM95J/comments status=200 duration=2.001ms request_id=cursor/yRtehQVcAW-000079 correlation_id=01M56HM2F0S2MQWXQTWDXXWY0A
+2026/10/18 03:41:54 INFO http request method=GET path=/api/v1/tasks/01M56HM2E44FJK57W95M4FM95J/comments status=200 duration=1.507ms request_id=cursor/yRtehQVcAW-000080 correlation_id=01M56HM2F215S28B7MY4W4WR49
+2026/10/18 03:41:54 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.952ms request_id=cursor/yRtehQVcAW-000081 correlation_id=01M56HM2Q5WJCFQH5DHYVM53VC
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.092ms request_id=cursor/yRtehQVcAW-000082 correlation_id=01M56HM2Q9VDPGPB57G05QDZHR
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/orgs status=201 duration=5.516ms request_id=cursor/yRtehQVcAW-000083 correlation_id=01M56HM2QB7WW624J89X59B94R
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/orgs/01M56HM2QCX6WH7QKZ8EYTHFB7/workspaces status=201 duration=6.549ms request_id=cursor/yRtehQVcAW-000084 correlation_id=01M56HM2QH5MVAS6AA7S6WA7NS
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/workspaces/01M56HM2QJP94D33QH95BPSYEQ/tasks status=200 duration=5.072ms request_id=cursor/yRtehQVcAW-000085 correlation_id=01M56HM2QQJHPH8GMK4J65FN6C
+2026/10/18 03:41:54 INFO http request method=PATCH path=/api/v1/tasks/01M56HM2QTS9SYE618X51REH35 status=200 duration=2.266ms request_id=cursor/yRtehQVcAW-000086 correlation_id=01M56HM2QXSFKFTJTSP3N9QC0F
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.953ms request_id=cursor/yRtehQVcAW-000087 correlation_id=01M56HM2QZ3EVKAR30XFCYJH4R
+2026/10/18 03:41:54 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=833µs request_id=cursor/yRtehQVcAW-000088 correlation_id=01M56HM2R11T6G9ZSVKX4X2XBK
+2026/10/18 03:41:54 WARN http request method=GET path=/api/v1/orgs/unicom/agents status=404 duration=463µs request_id=cursor/yRtehQVcAW-000089 correlation_id=01M56HM2R25TEH5Y3WBN9KV0TY
+2026/10/18 03:41:54 WARN http request method=GET path=/api/v1/workspaces/01M56HM2QJP94D33QH95BPSYEQ/agents status=403 duration=362µs request_id=cursor/yRtehQVcAW-000090 correlation_id=01M56HM2R3B28ZEH8CNMSEVSE8
+2026/10/18 03:41:54 INFO http request method=GET path=/api/v1/orgs/unicom/agents status=200 duration=552µs request_id=cursor/yRtehQVcAW-000091 correlation_id=01M56HM2R3B28ZEH8CNRFCY3N2
+2026/10/18 03:41:54 WARN http request method=PATCH path=/api/v1/agents/01M56HM2QGGQFKD5SYS11Z4FAY status=404 duration=383µs request_id=cursor/yRtehQVcAW-000092 correlation_id=01M56HM2R47K6NFFYWHPMXSC3X
+2026/10/18 03:42:03 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:03 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.617ms request_id=cursor/yRtehQVcAW-000093 correlation_id=01M56HMBHZTK6R2PBPKCV3CPK8
+2026/10/18 03:42:03 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.487ms request_id=cursor/yRtehQVcAW-000094 correlation_id=01M56HMBJ4SWP3J3MNPQ1R557A
+2026/10/18 03:42:03 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.103ms request_id=cursor/yRtehQVcAW-000095 correlation_id=01M56HMBJ6VTZQ1DMMZE85JRCP
+2026/10/18 03:42:03 INFO http request method=PUT path=/api/v1/orgs/01M56HMBJ7C0Q1EEFWQSE6HF6D/ai/credentials/openai status=201 duration=1.91ms request_id=cursor/yRtehQVcAW-000096 correlation_id=01M56HMBJA0T59EM25E4T643TH
+2026/10/18 03:42:03 INFO http request method=POST path=/api/v1/orgs/01M56HMBJ7C0Q1EEFWQSE6HF6D/ai/byok/openai/chat/completions status=200 duration=4.165ms request_id=cursor/yRtehQVcAW-000097 correlation_id=01M56HMBJD6V8KJX4F8GWVR62G
+2026/10/18 03:42:03 INFO http request method=POST path=/api/v1/orgs/01M56HMBJ7C0Q1EEFWQSE6HF6D/ai/byok/openai/chat/completions status=200 duration=1.746ms request_id=cursor/yRtehQVcAW-000098 correlation_id=01M56HMBJHBBYAFAYXE6CSD5RW
+2026/10/18 03:42:03 WARN http request method=POST path=/api/v1/orgs/01M56HMBJ7C0Q1EEFWQSE6HF6D/ai/byok/openai/chat/completions status=401 duration=164µs request_id=cursor/yRtehQVcAW-000099 correlation_id=01M56HMBJMGZ5PC0X858902PDJ
+2026/10/18 03:42:04 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.328ms request_id=cursor/yRtehQVcAW-000100 correlation_id=01M56HMBVCJ1X4SZW75B4SVCCZ
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.5ms request_id=cursor/yRtehQVcAW-000101 correlation_id=01M56HMBVGPENYVTDFJ0RW4FB9
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.706ms request_id=cursor/yRtehQVcAW-000102 correlation_id=01M56HMBVJ338CYXGHC0GZWQ8Q
+2026/10/18 03:42:04 INFO http request method=PUT path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/credentials/openai status=201 duration=2.289ms request_id=cursor/yRtehQVcAW-000103 correlation_id=01M56HMBVQRBZ1ZM6CERPDRE2B
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=4.361ms request_id=cursor/yRtehQVcAW-000104 correlation_id=01M56HMBVSG8WGVY2JHEBX867S
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.854ms request_id=cursor/yRtehQVcAW-000105 correlation_id=01M56HMBVYJJ3A55H5SE2AT95J
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.792ms request_id=cursor/yRtehQVcAW-000106 correlation_id=01M56HMBW0732YPB563XP6CM2F
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.645ms request_id=cursor/yRtehQVcAW-000107 correlation_id=01M56HMBW2EZ2M0SV60KDNK6ZK
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.26ms request_id=cursor/yRtehQVcAW-000108 correlation_id=01M56HMBW3SKD2DBX5WFS7ZCJG
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.25ms request_id=cursor/yRtehQVcAW-000109 correlation_id=01M56HMBW5RX5EEDR3NSEWJT36
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.316ms request_id=cursor/yRtehQVcAW-000110 correlation_id=01M56HMBW6CYQWBCF3T53DZC08
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.252ms request_id=cursor/yRtehQVcAW-000111 correlation_id=01M56HMBW8S3VS5ZKJ5KGN7WKJ
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.24ms request_id=cursor/yRtehQVcAW-000112 correlation_id=01M56HMBW9821WQ44JHCZV13YT
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.173ms request_id=cursor/yRtehQVcAW-000113 correlation_id=01M56HMBWAP9RQ26R87MSQSSHN
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.076ms request_id=cursor/yRtehQVcAW-000114 correlation_id=01M56HMBWCT1E4ZD8VPRR34NSR
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=931µs request_id=cursor/yRtehQVcAW-000115 correlation_id=01M56HMBWDVMYXB1NSK3DVQDXG
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=772µs request_id=cursor/yRtehQVcAW-000116 correlation_id=01M56HMBWEHR5PBXXCRSWX0M93
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=871µs request_id=cursor/yRtehQVcAW-000117 correlation_id=01M56HMBWFEQDQCJJCVC88AJ7P
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=777µs request_id=cursor/yRtehQVcAW-000118 correlation_id=01M56HMBWG4D9XGXMJD6RW97QX
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=894µs request_id=cursor/yRtehQVcAW-000119 correlation_id=01M56HMBWHV7TME3NV2ZGBABHV
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.145ms request_id=cursor/yRtehQVcAW-000120 correlation_id=01M56HMBWJXY98S5PETWQ6X8P5
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.245ms request_id=cursor/yRtehQVcAW-000121 correlation_id=01M56HMBWKMA92GX155PTW438D
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=786µs request_id=cursor/yRtehQVcAW-000122 correlation_id=01M56HMBWMQ7RYHP7DF9S7GY7D
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=824µs request_id=cursor/yRtehQVcAW-000123 correlation_id=01M56HMBWNFWXNV1ZA2B4889AG
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=785µs request_id=cursor/yRtehQVcAW-000124 correlation_id=01M56HMBWPW2W5Y4CZ542R7V75
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=968µs request_id=cursor/yRtehQVcAW-000125 correlation_id=01M56HMBWQ04VVS6JYB21EFN06
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=867µs request_id=cursor/yRtehQVcAW-000126 correlation_id=01M56HMBWR5XQDVKECXP15EXF6
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=910µs request_id=cursor/yRtehQVcAW-000127 correlation_id=01M56HMBWSJYQ05Z12QGG2M5Z4
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=930µs request_id=cursor/yRtehQVcAW-000128 correlation_id=01M56HMBWTNEX843S5XJ07A5MR
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.289ms request_id=cursor/yRtehQVcAW-000129 correlation_id=01M56HMBWVYGD40AHAFRVAA52T
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.143ms request_id=cursor/yRtehQVcAW-000130 correlation_id=01M56HMBWW2ZEE33Y1BYWTBKQQ
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=942µs request_id=cursor/yRtehQVcAW-000131 correlation_id=01M56HMBWYWMN6TRWDCTMZ8HXS
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=821µs request_id=cursor/yRtehQVcAW-000132 correlation_id=01M56HMBWZBFXHDMV0K1CCFHKB
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=990µs request_id=cursor/yRtehQVcAW-000133 correlation_id=01M56HMBX01TAK9RYQCTN15S5P
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=829µs request_id=cursor/yRtehQVcAW-000134 correlation_id=01M56HMBX1Z2ZJ8TM93NG6H4FW
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.152ms request_id=cursor/yRtehQVcAW-000135 correlation_id=01M56HMBX2S0HE9WKYV777ZSSV
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=890µs request_id=cursor/yRtehQVcAW-000136 correlation_id=01M56HMBX34AEPXZ3Q1PXH83ZK
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=927µs request_id=cursor/yRtehQVcAW-000137 correlation_id=01M56HMBX4T77M2QQH3PRCSJRY
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.093ms request_id=cursor/yRtehQVcAW-000138 correlation_id=01M56HMBX5ZZF5HVMYNQ8RCGKD
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=971µs request_id=cursor/yRtehQVcAW-000139 correlation_id=01M56HMBX6PKE5M0895RK4YYK5
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.081ms request_id=cursor/yRtehQVcAW-000140 correlation_id=01M56HMBX793RM5RWP3P80B2MB
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=992µs request_id=cursor/yRtehQVcAW-000141 correlation_id=01M56HMBX8SRNGQXTBN94J3DWF
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=865µs request_id=cursor/yRtehQVcAW-000142 correlation_id=01M56HMBX9TWQN98VMNVKF7S2D
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.048ms request_id=cursor/yRtehQVcAW-000143 correlation_id=01M56HMBXA7A2XGPEDEWRTY4E4
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=816µs request_id=cursor/yRtehQVcAW-000144 correlation_id=01M56HMBXC5CWRQA11456K9F4Q
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=763µs request_id=cursor/yRtehQVcAW-000145 correlation_id=01M56HMBXC5CWRQA1149JPVP5M
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=2.284ms request_id=cursor/yRtehQVcAW-000146 correlation_id=01M56HMBXDJHWBYG3SNPRCR81M
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.309ms request_id=cursor/yRtehQVcAW-000147 correlation_id=01M56HMBXG019K9VBCHQYT3MV4
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.212ms request_id=cursor/yRtehQVcAW-000148 correlation_id=01M56HMBXH83XJBPY2F6FYYPZR
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.203ms request_id=cursor/yRtehQVcAW-000149 correlation_id=01M56HMBXKM1XQNT9J2VTJFQ7N
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=832µs request_id=cursor/yRtehQVcAW-000150 correlation_id=01M56HMBXM83ZAGSFRC8A93ZCB
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=832µs request_id=cursor/yRtehQVcAW-000151 correlation_id=01M56HMBXN124WNX6R33AXBMCY
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=942µs request_id=cursor/yRtehQVcAW-000152 correlation_id=01M56HMBXPN9F464K9ACCPPGY7
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=872µs request_id=cursor/yRtehQVcAW-000153 correlation_id=01M56HMBXQFF2H0CSZ7T83VKCB
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=891µs request_id=cursor/yRtehQVcAW-000154 correlation_id=01M56HMBXRJDZ6AVK0P8W332FR
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.228ms request_id=cursor/yRtehQVcAW-000155 correlation_id=01M56HMBXSSCH2YYZRCT987BF0
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.087ms request_id=cursor/yRtehQVcAW-000156 correlation_id=01M56HMBXTC6QZGA7DS2R61E81
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=1.088ms request_id=cursor/yRtehQVcAW-000157 correlation_id=01M56HMBXVZQ5MHP35XJTPAKTB
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=663µs request_id=cursor/yRtehQVcAW-000158 correlation_id=01M56HMBXXAG02JPPDJM8KTPE8
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=830µs request_id=cursor/yRtehQVcAW-000159 correlation_id=01M56HMBXXAG02JPPDJR103ZGZ
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=796µs request_id=cursor/yRtehQVcAW-000160 correlation_id=01M56HMBXYP7DA9K91Y2E02Q0C
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=723µs request_id=cursor/yRtehQVcAW-000161 correlation_id=01M56HMBXZAZNTNDR51MR7Y0ZP
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=790µs request_id=cursor/yRtehQVcAW-000162 correlation_id=01M56HMBY08NAHDDT0TJS341DE
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=200 duration=858µs request_id=cursor/yRtehQVcAW-000163 correlation_id=01M56HMBY1EQEW99PW8FZ79NHG
+2026/10/18 03:42:04 WARN http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=429 duration=175µs request_id=cursor/yRtehQVcAW-000164 correlation_id=01M56HMBY2HJ86X0N8T0ZJYFB8
+2026/10/18 03:42:04 WARN http request method=POST path=/api/v1/orgs/01M56HMBVKG3775YRB490DWSBA/ai/byok/openai/chat/completions status=429 duration=112µs request_id=cursor/yRtehQVcAW-000165 correlation_id=01M56HMBY2HJ86X0N8T1DQ0EPA
+2026/10/18 03:42:04 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.254ms request_id=cursor/yRtehQVcAW-000166 correlation_id=01M56HMC81R3BWBM6X32DJB47X
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.556ms request_id=cursor/yRtehQVcAW-000167 correlation_id=01M56HMC87MTVX9M3ASE4H4Y2G
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.322ms request_id=cursor/yRtehQVcAW-000168 correlation_id=01M56HMC89C10HQNY9YSP4AHK9
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.794ms request_id=cursor/yRtehQVcAW-000169 correlation_id=01M56HMC8D4J99PT40PC17VYAB
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.156ms request_id=cursor/yRtehQVcAW-000170 correlation_id=01M56HMC8GV2G2WR1PQ408FF6M
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.173ms request_id=cursor/yRtehQVcAW-000171 correlation_id=01M56HMC8JFJS4BQFJNZ9VREWP
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.14ms request_id=cursor/yRtehQVcAW-000172 correlation_id=01M56HMC8M1CM8FB7PB7NAG360
+2026/10/18 03:42:04 INFO ai: cloud call usage_event_id=01M56HMCJND1TD6V1FA44Z24YD capability=cloud_image_generate latency_ms=0
+2026/10/18 03:42:04 INFO http request method=POST path=/api/v1/orgs/01M56HMC8A3RB671XMWVPYRW2Z/ai/cloud/images status=200 duration=147.845ms request_id=cursor/yRtehQVcAW-000173 correlation_id=01M56HMCE61M3YRYEK3DEC12FY
+2026/10/18 03:42:05 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.489ms request_id=cursor/yRtehQVcAW-000174 correlation_id=01M56HMCWFW8YHYGB7855PRQW5
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.498ms request_id=cursor/yRtehQVcAW-000175 correlation_id=01M56HMCWNTS53KD9F87ZGVYNP
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.72ms request_id=cursor/yRtehQVcAW-000176 correlation_id=01M56HMCWQ9AMR136WPBGC2X8M
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.487ms request_id=cursor/yRtehQVcAW-000177 correlation_id=01M56HMCWWN22VAATZ392AYFEY
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.087ms request_id=cursor/yRtehQVcAW-000178 correlation_id=01M56HMCWZE97WJFMEPANDD03E
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.911ms request_id=cursor/yRtehQVcAW-000179 correlation_id=01M56HMCX0JVX7Q31K18D70YZP
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.256ms request_id=cursor/yRtehQVcAW-000180 correlation_id=01M56HMCX3X6V86HB6XKZ67RRJ
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMCWRDKPRP9SJ3Y9J139F/ai/cloud status=200 duration=4.715ms request_id=cursor/yRtehQVcAW-000181 correlation_id=01M56HMCX5M9H9FDB3N2FSFNSZ
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMCWRDKPRP9SJ3Y9J139F/ai/cloud/media/analyze status=422 duration=569µs request_id=cursor/yRtehQVcAW-000182 correlation_id=01M56HMCXAZ00783K8E78SB1N9
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMCWRDKPRP9SJ3Y9J139F/ai/cloud/media/analyze status=422 duration=602µs request_id=cursor/yRtehQVcAW-000183 correlation_id=01M56HMCXAZ00783K8E9D542B3
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMCWRDKPRP9SJ3Y9J139F/ai/cloud/media/analyze status=422 duration=603µs request_id=cursor/yRtehQVcAW-000184 correlation_id=01M56HMCXB772TMCNK3ZK34WB8
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMCWRDKPRP9SJ3Y9J139F/ai/cloud/media/analyze status=422 duration=361µs request_id=cursor/yRtehQVcAW-000185 correlation_id=01M56HMCXC06R6Z7AD0E9QAJMC
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMCWRDKPRP9SJ3Y9J139F/ai/cloud/media/analyze status=422 duration=295µs request_id=cursor/yRtehQVcAW-000186 correlation_id=01M56HMCXC06R6Z7AD0EBR55RB
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMCWRDKPRP9SJ3Y9J139F/ai/cloud status=200 duration=1.63ms request_id=cursor/yRtehQVcAW-000187 correlation_id=01M56HMCXD5GDPM026Z7HFET1X
+2026/10/18 03:42:05 INFO ai: call usage_event_id=01M56HMCXF8Q3KP9KHYFNF9NSJ capability=media_analysis latency_ms=0
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs/01M56HMCWRDKPRP9SJ3Y9J139F/ai/cloud/media/analyze status=200 duration=3.273ms request_id=cursor/yRtehQVcAW-000188 correlation_id=01M56HMCXF8Q3KP9KHYFJ1CBC3
+2026/10/18 03:42:05 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.128ms request_id=cursor/yRtehQVcAW-000189 correlation_id=01M56HMD4N1KM3TSVF461SMVY3
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=2.057ms request_id=cursor/yRtehQVcAW-000190 correlation_id=01M56HMD4T101PABTBK3PNM1KE
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.925ms request_id=cursor/yRtehQVcAW-000191 correlation_id=01M56HMD4WQ4ABHNE2KMKF78ZC
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.358ms request_id=cursor/yRtehQVcAW-000192 correlation_id=01M56HMD52W1VQ8P0QWTS99HQ3
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=942µs request_id=cursor/yRtehQVcAW-000193 correlation_id=01M56HMD54WZXMDQ72PKJJT9EJ
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.191ms request_id=cursor/yRtehQVcAW-000194 correlation_id=01M56HMD5601GCHSW06HFFMRG1
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.114ms request_id=cursor/yRtehQVcAW-000195 correlation_id=01M56HMD58116JZKEMYVH2QW3Y
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud status=200 duration=4.288ms request_id=cursor/yRtehQVcAW-000196 correlation_id=01M56HMD59HM209Y19PWCS3ZQC
+2026/10/18 03:42:05 INFO ai: cloud call usage_event_id=01M56HMD5FCZXTT0ZS53XA249M capability=cloud_search latency_ms=0
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud/search status=200 duration=3.437ms request_id=cursor/yRtehQVcAW-000197 correlation_id=01M56HMD5EZ5CKGQ32T6GKVY69
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud status=200 duration=1.464ms request_id=cursor/yRtehQVcAW-000198 correlation_id=01M56HMD5H6RZFFH7YCM1B0ECZ
+2026/10/18 03:42:05 INFO ai: cloud call usage_event_id=01M56HMD5MD589AJVKN0XQ59N6 capability=cloud_search latency_ms=0
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud/search status=200 duration=2.235ms request_id=cursor/yRtehQVcAW-000199 correlation_id=01M56HMD5K9CNWBC6TKYXVMRVG
+2026/10/18 03:42:05 INFO ai: cloud call usage_event_id=01M56HMD5PD82MXYHMATE9A9JA capability=cloud_image_generate latency_ms=0
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud/images status=200 duration=1.837ms request_id=cursor/yRtehQVcAW-000200 correlation_id=01M56HMD5N2GHWA2Z760452ZSX
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud status=200 duration=1.428ms request_id=cursor/yRtehQVcAW-000201 correlation_id=01M56HMD5QA7ZP26SCH2AQH5WS
+2026/10/18 03:42:05 INFO ai: call usage_event_id=01M56HMD5T5EGNKW9X8N4V4YQW capability=media_analysis latency_ms=0
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud/media/analyze status=200 duration=2.731ms request_id=cursor/yRtehQVcAW-000202 correlation_id=01M56HMD5SBPYRQRPT6XQMHSFB
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud status=200 duration=1.321ms request_id=cursor/yRtehQVcAW-000203 correlation_id=01M56HMD5W7FFQZQ774HD9SEJT
+2026/10/18 03:42:05 INFO ai: cloud call usage_event_id=01M56HMD5YRAQR5Q02M89XJ5QK capability=cloud_transcribe latency_ms=0
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud/transcribe status=200 duration=2.201ms request_id=cursor/yRtehQVcAW-000204 correlation_id=01M56HMD5X02X858C6MY7JV41T
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMD4Y33Q6V9QN026WSPZ6/ai/cloud status=200 duration=1.334ms request_id=cursor/yRtehQVcAW-000205 correlation_id=01M56HMD5ZVFR4ZB6JV1DQGMG2
+2026/10/18 03:42:05 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.361ms request_id=cursor/yRtehQVcAW-000206 correlation_id=01M56HMDEYP05YNB2G91R5KYX8
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.526ms request_id=cursor/yRtehQVcAW-000207 correlation_id=01M56HMDF3WXPAY1KXJMNJ4FNG
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/orgs status=201 duration=5.102ms request_id=cursor/yRtehQVcAW-000208 correlation_id=01M56HMDF4W5YEGB92TWGEG47J
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.473ms request_id=cursor/yRtehQVcAW-000209 correlation_id=01M56HMDFAG8VQ09GC903VWFQ2
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.217ms request_id=cursor/yRtehQVcAW-000210 correlation_id=01M56HMDFCGHM08XDP3PCW6B7N
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.285ms request_id=cursor/yRtehQVcAW-000211 correlation_id=01M56HMDFEQ9N59PMSNF5VJAD1
+2026/10/18 03:42:05 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.24ms request_id=cursor/yRtehQVcAW-000212 correlation_id=01M56HMDFHM4F3JSS68J04THY1
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud status=200 duration=5.396ms request_id=cursor/yRtehQVcAW-000213 correlation_id=01M56HMDFJ7HDAZS5HB58DK1EP
+2026/10/18 03:42:05 ERROR http request method=POST path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud/images status=503 duration=592µs request_id=cursor/yRtehQVcAW-000214 correlation_id=01M56HMDFRRABDX8QPGFFPKJ2Q
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud/search status=402 duration=1.01ms request_id=cursor/yRtehQVcAW-000215 correlation_id=01M56HMDFS83J6SGYEEMDJ0R98
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud/transcribe status=402 duration=817µs request_id=cursor/yRtehQVcAW-000216 correlation_id=01M56HMDFT64FT0M3KH4DWWMZQ
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud status=200 duration=1.309ms request_id=cursor/yRtehQVcAW-000217 correlation_id=01M56HMDFV4N0ZA66Q9DTX4DH9
+2026/10/18 03:42:05 INFO http request method=GET path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud status=200 duration=1.236ms request_id=cursor/yRtehQVcAW-000218 correlation_id=01M56HMDFXH3C4ZXST2GJ4QW64
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud/transcribe status=403 duration=350µs request_id=cursor/yRtehQVcAW-000219 correlation_id=01M56HMDFYQMCZBRZGTVRW66CS
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud/search status=403 duration=384µs request_id=cursor/yRtehQVcAW-000220 correlation_id=01M56HMDFZCQZ8BZ6GGZ79QSF6
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud/images status=403 duration=311µs request_id=cursor/yRtehQVcAW-000221 correlation_id=01M56HMDFZCQZ8BZ6GH1SN6KZ0
+2026/10/18 03:42:05 WARN http request method=POST path=/api/v1/orgs/01M56HMDF60VGZZ4S2NRH6FEPE/ai/cloud/media/analyze status=403 duration=260µs request_id=cursor/yRtehQVcAW-000222 correlation_id=01M56HMDG0R2951RBMENQCZSD8
+2026/10/18 03:42:06 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.957ms request_id=cursor/yRtehQVcAW-000223 correlation_id=01M56HMDT18K826E0SN08A15S8
+2026/10/18 03:42:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.9ms request_id=cursor/yRtehQVcAW-000224 correlation_id=01M56HMDT6G3N5XBEA7WF8YZG4
+2026/10/18 03:42:06 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.848ms request_id=cursor/yRtehQVcAW-000225 correlation_id=01M56HMDT8YEW5E2ET8FJBX89N
+2026/10/18 03:42:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.183ms request_id=cursor/yRtehQVcAW-000226 correlation_id=01M56HMDTD4KAQXEZJQ6C179M4
+2026/10/18 03:42:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.132ms request_id=cursor/yRtehQVcAW-000227 correlation_id=01M56HMDTFXRX3QZTQR2ZEZ1G4
+2026/10/18 03:42:06 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.166ms request_id=cursor/yRtehQVcAW-000228 correlation_id=01M56HMDTHEZ9CVHE1534NCNN4
+2026/10/18 03:42:06 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.13ms request_id=cursor/yRtehQVcAW-000229 correlation_id=01M56HMDTKB1HNV3NN6Z7NR5XB
+2026/10/18 03:42:06 WARN http request method=GET path=/api/v1/orgs/01M56HMDT9B5JVNH8S78BT0Q4T/ai/cloud status=403 duration=341µs request_id=cursor/yRtehQVcAW-000230 correlation_id=01M56HMDTM4NKRB2KEYFQQZ8ZZ
+2026/10/18 03:42:06 WARN http request method=POST path=/api/v1/orgs/01M56HMDT9B5JVNH8S78BT0Q4T/ai/cloud/search status=403 duration=182µs request_id=cursor/yRtehQVcAW-000231 correlation_id=01M56HMDTNC4YMBBMBA2QKRBEH
+2026/10/18 03:42:06 WARN http request method=POST path=/api/v1/orgs/01M56HMDT9B5JVNH8S78BT0Q4T/ai/cloud/images status=403 duration=223µs request_id=cursor/yRtehQVcAW-000232 correlation_id=01M56HMDTNC4YMBBMBA67D534Q
+2026/10/18 03:42:06 WARN http request method=POST path=/api/v1/orgs/01M56HMDT9B5JVNH8S78BT0Q4T/ai/cloud/media/analyze status=403 duration=180µs request_id=cursor/yRtehQVcAW-000233 correlation_id=01M56HMDTNC4YMBBMBA8ZRPM05
+2026/10/18 03:42:06 WARN http request method=POST path=/api/v1/orgs/01M56HMDT9B5JVNH8S78BT0Q4T/ai/cloud/transcribe status=403 duration=264µs request_id=cursor/yRtehQVcAW-000234 correlation_id=01M56HMDTPAH61HBWPRTSHWDXY
+2026/10/18 03:42:06 WARN http request method=POST path=/api/v1/orgs/01M56HMDT9B5JVNH8S78BT0Q4T/ai/cloud/search status=401 duration=14µs request_id=cursor/yRtehQVcAW-000235 correlation_id=01M56HMDTPAH61HBWPRWTJR8XN
+2026/10/18 03:42:08 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.918ms request_id=cursor/yRtehQVcAW-000236 correlation_id=01M56HMFNXCSZ39ZYQZQGMB8TR
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.644ms request_id=cursor/yRtehQVcAW-000237 correlation_id=01M56HMFP3YV1PV8EMH4ACR12Y
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/orgs status=201 duration=5.675ms request_id=cursor/yRtehQVcAW-000238 correlation_id=01M56HMFP4T7TXSB311GTQBDJN
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.684ms request_id=cursor/yRtehQVcAW-000239 correlation_id=01M56HMFPAKWNVPZ0HX76J8CW8
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.33ms request_id=cursor/yRtehQVcAW-000240 correlation_id=01M56HMFPD9HRQ2K2HEMWWBJ4S
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.974ms request_id=cursor/yRtehQVcAW-000241 correlation_id=01M56HMFPFRABK437W8YG0CD79
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=598µs request_id=cursor/yRtehQVcAW-000242 correlation_id=01M56HMFPHFFE3QXSQHPZ0MH94
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/search status=400 duration=1.024ms request_id=cursor/yRtehQVcAW-000243 correlation_id=01M56HMFPKNAND6SF307YZ4P2N
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/search status=400 duration=495µs request_id=cursor/yRtehQVcAW-000244 correlation_id=01M56HMFPM92Y1431AF67P2D0E
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/search status=400 duration=366µs request_id=cursor/yRtehQVcAW-000245 correlation_id=01M56HMFPN59RBNZZEHQ9QRWN2
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/search status=400 duration=426µs request_id=cursor/yRtehQVcAW-000246 correlation_id=01M56HMFPPQ429YKR03FV78A0C
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/images status=400 duration=508µs request_id=cursor/yRtehQVcAW-000247 correlation_id=01M56HMFPPQ429YKR03H2RGP3J
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/images status=400 duration=606µs request_id=cursor/yRtehQVcAW-000248 correlation_id=01M56HMFPQHRDMV7GVRG8J59GK
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/images status=400 duration=305µs request_id=cursor/yRtehQVcAW-000249 correlation_id=01M56HMFPQHRDMV7GVRKS4ZA21
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/images status=400 duration=26.951ms request_id=cursor/yRtehQVcAW-000250 correlation_id=01M56HMFQ6GJBH3SKW662TH22A
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/media/analyze status=400 duration=1.218ms request_id=cursor/yRtehQVcAW-000251 correlation_id=01M56HMFR1CJR5Y3AZD9CSQ04F
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/media/analyze status=400 duration=250µs request_id=cursor/yRtehQVcAW-000252 correlation_id=01M56HMFR210JXRKJXW4YK0MQZ
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/media/analyze status=400 duration=353µs request_id=cursor/yRtehQVcAW-000253 correlation_id=01M56HMFR3WY1H7FQCY5DAEM3K
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/transcribe status=400 duration=330µs request_id=cursor/yRtehQVcAW-000254 correlation_id=01M56HMFR3WY1H7FQCY8CD2RAH
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/transcribe status=400 duration=287µs request_id=cursor/yRtehQVcAW-000255 correlation_id=01M56HMFR4G2560ZQQ5TBKGAPV
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/search status=400 duration=59µs request_id=cursor/yRtehQVcAW-000256 correlation_id=01M56HMFR4G2560ZQQ5XDYZBWS
+2026/10/18 03:42:08 WARN http request method=POST path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud/search status=413 duration=1.214ms request_id=cursor/yRtehQVcAW-000257 correlation_id=01M56HMFR5A83DYY5DBAVEG0GG
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMFP6FHNZJEF9HEB9QYPP/ai/cloud status=200 duration=4.467ms request_id=cursor/yRtehQVcAW-000258 correlation_id=01M56HMFR68KEEE1DTZB2VQZWN
+2026/10/18 03:42:08 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=5.283ms request_id=cursor/yRtehQVcAW-000259 correlation_id=01M56HMG0JGHNY3NWETM1HWJHT
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=978µs request_id=cursor/yRtehQVcAW-000260 correlation_id=01M56HMG0RBQ56H6941XCBSCKM
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.603ms request_id=cursor/yRtehQVcAW-000261 correlation_id=01M56HMG0S8C9N5D3YYTX52TQE
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.487ms request_id=cursor/yRtehQVcAW-000262 correlation_id=01M56HMG0XWHAGZZRKFF98NF4J
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=768µs request_id=cursor/yRtehQVcAW-000263 correlation_id=01M56HMG10GN5HCE9QFKD6ANNK
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.772ms request_id=cursor/yRtehQVcAW-000264 correlation_id=01M56HMG12VC4SDVEFET27CBDV
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.381ms request_id=cursor/yRtehQVcAW-000265 correlation_id=01M56HMG1553GDH0FM4PX6E2CJ
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMG0T0QZ9GN8YYTNS3P9G/ai/cloud status=200 duration=4.426ms request_id=cursor/yRtehQVcAW-000266 correlation_id=01M56HMG16KA6T36BQQQH6WAFJ
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMG0T0QZ9GN8YYTNS3P9G/ai/cloud status=200 duration=1.893ms request_id=cursor/yRtehQVcAW-000267 correlation_id=01M56HMG1EWPKWVFF7WQPVZVK8
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMG0T0QZ9GN8YYTNS3P9G/ai/cloud status=200 duration=17.641ms request_id=cursor/yRtehQVcAW-000268 correlation_id=01M56HMG1HK39NNN4WAV3BXA23
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMG0T0QZ9GN8YYTNS3P9G/ai/cloud status=200 duration=2.628ms request_id=cursor/yRtehQVcAW-000269 correlation_id=01M56HMG23CFJDG5BYW19QGAX9
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMG0T0QZ9GN8YYTNS3P9G/ai/cloud status=200 duration=1.399ms request_id=cursor/yRtehQVcAW-000270 correlation_id=01M56HMG26HCGZ988MT8YWQP2Z
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMG0T0QZ9GN8YYTNS3P9G/ai/cloud status=200 duration=1.726ms request_id=cursor/yRtehQVcAW-000271 correlation_id=01M56HMG28H7J0XJ34DT1NJ8VZ
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMG0T0QZ9GN8YYTNS3P9G/ai/cloud status=200 duration=794µs request_id=cursor/yRtehQVcAW-000272 correlation_id=01M56HMG2A9MZ7PRPCAAGZ72JF
+2026/10/18 03:42:08 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=3.903ms request_id=cursor/yRtehQVcAW-000273 correlation_id=01M56HMG8TKKQ7129GWZK6BV5K
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.024ms request_id=cursor/yRtehQVcAW-000274 correlation_id=01M56HMG8Z5TTADMF8V4G3W64P
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.493ms request_id=cursor/yRtehQVcAW-000275 correlation_id=01M56HMG904CW7TMJ7QMFXC7QX
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=2.261ms request_id=cursor/yRtehQVcAW-000276 correlation_id=01M56HMG94VHX6B47WYMXTBPGM
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=737µs request_id=cursor/yRtehQVcAW-000277 correlation_id=01M56HMG976Q52N735PQD4MEQD
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.853ms request_id=cursor/yRtehQVcAW-000278 correlation_id=01M56HMG98PPNH9XDPPJ04WPHN
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.081ms request_id=cursor/yRtehQVcAW-000279 correlation_id=01M56HMG9AFXHPKBFEPR9WP7TW
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMG91KQX3DDNVSH94T5MK/ai/cloud status=200 duration=5.482ms request_id=cursor/yRtehQVcAW-000280 correlation_id=01M56HMG9CB1A8G7BTEHM9RA8R
+2026/10/18 03:42:08 INFO local storage initialized dir=./data/uploads baseURL=http://localhost:8080
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=4.22ms request_id=cursor/yRtehQVcAW-000281 correlation_id=01M56HMGHCKR4023QDB7X037XV
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=1.961ms request_id=cursor/yRtehQVcAW-000282 correlation_id=01M56HMGHH41EP90G2MDA38S6T
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/orgs status=201 duration=4.529ms request_id=cursor/yRtehQVcAW-000283 correlation_id=01M56HMGHKR86VA7WEF2EQTCY7
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.892ms request_id=cursor/yRtehQVcAW-000284 correlation_id=01M56HMGHQ2R1K0CYXBATSSM14
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=582µs request_id=cursor/yRtehQVcAW-000285 correlation_id=01M56HMGHS87HT0Q0PE91NCGGM
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/auth/register status=200 duration=1.815ms request_id=cursor/yRtehQVcAW-000286 correlation_id=01M56HMGHV5QXBCV3GPP0DPVNG
+2026/10/18 03:42:08 INFO http request method=POST path=/api/v1/me/email/verify status=200 duration=779µs request_id=cursor/yRtehQVcAW-000287 correlation_id=01M56HMGHX27C6YRREKPS9YWCK
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMGHMTJ97FNK3DJWCKKS2/ai/cloud status=200 duration=4.423ms request_id=cursor/yRtehQVcAW-000288 correlation_id=01M56HMGHYYPF53GQG37P6MQV0
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMGHMTJ97FNK3DJWCKKS2/ai/cloud status=200 duration=1.635ms request_id=cursor/yRtehQVcAW-000289 correlation_id=01M56HMGJ3PKWAJHVTXWYJFM5C
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMGHMTJ97FNK3DJWCKKS2/ai/cloud status=200 duration=1.62ms request_id=cursor/yRtehQVcAW-000290 correlation_id=01M56HMGJ4N81CQTHG8D2YAZE0
+2026/10/18 03:42:08 WARN ai: model override outside allowlist, using default capability=office_uniwork_ai override=dev-model default=fake
+2026/10/18 03:42:08 INFO http request method=GET path=/api/v1/orgs/01M56HMGHMTJ97FNK3DJWCKKS2/ai/cloud status=200 duration=1.887ms request_id=cursor/yRtehQVcAW-000291 correlation_id=01M56HMGJ6XBV5EPA1EX4Q9RX8
+--- FAIL: TestEditLockRefusesCommitRoutesHandler (0.24s)
+    document_edit_lock_test.go:291: holder frame commit did not move the revision from 3
+--- FAIL: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule (0.30s)
+    --- FAIL: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/docs (0.02s)
+        office_frame_module_test.go:284: owner commit = 200 map[can_edit:true document_id:01M56JB4YB518GNM4A6PS2WX3K download_url:/api/v1/office-frame/documents/01M56JB4YB518GNM4A6PS2WX3K/content?version=1 file:map[checksum_sha256:94215da2d5f8e14d3b517efa8435e9ed0ad190272f56ca2f563b2eb176c56a80 file_id:01M56JB4Y93EEVXWSBRVXZATJS filename:plan.docx mime_type:application/vnd.openxmlformats-officedocument.wordprocessingml.document size_bytes:617 version:1 version_id:01M56JB4YB518GNM4A6QHT028C] module:docs organization_id:01M56JB4XK1KF8XH334FVXZ6YR revision:2 title:plan.docx updated_at:2026-10-18T03:54:30Z workspace_id:01M56JB4XP12M0FBSQ7ZKRNJBQ], want module docs
+    --- FAIL: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/pdf (0.01s)
+        office_frame_module_test.go:284: owner commit = 200 map[can_edit:true document_id:01M56JB4YW8BYEH5TV3PD23QQR download_url:/api/v1/office-frame/documents/01M56JB4YW8BYEH5TV3PD23QQR/content?version=1 file:map[checksum_sha256:f9de861e6420906dac3b012bda6e97db66a663e3b1e1789d71f1e72c37c3ea67 file_id:01M56JB4YW8BYEH5TV3GNJ2ZD8 filename:scan.pdf mime_type:application/pdf size_bytes:59 version:1 version_id:01M56JB4YW8BYEH5TV3T2D56EX] module:pdf organization_id:01M56JB4XK1KF8XH334FVXZ6YR revision:2 title:scan.pdf updated_at:2026-10-18T03:54:30Z workspace_id:01M56JB4XP12M0FBSQ7ZKRNJBQ], want module pdf
+    --- FAIL: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/markdown (0.01s)
+        office_frame_module_test.go:284: owner commit = 200 map[can_edit:true document_id:01M56JB4Z9Q2KJX0C89ZXK4VP3 download_url:/api/v1/office-frame/documents/01M56JB4Z9Q2KJX0C89ZXK4VP3/content?version=1 file:map[checksum_sha256:4a28fc250c09e1f28c9f37486fca6db3c7a4ee707373216f6f7bd62ade5d9330 file_id:01M56JB4Z897NDWB7ZA8CFT6VM filename:notes.md mime_type:text/markdown size_bytes:8 version:1 version_id:01M56JB4Z9Q2KJX0C8A3WWTB3A] module:markdown organization_id:01M56JB4XK1KF8XH334FVXZ6YR revision:2 title:notes.md updated_at:2026-10-18T03:54:30Z workspace_id:01M56JB4XP12M0FBSQ7ZKRNJBQ], want module markdown
+    --- FAIL: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/html (0.01s)
+        office_frame_module_test.go:284: owner commit = 200 map[can_edit:true document_id:01M56JB4ZMFNN1PSJPGBJJ1S2M download_url:/api/v1/office-frame/documents/01M56JB4ZMFNN1PSJPGBJJ1S2M/content?version=1 file:map[checksum_sha256:b2b139d1c15e52d6acb891e454f7d83f88635d37dc28068080dadeee89e3a77d file_id:01M56JB4ZMFNN1PSJPG97EMX6T filename:page.html mime_type:text/html size_bytes:51 version:1 version_id:01M56JB4ZMFNN1PSJPGBJMZ39S] module:html organization_id:01M56JB4XK1KF8XH334FVXZ6YR revision:2 title:page.html updated_at:2026-10-18T03:54:30Z workspace_id:01M56JB4XP12M0FBSQ7ZKRNJBQ], want module html
+    --- FAIL: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/slides (0.01s)
+        office_frame_module_test.go:284: owner commit = 200 map[can_edit:true document_id:01M56JB4ZZ7Y1XDWWH2T1XRRKA download_url:/api/v1/office-frame/documents/01M56JB4ZZ7Y1XDWWH2T1XRRKA/content?version=1 file:map[checksum_sha256:dbc18c12d557aab608d6b39ee8e4789df8f4ece3ad56121f524179c94884d13f file_id:01M56JB4ZZ7Y1XDWWH2R665GSG filename:deck.pptx mime_type:application/vnd.openxmlformats-officedocument.presentationml.presentation size_bytes:659 version:1 version_id:01M56JB4ZZ7Y1XDWWH2WJCSBPD] module:slides organization_id:01M56JB4XK1KF8XH334FVXZ6YR revision:2 title:deck.pptx updated_at:2026-10-18T03:54:30Z workspace_id:01M56JB4XP12M0FBSQ7ZKRNJBQ], want module slides
+    --- FAIL: TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule/sheets (0.01s)
+        office_frame_module_test.go:284: owner commit = 200 map[can_edit:true document_id:01M56JB50A4PXWWG9ANJ4BRXXH download_url:/api/v1/office-frame/documents/01M56JB50A4PXWWG9ANJ4BRXXH/content?version=1 file:map[checksum_sha256:38c8f4da774a7c708588758407f5eb70c7b4863eb4bc5158145b0ce95d50480b file_id:01M56JB50A4PXWWG9ANF63H6FP filename:book.xlsx mime_type:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet size_bytes:653 version:1 version_id:01M56JB50A4PXWWG9ANN8XD1K6] module:sheets organization_id:01M56JB4XK1KF8XH334FVXZ6YR revision:2 title:book.xlsx updated_at:2026-10-18T03:54:30Z workspace_id:01M56JB4XP12M0FBSQ7ZKRNJBQ], want module sheets
+FAIL
+coverage: 82.2% of statements
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	815.633s
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.014s	coverage: 66.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	4.911s	coverage: 99.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/logger	0.006s	coverage: 93.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mail	10.661s	coverage: 79.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/meetings	0.817s	coverage: 76.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/mentions	0.002s	coverage: 68.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/metrics	31.486s	coverage: 87.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/middleware	1.953s	coverage: 88.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/notification	59.597s	coverage: 79.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/office	0.034s	coverage: 80.3% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	19.206s	coverage: 87.1% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/realtime	44.878s	coverage: 90.2% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service	1140.105s	coverage: 75.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	19.432s	coverage: 79.0% of statements
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/storage	0.563s	coverage: 76.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/telemetry	0.005s	coverage: 86.5% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util	0.003s	coverage: 67.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/util/secretbox	0.002s	coverage: 88.9% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/workcapability	0.002s	coverage: 100.0% of statements
+ok  	github.com/unicomhub/uniwork/server/migrations	21.071s	coverage: 74.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	0.004s	coverage: 82.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	0.004s	coverage: 85.9% of statements
+FAIL
+
+TEST_GO_EXIT=1
