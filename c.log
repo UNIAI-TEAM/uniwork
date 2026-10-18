@@ -1,0 +1,278 @@
+$ pnpm --filter @uniwork/views test; rc=$?; echo; echo "VIEWS_TEST_EXIT=$rc"
+
+> @uniwork/views@0.0.0 test /workspace/packages/views
+> vitest run --coverage
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/views
+      Coverage enabled with v8
+
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:32:5
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:334:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:32:5
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:334:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:32:5
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:334:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:32:5
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:334:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:38:5
+    at getReturnElement (file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:460:83)
+    at file:///workspace/node_modules/.pnpm/@base-ui+react@1.7.0_@date-fns+tz@1.5.0_@types+react@19.2.18_date-fns@4.4.0_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs:489:29
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:26001:13)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:32:5
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:334:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13) undefined
+ ❯ settings/components/member-documents-transfer.test.tsx (19 tests | 1 failed) 4575ms
+     × deactivates first, then moves the documents batch by batch and reports the skips 314ms
+ ❯ documents/documents-library-access.test.tsx (6 tests | 1 failed) 329ms
+     × is its own labelled group of pressed-state buttons, captioned so it is not a second type row 33ms
+Error: Not implemented: window.focus
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at FakeNotification.notification.onclick (/workspace/packages/core/platform/system-notification.ts:118:14)
+    at /workspace/packages/views/layout/workspace-chat-attention.test.tsx:152:19
+    at file:///workspace/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:594:17)
+    at processTimers (node:internal/timers:529:7) undefined
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  documents/documents-library-access.test.tsx > access filter in the toolbar > is its own labelled group of pressed-state buttons, captioned so it is not a second type row
+AssertionError: expected [ 'Tất cả', 'Tôi quản lý', …(2) ] to deeply equal [ 'Tất cả', 'Tôi quản lý', …(2) ]
+
+- Expected
++ Received
+
+  [
+    "Tất cả",
+    "Tôi quản lý",
+    "Tôi sửa được",
+-   "Hạn chế",
++   "Riêng tư",
+  ]
+
+ ❯ documents/documents-library-access.test.tsx:156:76
+    154|     const group = screen.getByRole("group", { name: t("documents.home.…
+    155|     expect(ACCESS_FILTERS).toEqual(["all", "manage", "edit", "restrict…
+    156|     expect(within(group).getAllByRole("button").map((b) => b.textConte…
+       |                                                                            ^
+    157|     expect(within(group).getByRole("button", { name: "Tất cả" }).getAt…
+    158|     expect(within(group).getByRole("button", { name: "Tôi sửa được" })…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  settings/components/member-documents-transfer.test.tsx > deactivating a member with documents (DOC6-W02) > deactivates first, then moves the documents batch by batch and reports the skips
+TestingLibraryElementError: Unable to find an element with the text: 2 tài liệu hạn chế không thể chuyển cho chính bạn.. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<div[39m
+  [33maria-describedby[39m=[32m"base-ui-_r_69_"[39m
+  [33maria-labelledby[39m=[32m"base-ui-_r_68_"[39m
+  [33mclass[39m=[32m"group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-surface-raised p-4 text-popover-foreground shadow-[var(--floating-shadow)] ring-1 ring-surface-border outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs origin-center transition-[opacity,scale] duration-(--duration-standard) ease-out-quart data-starting-style:scale-[0.98] data-starting-style:opacity-0 data-ending-style:scale-[0.98] data-ending-style:opacity-0 motion-reduce:data-starting-style:scale-100 motion-reduce:data-ending-style:scale-100 motion-reduce:transition-opacity data-[size=default]:sm:max-w-md"[39m
+  [33mdata-base-ui-focusable[39m=[32m""[39m
+  [33mdata-open[39m=[32m""[39m
+  [33mdata-size[39m=[32m"default"[39m
+  [33mdata-slot[39m=[32m"alert-dialog-content"[39m
+  [33mid[39m=[32m"_r_5o_"[39m
+  [33mrole[39m=[32m"alertdialog"[39m
+  [33mstyle[39m=[32m"--nested-dialogs: 0;"[39m
+  [33mtabindex[39m=[32m"-1"[39m
+[36m>[39m
+  [36m<div[39m
+    [33mclass[39m=[32m"grid grid-rows-[auto_1fr] place-items-center gap-1.5 text-center has-data-[slot=alert-dialog-media]:grid-rows-[auto_auto_1fr] has-data-[slot=alert-dialog-media]:gap-x-4 sm:group-data-[size=default]/alert-dialog-content:place-items-start sm:group-data-[size=default]/alert-dialog-content:text-left sm:group-data-[size=default]/alert-dialog-content:has-data-[slot=alert-dialog-media]:grid-rows-[auto_1fr]"[39m
+    [33mdata-slot[39m=[32m"alert-dialog-header"[39m
+  [36m>[39m
+    [36m<h2[39m
+      [33mclass[39m=[32m"font-heading text-title-sm font-medium sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2 outline-none"[39m
+      [33mdata-slot[39m=[32m"alert-dialog-title"[39m
+      [33mid[39m=[32m"base-ui-_r_68_"[39m
+      [33mtabindex[39m=[32m"-1"[39m
+    [36m>[39m
+      [0mNguyễn Văn An đã bị vô hiệu hóa[0m
+    [36m</h2>[39m
+    [36m<p[39m
+      [33mclass[39m=[32m"text-body text-balance text-muted-foreground md:text-pretty *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground"[39m
+      [33mdata-slot[39m=[32m"alert-dialog-description"[39m
+      [33mid[39m=[32m"base-ui-_r_69_"[39m
+    [36m>[39m
+      [0mHọ không còn vào được tổ chức. Tài liệu chưa chuyển được vẫn chuyển tiếp được bằng “Chuyển tài liệu” ở dòng của họ.[0m
+    [36m</p>[39m
+  [36m</div>[39m
+  [36m<div[39m
+    [33maria-live[39m=[32m"polite"[39m
+    [33mclass[39m=[32m"space-y-2 text-body"[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m>[39m
+    [36m<ul[39m
+      [33mclass[39m=[32m"space-y-1 text-pretty"[39m
+    [36m>[39m
+      [36m<li>[39m
+        [0mĐã chuyển 3 tài liệu cho Lê Chi.[0m
+      [36m</li>[39m
+      [36m<li>[39m
+        [0m1 tài liệu ở workspace mà Lê Chi chưa tham gia chưa được chuyển.[0m
+      [36m</li>[39m
+      [36m<li>[39m
+        [0m2 tài liệu riêng tư không thể chuyển cho chính bạn.[0m
+      [36m</li>[39m
+    [36m</ul>[39m
+  [36m</div>[39m
+  [36m<div[39m
+    [33mclass[39m=[32m"-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t border-surface-border bg-surface-hover/70 p-4 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end"[39m
+    [33mdata-slot[39m=[32m"alert-dialog-footer"[39m
+  [36m>[39m
+    [36m<button[39m
+      [33mclass[39m=[32m"group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control border bg-clip-padding text-body font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] select-none active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-disabled:cursor-not-allowed pointer-coarse:min-h-11 pointer-coarse:min-w-11 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 border-input bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30 dark:hover:bg-input/50 h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2"[39m
+      [33mdata-slot[39m=[32m"alert-dialog-cancel"[39m
+      [33mtabindex[39m=[32m"0"[39m
+      [33mtype[39m=[32m"button"[39m
+    [36m>[39m
+      [0mĐóng[0m
+    [36m</button>[39m
+  [36m</div>[39m
+[36m</div>[39m
+ ❯ Object.getElementError ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ settings/components/member-documents-transfer.test.tsx:230:27
+    228|     expect(posts()[2]![1]).toEqual({ to_user_id: "u4", bulk_id: "b1", …
+    229|     expect(within(dialog).getByText("1 tài liệu ở workspace mà Lê Chi …
+    230|     expect(within(dialog).getByText("2 tài liệu hạn chế không thể chuy…
+       |                           ^
+    231|     // The result stays until the admin closes it.
+    232|     expect(within(dialog).getByRole("button", { name: "Đóng" })).toBeE…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 622 passed (624)
+      Tests  2 failed | 5714 passed (5716)
+   Start at  19:05:22
+   Duration  462.37s (transform 20.28s, setup 139.64s, import 282.53s, tests 635.08s, environment 169.95s)
+
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 test: `vitest run --coverage`
+Exit status 1
+
+VIEWS_TEST_EXIT=1

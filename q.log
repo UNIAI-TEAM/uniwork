@@ -1,0 +1,57 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18559 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18559 PREVIEW_ORIGIN=http://localhost:13452 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads FF_DOCUMENTS=true NEXT_PUBLIC_API_URL=http://localhost:18559 NEXT_PUBLIC_WS_URL=ws://localhost:18559 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18559 OFFICE_FORK_SHA=$(node -p "require(\"./apps/web/platform/office-frame/docs.pin.json\").gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-share.spec.ts documents-share-rules.spec.ts documents-sharing.spec.ts documents-sharing-ui.spec.ts documents.spec.ts documents-home.spec.ts documents-isolation.spec.ts --repeat-each=1 --reporter=list > /tmp/p3a-e2e.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/p3a-e2e.log | tail -n 200; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; echo "##### JUMP-DIAG"; sed -n '/\[jump-diag\] begin/,/\[jump-diag\] end/p' /tmp/p3a-e2e.log | head -c 80000; echo "##### END JUMP-DIAG"; grep -E "[0-9]+ (skipped|did not run)" /tmp/p3a-e2e.log; grep -qE "[0-9]+ passed" /tmp/p3a-e2e.log || { echo "no passing test"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+
+Running 43 tests using 1 worker
+
+(node:225005) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:225005) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 documents-home.spec.ts:49:1 › quick create, folder, move and the other-modules section on the owner's home (7.9s)
+  ✓   2 documents-home.spec.ts:124:1 › My Folder sub-nav row, personal folder view, localized tree label, Home create into My Folder, and system folder guards (3.8s)
+  ✓   3 documents-home.spec.ts:173:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.6s)
+  ✓   4 documents-home.spec.ts:285:3 › a view-only member › sees create controls at the root, none inside a folder shared at view level (2.5s)
+  ✓   5 documents-home.spec.ts:306:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level (2.3s)
+  ✓   6 documents-home.spec.ts:320:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ (5.1s)
+  ✓   7 documents-isolation.spec.ts:108:1 › another organization answers not found across read, history, comments and download (37ms)
+  ✓   8 documents-isolation.spec.ts:120:1 › an organization member outside the document workspace answers not found (23ms)
+  ✓   9 documents-isolation.spec.ts:124:1 › an account in no organization answers not found (28ms)
+  ✓  10 documents-isolation.spec.ts:129:1 › a deactivated member is refused with member_deactivated (5ms)
+  ✓  11 documents-isolation.spec.ts:136:1 › two saves from one base: the first wins, the stale one conflicts (12ms)
+  ✓  12 documents-isolation.spec.ts:159:1 › a create replay returns the same page; a changed payload under the same key is refused (14ms)
+  ✓  13 documents-isolation.spec.ts:175:1 › a plain member creates, types and reloads a page in the browser (6.1s)
+  ✓  14 documents-isolation.spec.ts:196:1 › a workspace member without access sees the locked card, not the content (3.5s)
+  ✓  15 documents-isolation.spec.ts:207:1 › the other organization's shell sends a foreign document URL to the picker (2.1s)
+  ✓  16 documents-share-rules.spec.ts:66:1 › AC09 without Manage there is no way to change access, list candidates or see others (30ms)
+  ✓  17 documents-share-rules.spec.ts:89:1 › U-SH4 a person without Manage opens Share and sees their own level and sources only (2.6s)
+  ✓  18 documents-share-rules.spec.ts:115:1 › AC11 sharing to another workspace does not move the document (41ms)
+  ✓  19 documents-share-rules.spec.ts:135:1 › AC13 a second grant to the same person: keep or update, duplicates refused, one row (3.5s)
+  ✓  20 documents-share-rules.spec.ts:171:1 › AC16 leaving the workspace ends the access that came through it (34ms)
+  ✓  21 documents-share-rules.spec.ts:186:1 › AC19 the library row shows the share scope as a type and a count, never names (3.6s)
+  ✓  22 documents-share-rules.spec.ts:219:1 › AC20 opening a document's URL grants nothing; Stored-in is separate from sharing (5.2s)
+  ✓  23 documents-share-rules.spec.ts:244:1 › U-SH3 one bad recipient rejects the whole batch; the popup marks that chip only (3.5s)
+  ✓  24 documents-share-rules.spec.ts:284:1 › isolation another organization reaches neither the access nor the candidates route (23ms)
+  ✓  25 documents-share-rules.spec.ts:297:1 › FR-13 the recipient gets a document_shared inbox item with the level; groups and lowering stay silent (4.6s)
+  ✓  26 documents-share.spec.ts:63:1 › U-SH2 a new page is private; the create toggle shares it with the workspace at View (Q-S3) (3.5s)
+  ✓  27 documents-share.spec.ts:101:1 › AC01 one person at View: popup, confirmation toast, list row, and a dry run writes nothing (3.2s)
+  ✓  28 documents-share.spec.ts:134:1 › AC02 ten people at View in one batch (102ms)
+  ✓  29 documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary (4.5s)
+  ✓  30 documents-share.spec.ts:194:1 › AC04 the workspace at View goes through the home row, not a share row (3.5s)
+  ✓  31 documents-share.spec.ts:221:1 › AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused for the organization and the home row (3.6s)
+  ✓  32 documents-share.spec.ts:275:1 › AC06 + AC12 Organization at Edit with a Person at View: the person keeps Edit and the popup says why (2.7s)
+  ✓  33 documents-share.spec.ts:309:1 › AC07 revoking a Person at Edit while the Workspace stays at View: the preview sentence, then the toast (3.1s)
+  ✓  34 documents-share.spec.ts:340:1 › AC08 revoking every source leaves the document private; an admin keeps admin scope only (2.5s)
+  ✓  35 documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke (15.3s)
+  ✓  36 documents-sharing.spec.ts:56:1 › a cross-workspace grant reaches the recipient and its revoke takes it away (43ms)
+  ✓  37 documents-sharing.spec.ts:93:1 › a principal from another organization cannot be granted access (10ms)
+  ✓  38 documents-sharing.spec.ts:105:1 › the other organization cannot manage the document's access (10ms)
+  ✓  39 documents-sharing.spec.ts:115:1 › a public link reads anonymously only while it is live and the switch is on (38ms)
+  ✓  40 documents.spec.ts:84:1 › a page is created, typed into, and survives a reload (7.3s)
+  ✓  41 documents.spec.ts:132:1 › a file document takes a new version and downloads it (4.1s)
+  ✓  42 documents.spec.ts:169:1 › the library lists pages across its views and the tree opens one (5.8s)
+  ✓  43 documents.spec.ts:246:1 › the library and the page editor never call the Office service (2.5s)
+
+  43 passed (2.2m)
+##### JUMP-DIAG
+##### END JUMP-DIAG
+
+E2E_EXIT=0

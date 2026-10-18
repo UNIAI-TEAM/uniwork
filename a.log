@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+a1ef68e6a10021c1ea65bc950ae86dc5c4923d80
+a1ef68e6a fix(documents): name the share level selects after the person, not the level (UNI-1914)
+c5451cfe3 fix(i18n): say "Riêng tư"/"Private" for the private document state everywhere (UNI-1914)
+cbc4d36d1 chore: merge FU-SHARING-POLISH r2 (UNI-1914, e469b8055) into the G5-G7 root
+d7d6e6845 chore: merge HOST-PRINT (UNI-1911, ae9789e62) into the G5-G7 root
+ae9789e62 chore: merge G5-G7 root 9768cf8d4 into UNI-1911 host print
+e469b8055 refactor(documents): split share-add-section under the max-lines cap (UNI-1914)
+9768cf8d4 test(e2e): open the common level only after the per-person popup closes (UNI-1784)
+4fdfe09a2 fix(documents): match the level selects' new accessible names in the shelved share test (UNI-1914)
