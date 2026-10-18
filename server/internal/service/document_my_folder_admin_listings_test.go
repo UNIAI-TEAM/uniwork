@@ -75,6 +75,44 @@ func TestAdminListingsHideForeignMyFolderSubtree(t *testing.T) {
 		t.Fatalf("CreatePage(wsVisible): %v", err)
 	}
 
+	// BE-MFS-8: a folder inside A's My Folder that the admin may open through a
+	// live manage share, holding a child nothing shares. The admin's real
+	// access to the root must not carry down to the child, so
+	// ListDocumentAccessReportSubtreeCandidates (not the root refusal, which
+	// the share admits) is the only guard left.
+	sharedFolder, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "Shared Folder Inside My Folder", Destination: DocumentSystemKindMyFolder, Kind: DocumentKindFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(sharedFolder): %v", err)
+	}
+	if _, err := env.svc.ShareDocument(ctx, memberA, sharedFolder.Document.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: admin.ID, Level: DocumentLevelManage,
+	}); err != nil {
+		t.Fatalf("ShareDocument(sharedFolder -> admin): %v", err)
+	}
+	sharedFolderChild, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "mfs-unshared-child", ParentID: sharedFolder.Document.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(sharedFolderChild): %v", err)
+	}
+
+	// BE-MFS-9: an archived workspace-visible page at workspace_level = 'view'
+	// inside A's My Folder. The trash admits workspace-visible rows only at the
+	// edit levels its member predicate uses, so the admin's see_all leg must not
+	// add it back.
+	archivedView, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "Archived Workspace View Inside My Folder", Destination: DocumentSystemKindMyFolder,
+		Visibility: documentVisibilityWorkspace,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(archivedView): %v", err)
+	}
+	if _, err := env.svc.ArchiveDocument(ctx, memberA, archivedView.Document.ID, ArchiveDocumentInput{IdempotencyKey: util.NewID()}); err != nil {
+		t.Fatalf("ArchiveDocument(archivedView): %v", err)
+	}
+
 	adminOwned, err := env.svc.CreatePage(ctx, admin, env.tn.wsA, CreatePageInput{
 		Title: "Admin ACL Owned Moved In", Visibility: documentVisibilityRestricted,
 	})
@@ -299,6 +337,77 @@ func TestAdminListingsHideForeignMyFolderSubtree(t *testing.T) {
 		}
 		if reportHas(report, wsVisible.Document.ID) == nil {
 			t.Error("admin access report missing a workspace-visible page inside the member's My Folder")
+		}
+	})
+
+	// BE-MFS-8: a folder-scoped report whose root the admin may open for real
+	// (a live manage share) is admitted by refuseAdminForeignMyFolderScope, so
+	// ListDocumentAccessReportSubtreeCandidates is the only guard left for an
+	// unshared child under that root. The root is listed; the child is absent.
+	t.Run("folder-scoped report on a manage-shared folder inside a foreign My Folder", func(t *testing.T) {
+		page, err := env.svc.DocumentAccessReport(ctx, admin, env.tn.wsA, DocumentAccessReportQuery{FolderID: sharedFolder.Document.ID})
+		if err != nil {
+			t.Fatalf("folder-scoped report on the manage-shared folder: %v", err)
+		}
+		if page.FolderID != sharedFolder.Document.ID || page.FolderTitle != sharedFolder.Document.Title {
+			t.Errorf("scope = %q %q, want the shared folder's own id and title", page.FolderID, page.FolderTitle)
+		}
+		if reportHas(page, sharedFolder.Document.ID) == nil {
+			t.Error("folder-scoped report missing its root, which the admin opens through the live manage share")
+		}
+		if it := reportHas(page, sharedFolderChild.Document.ID); it != nil {
+			t.Errorf("folder-scoped report leaked the unshared child %q of a manage-shared folder inside A's My Folder", it.Item.Document.Title)
+		}
+	})
+
+	// BE-MFS-9: the trash admits workspace-visible rows only at the edit levels
+	// its member predicate uses (shareLevelsFor(DocumentLevelEdit)); a
+	// workspace-visible page archived inside A's My Folder at workspace_level
+	// = 'view' must not come back through the admin's see_all leg.
+	t.Run("trash omits a workspace-visible view page inside a foreign My Folder", func(t *testing.T) {
+		page, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{Archived: true})
+		if err != nil {
+			t.Fatalf("ListDocuments(archived): %v", err)
+		}
+		if containsListID(page, archivedView.Document.ID) {
+			t.Error("admin trash leaked an archived workspace-visible view page inside A's My Folder")
+		}
+	})
+
+	// BE-MFS-10: the access-report candidate share EXISTS must admit a share
+	// below manage. A foreign-My-Folder descendant shared to the admin at view
+	// is a candidate (Candidates +1 vs before it existed) and the admin's real
+	// share covers it, so it is listed, not admin-scope-only. Narrowing the
+	// share levels to manage drops it from both.
+	t.Run("workspace report admits a view-shared foreign descendant", func(t *testing.T) {
+		before, err := env.svc.DocumentAccessReport(ctx, admin, env.tn.wsA, DocumentAccessReportQuery{})
+		if err != nil {
+			t.Fatalf("DocumentAccessReport(before): %v", err)
+		}
+		viewShared, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+			Title: "View Shared Inside My Folder", Destination: DocumentSystemKindMyFolder,
+		})
+		if err != nil {
+			t.Fatalf("CreatePage(viewShared): %v", err)
+		}
+		if _, err := env.svc.ShareDocument(ctx, memberA, viewShared.Document.ID, DocumentShareInput{
+			PrincipalType: DocumentPrincipalUser, PrincipalID: admin.ID, Level: DocumentLevelView,
+		}); err != nil {
+			t.Fatalf("ShareDocument(viewShared -> admin): %v", err)
+		}
+		after, err := env.svc.DocumentAccessReport(ctx, admin, env.tn.wsA, DocumentAccessReportQuery{})
+		if err != nil {
+			t.Fatalf("DocumentAccessReport(after): %v", err)
+		}
+		if after.Candidates != before.Candidates+1 {
+			t.Errorf("candidates = %d after adding the view-shared foreign descendant, want %d (the candidate share EXISTS must admit a view level)", after.Candidates, before.Candidates+1)
+		}
+		it := reportHas(after, viewShared.Document.ID)
+		if it == nil {
+			t.Fatal("workspace report dropped a foreign descendant shared to the admin at view")
+		}
+		if it.Item.Access.Level != DocumentLevelView || it.Item.Access.Via != DocumentViaShare {
+			t.Errorf("view-shared descendant access = %+v, want a real view share (not admin scope alone)", it.Item.Access)
 		}
 	})
 }
