@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+5ed5717cdb8f51662d621bf3e177de5606a62b0e
+5ed5717cd fix(documents): name the access-request level select after the person (UNI-1914)
+8ee11fed6 test(documents): assert the private wording in the library filter and transfer skip line (UNI-1914)
+a1ef68e6a fix(documents): name the share level selects after the person, not the level (UNI-1914)
+c5451cfe3 fix(i18n): say "Riêng tư"/"Private" for the private document state everywhere (UNI-1914)
