@@ -94,3 +94,15 @@ describe("officeModuleCapabilities and composeFrameInit saveCopy grant (UNI-1872
   });
 });
 
+describe("officeModuleCapabilities exportPdf grant (RFW3-2)", () => {
+  it("grants exportPdf to slides without api.export, requires api.export for docs, and keeps sheets/pdf/markdown/html off", () => {
+    expect(officeModuleCapabilities("slides", false, api).exportPdf).toBe(true);
+    expect(officeModuleCapabilities("slides", true, api).exportPdf).toBe(true);
+    expect(officeModuleCapabilities("docs", false, api).exportPdf).toBe(false);
+    expect(officeModuleCapabilities("docs", false, { export: vi.fn() } as unknown as DocsFrameApi).exportPdf).toBe(true);
+    for (const mod of ["pdf", "markdown", "html", "sheets"] as const) {
+      expect(officeModuleCapabilities(mod, false, api).exportPdf).toBe(false);
+    }
+  });
+});
+
