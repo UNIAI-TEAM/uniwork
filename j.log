@@ -1,0 +1,10 @@
+$ pnpm knip; rc=$?; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+Unused exports (1)
+FIRST_SAVE_DECLINED  packages/views/office/frame/docs-frame-session-model.ts:240:14
+ ELIFECYCLE  Command failed with exit code 1.
+
+KNIP_EXIT=1

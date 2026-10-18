@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+a70871f3579229b71f06232b7235a12eaaa56005
+a70871f35 test(e2e): cover the first-save naming of a blank Office document (UNI-1847)
+00745a1be feat(office): name a never-saved blank Office document on its first save (UNI-1847)
+b5388f37d chore: merge ROW390 library row meta line wraps below 34rem (UNI-1902, d0ba9fbcb) into the G5-G7 root
+d0ba9fbcb fix(documents): keep the row's editor on its own line until 34rem (UNI-1902)
+24135c07a fix(documents): keep the library row date and editor readable at 390 (UNI-1902)
+6f4ca157a chore: merge MYFOLDER-01 web My Folder as the default save destination (UNI-1850, 772e06fa7) into the G5-G7 root
+772e06fa7 fix(documents): show the resume hint for a Home-root upload saved under My Folder (UNI-1850)
+74de60298 fix(documents): ignore a root resume record for a Home-root chunked upload (UNI-1850)

@@ -1,0 +1,31 @@
+$ pnpm --filter @uniwork/core test; rc=$?; echo; echo "CORE_TEST_EXIT=$rc"
+
+> @uniwork/core@0.0.0 test /workspace/packages/core
+> vitest run --coverage
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/core
+      Coverage enabled with v8
+
+
+ Test Files  268 passed (268)
+      Tests  2817 passed (2817)
+   Start at  06:54:45
+   Duration  66.30s (transform 4.73s, setup 36.33s, import 24.72s, tests 22.33s, environment 71.31s)
+
+ % Coverage report from v8
+
+=============================== Coverage summary ===============================
+Statements   : 76.25% ( 10453/13708 )
+Branches     : 71.64% ( 6458/9014 )
+Functions    : 66.74% ( 2957/4430 )
+Lines        : 78% ( 9283/11901 )
+================================================================================
+
+CORE_TEST_EXIT=0
