@@ -174,6 +174,8 @@ export interface DocsFrameSessionOptions {
    * true viewer. The comments binding reads the same prop off the page.
    */
   myLevel?: string | null;
+  /** Called when the frame sends `close_requested {reason: 'escape'}` and the session is live, idle (not saving), and has no modal open. */
+  onCloseRequested?: () => void;
 }
 
 export interface DocsFrameSession {

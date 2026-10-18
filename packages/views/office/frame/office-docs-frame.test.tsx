@@ -1050,8 +1050,8 @@ describe("OfficeDocsFrame", () => {
     });
 
     it("ignores close_requested while a save is in flight, while the frame modal is open, or while another host dialog sits on top", async () => {
-      const saveGate = Promise.withResolvers<{ ok: true; file: typeof FILE; versionId: string }>();
-      const save = vi.fn(() => saveGate.promise);
+      let finishSave!: (v: { ok: true; file: typeof FILE; versionId: string }) => void;
+      const save = vi.fn(() => ({ then: (onFulfilled: (v: { ok: true; file: typeof FILE; versionId: string }) => void) => { finishSave = onFulfilled; } } as unknown as Promise<{ ok: true; file: typeof FILE; versionId: string }>));
       mount({ libraryHref: "/acme/ops/documents" }, fakeApi({ save }));
       const frame = fakeFrame();
       await boot(frame);
@@ -1061,7 +1061,7 @@ describe("OfficeDocsFrame", () => {
       await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-save-state", "saving"));
       await frame.event("close_requested", { reason: "escape" });
       expect(navigation.push).not.toHaveBeenCalled();
-      await act(async () => { saveGate.resolve({ ok: true, file: FILE, versionId: "v2" }); });
+      await act(async () => { finishSave({ ok: true, file: FILE, versionId: "v2" }); });
       await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
 
       // Frame modal open: ignored.

@@ -886,16 +886,16 @@ describe("useDocsFrameSession: close_requested (UNI-1876, UNI-1901)", () => {
   });
 
   it("ignores close_requested while a save, saveAs, saveCopy, or page Save is in flight, while the frame modal is open, or while saveBlocked is open", async () => {
-    const saveGate = Promise.withResolvers<{ ok: true; file: typeof FILE; versionId: string }>();
-    const saveAsGate = Promise.withResolvers<unknown>();
-    const saveCopyGate = Promise.withResolvers<{ documentId: string; title: string }>();
+    let finishSave!: (v: { ok: true; file: typeof FILE; versionId: string }) => void;
+    let finishSaveAs!: (v: unknown) => void;
+    let finishSaveCopy!: (v: { documentId: string; title: string }) => void;
     const onCloseRequested = vi.fn();
     const frame = setup({
       onCloseRequested,
       api: {
-        save: vi.fn(() => saveGate.promise),
-        saveAs: vi.fn(() => saveAsGate.promise) as never,
-        saveCopy: vi.fn(() => saveCopyGate.promise),
+        save: vi.fn(() => ({ then: (onFulfilled: (v: { ok: true; file: typeof FILE; versionId: string }) => void) => { finishSave = onFulfilled; } } as unknown as Promise<{ ok: true; file: typeof FILE; versionId: string }>)),
+        saveAs: vi.fn(() => ({ then: (onFulfilled: (v: unknown) => void) => { finishSaveAs = onFulfilled; } } as unknown as Promise<unknown>)) as never,
+        saveCopy: vi.fn(() => ({ then: (onFulfilled: (v: { documentId: string; title: string }) => void) => { finishSaveCopy = onFulfilled; } } as unknown as Promise<{ documentId: string; title: string }>)),
       },
     });
     await frame.boot();
@@ -905,7 +905,7 @@ describe("useDocsFrameSession: close_requested (UNI-1876, UNI-1901)", () => {
     await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saving"));
     await frame.event("close_requested", { reason: "escape" });
     expect(onCloseRequested).not.toHaveBeenCalled();
-    await act(async () => { saveGate.resolve({ ok: true, file: FILE, versionId: "v2" }); });
+    await act(async () => { finishSave({ ok: true, file: FILE, versionId: "v2" }); });
     await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
 
     // 2. Frame api.saveAs in flight -> ignored.
@@ -914,7 +914,7 @@ describe("useDocsFrameSession: close_requested (UNI-1876, UNI-1901)", () => {
     await frame.event("close_requested", { reason: "escape" });
     expect(onCloseRequested).not.toHaveBeenCalled();
     await act(async () => {
-      saveAsGate.resolve({ save: { ok: true, file: FILE, versionId: "v-c1" }, rebind: { documentId: "doc-1", token: minted(true) } });
+      finishSaveAs({ save: { ok: true, file: FILE, versionId: "v-c1" }, rebind: { documentId: "doc-1", token: minted(true) } });
     });
     await waitFor(() => expect(frame.answerTo(saveAsId)?.payload).toMatchObject({ ok: true }));
 
@@ -922,7 +922,7 @@ describe("useDocsFrameSession: close_requested (UNI-1876, UNI-1901)", () => {
     const copyId = frame.request("api.saveCopy", { name: "Copy", data: new ArrayBuffer(4) });
     await frame.event("close_requested", { reason: "escape" });
     expect(onCloseRequested).not.toHaveBeenCalled();
-    await act(async () => { saveCopyGate.resolve({ documentId: "doc-copy-1", title: "Copy" }); });
+    await act(async () => { finishSaveCopy({ documentId: "doc-copy-1", title: "Copy" }); });
     await waitFor(() => expect(frame.answerTo(copyId)?.payload).toEqual({ documentId: "doc-copy-1", title: "Copy" }));
 
     // 4. Frame modal open -> ignored; after modal closes -> delivered.
