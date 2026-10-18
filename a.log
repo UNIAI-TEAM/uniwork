@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+db7f8d1cfe04b4fe7b930410d7c70840661c7ced
+db7f8d1cf test(e2e): TEMP section-height sampler for the link revoke click (UNI-1914)
+01dd9e032 test(e2e): TEMP child-height sampler for the link revoke click (UNI-1914)
+a77ad4e03 test(e2e): TEMP rect sampler for the link revoke click (UNI-1914)
+ff363a3c3 test(e2e): TEMP click diagnostic before the link revoke (UNI-1914)
+02a59d4d9 fix(documents): hide access requests when the server has no route (UNI-1914)
+5e6bb7ad2 test(documents): pin that a link revoke after an access confirm completes (UNI-1914)
+7b5ea5e23 chore: merge UPLOAD-DIALOG-POLISH (UNI-1906, 8271bbce7) into the G5-G7 root
+fb4587ca5 test(e2e): read the voice duration at the start of its line (UNI-1908)
