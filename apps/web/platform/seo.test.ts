@@ -7,7 +7,8 @@ describe("public search policy", () => {
     expect(vi.alternates).toEqual({ canonical: "/vi/apps/office", languages: { en: "/apps/office", vi: "/vi/apps/office", "x-default": "/apps/office" } });
     expect(vi.robots).toEqual({ index: true, follow: true });
     expect(seoMetadata("/features/tasks", "en").title).toMatch(/task/i);
-    expect(seoMetadata("/apps/office", "vi").title).toEqual({ absolute: "UniWork Office — soạn thảo, bảng tính và PDF với AI" });
+    // A title without "UniWork" takes the layout's "· UniWork" suffix.
+    expect(seoMetadata("/apps/office", "vi").title).toBe("UniOffice — soạn thảo, bảng tính và PDF với AI");
   });
   it("publishes only production public pages in the sitemap", () => {
     expect(sitemapEntries("http://localhost:3000")).toEqual([]);
@@ -30,7 +31,7 @@ describe("public search policy", () => {
     const app = graph.find(node => node["@type"] === "SoftwareApplication");
     expect(app).toMatchObject({ name: "UniChat", url: "https://uniworkos.com/vi/apps/unichat", applicationCategory: "BusinessApplication", operatingSystem: "Windows, macOS, Linux, iOS, Android" });
     // The Office entry stays Office's own.
-    expect(pageStructuredData("/apps/office", "en", "https://uniworkos.com")?.["@graph"].find(node => node["@type"] === "SoftwareApplication")).toMatchObject({ name: "UniWork Office", operatingSystem: "Windows, macOS, Linux" });
+    expect(pageStructuredData("/apps/office", "en", "https://uniworkos.com")?.["@graph"].find(node => node["@type"] === "SoftwareApplication")).toMatchObject({ name: "UniOffice", operatingSystem: "Windows, macOS, Linux" });
   });
   it("publishes the apps hub and nests every app page under it", () => {
     expect(seoMetadata("/apps", "en").title).toEqual({ absolute: expect.stringMatching(/^UniWork apps/) });

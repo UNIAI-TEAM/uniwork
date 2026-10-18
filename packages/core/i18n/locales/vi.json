@@ -6408,7 +6408,7 @@
         "description": "Tìm hiểu cấu trúc tổ chức, phân quyền và nhật ký hoạt động."
       },
       "office": {
-        "title": "UniWork Office — ứng dụng văn phòng có AI",
+        "title": "UniOffice — ứng dụng văn phòng có AI",
         "description": "Bộ ứng dụng văn phòng cho macOS, Windows và Linux: soạn văn bản, bảng tính, trình chiếu, PDF, HTML và Markdown với AI, dùng chung tài khoản và workspace UniWork."
       },
       "demo": {
@@ -8727,7 +8727,7 @@
       },
       "hero": {
         "kicker": "Ứng dụng văn phòng của UniWork",
-        "title": "UniWork Office",
+        "title": "UniOffice",
         "sub": "Soạn thảo tài liệu, bảng tính và bài trình bày với AI. Kết nối cùng workspace UniWork.",
         "explore": "Khám phá bộ soạn thảo",
         "trial": "Tải dùng thử",
@@ -8749,7 +8749,7 @@
         "title": "Sáu trình soạn thảo. Một workspace.",
         "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
         "tabs": "Trình soạn thảo",
-        "imageAlt": "UniWork Office: {{editor}} với bảng AI",
+        "imageAlt": "UniOffice: {{editor}} với bảng AI",
         "imageCaption": "Giao diện minh hoạ",
         "imageUnavailable": "Không tải được ảnh xem trước. Tải lại trang để thử lại.",
         "docs": {
@@ -8832,7 +8832,7 @@
       },
       "ai": {
         "title": "AI có sẵn, file vẫn nằm trong workspace của nhóm",
-        "sub": "UniWork Office dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
+        "sub": "UniOffice dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
         "account": {
           "title": "AI qua tài khoản UniWork",
           "description": "Công cụ AI trên cloud chạy qua UniWork theo cấu hình và gói của tổ chức. Khi dùng khóa API riêng trên web, yêu cầu vẫn đi qua UniWork tới nhà cung cấp bạn chọn. Luồng desktop có cấu hình riêng; kiểm tra trong ứng dụng trước khi gửi nội dung."
@@ -8874,7 +8874,7 @@
       },
       "faq": {
         "title": "Câu hỏi thường gặp",
-        "q1": "UniWork Office có tốn phí không?",
+        "q1": "UniOffice có tốn phí không?",
         "a1": "Ứng dụng đi cùng tài khoản UniWork. AI trên cloud tính theo gói UniWork của tổ chức; xem trang Bảng giá để biết các gói hiện có.",
         "q2": "Mở được những định dạng nào?",
         "a2": "DOCX, XLSX, PPTX, PDF, HTML và Markdown. Với file Office định dạng cũ, hãy mở từ Tài liệu trên web để UniWork chuyển đổi.",
@@ -8888,7 +8888,7 @@
         "a6": "Trong Tài liệu, chọn Mở bằng app ở file bạn cần, hoặc bấm Mở UniWork Office để chỉ mở ứng dụng. Nếu chưa cài, UniWork sẽ hướng dẫn tải."
       },
       "download": {
-        "title": "Tải UniWork Office",
+        "title": "Tải UniOffice",
         "version": "Phiên bản {{version}}",
         "requirements": "Yêu cầu: {{value}}",
         "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
@@ -9117,7 +9117,7 @@
           "more": "Xem tính năng"
         },
         "office": {
-          "name": "UniWork Office",
+          "name": "UniOffice",
           "kicker": "Máy tính",
           "description": "Soạn tài liệu, bảng tính và bài trình bày với AI, nối với workspace.",
           "tagline": "Soạn thảo tài liệu, bảng tính và bài trình bày với AI. Kết nối cùng workspace UniWork.",
@@ -9231,11 +9231,11 @@
           "eyebrow": "Hỏi đáp",
           "title": "Câu hỏi thường gặp",
           "q1": "Tôi có phải cài ứng dụng nào không?",
-          "a1": "Không bắt buộc. Mọi thứ chạy trên web trong UniWork. Cài UniWork Office nếu bạn soạn tài liệu, bảng tính hay trình chiếu trên máy; cài UniChat nếu muốn chat của nhóm có ứng dụng riêng trên máy tính và điện thoại.",
+          "a1": "Không bắt buộc. Mọi thứ chạy trên web trong UniWork. Cài UniOffice nếu bạn soạn tài liệu, bảng tính hay trình chiếu trên máy; cài UniChat nếu muốn chat của nhóm có ứng dụng riêng trên máy tính và điện thoại.",
           "q2": "Mỗi ứng dụng có cần tài khoản riêng không?",
           "a2": "Không. Tất cả dùng tài khoản UniWork, đăng nhập qua trình duyệt, và thấy đúng các workspace bạn là thành viên.",
           "q3": "Dữ liệu nằm ở đâu?",
-          "a3": "Tài liệu, tin nhắn và việc của nhóm nằm trong workspace UniWork, theo phân quyền của tổ chức. File bạn mở từ máy tính trong UniWork Office vẫn ở trên máy bạn.",
+          "a3": "Tài liệu, tin nhắn và việc của nhóm nằm trong workspace UniWork, theo phân quyền của tổ chức. File bạn mở từ máy tính trong UniOffice vẫn ở trên máy bạn.",
           "q4": "Đã có bản cho điện thoại chưa?",
           "a4": "UniChat có bản iPhone và Android đang thử nghiệm: chỉ người được mời mới cài được qua TestFlight hoặc Google Play. Trên điện thoại, bạn vẫn mở UniWork trong trình duyệt."
         },

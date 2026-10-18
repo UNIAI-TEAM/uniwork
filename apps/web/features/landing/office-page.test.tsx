@@ -79,7 +79,7 @@ afterEach(() => {
 describe("the Office page", () => {
   it("keeps one editor selector and the selected example, without a second use-case grid", async () => {
     await render({ flags: {}, office_installers: installers });
-    expect(container.querySelector("h1")?.textContent).toBe("UniWork Office");
+    expect(container.querySelector("h1")?.textContent).toBe("UniOffice");
     expect(container.querySelectorAll("[role=tab]")).toHaveLength(6);
     expect(container.querySelectorAll("[role=tabpanel]")).toHaveLength(1);
     expect(container.querySelector(".office-editor-example")?.getAttribute("data-office-example")).toBe("draft");
@@ -108,7 +108,7 @@ describe("the Office page", () => {
   it("degrades to the same state when the config answer drifts", async () => {
     await render({ unexpected: true });
     expect(container.querySelectorAll("[download]")).toHaveLength(0);
-    expect(container.querySelector("h1")?.textContent).toBe("UniWork Office");
+    expect(container.querySelector("h1")?.textContent).toBe("UniOffice");
   });
 
   it("changes the example, capabilities and media together when an editor is selected", async () => {
@@ -176,7 +176,7 @@ describe("the Office page", () => {
   it("leads with the promise, a trial button to the download block and a demo request, above the editor preview", async () => {
     await render({ flags: {}, office_installers: installers });
     const hero = container.querySelector(".office-hero");
-    expect(hero?.querySelector("h1")?.textContent).toBe("UniWork Office");
+    expect(hero?.querySelector("h1")?.textContent).toBe("UniOffice");
     expect(hero?.querySelector(".office-sub")?.textContent).toBe("Soạn thảo tài liệu, bảng tính và bài trình bày với AI. Kết nối cùng workspace UniWork.");
     const trial = hero?.querySelector<HTMLAnchorElement>(".office-trial-action");
     expect(trial?.textContent).toBe("Tải dùng thử");

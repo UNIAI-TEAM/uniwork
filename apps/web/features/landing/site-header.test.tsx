@@ -70,7 +70,7 @@ describe("the landing header's Apps menu", () => {
     const directory = await openApps();
     expect(toggle?.getAttribute("aria-expanded")).toBe("true");
     expect(hrefs(directory, ".header-apps-list a")).toEqual(["/", "/apps/office", "/apps/unichat"]);
-    expect([...directory.querySelectorAll(".header-apps-list a strong")].map((s) => s.textContent)).toEqual(["UniWork", "UniWork Office", "UniChat"]);
+    expect([...directory.querySelectorAll(".header-apps-list a strong")].map((s) => s.textContent)).toEqual(["UniWork", "UniOffice", "UniChat"]);
     const personal = directory.querySelector("[data-office-personal]");
     expect(personal?.textContent).toContain("Office for Personal");
     expect(personal?.textContent).toContain("Đang phát triển");
@@ -87,7 +87,7 @@ describe("the landing header's Apps menu", () => {
     expect(directory.querySelector(".header-quick-row small")?.textContent).toBe("x64 · .exe");
     // The menu never hands out the file itself: the app page settles the chip and the format.
     expect(directory.querySelector(`a[href='${url}']`)).toBeNull();
-    expect(directory.querySelector(".header-quick-get")?.textContent).toBe("Tải UniWork Office");
+    expect(directory.querySelector(".header-quick-get")?.textContent).toBe("Tải UniOffice");
   });
 
   it("tags UniChat's phone builds as a pilot only while every published one is", async () => {

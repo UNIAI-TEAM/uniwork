@@ -27,7 +27,7 @@ const SECTIONS = [
 const WORKS = [{ key: "open", icon: FolderOpen }, { key: "version", icon: RotateCcwClock }, { key: "share", icon: MessageSquare }] as const;
 
 /**
- * THESIS: UniWork Office is the desktop office app of the UniWork Work OS.
+ * THESIS: UniOffice is the desktop office app of the UniWork Work OS.
  * OWN-WORLD: Be Vietnam Pro, neutral ground, restrained cyan/slate stage and real editor media.
  * STORY: Download the published trial, explore six editors and understand connected files and AI.
  * FIRST VIEWPORT: Centered promise and actions above one broad, six-tab product preview.

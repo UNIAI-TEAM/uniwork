@@ -6412,7 +6412,7 @@
         "description": "Explore organization structure, permissions and the activity log."
       },
       "office": {
-        "title": "UniWork Office — the AI office app",
+        "title": "UniOffice — the AI office app",
         "description": "Office apps for macOS, Windows and Linux: documents, spreadsheets, slides, PDF, HTML and Markdown with AI, sharing your UniWork account and workspace."
       },
       "demo": {
@@ -8732,7 +8732,7 @@
       },
       "hero": {
         "kicker": "The UniWork office app",
-        "title": "UniWork Office",
+        "title": "UniOffice",
         "sub": "Create documents, spreadsheets and presentations with AI. Connected to your UniWork workspace.",
         "explore": "Explore the editors",
         "trial": "Download trial",
@@ -8754,7 +8754,7 @@
         "title": "Six editors. One workspace.",
         "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
         "tabs": "Editors",
-        "imageAlt": "UniWork Office: {{editor}} with the AI panel",
+        "imageAlt": "UniOffice: {{editor}} with the AI panel",
         "imageCaption": "Illustrative interface",
         "imageUnavailable": "The preview image could not load. Reload the page to try again.",
         "docs": {
@@ -8837,7 +8837,7 @@
       },
       "ai": {
         "title": "AI built in, your files stay in your team's workspace",
-        "sub": "UniWork Office shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
+        "sub": "UniOffice shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
         "account": {
           "title": "AI through your UniWork account",
           "description": "Cloud AI tools run through UniWork under your organization’s configuration and plan. On the web, requests using your own API key still pass through UniWork to your chosen provider. Desktop has its own configuration; check the application before sending content."
@@ -8879,7 +8879,7 @@
       },
       "faq": {
         "title": "Frequently asked questions",
-        "q1": "Does UniWork Office cost anything?",
+        "q1": "Does UniOffice cost anything?",
         "a1": "The app comes with your UniWork account. Cloud AI follows your organization's UniWork plan; see the Pricing page for the plans on offer.",
         "q2": "Which formats can I open?",
         "a2": "DOCX, XLSX, PPTX, PDF, HTML and Markdown. For older Office formats, open the file from Documents on the web and UniWork converts it.",
@@ -8893,7 +8893,7 @@
         "a6": "In Documents, choose Open in app on the file you need, or press Open UniWork Office to just launch the app. If it isn't installed, UniWork walks you through the download."
       },
       "download": {
-        "title": "Download UniWork Office",
+        "title": "Download UniOffice",
         "version": "Version {{version}}",
         "requirements": "Requires: {{value}}",
         "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
@@ -9122,7 +9122,7 @@
           "more": "See features"
         },
         "office": {
-          "name": "UniWork Office",
+          "name": "UniOffice",
           "kicker": "Desktop",
           "description": "Write documents, spreadsheets and presentations with AI, connected to your workspace.",
           "tagline": "Create documents, spreadsheets and presentations with AI. Connected to your UniWork workspace.",
@@ -9236,11 +9236,11 @@
           "eyebrow": "FAQ",
           "title": "Frequently asked questions",
           "q1": "Do I have to install anything?",
-          "a1": "No. Everything runs on the web in UniWork. Install UniWork Office if you write documents, spreadsheets or slides on your computer; install UniChat if you want your team's chat in an app of its own on desktop and phone.",
+          "a1": "No. Everything runs on the web in UniWork. Install UniOffice if you write documents, spreadsheets or slides on your computer; install UniChat if you want your team's chat in an app of its own on desktop and phone.",
           "q2": "Does each app need its own account?",
           "a2": "No. They all use your UniWork account, sign in through the browser and show exactly the workspaces you belong to.",
           "q3": "Where does the data live?",
-          "a3": "Your team's documents, messages and tasks live in its UniWork workspace, under your organization's permissions. Files you open from your computer in UniWork Office stay on your computer.",
+          "a3": "Your team's documents, messages and tasks live in its UniWork workspace, under your organization's permissions. Files you open from your computer in UniOffice stay on your computer.",
           "q4": "Is there a phone app yet?",
           "a4": "UniChat has iPhone and Android builds in pilot: only invited people can install them through TestFlight or Google Play. On a phone you can still open UniWork in the browser."
         },

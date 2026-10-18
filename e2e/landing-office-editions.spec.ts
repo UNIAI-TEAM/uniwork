@@ -21,7 +21,7 @@ for (const scenario of [
       expect((await auditText(page, "#header-directory-apps")).fails).toEqual([]);
     }
     const menu = page.locator(scenario.width < 1100 ? "#landing-mobile-menu" : "#header-directory-apps");
-    await expect(menu.locator('.header-apps-list a[href$="/apps/office"]')).toContainText("UniWork Office");
+    await expect(menu.locator('.header-apps-list a[href$="/apps/office"]')).toContainText("UniOffice");
     await expect(menu.locator("[data-office-personal]")).toContainText(scenario.personal);
     await expect(menu.locator("[data-office-personal]")).toContainText(scenario.status);
     await expect(menu.locator('a[href*="office-personal"]')).toHaveCount(0);
