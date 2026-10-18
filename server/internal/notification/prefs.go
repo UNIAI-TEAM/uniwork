@@ -18,24 +18,33 @@ type Prefs struct {
 // Replies and resolves stay in-app only (G8-D4: push on for mentions). An
 // edit request needs a quick answer and a take-over may leave unsaved work
 // behind, so both push; the answer to a request stays in-app (UNI-1645 Q6).
-// An emergency access to a restricted document also pushes (DOC-05).
+// An emergency access to a restricted document also pushes (DOC-05). A trash
+// notice stays out of the digest too (TRASH-NOTIFY-01, Q-R2: in-app only).
 func DefaultPrefs(kind string) Prefs {
 	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindTaskAssigned || kind == KindMeetingStarting ||
 		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM ||
 		kind == KindDocumentEditRequested || kind == KindDocumentEditTakenOver
-	return Prefs{InApp: true, Push: push, Email: true}
+	return Prefs{InApp: true, Push: push, Email: kind != KindDocumentTrashedByOther}
 }
 
 // Matrix is one user's full preference set, kind → Prefs, defaults filled in.
 type Matrix map[string]Prefs
 
-// For returns the setting for kind, the default when the user has no row.
+// For returns the setting for kind, the default when the user has no row -
+// with the channel ceiling applied: the stored row is what the person asked
+// for, the answer is what they get (BE-TN-4). A trash notice never emails
+// (TRASH-NOTIFY-01, Q-R2: in-app only), so Email reads false whatever was
+// saved; the matrix and the digest both answer through here.
 func (m Matrix) For(kind string) Prefs {
-	if p, ok := m[kind]; ok {
-		return p
+	p, ok := m[kind]
+	if !ok {
+		p = DefaultPrefs(kind)
 	}
-	return DefaultPrefs(kind)
+	if kind == KindDocumentTrashedByOther {
+		p.Email = false
+	}
+	return p
 }
 
 // FullMatrix returns every kind with the stored value or its default, in Kinds

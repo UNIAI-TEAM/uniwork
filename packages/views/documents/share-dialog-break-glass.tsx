@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage } from "@uniwork/core/api";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { isBreakGlassRequiredError } from "@uniwork/core/api/endpoints/documents";
 import { useRevokeDocumentBreakGlass } from "@uniwork/core/documents/break-glass-queries";
 import { shareLevelNotAllowedMax } from "@uniwork/core/documents/errors";
@@ -38,6 +38,9 @@ export function useShareWorkspace(doc: Pick<DocumentAdminRef, "id" | "organizati
 export function shareErrorMessage(err: unknown, t: ReturnType<typeof useTranslation>["t"]): string | undefined {
   if (isBreakGlassRequiredError(err)) {
     return t("documents.breakGlass.selfShareError");
+  }
+  if (errorCode(err) === "my_folder_locked") {
+    return t("documents.errors.my_folder_locked");
   }
   // A share for the document's own workspace above the home row's ceiling
   // (SH-S1 Q-S1) names that ceiling: say it here instead of the server's

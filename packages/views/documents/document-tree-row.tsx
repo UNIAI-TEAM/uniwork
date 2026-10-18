@@ -4,6 +4,7 @@ import { ChevronRight, Star } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { isMyFolder } from "@uniwork/core/types/document";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   DocumentTreeRowMenu, isRowMenuShortcut, TREE_ROW_KEYSHORTCUTS, type TreeRowMenuActions,
@@ -48,15 +49,15 @@ export function TreeRowItem({
 }: TreeRowItemProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const drag = useDraggable({ id: `doc:${row.node.id}`, disabled: dragDisabled });
+  const myFolder = isMyFolder(row.node);
+  const drag = useDraggable({ id: `doc:${row.node.id}`, disabled: dragDisabled || myFolder });
   const drop = useDroppable({ id: `drop:${row.node.id}`, data: { id: row.node.id } });
   const { setNodeRef: setDragRef, isDragging } = drag;
   const { setNodeRef: setDropRef, isOver } = drop;
-
   // The dnd-kit `attributes` are not spread: they force role="button", which
   // is the wrong role inside a tree. Keyboard navigation is the tree's own.
   const { listeners } = drag;
-  const label = row.node.title || t("documents.detail.untitled");
+  const label = (myFolder ? t("documents.home.my_folder.label") : row.node.title) || t("documents.detail.untitled");
 
   return (
     <div
