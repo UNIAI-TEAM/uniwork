@@ -22,6 +22,10 @@ afterAll(async () => {
   await setLocale("en");
 });
 
+// A row's scope comes from `share_scope` only; it is never guessed from `visibility`.
+const SCOPE_PRIVATE = { users: 0, home_workspace: false, workspaces: 0, organization: false, public_link: false };
+const SCOPE_HOME = { ...SCOPE_PRIVATE, home_workspace: true };
+
 function doc(id: string, title: string, over: Partial<DocumentSummaryRow> = {}): DocumentSummaryRow {
   return {
     id,
@@ -119,11 +123,11 @@ describe("board columns", () => {
 describe("access column", () => {
   it("shows the visibility on line 1 and 'Bạn: <level>' on line 2", () => {
     renderList([
-      doc("a", "A.docx", { my_level: "manage", visibility: "restricted" }),
-      doc("b", "B.docx", { my_level: "view", visibility: "workspace" }),
+      doc("a", "A.docx", { my_level: "manage", visibility: "restricted", share_scope: SCOPE_PRIVATE }),
+      doc("b", "B.docx", { my_level: "view", visibility: "workspace", share_scope: SCOPE_HOME }),
     ]);
     const accessA = cellsOf("a")[1]!;
-    expect(within(accessA).getByText("Hạn chế")).toBeTruthy();
+    expect(within(accessA).getByText("Riêng tư")).toBeTruthy();
     expect(within(accessA).getByText("Bạn: Quản lý")).toBeTruthy();
     // A restricted row keeps the amber lock (warning token) ahead of the label.
     expect(accessA.querySelector("svg.text-warning")).toBeTruthy();
@@ -139,9 +143,9 @@ describe("access column", () => {
     expect(within(access).queryByText("Bạn: Quản lý")).toBeNull();
   });
 
-  it("never labels restricted as 'Riêng tư'", () => {
-    renderList([doc("a", "A.docx", { visibility: "restricted", via: "owner" as DocumentSummaryRow["via"] })]);
-    expect(screen.queryByText("Riêng tư")).toBeNull();
+  it("labels unshared restricted rows as 'Riêng tư'", () => {
+    renderList([doc("a", "A.docx", { visibility: "restricted", share_scope: SCOPE_PRIVATE, via: "owner" as DocumentSummaryRow["via"] })]);
+    expect(screen.getAllByText("Riêng tư").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows — when the row carries no visibility, and keeps the narrow-row level on the secondary line", () => {
@@ -149,6 +153,86 @@ describe("access column", () => {
     expect(within(cellsOf("c")[1]!).getByText("—")).toBeTruthy();
     const line = document.querySelector('[data-library-row="c"] [data-library-access-line]')!;
     expect(line.textContent).not.toMatch(/Bạn:/);
+  });
+
+  it("keeps the scope tooltip out of the name button's accessible name while it still describes the badge (R3-03)", () => {
+    renderList([
+      doc("a", "Kế hoạch Q4", {
+        share_scope: { users: 2, home_workspace: true, workspaces: 0, organization: false, public_link: false },
+      }),
+    ]);
+
+    const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
+    const nameButton = within(row).getAllByRole("button")[0]!;
+    expect(nameButton).toHaveAccessibleName(/Kế hoạch Q4/);
+    expect(nameButton).not.toHaveAccessibleName(/Workspace · 2 người/);
+
+    const badge = within(row).getAllByTestId("document-share-scope-badge")[0]!;
+    const descId = badge.getAttribute("aria-describedby");
+    expect(descId).toBeTruthy();
+    expect(document.getElementById(descId!)?.textContent).toBe("Workspace · 2 người");
+  });
+});
+
+describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
+  it("wraps meta (editor · date · size) above level · share scope below 34rem with a non-truncating date and no orphan separator", () => {
+    renderList([
+      doc("a", "Hợp đồng mẫu.docx", {
+        my_level: "manage",
+        via: "owner" as DocumentSummaryRow["via"],
+        visibility: "restricted",
+        share_scope: SCOPE_PRIVATE,
+        updated_at: "2026-10-17T03:00:00Z",
+        size_bytes: 2500,
+      }),
+      doc("b", "Không người sửa.docx", {
+        updated_by: "",
+        my_level: "view",
+        visibility: "workspace",
+        updated_at: "2026-10-17T03:00:00Z",
+        size_bytes: 2500,
+      }),
+    ]);
+    const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;
+    expect(line).toHaveClass("flex-wrap", "@min-[34rem]/library:flex-nowrap");
+
+    const metaGroup = line.querySelector("[data-library-meta-line]") as HTMLElement;
+    const accessGroup = line.querySelector("[data-library-access-group]") as HTMLElement;
+    expect(metaGroup).toBeTruthy();
+    expect(accessGroup).toBeTruthy();
+    expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[34rem]/library:basis-auto", "@min-[42rem]/library:hidden");
+    expect(accessGroup).toHaveClass("shrink-0");
+
+    const editorEl = within(metaGroup).getByText("An");
+    expect(editorEl).toHaveClass("min-w-0", "truncate");
+
+    const dateSizeEl = Array.from(metaGroup.querySelectorAll("span")).find((el) => el.textContent?.includes("2,4 KB")) as HTMLElement;
+    expect(dateSizeEl).toBeTruthy();
+    expect(dateSizeEl.textContent).toMatch(/17\/10\/2(6|026)/);
+    expect(dateSizeEl).toHaveClass("shrink-0");
+    expect(dateSizeEl).not.toHaveClass("truncate");
+
+    expect(within(accessGroup).getByText("Chủ sở hữu")).toBeTruthy();
+    expect(within(accessGroup).getByTestId("document-share-scope-badge")).toBeTruthy();
+
+    expect(metaGroup.firstElementChild?.textContent).not.toBe("·");
+    expect(metaGroup.lastElementChild?.textContent).not.toBe("·");
+    expect(accessGroup.firstElementChild?.textContent).not.toBe("·");
+    expect(accessGroup.lastElementChild?.textContent).not.toBe("·");
+
+    const interDot = Array.from(line.children).find((el) => el.textContent === "·") as HTMLElement;
+    expect(interDot).toBeTruthy();
+    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[42rem]/library:hidden");
+
+    const lineB = document.querySelector('[data-library-row="b"] [data-library-access-line]') as HTMLElement;
+    const metaB = lineB.querySelector("[data-library-meta-line]") as HTMLElement;
+    const accessB = lineB.querySelector("[data-library-access-group]") as HTMLElement;
+    expect(metaB).toHaveClass("@min-[29rem]/library:hidden");
+    expect(metaB.firstElementChild?.textContent).not.toBe("·");
+    expect(metaB.lastElementChild?.textContent).not.toBe("·");
+    expect(accessB.firstElementChild?.textContent).not.toBe("·");
+    expect(accessB.lastElementChild?.textContent).not.toBe("·");
+    expect(Array.from(lineB.children).find((el) => el.textContent === "·")).toBeUndefined();
   });
 });
 

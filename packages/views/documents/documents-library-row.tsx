@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2, Users } from "lucide-react";
+import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -24,6 +24,10 @@ import { isMyFolder } from "@uniwork/core/types/document";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
+import {
+  DocumentShareScopeBadge,
+  isPlainHomeWorkspaceScope,
+} from "./document-share-scope-badge";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { libraryCell, type LibraryLadder } from "./library-columns";
@@ -37,7 +41,6 @@ import {
   rowSizeBytes,
   rowTitle,
   rowUpdatedAt,
-  rowVisibilityLabelKey,
   type DocumentSummaryRow,
   type LibraryRow,
 } from "./library-rows";
@@ -130,14 +133,14 @@ export function LibraryRowView({
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
-  // The board's Truy cập cell: scope on line 1 (amber lock + "Hạn chế" for
-  // restricted — never "Riêng tư"), the viewer's level on line 2, "Chủ sở hữu"
-  // when the row's via is owner. The narrow secondary line still shows the
-  // bare level word until the column joins.
+  // The board's Truy cập cell: scope badge on line 1 (DocumentShareScopeBadge),
+  // the viewer's level on line 2, "Chủ sở hữu" when the row's via is owner.
+  // The narrow secondary line shows the level word and any non-default scope until the column joins.
   const levelKey = rowAccessLabelKey(row);
-  const visibilityKey = rowVisibilityLabelKey(row);
+  // A row without `share_scope` shows no scope; it is never guessed from `visibility`.
+  const scope = doc?.share_scope ?? null;
+  const showNarrowScope = Boolean(scope && !isPlainHomeWorkspaceScope(scope));
   const levelLabel = doc?.via === "owner" ? t("documents.home.access.owner") : levelKey ? t(levelKey) : null;
-  const restricted = doc?.visibility === "restricted";
   const starred = Boolean(doc && handlers.isStarred(doc.id));
   const metaTail = [updated, size].filter(Boolean).join(" · ");
 
@@ -268,21 +271,38 @@ export function LibraryRowView({
             />
           ) : null}
         </span>
-        {/* The editor rides on this line until its column joins (40rem), the date · size pair until theirs do (28rem); the level and the restricted mark until Truy cập does (53rem, library-columns.ts). Only the meta parts truncate: the mark keeps its width inside the Name cell. */}
-        {editor || metaTail || levelLabel || restricted ? (
-          <span data-library-access-line className={cn("flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-muted-foreground", ladder.accessLineHides)}>
-            {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
-            {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
-            {metaTail ? <span className={cn("min-w-0 truncate", ladder.metaTailHides)}>{metaTail}</span> : null}
-            {(editor || metaTail) && (levelLabel || restricted) ? (
-              <span aria-hidden className={cn("shrink-0", editor ? ladder.metaHides : ladder.metaTailHides)}>·</span>
+        {/* Below 34rem the meta group (editor · date · size) and level · share scope stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
+        {editor || metaTail || levelLabel || showNarrowScope ? (
+          <span
+            data-library-access-line
+            className={cn(
+              "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[34rem]/library:flex-nowrap",
+              ladder.accessLineHides,
+            )}
+          >
+            {editor || metaTail ? (
+              <span
+                data-library-meta-line
+                className={cn(
+                  "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
+                  editor ? ladder.metaHides : ladder.metaTailHides,
+                )}
+              >
+                {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
+                {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
+                {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
+              </span>
             ) : null}
-            {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
-            {levelLabel && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
-            {restricted && visibilityKey ? (
-              <span className="flex shrink-0 items-center gap-1">
-                <Lock aria-hidden className="size-3 shrink-0" />
-                {t(visibilityKey)}
+            {editor && (levelLabel || showNarrowScope) ? (
+              <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaHides)}>·</span>
+            ) : null}
+            {levelLabel || showNarrowScope ? (
+              <span data-library-access-group className="flex shrink-0 items-center gap-1.5">
+                {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
+                {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
+                {showNarrowScope ? (
+                  <DocumentShareScopeBadge shareScope={doc?.share_scope} workspaceId={doc?.workspace_id} compact focusable={false} />
+                ) : null}
               </span>
             ) : null}
           </span>
@@ -308,15 +328,12 @@ export function LibraryRowView({
           )}
         </td>
         <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "access"))}>
-          {visibilityKey ? (
-            <span className="flex items-center gap-1.5 text-foreground">
-              {restricted ? (
-                <Lock aria-hidden className="size-3.5 shrink-0 text-warning" />
-              ) : (
-                <Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-              )}
-              <span className="truncate">{t(visibilityKey)}</span>
-            </span>
+          {scope ? (
+            <DocumentShareScopeBadge
+              shareScope={doc?.share_scope}
+              workspaceId={doc?.workspace_id}
+              className="flex gap-1.5"
+            />
           ) : (
             <span className="text-muted-foreground">—</span>
           )}

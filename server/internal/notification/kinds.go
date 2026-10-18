@@ -60,6 +60,8 @@ const (
 	KindDocumentAccessRequested = "document_access_requested"
 	KindDocumentAccessApproved  = "document_access_approved"
 	KindDocumentAccessDeclined  = "document_access_declined"
+	// Direct user document share that raises effective access (SH-S3, UNI-1782).
+	KindDocumentShared = "document_shared"
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else moved a person's document to
 	// the trash; the ACL owner hears once per archive batch. In-app only by
 	// default (Q-R2: no email, push off).
@@ -77,6 +79,7 @@ var Kinds = []string{
 	KindDocumentBreakGlass,
 	KindChatMentioned, KindChatDM, KindChatThreadReplied, KindChatCallIncoming,
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
+	KindDocumentShared,
 	KindDocumentTrashedByOther,
 }
 

@@ -56,6 +56,7 @@ export type CreateDocumentBody = {
   kind?: "page" | "folder";
   icon?: string;
   content?: unknown;
+  /** Only `visibility` is on the create wire; the level is the server's (view at the root). */
   visibility?: DocumentVisibility;
 } & CreateDocumentPlacementWire;
 
@@ -77,6 +78,7 @@ export interface PatchDocumentBody {
 export type CreateDocumentFileMeta = {
   /** Display title; defaults to the file name server-side. */
   title?: string;
+  visibility?: DocumentVisibility;
 } & (
   | { parent_id?: string; parentId?: string; destination?: never }
   | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never }
@@ -190,6 +192,7 @@ export async function createDocumentFile(
       parent_id: meta?.parent_id ?? meta?.parentId,
       destination: meta?.destination,
       title: meta?.title,
+      visibility: meta?.visibility,
     }),
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,

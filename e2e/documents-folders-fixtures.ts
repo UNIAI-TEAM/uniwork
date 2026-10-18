@@ -279,7 +279,7 @@ const FOLDER_USER_PASSWORD = "password123";
  * /auth/register shares a 60/min per-IP credential limit with every parallel
  * worker, and A12 registers several extra members per run.
  */
-async function registerFolderUser(
+export async function registerFolderUser(
   page: Page,
   tag: string,
 ): Promise<{ token: string; email: string }> {

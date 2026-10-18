@@ -175,8 +175,9 @@ export function rowVisibilityLabelKey(row: LibraryRow): string | null {
   const visibility: string | null | undefined = row.doc.visibility;
   switch (visibility) {
     case "workspace":
+      return "documents.scope.workspace";
     case "restricted":
-      return `documents.home.visibility.${visibility}`;
+      return "documents.scope.private";
     default:
       return null;
   }

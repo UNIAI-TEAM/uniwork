@@ -1017,7 +1017,7 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     expect(requestMock.mock.calls.filter(([p]) => p === "/api/v1/documents/d1")).toHaveLength(1);
   });
 
-  it("excludes the admin-summary document workspace and offers the route workspace when they differ (BE-SHS1-41)", async () => {
+  it("marks the admin-summary document workspace as home and offers the route workspace as an ordinary one when they differ (BE-SHS1-41)", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === "/api/v1/documents/d1") return Promise.reject(restricted());
       if (path === "/api/v1/documents/d1/admin-summary") {
@@ -1033,6 +1033,8 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
         });
       }
       if (path === "/api/v1/documents/d1/access-requests") return Promise.resolve({ requests: [] });
+      // No candidate service: the picker builds its directory from the org workspaces.
+      if (path.includes("/share-candidates")) return Promise.reject(new ApiError("not found", "not_found", 404));
       if (path === "/api/v1/orgs/org1/workspaces") {
         return Promise.resolve({
           workspaces: [
@@ -1048,16 +1050,16 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Kế hoạch Q3" }) });
     await within(dialog).findByText(t("documents.share.add_title"));
 
-    fireEvent.click(within(dialog).getByRole("combobox", { name: t("documents.share.principal_label") }));
-    const wsOption = await screen.findByRole("option", { name: t("documents.share.principal_workspace") });
-    fireEvent.pointerDown(wsOption, { pointerType: "mouse" });
-    fireEvent.pointerUp(wsOption, { pointerType: "mouse" });
-    fireEvent.click(wsOption);
-    await waitFor(() => expect(screen.queryAllByRole("option")).toHaveLength(0));
-
-    fireEvent.click(within(dialog).getByRole("combobox", { name: t("documents.share.principal_placeholder") }));
-    expect(await screen.findByRole("option", { name: "Team" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Design" })).toBeNull();
+    // The picker opens from the keyboard (Base UI), as in share-dialog.test.tsx.
+    const input = within(dialog).getByRole("combobox", { name: t("documents.share.principal_placeholder") });
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    // The route workspace is offered as an ordinary workspace; the document's own
+    // workspace (Design, from the admin summary) is the home one, never the route's.
+    const team = await screen.findByRole("option", { name: /Team/ });
+    expect(within(team).queryByText(t("documents.share.home_badge"))).toBeNull();
+    const design = screen.getByRole("option", { name: /Design/ });
+    expect(within(design).getByText(t("documents.share.home_badge"))).toBeInTheDocument();
   });
 
   it("opens Share at the requests section from ?access=requests and drops the parameter", async () => {

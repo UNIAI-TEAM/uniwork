@@ -296,6 +296,7 @@ export function useTreeRowMenuDialogs({
         wsId={wsId}
         parentId={creatingUnder?.id ?? null}
         parentTitle={(creatingUnder && isMyFolder(creatingUnder) ? t("documents.home.my_folder.label") : creatingUnder?.title) ?? ""}
+        parentShared={creatingUnder?.share_scope != null ? Boolean(creatingUnder.share_scope.home_workspace) : undefined}
         onSuccess={() => {
           if (creatingUnder) onCreatedSubfolder?.(creatingUnder.id);
         }}

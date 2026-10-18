@@ -507,6 +507,36 @@ func TestMyFolderVisibilityAndAdminHide(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreatePage(sharedChild): %v", err)
 	}
+	// MYFOLDER-01 (UNI-1891): a subtree inside A's My Folder - a folder and a
+	// page under it - and a page inside A's My Folder that A archives, so the
+	// card covers a descendant that is not a direct child and the trash view.
+	privateFolder, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "Secret Folder", Destination: DocumentSystemKindMyFolder, Kind: DocumentKindFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(privateFolder): %v", err)
+	}
+	deepChild, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "mfs-secret", ParentID: privateFolder.Document.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(deepChild): %v", err)
+	}
+	trashedChild, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "Trashed Inside My Folder", Destination: DocumentSystemKindMyFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(trashedChild): %v", err)
+	}
+	if _, err := env.svc.ArchiveDocument(ctx, memberA, trashedChild.Document.ID, ArchiveDocumentInput{IdempotencyKey: util.NewID()}); err != nil {
+		t.Fatalf("ArchiveDocument(trashedChild): %v", err)
+	}
+	// A document A really read: it reaches A's recent list by the access log
+	// and the admin's recent list must not - the card removes only what admin
+	// scope ADDS, so this is the control the recent row needs.
+	if _, err := env.svc.GetDocument(ctx, memberA, deepChild.Document.ID); err != nil {
+		t.Fatalf("GetDocument(deepChild) by owner: %v", err)
+	}
 	if _, err := env.svc.ShareDocument(ctx, memberA, sharedChild.Document.ID, DocumentShareInput{
 		PrincipalType: DocumentPrincipalUser, PrincipalID: memberB.ID, Level: DocumentLevelView,
 	}); err != nil {
@@ -620,8 +650,8 @@ func TestMyFolderVisibilityAndAdminHide(t *testing.T) {
 	if _, ok := containsListID(flatAdmin, mfA.Document.ID); ok {
 		t.Fatal("admin flat list leaked A's My Folder")
 	}
-	if item, ok := containsListID(flatAdmin, privateChild.Document.ID); !ok || !item.Access.AdminScope || item.Access.Level != DocumentLevelNone {
-		t.Fatalf("admin flat list privateChild = %v access=%+v, want AdminScope/LevelNone", ok, item)
+	if _, ok := containsListID(flatAdmin, privateChild.Document.ID); ok {
+		t.Fatal("admin flat list leaked A's private child inside A's My Folder")
 	}
 	searchMFAdmin, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{Query: "My Folder"})
 	if err != nil {
@@ -637,8 +667,94 @@ func TestMyFolderVisibilityAndAdminHide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item, ok := containsListID(searchChildAdmin, privateChild.Document.ID); !ok || !item.Access.AdminScope || len(item.Path) != 0 {
-		t.Fatalf("admin search privateChild = %v item=%+v, want AdminScope with empty Path", ok, item)
+	if _, ok := containsListID(searchChildAdmin, privateChild.Document.ID); ok {
+		t.Fatal("admin search leaked A's private child inside A's My Folder")
+	}
+	// MYFOLDER-01 (UNI-1891): the same subtree is absent from every other
+	// admin listing - the flat list, the tree, the trash and the recent list -
+	// not just search. The folder itself and the page under it are both
+	// covered, so the walk is proved recursive and not one level deep.
+	if _, ok := containsListID(flatAdmin, privateFolder.Document.ID); ok {
+		t.Fatal("admin flat list leaked A's private folder inside A's My Folder")
+	}
+	if _, ok := containsListID(flatAdmin, deepChild.Document.ID); ok {
+		t.Fatal("admin flat list leaked the page under A's private folder (recursive)")
+	}
+	if containsTreeID(treeAdmin, privateFolder.Document.ID) || containsTreeID(treeAdmin, deepChild.Document.ID) {
+		t.Fatalf("admin tree leaked A's My Folder subtree: %+v", treeAdmin)
+	}
+	searchDeepAdmin, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{Query: "mfs-secret"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(searchDeepAdmin, deepChild.Document.ID); ok {
+		t.Fatal("admin search leaked the page under A's private folder (recursive)")
+	}
+	trashAdmin, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{Archived: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(trashAdmin, trashedChild.Document.ID); ok {
+		t.Fatal("admin trash leaked a document inside A's My Folder")
+	}
+	recentAdmin, err := env.svc.ListRecentDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(recentAdmin, deepChild.Document.ID); ok {
+		t.Fatal("admin recent list leaked a document inside A's My Folder")
+	}
+	// Controls: A (the owner) reaches the same rows, so the fix removes only
+	// what admin scope ADDS and does not hide the subtree from its owner.
+	flatA, err := env.svc.ListDocuments(ctx, memberA, env.tn.wsA, ListDocumentsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(flatA, privateFolder.Document.ID); !ok {
+		t.Fatal("owner A cannot see their own private folder")
+	}
+	if _, ok := containsListID(flatA, deepChild.Document.ID); !ok {
+		t.Fatal("owner A cannot see the page under their own private folder")
+	}
+	recentA, err := env.svc.ListRecentDocuments(ctx, memberA, env.tn.wsA, ListDocumentsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := containsListID(recentA, deepChild.Document.ID); !ok {
+		t.Fatal("owner A cannot see their own read document in recent")
+	}
+	// The access report is an admin surface too: A's private subtree is not a
+	// candidate for the admin, and the admin's own My Folder stays listed.
+	reportAdmin, err := env.svc.DocumentAccessReport(ctx, admin, env.tn.wsA, DocumentAccessReportQuery{})
+	if err != nil {
+		t.Fatalf("DocumentAccessReport(admin): %v", err)
+	}
+	for _, id := range []string{mfA.Document.ID, privateChild.Document.ID, privateFolder.Document.ID, deepChild.Document.ID} {
+		for _, it := range reportAdmin.Items {
+			if it.Item.Document.ID == id {
+				t.Fatalf("admin access report leaked A's My Folder subtree row %s (%q)", id, it.Item.Document.Title)
+			}
+		}
+	}
+	// Control: a child of A's My Folder explicitly shared to the admin IS
+	// found through the share - the card removes only what admin scope ADDS.
+	adminShared, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
+		Title: "Shared With Admin Inside My Folder", Destination: DocumentSystemKindMyFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(adminShared): %v", err)
+	}
+	if _, err := env.svc.ShareDocument(ctx, memberA, adminShared.Document.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: admin.ID, Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("ShareDocument(adminShared -> admin): %v", err)
+	}
+	searchAdminShared, err := env.svc.ListDocuments(ctx, admin, env.tn.wsA, ListDocumentsInput{Query: "Shared With Admin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item, ok := containsListID(searchAdminShared, adminShared.Document.ID); !ok || item.Access.Level != DocumentLevelView || len(item.Path) != 0 {
+		t.Fatalf("admin search adminShared = %v item=%+v, want view via share with empty path", ok, item)
 	}
 
 	// Direct GetDocument(A's My Folder) by non-owner workspace admin -> 403 document_restricted (not 200).

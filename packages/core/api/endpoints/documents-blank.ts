@@ -1,4 +1,8 @@
-import { DocumentEnvelopeSchema, type Document } from "../../types/document";
+import {
+  DocumentEnvelopeSchema,
+  type Document,
+  type DocumentVisibility,
+} from "../../types/document";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 import {
@@ -18,6 +22,7 @@ export type BlankDocumentFormat = (typeof BLANK_DOCUMENT_FORMATS)[number];
 export type CreateBlankDocumentBody = {
   format: BlankDocumentFormat;
   title: string;
+  visibility?: DocumentVisibility;
 } & (
   | { parent_id?: string; destination?: never }
   | { destination?: DocumentCreateDestination; parent_id?: never }
