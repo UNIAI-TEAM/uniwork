@@ -225,6 +225,7 @@ export async function runEditStage(ctx, io = realIo) {
         bytesIdenticalAcrossSaves: headAfterFirst.sha256 === headAfterSave.sha256,
       },
       versionsAfterFirstSave: afterFirst.count,
+      secondSave: obs.observed.secondSave,
       undoRedo: {
         via: undoRedo.undoVia ?? null, redoVia: undoRedo.redoVia ?? null,
         visible: undoRedo.aiChangeVisibleBeforeSave, undoable: undoRedo.aiChangeUndoableBeforeSave,

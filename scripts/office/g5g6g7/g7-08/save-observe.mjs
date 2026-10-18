@@ -92,13 +92,17 @@ export function buildUndoRedoObserved({
   };
 }
 
+// webSave's answer when the frame sent no commit (harness/web.mjs classifyWebSave).
+const isNoCommitTimeout = (save) => save?.status === 'timeout' && /^no frame commit within the bound/.test(String(save.reason ?? ''));
+
 /**
  * R2-1 + R2-3 + R2-9: the edit rows' Save observations from what the driver saw,
  * or the BLOCKED reason when a scored field is absent. `doubleSave` is what the
- * two Saves of one gesture answered. A second Save that is skipped or does not
- * answer `saved` is BLOCKED `missing_double_click_save`: the dry run showed the
- * frame commits a second Save even of a clean document, so a skipped one is a lost
- * Save, not a measured +0.
+ * two Saves of one gesture answered. A second Save that is skipped or errors is
+ * BLOCKED `missing_double_click_save`: a lost Save, not a measured +0. One that
+ * sends no commit within the bound (the PDF frame, clean document) counts as
+ * `secondSave: { commitSent: false, versionsDelta: 0 }` only with both version
+ * counts read; a delta above 0 stays the duplicate-version FAIL in the oracle.
  */
 export function buildEditSaveObservation({
   doubleSave = null, versionsAfterFirstSave, versionsAfterSecondSave,
@@ -113,7 +117,11 @@ export function buildEditSaveObservation({
   if (!Number.isInteger(versionsAfterFirstSave) || !Number.isInteger(versionsAfterSecondSave)) {
     return { ok: false, reason: 'missing_version_list', versionsAfterFirstSave, versionsAfterSecondSave };
   }
-  if (doubleSave.second?.status !== 'saved') {
+  // w2m: a second Save that sends no commit within the bound (the PDF frame does this for a clean
+  // document) is "0 extra versions", but only because the counts above confirmed it. Any other
+  // second answer (error, ready-timeout, absent) is still a lost Save.
+  const commitSent = doubleSave.second?.status === 'saved';
+  if (!commitSent && !isNoCommitTimeout(doubleSave.second)) {
     return { ok: false, reason: 'missing_double_click_save', saved: doubleSave.second ?? null };
   }
   if (lastCommitBaseRevision === null || lastCommitBaseRevision === undefined) {
@@ -124,6 +132,7 @@ export function buildEditSaveObservation({
     observed: {
       versionsAfterSave: versionsAfterSecondSave,
       doubleClickVersionsCreated: versionsAfterSecondSave - versionsAfterFirstSave,
+      secondSave: { commitSent, versionsDelta: versionsAfterSecondSave - versionsAfterFirstSave },
       saveUsedCurrentBaseRevision: String(lastCommitBaseRevision) === String(revisionAfterAiTurn),
     },
   };
