@@ -146,7 +146,7 @@ describe("UI-AR6 share dialog on a shelved document", () => {
     renderDialog();
     await screen.findByText("Bình");
 
-    const rowSelect = screen.getByRole("combobox", { name: "Mức quyền Bình" });
+    const rowSelect = screen.getByRole("combobox", { name: /^Mức quyền Bình/ });
     expect(rowSelect).not.toBeDisabled();
     await userEv.click(rowSelect);
     // "Quản lý" is a raise: the option exists (the list keeps full context) but cannot be picked.
@@ -171,7 +171,7 @@ describe("UI-AR6 share dialog on a shelved document", () => {
     renderDialog();
     await screen.findByText("Bình");
 
-    const homeSelect = screen.getByRole("combobox", { name: "Mức quyền Team" });
+    const homeSelect = screen.getByRole("combobox", { name: /^Mức quyền Team/ });
     expect(homeSelect).not.toBeDisabled();
     await userEv.click(homeSelect);
     for (const key of ["level_comment", "level_edit"] as const) {
