@@ -116,7 +116,7 @@ describe("AccessRequestsSection", () => {
     renderSection();
     await screen.findByText("Bình");
     const first = screen.getByRole("listitem", { name: /Bình/ });
-    const levelLabel = `${t("documents.share.level_label")} Bình`;
+    const levelLabel = t("documents.share.level_for", { name: "Bình" });
     fireEvent.click(within(first).getByRole("combobox", { name: levelLabel }));
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
     expect(options).toEqual([t("documents.share.level_view"), t("documents.share.level_edit")]);
@@ -131,7 +131,7 @@ describe("AccessRequestsSection", () => {
     renderSection();
     await screen.findByText("Chi");
     const row = screen.getByRole("listitem", { name: /Chi/ });
-    const levelLabel = `${t("documents.share.level_label")} Chi`;
+    const levelLabel = t("documents.share.level_for", { name: "Chi" });
     const trigger = within(row).getByRole("combobox", { name: levelLabel });
     expect(trigger).toHaveTextContent(t("documents.share.level_edit"));
     fireEvent.click(trigger);
@@ -149,7 +149,7 @@ describe("AccessRequestsSection", () => {
     pending = { requests: [{ ...binh, id: "r3", requested_level: "comment" }] };
     renderSection();
     await screen.findByText("Bình");
-    fireEvent.click(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Bình` }));
+    fireEvent.click(screen.getByRole("combobox", { name: t("documents.share.level_for", { name: "Bình" }) }));
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
     // The label is this namespace's own: documents.share.level_comment belongs to DOC-05.
     expect(options).toEqual([
