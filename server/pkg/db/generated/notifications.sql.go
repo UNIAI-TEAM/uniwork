@@ -50,6 +50,23 @@ func (q *Queries) ClaimMeetingReminder(ctx context.Context, id string) (int64, e
 	return result.RowsAffected(), nil
 }
 
+const claimNotificationGroup = `-- name: ClaimNotificationGroup :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+// The exclusive half of that claim (BE-TN-9): HasNotificationGroupRow alone
+// is an unlocked existence read, so two dispatcher nodes carrying different
+// events of one (user, kind, group_key) can both miss it and merge through
+// UpsertNotification's count + 1. The claim is taken here as a
+// transaction-scoped advisory lock on the group, held until the write
+// commits, so the loser's existence read runs after the winner's row is
+// visible and skips. The key is hashed because advisory locks take bigint
+// keys; a collision only serializes two unrelated groups for one write.
+func (q *Queries) ClaimNotificationGroup(ctx context.Context, claimKey string) error {
+	_, err := q.db.Exec(ctx, claimNotificationGroup, claimKey)
+	return err
+}
+
 const countOwnedNotifications = `-- name: CountOwnedNotifications :one
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY($2::text[])
 `
@@ -131,6 +148,34 @@ func (q *Queries) GetNotification(ctx context.Context, id string) (Notification,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const hasNotificationGroupRow = `-- name: HasNotificationGroupRow :one
+SELECT EXISTS (
+  SELECT 1 FROM notifications
+  WHERE user_id = $1
+    AND kind = $2
+    AND group_key = $3
+)
+`
+
+type HasNotificationGroupRowParams struct {
+	UserID   string `json:"user_id"`
+	Kind     string `json:"kind"`
+	GroupKey string `json:"group_key"`
+}
+
+// The historical (batch, recipient) claim of a once-only draft
+// (TRASH-NOTIFY-01): the merge index in UpsertNotification only covers an
+// open row, so a draft that may never repeat itself checks for ANY row of
+// its group - read, archived, purged from view - inside the write
+// transaction. The consumer treats a hit as already delivered.
+// tenant: self
+func (q *Queries) HasNotificationGroupRow(ctx context.Context, arg HasNotificationGroupRowParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasNotificationGroupRow, arg.UserID, arg.Kind, arg.GroupKey)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const insertNotificationDeliveries = `-- name: InsertNotificationDeliveries :many

@@ -45,6 +45,10 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       // A manager's request row lands on the share dialog's requests section (DOC-07).
       if (n.kind === "document_access_requested") return `${href}?access=requests`;
       if (n.kind === "document_break_glass") return `${href}?access=break_glass`;
+      // Somebody else trashed the reader's document: the reader restores it from the trash.
+      if (n.kind === "document_trashed_by_other") {
+        return paths.workspace(target.organization_slug, target.slug).documentsTrash(n.resource_id);
+      }
       const commentId = n.params.comment_id;
       if (!commentId) return href;
       const query = new URLSearchParams({ comment: commentId });

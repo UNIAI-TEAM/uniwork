@@ -100,6 +100,12 @@ export const paths = {
       // A folder is a query on the documents page, not a page of its own
       // (FD-06): consistency.test.ts has no route to match it against.
       documentsFolder: (id: string) => `${base}/documents?folder=${encodeURIComponent(id)}`,
+      // The Thùng rác scope, with one trashed document to scroll to and
+      // highlight (TRASH-NOTIFY-01); an id the list does not hold is ignored.
+      documentsTrash: (focusId?: string) =>
+        focusId
+          ? `${base}/documents?view=archived&focus=${encodeURIComponent(focusId)}`
+          : `${base}/documents?view=archived`,
       // Who holds which level on the documents the reader manages: the whole
       // workspace, or one folder and its subfolders (UNI-1643).
       documentsAccessReport: (folderId?: string) =>

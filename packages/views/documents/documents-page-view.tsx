@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { CircleAlert, FolderPlus, FolderTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -126,6 +126,19 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const [chip, setChip] = useState<TypeChip>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("folder");
   const [navOpen, setNavOpen] = useState(false);
+
+  // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
+  const focusId = searchParams.get("focus");
+  const appliedFocus = useRef<string | null>(null);
+  // A row present on the first render takes the keyboard; one that only comes in after the user pressed Load more for that focus id is scrolled to and highlighted, never focused.
+  const pagedByUser = useRef<string | null>(null);
+  const claimFocus = useCallback((documentId: string) => {
+    if (appliedFocus.current === documentId) return null;
+    appliedFocus.current = documentId;
+    const mode = pagedByUser.current === documentId ? "reveal" : "focus";
+    pagedByUser.current = null;
+    return mode;
+  }, []);
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
@@ -454,6 +467,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   membersReady={Boolean(members.data)}
                   onOpen={(doc) => onOpen(doc.id)}
                   tree={library.tree}
+                  focusId={focusId}
+                  claimFocus={claimFocus}
+                  hasMore={state.hasMore}
+                  loadingMore={state.loadingMore}
+                  onLoadMore={() => {
+                    pagedByUser.current = focusId;
+                    state.loadMore();
+                  }}
                 />
               </div>
             ) : view.kind === "shelved" ? (

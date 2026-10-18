@@ -68,6 +68,20 @@ describe("notification endpoints", () => {
     await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
   });
 
+  it("listNotifications passes document_trashed_by_other through and degrades when its params are malformed", async () => {
+    const trashed = {
+      ...row, kind: "document_trashed_by_other", resource_type: "document", resource_id: "d1",
+      title_key: "notifications.kind.document_trashed_by_other",
+      params: { actor: "An", document: "Plan", document_id: "d1", archive_batch_id: "b1", count: "2", date: "2026-11-16T00:00:00Z" },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [trashed] }));
+    const page = await listNotifications();
+    expect(page.notifications[0]).toMatchObject({ kind: "document_trashed_by_other", resource_id: "d1" });
+    expect(page.notifications[0]!.params.archive_batch_id).toBe("b1");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...trashed, params: "x" }] }));
+    await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
+  });
+
   it("getUnreadCount returns totals and zeros when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ total: 3, by_workspace: { ws1: 2 } }));
     expect(await getUnreadCount()).toEqual({ total: 3, by_workspace: { ws1: 2 } });
