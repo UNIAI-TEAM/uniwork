@@ -15,6 +15,7 @@ import { buildHtml, buildMarkdown } from '../fixtures-lib/text.mjs';
 import { buildXlsx } from '../fixtures-lib/xlsx.mjs';
 import { sha256Hex } from '../harness/fixture-files.mjs';
 import { VERDICT, blockedVerdict, failVerdict, passVerdict } from './oracles.mjs';
+import { evaluateWireObservation, interruptionFromTurn } from './save-observe.mjs';
 import { MATRIX_ROWS, ROW_EXIT, getRowById } from './rows.mjs';
 import {
   DEFAULT_OUTPUT_TOKEN_BUDGET,
@@ -358,6 +359,119 @@ describe('G7-08 W2 run-g7-08 CLI argument parsing, budget stop, and evidence wri
       assert.equal(res.runs[0].reason, 'missing_usage_on_model_call');
       assert.equal(res.runs[1].reason, 'missing_usage_on_model_call');
       assert.equal(res.exitCode, ROW_EXIT.BLOCKED);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('G708-R3-1: the observed wire decides a row - a completion without usage stops the matrix before the next row', async () => {
+    // The listener itself is covered in save-observe.test.mjs through an injected page; here the
+    // already-observed wire (one request, one response with no usage) drives the matrix.
+    const requests = [{ body: { tools: [{ function: { name: 'read_range' } }] } }];
+    const responses = [{ status: 200, usage: null }];
+    const wire = evaluateWireObservation({ requests, responses, sawTurnEffects: true });
+    assert.equal(wire.reason, 'missing_usage_on_model_call');
+    assert.equal(wire.missingUsageCalls, 1);
+
+    const tmp = makeTempRunDir();
+    try {
+      let calls = 0;
+      const res = await runG708Matrix(
+        {
+          rows: [getRowById('X-R1'), getRowById('D-E1')],
+          providers: ['uniwork'],
+          host: 'web',
+          runDir: tmp,
+          dryRun: true,
+          maxOutputTokens: 100_000,
+          guardOutputTokens: 90_000,
+        },
+        {
+          evidenceFn: () => null,
+          log: () => {},
+          rowRunner: async () => {
+            calls += 1;
+            return { ...blockedVerdict(wire.reason, wire.detail), usage: wire };
+          },
+        },
+      );
+      assert.equal(calls, 1, 'the second row runner is never called');
+      assert.equal(res.runs[0].reason, 'missing_usage_on_model_call');
+      assert.equal(res.runs[1].reason, 'missing_usage_on_model_call');
+      assert.equal(res.runs[1].usage.missingUsageCalls, 1);
+      assert.equal(res.status, VERDICT.BLOCKED);
+      assert.equal(res.exitCode, ROW_EXIT.BLOCKED);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('G708-R3-3: a row runner that threw after a model request stops the matrix with unknown usage', async () => {
+    const tmp = makeTempRunDir();
+    try {
+      let calls = 0;
+      const res = await runG708Matrix(
+        {
+          rows: [getRowById('X-R1'), getRowById('D-E1')],
+          providers: ['uniwork'],
+          host: 'web',
+          runDir: tmp,
+          dryRun: true,
+          maxOutputTokens: 100_000,
+          guardOutputTokens: 90_000,
+        },
+        {
+          evidenceFn: () => null,
+          log: () => {},
+          rowRunner: async () => {
+            calls += 1;
+            // The first row: a model request had begun when the runner threw.
+            if (calls === 1) {
+              throw interruptionFromTurn(new Error('frame navigated away'), { requests: [{ body: {} }], responses: [] });
+            }
+            return { ...passVerdict('should_not_run'), usage: { modelCalls: 1, inputTokens: 1, outputTokens: 1 } };
+          },
+        },
+      );
+      assert.equal(calls, 1, 'the next row is not started');
+      assert.equal(res.runs[0].status, VERDICT.BLOCKED);
+      assert.equal(res.runs[0].reason, 'missing_usage_on_model_call');
+      assert.equal(res.runs[0].usage.missingUsageCalls, 1);
+      assert.equal(res.runs[1].reason, 'missing_usage_on_model_call');
+      assert.equal(res.exitCode, ROW_EXIT.BLOCKED);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('G708-R3-3: a row runner that threw before any model request keeps its own crash error', async () => {
+    const tmp = makeTempRunDir();
+    try {
+      let calls = 0;
+      const res = await runG708Matrix(
+        {
+          rows: [getRowById('X-R1'), getRowById('D-E1')],
+          providers: ['uniwork'],
+          host: 'web',
+          runDir: tmp,
+          dryRun: true,
+          maxOutputTokens: 100_000,
+          guardOutputTokens: 90_000,
+        },
+        {
+          evidenceFn: () => null,
+          log: () => {},
+          rowRunner: async () => {
+            calls += 1;
+            if (calls === 1) throw interruptionFromTurn(new Error('composer detached'), { requests: [], responses: [] });
+            return { ...passVerdict('second_row_ok'), usage: { modelCalls: 1, inputTokens: 1, outputTokens: 1 } };
+          },
+        },
+      );
+      assert.equal(calls, 2, 'no model call began, so the run is not stopped');
+      assert.equal(res.runs[0].status, VERDICT.FAIL);
+      assert.equal(res.runs[0].reason, 'row_runner_threw');
+      assert.equal(res.runs[1].status, VERDICT.PASS);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }

@@ -24,7 +24,8 @@ import {
 } from './oracles.mjs';
 import { DEFAULT_REPO_ROOT, getRowById } from './rows.mjs';
 import {
-  extractWireUsage, isSaveIntentPath, parseCommitBaseRevision, readFrameHead, readVersionCount,
+  evaluateWireObservation, interruptionFromTurn, isSaveIntentPath, observeModelWire,
+  parseCommitBaseRevision, readFrameHead, readVersionCount,
 } from './save-observe.mjs';
 import { readEditorText, runEditStage } from './web-edit-flow.mjs';
 import {
@@ -293,6 +294,10 @@ export async function runWebMatrixRow(runEntry, {
       await bindDryRunStubRoutes({
         page: web.page, fetchImpl, stub, documentId, rowId: row.id, wireRequests, wireResponses,
       });
+    } else {
+      // R3-1: on a real run nothing routes or fulfils the model call - the observer only listens,
+      // so the SSE stream the frame sees is untouched, and every model response (usage or not) is recorded.
+      observeModelWire(web.page, { requests: wireRequests, responses: wireResponses });
     }
 
     const sel = moduleFrameSelectors(row.module);
@@ -342,30 +347,58 @@ export async function runWebMatrixRow(runEntry, {
 
     const textBeforeTurn = await readEditorText(frame);
     inAiTurn = true;
-    await composer.fill(row.prompt);
-    await sleep(150);
-    const ackBtn = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
-    if (ackBtn) { await ackBtn.click().catch(() => {}); await sleep(100); }
-    await sendBtn.click();
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const busy = await frame.$(FRAME_AI_SELECTORS.busy);
-      const msgCount = await frame.$$eval(FRAME_AI_SELECTORS.assistantMsg, (els) => els.length).catch(() => 0);
-      if (!busy && msgCount > 0) break;
-      await sleep(250);
+    const runAiTurn = async () => {
+      await composer.fill(row.prompt);
+      await sleep(150);
+      const ackBtn = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
+      if (ackBtn) { await ackBtn.click().catch(() => {}); await sleep(100); }
+      await sendBtn.click();
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const busy = await frame.$(FRAME_AI_SELECTORS.busy);
+        const msgCount = await frame.$$eval(FRAME_AI_SELECTORS.assistantMsg, (els) => els.length).catch(() => 0);
+        if (!busy && msgCount > 0) break;
+        await sleep(250);
+      }
+    };
+    let turnError = null;
+    try {
+      await runAiTurn();
+    } catch (err) {
+      turnError = err;
     }
     inAiTurn = false;
-
-    const usage = extractWireUsage(wireResponses);
-    // R2-7: a model call without usage is an unknown, not 0 tokens - the row stops here and the run stops after it.
-    if (usage.missingUsageCalls > 0) {
-      return { ...blockedVerdict('missing_usage_on_model_call', { missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls }), documentId, usage, preconditions, screenshotPath };
-    }
+    // R3-3: a turn that threw after a model request had begun consumed an unknown amount; only a
+    // failure that provably happened before any request keeps its own error for `row_runner_threw`.
+    const interruption = interruptionFromTurn(turnError, { requests: wireRequests, responses: wireResponses });
+    if (interruption) throw interruption;
 
     const replyText = await frame.$$eval(
       `${FRAME_AI_SELECTORS.assistantAnswer}, ${FRAME_AI_SELECTORS.assistantMsg}`,
       (els) => els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).pop() ?? '',
     ).catch(() => '');
+
+    // R2-7 + R3-1: the usage of the turn is what the wire observer saw. A model call without usage is
+    // an unknown, not 0 tokens, and a turn that shows effects (a panel reply, an executed tool or a
+    // write) while no model request was observed at all means the observer missed the route - both
+    // stop the row (and the run) instead of trusting an empty collection as a zero-token run.
+    const sawTurnEffects = replyText !== ''
+      || saveIntentsDuringAiTurn > 0
+      || wireResponses.some((res) => (res?.toolCallNames?.length ?? 0) > 0);
+    const usage = evaluateWireObservation({
+      requests: wireRequests,
+      responses: wireResponses,
+      sawTurnEffects,
+    });
+    if (usage.unobserved) {
+      return {
+        ...blockedVerdict(usage.reason, {
+          missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls,
+          requests: wireRequests.length, responses: wireResponses.length,
+        }),
+        documentId, usage, preconditions, screenshotPath,
+      };
+    }
     if (!replyText) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.assistantAnswer, { rowId: row.id }), usage, preconditions, screenshotPath };
 
     const stepTitles = await frame.$$eval(FRAME_AI_SELECTORS.stepTitle, (els) => els.map((el) => el.getAttribute('data-tip') || (el.textContent ?? '').trim()).filter(Boolean)).catch(() => []);

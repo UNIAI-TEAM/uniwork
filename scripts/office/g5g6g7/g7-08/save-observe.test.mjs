@@ -9,15 +9,52 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { listVersions } from '../g7-04/cross-host.mjs';
 import {
+  InterruptedAiTurnError,
   buildEditSaveObservation,
   buildUndoRedoObserved,
+  evaluateWireObservation,
   extractWireUsage,
+  interruptionFromTurn,
+  isModelCompletionPath,
   isSaveIntentPath,
+  observeModelWire,
   observeOldVersionAfterSave,
+  offeredToolsFromRequestBody,
   parseCommitBaseRevision,
   readVersionBytes,
   readVersionCount,
+  toolCallNamesFromSseText,
+  usageFromModelResponseBody,
+  usageFromSseText,
 } from './save-observe.mjs';
+
+/** A Playwright-shaped event emitter: `on`, `emit`, and an awaitable emit for async listeners. */
+function makeFakePage() {
+  const listeners = new Map();
+  const page = {
+    on(event, handler) {
+      const list = listeners.get(event) ?? [];
+      list.push(handler);
+      listeners.set(event, list);
+      return page;
+    },
+    emit(event, payload) {
+      for (const handler of listeners.get(event) ?? []) handler(payload);
+    },
+    async emitAsync(event, payload) {
+      for (const handler of listeners.get(event) ?? []) await handler(payload);
+    },
+  };
+  return page;
+}
+
+const fakeRequest = (method, url, postData = null) => ({ method: () => method, url: () => url, postData: () => postData });
+const fakeResponse = (status, url, text) => ({
+  status: () => status,
+  url: () => url,
+  request: () => fakeRequest('POST', url),
+  text: async () => text,
+});
 
 describe('G7-08 w2e save-observe pure helpers', () => {
   it('R2-2: isSaveIntentPath matches the frame upload/commit routes and the legacy version route only', () => {
@@ -92,6 +129,18 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     const blocked = await readVersionCount(listVersions, { ...args, fetchImpl: fetchWith({}) });
     assert.equal(blocked.ok, false);
     assert.equal(blocked.reason, 'missing_version_list');
+  });
+
+  it('R3-4: the lenient default keeps its old expression for a non-array versions body; strict rejects it', async () => {
+    const fetchWith = (body) => async () => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    const args = { apiOrigin: 'http://api.test', documentId: 'D1', token: 't' };
+    // The shape the review named: a non-array object that still carries a length.
+    assert.equal(await listVersions({ ...args, fetchImpl: fetchWith({ versions: { length: 3 } }) }), 3);
+    assert.equal(await listVersions({ ...args, fetchImpl: fetchWith({ versions: 'abc' }) }), 3);
+    assert.equal(await listVersions({ ...args, fetchImpl: fetchWith({}) }), 0);
+    // Only the strict G7-08 caller turns any non-array body into the absent scored field.
+    await assert.rejects(listVersions({ ...args, fetchImpl: fetchWith({ versions: { length: 3 } }), strict: true }), /missing_version_list/);
+    await assert.rejects(listVersions({ ...args, fetchImpl: fetchWith({ versions: 'abc' }), strict: true }), /missing_version_list/);
   });
 
   it('R2-4: the old version is read again by number; no number or a failed GET is BLOCKED', async () => {
@@ -193,5 +242,131 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     // A missing version count is BLOCKED (R2-6), not a delta of 0.
     assert.equal(buildEditSaveObservation({ ...base, versionsAfterSecondSave: undefined }).reason, 'missing_version_list');
     assert.equal(buildEditSaveObservation({ ...base, versionsAfterFirstSave: undefined }).reason, 'missing_version_list');
+  });
+
+  it('R3-1: the model route matcher and the response-body readers read both providers', () => {
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions'), true);
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/openai/chat/completions'), true);
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/uniwork/models'), false);
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/uploads'), false);
+    assert.equal(isModelCompletionPath(undefined), false);
+
+    assert.deepEqual(offeredToolsFromRequestBody({ tools: [{ function: { name: 'read_range' } }, { name: 'edit_block' }, { function: {} }] }), ['read_range', 'edit_block']);
+    assert.deepEqual(offeredToolsFromRequestBody({}), []);
+    assert.deepEqual(offeredToolsFromRequestBody(null), []);
+
+    assert.deepEqual(usageFromModelResponseBody({ usage: { prompt_tokens: 12, completion_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
+    assert.deepEqual(usageFromModelResponseBody({ usage: { input_tokens: 12, output_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
+    assert.equal(usageFromModelResponseBody({ usage: { prompt_tokens: 12 } }), null);
+    assert.equal(usageFromModelResponseBody({}), null);
+
+    const sse = 'data: {"choices":[{"delta":{"content":"a"}}]}\n\ndata: {"usage":{"prompt_tokens":30,"completion_tokens":7},"choices":[{"delta":{}}]}\n\ndata: [DONE]\n';
+    assert.deepEqual(usageFromSseText(sse), { prompt_tokens: 30, completion_tokens: 7 });
+    assert.deepEqual(usageFromSseText('{"usage":{"prompt_tokens":1,"completion_tokens":2}}'), { prompt_tokens: 1, completion_tokens: 2 });
+    assert.equal(usageFromSseText('data: {"choices":[{"delta":{"content":"a"}}]}\n\ndata: [DONE]\n'), null, 'a stream with no usage chunk is an unknown');
+    assert.equal(usageFromSseText(''), null);
+    assert.equal(usageFromSseText('<html>502</html>'), null);
+
+    assert.deepEqual(
+      toolCallNamesFromSseText('data: {"choices":[{"delta":{"tool_calls":[{"function":{"name":"read_range"}}]}}]}\n\ndata: [DONE]\n'),
+      ['read_range'],
+    );
+    assert.deepEqual(toolCallNamesFromSseText('not an sse'), []);
+  });
+
+  it('R3-1: an observed turn is fail-closed - an empty collection is never a zero-token run', () => {
+    // Nothing observed at all: BLOCKED, never a trusted zero.
+    const empty = evaluateWireObservation({ requests: [], responses: [], sawTurnEffects: false });
+    assert.equal(empty.unobserved, true);
+    assert.equal(empty.reason, 'missing_model_call_observation');
+    assert.equal(empty.modelCalls, 0);
+
+    // A request with no response at all.
+    const noResponse = evaluateWireObservation({ requests: [{ body: {} }], responses: [], sawTurnEffects: true });
+    assert.equal(noResponse.reason, 'missing_usage_on_model_call');
+    assert.equal(noResponse.missingUsageCalls, 0);
+    assert.deepEqual(noResponse.detail, { requests: 1, responses: 0, missingUsageCalls: 0 });
+
+    // A response that arrived without usage (the review's case).
+    const noUsage = evaluateWireObservation({
+      requests: [{ body: { tools: [{ function: { name: 'read_range' } }] } }],
+      responses: [{ status: 200, usage: null }],
+      sawTurnEffects: true,
+    });
+    assert.equal(noUsage.reason, 'missing_usage_on_model_call');
+    assert.equal(noUsage.missingUsageCalls, 1);
+
+    // The turn showed effects (a panel reply) but no request was observed: the observer missed the route.
+    const missedRoute = evaluateWireObservation({ requests: [], responses: [], sawTurnEffects: true });
+    assert.equal(missedRoute.reason, 'missing_model_call_observation');
+    assert.equal(missedRoute.detail.sawTurnEffects, true);
+
+    // A normal completion with usage is counted.
+    const counted = evaluateWireObservation({
+      requests: [{ body: {} }],
+      responses: [{ status: 200, usage: { prompt_tokens: 100, completion_tokens: 20 } }],
+      sawTurnEffects: true,
+    });
+    assert.deepEqual(counted, {
+      modelCalls: 1, inputTokens: 100, outputTokens: 20, missingUsageCalls: 0,
+      unobserved: false, reason: null, detail: null,
+    });
+  });
+
+  it('R3-1: the injected page observer records requests, offered tools and every response', async () => {
+    const page = makeFakePage();
+    const requests = [];
+    const responses = [];
+    observeModelWire(page, { requests, responses });
+
+    page.emit('request', fakeRequest('POST', 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', JSON.stringify({ tools: [{ function: { name: 'read_range' } }, { function: { name: 'edit_block' } }] })));
+    page.emit('request', fakeRequest('GET', 'http://web.test/api/v1/office-frame/documents/D1/content'));
+    page.emit('request', fakeRequest('POST', 'http://web.test/api/v1/office-frame/documents/D1/uploads', '{}'));
+
+    await page.emitAsync('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', 'data: {"usage":{"prompt_tokens":100,"completion_tokens":20}}\n\ndata: [DONE]\n'));
+    await page.emitAsync('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/content', 'not a model response'));
+
+    assert.equal(requests.length, 1, 'only the model route is recorded');
+    assert.deepEqual(offeredToolsFromRequestBody(requests[0].body), ['read_range', 'edit_block']);
+    assert.equal(responses.length, 1);
+    assert.deepEqual(responses[0], { status: 200, usage: { prompt_tokens: 100, completion_tokens: 20 }, toolCallNames: [] });
+
+    const wire = evaluateWireObservation({ requests, responses, sawTurnEffects: true });
+    assert.equal(wire.unobserved, false);
+    assert.equal(wire.outputTokens, 20);
+  });
+
+  it('R3-1: a completion without usage through the injected page is BLOCKED, never counted', async () => {
+    const page = makeFakePage();
+    const requests = [];
+    const responses = [];
+    observeModelWire(page, { requests, responses });
+    page.emit('request', fakeRequest('POST', 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', '{}'));
+    await page.emitAsync('response', fakeResponse(200, 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions', 'data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n'));
+
+    const wire = evaluateWireObservation({ requests, responses, sawTurnEffects: true });
+    assert.equal(wire.reason, 'missing_usage_on_model_call');
+    assert.equal(wire.missingUsageCalls, 1);
+    assert.equal(wire.outputTokens, 0);
+  });
+
+  it('R3-3: a turn that threw after a model request is an unknown-usage stop, not a bare crash', () => {
+    const beforeAnyRequest = interruptionFromTurn(new Error('composer detached'), { requests: [], responses: [] });
+    assert.equal(beforeAnyRequest instanceof InterruptedAiTurnError, false, 'no request began: the caller keeps row_runner_threw');
+    assert.equal(beforeAnyRequest.message, 'composer detached');
+
+    const afterRequest = interruptionFromTurn(new Error('frame navigated away'), {
+      requests: [{ body: {} }], responses: [],
+    });
+    assert.equal(afterRequest instanceof InterruptedAiTurnError, true);
+    assert.equal(afterRequest.usage.missingUsageCalls, 1);
+    assert.match(afterRequest.message, /frame navigated away/);
+
+    const afterCountedResponse = interruptionFromTurn(new Error('panel closed'), {
+      requests: [{ body: {} }], responses: [{ status: 200, usage: { prompt_tokens: 50, completion_tokens: 10 } }],
+    });
+    assert.equal(afterCountedResponse.usage.missingUsageCalls, 1, 'the thrown turn is still unknown');
+    assert.equal(afterCountedResponse.usage.outputTokens, 10);
+    assert.equal(interruptionFromTurn(null, { requests: [], responses: [] }), null);
   });
 });

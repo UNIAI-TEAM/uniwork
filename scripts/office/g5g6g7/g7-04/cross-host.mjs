@@ -1988,16 +1988,20 @@ async function readFrameHeadViaProtocol({ apiOrigin, fetchImpl = fetch, document
 }
 
 // Exported for G7-08 web-driver.mjs to reuse version counting without copying (proposal §3).
-// `strict` (G7-08 w2e, review r2 G708-R2-6): a 200 without a `versions` array is an
-// absent scored field for the caller, not a count of 0 — G7-04 callers keep the
-// lenient default and their semantics are unchanged.
+// `strict` (G7-08 w2e, review r2 G708-R2-6; r3 G708-R3-4): a 200 without a `versions` array is an
+// absent scored field for the strict G7-08 caller, not a count of 0. The default keeps the old
+// lenient expression for every G7-04 caller, so a body shaped `{versions:{length:3}}` still
+// counts as before and only `strict: true` rejects a non-array list.
 export async function listVersions({ apiOrigin, fetchImpl = fetch, documentId, token, strict = false }) {
   const res = await callTracerApi({ apiOrigin, fetchImpl, name: "listDocumentVersions", params: { documentID: documentId }, token });
   const versions = res.data?.versions;
-  if (strict && !Array.isArray(versions)) {
-    throw new Error("missing_version_list: the listDocumentVersions body carries no versions array");
+  if (strict) {
+    if (!Array.isArray(versions)) {
+      throw new Error("missing_version_list: the listDocumentVersions body carries no versions array");
+    }
+    return versions.length;
   }
-  return Array.isArray(versions) ? versions.length : 0;
+  return versions?.length ?? 0;
 }
 
 // ---- the chain -----------------------------------------------------------------------------

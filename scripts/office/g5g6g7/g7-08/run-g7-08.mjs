@@ -19,6 +19,7 @@ import {
   getRowById,
 } from './rows.mjs';
 import { REAL_AI_BLOCKER, runWebMatrixRow } from './web-driver.mjs';
+import { InterruptedAiTurnError } from './save-observe.mjs';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 export const DEFAULT_OUTPUT_TOKEN_BUDGET = 100_000;
@@ -175,6 +176,7 @@ export function createBudgetTracker({
         modelCalls: totalModelCalls,
         inputTokens: totalInputTokens,
         outputTokens: totalOutputTokens,
+        missingUsageCalls,
         maxOutputTokens,
         guardOutputTokens,
         perRun: [...perRun],
@@ -283,9 +285,17 @@ export async function runG708Matrix(
     const check = budget.canStartNextRun();
     let outcome;
     if (!check.allowed) {
+      // R3-1: the stopped row records what the run had observed so far, unknown usage included -
+      // a stop that hid its own missing count would read as a clean zero.
+      const totals = budget.summary();
       outcome = {
         ...check.verdict,
-        usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0 },
+        usage: {
+          modelCalls: totals.modelCalls,
+          inputTokens: totals.inputTokens,
+          outputTokens: totals.outputTokens,
+          missingUsageCalls: totals.missingUsageCalls,
+        },
       };
     } else {
       try {
@@ -296,13 +306,26 @@ export async function runG708Matrix(
           env,
         });
       } catch (err) {
-        outcome = failVerdict('row_runner_threw', {
-          error: err instanceof Error ? err.message : String(err),
-        });
+        // R3-3: an AI turn that threw after a model request had begun is an unknown usage, not a
+        // bare crash: record it so the budget stops the matrix instead of starting the next row.
+        if (err instanceof InterruptedAiTurnError) {
+          outcome = {
+            ...blockedVerdict('missing_usage_on_model_call', { detail: err.message }),
+            usage: err.usage,
+          };
+        } else {
+          outcome = failVerdict('row_runner_threw', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
 
-    const rowUsage = budget.recordRun(runEntry.runId, outcome?.usage);
+    // A row that never ran records what the run had already observed (its reason names the unknown),
+    // and does not re-add those totals to the budget.
+    const rowUsage = check.allowed
+      ? budget.recordRun(runEntry.runId, outcome?.usage)
+      : { ...outcome.usage };
     const record = {
       runId: runEntry.runId,
       rowId: runEntry.rowId,

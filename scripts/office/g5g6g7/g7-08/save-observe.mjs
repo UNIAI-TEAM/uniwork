@@ -1,7 +1,9 @@
-// G7-08 (UNI-1385) w2e: the Save / AI-turn observation helpers of the web driver
-// (review r2, findings G708-R2-1, R2-2, R2-3, R2-5, R2-6, R2-7, R2-9). Pure by
-// contract: no filesystem, no Playwright - the driver feeds them what it saw, so
-// every scored field is either measured or BLOCKED, never defaulted (contract w1b).
+// G7-08 (UNI-1385) w2e/w2f: the Save / AI-turn observation helpers of the web driver
+// (review r2, findings G708-R2-1, R2-2, R2-3, R2-5, R2-6, R2-7, R2-9; review r3,
+// findings G708-R3-1, R3-3). Pure by contract: no filesystem, no Playwright import -
+// the driver feeds them what it saw, or hands the wire observer an injected page it
+// only listens on, so every scored field is either measured or BLOCKED, never
+// defaulted (contract w1b).
 //
 // Settled field meanings (G708-R2-1; driver, builder and oracle agree):
 //   versionsAfterFirstSave     - version count after the FIRST Save's commit.
@@ -71,6 +73,206 @@ export function extractWireUsage(responses = []) {
     outputTokens += Number(output) || 0;
   }
   return { modelCalls, inputTokens, outputTokens, missingUsageCalls };
+}
+
+/**
+ * R3-3: a row runner threw after a model request may have begun, so what that turn
+ * consumed is unknown. The error carries that unknown usage (`missingUsageCalls >= 1`)
+ * so the run stops the matrix instead of starting the next row on a trusted zero.
+ * A failure that provably happened before any model request is thrown as-is, and
+ * the caller keeps its separate `row_runner_threw` error for it.
+ */
+export class InterruptedAiTurnError extends Error {
+  constructor(cause, usage = {}) {
+    super(`interrupted AI turn: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = 'InterruptedAiTurnError';
+    this.cause = cause;
+    this.usage = {
+      modelCalls: Number(usage?.modelCalls ?? 0) || 0,
+      inputTokens: Number(usage?.inputTokens ?? 0) || 0,
+      outputTokens: Number(usage?.outputTokens ?? 0) || 0,
+      missingUsageCalls: Math.max(1, Number(usage?.missingUsageCalls ?? 0) || 0),
+    };
+  }
+}
+
+/**
+ * R3-3: a turn that threw after a model request had begun consumed an unknown
+ * amount, so the caller must stop on `missing_usage_on_model_call`; a failure that
+ * provably happened before any request keeps its own error for `row_runner_threw`.
+ */
+export function interruptionFromTurn(turnError, { requests = [], responses = [] } = {}) {
+  if (!turnError) return null;
+  if (requests.length === 0 && responses.length === 0) return turnError;
+  return new InterruptedAiTurnError(turnError, extractWireUsage(responses));
+}
+
+/**
+ * R3-1: the frame's model completion route - the same path the dry-run stub
+ * intercepts (`page.route('**\/api\/v1\/office-frame\/documents\/*\/ai\/*\/chat\/completions')`).
+ * Both providers answer through it: `/ai/uniwork/chat/completions` and
+ * `/ai/{aiProvider}/chat/completions` (router/office_frame_ai.go:74,126).
+ */
+export const MODEL_COMPLETION_PATH_RE = /\/office-frame\/documents\/[^/]+\/ai\/[^/]+\/chat\/completions$/;
+
+export function isModelCompletionPath(pathname) {
+  return MODEL_COMPLETION_PATH_RE.test(String(pathname ?? ''));
+}
+
+/** R3-1: the tools a model request offered, so a real run carries tool-surface evidence too. */
+export function offeredToolsFromRequestBody(body) {
+  const tools = body?.tools;
+  if (!Array.isArray(tools)) return [];
+  const names = [];
+  for (const tool of tools) {
+    const name = tool?.function?.name ?? tool?.name;
+    if (typeof name === 'string' && name.trim()) names.push(name.trim());
+  }
+  return names;
+}
+
+/**
+ * R3-1: a model response body without both token counts is an unknown, not a zero.
+ * OpenAI-shaped bodies carry `usage.prompt_tokens`/`completion_tokens`; an
+ * Anthropic-shaped one carries `input_tokens`/`output_tokens`.
+ */
+export function usageFromModelResponseBody(body) {
+  const usage = body?.usage;
+  if (!usage || typeof usage !== 'object') return null;
+  const input = usage.prompt_tokens ?? usage.input_tokens;
+  const output = usage.completion_tokens ?? usage.output_tokens;
+  if (typeof input !== 'number' || typeof output !== 'number') return null;
+  return { prompt_tokens: input, completion_tokens: output };
+}
+
+/**
+ * R3-1: the usage of one SSE stream, or null when the stream carried no usage
+ * chunk. Text that is not an SSE stream is tried as a JSON body first.
+ */
+export function usageFromSseText(text) {
+  const raw = String(text ?? '');
+  if (raw.trim() === '') return null;
+  let usage = null;
+  let sawChunk = false;
+  for (const line of raw.split('\n')) {
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (payload === '' || payload === '[DONE]') continue;
+    try {
+      const chunk = JSON.parse(payload);
+      sawChunk = true;
+      if (chunk?.usage) usage = chunk.usage;
+    } catch {
+      /* a partial or non-JSON line is not a usage chunk */
+    }
+  }
+  if (usage) return usageFromModelResponseBody({ usage }) ?? usage;
+  if (!sawChunk) {
+    try {
+      return usageFromModelResponseBody(JSON.parse(raw));
+    } catch {
+      /* not JSON either */
+    }
+  }
+  return null;
+}
+
+/** R3-1: the tool names one SSE stream executed, for the wire tool-surface evidence. */
+export function toolCallNamesFromSseText(text) {
+  const names = [];
+  for (const line of String(text ?? '').split('\n')) {
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (payload === '' || payload === '[DONE]') continue;
+    try {
+      const chunk = JSON.parse(payload);
+      for (const tc of chunk?.choices?.[0]?.delta?.tool_calls ?? []) {
+        if (tc?.function?.name) names.push(tc.function.name);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return names;
+}
+
+/**
+ * R3-1: `extractWireUsage` plus the fail-closed reading of a whole turn. The
+ * budget is only as honest as the observation behind it:
+ * - `missing_usage_on_model_call`  - at least one model request was seen and at
+ *   least one model response reported no usage (or never arrived);
+ * - `missing_model_call_observation` - the turn showed effects (a panel reply,
+ *   executed tools or a write) yet no model request was observed at all, which
+ *   means the observer missed the route, not that the turn cost zero tokens.
+ * An empty response collection is never a successful zero-token run.
+ */
+export function evaluateWireObservation({ requests = [], responses = [], sawTurnEffects = false } = {}) {
+  const usage = extractWireUsage(responses);
+  const missingResponses = Math.max(0, requests.length - responses.length);
+  if (missingResponses > 0 || usage.missingUsageCalls > 0) {
+    return {
+      ...usage,
+      unobserved: true,
+      reason: 'missing_usage_on_model_call',
+      detail: { requests: requests.length, responses: responses.length, missingUsageCalls: usage.missingUsageCalls },
+    };
+  }
+  if (requests.length === 0) {
+    return {
+      ...usage,
+      unobserved: true,
+      reason: 'missing_model_call_observation',
+      detail: { requests: 0, responses: responses.length, sawTurnEffects },
+    };
+  }
+  return { ...usage, unobserved: false, reason: null, detail: null };
+}
+
+/**
+ * R3-1: a passive observer of the frame's model route for a REAL run. It only
+ * listens: `page.on('request')` records what the frame offered, and
+ * `page.on('response')` reads the finished body. Nothing is routed, buffered or
+ * delayed, so the stream the frame sees is untouched - unlike the dry-run stub,
+ * which does `route.fetch` + fulfill on its own route.
+ *
+ * `requests` and `responses` are the same arrays the row builds its observation
+ * from; a listener failure must never take the turn down, so every read is
+ * guarded.
+ */
+export function observeModelWire(page, { requests, responses, onError } = {}) {
+  if (!page || typeof page.on !== 'function') return;
+  const fail = (err) => {
+    if (typeof onError === 'function') onError(err);
+  };
+  page.on('request', (req) => {
+    try {
+      if (req.method() !== 'POST') return;
+      const pathname = new URL(req.url()).pathname;
+      if (!isModelCompletionPath(pathname)) return;
+      let body = null;
+      try { body = JSON.parse(req.postData() || '{}'); } catch { body = null; }
+      requests.push({ path: pathname, body });
+    } catch (err) {
+      fail(err);
+    }
+  });
+  page.on('response', async (res) => {
+    try {
+      const req = res.request();
+      if (req?.method() !== 'POST') return;
+      const pathname = new URL(res.url()).pathname;
+      if (!isModelCompletionPath(pathname)) return;
+      let text = '';
+      try { text = await res.text(); } catch { text = ''; }
+      responses.push({
+        status: res.status(),
+        usage: usageFromSseText(text),
+        toolCallNames: toolCallNamesFromSseText(text),
+      });
+    } catch (err) {
+      fail(err);
+    }
+  });
 }
 
 /**
