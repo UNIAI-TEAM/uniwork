@@ -4,6 +4,7 @@ import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -20,7 +21,6 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
-import { isMyFolder } from "@uniwork/core/types/document";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
@@ -72,6 +72,10 @@ export interface LibraryRowHandlers {
   onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
+  /** Lưu trữ (ARCHIVE-01 U-4): manage-only, hidden on My Folder; the page
+   *  wires it so a folder opens the confirm dialog and a document shelves at
+   *  once with an undo toast. */
+  onShelve?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
@@ -195,7 +199,13 @@ export function LibraryRowView({
     if (!myFolder && handlers.onMove && canMoveRow(level)) {
       actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
     }
+    if (handlers.onShelve && canArchiveRow(level) && !myFolder && !isShelved(doc)) {
+      // U-4: shelve sits beside the trash command, manage-only and never on
+      // the My Folder root; the page decides document-now vs folder-dialog.
+      actions.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
+    }
     if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
+      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
       actions.push(
         folder
           ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }

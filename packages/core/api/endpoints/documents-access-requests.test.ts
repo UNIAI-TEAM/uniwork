@@ -26,6 +26,13 @@ const requestRow = (over: Record<string, unknown> = {}) => ({
 
 const malformedBodies = [{ nope: true }, { status: 7 }, { requests: "x" }, null, [], "str"];
 
+/** The pending rows of d1; a null answer (no such route) fails the test that expects rows. */
+async function listedRows() {
+  const rows = await listDocumentAccessRequests("d1");
+  if (rows === null) throw new Error("expected pending rows, got null");
+  return rows;
+}
+
 describe("documents-access-requests endpoints", () => {
   beforeEach(() => {
     setAccessToken("tok");
@@ -65,7 +72,7 @@ describe("documents-access-requests endpoints", () => {
 
   it("listDocumentAccessRequests reads the pending rows, a source or null", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ requests: [requestRow(), requestRow({ id: "r2", source: null, message: "" })] }));
-    const out = await listDocumentAccessRequests("d1");
+    const out = await listedRows();
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/documents/d1/access-requests");
     expect(out).toHaveLength(2);
     expect(out[0]).toEqual(requestRow());
@@ -74,7 +81,7 @@ describe("documents-access-requests endpoints", () => {
 
   it("listDocumentAccessRequests drops a malformed row and keeps the rest", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ requests: [requestRow(), { id: 5 }, requestRow({ id: "r3", message: null, source: { kind: 1 } })] }));
-    const out = await listDocumentAccessRequests("d1");
+    const out = await listedRows();
     expect(out.map((r) => r.id)).toEqual(["r1", "r3"]);
     expect(out[1]).toMatchObject({ message: "", source: null });
   });
@@ -82,6 +89,16 @@ describe("documents-access-requests endpoints", () => {
   it.each(malformedBodies)("listDocumentAccessRequests degrades to an empty list %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(listDocumentAccessRequests("d1")).resolves.toEqual([]);
+  });
+
+  it("listDocumentAccessRequests resolves null when the server has no such route (404)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: "not found" }, 404));
+    await expect(listDocumentAccessRequests("d1")).resolves.toBeNull();
+  });
+
+  it("listDocumentAccessRequests still rejects a server error", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: "boom" }, 500));
+    await expect(listDocumentAccessRequests("d1")).rejects.toMatchObject({ status: 500 });
   });
 
   it("approveDocumentAccessRequest POSTs the granted level", async () => {

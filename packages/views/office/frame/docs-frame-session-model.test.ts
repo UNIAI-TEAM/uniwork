@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { DocsProtocolError } from "@uniwork/core/office/docs-frame-protocol";
 import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
 import { composeFrameInit } from "./docs-frame-init";
 import { frameCommentsLevel } from "./frame-comments-events";
@@ -11,7 +12,7 @@ vi.mock("@uniwork/core/office/office-modules", async (importOriginal) => {
 });
 
 // Loaded after vi.mock so the mocked officeModuleSpec is active.
-const { officeModuleCapabilities } = await import("./docs-frame-session-model");
+const { officeModuleCapabilities, lockAwareSave } = await import("./docs-frame-session-model");
 
 const api = {} as DocsFrameApi;
 const all = { ai: true, web_search: true, image_search: true, image_generation: true, uniwork_ai: true };
@@ -58,32 +59,38 @@ describe("officeModuleCapabilities and composeFrameInit saveCopy grant (UNI-1872
     expect(caps.saveCopy).toBe(true);
   });
 
-  it("keeps saveCopy: true in composeFrameInit when a docs tab is view-only only because it is lockedOut", async () => {
+  it("keeps saveCopy: true in composeFrameInit when a docs tab is view-only only because it is lockedOut or shelved", async () => {
     const { init, lockedOut } = await composeFrameInit({
       module: "docs", frameToken, current: editableOptions, doc: "doc-1", name: "An", uid: "u-1",
-      minted: mintedEditable, source: false, editLock: { held: false, lockId: undefined, onLocked: vi.fn() }, limits,
+      minted: mintedEditable, source: false, editLock: { held: false, lockId: undefined, onLocked: vi.fn() }, limits, shelved: false,
     });
     expect(lockedOut).toBe(true);
     expect(init.capabilities).toMatchObject({ save: false, saveAs: false, download: false, saveCopy: true });
+
+    const fromShelved = await composeFrameInit({
+      module: "docs", frameToken, current: editableOptions, doc: "doc-1", name: "An", uid: "u-1",
+      minted: mintedEditable, source: false, editLock: null, limits, shelved: true,
+    });
+    expect(fromShelved.init.capabilities).toMatchObject({ save: false, saveAs: false, download: false, saveCopy: true });
   });
 
   it("omits saveCopy for source sessions, readonly pages, viewers (can_edit: false), absent api.saveCopy, or non-docs modules", async () => {
     const fromSource = await composeFrameInit({
       module: "docs", frameToken, current: editableOptions, doc: "chat:s-1", name: "An", uid: "u-1",
       minted: { ...mintedEditable, can_edit: false, source_id: "chat:s-1", parent_kind: "chat_channel", parent_id: "c-1", readonly: true },
-      source: true, editLock: null, limits,
+      source: true, editLock: null, limits, shelved: false,
     });
     expect("saveCopy" in fromSource.init.capabilities).toBe(false);
 
     const fromReadonly = await composeFrameInit({
       module: "docs", frameToken, current: { ...editableOptions, readonly: true }, doc: "doc-1", name: "An", uid: "u-1",
-      minted: mintedEditable, source: false, editLock: null, limits,
+      minted: mintedEditable, source: false, editLock: null, limits, shelved: false,
     });
     expect("saveCopy" in fromReadonly.init.capabilities).toBe(false);
 
     const fromViewer = await composeFrameInit({
       module: "docs", frameToken, current: editableOptions, doc: "doc-1", name: "An", uid: "u-1",
-      minted: { ...mintedEditable, can_edit: false }, source: false, editLock: null, limits,
+      minted: { ...mintedEditable, can_edit: false }, source: false, editLock: null, limits, shelved: false,
     });
     expect("saveCopy" in fromViewer.init.capabilities).toBe(false);
 
@@ -174,6 +181,19 @@ describe("composeFrameInit readOnly profile (UNI-1876, UNI-1901)", () => {
       expect("saveCopy" in fromReadonly.init.capabilities).toBe(false);
     }
   });
+
+  it("sends profile: 'readOnly' for a shelved document even when the minted token says can_edit, while saveCopy stays granted (ARCHIVE-01)", async () => {
+    const { init } = await composeFrameInit({
+      module: "docs", frameToken, current: baseOptions, doc: "doc-1", name: "An", uid: "u-1",
+      minted: mintedFor("docs", true), source: false, editLock: null, limits, shelved: true,
+    });
+    expect(init.profile).toBe("readOnly");
+    expect(init.capabilities).toMatchObject({ save: false, saveAs: false });
+    // copyRefused does not include shelved (the server's CopyDocument accepts a shelved
+    // source), and the token still says can_edit: the copy capability survives.
+    expect(init.capabilities).toMatchObject({ saveCopy: true });
+  });
+
 });
 
 describe("composeFrameInit readOnly profile and the comment level (RFH-1)", () => {
@@ -265,6 +285,56 @@ describe("composeFrameInit readOnly profile and the comment level (RFH-1)", () =
     });
     expect(init.profile).toBe("readOnly");
     expect(init.commentsLevel).toBe("view");
+  });
+});
+
+describe("lockAwareSave (UNI-1907, L-3)", () => {
+  it("a 423 calls onLocked once with the holder fields and throws a refusal the frame does not read as revoked", async () => {
+    const fields = { holder_id: "u2", holder_name: "An", held_by_me: false };
+    const locked = new DocsProtocolError({
+      code: "forbidden", message: "document_locked (HTTP 423)", status: 423,
+      details: { apiCode: "document_locked", fields },
+    });
+    const save = vi.fn(async (): Promise<never> => { throw locked; });
+    const onLocked = vi.fn();
+    const wrapped = lockAwareSave(save, onLocked);
+    const thrown = await wrapped().catch((error: unknown) => error);
+    // `forbidden` without an org apiCode locks the vendored frame as 'revoked' (the red
+    // lost-access bar); `internal` stays a plain, localized save failure and keeps the edits.
+    expect(thrown).toMatchObject({ code: "internal", status: 423, details: { apiCode: "document_locked" } });
+    expect(thrown).not.toMatchObject({ code: "forbidden" });
+    expect(onLocked).toHaveBeenCalledTimes(1);
+    expect(onLocked).toHaveBeenCalledWith(fields);
+  });
+
+  it("after a 423 refuses locally with no upload while the lock is lost, and goes through once it is held again", async () => {
+    const locked = new DocsProtocolError({ code: "forbidden", message: "document_locked", status: 423, details: { apiCode: "document_locked" } });
+    const save = vi.fn(async (): Promise<unknown> => { throw locked; });
+    let held = true;
+    const wrapped = lockAwareSave(save, vi.fn(), () => held);
+    await wrapped().catch(() => undefined);
+    held = false;
+    expect(save).toHaveBeenCalledTimes(1);
+    const again = await wrapped().catch((error: unknown) => error);
+    expect(again).toMatchObject({ code: "internal", status: 423, details: { apiCode: "document_locked" } });
+    expect(save).toHaveBeenCalledTimes(1);
+    held = true;
+    save.mockResolvedValueOnce({ ok: true });
+    await expect(wrapped()).resolves.toEqual({ ok: true });
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it("never refuses locally before a 423, whatever the held flag says", async () => {
+    const save = vi.fn(async () => "done");
+    await expect(lockAwareSave(save, vi.fn(), () => false)()).resolves.toBe("done");
+  });
+
+  it("passes a refusal that is not a 423 through untouched and never calls onLocked", async () => {
+    const conflict = new DocsProtocolError({ code: "conflict", message: "stale", status: 409 });
+    const save = vi.fn(async (): Promise<never> => { throw conflict; });
+    const onLocked = vi.fn();
+    await expect(lockAwareSave(save, onLocked)()).rejects.toBe(conflict);
+    expect(onLocked).not.toHaveBeenCalled();
   });
 });
 

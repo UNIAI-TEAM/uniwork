@@ -12,7 +12,7 @@ import {
   type DocumentAccessUpdateItemInput,
   type DocumentShareCandidate,
 } from "@uniwork/core/api/endpoints/documents-sharing";
-import { sharePrincipalsNotInOrganization } from "@uniwork/core/documents/errors";
+import { isDocumentShelvedError, sharePrincipalsNotInOrganization } from "@uniwork/core/documents/errors";
 import {
   useDocumentShareCandidates,
   useUpdateDocumentAccess,
@@ -67,6 +67,12 @@ export interface ShareAddSectionProps {
   members: ShareMembersDirectory;
   orgWorkspaces: Array<{ id: string; name: string }>;
   organization?: { id: string; name: string } | null;
+  /** The document is shelved (ARCHIVE-01 U-9): nothing here may be granted —
+   *  the whole section reads but never writes; the submit control stays in the
+   *  tab order and points at this note id. */
+  shelved?: boolean;
+  /** The explanation line the locked controls point at. */
+  shelvedNoteId?: string;
 }
 
 export function allowedLevelsForPrincipal(
@@ -89,6 +95,8 @@ export function ShareAddSection({
   members,
   orgWorkspaces,
   organization,
+  shelved = false,
+  shelvedNoteId,
 }: ShareAddSectionProps) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -206,6 +214,7 @@ export function ShareAddSection({
   })();
 
   const selectCandidate = (candidate: DocumentShareCandidate) => {
+    if (shelved) return;
     const key = `${candidate.principal_type}:${candidate.principal_id}`;
     if (selectedKeys.has(key) || atLimit) return;
     setSelected((prev) => [...prev, { key, candidate, onExisting: "keep" }]);
@@ -281,12 +290,18 @@ export function ShareAddSection({
       setSubmitError(t("documents.share.people_not_in_org", { count: refused.length, names }));
       return;
     }
+    // ARCHIVE-01 U-9: the server refuses share writes on a shelved document
+    // (409 document_shelved); name the reason, not the raw envelope.
+    if (isDocumentShelvedError(err)) {
+      setSubmitError(t("documents.shelved_doc.write_blocked"));
+      return;
+    }
     const msg = shareErrorMessage(err, t) ?? t("documents.share.submit_failed");
     setSubmitError(msg);
   };
 
   const executeCommit = async (items: DocumentAccessUpdateItemInput[]) => {
-    if (inFlight.current) return;
+    if (inFlight.current || shelved) return;
     inFlight.current = true;
     setSubmitError(null);
     setRejectedByKey({});
@@ -305,7 +320,7 @@ export function ShareAddSection({
   };
 
   const handleSubmit = async () => {
-    if (!selected.length || updateAccess.isPending || inFlight.current) return;
+    if (shelved || !selected.length || updateAccess.isPending || inFlight.current) return;
     inFlight.current = true;
     setSubmitError(null);
     setRejectedByKey({});
@@ -371,7 +386,7 @@ export function ShareAddSection({
         onLoadMore={() => void candidatesQuery.fetchNextPage()}
         alreadySharedUserIds={alreadySharedUserIds}
         isLoading={candidatesQuery.isLoading || Boolean(members.loading || members.isLoading)}
-        disabled={updateAccess.isPending} atLimit={atLimit} rejectedByKey={rejectedByKey}
+        disabled={updateAccess.isPending || shelved} atLimit={atLimit} rejectedByKey={rejectedByKey}
         onSelectCandidate={selectCandidate} onRemoveCandidate={removeCandidate}
         onChangeOnExisting={(key, onExisting) => updateSelected(key, { onExisting })}
         effectiveItemLevel={effectiveItemLevel} levelLabel={levelLabel} rejectedReasonLabel={rejectedReasonLabel}
@@ -389,8 +404,10 @@ export function ShareAddSection({
             <Label htmlFor={levelId}>{t("documents.share.level_label")}</Label>
             <Select
               value={commonLevel}
+              disabled={shelved}
               items={DOCUMENT_ACCESS_LEVELS.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
               onValueChange={(v) => {
+                if (shelved) return;
                 const next = v as DocumentAccessLevel;
                 if (hasCustomOverrides) setPendingApplyAllLevel(next);
                 else { setCommonLevel(next); setPendingPreview(null); }
@@ -409,7 +426,15 @@ export function ShareAddSection({
             </Select>
           </div>
           {selected.length > 1 ? (
-            <Button type="button" variant="outline" size="sm" aria-expanded={customMode} onClick={() => setCustomMode((p) => !p)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-expanded={customMode}
+              aria-disabled={shelved || undefined}
+              aria-describedby={shelved ? shelvedNoteId : undefined}
+              onClick={() => { if (!shelved) setCustomMode((p) => !p); }}
+            >
               {t("documents.share.custom_levels_toggle")}
             </Button>
           ) : null}
@@ -417,7 +442,8 @@ export function ShareAddSection({
 
         <Button
           type="button"
-          aria-disabled={!selected.length || updateAccess.isPending || undefined}
+          aria-disabled={shelved || !selected.length || updateAccess.isPending || undefined}
+          aria-describedby={shelved ? shelvedNoteId : undefined}
           aria-busy={updateAccess.isPending || undefined}
           onClick={() => void handleSubmit()}
         >
@@ -453,7 +479,7 @@ export function ShareAddSection({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => (hasCustomOverrides ? setPendingApplyAllLevel(commonLevel) : confirmApplyAll(commonLevel))}
+              onClick={() => { if (shelved) return; if (hasCustomOverrides) setPendingApplyAllLevel(commonLevel); else confirmApplyAll(commonLevel); }}
             >
               {t("documents.share.apply_all_button")}
             </Button>
@@ -474,8 +500,9 @@ export function ShareAddSection({
                   <div className="w-32 shrink-0">
                     <Select
                       value={currentLvl}
+                      disabled={shelved}
                       items={allowed.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
-                      onValueChange={(v) => updateSelected(item.key, { customLevel: v as DocumentAccessLevel })}
+                      onValueChange={(v) => { if (!shelved) updateSelected(item.key, { customLevel: v as DocumentAccessLevel }); }}
                     >
                       <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${item.candidate.name}`}>
                         <SelectValue className="min-w-0">{levelLabel(currentLvl)}</SelectValue>

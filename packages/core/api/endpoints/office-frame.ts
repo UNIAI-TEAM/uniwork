@@ -233,7 +233,7 @@ export interface OfficeFrameClient {
   open(id: string): Promise<OfficeFrameDocument | OfficeFrameSource | null>;
   /** Bytes of `download_url` (an /api/v1/office-frame path). */
   content(downloadUrl: string, signal?: AbortSignal): Promise<Blob>;
-  upload(documentId: string, file: Blob, filename: string, idempotencyKey?: string): Promise<OfficeFrameUpload | null>;
+  upload(documentId: string, file: Blob, filename: string, idempotencyKey?: string, signal?: AbortSignal): Promise<OfficeFrameUpload | null>;
   /** Save. A stale base rejects with ApiError status 409 code document_version_conflict. */
   commit(documentId: string, body: { upload_id: string; base_revision: string; edit_lock_id?: string }, idempotencyKey?: string): Promise<OfficeFrameDocument | null>;
   recents(documentId: string, limit?: number): Promise<OfficeFrameRecents>;
@@ -321,8 +321,8 @@ export function createOfficeFrameClient(options: OfficeFrameClientOptions): Offi
       }
       return (await send(downloadUrl, { signal })).blob();
     },
-    async upload(documentId, file, filename, idempotencyKey) {
-      const raw = await json(`${docPath(documentId)}/uploads`, { method: "POST", body: form(file, filename), idempotencyKey });
+    async upload(documentId, file, filename, idempotencyKey, signal) {
+      const raw = await json(`${docPath(documentId)}/uploads`, { method: "POST", body: form(file, filename), idempotencyKey, signal });
       return parseWithFallback<OfficeFrameUpload | null>(raw, officeFrameUploadSchema, null, { endpoint: "POST /api/v1/office-frame/documents/{documentID}/uploads" });
     },
     async commit(documentId, body, idempotencyKey) {

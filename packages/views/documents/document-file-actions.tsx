@@ -24,6 +24,7 @@ import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import type { Document } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
+import { documentDownloadName } from "./document-download-name";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { reportWriteRefused } from "./edit-lock-refusal";
@@ -83,7 +84,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       const url = URL.createObjectURL(blob);
       const anchor = window.document.createElement("a");
       anchor.href = url;
-      anchor.download = doc.file?.filename ?? doc.title;
+      anchor.download = documentDownloadName(doc);
       anchor.rel = "noopener";
       window.document.body.append(anchor);
       anchor.click();
@@ -150,7 +151,11 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       // and the next attempt resumes or re-uploads.
       if (!mountedRef.current) return;
       staged = true;
-      await commit.mutateAsync({
+      // The version id this attempt must beat: identical bytes answer 200
+      // with the version the document already carries (UNI-1900), and that
+      // no-op deserves the quiet "no change" note instead of silence (D-2).
+      const versionIdBefore = doc.file?.version_id;
+      const committed = await commit.mutateAsync({
         upload_id: uploadId,
         base_revision: doc.revision,
         // The mounted Office editor holds the lock; a new version replaces content (UNI-1645).
@@ -158,7 +163,12 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
         idempotencyKey: idempotencyKey.current,
       });
       idempotencyKey.current = null;
-      if (mountedRef.current) setDialogOpen(false);
+      if (mountedRef.current) {
+        setDialogOpen(false);
+        if (versionIdBefore && committed.version.id === versionIdBefore) {
+          toast.message(t("documents.upload.no_change"));
+        }
+      }
     } catch (err) {
       if (!mountedRef.current) return;
       if (err instanceof ChunkedUploadError && err.code === "upload_canceled") {

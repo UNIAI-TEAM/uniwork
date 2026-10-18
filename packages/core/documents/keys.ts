@@ -55,6 +55,14 @@ export const documentKeys = {
     filterKey
       ? ([...documentKeys.workspace(wsId), "shared-by-me", filterKey] as const)
       : ([...documentKeys.workspace(wsId), "shared-by-me"] as const),
+  // ARCHIVE-01 (UNI-1845): the shelved list ("Lưu trữ"), a flat keyset-paged
+  // view of GET .../documents?shelved=true. Under the workspace root like
+  // `recent`/`shared` so `document.*` frames and shelve/unshelve refreshes
+  // reach it; the chip filters join the key when set.
+  shelved: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "shelved", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "shelved"] as const),
   // The folders-only tree appends a segment, so the full tree's key stays
   // its prefix and one tree invalidation refreshes both.
   tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>

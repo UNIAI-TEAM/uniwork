@@ -29,6 +29,11 @@ var errorClassByCode = map[string]string{
 	// links, break-glass, moving or archiving.
 	"my_folder_locked": "conflict",
 
+	// read_only: the request hit a shelved item (ARCHIVE-01, UNI-1845);
+	// shelving makes it immutable for everyone, so the client switches the
+	// surface to read-only and keeps the unsaved draft.
+	"document_shelved": "read_only",
+
 	// gone: the resource is deleted or purged; stop retrying and leave.
 	"document_deleted": "gone",
 

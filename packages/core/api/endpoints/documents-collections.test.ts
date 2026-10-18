@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
-import { canManageTrashed, isMyFolder, type DocumentSystemKind } from "../../types/document";
+import { canManageTrashed, isMyFolder, isShelved, type DocumentSystemKind } from "../../types/document";
 import { setAccessToken } from "../session";
 import {
   archiveDocument,
@@ -11,9 +11,12 @@ import {
   listRecentDocuments,
   listSharedByMe,
   listSharedWithMe,
+  listShelvedDocuments,
   moveDocument,
   purgeDocument,
   restoreDocument,
+  shelveDocument,
+  unshelveDocument,
 } from "./documents-collections";
 
 const json = (body: unknown, status = 200) =>
@@ -269,6 +272,25 @@ describe("documents-collections endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/restore");
   });
 
+  it("shelveDocument and unshelveDocument parse the batch answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: summary({ shelved_at: "2026-10-17T09:00:00Z" }), batch_id: "s1", affected: ["d1", "d2"] }),
+    );
+    const shelved = await shelveDocument("d1", { idempotencyKey: "sv-1" });
+    expect(shelved?.batch_id).toBe("s1");
+    expect(shelved?.affected).toEqual(["d1", "d2"]);
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/shelve");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("sv-1");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: summary({ shelved_at: null }), affected: [] }));
+    const unshelved = await unshelveDocument("d1");
+    expect(unshelved?.document.id).toBe("d1");
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/unshelve");
+  });
+
+
   it("purgeDocument posts to /purge and sends no Idempotency-Key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
     await expect(purgeDocument("d/1", { signal: undefined })).resolves.toBeUndefined();
@@ -324,9 +346,55 @@ describe("documents-collections endpoints", () => {
     ]);
   });
 
+  it("list rows carry the shelved pair, and drifted values read as absent (ARCHIVE-01)", async () => {
+    // ARCHIVE-01 §4/Q-UI3: shelved_at/shelved_by ride every list row - trash
+    // rows included - so a restored row keeps its "Đã lưu trữ" badge.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "a", shelved_at: "2026-10-17T00:00:00Z", shelved_by: "u2", archived_at: "2026-10-18T00:00:00Z" }),
+            summary({ id: "b", shelved_at: 7, shelved_by: { name: "x" } }),
+            summary({ id: "c" }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1");
+    expect(out.documents.map((d) => [d.id, d.shelved_at, d.shelved_by])).toEqual([
+      ["a", "2026-10-17T00:00:00Z", "u2"],
+      ["b", undefined, undefined],
+      ["c", undefined, undefined],
+    ]);
+    expect(isShelved(out.documents[0])).toBe(true);
+    expect(isShelved(out.documents[1])).toBe(false);
+    expect(isShelved(out.documents[2])).toBe(false);
+  });
+
   it.each(malformedBodies)("listDocuments throws rather than fake-empty %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(listDocuments("w1")).rejects.toThrow("document_list_invalid");
+  });
+
+  it.each(malformedBodies)("listShelvedDocuments throws rather than fake-empty %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(listShelvedDocuments("w1")).rejects.toThrow("document_list_invalid");
+  });
+
+  it("listShelvedDocuments asks for shelved=true with the chip filters and the cursor (ARCHIVE-01)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [summary({ shelved_at: "2026-10-17T00:00:00Z", shelved_by: "u2" })], next_cursor: "s9" })));
+    const out = await listShelvedDocuments("w1", { format: "docx", access: "manage", cursor: "c5", limit: 25 });
+    const parsed = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(parsed.pathname).toBe("/api/v1/workspaces/w1/documents");
+    expect(parsed.searchParams.get("shelved")).toBe("true");
+    expect(parsed.searchParams.get("format")).toBe("docx");
+    expect(parsed.searchParams.get("access")).toBe("manage");
+    expect(parsed.searchParams.get("cursor")).toBe("c5");
+    expect(parsed.searchParams.get("limit")).toBe("25");
+    expect(parsed.searchParams.has("archived")).toBe(false);
+    expect(parsed.searchParams.has("parent_id")).toBe(false);
+    expect(out.documents[0]?.shelved_at).toBe("2026-10-17T00:00:00Z");
+    expect(out.next_cursor).toBe("s9");
   });
 
   it.each(malformedBodies)("listRecentDocuments throws rather than fake-empty %#", async (body) => {
@@ -358,6 +426,17 @@ describe("documents-collections endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(restoreDocument("d1")).resolves.toBeNull();
   });
+
+  it.each(malformedBodies)("shelveDocument degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(shelveDocument("d1")).resolves.toBeNull();
+  });
+
+  it.each(malformedBodies)("unshelveDocument degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(unshelveDocument("d1")).resolves.toBeNull();
+  });
+
 
   it.each(malformedBodies)("purgeDocument degrades %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));

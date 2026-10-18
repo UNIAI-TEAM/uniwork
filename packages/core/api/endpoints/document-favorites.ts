@@ -3,7 +3,7 @@ import {
   DocumentFavoriteEnvelopeSchema,
   DocumentFavoriteListEnvelopeSchema,
   type DocumentFavorite,
-} from "../../types/document";
+} from "../../types/document-favorites";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 
