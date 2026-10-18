@@ -148,7 +148,7 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
       const dr = dlg?.getBoundingClientRect();
       const br = btn?.getBoundingClientRect();
       const kids = Array.from(dlg?.children ?? []).map((c) => `${c.tagName}:${Math.round(c.getBoundingClientRect().height)}:${(c.textContent ?? "").slice(0, 24)}`);
-      const inner = Array.from(dlg?.querySelector(":scope > div.flex-col")?.children ?? []).map((c) => `${c.tagName}:${Math.round(c.getBoundingClientRect().height)}:${(c.textContent ?? "").slice(0, 24).replace(/\s+/g, " ")}`);
+      const inner = Array.from(dlg?.children[1]?.children ?? []).map((c) => `${c.tagName}:${Math.round(c.getBoundingClientRect().height)}:${(c.textContent ?? "").slice(0, 40).replace(/\s+/g, " ")}`);
       const cur = `kids=${kids.join("|")} inner=${inner.join("|")} raf dlg=${dr?.top.toFixed(1)}..${dr?.bottom.toFixed(1)} scrollTop=${dlg?.scrollTop} scrollH=${dlg?.scrollHeight} btn=${br?.top.toFixed(1)}..${br?.bottom.toFixed(1)}`;
       if (frames++ < 600 && cur !== last) d(cur);
       last = cur;
