@@ -19,6 +19,7 @@ import { join } from "node:path";
 import {
   S11_LOCK_SELECTOR, S3_PANEL_SELECTOR, S3_TAB_SELECTOR, copiesRootDir, leaseStoreDir, libraryStoreDir, recordName,
 } from "./app-case-drivers-offline.mjs";
+import { FAKETIME_CANDIDATES, faketimeEnv } from "./app-offline-env.mjs";
 import { caseExpect } from "./case-expect.mjs";
 import { loadFaultCases, renderCaseRules } from "./server-cases-lib.mjs";
 
@@ -60,6 +61,26 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     log: [],
     sessions: [],
     launches: [],
+    // W2 faults: a lease per document (short = served by a rewrite_json rule), the disk, the org revoke, the keystore and the latched clock rollback
+    leases: new Map(),
+    leaseSeq: 0,
+    expireAfterPolls: 2,
+    diskFull: false,
+    revoked: false,
+    revokedSeen: new Set(),
+    revokeFails: false,
+    keyringLocked: false,
+    // a process that started while the keystore was locked keeps failing until it is relaunched
+    keyringSticky: false,
+    keyringBroken: false,
+    rollbackLatched: false,
+    // the VM: a runner that HAS tmpfs, libfaketime and the keyring control channel, until a test takes one away
+    tmpfsMountable: true,
+    mountFails: false,
+    faketimeInstalled: true,
+    keyringControl: true,
+    keyringLockFails: false,
+    fillLeavesBytes: null,
     visible: new Set(),
     tabSelected: false,
     docSeq: 0,
@@ -105,38 +126,110 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
 
   const blobNames = (documentId, account = ACCOUNT_A) => [recordName(`blob/${documentId}/g1/main`)].filter((name) => readdirSync(libraryDir(account)).includes(name));
 
+  /**
+   * The lease route through the fake proxy: a reset cuts it, a revoked lease answers 403, a `rewrite_json`
+   * rule serves a SHORT lease (it lapses once nothing can renew it), anything else is a normal 200 that also
+   * lifts a latched clock rollback. Every grant moves the document's lease record, so "the lease was not
+   * extended" is a real store comparison.
+   */
+  const leasePut = (documentId) => {
+    const path = `/api/v1/documents/${documentId}/office/offline-lease`;
+    const rule = matchingRule("PUT", path);
+    if (rule?.action.type === "reset") {
+      world.log.push({ method: "PUT", path, status: "reset", ruleId: rule.id });
+      return "cut";
+    }
+    if (world.revoked) {
+      world.log.push({ method: "PUT", path, status: 403, ruleId: rule?.id ?? null });
+      return "revoked";
+    }
+    world.log.push({ method: "PUT", path, status: 200, ruleId: rule?.id ?? null });
+    world.leases.set(documentId, { short: rule?.action.type === "rewrite_json", polls: 0 });
+    world.rollbackLatched = false;
+    writeRecord(world.leaseDir(), `lease/${documentId}`, Buffer.from(`lease-${documentId}-${++world.leaseSeq}`));
+    return "granted";
+  };
+  world.leasePut = leasePut;
+  const leaseCut = () => world.rules.some((rule) => rule.id === "cut-lease" || rule.id === "cut-network");
+  const keystoreDown = () => world.keyringLocked || world.keyringBroken;
+
+  /** the row the product shows: the stored row with the lease / clock / revoke overlay (null while the keystore is down) */
+  const viewOf = (documentId, row) => {
+    if (keystoreDown()) return null;
+    if (world.revokedSeen.has(documentId)) return { documentId, ...row, state: "revoked", lockReason: "permission_revoked" };
+    if (world.rollbackLatched && row.state === "ready") return { documentId, ...row, state: "locked", lockReason: "clock_rollback" };
+    const lease = world.leases.get(documentId);
+    if (lease?.short && leaseCut() && row.state === "ready") {
+      lease.polls += 1;
+      if (lease.polls > world.expireAfterPolls) return { documentId, ...row, state: "lease-expired", lockReason: "lease_expired" };
+    }
+    return { documentId, ...row };
+  };
+
+  /** a pin that met a full disk: only the pin row (and the index listing it) lands, never a blob */
+  const writePinOnly = (documentId, account = world.signedInAs ?? ACCOUNT_A) => {
+    const dir = libraryDir(account);
+    writeRecord(dir, "index", Buffer.from(`index-${documentId}`));
+    writeRecord(dir, `pin/${documentId}`, Buffer.from(`pin-${documentId}`));
+  };
+
   world.product = {
-    /** pin: the download goes through the proxy; a cut one is `interrupted`, else the copy is written and `ready` */
+    /** pin: the download goes through the proxy; a cut one is `interrupted`, a full disk `disk-full`, else the copy is written and `ready` */
     pin: ({ documentId }) => {
+      if (keystoreDown()) return { ok: false, code: "keystore_locked", lockReason: "keystore_locked" };
       if (!download(documentId)) {
         world.rows.set(documentId, { state: "interrupted", name: "doc" });
         return { ok: true };
       }
+      if (world.diskFull) {
+        writePinOnly(documentId);
+        world.rows.set(documentId, { state: "disk-full", name: "doc" });
+        return { ok: true };
+      }
       world.rows.set(documentId, { state: "ready", name: "doc" });
       world.writeLibrary(documentId);
+      leasePut(documentId);
       return { ok: true };
     },
     downloadNow: (documentId) => {
+      if (keystoreDown()) return { ok: false, code: "keystore_locked", lockReason: "keystore_locked" };
       if (!download(documentId)) {
         world.rows.set(documentId, { state: "interrupted", name: "doc" });
         return { ok: false, code: "interrupted" };
+      }
+      if (world.diskFull) {
+        world.rows.set(documentId, { state: "disk-full", name: "doc" });
+        return { ok: false, code: "store_full" };
+      }
+      const lease = leasePut(documentId);
+      if (lease === "revoked") {
+        world.revokedSeen.add(documentId);
+        return { ok: false, code: "revoked", lockReason: "permission_revoked" };
       }
       world.rows.set(documentId, { state: "ready", name: "doc" });
       world.writeLibrary(documentId);
       return { ok: true };
     },
-    /** a cut content route sends the open to the cache, which verifies the bytes it finds */
+    /** a cut content route sends the open to the cache, which checks keystore, revoke, clock, lease and bytes in turn */
     open: (documentId) => {
       if (download(documentId)) return { ok: true };
+      const refuse = (code, lockReason) => {
+        world.visible.add(S11_LOCK_SELECTOR);
+        return { ok: false, code, ...(lockReason ? { lockReason } : {}) };
+      };
+      if (keystoreDown()) return refuse("keystore_locked", "keystore_locked");
       const row = world.rows.get(documentId);
       if (!row) return { ok: false, code: "not_pinned" };
+      const view = viewOf(documentId, row);
+      if (view?.state === "revoked") return refuse("revoked", "permission_revoked");
+      if (view?.lockReason === "clock_rollback") return refuse("lease_unusable", "clock_rollback");
+      if (view?.state === "lease-expired") return refuse("lease_unusable", "lease_expired");
       const names = blobNames(documentId);
       const tampered = names.some((name) => sha(readFileSync(join(libraryDir(), name))) !== world.pristine.get(name));
       if (tampered || names.length === 0) {
         for (const name of names) rmSync(join(libraryDir(), name), { force: true });
         world.rows.set(documentId, { state: "corrupt", name: "doc" });
-        world.visible.add(S11_LOCK_SELECTOR);
-        return { ok: false, code: "corrupt" };
+        return refuse("corrupt");
       }
       return { ok: true };
     },
@@ -147,7 +240,55 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       world.signedInAs = null;
     },
     /** what the rows are after a launch with `deployment`: another deployment is its own, empty scope */
-    rowsFor: (dep) => (dep === "default" ? [...world.rows.entries()].map(([documentId, row]) => ({ documentId, ...row })) : []),
+    rowsFor: (dep) => (dep === "default" ? [...world.rows.entries()].map(([documentId, row]) => viewOf(documentId, row)).filter(Boolean) : []),
+  };
+
+  /**
+   * The runner VM the W2 drivers see (`ctx.vm`): every probe answers like a VM that has the tool, and a test
+   * flips one switch (`tmpfsMountable`, `faketimeInstalled`, `keyringControl`, ...) to take it away.
+   */
+  world.vmCalls = [];
+  const faketimeLibrary = FAKETIME_CANDIDATES[0];
+  world.vm = {
+    probeTmpfsMount: () => (world.tmpfsMountable ? { ok: true } : { ok: false, line: "sudo -n true exited 1: a password is required" }),
+    mountTmpfs: (dir, mb) => {
+      world.vmCalls.push(["mount", dir, mb]);
+      return world.mountFails ? { ok: false, line: `mount -t tmpfs -o size=${mb}m ${dir} exited 32: permission denied` } : { ok: true };
+    },
+    unmountTmpfs: (dir) => {
+      world.vmCalls.push(["unmount", dir]);
+      return { ok: true };
+    },
+    fillToLeave: (dir, leave) => {
+      world.vmCalls.push(["fill", dir, leave]);
+      world.diskFull = true;
+      return { path: join(dir, ".fl02-filler"), freeBefore: 400 * 1024 * 1024, freeAfter: world.fillLeavesBytes ?? leave };
+    },
+    releaseFill: (path) => {
+      world.vmCalls.push(["release", path]);
+      world.diskFull = false;
+    },
+    sparseFill: (scopeDir, budget, leave) => {
+      world.vmCalls.push(["sparse", scopeDir, budget, leave]);
+      world.diskFull = true;
+      return { path: join(scopeDir, ".fl02-sparse-filler"), apparentBytes: budget - leave };
+    },
+    findFaketime: () => (world.faketimeInstalled ? { path: faketimeLibrary } : { line: "libfaketime is not installed on the runner VM (apt-get install -y libfaketime)" }),
+    faketimeEnv,
+    keyring: {
+      available: () => (world.keyringControl ? null : "APP_KEYRING_CTL is not set: run the runner as `APP_KEYRING_CONTROL=1 dbus-run-session -- bash app-keyring.sh`"),
+      lock: () => {
+        world.vmCalls.push(["keyring", "lock"]);
+        if (world.keyringLockFails) return { ok: false, line: "the keyring wrapper answered lock with: fail: the collection is still unlocked after Lock" };
+        world.keyringLocked = true;
+        return { ok: true };
+      },
+      unlock: () => {
+        world.vmCalls.push(["keyring", "unlock"]);
+        world.keyringLocked = false;
+        return { ok: true };
+      },
+    },
   };
 
   let currentDeployment = deployment;
@@ -197,17 +338,25 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     const dep = options.deploymentId ?? "default";
     const session = {
       dead: false,
+      // libfaketime's FAKETIME=-<N>m, as the launch env carried it
+      clockBehindMs: (() => {
+        const match = /^-(\d+)m$/.exec(options.extraEnv?.FAKETIME ?? "");
+        return match ? Number(match[1]) * 60_000 : 0;
+      })(),
       userDataDir: userData,
       deploymentId: dep,
       app: {
         evaluate: async (fn) => {
           if (!world.alive) throw new Error("Target closed");
           const saved = process.env.UNIWORK_DEPLOYMENT_ID;
+          const realNow = Date.now;
+          Date.now = () => realNow() - session.clockBehindMs;
           // an app launched with a deployment id reads it from its env (and a saved profile beats it)
           process.env.UNIWORK_DEPLOYMENT_ID = world.effectiveDeployment ?? dep;
           try {
             return await fn({ dialog: {}, safeStorage: {} });
           } finally {
+            Date.now = realNow;
             if (saved === undefined) delete process.env.UNIWORK_DEPLOYMENT_ID;
             else process.env.UNIWORK_DEPLOYMENT_ID = saved;
           }
@@ -231,6 +380,9 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       },
     };
     currentDeployment = dep;
+    // the product sees the wall clock go back across a restart and locks; a process born on a locked keystore stays broken
+    if (session.clockBehindMs > 0) world.rollbackLatched = true;
+    world.keyringBroken = world.keyringSticky && world.keyringLocked;
     world.sessions.push(session);
     return session;
   };
@@ -259,10 +411,19 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     clearRules: async () => { world.rules = []; },
     proxyLog: async () => world.log.map((entry) => ({ ...entry })),
     versionDelta: async () => 0,
+    vm: world.vm,
+    // the admin CLI on D: null = revoked, else the line the runner would report
+    revokeOfflineLeases: async () => {
+      world.vmCalls.push(["revoke"]);
+      if (world.revokeFails) return "uniwork-admin revoke-offline-leases exited 1: no organization";
+      world.revoked = true;
+      return null;
+    },
   };
   world.ctx = ctx;
   world.makeSession = makeSession;
   world.copiesDir = (account = ACCOUNT_A, dep = world.deployment) => join(copiesRootDir(userData, dep), account);
+  world.syncStoreDir = (store, account = ACCOUNT_A) => join(userData, "uniwork-sync", "store", world.deployment, account, store);
   world.leaseDir = (account = ACCOUNT_A) => leaseStoreDir(userData, world.deployment, account);
   return world;
 }
