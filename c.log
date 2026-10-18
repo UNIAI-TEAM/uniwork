@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+348fdec9ed211d7db162c6f4a5b86e6b117dc9bc
+348fdec9e fix(documents): read office_txt_open with the organization's answer (UNI-1813)
+aa82bc68f chore(merge): e6-server UN-02 9fe38389e (root 1c7760c5f) into UN-02 web
+9fe38389e Merge commit '1c7760c5f' into feature/UNI-1813-markdown-create-txt
+1828fecf4 test(documents): pin .txt recovery across restores and mixed history (UNI-1813)
