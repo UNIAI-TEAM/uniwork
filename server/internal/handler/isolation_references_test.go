@@ -152,6 +152,8 @@ var isoReferences = []isoReference{
 	{method: "PATCH", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels/{roomID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"UpdateChatChannelSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/links", what: "linked task", body: map[string]any{
 		"target_type": "task", "target_id": isoRef("task2")}, covers: []string{"CreateChatMessageLinkSDI.target_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/forward", what: "target room", body: map[string]any{
+		"target_room_ids": []any{isoRef("room")}}, covers: []string{"ForwardChatMessageSDI.target_room_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/threads/{messageID}/task-sync", what: "synced task", body: map[string]any{"task_id": isoRef("task2")}, covers: []string{"SyncThreadTaskSDI.task_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/tasks", what: "project", body: map[string]any{
 		"title": isoUnique("ref"), "project_id": isoRef("project")}, covers: []string{"CreateTaskFromMessageSDI.project_id"}},
@@ -160,6 +162,8 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", what: "reply to", body: map[string]any{
 		"body": "ref", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatMessageSDI.reply_to_message_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/delivered", what: "room", allow2xx: true,
+		body: map[string]any{"rooms": []any{map[string]any{"room_id": isoRef("room"), "up_to": isoAt(0)}}}, covers: []string{"ChatDeliveredRoomSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "conversation", body: map[string]any{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
 

@@ -44,6 +44,7 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.LastReplyAt != nil {
 		out.LastReplyAt = m.LastReplyAt.Format(time.RFC3339)
 	}
+	out.ThreadParticipantIDs = m.ThreadParticipantIDs
 	if m.ThreadUnread {
 		out.ThreadUnread = true
 	}
@@ -64,6 +65,9 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	}
 	if m.Priority != "" {
 		out.Priority = m.Priority
+	}
+	if f := m.ForwardedFrom; f != nil {
+		out.ForwardedFrom = &sdo.ChatForwardedFromDTO{SenderID: f.SenderID, SenderName: f.SenderName, SentAt: f.SentAt.Format(time.RFC3339)}
 	}
 	if m.ClientMsgID != "" {
 		out.ClientMsgID = m.ClientMsgID
@@ -176,6 +180,7 @@ func toChatRoomMemberPermissionsDTO(p service.ChatRoomMemberPermissions) *sdo.Ch
 		AllowCreateNotes:   p.AllowCreateNotes,
 		AllowCreatePolls:   p.AllowCreatePolls,
 		AllowSendMessages:  p.AllowSendMessages,
+		AllowForward:       p.AllowForward,
 	}
 }
 
@@ -196,6 +201,9 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 	}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
+	}
+	if r.PeerLastDeliveredAt != nil {
+		out.PeerLastDeliveredAt = r.PeerLastDeliveredAt.UTC().Format(time.RFC3339Nano)
 	}
 	if r.LastReadAt != nil {
 		out.LastReadAt = r.LastReadAt.UTC().Format(time.RFC3339Nano)
@@ -482,6 +490,9 @@ func (h *handlers) listChatRoomMembers(w http.ResponseWriter, r *http.Request) {
 		if m.LastReadAt != nil {
 			dto.LastReadAt = m.LastReadAt.UTC().Format(time.RFC3339Nano)
 		}
+		if m.LastDeliveredAt != nil {
+			dto.LastDeliveredAt = m.LastDeliveredAt.UTC().Format(time.RFC3339Nano)
+		}
 		out = append(out, dto)
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatRoomMemberListSDO{Members: out})
@@ -529,6 +540,9 @@ func patchMemberPermissionsFromSDI(
 	if in.AllowSendMessages != nil {
 		current.AllowSendMessages = *in.AllowSendMessages
 	}
+	if in.AllowForward != nil {
+		current.AllowForward = *in.AllowForward
+	}
 	return current
 }
 
@@ -558,13 +572,7 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.ChatRoomMemberPermissionsDTO{
-		AllowChangeProfile: perms.AllowChangeProfile,
-		AllowPinContent:    perms.AllowPinContent,
-		AllowCreateNotes:   perms.AllowCreateNotes,
-		AllowCreatePolls:   perms.AllowCreatePolls,
-		AllowSendMessages:  perms.AllowSendMessages,
-	})
+	respondJSON(w, http.StatusOK, toChatRoomMemberPermissionsDTO(perms))
 }
 
 func (h *handlers) listChatRoomMessages(w http.ResponseWriter, r *http.Request) {

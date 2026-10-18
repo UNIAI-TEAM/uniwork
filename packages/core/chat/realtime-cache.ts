@@ -100,10 +100,13 @@ export function bumpThreadRootReplyCount(
     if (entry.id !== rootId) return entry;
     // A root already past this reply has counted it: later frames for it (an edit, a reaction) bump nothing.
     if (entry.last_reply_at && Date.parse(entry.last_reply_at) >= Date.parse(reply.created_at)) return entry;
+    const repliers = entry.thread_participant_ids ?? [];
     return {
       ...entry,
       reply_count: (entry.reply_count ?? 0) + 1,
       last_reply_at: reply.created_at,
+      // The pill's faces: the newest replier first, three at most, as the server sends them.
+      thread_participant_ids: [reply.sender_id, ...repliers.filter((id) => id !== reply.sender_id)].slice(0, 3),
     };
   });
 }

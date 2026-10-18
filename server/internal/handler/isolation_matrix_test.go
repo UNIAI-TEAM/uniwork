@@ -611,6 +611,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		case strings.HasSuffix(pattern, "/task-sync"):
 			// A group thread cannot sync to a task (H12); a public channel's can.
 			return tn.get(t, "channelMessage")
+		case strings.HasSuffix(pattern, "/transcript"):
+			return tn.get(t, "voiceMessage")
 		}
 		return tn.get(t, "message")
 	case "{followUpID}":
@@ -1180,13 +1182,15 @@ func (w *isoWorld) emptyTenantTables(t *testing.T, tn *isoTenant) []string {
 // isoUnseeded lists tenant tables the fixture leaves empty, with the reason
 // no route of the API can fill them.
 var isoUnseeded = map[string]string{
-	"task_source_contexts":    "no code path writes it today; only the files backfill reads it",
-	"invoices":                "written by a billing provider's webhook; the manual provider in tests issues none",
-	"billing_payment_intents": "created only by owner checkout; isolation matrix does not run paid checkout",
-	"file_backfill_items":     "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
-	"meeting_reminders":       "written only by the meeting reminder job (internal/notification); no route fills it",
-	"graph_dirty":             "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
-	"file_derivatives":        "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
+	"task_source_contexts":       "no code path writes it today; only the files backfill reads it",
+	"invoices":                   "written by a billing provider's webhook; the manual provider in tests issues none",
+	"billing_payment_intents":    "created only by owner checkout; isolation matrix does not run paid checkout",
+	"file_backfill_items":        "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
+	"meeting_reminders":          "written only by the meeting reminder job (internal/notification); no route fills it",
+	"graph_dirty":                "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
+	"file_derivatives":           "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
+	"chat_link_previews":         "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",
+	"chat_message_link_previews": "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",
 }
 
 // isoDigestSkip lists tenant tables a refused request is allowed to write:

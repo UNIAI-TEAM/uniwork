@@ -286,6 +286,9 @@ func New(d Deps, h Routes) http.Handler {
 			registerChatThreads(authed, h, chatWriteLimit)
 			registerChatLinks(authed, h, chatWriteLimit)
 			registerChatFollowUps(authed, h, chatWriteLimit)
+			registerChatDelivery(authed, h)
+			registerChatForward(authed, h, chatWriteLimit)
+			registerChatVoiceTranscript(authed, h, chatWriteLimit)
 			registerFiles(authed, h)
 			// The `documents` gate evaluates at the organization the path acts
 			// in, so an organization override closes these routes like it

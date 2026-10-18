@@ -675,6 +675,8 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 		fields: map[string]string{"client_msg_id": util.NewID(), "duration_ms": "4000"}, filename: "voice.webm", contentType: "audio/webm", content: tinyWebM,
 	})
 	tn.ids["voiceMessage"] = isoID(t, out, "message")
+	// Its transcript (UNI-1908 F2), on the fake transcriber the world runs.
+	w.call(t, "POST", ws+"/chat/messages/"+tn.ids["voiceMessage"]+"/transcript", tn.token, nil)
 	out = w.call(t, "POST", ws+"/chat/messages/"+tn.ids["message"]+"/follow-ups", tn.token, map[string]any{"note": m + " follow up"})
 	tn.ids["followUp"] = isoID(t, out, "follow_up")
 	out = w.call(t, "POST", ws+"/chat/messages/"+tn.ids["message"]+"/links", tn.token, map[string]any{"target_type": "task", "target_id": tn.ids["task"]})

@@ -1,12 +1,13 @@
 "use client";
 
-import { lazy, Suspense, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { lazy, Suspense, useContext, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
   Bookmark,
   Copy,
   Link2,
   MessageSquareText,
   Ellipsis,
+  Forward,
   Pencil,
   Pin,
   Reply,
@@ -33,7 +34,9 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatSeenByMenuItem } from "./chat-seen-by";
+import { ChatForwardContext, isForwardableChatMessage } from "./chat-forward-context";
 import { emojiPickerStrings } from "./chat-expression-utils";
+import { useActionsBarPlacement } from "./use-actions-bar-placement";
 import { MODULE_ICONS } from "../layout/module-icons";
 
 /**
@@ -201,10 +204,12 @@ export function ChatMessageHoverActions({
   const barRef = useRef<HTMLDivElement>(null);
   // The bar stays up while its picker is open: the pointer and focus are in the popover then.
   const [pickerOpen, setPickerOpen] = useState(false);
+  const onForward = useContext(ChatForwardContext);
   const canInteract = Boolean(onReply && onReact);
   const canDelete = isOwn && Boolean(onDelete);
   const pinLabel = message.pinned ? t("chat.action_unpin") : t("chat.action_pin");
   const workHubActions = Boolean(onCreateTask || onLinkTask || onFollowUp);
+  useActionsBarPlacement(barRef, canInteract);
 
   if (!canInteract) return null;
 
@@ -258,6 +263,8 @@ export function ChatMessageHoverActions({
       className={cn(
         "pointer-events-none absolute bottom-full z-10 mb-1.5 flex w-max items-center rounded-xl border border-border bg-popover p-1 opacity-0 shadow-floating",
         "after:absolute after:inset-x-0 after:top-full after:h-1.5 after:content-['']",
+        // No room above (first message under the header): sit inside the bubble's top edge instead.
+        "data-[place=inside]:bottom-auto data-[place=inside]:mb-0 data-[place=inside]:after:hidden",
         (forceOpen || pickerOpen) && "pointer-events-auto opacity-100",
         "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
         // Never wider than the timeline (a docked panel or the thread narrows it): it wraps instead of running under.
@@ -363,6 +370,12 @@ export function ChatMessageHoverActions({
               <Copy className="size-4.5" aria-hidden />
               {t("chat.action_copy")}
             </DropdownMenuItem>
+            {onForward && isForwardableChatMessage(message) ? (
+              <DropdownMenuItem onClick={() => onForward(message)}>
+                <Forward className="size-4.5" aria-hidden />
+                {t("chat.forward.action")}
+              </DropdownMenuItem>
+            ) : null}
             {canDelete ? (
               <>
                 <DropdownMenuSeparator />

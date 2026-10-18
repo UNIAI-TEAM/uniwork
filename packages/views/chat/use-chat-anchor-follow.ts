@@ -1,9 +1,82 @@
 "use client";
 
 import { type Dispatch, type RefObject, type SetStateAction, useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { listChatRoomMessagesAround } from "@uniwork/core/api/endpoints/chat";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
+import { toastChatError } from "./chat-error-message";
 import type { ChatMessage } from "./chat-messages";
+import { toChatMessage } from "./native-chat-message-mapping";
 import { focusChatMessage } from "./use-native-chat-message-actions";
+
+type Setter<T> = Dispatch<SetStateAction<T>>;
+
+/**
+ * Loads the window around a jump target. A failed or empty answer leaves the
+ * anchor, pins the newest row and says so (the room never sits on a blank window).
+ */
+export function useAnchorWindowLoad(args: {
+  workspaceId: string;
+  roomId: string;
+  activeAnchorId: string | null | undefined;
+  stickToBottomRef: RefObject<boolean>;
+  programmaticScrollRef: RefObject<boolean>;
+  onClearAnchorRef: RefObject<(() => void) | undefined>;
+  setAnchorMessages: Setter<ChatMessage[] | null>;
+  setHighlightMessageId: Setter<string | null>;
+  setLoadingAnchor: Setter<boolean>;
+  setAwayFromLatest: Setter<boolean>;
+  setLocalAnchor: Setter<{ roomId: string; id: string } | null>;
+}): void {
+  const { t } = useTranslation();
+  const { workspaceId, roomId, activeAnchorId, stickToBottomRef, programmaticScrollRef, onClearAnchorRef } = args;
+  const { setAnchorMessages, setHighlightMessageId, setLoadingAnchor, setAwayFromLatest, setLocalAnchor } = args;
+  useEffect(() => {
+    if (!activeAnchorId) {
+      setAnchorMessages(null);
+      setHighlightMessageId(null);
+      setLoadingAnchor(false);
+      return;
+    }
+    let cancelled = false;
+    stickToBottomRef.current = false;
+    setLoadingAnchor(true);
+    const failAnchorJump = (err: unknown) => {
+      stickToBottomRef.current = true;
+      programmaticScrollRef.current = false;
+      setAwayFromLatest(false);
+      setAnchorMessages(null);
+      setLocalAnchor(null);
+      onClearAnchorRef.current?.();
+      toastChatError(err, t, t("chat.message_list.jump_failed"));
+    };
+    void listChatRoomMessagesAround(workspaceId, roomId, activeAnchorId)
+      .then((rows) => {
+        if (cancelled) return;
+        if (rows.length === 0) {
+          failAnchorJump(null);
+          return;
+        }
+        setAnchorMessages(rows.map(toChatMessage));
+        setHighlightMessageId(activeAnchorId);
+        stickToBottomRef.current = false;
+      })
+      .catch((err: unknown) => {
+        // The message is gone or unreachable: say so instead of doing nothing.
+        if (cancelled) return;
+        failAnchorJump(err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAnchor(false);
+      });
+    return () => {
+      // A superseded or cleared request must not leave the spinner behind.
+      cancelled = true;
+      setLoadingAnchor(false);
+    };
+    // The setters and refs are stable: it re-runs on the anchor, the room, the workspace or t.
+  }, [activeAnchorId, roomId, t, workspaceId, stickToBottomRef, programmaticScrollRef, onClearAnchorRef, setAnchorMessages, setHighlightMessageId, setLoadingAnchor, setAwayFromLatest, setLocalAnchor]);
+}
 
 /**
  * A jump's highlight clears 5 s after it is set, or 2.5 s after the row is

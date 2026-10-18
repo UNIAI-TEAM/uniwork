@@ -72,12 +72,14 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | — | workspace | outbox |
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
 | `file.thumbnail_requested` | 1 | `file_id`, `organization_id` | — | - | outbox |
+| `chat.link_preview.requested` | 1 | `room_id`, `message_id`, `organization_id` | — | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
 | `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id`, `thread_root_id` | — | user | ephemeral |
 | `chat.message` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `chat.message.created` | 1 | `room_id`, `message_id`, `sender_id`, `thread_root_id` | — | chat | ephemeral |
 | `chat.message.deleted` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.message.updated` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
+| `chat.message.preview_ready` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.channel.archived` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |
 | `chat.channel.created` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |
 | `chat.channel.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
@@ -102,6 +104,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.room.member_removed` | 1 | `room_id`, `user_id` | — | room | outbox |
 | `chat.room.read` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.room.member_read` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
+| `chat.room.member_delivered` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
 | `chat.room.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
 | `chat.typing` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.accept` | 1 | `room_id`, `user_id` | — | user | ephemeral |

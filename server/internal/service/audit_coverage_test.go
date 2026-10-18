@@ -938,6 +938,19 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatVoiceTranscribed: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			withTranscriber(f.chat, f.pool, f.q, &provider.FakeTranscriber{})
+			voice, err := f.chat.SendVoiceMessage(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, SendVoiceMessageInput{
+				DurationMS: 4000, Body: bytes.NewReader(tinyFSVoiceBytes),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.TranscribeVoiceMessage(f.ctx, f.member.ID, f.workspace.ID, voice.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatVoiceCallLogged: func(t *testing.T, f *auditFixture) {
 			dm := f.newDM(t)
 			if err := f.chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call", false); err != nil {
@@ -947,6 +960,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := f.chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatMessageForwarded: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, f.workspace.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, f.workspace.ID, room.RoomID, SendChatMessageInput{Body: "forward me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.ForwardChatMessage(f.ctx, f.owner.ID, f.workspace.ID, msg.ID, ForwardChatMessageInput{
+				TargetRoomIDs: []string{dm.ID},
+			}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1779,6 +1808,8 @@ func auditActions() []string {
 		audit.ActionChatRoomMemberUpdated,
 		audit.ActionChatRoomSettingsUpdated,
 		audit.ActionChatVoiceCallLogged,
+		audit.ActionChatVoiceTranscribed,
+		audit.ActionChatMessageForwarded,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
