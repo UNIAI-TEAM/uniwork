@@ -106,3 +106,71 @@ describe("officeModuleCapabilities exportPdf grant (RFW3-2)", () => {
   });
 });
 
+describe("composeFrameInit readOnly profile (UNI-1876, UNI-1901)", () => {
+  const fullCapabilitiesApi = { saveAs: vi.fn(), saveCopy: vi.fn(), export: vi.fn(), addAttachments: vi.fn(), uploadImage: vi.fn() } as unknown as DocsFrameApi;
+  const frameToken = { token: "tok-1", tokenExpiresAt: Date.now() + 60_000 };
+  const limits = { upload_max_bytes: 50 * 1024 * 1024, save_warn_ratio: 0.9 };
+  const mintedFor = (module: "docs" | "pdf" | "markdown" | "html" | "slides" | "sheets", canEdit: boolean) => ({
+    token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 60_000).toISOString(), expires_in: 60,
+    document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: canEdit, module,
+  });
+  const baseOptions: DocsFrameSessionOptions = {
+    iframeRef: { current: null }, frameOrigin: "https://uniwork.test", api: fullCapabilitiesApi, wsId: "ws-1",
+    fileRef: { kind: "document", id: "doc-1" }, readonly: false, locale: "vi", theme: "light", onError: vi.fn(),
+  };
+
+  it("sends no profile for editors or lockedOut tabs, while lockedOut keeps save: false, saveCopy: true, and commentsLevel", async () => {
+    for (const mod of ["docs", "pdf", "markdown", "html", "slides", "sheets"] as const) {
+      const editor = await composeFrameInit({
+        module: mod, frameToken, current: baseOptions, doc: "doc-1", name: "An", uid: "u-1",
+        minted: mintedFor(mod, true), source: false, editLock: { held: true, lockId: "L1", onLocked: vi.fn() }, limits,
+      });
+      expect("profile" in editor.init).toBe(false);
+      expect(editor.init.capabilities).toMatchObject({ save: true, saveAs: true });
+    }
+
+    const augmentInit = vi.fn((init, session: { canEdit: boolean | undefined; readonly: boolean }) => ({
+      ...init,
+      commentsLevel: (session.readonly ? "view" : "edit") as "view" | "edit",
+    }));
+    const lockedOut = await composeFrameInit({
+      module: "docs", frameToken,
+      current: { ...baseOptions, comments: { augmentInit, api: {} as never, attach: vi.fn(), detach: vi.fn() } },
+      doc: "doc-1", name: "An", uid: "u-1",
+      minted: mintedFor("docs", true), source: false, editLock: { held: false, lockId: undefined, onLocked: vi.fn() }, limits,
+    });
+    expect("profile" in lockedOut.init).toBe(false);
+    expect(lockedOut.init.capabilities).toMatchObject({ save: false, saveAs: false, saveCopy: true });
+    expect(lockedOut.init.commentsLevel).toBe("edit");
+  });
+
+  it("sends profile: 'readOnly' and withholds save, saveAs, and saveCopy for source, viewer (can_edit: false), and readonly across all six modules", async () => {
+    for (const mod of ["docs", "pdf", "markdown", "html", "slides", "sheets"] as const) {
+      const fromSource = await composeFrameInit({
+        module: mod, frameToken, current: baseOptions, doc: "chat:s-1", name: "An", uid: "u-1",
+        minted: { ...mintedFor(mod, false), source_id: "chat:s-1", parent_kind: "chat_channel", parent_id: "c-1", readonly: true },
+        source: true, editLock: null, limits,
+      });
+      expect(fromSource.init.profile).toBe("readOnly");
+      expect(fromSource.init.capabilities).toMatchObject({ save: false, saveAs: false });
+      expect("saveCopy" in fromSource.init.capabilities).toBe(false);
+
+      const fromViewer = await composeFrameInit({
+        module: mod, frameToken, current: baseOptions, doc: "doc-1", name: "An", uid: "u-1",
+        minted: mintedFor(mod, false), source: false, editLock: null, limits,
+      });
+      expect(fromViewer.init.profile).toBe("readOnly");
+      expect(fromViewer.init.capabilities).toMatchObject({ save: false, saveAs: false });
+      expect("saveCopy" in fromViewer.init.capabilities).toBe(false);
+
+      const fromReadonly = await composeFrameInit({
+        module: mod, frameToken, current: { ...baseOptions, readonly: true }, doc: "doc-1", name: "An", uid: "u-1",
+        minted: mintedFor(mod, true), source: false, editLock: null, limits,
+      });
+      expect(fromReadonly.init.profile).toBe("readOnly");
+      expect(fromReadonly.init.capabilities).toMatchObject({ save: false, saveAs: false });
+      expect("saveCopy" in fromReadonly.init.capabilities).toBe(false);
+    }
+  });
+});
+

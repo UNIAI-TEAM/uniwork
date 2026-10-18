@@ -97,6 +97,7 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).not.toHaveProperty("profile");
     expect(frame.inits()[0]?.payload).toMatchObject({
       module: "pdf", documentId: "doc-1", token: "tok-1",
       capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
@@ -113,6 +114,7 @@ describe("OfficeModuleFrame", () => {
     expect(init).toMatchObject({
       documentId: "chat:s-1",
       token: "ofs1.tok",
+      profile: "readOnly",
       capabilities: { save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false, desktopOpen: false, download: false },
     });
     // No comments claim and no save control for a read-only source.
@@ -317,7 +319,7 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(true));
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
-    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { save: false, saveAs: false, print: true } });
+    expect(frame.inits()[0]?.payload).toMatchObject({ profile: "readOnly", capabilities: { save: false, saveAs: false, print: true } });
   });
 
   it("refuses the writes of a user whose minted token cannot edit, though the page is not readonly", async () => {

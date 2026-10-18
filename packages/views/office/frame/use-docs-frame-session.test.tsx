@@ -623,12 +623,13 @@ describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
     expect(requestMock.mock.calls.some(([path]) => path === SOURCE_MINT_PATH)).toBe(true);
     expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(false);
     const init = frame.sent("init")[0]?.payload as {
-      documentId: string; token: string;
-      capabilities: { comments?: boolean } & Record<string, boolean>;
+      documentId: string; token: string; profile?: string;
+      capabilities: { comments?: boolean; saveCopy?: boolean } & Record<string, boolean>;
       user?: unknown; recovery?: unknown; commentsLevel?: unknown;
     };
     expect(init.token).toBe("ofs1.tok");
     expect(init.documentId).toBe(SOURCE_ID);
+    expect(init.profile).toBe("readOnly");
     // A source frame can look and print only: every write, export, asset, AI and
     // desktop/download capability is off by construction.
     expect(init.capabilities).toMatchObject({
@@ -716,6 +717,7 @@ describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)"
     await frame.boot();
     expect(frame.hook.result.current.viewOnly).toBe(true);
     expect(frame.sent("init")[0]?.payload).toMatchObject({ capabilities: { save: false } });
+    expect(frame.sent("init")[0]?.payload).not.toHaveProperty("profile");
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
     expect(save).not.toHaveBeenCalled();
