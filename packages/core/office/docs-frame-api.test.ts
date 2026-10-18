@@ -173,6 +173,52 @@ describe("createDocsFrameApi", () => {
     await expect(createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, call())).rejects.toMatchObject({ code: "internal" });
   });
 
+  it("retries an expired staged upload once with a fresh upload key and still commits under the unchanged key (UNI-1900)", async () => {
+    const expired = () => json({ error: { code: "document_upload_invalid", message: "expired", fields: { reason: "file_claim_expired" } } }, 409);
+    let uploads = 0;
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        ++uploads === 1 ? expired() : json({ upload_id: "up-2", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-19T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, call());
+    expect(result).toMatchObject({ ok: true, versionId: "v-4", file: { etag: "8", versionId: "v-4" } });
+    const uploadCalls = calls.filter((c) => c.path === "/api/v1/office-frame/documents/doc-1/uploads");
+    expect(uploadCalls).toHaveLength(2);
+    const [firstKey, retryKey] = uploadCalls.map((c) => header(c.init, "Idempotency-Key"));
+    expect(firstKey).toMatch(/^frame-save-.*:upload$/);
+    expect(retryKey).not.toBe(firstKey);
+    expect(retryKey).toMatch(/^frame-save-.*:upload:.+$/);
+    const commit = calls.find((c) => c.path.endsWith("/versions/commit"))!;
+    expect(header(commit.init, "Idempotency-Key")).toBe(firstKey!.replace(/:upload$/, ":commit"));
+    expect(JSON.parse(String(commit.init.body))).toEqual({ upload_id: "up-2", base_revision: "7" });
+  });
+
+  it("does not retry an upload refused for any other reason (UNI-1900)", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        json({ error: { code: "document_upload_invalid", message: "not ready", fields: { reason: "file_not_ready" } } }, 409),
+    });
+    await expect(createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, call()))
+      .rejects.toMatchObject({ code: "conflict", status: 409, details: { apiCode: "document_upload_invalid" } });
+    expect(calls.filter((c) => c.path === "/api/v1/office-frame/documents/doc-1/uploads")).toHaveLength(1);
+    expect(calls.some((c) => c.path.endsWith("/versions/commit"))).toBe(false);
+  });
+
+  it("does not loop: a second expired upload answer is an error (UNI-1900)", async () => {
+    const expired = () => json({ error: { code: "document_upload_invalid", message: "expired", fields: { reason: "file_claim_expired" } } }, 409);
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": expired,
+    });
+    await expect(createDocsFrameApi({ apiUrl: API, fetch }).save({ fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" }, call()))
+      .rejects.toMatchObject({ code: "conflict", status: 409 });
+    expect(calls.filter((c) => c.path === "/api/v1/office-frame/documents/doc-1/uploads")).toHaveLength(2);
+    expect(calls.some((c) => c.path.endsWith("/versions/commit"))).toBe(false);
+  });
+
   it("lists recents, degrading a malformed answer to none", async () => {
     const ok = fakeFetch({ "GET /api/v1/office-frame/documents/doc-1/recents?limit=5": () => json({ items: [{ document_id: "doc-9", title: "Old.docx", updated_at: "2026-10-01T00:00:00Z" }] }) });
     await expect(createDocsFrameApi({ apiUrl: API, fetch: ok.fetch }).recents?.({ limit: 5 }, call())).resolves.toEqual({
@@ -516,6 +562,44 @@ describe("createDocsFrameApi chunked upload sessions above threshold (UNI-1863)"
       "GET /api/v1/office-frame/documents/doc-1",
       "POST /api/v1/office-frame/documents/doc-1/upload-sessions",
     ]);
+  });
+
+  it("retries once with a fresh upload key when a replayed session's staged upload expired and commit refuses it (UNI-1900)", async () => {
+    const expired = () => json({ error: { code: "document_upload_invalid", message: "expired", fields: { reason: "file_claim_expired" } } }, 409);
+    let creates = 0;
+    let commits = 0;
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions": () =>
+        ++creates === 1
+          ? // Replay of the completed session: every part already done, the staged upload stale.
+            json({ ...sessionBody("sess-r1", "old"), completed_parts: [{ part_number: 1, etag: '"e1"' }, { part_number: 2, etag: '"e2"' }] }, 201)
+          : json(sessionBody("sess-r2", "rpart"), 201),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions/sess-r1/complete": () =>
+        json({ upload_id: "up-stale", checksum_sha256: "abc", size_bytes: 12, claim_expires_at: "2026-10-17T11:00:00Z" }),
+      "PUT /s3/rpart-1": partOk('"e1"'),
+      "PUT /s3/rpart-2": partOk('"e2"'),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions/sess-r2/complete": () =>
+        json({ upload_id: "up-fresh", checksum_sha256: "abc", size_bytes: 12, claim_expires_at: "2026-10-19T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => (++commits === 1 ? expired() : json(COMMITTED)),
+    });
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: OVER_BYTES, etag: "7" },
+      { ...call(), chunkedUploadThresholdBytes: THRESHOLD },
+    );
+    expect(result).toMatchObject({ ok: true, versionId: "v-4" });
+    expect(calls.some((c) => c.path.endsWith("/uploads"))).toBe(false);
+    const sessionCreates = calls.filter((c) => c.path === "/api/v1/office-frame/documents/doc-1/upload-sessions");
+    expect(sessionCreates).toHaveLength(2);
+    const [firstKey, retryKey] = sessionCreates.map((c) => header(c.init, "Idempotency-Key"));
+    expect(firstKey).toMatch(/^frame-save-.*:upload$/);
+    expect(retryKey).not.toBe(firstKey);
+    expect(retryKey).toMatch(/^frame-save-.*:upload:.+$/);
+    const commitCalls = calls.filter((c) => c.path.endsWith("/versions/commit"));
+    expect(commitCalls).toHaveLength(2);
+    for (const c of commitCalls) expect(header(c.init, "Idempotency-Key")).toBe(firstKey!.replace(/:upload$/, ":commit"));
+    expect(JSON.parse(String(commitCalls[0]!.init.body))).toMatchObject({ upload_id: "up-stale", base_revision: "7" });
+    expect(JSON.parse(String(commitCalls[1]!.init.body))).toMatchObject({ upload_id: "up-fresh", base_revision: "7" });
   });
 });
 

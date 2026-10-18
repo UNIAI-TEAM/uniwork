@@ -176,12 +176,13 @@ describe("DocumentActionsMenu", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
   });
 
-  it("keeps a viewer to the read surfaces", async () => {
+  it("keeps a viewer to the read surfaces plus the read-only Share dialog", async () => {
     renderMenu(documentFixture({ my_level: "view" }));
     await openMenu();
 
     expect(screen.getByRole("menuitem", { name: t("documents.actions.versions") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.actions.share") })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.share") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.access_log") })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
   });
 
@@ -200,13 +201,30 @@ describe("DocumentActionsMenu", () => {
     expect(screen.getByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
   });
 
-  it("never mounts the share dialog for an editor without admin_scope", async () => {
+  // E2E-1 / U-SH4 (access addendum §5.2): every reader opens Share. A reader who
+  // cannot administer sees "Quyền của bạn" and their own sources, never the add
+  // area, other people's rows or links.
+  it("opens Share for an editor without admin_scope as a read-only 'Quyền của bạn' card", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1/shares") {
+        return Promise.resolve({
+          my_level: "edit",
+          via: "share",
+          my_sources: [{ via: "share", principal_type: "user", principal_id: "u1", level: "edit" }],
+        });
+      }
+      return Promise.resolve({});
+    });
     renderMenu(documentFixture({ my_level: "edit" }));
     await openMenu();
 
-    expect(screen.queryByRole("menuitem", { name: t("documents.actions.share") })).toBeNull();
-    expect(screen.queryByRole("dialog", { name: t("documents.share.title") })).toBeNull();
-    expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/shares"))).toBe(false);
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.share") }));
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Báo cáo Q4" }) });
+    expect(await within(dialog).findByText(t("documents.share.my_level", { level: t("documents.share.level_edit") }))).toBeInTheDocument();
+    expect(within(dialog).getByText(t("documents.share.source_item", { level: t("documents.share.level_edit"), source: t("documents.share.via_share") }))).toBeInTheDocument();
+    expect(within(dialog).queryByRole("region", { name: t("documents.share.add_title") })).toBeNull();
+    expect(within(dialog).queryByRole("region", { name: t("documents.share.links_title") })).toBeNull();
+    expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/documents/settings"))).toBe(false);
   });
 
   it("offers restore instead of archive in the trash", async () => {

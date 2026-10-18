@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { useDocumentTree, useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { useDocumentFavorites } from "@uniwork/core/documents/hooks-favorites";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { isMyFolder } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -24,6 +25,7 @@ import {
   findTreeNode, flattenTree, foldersOnly, loadMoveRevision, moveRefused, moveTooDeep,
   myFolderFirst, siblingMovePosition, siblingsOf, subtreeIds, type TreeRow,
 } from "./document-tree-model";
+import { knownDocuments } from "./starred-rows";
 import { useTreeReveal } from "./use-tree-reveal";
 
 /* ---- the tree ----------------------------------------------------------- */
@@ -299,6 +301,8 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
     rows[0]?.node.id ??
     null;
 
+  const knownById = knownDocuments(queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) }));
+
   return (
     <div className={cn("min-h-0 overflow-y-auto p-2", className)} aria-busy={movingId ? true : undefined}>
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -308,6 +312,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
               key={row.node.id}
               wsId={wsId}
               row={row}
+              shareScope={row.node.share_scope ?? knownById.get(row.node.id)?.share_scope}
               starred={starredIds.has(row.node.id)}
               expanded={expanded.has(row.node.id)}
               focused={focusedId === row.node.id}

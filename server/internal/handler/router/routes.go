@@ -631,12 +631,14 @@ type Routes struct {
 	PurgeDocument              http.HandlerFunc
 	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, read-only and
 	// kept forever - "archive" is the trash.
-	ShelveDocument           http.HandlerFunc
-	UnshelveDocument         http.HandlerFunc
-	ListDocumentShares       http.HandlerFunc
-	CreateDocumentShare      http.HandlerFunc
-	CreateDocumentShareBatch http.HandlerFunc
-	RevokeDocumentShare      http.HandlerFunc
+	ShelveDocument              http.HandlerFunc
+	UnshelveDocument            http.HandlerFunc
+	ListDocumentShares          http.HandlerFunc
+	ListDocumentShareCandidates http.HandlerFunc
+	CreateDocumentShare         http.HandlerFunc
+	CreateDocumentShareBatch    http.HandlerFunc
+	UpdateDocumentAccess        http.HandlerFunc
+	RevokeDocumentShare         http.HandlerFunc
 	// Emergency view access for a workspace admin on a restricted document
 	// (DOC-05; UNI-1628).
 	CreateDocumentBreakGlass http.HandlerFunc

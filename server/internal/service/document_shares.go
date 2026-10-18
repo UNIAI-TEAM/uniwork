@@ -36,13 +36,24 @@ func errPrincipalNotInOrganization() error {
 
 // errHomeRowLevelNotAllowed is Q-S1 of the share SRS addendum: the home row
 // tops out at edit, so a share naming the document's own workspace cannot
-// carry manage. Another workspace's share and the organization's keep the
-// behaviour they have today.
+// carry manage.
 func errHomeRowLevelNotAllowed() error {
 	return CodedError{
 		Code:   "level_not_allowed",
 		Status: http.StatusUnprocessableEntity,
 		Msg:    "dòng Workspace gốc chỉ nhận view, comment hoặc edit",
+		Fields: map[string]any{"max": string(DocumentLevelEdit)},
+	}
+}
+
+// errOrgShareLevelNotAllowed is Q-S1 (D3) of the share SRS addendum: an
+// organization-wide grant tops out at edit, so neither POST /shares nor
+// PUT /access may grant manage to principal_type='organization'.
+func errOrgShareLevelNotAllowed() error {
+	return CodedError{
+		Code:   "level_not_allowed",
+		Status: http.StatusUnprocessableEntity,
+		Msg:    "chia sẻ toàn tổ chức chỉ nhận view, comment hoặc edit",
 		Fields: map[string]any{"max": string(DocumentLevelEdit)},
 	}
 }
@@ -106,11 +117,54 @@ func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, docume
 		if err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, in); err != nil {
 			return err
 		}
-		sh, err := applyDocumentShare(ctx, q, actor, doc, access, in)
+		notifyUserID := ""
+		if in.PrincipalType == DocumentPrincipalUser {
+			uid, err := s.notifyOnUserShare(ctx, q, actor, doc, nil, in.PrincipalID, in.Level)
+			if err != nil {
+				return err
+			}
+			notifyUserID = uid
+		}
+		sh, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, in, "", notifyUserID)
 		out = sh
 		return err
 	})
 	return out, err
+}
+
+// notifyOnUserShare decides whether a direct user grant at `level` notifies
+// the recipient: only when the command as a whole strictly raises their
+// effective level on the document compared to before it, and never for the
+// actor's own grant (SH-S3; addendum §8, §10 Q-S2).
+//
+// It runs against the COMMAND-START document and shares, once per recipient
+// and before any write, so the decision can never depend on the order items
+// are applied nor be taken against partially applied ones (R1-01/R1-02/
+// R1-13). sharesBefore is the live share set read before the first write; a
+// nil slice means "not loaded yet" and the level is resolved with a fresh
+// read instead (the single ShareDocument path). A recipient who is refused
+// by the tenant gate is not notified: the same answer the grant would get.
+func (s *DocumentService) notifyOnUserShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sharesBefore []db.DocumentShare, userID string, level DocumentLevel) (string, error) {
+	if actor.Kind == audit.KindHuman && userID == actor.ID {
+		return "", nil
+	}
+	var acc DocumentAccess
+	var err error
+	if sharesBefore != nil {
+		acc, err = s.resolveLevelInTenantWithShares(ctx, q, Human(userID), doc, sharesBefore)
+	} else {
+		acc, err = s.effectiveLevel(ctx, q, Human(userID), doc)
+	}
+	if err != nil {
+		if isGateRefusal(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	if level.rank() > acc.Level.rank() {
+		return userID, nil
+	}
+	return "", nil
 }
 
 // validShareLevel is the one level check every share command shares, so a
@@ -130,9 +184,21 @@ func validShareLevel(level DocumentLevel) error {
 // revoked and replaced, and a new grant is inserted with its audit row and
 // document.shared event. A share naming the document's own workspace is not a
 // grant of its own (BR-04, SH-S1 item 2): it merges into the home row.
-func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput) (db.DocumentShare, error) {
+//
+// The recipient's notify decision (notifyUserID) is decided by the caller
+// BEFORE the first write of the command and passed in, never recomputed here
+// against partially applied items (SH-S3 R1-01/R1-02/R1-13): the writer only
+// stamps the id onto the event it emits.
+func (s *DocumentService) applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput) (db.DocumentShare, error) {
+	return s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, in, "", "")
+}
+
+func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput, batchID, notifyUserID string) (db.DocumentShare, error) {
 	if in.PrincipalType == DocumentPrincipalWorkspace && in.PrincipalID == doc.WorkspaceID {
-		return mergeDocumentShareIntoHomeRow(ctx, q, actor, doc, access, in.Level)
+		return mergeDocumentShareIntoHomeRow(ctx, q, actor, doc, access, in.Level, batchID)
+	}
+	if in.PrincipalType == DocumentPrincipalOrganization && in.Level == DocumentLevelManage {
+		return db.DocumentShare{}, errOrgShareLevelNotAllowed()
 	}
 	prev, err := q.GetDocumentShare(ctx, db.GetDocumentShareParams{
 		OrganizationID: doc.OrganizationID,
@@ -141,12 +207,18 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 		PrincipalType:  in.PrincipalType,
 		PrincipalID:    in.PrincipalID,
 	})
+	if err == nil && prev.Level == string(in.Level) {
+		return prev, nil
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return db.DocumentShare{}, err
+	}
+	// A self-share never notifies the actor, whatever the caller decided.
+	if in.PrincipalType == DocumentPrincipalUser && actor.Kind == audit.KindHuman && in.PrincipalID == actor.ID {
+		notifyUserID = ""
+	}
 	var before map[string]any
-	switch {
-	case err == nil:
-		if prev.Level == string(in.Level) {
-			return prev, nil
-		}
+	if err == nil {
 		if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 			ID: prev.ID, OrganizationID: prev.OrganizationID, WorkspaceID: prev.WorkspaceID,
 			DocumentID: prev.DocumentID, RevokedBy: nullText(actor.ID),
@@ -154,9 +226,6 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 			return db.DocumentShare{}, err
 		}
 		before = map[string]any{"level": prev.Level}
-	case errors.Is(err, pgx.ErrNoRows):
-	default:
-		return db.DocumentShare{}, err
 	}
 	sh, err := q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
 		ID:             util.NewID(),
@@ -172,6 +241,22 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 	if err != nil {
 		return db.DocumentShare{}, err
 	}
+	meta := map[string]any{
+		"share_id":       sh.ID,
+		"principal_type": sh.PrincipalType,
+		"principal_id":   sh.PrincipalID,
+	}
+	if batchID != "" {
+		meta["batch_id"] = batchID
+	}
+	payload := map[string]string{
+		"document_id":  doc.ID,
+		"workspace_id": doc.WorkspaceID,
+		"share_id":     sh.ID,
+	}
+	if notifyUserID != "" {
+		payload["notify_user_id"] = notifyUserID
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
@@ -180,16 +265,8 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
 		Changes:        audit.Diff(before, map[string]any{"level": sh.Level}),
-		Metadata: map[string]any{
-			"share_id":       sh.ID,
-			"principal_type": sh.PrincipalType,
-			"principal_id":   sh.PrincipalID,
-		},
-	}, audit.Event{Topic: "document.shared", Payload: map[string]string{
-		"document_id":  doc.ID,
-		"workspace_id": doc.WorkspaceID,
-		"share_id":     sh.ID,
-	}}); err != nil {
+		Metadata:       meta,
+	}, audit.Event{Topic: "document.shared", Payload: payload}); err != nil {
 		return db.DocumentShare{}, err
 	}
 	return sh, nil
@@ -201,7 +278,7 @@ func applyDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.
 // 'workspace' at the requested level through the one home-row writer. Q-S1
 // refuses manage, and DOC-05 refuses an AdminScope-only caller the widening
 // of a restricted document, exactly as the PATCH and the self-share rule do.
-func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel) (db.DocumentShare, error) {
+func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel, batchID string) (db.DocumentShare, error) {
 	if level == DocumentLevelManage {
 		return db.DocumentShare{}, errHomeRowLevelNotAllowed()
 	}
@@ -209,7 +286,7 @@ func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Act
 		return db.DocumentShare{}, errBreakGlassRequired()
 	}
 	updated, err := writeDocumentHomeRow(ctx, q, actor, doc, documentHomeRowMove{
-		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(level),
+		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(level), BatchID: batchID,
 	})
 	if err != nil {
 		return db.DocumentShare{}, err
@@ -295,11 +372,28 @@ func (s *DocumentService) RevokeDocumentShare(ctx context.Context, actor Actor, 
 // home-row writer (document_home_row.go) both end shares through it, so a
 // merged legacy grant is retracted exactly like one revoked by hand.
 func revokeDocumentShareRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sh db.DocumentShare) error {
+	return revokeDocumentShareRowWithBatch(ctx, q, actor, doc, sh, "")
+}
+
+func revokeDocumentShareRowWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sh db.DocumentShare, batchID string) error {
 	if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 		ID: sh.ID, OrganizationID: sh.OrganizationID, WorkspaceID: sh.WorkspaceID,
 		DocumentID: sh.DocumentID, RevokedBy: nullText(actor.ID),
 	}); err != nil {
 		return err
+	}
+	meta := map[string]any{
+		"share_id":       sh.ID,
+		"principal_type": sh.PrincipalType,
+		"principal_id":   sh.PrincipalID,
+		// The prior level is replicated into the metadata the change
+		// feed reads (BE-G1-2): a removal is decided from the audit
+		// row alone, so the revoked principal and the level it held
+		// must sit together in one durable row.
+		"level": sh.Level,
+	}
+	if batchID != "" {
+		meta["batch_id"] = batchID
 	}
 	return auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
@@ -309,21 +403,39 @@ func revokeDocumentShareRow(ctx context.Context, q *db.Queries, actor Actor, doc
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
 		Changes:        audit.Diff(map[string]any{"level": sh.Level}, nil),
-		Metadata: map[string]any{
-			"share_id":       sh.ID,
-			"principal_type": sh.PrincipalType,
-			"principal_id":   sh.PrincipalID,
-			// The prior level is replicated into the metadata the change
-			// feed reads (BE-G1-2): a removal is decided from the audit
-			// row alone, so the revoked principal and the level it held
-			// must sit together in one durable row.
-			"level": sh.Level,
-		},
+		Metadata:       meta,
 	}, audit.Event{Topic: "document.share_revoked", Payload: map[string]string{
 		"document_id":  doc.ID,
 		"workspace_id": doc.WorkspaceID,
 		"share_id":     sh.ID,
 	}})
+}
+
+// DocumentAccessSource via values on GET /api/v1/documents/{documentID}/shares (SH-S2, UNI-1781).
+const (
+	DocumentAccessSourceViaOwner       = "owner"
+	DocumentAccessSourceViaMember      = "member"
+	DocumentAccessSourceViaShare       = "share"
+	DocumentAccessSourceViaOrgAdmin    = "org_admin"
+	DocumentAccessSourceViaBreakGlass  = "break_glass"
+	DocumentAccessSourceViaWorkProduct = "work_product"
+)
+
+// DocumentAccessSource is one path through which a person receives access on a document.
+type DocumentAccessSource struct {
+	Via           string
+	PrincipalType string
+	PrincipalID   string
+	Name          string
+	Level         DocumentLevel
+}
+
+// DocumentHomeWorkspaceAccess is the home_workspace block on GET /documents/{id}/shares.
+type DocumentHomeWorkspaceAccess struct {
+	WorkspaceID   string
+	WorkspaceName string
+	Visibility    string
+	Level         *DocumentLevel
 }
 
 // DocumentShareAccess is one share row with what it grants right now.
@@ -338,15 +450,21 @@ type DocumentShareAccess struct {
 	// still manages). For workspace and organization principals it is the
 	// share's level, applied to their effective members at read time.
 	Effective DocumentAccess
+	// Sources and Warnings are populated for user principals (SH-S2, UNI-1781).
+	Sources  []DocumentAccessSource
+	Warnings []string
 }
 
 // DocumentAccessOverview answers "who has access" (C-01 §5.3). Everyone who
-// reads the document gets their own level; only manage sees the rest.
+// reads the document gets their own level and MySources; only manage/AdminScope
+// sees the rest.
 type DocumentAccessOverview struct {
-	My       DocumentAccess
-	ACLOwner *DocumentPersonAccess
-	Shares   []DocumentShareAccess
-	Links    []db.DocumentShareLink
+	My            DocumentAccess
+	MySources     []DocumentAccessSource
+	ACLOwner      *DocumentPersonAccess
+	HomeWorkspace *DocumentHomeWorkspaceAccess
+	Shares        []DocumentShareAccess
+	Links         []db.DocumentShareLink
 	// BreakGlass is the live emergency grants, newest first (DOC-05).
 	BreakGlass []DocumentBreakGlassGrantView
 }
@@ -365,19 +483,43 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 	if err != nil {
 		return DocumentAccessOverview{}, err
 	}
-	out := DocumentAccessOverview{My: my}
-	if !my.canAdminister() {
-		return out, nil
-	}
-	if out.ACLOwner, err = s.aclOwnerAccess(ctx, doc); err != nil {
-		return DocumentAccessOverview{}, err
-	}
 	shares, err := s.q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
 	if err != nil {
 		return DocumentAccessOverview{}, err
 	}
+	mySources := []DocumentAccessSource{}
+	if actor.Kind == audit.KindHuman {
+		mySources, err = s.personAccessSources(ctx, doc, shares, actor.ID)
+		if err != nil {
+			return DocumentAccessOverview{}, err
+		}
+	}
+	out := DocumentAccessOverview{My: my, MySources: mySources}
+	if !my.canAdminister() {
+		return out, nil
+	}
+	if out.ACLOwner, err = s.aclOwnerAccess(ctx, doc); err != nil {
+		return DocumentAccessOverview{}, err
+	}
+	homeWS, err := s.q.GetWorkspaceByID(ctx, doc.WorkspaceID)
+	if err != nil {
+		return DocumentAccessOverview{}, err
+	}
+	homeLvl, hasHomeLvl := currentHomeWorkspaceLevel(doc, filterHomeWorkspaceShares(shares, doc.WorkspaceID))
+	var homeLvlPtr *DocumentLevel
+	if hasHomeLvl {
+		l := homeLvl
+		homeLvlPtr = &l
+	}
+	out.HomeWorkspace = &DocumentHomeWorkspaceAccess{
+		WorkspaceID:   doc.WorkspaceID,
+		WorkspaceName: homeWS.Name,
+		Visibility:    doc.Visibility,
+		Level:         homeLvlPtr,
+	}
+
 	for _, sh := range shares {
 		entry := DocumentShareAccess{Share: sh}
 		switch {
@@ -389,6 +531,16 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 			}
 			entry.Effective = acc
 			entry.Active = acc.Level != DocumentLevelNone
+			if entry.Active {
+				srcs, err := s.personAccessSources(ctx, doc, shares, sh.PrincipalID)
+				if err != nil {
+					return DocumentAccessOverview{}, err
+				}
+				entry.Sources = srcs
+				if acc.Level.rank() > DocumentLevel(sh.Level).rank() {
+					entry.Warnings = []string{DocumentAccessWarningDirectBelowGroup}
+				}
+			}
 		case sh.PrincipalType == DocumentPrincipalWorkspace || sh.PrincipalType == DocumentPrincipalOrganization:
 			ok, err := groupShareActive(ctx, s.q, doc.OrganizationID, sh.PrincipalType, sh.PrincipalID)
 			if err != nil {
@@ -414,6 +566,160 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 		}
 	}
 	return out, nil
+}
+
+func (s *DocumentService) personAccessSources(ctx context.Context, doc db.Document, shares []db.DocumentShare, userID string) ([]DocumentAccessSource, error) {
+	sources := make([]DocumentAccessSource, 0)
+	if userID == "" {
+		return sources, nil
+	}
+	if _, err := s.orgs.RequireMemberQ(ctx, s.q, doc.OrganizationID, userID); err != nil {
+		if isGateRefusal(err) {
+			return sources, nil
+		}
+		return nil, err
+	}
+	if doc.OwnerKind.Valid {
+		lvl, err := s.ownerLevelResolve(ctx, Human(userID), doc.OwnerID.String)
+		if err != nil {
+			if isGateRefusal(err) {
+				return sources, nil
+			}
+			return nil, err
+		}
+		if lvl != DocumentLevelNone {
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaWorkProduct,
+				PrincipalType: doc.OwnerKind.String,
+				PrincipalID:   doc.OwnerID.String,
+				Level:         lvl,
+			})
+		}
+		return sources, nil
+	}
+	u, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return sources, nil
+		}
+		return nil, err
+	}
+	homeWS, err := s.q.GetWorkspaceByID(ctx, doc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	homeLvl, hasHomeLvl := currentHomeWorkspaceLevel(doc, filterHomeWorkspaceShares(shares, doc.WorkspaceID))
+
+	var adminScope bool
+	m, err := s.ws.RequireMemberQ(ctx, s.q, doc.WorkspaceID, userID)
+	switch {
+	case err == nil:
+		isACLOwner := doc.AclOwnerID.Valid && doc.AclOwnerID.String == userID
+		adminScope = (m.Role == "owner" || m.Role == "admin") && doc.Visibility == documentVisibilityRestricted && !isACLOwner
+		if isACLOwner {
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaOwner,
+				PrincipalType: DocumentPrincipalUser,
+				PrincipalID:   userID,
+				Name:          u.DisplayName,
+				Level:         DocumentLevelManage,
+			})
+		}
+		if (m.Role == "owner" || m.Role == "admin") && doc.Visibility != documentVisibilityRestricted && !isACLOwner {
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaOrgAdmin,
+				PrincipalType: DocumentPrincipalWorkspace,
+				PrincipalID:   doc.WorkspaceID,
+				Name:          homeWS.Name,
+				Level:         DocumentLevelManage,
+			})
+		} else if hasHomeLvl {
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaMember,
+				PrincipalType: DocumentPrincipalWorkspace,
+				PrincipalID:   doc.WorkspaceID,
+				Name:          homeWS.Name,
+				Level:         homeLvl,
+			})
+		}
+	case isGateRefusal(err):
+	default:
+		return nil, err
+	}
+
+	for _, sh := range shares {
+		switch sh.PrincipalType {
+		case DocumentPrincipalWorkspace:
+			if sh.PrincipalID == doc.WorkspaceID {
+				continue
+			}
+			applies, err := s.shareAppliesTo(ctx, s.q, sh, userID, doc)
+			if err != nil {
+				return nil, err
+			}
+			if !applies {
+				continue
+			}
+			ws, err := s.q.GetWorkspaceByID(ctx, sh.PrincipalID)
+			if err != nil {
+				return nil, err
+			}
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaShare,
+				PrincipalType: DocumentPrincipalWorkspace,
+				PrincipalID:   sh.PrincipalID,
+				Name:          ws.Name,
+				Level:         DocumentLevel(sh.Level),
+			})
+		case DocumentPrincipalOrganization:
+			if sh.PrincipalID != doc.OrganizationID {
+				continue
+			}
+			org, err := s.q.GetOrganizationByID(ctx, doc.OrganizationID)
+			if err != nil {
+				return nil, err
+			}
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaShare,
+				PrincipalType: DocumentPrincipalOrganization,
+				PrincipalID:   sh.PrincipalID,
+				Name:          org.Name,
+				Level:         DocumentLevel(sh.Level),
+			})
+		case DocumentPrincipalUser:
+			if sh.PrincipalID != userID {
+				continue
+			}
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaShare,
+				PrincipalType: DocumentPrincipalUser,
+				PrincipalID:   userID,
+				Name:          u.DisplayName,
+				Level:         DocumentLevel(sh.Level),
+			})
+		}
+	}
+
+	if adminScope {
+		g, err := s.q.GetLiveDocumentBreakGlassGrantForActor(ctx, db.GetLiveDocumentBreakGlassGrantForActorParams{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+			ActorID: userID, ActorKind: string(audit.KindHuman),
+		})
+		switch {
+		case err == nil:
+			sources = append(sources, DocumentAccessSource{
+				Via:           DocumentAccessSourceViaBreakGlass,
+				PrincipalType: DocumentPrincipalUser,
+				PrincipalID:   userID,
+				Name:          u.DisplayName,
+				Level:         capDocumentLevel(DocumentLevel(g.Level), DocumentLevelView),
+			})
+		case errors.Is(err, pgx.ErrNoRows):
+		default:
+			return nil, err
+		}
+	}
+	return sources, nil
 }
 
 // groupShareActive is whether a workspace or organization share still
@@ -453,6 +759,9 @@ type SharedDocument struct {
 	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
 	// carries the tenure id.
 	EditLock *DocumentEditLockSummary
+	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
+	// addendum §6.4, §7); nil for agent actors.
+	ShareScope *DocumentShareScope
 }
 
 // SharedWithMeQuery is one page request of the recipient's shared list.
@@ -513,7 +822,10 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	for i := range page.Items {
 		page.Items[i].Facts = facts[i]
 	}
-	return page, s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items)
+	if err := s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
+	return page, s.attachSharedShareScopes(ctx, Human(userID), organizationID, page.Items)
 }
 
 func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, organizationID string, in SharedWithMeQuery) (SharedWithMePage, error) {

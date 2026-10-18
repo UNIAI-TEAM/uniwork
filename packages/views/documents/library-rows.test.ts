@@ -297,8 +297,8 @@ describe("access columns and filter (UNI-1642)", () => {
   });
 
   it("maps visibility and leaves an unknown value or a source row blank", () => {
-    expect(rowVisibilityLabelKey(lvl("view", "workspace"))).toBe("documents.home.visibility.workspace");
-    expect(rowVisibilityLabelKey(lvl("view", "restricted"))).toBe("documents.home.visibility.restricted");
+    expect(rowVisibilityLabelKey(lvl("view", "workspace"))).toBe("documents.scope.workspace");
+    expect(rowVisibilityLabelKey(lvl("view", "restricted"))).toBe("documents.scope.private");
     expect(rowVisibilityLabelKey(lvl("view", "public"))).toBeNull();
     expect(rowVisibilityLabelKey(lvl("view", ""))).toBeNull();
     expect(rowVisibilityLabelKey(src())).toBeNull();

@@ -17,6 +17,7 @@ import {
   type ChunkedUploadOptions,
   type ChunkedUploadResult,
 } from "../documents/chunked-upload";
+import { createSafeId } from "../utils";
 import { runtimeConfig } from "../runtime-config";
 import {
   DocsProtocolError,
@@ -212,6 +213,41 @@ async function operationKey(kind: string, scope: readonly string[], bytes?: Arra
   return `frame-${kind}-${Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/**
+ * The refusal a repeated save draws when its staged upload outlived the 24h
+ * claim window: 409 document_upload_invalid with reason file_claim_expired
+ * (server: documentFileError over files.CodeClaimExpired). Only this exact
+ * refusal earns a fresh upload key — anything else propagates.
+ */
+function isExpiredUploadClaim(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.code === "document_upload_invalid" &&
+    error.fields?.["reason"] === "file_claim_expired"
+  );
+}
+
+/**
+ * One save leg = upload under `uploadKey`, then commit under the unchanged
+ * commit key. An unchanged save reuses the same derived upload key for days;
+ * once the staged file's claim window closed, the upload (or, for a chunked
+ * save, the commit that resolves the replayed upload_id) answers
+ * file_claim_expired. The FileService rule "an expired session is never
+ * resurrected" stands, so the leg runs once more under a fresh upload key —
+ * the commit key and fingerprint (document, base revision, checksum, engine)
+ * do not depend on the upload id, so the commit replays the stored answer.
+ * A second expired answer is an error, never a loop.
+ */
+async function retryOnceWithFreshUploadKey<T>(uploadKey: string, leg: (uploadKey: string) => Promise<T>): Promise<T> {
+  try {
+    return await leg(uploadKey);
+  } catch (error) {
+    if (!isExpiredUploadClaim(error)) throw error;
+    return leg(`${uploadKey}:${createSafeId()}`);
+  }
+}
+
 export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fetch"> & {
   /** Default byte threshold above which `save` and `saveAs` use chunked upload sessions when the call does not specify one; null or absent = single-request upload. */
   chunkedUploadThresholdBytes?: number | null;
@@ -316,31 +352,37 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       if (!current || "source_id" in current) throw malformed("office-frame open");
       const blob = new Blob([payload.data], { type: mimeType });
       const threshold = resolveThreshold(call, options);
-      const upload = threshold !== null && payload.data.byteLength > threshold
-        ? await runChunkedUpload(
-            {
-              file: blob,
-              filename: current.file.filename,
-              target: { kind: "frame", documentId: payload.fileId, frameToken: call.token },
-              idempotencyKey: `${key}:upload`,
-              fetch: sessionFetch,
-            },
-            call.signal,
-          ).then((out) => (out.kind === "upload" ? out.upload : null))
-        : await client.upload(payload.fileId, blob, current.file.filename, `${key}:upload`);
-      if (!upload) throw malformed("office-frame upload");
-      try {
-        const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);
-        if (!doc || "source_id" in doc) throw malformed("office-frame commit");
-        return { ok: true, file: fileMeta(doc), versionId: doc.file.version_id };
-      } catch (error) {
-        // A stale base is an answer, not a failure: the frame offers to reload.
-        if (error instanceof ApiError && error.status === 409) return { ok: false, error: docsFrameError(error).toShape() };
-        // 423 document_locked (UNI-1645, addendum §11.1; UNI-1890 at session create) is never
-        // {ok:false}: the frame would read it as a stale base and offer "Overwrite". docsFrameError
-        // maps it to a 423 forbidden refusal so the host turns it into its lost-lock state.
-        throw error;
-      }
+      const leg = async (uploadKey: string): Promise<SaveResult> => {
+        const upload = threshold !== null && payload.data.byteLength > threshold
+          ? await runChunkedUpload(
+              {
+                file: blob,
+                filename: current.file.filename,
+                target: { kind: "frame", documentId: payload.fileId, frameToken: call.token },
+                idempotencyKey: uploadKey,
+                fetch: sessionFetch,
+              },
+              call.signal,
+            ).then((out) => (out.kind === "upload" ? out.upload : null))
+          : await client.upload(payload.fileId, blob, current.file.filename, uploadKey);
+        if (!upload) throw malformed("office-frame upload");
+        try {
+          const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);
+          if (!doc || "source_id" in doc) throw malformed("office-frame commit");
+          return { ok: true, file: fileMeta(doc), versionId: doc.file.version_id };
+        } catch (error) {
+          // The upload the commit resolved may itself be past the claim window (a chunked save whose
+          // session replayed the stale staged upload_id): rethrow so the leg is retried once.
+          if (isExpiredUploadClaim(error)) throw error;
+          // A stale base is an answer, not a failure: the frame offers to reload.
+          if (error instanceof ApiError && error.status === 409) return { ok: false, error: docsFrameError(error).toShape() };
+          // 423 document_locked (UNI-1645, addendum §11.1; UNI-1890 at session create) is never
+          // {ok:false}: the frame would read it as a stale base and offer "Overwrite". docsFrameError
+          // maps it to a 423 forbidden refusal so the host turns it into its lost-lock state.
+          throw error;
+        }
+      };
+      return retryOnceWithFreshUploadKey(`${key}:upload`, leg);
     }),
 
     saveAs: (payload, call) => run(async () => {
