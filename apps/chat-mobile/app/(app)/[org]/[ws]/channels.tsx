@@ -1,5 +1,6 @@
 // The channel directory (spec §2.1, MobChannels board): the workspace's
 // public channels the reader has not joined; a tap joins one and opens it.
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import { useMemo, useState } from "react";
@@ -11,7 +12,7 @@ import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { joinChannel } from "@/data/chat-actions";
-import { discoverableChannelsOptions } from "@/data/queries/chat";
+import { discoverableChannelsOptions, myChannelsOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { foldedIncludes } from "@/lib/search-fold";
 import { THEME } from "@/lib/theme";
@@ -24,13 +25,17 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const channels = useQuery(discoverableChannelsOptions(chat.wsId));
+  const mine = useQuery(myChannelsOptions(chat.wsId));
   const [q, setQ] = useState("");
   const [joining, setJoining] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
-  const shown = useMemo(
-    () => (channels.data ?? []).filter((c) => foldedIncludes(c.name, q) || foldedIncludes(c.topic ?? "", q)),
-    [channels.data, q],
-  );
+  // MobChannels board: the channels already joined sit in the same list, marked "Đã tham gia", and open on a tap.
+  const joined = useMemo(() => new Set((mine.data ?? []).map((c) => c.id)), [mine.data]);
+  const shown = useMemo(() => {
+    const all = [...(channels.data ?? []), ...(mine.data ?? []).filter((c) => c.kind === "channel" && c.visibility !== "private" && !c.is_default)];
+    const unique = all.filter((c, index) => all.findIndex((other) => other.id === c.id) === index);
+    return unique.filter((c) => foldedIncludes(c.name, q) || foldedIncludes(c.topic ?? "", q)).sort((a, b) => a.name.localeCompare(b.name));
+  }, [channels.data, mine.data, q]);
 
   const join = (roomId: string, name: string) => {
     setJoining(roomId);
@@ -42,7 +47,7 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
 
   return (
     <View className="flex-1 bg-background">
-      <ChatHeader title={t("chat.channel.directory_title")} />
+      <ChatHeader title={t("chat.channel.directory_title")} flat />
       <View className="px-4 py-2">
         <SearchField value={q} onChangeText={setQ} placeholder={t("chat.channel.directory_search")} accessibilityLabel={t("chat.channel.directory_search")} />
       </View>
@@ -53,7 +58,7 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
         contentContainerClassName="pt-1"
         onRefresh={() => {
           setPulling(true);
-          void channels.refetch().finally(() => setPulling(false));
+          void Promise.all([channels.refetch(), mine.refetch()]).finally(() => setPulling(false));
         }}
         refreshing={pulling}
         ListEmptyComponent={
@@ -63,7 +68,7 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
             <Text className="px-4 py-8 text-center text-sm text-muted-foreground">{t("chat.channel.directory_load_failed")}</Text>
           ) : (
             <View className="gap-1 px-8 py-8">
-              <Text className="text-center text-base font-bold text-foreground">
+              <Text className="text-center text-base font-display font-bold text-foreground">
                 {q.trim() ? t("chat.channel.directory_no_match_title", { query: q.trim() }) : t("chat.channel.directory_none_title")}
               </Text>
               <Text className="text-center text-sm text-muted-foreground">
@@ -75,10 +80,16 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
         renderItem={({ item, index }) => (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t("chat.channel.join_named", { name: item.name })}
+            accessibilityLabel={
+              joined.has(item.id)
+                ? t("chat.mobile.channel_open_aria", { name: `#${item.name}` })
+                : joining === item.id
+                  ? t("chat.mobile.channel_joining_aria", { name: `#${item.name}` })
+                  : t("chat.channel.join_named", { name: item.name })
+            }
             accessibilityState={{ busy: joining === item.id }}
             disabled={joining !== null}
-            onPress={() => join(item.id, item.name)}
+            onPress={() => (joined.has(item.id) ? router.replace(chatRoutes.room(chat, item.id)) : join(item.id, item.name))}
             className="min-h-[68px] flex-row items-center gap-3 pl-4 active:bg-secondary"
           >
             <RoomAvatar mark={{ kind: "channel" }} size={44} seed={item.id} />
@@ -89,14 +100,19 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
               )}
             >
               <View className="min-w-0 flex-1 gap-0.5">
-                <Text className="text-base font-bold text-foreground" numberOfLines={1}>
+                <Text className="text-base font-display font-bold text-foreground" numberOfLines={1}>
                   #{item.name}
                 </Text>
                 <Text className="text-sm text-muted-foreground" numberOfLines={1}>
                   {item.topic || t("chat.channel.topic_empty")}
                 </Text>
               </View>
-              {joining === item.id ? (
+              {joined.has(item.id) ? (
+                <View className="h-[34px] flex-row items-center gap-1 rounded-full bg-tint-green px-3">
+                  <Ionicons name="checkmark" size={14} color={theme.tintGreenForeground} />
+                  <Text className="text-sm font-semibold text-tint-green-foreground">{t("chat.mobile.channel_joined")}</Text>
+                </View>
+              ) : joining === item.id ? (
                 <View className="h-[34px] w-[88px] items-center justify-center rounded-full bg-muted">
                   <ActivityIndicator color={theme.primary} />
                 </View>

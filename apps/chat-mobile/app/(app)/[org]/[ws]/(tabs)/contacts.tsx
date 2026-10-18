@@ -4,10 +4,12 @@
 // opens the DM through the deep-link contract the chat tab (M2a) honours;
 // block banners live on that DM, as on the web.
 import { useQuery } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { router } from "expo-router";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, ScrollView, SectionList, View } from "react-native";
+import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
+import { shortNameOf } from "@/lib/initials";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
@@ -48,9 +50,9 @@ function OnlineStrip({ rows, onPress }: { rows: ContactRow[]; onPress: (row: Con
             accessibilityLabel={`${row.label}, ${t("chat.presence_online")}`}
             className="w-16 items-center gap-1 rounded-lg active:bg-secondary"
           >
-            <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={52} online />
+            <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={52} online seed={row.user_id} />
             <Text numberOfLines={1} className="max-w-16 text-xs text-muted-foreground">
-              {row.label}
+              {shortNameOf(row.label)}
             </Text>
           </Pressable>
         ))}
@@ -70,7 +72,7 @@ function ContactItem({ row, online, onPress }: { row: ContactRow; online: boolea
       accessibilityLabel={[row.label, online ? t("chat.presence_online") : "", subtitle].filter(Boolean).join(", ")}
       className="min-h-[60px] flex-row items-center gap-3 px-4 py-2 active:bg-secondary"
     >
-      <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={44} online={online} />
+      <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={44} online={online} seed={row.user_id} />
       <View className="flex-1">
         <Text numberOfLines={1} className="text-base font-semibold text-foreground">
           {row.label}
@@ -87,12 +89,13 @@ function ContactItem({ row, online, onPress }: { row: ContactRow; online: boolea
 
 export default function ContactsTab() {
   const { t } = useTranslation();
-  const { org, ws } = useLocalSearchParams<{ org: string; ws: string }>();
+  const { org = "", ws = "" } = useWorkspaceSlugs();
   const current = useWorkspaceStore((s) => s.current);
   // The layout syncs the store after it validated the URL pair; until then there is no workspace to ask about.
   const wsId = current?.orgSlug === org && current.wsSlug === ws ? current.wsId : "";
   const userId = useAuthStore((s) => s.user?.id ?? "");
   const [query, setQuery] = useState("");
+  const list = useRef<SectionList<ContactRow>>(null);
 
   const members = useQuery({ ...workspaceMembersOptions(wsId), enabled: !!wsId });
   // Unreadable, it hides no one (the web's list), so it never blocks the tab.
@@ -143,13 +146,14 @@ export default function ContactsTab() {
         />
       </Header>
       <SectionList
+        ref={list}
         sections={sections}
         keyExtractor={(row) => row.user_id}
         keyboardShouldPersistTaps="handled"
         stickySectionHeadersEnabled
         ListHeaderComponent={onlineRows.length > 0 ? <OnlineStrip rows={onlineRows} onPress={openDm} /> : null}
         renderSectionHeader={({ section }) => (
-          <Text accessibilityRole="header" className="bg-background px-4 py-1.5 text-[13px] font-bold text-muted-foreground">
+          <Text accessibilityRole="header" className="bg-background px-4 py-1.5 text-[13px] font-display font-bold text-muted-foreground">
             {section.title}
           </Text>
         )}
@@ -162,6 +166,23 @@ export default function ContactsTab() {
           if (wsId) void Promise.all([members.refetch(), deactivated.refetch(), nicknames.refetch()]);
         }}
       />
+      {/* MobContacts board: the letters down the right edge jump to their section. */}
+      {sections.length > 1 && !query.trim() ? (
+        <View className="absolute bottom-0 right-0 top-0 justify-center pr-1" accessibilityRole="menubar" accessibilityLabel={t("chat.mobile.alphabet_index")}>
+          {sections.map((section, index) => (
+            <Pressable
+              key={section.title}
+              accessibilityRole="button"
+              accessibilityLabel={section.title}
+              hitSlop={{ left: 12, right: 6 }}
+              onPress={() => list.current?.scrollToLocation({ sectionIndex: index, itemIndex: 0, viewOffset: 0, animated: true })}
+              className="w-6 items-center py-[1px]"
+            >
+              <Text className="text-[11px] font-semibold text-primary">{section.title}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

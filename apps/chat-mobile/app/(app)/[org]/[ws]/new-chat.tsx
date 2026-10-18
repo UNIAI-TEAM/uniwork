@@ -56,7 +56,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
 
   return (
     <View className="flex-1 bg-background">
-      <ChatHeader title={t("chat.start_dm_title")} />
+      <ChatHeader title={t("chat.start_dm_title")} flat />
       <View className="px-4 py-2">
         <SearchField
           value={q}
@@ -74,11 +74,21 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
           <View>
             <Pressable
               accessibilityRole="button"
+              onPress={() => router.push(chatRoutes.newGroup(chat))}
+              className="min-h-[60px] flex-row items-center gap-3 px-4 active:bg-secondary"
+            >
+              <View className="h-11 w-11 items-center justify-center rounded-full bg-tint-blue">
+                <Ionicons name="people-outline" size={22} color={theme.tintBlueForeground} />
+              </View>
+              <Text className="flex-1 text-base font-semibold text-primary">{t("chat.create_group")}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
               onPress={() => router.push(chatRoutes.channels(chat))}
               className="min-h-[60px] flex-row items-center gap-3 px-4 active:bg-secondary"
             >
               <View className="h-11 w-11 items-center justify-center rounded-full bg-tint-blue">
-                <Ionicons name="compass-outline" size={22} color={theme.tintBlueForeground} />
+                <Ionicons name="globe-outline" size={22} color={theme.tintBlueForeground} />
               </View>
               <Text className="flex-1 text-base font-semibold text-primary">{t("chat.channel.directory_title")}</Text>
             </Pressable>
@@ -109,7 +119,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
               onPress={() => open(item.user_id)}
               className={cn("min-h-16 flex-row items-center gap-3 pl-4 active:bg-secondary", busy && "bg-muted")}
             >
-              <PersonAvatar name={item.label} size={44} online={isOnline} />
+              <PersonAvatar name={item.label} size={44} online={isOnline} seed={item.user_id} />
               <View
                 className={cn(
                   "min-w-0 flex-1 flex-row items-center gap-3 self-stretch py-2 pr-4",
@@ -117,7 +127,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
                 )}
               >
                 <View className="min-w-0 flex-1 gap-px">
-                  <Text className="text-base font-bold text-foreground" numberOfLines={1}>
+                  <Text className="text-base font-display font-bold text-foreground" numberOfLines={1}>
                     {item.label}
                   </Text>
                   {item.email ? (
