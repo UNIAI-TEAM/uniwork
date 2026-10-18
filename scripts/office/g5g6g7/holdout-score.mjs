@@ -370,11 +370,8 @@ export function anchorMatches(kind, expected, actual, actualValue = '', expected
   // incomplete address, and generic `a.includes(b)`/`b.includes(a)` would credit it on a coincidentally equal value.
   // Only the every-segment topic matcher decides, and the all-DSL fallback inside it still needs the value.
   if (kind === 'table_cell') return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
-  if (kind === 'count') {
-    const ka = countTopicKey(expected);
-    const kb = countTopicKey(actual);
-    if (ka && ka === kb) return true;
-  }
+  // A count anchor earns credit by its own words or by value alone for private case anchors, never through a synonym map
+  // (USER option B, 2026-10-18): countTopicKey stays only to CATCH a contradicting count under the same topic.
   const a = normalizeTopicText(stripSheetQuotes(splitAnchor(expected).base));
   const b = normalizeTopicText(stripSheetQuotes(splitAnchor(actual).base));
   if (a === b || (b.length > 0 && (a.includes(b) || b.includes(a)))) return true;
@@ -774,6 +771,12 @@ export function score(caseDoc, answer) {
       if (!OPERATIONS.includes(op)) { add(`tool_allowed:${op}`, 'fail', 'unknown operation'); continue; }
       add(`tool_allowed:${op}`, caseDoc.tools.allowed.includes(op) ? 'pass' : 'fail', caseDoc.tools.allowed.includes(op) ? 'allowed' : 'outside the allowlist (spec 9.2: zero cases)');
     }
+  }
+
+  // Contradictions the adapter measured from the trace itself (an answer that says refused beside an applied write or a
+  // claimed change). Prose can fail an answer this way; it can never credit one.
+  for (const violation of Array.isArray(answer.violations) ? answer.violations : []) {
+    add(`oracle:${violation?.id ?? 'violation'}`, 'fail', String(violation?.detail ?? 'the trace contradicts the answer'));
   }
 
   if (caseDoc.oracle.type === 'rubric') {
