@@ -228,5 +228,43 @@ describe("composeFrameInit readOnly profile and the comment level (RFH-1)", () =
       expect("saveCopy" in init.capabilities).toBe(false);
     }
   });
+
+  it("keeps comments for a comment-level user on a read-only host page (SVH-1): no profile, commentsLevel 'comment', save/saveAs/saveCopy withheld, Docs and not", async () => {
+    // The real host passes readonly={!canEdit}, so a commenter arrives with readonly: true
+    // as well as can_edit: false; the RFH-1 exemption must cover both signals.
+    for (const mod of ["docs", "sheets"] as const) {
+      const { init } = await composeFrameInit({
+        module: mod, frameToken, current: { ...optionsWithLevel("comment"), readonly: true }, doc: "doc-1", name: "An", uid: "u-1",
+        minted: mintedFor(mod, false), source: false, editLock: null, limits,
+      });
+      expect("profile" in init).toBe(false);
+      expect(init.commentsLevel).toBe("comment");
+      expect(init.capabilities).toMatchObject({ comments: true, save: false, saveAs: false });
+      expect("saveCopy" in init.capabilities).toBe(false);
+    }
+  });
+
+  it("stays a viewer on a read-only host page for a view level, a level the client does not know, or none", async () => {
+    for (const myLevel of ["view", "owner", "", null, undefined]) {
+      const { init } = await composeFrameInit({
+        module: "docs", frameToken, current: { ...optionsWithLevel(myLevel), readonly: true }, doc: "doc-1", name: "An", uid: "u-1",
+        minted: mintedFor("docs", false), source: false, editLock: null, limits,
+      });
+      expect(init.profile).toBe("readOnly");
+      expect(init.commentsLevel).toBe("view");
+      expect(init.capabilities).toMatchObject({ save: false, saveAs: false });
+      expect("saveCopy" in init.capabilities).toBe(false);
+    }
+  });
+
+  it("keeps a source session read-only even at the comment level", async () => {
+    const { init } = await composeFrameInit({
+      module: "docs", frameToken, current: optionsWithLevel("comment"), doc: "chat:s-1", name: "An", uid: "u-1",
+      minted: { ...mintedFor("docs", false), source_id: "chat:s-1", parent_kind: "chat_channel", parent_id: "c-1", readonly: true },
+      source: true, editLock: null, limits,
+    });
+    expect(init.profile).toBe("readOnly");
+    expect(init.commentsLevel).toBe("view");
+  });
 });
 
