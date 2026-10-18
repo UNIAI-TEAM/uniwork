@@ -1,0 +1,1266 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18551 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18551 PREVIEW_ORIGIN=http://localhost:13452 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads FF_DOCUMENTS=true NEXT_PUBLIC_API_URL=http://localhost:18551 NEXT_PUBLIC_WS_URL=ws://localhost:18551 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18551 OFFICE_FORK_SHA=$(node -p "require(\"./apps/web/platform/office-frame/docs.pin.json\").gitSha" 2>/dev/null); rm -rf e2e/test-results; command -v psql >/dev/null || echo NO_PSQL; (while true; do psql "$DATABASE_URL" -Atc "select now()::time, pid, state, wait_event_type, wait_event, now()-xact_start, left(regexp_replace(query, '\s+', ' ', 'g'),140) from pg_stat_activity where datname = 'uniwork' and pid <> pg_backend_pid() and (wait_event_type = 'Lock' or state like 'idle in transaction%' or now()-query_start > interval '2 seconds' and state = 'active')" >> /tmp/p0b-locks.log 2>&1; sleep 1; done) & WP=$!; pnpm --filter @uniwork/e2e exec playwright test documents-sharing-ui.spec.ts --trace on --retries=0 --repeat-each=2 --reporter=list > /tmp/p0b-e2e.log 2>&1; rc=$?; kill $WP 2>/dev/null; grep -vE '^\s+at ' /tmp/p0b-e2e.log | tail -n 150; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; echo '##### LOCKS'; sort -u /tmp/p0b-locks.log | tail -n 120; echo '##### TRACE NETWORK'; for z in $(find e2e/test-results -name 'trace*.zip'); do echo "== $z"; unzip -l "$z" | grep -E 'network|trace' | head -5; unzip -p "$z" '*.network' 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{for(const l of d.split("\n")){try{const o=JSON.parse(l);const s=o.snapshot;if(s&&/\/api\/v1\//.test(s.request.url))console.log(s.startedDateTime,s.request.method,s.request.url.replace(/^https?:\/\/[^/]+/,""),s.response&&s.response.status,s._failureText||"",Math.round(s.time||0))}catch(e){}}})' | tail -n 250; done; echo "##### TRACE ACTIONS"; echo Ly8gUmVhZHMgYSBQbGF5d3JpZ2h0ICoudHJhY2UgKEpTT04gbGluZXMpIG9uIHN0ZGluOyBwcmludHMgY29uc29sZSwgcGFnZSBlcnJvcnMsIGFuZCB0aGUgYWN0aW9uIGxvZyBjb21wYWN0bHkuCmxldCBkID0gIiI7CnByb2Nlc3Muc3RkaW4ub24oImRhdGEiLCAoYykgPT4gKGQgKz0gYykpLm9uKCJlbmQiLCAoKSA9PiB7CiAgY29uc3Qgb3V0ID0gW107CiAgZm9yIChjb25zdCBsIG9mIGQuc3BsaXQoIlxuIikpIHsKICAgIGxldCBvOyB0cnkgeyBvID0gSlNPTi5wYXJzZShsKTsgfSBjYXRjaCB7IGNvbnRpbnVlOyB9CiAgICBjb25zdCB0ID0gby53YWxsVGltZSA/IG5ldyBEYXRlKG8ud2FsbFRpbWUpLnRvSVNPU3RyaW5nKCkuc2xpY2UoMTEsIDIzKSA6IChvLnRpbWUgPz8gby5zdGFydFRpbWUgPz8gIiIpOwogICAgaWYgKG8udHlwZSA9PT0gImNvbnNvbGUiKSBvdXQucHVzaChgJHt0fSBDT05TT0xFICR7by5tZXNzYWdlVHlwZX0gJHtTdHJpbmcoby50ZXh0KS5zbGljZSgwLCAzMDApfWApOwogICAgZWxzZSBpZiAoby50eXBlID09PSAiZXZlbnQiICYmIC9lcnJvcnxjcmFzaHxjbG9zZS9pLnRlc3Qoby5tZXRob2QgPz8gIiIpKSBvdXQucHVzaChgJHt0fSBFVkVOVCAke28ubWV0aG9kfSAke0pTT04uc3RyaW5naWZ5KG8ucGFyYW1zID8/IHt9KS5zbGljZSgwLCA0MDApfWApOwogICAgZWxzZSBpZiAoby50eXBlID09PSAiYmVmb3JlIikgb3V0LnB1c2goYCR7dH0gQkVGT1JFICR7by5jYWxsSWR9ICR7by5jbGFzcyA/PyAiIn0uJHtvLm1ldGhvZCA/PyBvLmFwaU5hbWV9ICR7SlNPTi5zdHJpbmdpZnkoby5wYXJhbXMgPz8ge30pLnNsaWNlKDAsIDIwMCl9YCk7CiAgICBlbHNlIGlmIChvLnR5cGUgPT09ICJpbnB1dCIpIG91dC5wdXNoKGAke28udGltZSA/PyAiIn0gSU5QVVQgJHtvLmNhbGxJZH0gJHtKU09OLnN0cmluZ2lmeShvLnBvaW50ID8/IG8ucGFyYW1zID8/IHt9KX1gKTsKICAgIGVsc2UgaWYgKG8udHlwZSA9PT0gImxvZyIpIG91dC5wdXNoKGAke28udGltZSA/PyAiIn0gTE9HICR7by5jYWxsSWR9ICR7U3RyaW5nKG8ubWVzc2FnZSkuc2xpY2UoMCwgMjAwKX1gKTsKICAgIGVsc2UgaWYgKG8udHlwZSA9PT0gImFmdGVyIikgb3V0LnB1c2goYCR7by5lbmRUaW1lID8/ICIifSBBRlRFUiAke28uY2FsbElkfSAke28uZXJyb3IgPyAiRVJST1IgIiArIEpTT04uc3RyaW5naWZ5KG8uZXJyb3IpLnNsaWNlKDAsIDIwMCkgOiAib2sifWApOwogIH0KICBjb25zdCBjb25zb2xlTGluZXMgPSBvdXQuZmlsdGVyKCh4KSA9PiAvIENPTlNPTEUgfCBFVkVOVCAvLnRlc3QoeCkpOwogIGNvbnNvbGUubG9nKGAjIyBjb25zb2xlL2V2ZW50cyAoJHtjb25zb2xlTGluZXMubGVuZ3RofSlgKTsgY29uc29sZS5sb2coY29uc29sZUxpbmVzLnNsaWNlKC0xMjApLmpvaW4oIlxuIikpOwogIGNvbnNvbGUubG9nKGAjIyBhY3Rpb25zIChsYXN0IDE2MCBvZiAke291dC5sZW5ndGh9KWApOyBjb25zb2xlLmxvZyhvdXQuZmlsdGVyKCh4KSA9PiAhLyBDT05TT0xFIHwgRVZFTlQgLy50ZXN0KHgpKS5zbGljZSgtMTYwKS5qb2luKCJcbiIpKTsKfSk7Cg== | base64 -d > /tmp/p0b-trace-dump.js; for z in $(find e2e/test-results -name "trace*.zip"); do echo "== $z"; unzip -p "$z" "*.trace" 2>/dev/null | node /tmp/p0b-trace-dump.js; done; echo '##### SERVER DOC LINES'; grep -E '/api/v1/documents/' /tmp/p0b-server.log | tail -n 150; grep -qE '[0-9]+ passed' /tmp/p0b-e2e.log || { echo 'no passing test'; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_DIAG_EXIT=$rc"
+
+Running 2 tests using 1 worker
+
+(node:41025) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:41025) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke (42.4s)
+(node:41243) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:41243) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke (42.1s)
+
+
+  1) documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke ─
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+
+
+      107 |   // Revoke the link; the anonymous reader gets the dead-link state.
+      108 |   await dialog.getByRole("region", { name: "Liên kết công khai" }).getByRole("button", { name: /^Thu hồi/ }).click();
+    > 109 |   await expect(dialog.getByText("Chưa có liên kết nào.")).toBeVisible({ timeout: 30_000 });
+          |                                                           ^
+      110 |   await page.keyboard.press("Escape");
+      111 |   await visitor.reload();
+      112 |   await expect(visitor.getByRole("heading", { name: "Liên kết không còn hiệu lực" })).toBeVisible({
+
+    Error Context: test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke ─
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+
+
+      107 |   // Revoke the link; the anonymous reader gets the dead-link state.
+      108 |   await dialog.getByRole("region", { name: "Liên kết công khai" }).getByRole("button", { name: /^Thu hồi/ }).click();
+    > 109 |   await expect(dialog.getByText("Chưa có liên kết nào.")).toBeVisible({ timeout: 30_000 });
+          |                                                           ^
+      110 |   await page.keyboard.press("Escape");
+      111 |   await visitor.reload();
+      112 |   await expect(visitor.getByRole("heading", { name: "Liên kết không còn hiệu lực" })).toBeVisible({
+
+    Error Context: test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke-repeat1/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke-repeat1/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke-repeat1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke ──
+    documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke ──
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-sharing-ui.spec.ts --trace on --retries=0 --repeat-each=2 --reporter=list
+===== e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-sharing-ui.spec.ts >> share, public link, anonymous read, access log and revoke
+- Location: documents-sharing-ui.spec.ts:31:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+Expected: visible
+Timeout: 30000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+
+```
+
+```yaml
+- main:
+  - status
+  - status
+- region "Notifications alt+T"
+- dialog "Chia sẻ “UniNote mới”":
+  - heading "Chia sẻ “UniNote mới”" [level=2]
+  - paragraph: "Lưu tại: Workspace Team links 1792337342328"
+  - region "Thêm quyền":
+    - heading "Thêm quyền" [level=3]
+    - text: Chọn đối tượng
+    - combobox "Chọn đối tượng"
+    - text: Mức quyền
+    - combobox "Mức quyền": Chỉ xem
+    - button "Chia sẻ" [disabled]
+  - region "Người và nhóm có quyền":
+    - heading "Người và nhóm có quyền" [level=3]
+    - text: "Quyền của bạn: Quản lý"
+    - list:
+      - listitem:
+        - text: Sharing links Chủ sở hữu
+        - button "Chuyển quyền sở hữu"
+  - region "Liên kết công khai":
+    - heading "Liên kết công khai" [level=3]
+    - text: Ai có URL đều xem được, không cần đăng nhập. Tổ chức cho phép liên kết công khai Hạn dùng (ngày)
+    - spinbutton "Hạn dùng (ngày)": "7"
+    - button "Tạo liên kết mới"
+    - paragraph: Mất URL? Tạo liên kết mới; token cũ không hiện lại được.
+    - list:
+      - listitem:
+        - text: 15:29 Hết hạn 15:29 25 thg 10, 2026 · 1 lượt xem
+        - button "Thu hồi 15:29": Thu hồi
+  - button "Đóng"
+```
+
+# Test source
+
+```ts
+  9   |  * sharing spec of G1-09 is documents-sharing.spec.ts). The org admin turns
+  10  |  * public links on in the documents settings tab, grants and revokes an
+  11  |  * organization share, mints a public link whose URL is shown once, and an
+  12  |  * anonymous second session reads the page through it; the access log records
+  13  |  * the link view, and after the revoke the same URL answers the dead-link state.
+  14  |  *
+  15  |  * Needs: documents flag ON (`FF_DOCUMENTS=true`), Postgres + Redis up, this
+  16  |  * worktree's migrations applied, web app on E2E_BASE_URL. Recipe:
+  17  |  * reports/g1-08-versions-share-ui/serve.sh in the run folder.
+  18  |  */
+  19  | test.describe.configure({ timeout: 360_000 });
+  20  | 
+  21  | const seed = workspaceSeed("sharing", "links", Date.now());
+  22  | const shot = shooter(
+  23  |   process.env.DOCUMENT_SHOT_DIR ?? resolve(process.cwd(), "test-results", "documents-sharing-ui-shots"),
+  24  | );
+  25  | 
+  26  | function shareDialog(page: Page) {
+  27  |   // SH-S1 names the dialog after the document ("Chia sẻ “<title>”"); untitled ones keep the generic title.
+  28  |   return page.getByRole("dialog", { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ });
+  29  | }
+  30  | 
+  31  | test("share, public link, anonymous read, access log and revoke", async ({ page, browser }) => {
+  32  |   await page.setViewportSize({ width: 1440, height: 900 });
+  33  |   await onboardDocumentsUser(page, seed);
+  34  |   const docUrl = await createPageWithText(page, seed, "Nội dung công khai của trang");
+  35  | 
+  36  |   // Org settings: public links start closed; the admin opens them.
+  37  |   await page.goto(`/${seed.orgSlug}/${seed.wsSlug}/settings?tab=documents`);
+  38  |   const toggle = page.getByRole("switch", { name: "Liên kết công khai" });
+  39  |   await expect(toggle).toBeVisible({ timeout: 60_000 });
+  40  |   await expect(toggle).not.toBeChecked();
+  41  |   await shot(page, "documents-settings-light-vi");
+  42  |   await toggle.click();
+  43  |   await expect(toggle).toBeChecked({ timeout: 30_000 });
+  44  |   await page.reload();
+  45  |   await expect(page.getByRole("switch", { name: "Liên kết công khai" })).toBeChecked({ timeout: 60_000 });
+  46  | 
+  47  |   // Organization share: granted, listed, revoked.
+  48  |   await page.goto(docUrl);
+  49  |   await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toBeVisible({ timeout: 60_000 });
+  50  |   await documentAction(page, "Chia sẻ");
+  51  |   const dialog = shareDialog(page);
+  52  |   await expect(dialog).toBeVisible({ timeout: 30_000 });
+  53  |   await expect(dialog.getByText("Người và nhóm có quyền")).toBeVisible({ timeout: 30_000 });
+  54  |   // The SHARING candidate picker (UNI-1784): pick the organization, then share. A grant the
+  55  |   // server warns about reads back its reach first (share-add-confirm); accept it.
+  56  |   await pickCandidate(dialog, seed.orgName, who(seed.orgName));
+  57  |   await submitShare(dialog).click();
+  58  |   const revokeOrg = dialog.getByRole("button", { name: `Thu hồi ${seed.orgName}` });
+  59  |   const confirmOrg = dialog.getByTestId("share-add-confirm");
+  60  |   await expect(revokeOrg.or(confirmOrg)).toBeVisible({ timeout: 30_000 });
+  61  |   if (await confirmOrg.isVisible()) await confirmOrg.getByRole("button", { name: "Xác nhận" }).click();
+  62  |   await expect(revokeOrg).toBeVisible({ timeout: 30_000 });
+  63  | 
+  64  |   // Public link: the raw URL is shown once.
+  65  |   await dialog.getByRole("button", { name: "Tạo liên kết mới" }).click();
+  66  |   const created = dialog.getByTestId("share-created-url");
+  67  |   await expect(created).toBeVisible({ timeout: 30_000 });
+  68  |   const linkUrl = (await created.text===== e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke-repeat1/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-sharing-ui.spec.ts >> share, public link, anonymous read, access log and revoke
+- Location: documents-sharing-ui.spec.ts:31:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+Expected: visible
+Timeout: 30000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+
+```
+
+```yaml
+- main:
+  - status
+  - status
+- region "Notifications alt+T"
+- dialog "Chia sẻ “UniNote mới”":
+  - heading "Chia sẻ “UniNote mới”" [level=2]
+  - paragraph: "Lưu tại: Workspace Team links 1792337385740"
+  - region "Thêm quyền":
+    - heading "Thêm quyền" [level=3]
+    - text: Chọn đối tượng
+    - combobox "Chọn đối tượng"
+    - text: Mức quyền
+    - combobox "Mức quyền": Chỉ xem
+    - button "Chia sẻ" [disabled]
+  - region "Người và nhóm có quyền":
+    - heading "Người và nhóm có quyền" [level=3]
+    - text: "Quyền của bạn: Quản lý"
+    - list:
+      - listitem:
+        - text: Sharing links Chủ sở hữu
+        - button "Chuyển quyền sở hữu"
+  - region "Liên kết công khai":
+    - heading "Liên kết công khai" [level=3]
+    - text: Ai có URL đều xem được, không cần đăng nhập. Tổ chức cho phép liên kết công khai Hạn dùng (ngày)
+    - spinbutton "Hạn dùng (ngày)": "7"
+    - button "Tạo liên kết mới"
+    - paragraph: Mất URL? Tạo liên kết mới; token cũ không hiện lại được.
+    - list:
+      - listitem:
+        - text: 15:29 Hết hạn 15:29 25 thg 10, 2026 · 0 lượt xem
+        - button "Thu hồi 15:29": Thu hồi
+  - button "Đóng"
+```
+
+# Test source
+
+```ts
+  9   |  * sharing spec of G1-09 is documents-sharing.spec.ts). The org admin turns
+  10  |  * public links on in the documents settings tab, grants and revokes an
+  11  |  * organization share, mints a public link whose URL is shown once, and an
+  12  |  * anonymous second session reads the page through it; the access log records
+  13  |  * the link view, and after the revoke the same URL answers the dead-link state.
+  14  |  *
+  15  |  * Needs: documents flag ON (`FF_DOCUMENTS=true`), Postgres + Redis up, this
+  16  |  * worktree's migrations applied, web app on E2E_BASE_URL. Recipe:
+  17  |  * reports/g1-08-versions-share-ui/serve.sh in the run folder.
+  18  |  */
+  19  | test.describe.configure({ timeout: 360_000 });
+  20  | 
+  21  | const seed = workspaceSeed("sharing", "links", Date.now());
+  22  | const shot = shooter(
+  23  |   process.env.DOCUMENT_SHOT_DIR ?? resolve(process.cwd(), "test-results", "documents-sharing-ui-shots"),
+  24  | );
+  25  | 
+  26  | function shareDialog(page: Page) {
+  27  |   // SH-S1 names the dialog after the document ("Chia sẻ “<title>”"); untitled ones keep the generic title.
+  28  |   return page.getByRole("dialog", { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ });
+  29  | }
+  30  | 
+  31  | test("share, public link, anonymous read, access log and revoke", async ({ page, browser }) => {
+  32  |   await page.setViewportSize({ width: 1440, height: 900 });
+  33  |   await onboardDocumentsUser(page, seed);
+  34  |   const docUrl = await createPageWithText(page, seed, "Nội dung công khai của trang");
+  35  | 
+  36  |   // Org settings: public links start closed; the admin opens them.
+  37  |   await page.goto(`/${seed.orgSlug}/${seed.wsSlug}/settings?tab=documents`);
+  38  |   const toggle = page.getByRole("switch", { name: "Liên kết công khai" });
+  39  |   await expect(toggle).toBeVisible({ timeout: 60_000 });
+  40  |   await expect(toggle).not.toBeChecked();
+  41  |   await shot(page, "documents-settings-light-vi");
+  42  |   await toggle.click();
+  43  |   await expect(toggle).toBeChecked({ timeout: 30_000 });
+  44  |   await page.reload();
+  45  |   await expect(page.getByRole("switch", { name: "Liên kết công khai" })).toBeChecked({ timeout: 60_000 });
+  46  | 
+  47  |   // Organization share: granted, listed, revoked.
+  48  |   await page.goto(docUrl);
+  49  |   await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toBeVisible({ timeout: 60_000 });
+  50  |   await documentAction(page, "Chia sẻ");
+  51  |   const dialog = shareDialog(page);
+  52  |   await expect(dialog).toBeVisible({ timeout: 30_000 });
+  53  |   await expect(dialog.getByText("Người và nhóm có quyền")).toBeVisible({ timeout: 30_000 });
+  54  |   // The SHARING candidate picker (UNI-1784): pick the organization, then share. A grant the
+  55  |   // server warns about reads back its reach first (share-add-confirm); accept it.
+  56  |   await pickCandidate(dialog, seed.orgName, who(seed.orgName));
+  57  |   await submitShare(dialog).click();
+  58  |   const revokeOrg = dialog.getByRole("button", { name: `Thu hồi ${seed.orgName}` });
+  59  |   const confirmOrg = dialog.getByTestId("share-add-confirm");
+  60  |   await expect(revokeOrg.or(confirmOrg)).toBeVisible({ timeout: 30_000 });
+  61  |   if (await confirmOrg.isVisible()) await confirmOrg.getByRole("button", { name: "Xác nhận" }).click();
+  62  |   await expect(revokeOrg).toBeVisible({ timeout: 30_000 });
+  63  | 
+  64  |   // Public link: the raw URL is shown once.
+  65  |   await dialog.getByRole("button", { name: "Tạo liên kết mới" }).click();
+  66  |   const created = dialog.getByTestId("share-created-url");
+  67  |   await expect(created).toBeVisible({ timeout: 30_000 });
+  68  |   const linkUrl = (await created.text##### LOCKS
+15:29:54.404497|40416|idle in transaction|Client|ClientRead|00:00:00.003869|begin
+##### TRACE NETWORK
+== e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+Archive:  e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+    47344  2026-10-18 15:29   test.trace
+    40310  2026-10-18 15:29   1-trace.trace
+   150530  2026-10-18 15:29   1-trace.network
+      514  2026-10-18 15:29   1-trace.stacks
+2026-10-18T15:29:13.576Z GET /api/v1/config 200  2
+2026-10-18T15:29:13.560Z POST /api/v1/auth/refresh 401  4
+2026-10-18T15:29:13.588Z GET /api/v1/public/documents/wIspjtk6GGmPr-g3ErI7IN0AJZJccPcwMbXIiT0xXCU 200  11
+2026-10-18T15:29:02.948Z POST /api/v1/auth/refresh 401  5
+2026-10-18T15:29:02.967Z GET /api/v1/config 200  3
+2026-10-18T15:29:03.016Z GET /api/v1/auth/providers 200  4
+2026-10-18T15:29:03.107Z POST /api/v1/auth/register 200  67
+2026-10-18T15:29:03.177Z GET /api/v1/config 200  2
+2026-10-18T15:29:03.177Z GET /api/v1/auth/providers 200  6
+2026-10-18T15:29:03.311Z POST /api/v1/me/email/verify 200  4
+2026-10-18T15:29:03.323Z GET /api/v1/workspaces 200  4
+2026-10-18T15:29:03.328Z GET /api/v1/me/invitations 200  4
+2026-10-18T15:29:03.406Z GET /api/v1/workspaces 200  7
+2026-10-18T15:29:03.409Z GET /api/v1/orgs 200  8
+2026-10-18T15:29:03.519Z PATCH /api/v1/me/onboarding 200  4
+2026-10-18T15:29:03.583Z POST /api/v1/orgs 201  15
+2026-10-18T15:29:03.599Z GET /api/v1/orgs 200  2
+2026-10-18T15:29:03.670Z POST /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/workspaces 201  11
+2026-10-18T15:29:03.737Z POST /api/v1/me/onboarding/complete 200  4
+2026-10-18T15:29:04.161Z GET /api/v1/notifications/push/config 200  8
+2026-10-18T15:29:04.159Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/presence 200  9
+2026-10-18T15:29:04.162Z GET /api/v1/me/notifications/unread-count 200  11
+2026-10-18T15:29:04.160Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/rooms 200  16
+2026-10-18T15:29:04.165Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/email-hub/unread-count 200  12
+2026-10-18T15:29:04.165Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/ai/capabilities 200  13
+2026-10-18T15:29:04.164Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/task-statuses 200  16
+2026-10-18T15:29:04.167Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/voice/pending 200  7
+2026-10-18T15:29:04.163Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/pins 200  19
+2026-10-18T15:29:04.185Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/welcome-task 201  10
+2026-10-18T15:29:04.404Z GET /api/v1/me 200  4
+2026-10-18T15:29:04.404Z GET /api/v1/me 200  2
+2026-10-18T15:29:04.422Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/me 200  7
+2026-10-18T15:29:04.422Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/members 200  6
+2026-10-18T15:29:04.423Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/task-properties 200  14
+2026-10-18T15:29:04.423Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/task-view-preferences?scope_type=workspace 200  15
+2026-10-18T15:29:04.424Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/task-views?scope_type=workspace 200  13
+2026-10-18T15:29:04.426Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/tasks/child-progress 200  12
+2026-10-18T15:29:04.426Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/projects 200  13
+2026-10-18T15:29:04.425Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/tasks/table/groups 200  19
+2026-10-18T15:29:04.470Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/tasks/table/rows 200  6
+2026-10-18T15:29:05.165Z POST /api/v1/auth/refresh 200  8
+2026-10-18T15:29:05.180Z GET /api/v1/config 200  6
+2026-10-18T15:29:05.188Z GET /api/v1/orgs/sharing-links-1792337342328/workspaces/team-links-1792337342328 200  4
+2026-10-18T15:29:05.238Z GET /api/v1/orgs 200  5
+2026-10-18T15:29:05.238Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/presence 200  4
+2026-10-18T15:29:05.240Z GET /api/v1/notifications/push/config 200  9
+2026-10-18T15:29:05.239Z GET /api/v1/workspaces 200  12
+2026-10-18T15:29:05.241Z GET /api/v1/me/notifications/unread-count 200  9
+2026-10-18T15:29:05.242Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/pins 200  9
+2026-10-18T15:29:05.239Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/rooms 200  10
+2026-10-18T15:29:05.242Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/task-statuses 200  15
+2026-10-18T15:29:05.244Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/ai/capabilities 200  15
+2026-10-18T15:29:05.252Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/voice/pending 200  14
+2026-10-18T15:29:05.251Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/members 200  18
+2026-10-18T15:29:05.243Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/email-hub/unread-count 200  22
+2026-10-18T15:29:05.246Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/documents/favorites 200  23
+2026-10-18T15:29:05.249Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents?parent_id=&limit=50 200  25
+2026-10-18T15:29:05.252Z GET /api/v1/config?organization_id=01M57T2X35ZQC02YXE7BNN4E3K 200  17
+2026-10-18T15:29:05.248Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents/tree 200  23
+2026-10-18T15:29:05.251Z GET /api/v1/config?organization_id=01M57T2X35ZQC02YXE7BNN4E3K 200  13
+2026-10-18T15:29:05.246Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents/tree?folders_only=true 200  24
+2026-10-18T15:29:05.250Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents/sources?limit=50 200  25
+2026-10-18T15:29:05.397Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents 201  23
+2026-10-18T15:29:05.422Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents/tree 200  5
+2026-10-18T15:29:05.422Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents/sources?limit=50 200  20
+2026-10-18T15:29:05.422Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents/tree?folders_only=true 200  20
+2026-10-18T15:29:05.422Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/documents?parent_id=&limit=50 200  21
+2026-10-18T15:29:05.507Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  10
+2026-10-18T15:29:05.805Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/workspaces 200  3
+2026-10-18T15:29:05.804Z GET /api/v1/orgs/sharing-links-1792337342328/members?status=active 200  5
+2026-10-18T15:29:05.806Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments 200  6
+2026-10-18T15:29:05.828Z GET /api/v1/config?organization_id=01M57T2X35ZQC02YXE7BNN4E3K 200  2
+2026-10-18T15:29:05.828Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 200  5
+2026-10-18T15:29:05.830Z POST /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 201  8
+2026-10-18T15:29:05.859Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 200  4
+2026-10-18T15:29:05.860Z POST /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T2Z9CHF3V2D4PTN0AEVT8/heartbeat 200  4
+2026-10-18T15:29:06.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock -1  -1
+2026-10-18T15:29:06.654Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  6
+2026-10-18T15:29:06.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 200  7
+2026-10-18T15:29:06.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments 200  8
+2026-10-18T15:29:08.076Z PATCH /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  11
+2026-10-18T15:29:08.893Z POST /api/v1/auth/refresh 200  7
+2026-10-18T15:29:08.910Z GET /api/v1/config 200  4
+2026-10-18T15:29:08.920Z GET /api/v1/orgs/sharing-links-1792337342328/workspaces/team-links-1792337342328 200  2
+2026-10-18T15:29:08.972Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/presence 200  6
+2026-10-18T15:29:08.971Z GET /api/v1/orgs 200  8
+2026-10-18T15:29:08.974Z GET /api/v1/notifications/push/config 200  8
+2026-10-18T15:29:08.973Z GET /api/v1/workspaces 200  7
+2026-10-18T15:29:08.975Z GET /api/v1/me/notifications/unread-count 200  5
+2026-10-18T15:29:08.975Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/pins 200  9
+2026-10-18T15:29:08.973Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/rooms 200  12
+2026-10-18T15:29:08.976Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/task-statuses 200  21
+2026-10-18T15:29:08.994Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/email-hub/unread-count 200  4
+2026-10-18T15:29:08.995Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/ai/capabilities 200  6
+2026-10-18T15:29:08.996Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/me 200  7
+2026-10-18T15:29:08.997Z GET /api/v1/me/connected-apps 200  8
+2026-10-18T15:29:08.997Z GET /api/v1/orgs/sharing-links-1792337342328/members/me 200  8
+2026-10-18T15:29:08.998Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/voice/pending 200  9
+2026-10-18T15:29:09.034Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/documents/settings 200  5
+2026-10-18T15:29:09.033Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/billing 200  12
+2026-10-18T15:29:09.203Z PUT /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/documents/settings 200  6
+2026-10-18T15:29:09.644Z POST /api/v1/auth/refresh 200  6
+2026-10-18T15:29:09.659Z GET /api/v1/config 200  6
+2026-10-18T15:29:09.667Z GET /api/v1/orgs/sharing-links-1792337342328/workspaces/team-links-1792337342328 200  5
+2026-10-18T15:29:09.720Z GET /api/v1/orgs 200  3
+2026-10-18T15:29:09.721Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/presence 200  3
+2026-10-18T15:29:09.721Z GET /api/v1/workspaces 200  3
+2026-10-18T15:29:09.722Z GET /api/v1/notifications/push/config 200  9
+2026-10-18T15:29:09.722Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/rooms 200  17
+2026-10-18T15:29:09.728Z GET /api/v1/me/connected-apps 200  9
+2026-10-18T15:29:09.723Z GET /api/v1/me/notifications/unread-count 200  16
+2026-10-18T15:29:09.727Z GET /api/v1/orgs/sharing-links-1792337342328/members/me 200  10
+2026-10-18T15:29:09.724Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/pins 200  16
+2026-10-18T15:29:09.729Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/voice/pending 200  14
+2026-10-18T15:29:09.725Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/email-hub/unread-count 200  21
+2026-10-18T15:29:09.726Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/ai/capabilities 200  20
+2026-10-18T15:29:09.724Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/task-statuses 200  23
+2026-10-18T15:29:09.727Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/me 200  21
+2026-10-18T15:29:09.774Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/documents/settings 200  2
+2026-10-18T15:29:09.773Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/billing 200  7
+2026-10-18T15:29:10.368Z POST /api/v1/auth/refresh 200  4
+2026-10-18T15:29:10.386Z GET /api/v1/config 200  2
+2026-10-18T15:29:10.397Z GET /api/v1/orgs/sharing-links-1792337342328/workspaces/team-links-1792337342328 200  4
+2026-10-18T15:29:10.433Z GET /api/v1/orgs 200  2
+2026-10-18T15:29:10.435Z GET /api/v1/notifications/push/config 200  3
+2026-10-18T15:29:10.434Z GET /api/v1/workspaces 200  4
+2026-10-18T15:29:10.435Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/rooms 200  10
+2026-10-18T15:29:10.436Z GET /api/v1/me/notifications/unread-count 200  9
+2026-10-18T15:29:10.438Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/email-hub/unread-count 200  7
+2026-10-18T15:29:10.437Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/task-statuses 200  8
+2026-10-18T15:29:10.433Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/presence 200  12
+2026-10-18T15:29:10.436Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/pins 200  8
+2026-10-18T15:29:10.440Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/voice/pending 200  9
+2026-10-18T15:29:10.438Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/ai/capabilities 200  7
+2026-10-18T15:29:10.439Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  10
+2026-10-18T15:29:10.511Z GET /api/v1/orgs/sharing-links-1792337342328/members?status=active 200  2
+2026-10-18T15:29:10.510Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/documents/favorites 200  4
+2026-10-18T15:29:10.512Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/workspaces 200  6
+2026-10-18T15:29:10.513Z GET /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/members 200  5
+2026-10-18T15:29:10.514Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments 200  4
+2026-10-18T15:29:10.515Z GET /api/v1/config?organization_id=01M57T2X35ZQC02YXE7BNN4E3K 200  4
+2026-10-18T15:29:10.516Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 200  3
+2026-10-18T15:29:10.518Z POST /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 201  4
+2026-10-18T15:29:10.570Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 200  5
+2026-10-18T15:29:10.571Z POST /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T33VSDX1VRMFXFWQ6G4QP/heartbeat 200  6
+2026-10-18T15:29:10.689Z GET /api/v1/orgs/01M57T2X35ZQC02YXE7BNN4E3K/documents/settings 200  3
+2026-10-18T15:29:10.689Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares 200  6
+2026-10-18T15:29:10.719Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests 404  5
+2026-10-18T15:29:10.718Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates 200  10
+2026-10-18T15:29:11.213Z PUT /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access 200  8
+2026-10-18T15:29:11.248Z PUT /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access 200  4
+2026-10-18T15:29:11.253Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares -1  -1
+2026-10-18T15:29:11.254Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests 404  6
+2026-10-18T15:29:11.253Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates 200  7
+2026-10-18T15:29:11.253Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares 200  12
+2026-10-18T15:29:11.253Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments 200  20
+2026-10-18T15:29:11.253Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  21
+2026-10-18T15:29:11.432Z POST /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/links 201  8
+2026-10-18T15:29:11.472Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares 200  10
+2026-10-18T15:29:11.654Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock -1  -1
+2026-10-18T15:29:11.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests 404  9
+2026-10-18T15:29:11.654Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  13
+2026-10-18T15:29:11.654Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 200  14
+2026-10-18T15:29:11.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates 200  12
+2026-10-18T15:29:11.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments 200  20
+2026-10-18T15:29:11.654Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares 200  22
+2026-10-18T15:29:12.382Z PUT /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access 200  9
+2026-10-18T15:29:12.580Z PUT /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access 200  11
+2026-10-18T15:29:12.615Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares -1  -1
+2026-10-18T15:29:12.616Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests 404  4
+2026-10-18T15:29:12.615Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates 200  11
+2026-10-18T15:29:12.615Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments 200  13
+2026-10-18T15:29:12.615Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  17
+2026-10-18T15:29:12.615Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares 200  16
+2026-10-18T15:29:12.675Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests 404  7
+2026-10-18T15:29:12.675Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments 200  8
+2026-10-18T15:29:12.675Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  13
+2026-10-18T15:29:12.675Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 200  14
+2026-10-18T15:29:12.675Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates 200  15
+2026-10-18T15:29:12.675Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares 200  16
+2026-10-18T15:29:13.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests 404  6
+2026-10-18T15:29:13.654Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP 200  11
+2026-10-18T15:29:13.654Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares 200  14
+2026-10-18T15:29:13.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates 200  14
+2026-10-18T15:29:13.654Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock 200  15
+2026-10-18T15:29:13.655Z GET /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments 200  14
+2026-10-18T15:29:25.437Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/presence 200  5
+2026-10-18T15:29:40.435Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/chat/presence 200  6
+2026-10-18T15:29:40.589Z POST /api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T33VSDX1VRMFXFWQ6G4QP/heartbeat 200  10
+2026-10-18T15:29:04.226Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337342328%2Fteam-links-1792337342328&client_platform=web 101  161
+2026-10-18T15:29:04.679Z GET /api/v1/orgs -1  -1
+2026-10-18T15:29:04.679Z GET /api/v1/workspaces -1  -1
+2026-10-18T15:29:04.679Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/tasks/table/groups -1  -1
+2026-10-18T15:29:04.680Z POST /api/v1/workspaces/01M57T2X5VKC5HVAM2PGQWY5T9/tasks/table/rows -1  -1
+2026-10-18T15:29:05.286Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337342328%2Fteam-links-1792337342328&client_platform=web 101  1115
+2026-10-18T15:29:09.020Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337342328%2Fteam-links-1792337342328&client_platform=web 101  6
+2026-10-18T15:29:09.755Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337342328%2Fteam-links-1792337342328&client_platform=web 101  30
+2026-10-18T15:29:10.467Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337342328%2Fteam-links-1792337342328&client_platform=web 101  25003
+== e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke-repeat1/trace.zip
+Archive:  e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke-repeat1/trace.zip
+    47427  2026-10-18 15:30   test.trace
+    39806  2026-10-18 15:30   1-trace.trace
+   153244  2026-10-18 15:30   1-trace.network
+      514  2026-10-18 15:30   1-trace.stacks
+2026-10-18T15:29:56.642Z POST /api/v1/auth/refresh 401  6
+2026-10-18T15:29:56.662Z GET /api/v1/config 200  4
+2026-10-18T15:29:56.677Z GET /api/v1/public/documents/eCRTEQPd-UCJDRA0WQCFtPKPRSzDWoC-uB94l_LUSWw 200  6
+2026-10-18T15:29:56.740Z POST /api/v1/rum 204  1
+2026-10-18T15:29:46.437Z POST /api/v1/auth/refresh 401  9
+2026-10-18T15:29:46.455Z GET /api/v1/config 200  3
+2026-10-18T15:29:46.488Z GET /api/v1/auth/providers 200  2
+2026-10-18T15:29:46.602Z POST /api/v1/auth/register 200  72
+2026-10-18T15:29:46.677Z GET /api/v1/config 200  4
+2026-10-18T15:29:46.677Z GET /api/v1/auth/providers 200  5
+2026-10-18T15:29:46.825Z POST /api/v1/me/email/verify 200  7
+2026-10-18T15:29:46.837Z GET /api/v1/workspaces 200  4
+2026-10-18T15:29:46.843Z GET /api/v1/me/invitations 200  4
+2026-10-18T15:29:46.912Z GET /api/v1/workspaces 200  3
+2026-10-18T15:29:46.913Z GET /api/v1/orgs 200  4
+2026-10-18T15:29:47.039Z PATCH /api/v1/me/onboarding 200  5
+2026-10-18T15:29:47.106Z POST /api/v1/orgs 201  11
+2026-10-18T15:29:47.120Z GET /api/v1/orgs 200  3
+2026-10-18T15:29:47.190Z POST /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/workspaces 201  12
+2026-10-18T15:29:47.250Z POST /api/v1/me/onboarding/complete 200  4
+2026-10-18T15:29:47.653Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/presence 200  6
+2026-10-18T15:29:47.655Z GET /api/v1/notifications/push/config 200  5
+2026-10-18T15:29:47.656Z GET /api/v1/me/notifications/unread-count 200  8
+2026-10-18T15:29:47.657Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/pins 200  10
+2026-10-18T15:29:47.659Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/email-hub/unread-count 200  7
+2026-10-18T15:29:47.662Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/voice/pending 200  6
+2026-10-18T15:29:47.657Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/task-statuses 200  10
+2026-10-18T15:29:47.654Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/rooms 200  14
+2026-10-18T15:29:47.660Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/ai/capabilities 200  9
+2026-10-18T15:29:47.678Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/welcome-task 201  6
+2026-10-18T15:29:48.401Z POST /api/v1/auth/refresh 200  6
+2026-10-18T15:29:48.417Z GET /api/v1/config 200  2
+2026-10-18T15:29:48.442Z GET /api/v1/orgs/sharing-links-1792337385740/workspaces/team-links-1792337385740 200  5
+2026-10-18T15:29:48.496Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/presence 200  5
+2026-10-18T15:29:48.497Z GET /api/v1/workspaces 200  4
+2026-10-18T15:29:48.495Z GET /api/v1/orgs 200  6
+2026-10-18T15:29:48.498Z GET /api/v1/notifications/push/config 200  6
+2026-10-18T15:29:48.499Z GET /api/v1/me/notifications/unread-count 200  5
+2026-10-18T15:29:48.500Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/pins 200  15
+2026-10-18T15:29:48.500Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/task-statuses 200  14
+2026-10-18T15:29:48.502Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/ai/capabilities 200  17
+2026-10-18T15:29:48.501Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/email-hub/unread-count 200  17
+2026-10-18T15:29:48.497Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/rooms 200  25
+2026-10-18T15:29:48.504Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/documents/favorites 200  13
+2026-10-18T15:29:48.510Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/voice/pending 200  7
+2026-10-18T15:29:48.509Z GET /api/v1/config?organization_id=01M57T47K86RQ7DFK5VT3Y1G89 200  20
+2026-10-18T15:29:48.506Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents?parent_id=&limit=50 200  27
+2026-10-18T15:29:48.505Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents/tree 200  28
+2026-10-18T15:29:48.508Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/members 200  17
+2026-10-18T15:29:48.508Z GET /api/v1/config?organization_id=01M57T47K86RQ7DFK5VT3Y1G89 200  17
+2026-10-18T15:29:48.503Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents/tree?folders_only=true 200  25
+2026-10-18T15:29:48.507Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents/sources?limit=50 200  35
+2026-10-18T15:29:48.596Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents 201  21
+2026-10-18T15:29:48.633Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents/tree 200  6
+2026-10-18T15:29:48.634Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents/tree?folders_only=true 200  7
+2026-10-18T15:29:48.634Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents/sources?limit=50 200  11
+2026-10-18T15:29:48.634Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/documents?parent_id=&limit=50 200  13
+2026-10-18T15:29:48.700Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  6
+2026-10-18T15:29:49.002Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/workspaces 200  6
+2026-10-18T15:29:49.002Z GET /api/v1/orgs/sharing-links-1792337385740/members?status=active 200  7
+2026-10-18T15:29:49.004Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments 200  7
+2026-10-18T15:29:49.021Z GET /api/v1/config?organization_id=01M57T47K86RQ7DFK5VT3Y1G89 200  2
+2026-10-18T15:29:49.022Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 200  4
+2026-10-18T15:29:49.023Z POST /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 201  6
+2026-10-18T15:29:49.055Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 200  4
+2026-10-18T15:29:49.056Z POST /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T49F351W5M1ANXGKFTVPT/heartbeat 200  5
+2026-10-18T15:29:49.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock -1  -1
+2026-10-18T15:29:49.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments 200  4
+2026-10-18T15:29:49.655Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 200  5
+2026-10-18T15:29:49.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  6
+2026-10-18T15:29:51.275Z PATCH /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  11
+2026-10-18T15:29:52.050Z POST /api/v1/auth/refresh 200  6
+2026-10-18T15:29:52.066Z GET /api/v1/config 200  3
+2026-10-18T15:29:52.089Z GET /api/v1/orgs/sharing-links-1792337385740/workspaces/team-links-1792337385740 200  3
+2026-10-18T15:29:52.137Z GET /api/v1/notifications/push/config 200  5
+2026-10-18T15:29:52.136Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/presence 200  7
+2026-10-18T15:29:52.136Z GET /api/v1/workspaces 200  5
+2026-10-18T15:29:52.135Z GET /api/v1/orgs 200  7
+2026-10-18T15:29:52.137Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/rooms 200  13
+2026-10-18T15:29:52.138Z GET /api/v1/me/notifications/unread-count 200  12
+2026-10-18T15:29:52.139Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/pins 200  9
+2026-10-18T15:29:52.140Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/email-hub/unread-count 200  9
+2026-10-18T15:29:52.141Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/ai/capabilities 200  15
+2026-10-18T15:29:52.143Z GET /api/v1/orgs/sharing-links-1792337385740/members/me 200  13
+2026-10-18T15:29:52.143Z GET /api/v1/me/connected-apps 200  14
+2026-10-18T15:29:52.144Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/voice/pending 200  8
+2026-10-18T15:29:52.142Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/me 200  8
+2026-10-18T15:29:52.139Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/task-statuses 200  17
+2026-10-18T15:29:52.186Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/documents/settings 200  3
+2026-10-18T15:29:52.185Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/billing 200  9
+2026-10-18T15:29:52.348Z PUT /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/documents/settings 200  4
+2026-10-18T15:29:52.808Z POST /api/v1/auth/refresh 200  3
+2026-10-18T15:29:52.824Z GET /api/v1/config 200  1
+2026-10-18T15:29:52.834Z GET /api/v1/orgs/sharing-links-1792337385740/workspaces/team-links-1792337385740 200  2
+2026-10-18T15:29:52.876Z GET /api/v1/orgs 200  2
+2026-10-18T15:29:52.877Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/presence 200  5
+2026-10-18T15:29:52.877Z GET /api/v1/workspaces 200  5
+2026-10-18T15:29:52.878Z GET /api/v1/notifications/push/config 200  13
+2026-10-18T15:29:52.882Z GET /api/v1/orgs/sharing-links-1792337385740/members/me 200  9
+2026-10-18T15:29:52.879Z GET /api/v1/me/notifications/unread-count 200  13
+2026-10-18T15:29:52.882Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/me 200  9
+2026-10-18T15:29:52.883Z GET /api/v1/me/connected-apps 200  5
+2026-10-18T15:29:52.883Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/voice/pending 200  14
+2026-10-18T15:29:52.878Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/rooms 200  20
+2026-10-18T15:29:52.880Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/task-statuses 200  10
+2026-10-18T15:29:52.881Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/email-hub/unread-count 200  10
+2026-10-18T15:29:52.881Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/ai/capabilities 200  10
+2026-10-18T15:29:52.879Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/pins 200  11
+2026-10-18T15:29:52.913Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/documents/settings 200  2
+2026-10-18T15:29:52.913Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/billing 200  5
+2026-10-18T15:29:53.344Z POST /api/v1/auth/refresh 200  6
+2026-10-18T15:29:53.359Z GET /api/v1/config 200  2
+2026-10-18T15:29:53.367Z GET /api/v1/orgs/sharing-links-1792337385740/workspaces/team-links-1792337385740 200  4
+2026-10-18T15:29:53.395Z GET /api/v1/orgs 200  3
+2026-10-18T15:29:53.396Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/presence 200  3
+2026-10-18T15:29:53.397Z GET /api/v1/workspaces 200  3
+2026-10-18T15:29:53.398Z GET /api/v1/notifications/push/config 200  4
+2026-10-18T15:29:53.399Z GET /api/v1/me/notifications/unread-count 200  5
+2026-10-18T15:29:53.401Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/task-statuses 200  8
+2026-10-18T15:29:53.400Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/pins 200  9
+2026-10-18T15:29:53.403Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/ai/capabilities 200  7
+2026-10-18T15:29:53.397Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/rooms 200  12
+2026-10-18T15:29:53.402Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/email-hub/unread-count 200  8
+2026-10-18T15:29:53.404Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/voice/pending 200  3
+2026-10-18T15:29:53.404Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  6
+2026-10-18T15:29:53.476Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/documents/favorites 200  3
+2026-10-18T15:29:53.477Z GET /api/v1/orgs/sharing-links-1792337385740/members?status=active 200  3
+2026-10-18T15:29:53.480Z GET /api/v1/config?organization_id=01M57T47K86RQ7DFK5VT3Y1G89 200  2
+2026-10-18T15:29:53.478Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/workspaces 200  6
+2026-10-18T15:29:53.478Z GET /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/members 200  7
+2026-10-18T15:29:53.479Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments 200  5
+2026-10-18T15:29:53.480Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 200  5
+2026-10-18T15:29:53.481Z POST /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 201  8
+2026-10-18T15:29:53.512Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 200  5
+2026-10-18T15:29:53.513Z POST /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T4DTD79Q5QX9DFQ3H8KNG/heartbeat 200  5
+2026-10-18T15:29:53.671Z GET /api/v1/orgs/01M57T47K86RQ7DFK5VT3Y1G89/documents/settings 200  3
+2026-10-18T15:29:53.671Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares 200  6
+2026-10-18T15:29:53.701Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests 404  3
+2026-10-18T15:29:53.700Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates 200  6
+2026-10-18T15:29:54.202Z PUT /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access 200  9
+2026-10-18T15:29:54.248Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares -1  -1
+2026-10-18T15:29:54.233Z PUT /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access 200  5
+2026-10-18T15:29:54.249Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests 404  2
+2026-10-18T15:29:54.249Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates 200  6
+2026-10-18T15:29:54.249Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments 200  9
+2026-10-18T15:29:54.248Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  9
+2026-10-18T15:29:54.248Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares 200  9
+2026-10-18T15:29:54.469Z POST /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/links 201  6
+2026-10-18T15:29:54.508Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares 200  6
+2026-10-18T15:29:54.666Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock -1  -1
+2026-10-18T15:29:54.667Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests 404  3
+2026-10-18T15:29:54.667Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates 200  7
+2026-10-18T15:29:54.666Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares 200  10
+2026-10-18T15:29:54.666Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments 200  11
+2026-10-18T15:29:54.665Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  13
+2026-10-18T15:29:54.667Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 200  20
+2026-10-18T15:29:55.467Z PUT /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access 200  6
+2026-10-18T15:29:55.655Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests 404  12
+2026-10-18T15:29:55.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 200  11
+2026-10-18T15:29:55.655Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates 200  11
+2026-10-18T15:29:55.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  17
+2026-10-18T15:29:55.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares 200  19
+2026-10-18T15:29:55.655Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments 200  21
+2026-10-18T15:29:55.725Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares -1  -1
+2026-10-18T15:29:55.693Z PUT /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access 200  7
+2026-10-18T15:29:55.725Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  9
+2026-10-18T15:29:55.727Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests 404  7
+2026-10-18T15:29:55.727Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates 200  11
+2026-10-18T15:29:55.726Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares 200  14
+2026-10-18T15:29:55.726Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments 200  15
+2026-10-18T15:29:56.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests 404  4
+2026-10-18T15:29:56.653Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A 200  13
+2026-10-18T15:29:56.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock 200  12
+2026-10-18T15:29:56.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates 200  12
+2026-10-18T15:29:56.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares 200  13
+2026-10-18T15:29:56.654Z GET /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments 200  14
+2026-10-18T15:30:08.397Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/presence 200  5
+2026-10-18T15:30:23.397Z POST /api/v1/workspaces/01M57T47NV0E208TTR80HE1XR1/chat/presence 200  5
+2026-10-18T15:30:23.531Z POST /api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T4DTD79Q5QX9DFQ3H8KNG/heartbeat 200  7
+2026-10-18T15:29:47.722Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337385740%2Fteam-links-1792337385740&client_platform=web 101  25
+2026-10-18T15:29:48.542Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337385740%2Fteam-links-1792337385740&client_platform=web 101  858
+2026-10-18T15:29:52.163Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337385740%2Fteam-links-1792337385740&client_platform=web 101  229
+2026-10-18T15:29:52.904Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337385740%2Fteam-links-1792337385740&client_platform=web 101  14
+2026-10-18T15:29:53.428Z GET ws://localhost:18551/api/v1/ws?workspace_slug=sharing-links-1792337385740%2Fteam-links-1792337385740&client_platform=web 101  25004
+##### TRACE ACTIONS
+== e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+## console/events (29)
+12876.575 CONSOLE error Failed to load resource: the server responded with a status of 401 (Unauthorized)
+2249.265 CONSOLE error Failed to load resource: the server responded with a status of 401 (Unauthorized)
+3559.523 CONSOLE info %c15:29:04.270 [ws] color:#2196F3 connected
+3684.585 CONSOLE log %c15:29:04.403 [ws] color:#888 received member.joined
+3685.863 CONSOLE log %c15:29:04.404 [ws] color:#888 received member.joined
+3686.656 CONSOLE log %c15:29:04.404 [ws] color:#888 received organization.created
+3686.744 CONSOLE log %c15:29:04.405 [ws] color:#888 received workspace.created
+3686.8 CONSOLE log %c15:29:04.405 [ws] color:#888 received workspace_agent.added
+3686.85 CONSOLE log %c15:29:04.405 [ws] color:#888 received agent.created
+3686.973 CONSOLE log %c15:29:04.405 [ws] color:#888 received task.created
+4595.592 CONSOLE info %c15:29:05.315 [ws] color:#2196F3 connected
+5683.199 CONSOLE log %c15:29:06.403 [ws] color:#888 received document.created
+5683.936 CONSOLE log %c15:29:06.404 [ws] color:#888 received document.created
+5684.007 CONSOLE log %c15:29:06.404 [ws] color:#888 received document.lock_changed
+8310.825 CONSOLE info %c15:29:09.029 [ws] color:#2196F3 connected
+9073.125 CONSOLE info %c15:29:09.790 [ws] color:#2196F3 connected
+9767.732 CONSOLE info %c15:29:10.483 [ws] color:#2196F3 connected
+10012.065 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+10544.685 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+10683.057 CONSOLE log %c15:29:11.403 [ws] color:#888 received document.lock_changed
+10683.682 CONSOLE log %c15:29:11.403 [ws] color:#888 received document.shared
+10950.171 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+11705.884 CONSOLE log %c15:29:12.424 [ws] color:#888 received document.link_created
+11904.997 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+11963.914 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+12683.21 CONSOLE log %c15:29:13.402 [ws] color:#888 received document.share_revoked
+12942.558 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+34764.888 CONSOLE log %c15:29:35.484 [ws] color:#888 received ping
+34764.994 CONSOLE log %c15:29:35.484 [ws] color:#888 received pong
+## actions (last 160 of 817)
+10718.323 LOG call@111 Expect "toBeVisible" with timeout 30000ms
+10718.329 LOG call@111 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-created-url')
+10805.516 LOG call@111   locator resolved to <p data-testid="share-created-url" class="break-all font-mono text-caption text-foreground">http://localhost:3000/share/wIspjtk6GGmPr-g3ErI7I…</p>
+10805.555 AFTER call@111 ok
+10809.252 BEFORE call@113 Frame.textContent {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-created-url\"s]","strict":true}
+10811.278 LOG call@113 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-created-url')
+10821.586 LOG call@113   locator resolved to <p data-testid="share-created-url" class="break-all font-mono text-caption text-foreground">http://localhost:3000/share/wIspjtk6GGmPr-g3ErI7I…</p>
+10821.623 AFTER call@113 ok
+10834.309 BEFORE call@115 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:text=/URL chỉ hiển thị lần này/","expression":"to.be.visible","expectedValue":{"value":{"v":"
+10840.029 LOG call@115 Expect "toBeVisible" with timeout 5000ms
+10840.034 LOG call@115 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText(/URL chỉ hiển thị lần này/)
+10842.804 AFTER call@115 ok
+10847.575 BEFORE call@117 Page.screenshot {"type":"png"}
+10860.11 LOG call@117 taking page screenshot
+10865.281 LOG call@117 waiting for fonts to load...
+10866.31 LOG call@117 fonts loaded
+10999.12 AFTER call@117 ok
+11004.217 BEFORE call@119 Frame.evaluateExpression {"expression":"() => document.documentElement.classList.add(\"dark\")","isFunction":true,"arg":{"value":{"v":"undefined"},"handles":[]}}
+11008.381 AFTER call@119 ok
+11020.959 BEFORE call@121 Frame.waitForTimeout {"waitTimeout":400}
+11423.205 AFTER call@121 ok
+11427.508 BEFORE call@123 Page.screenshot {"type":"png"}
+11429.23 LOG call@123 taking page screenshot
+11430.209 LOG call@123 waiting for fonts to load...
+11432.081 LOG call@123 fonts loaded
+11555.286 AFTER call@123 ok
+11560.606 BEFORE call@125 Frame.evaluateExpression {"expression":"() => document.documentElement.classList.remove(\"dark\")","isFunction":true,"arg":{"value":{"v":"undefined"},"handles":[]}}
+11563.962 AFTER call@125 ok
+11576.34 BEFORE call@127 Frame.click {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=button[name=\"Thu hồi Sharing links 1792337342328\"i]","strict":true}
+11578.741 LOG call@127 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('button', { name: 'Thu hồi Sharing links 1792337342328' })
+11582.025 LOG call@127   locator resolved to <button tabindex="0" type="button" data-slot="button" aria-label="Thu hồi Sharing links 1792337342328" class="group/button inline-flex shrink-0 cursor-pointer items-center justif
+11582.617 LOG call@127 attempting click action
+11582.645 LOG call@127   waiting for element to be visible, enabled and stable
+11649.42 LOG call@127   element is visible, enabled and stable
+11649.429 LOG call@127   scrolling into view if needed
+11650.538 LOG call@127   done scrolling
+ INPUT call@127 {"x":912.5,"y":431.5}
+11655.227 LOG call@127   performing click action
+11663.403 LOG call@127   click action done
+11663.411 LOG call@127   waiting for scheduled navigations to finish
+11663.642 LOG call@127   navigations have finished
+11663.69 AFTER call@127 ok
+11667.048 BEFORE call@129 Frame.isVisible {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-access-confirm\"s]","strict":true}
+11668.831 LOG call@129   checking visibility of getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-access-confirm')
+11670.113 AFTER call@129 ok
+11673.867 BEFORE call@131 Frame.queryCount {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=button[name=\"Thu hồi Sharing links 1792337342328\"i]"}
+11680.927 AFTER call@131 ok
+11785.954 BEFORE call@133 Frame.isVisible {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-access-confirm\"s]","strict":true}
+11789.155 LOG call@133   checking visibility of getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-access-confirm')
+11790.963 AFTER call@133 ok
+11794.052 BEFORE call@135 Frame.isVisible {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-access-confirm\"s]","strict":true}
+11796.13 LOG call@135   checking visibility of getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-access-confirm')
+11797.604 AFTER call@135 ok
+11799.833 BEFORE call@137 Frame.click {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-access-confirm\"s] >> internal:role=button[name=\"Xác nhận\"i]","
+11801.342 LOG call@137 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-access-confirm').getByRole('button', { name: 'Xác nhận' })
+11803.296 LOG call@137   locator resolved to <button tabindex="0" type="button" data-slot="button" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-paddin
+11803.849 LOG call@137 attempting click action
+11803.875 LOG call@137   waiting for element to be visible, enabled and stable
+11850.755 LOG call@137   element is visible, enabled and stable
+11850.766 LOG call@137   scrolling into view if needed
+11852.098 LOG call@137   done scrolling
+ INPUT call@137 {"x":546,"y":520.5}
+11856.048 LOG call@137   performing click action
+11867.799 LOG call@137   click action done
+11867.816 LOG call@137   waiting for scheduled navigations to finish
+11869.535 LOG call@137   navigations have finished
+11869.592 AFTER call@137 ok
+11873.213 BEFORE call@139 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=button[name=\"Thu hồi Sharing links 1792337342328\"i]","expression":"to.have.count","exp
+11874.927 LOG call@139 Expect "toHaveCount" with timeout 30000ms
+11874.935 LOG call@139 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('button', { name: 'Thu hồi Sharing links 1792337342328' })
+11878.343 LOG call@139   locator resolved to 1 element
+11878.354 LOG call@139   unexpected value "1"
+11905.055 LOG call@139   locator resolved to 1 element
+11905.059 LOG call@139   unexpected value "1"
+11958.101 LOG call@139   locator resolved to 0 elements
+11958.143 AFTER call@139 ok
+11963.28 BEFORE call@141 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:text=\"Chủ sở hữu\"s","expression":"to.be.visible","expectedValue":{"value":{"v":"undefined"}
+11968.173 LOG call@141 Expect "toBeVisible" with timeout 5000ms
+11968.178 LOG call@141 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chủ sở hữu', { exact: true })
+11971.74 AFTER call@141 ok
+11982.346 BEFORE call@143 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=button[name=\"Chuyển quyền sở hữu\"i]","expression":"to.be.visible","expectedValue":{"va
+11984.245 LOG call@143 Expect "toBeVisible" with timeout 5000ms
+11984.25 LOG call@143 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('button', { name: 'Chuyển quyền sở hữu' })
+11985.99 AFTER call@143 ok
+13064.567 BEFORE call@164 Page.keyboardPress {"key":"Escape"}
+ INPUT call@164 {}
+13077.289 AFTER call@164 ok
+13081.979 BEFORE call@166 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/]","expression":"to.be.hidden","expectedValue":{"value":{"v":"undefined"},"handles":[]},"isNot":false,"time
+13083.721 LOG call@166 Expect "toBeHidden" with timeout 5000ms
+13083.727 LOG call@166 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ })
+13089.487 LOG call@166   locator resolved to <div id="_r_2d_" role="dialog" tabindex="-1" data-closed="" data-ending-style="" aria-describedby="_r_2b_" data-base-ui-focusable="" data-slot="dialog-content" aria-labelledby="b
+13089.503 LOG call@166   unexpected value "visible"
+13112.681 LOG call@166   locator resolved to <div id="_r_2d_" role="dialog" tabindex="-1" data-closed="" data-ending-style="" aria-describedby="_r_2b_" data-base-ui-focusable="" data-slot="dialog-content" aria-labelledby="b
+13112.7 LOG call@166   unexpected value "visible"
+13166.785 LOG call@166   locator resolved to <div id="_r_2d_" role="dialog" tabindex="-1" data-closed="" data-ending-style="" aria-describedby="_r_2b_" data-base-ui-focusable="" data-slot="dialog-content" aria-labelledby="b
+13166.802 LOG call@166   unexpected value "visible"
+13270.377 LOG call@166   locator resolved to <div id="_r_2d_" role="dialog" tabindex="-1" data-closed="" data-ending-style="" aria-describedby="_r_2b_" data-base-ui-focusable="" data-slot="dialog-content" aria-labelledby="b
+13270.394 LOG call@166   unexpected value "visible"
+13374.162 AFTER call@166 ok
+13377.902 BEFORE call@168 Frame.click {"selector":"internal:role=button[name=/Hành động khác|More actions/]","strict":true}
+13380.388 LOG call@168 waiting for getByRole('button', { name: /Hành động khác|More actions/ })
+13383.381 LOG call@168   locator resolved to <button tabindex="0" type="button" id="base-ui-_r_28_" aria-haspopup="menu" aria-expanded="false" aria-label="Hành động khác" data-slot="dropdown-menu-trigger" class="group/butto
+13384.059 LOG call@168 attempting click action
+13384.092 LOG call@168   waiting for element to be visible, enabled and stable
+13388.809 LOG call@168   element is visible, enabled and stable
+13388.819 LOG call@168   scrolling into view if needed
+13389.048 LOG call@168   done scrolling
+ INPUT call@168 {"x":1402,"y":79.5}
+13391.89 LOG call@168   performing click action
+13395.121 LOG call@168   click action done
+13395.132 LOG call@168   waiting for scheduled navigations to finish
+13395.457 LOG call@168   navigations have finished
+13395.519 AFTER call@168 ok
+13397.34 BEFORE call@170 Frame.click {"selector":"internal:role=menuitem[name=\"Chia sẻ\"i]","strict":true}
+13398.585 LOG call@170 waiting for getByRole('menuitem', { name: 'Chia sẻ' })
+13422.983 LOG call@170   locator resolved to <div tabindex="-1" role="menuitem" id="base-ui-_r_4c_" data-variant="default" data-slot="dropdown-menu-item" class="group/dropdown-menu-item relative flex cursor-default items-ce
+13423.519 LOG call@170 attempting click action
+13423.544 LOG call@170   waiting for element to be visible, enabled and stable
+13439.093 LOG call@170   element is visible, enabled and stable
+13439.104 LOG call@170   scrolling into view if needed
+13439.996 LOG call@170   done scrolling
+ INPUT call@170 {"x":1322.13,"y":150.75}
+13443.997 LOG call@170   performing click action
+13468.015 LOG call@170   click action done
+13468.026 LOG call@170   waiting for scheduled navigations to finish
+13469.663 LOG call@170   navigations have finished
+13469.736 AFTER call@170 ok
+13474.047 BEFORE call@172 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:text=\"Liên kết công khai\"s","expression":"to.be.visible","expectedValue":{"value":{"v":"und
+13475.651 LOG call@172 Expect "toBeVisible" with timeout 30000ms
+13475.659 LOG call@172 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Liên kết công khai', { exact: true })
+13477.458 AFTER call@172 ok
+13480.177 BEFORE call@174 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-created-url\"s]","expression":"to.have.count","expectedNumber":0,
+13481.899 LOG call@174 Expect "toHaveCount" with timeout 5000ms
+13481.905 LOG call@174 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-created-url')
+13483.301 AFTER call@174 ok
+13486.284 BEFORE call@176 Frame.click {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=region[name=\"Liên kết công khai\"i] >> internal:role=button[name=/^Thu hồi/]","strict":
+13487.858 LOG call@176 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('region', { name: 'Liên kết công khai' }).getByRole('button', { name: /^Thu hồi/ })
+13490.95 LOG call@176   locator resolved to <button tabindex="0" type="button" data-slot="button" aria-label="Thu hồi 15:29" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border
+13497.76 LOG call@176 attempting click action
+13497.789 LOG call@176   waiting for element to be visible, enabled and stable
+13591.479 LOG call@176   element is not stable
+13591.501 LOG call@176 retrying click action
+13591.539 LOG call@176   waiting for element to be visible, enabled and stable
+13689.099 LOG call@176   element is not stable
+13689.115 LOG call@176 retrying click action
+13689.118 LOG call@176   waiting 20ms
+13710.6 LOG call@176   waiting for element to be visible, enabled and stable
+13739.394 LOG call@176   element is visible, enabled and stable
+13739.406 LOG call@176   scrolling into view if needed
+13740.159 LOG call@176   done scrolling
+ INPUT call@176 {"x":899.5,"y":776.5}
+13744.452 LOG call@176   performing click action
+13750.141 LOG call@176   click action done
+13750.151 LOG call@176   waiting for scheduled navigations to finish
+13750.399 LOG call@176   navigations have finished
+13750.461 AFTER call@176 ok
+13753.5 BEFORE call@178 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:text=\"Chưa có liên kết nào.\"i","expression":"to.be.visible","expectedValue":{"value":{"v":"
+13755.213 LOG call@178 Expect "toBeVisible" with timeout 30000ms
+13755.219 LOG call@178 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+43756.756 AFTER call@178 ERROR {"message":"Expect failed","stack":"ExpectError: Expect failed\n    at _Frame.expect (/workspace/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/lib/coreBundle.js:23785:17)\n   
+== e2e/test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke-repeat1/trace.zip
+## console/events (23)
+55950.386 CONSOLE error Failed to load resource: the server responded with a status of 401 (Unauthorized)
+45744.642 CONSOLE error Failed to load resource: the server responded with a status of 401 (Unauthorized)
+47052.271 CONSOLE info %c15:29:47.766 [ws] color:#2196F3 connected
+47837.976 CONSOLE info %c15:29:48.557 [ws] color:#2196F3 connected
+48682.828 CONSOLE log %c15:29:49.402 [ws] color:#888 received document.created
+48683.132 CONSOLE log %c15:29:49.403 [ws] color:#888 received document.created
+48683.256 CONSOLE log %c15:29:49.403 [ws] color:#888 received document.lock_changed
+51474.249 CONSOLE info %c15:29:52.190 [ws] color:#2196F3 connected
+51683.105 CONSOLE log %c15:29:52.403 [ws] color:#888 received document.lock_changed
+52201.041 CONSOLE info %c15:29:52.921 [ws] color:#2196F3 connected
+52733.58 CONSOLE info %c15:29:53.448 [ws] color:#2196F3 connected
+52984.817 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+53535.64 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+53694.673 CONSOLE log %c15:29:54.414 [ws] color:#888 received document.shared
+53697.911 CONSOLE log %c15:29:54.416 [ws] color:#888 received document.lock_changed
+53960.588 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+54683.5 CONSOLE log %c15:29:55.403 [ws] color:#888 received document.link_created
+54948.283 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+55022.06 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+55682.941 CONSOLE log %c15:29:56.402 [ws] color:#888 received document.share_revoked
+55949.954 CONSOLE error Failed to load resource: the server responded with a status of 404 (Not Found)
+77728.36 CONSOLE log %c15:30:18.447 [ws] color:#888 received ping
+77729.438 CONSOLE log %c15:30:18.449 [ws] color:#888 received pong
+## actions (last 160 of 812)
+53758.908 LOG call@111 Expect "toBeVisible" with timeout 30000ms
+53758.914 LOG call@111 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-created-url')
+53846.019 LOG call@111   locator resolved to <p data-testid="share-created-url" class="break-all font-mono text-caption text-foreground">http://localhost:3000/share/eCRTEQPd-UCJDRA0WQCFt…</p>
+53846.062 AFTER call@111 ok
+53850.145 BEFORE call@113 Frame.textContent {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-created-url\"s]","strict":true}
+53852.437 LOG call@113 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-created-url')
+53854.262 LOG call@113   locator resolved to <p data-testid="share-created-url" class="break-all font-mono text-caption text-foreground">http://localhost:3000/share/eCRTEQPd-UCJDRA0WQCFt…</p>
+53854.3 AFTER call@113 ok
+53858.115 BEFORE call@115 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:text=/URL chỉ hiển thị lần này/","expression":"to.be.visible","expectedValue":{"value":{"v":"
+53862.148 LOG call@115 Expect "toBeVisible" with timeout 5000ms
+53862.157 LOG call@115 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText(/URL chỉ hiển thị lần này/)
+53864.071 AFTER call@115 ok
+53866.89 BEFORE call@117 Page.screenshot {"type":"png"}
+53868.732 LOG call@117 taking page screenshot
+53870.543 LOG call@117 waiting for fonts to load...
+53871.122 LOG call@117 fonts loaded
+54052.383 AFTER call@117 ok
+54057.844 BEFORE call@119 Frame.evaluateExpression {"expression":"() => document.documentElement.classList.add(\"dark\")","isFunction":true,"arg":{"value":{"v":"undefined"},"handles":[]}}
+54061.212 AFTER call@119 ok
+54074.861 BEFORE call@121 Frame.waitForTimeout {"waitTimeout":400}
+54477.605 AFTER call@121 ok
+54481.96 BEFORE call@123 Page.screenshot {"type":"png"}
+54484.059 LOG call@123 taking page screenshot
+54485.402 LOG call@123 waiting for fonts to load...
+54487.81 LOG call@123 fonts loaded
+54612.918 AFTER call@123 ok
+54617.225 BEFORE call@125 Frame.evaluateExpression {"expression":"() => document.documentElement.classList.remove(\"dark\")","isFunction":true,"arg":{"value":{"v":"undefined"},"handles":[]}}
+54619.965 AFTER call@125 ok
+54635.311 BEFORE call@127 Frame.click {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=button[name=\"Thu hồi Sharing links 1792337385740\"i]","strict":true}
+54637.884 LOG call@127 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('button', { name: 'Thu hồi Sharing links 1792337385740' })
+54649.924 LOG call@127   locator resolved to <button tabindex="0" type="button" data-slot="button" aria-label="Thu hồi Sharing links 1792337385740" class="group/button inline-flex shrink-0 cursor-pointer items-center justif
+54650.898 LOG call@127 attempting click action
+54650.947 LOG call@127   waiting for element to be visible, enabled and stable
+54731.597 LOG call@127   element is visible, enabled and stable
+54731.604 LOG call@127   scrolling into view if needed
+54732.894 LOG call@127   done scrolling
+ INPUT call@127 {"x":912.5,"y":431.5}
+54742.67 LOG call@127   performing click action
+54749.517 LOG call@127   click action done
+54749.533 LOG call@127   waiting for scheduled navigations to finish
+54750.386 LOG call@127   navigations have finished
+54750.48 AFTER call@127 ok
+54754.945 BEFORE call@129 Frame.isVisible {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-access-confirm\"s]","strict":true}
+54760.184 LOG call@129   checking visibility of getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-access-confirm')
+54761.857 AFTER call@129 ok
+54764.36 BEFORE call@131 Frame.queryCount {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=button[name=\"Thu hồi Sharing links 1792337385740\"i]"}
+54768.075 AFTER call@131 ok
+54872.598 BEFORE call@133 Frame.isVisible {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-access-confirm\"s]","strict":true}
+54875.681 LOG call@133   checking visibility of getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-access-confirm')
+54877.594 AFTER call@133 ok
+54881.501 BEFORE call@135 Frame.isVisible {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-access-confirm\"s]","strict":true}
+54883.784 LOG call@135   checking visibility of getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-access-confirm')
+54885.677 AFTER call@135 ok
+54888.509 BEFORE call@137 Frame.click {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-access-confirm\"s] >> internal:role=button[name=\"Xác nhận\"i]","
+54890.666 LOG call@137 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-access-confirm').getByRole('button', { name: 'Xác nhận' })
+54893.293 LOG call@137   locator resolved to <button tabindex="0" type="button" data-slot="button" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border-transparent bg-clip-paddin
+54894.078 LOG call@137 attempting click action
+54894.119 LOG call@137   waiting for element to be visible, enabled and stable
+54963.286 LOG call@137   element is visible, enabled and stable
+54963.295 LOG call@137   scrolling into view if needed
+54963.916 LOG call@137   done scrolling
+ INPUT call@137 {"x":546,"y":520.5}
+54968.636 LOG call@137   performing click action
+54973.905 LOG call@137   click action done
+54973.913 LOG call@137   waiting for scheduled navigations to finish
+54974.728 LOG call@137   navigations have finished
+54974.796 AFTER call@137 ok
+54979.12 BEFORE call@139 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=button[name=\"Thu hồi Sharing links 1792337385740\"i]","expression":"to.have.count","exp
+54981.573 LOG call@139 Expect "toHaveCount" with timeout 30000ms
+54981.581 LOG call@139 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('button', { name: 'Thu hồi Sharing links 1792337385740' })
+54985.899 LOG call@139   locator resolved to 1 element
+54985.91 LOG call@139   unexpected value "1"
+55017.543 LOG call@139   locator resolved to 1 element
+55017.553 LOG call@139   unexpected value "1"
+55071.559 LOG call@139   locator resolved to 0 elements
+55071.606 AFTER call@139 ok
+55076.771 BEFORE call@141 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:text=\"Chủ sở hữu\"s","expression":"to.be.visible","expectedValue":{"value":{"v":"undefined"}
+55079.679 LOG call@141 Expect "toBeVisible" with timeout 5000ms
+55079.686 LOG call@141 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chủ sở hữu', { exact: true })
+55082.648 AFTER call@141 ok
+55085.724 BEFORE call@143 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=button[name=\"Chuyển quyền sở hữu\"i]","expression":"to.be.visible","expectedValue":{"va
+55087.959 LOG call@143 Expect "toBeVisible" with timeout 5000ms
+55087.967 LOG call@143 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('button', { name: 'Chuyển quyền sở hữu' })
+55090.003 AFTER call@143 ok
+56112.527 BEFORE call@164 Page.keyboardPress {"key":"Escape"}
+ INPUT call@164 {}
+56124.797 AFTER call@164 ok
+56129.607 BEFORE call@166 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/]","expression":"to.be.hidden","expectedValue":{"value":{"v":"undefined"},"handles":[]},"isNot":false,"time
+56131.378 LOG call@166 Expect "toBeHidden" with timeout 5000ms
+56131.385 LOG call@166 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ })
+56137.422 LOG call@166   locator resolved to <div id="_r_2d_" role="dialog" tabindex="-1" data-closed="" data-ending-style="" aria-describedby="_r_2b_" data-base-ui-focusable="" data-slot="dialog-content" aria-labelledby="b
+56137.438 LOG call@166   unexpected value "visible"
+56161.254 LOG call@166   locator resolved to <div id="_r_2d_" role="dialog" tabindex="-1" data-closed="" data-ending-style="" aria-describedby="_r_2b_" data-base-ui-focusable="" data-slot="dialog-content" aria-labelledby="b
+56161.272 LOG call@166   unexpected value "visible"
+56215.022 LOG call@166   locator resolved to <div id="_r_2d_" role="dialog" tabindex="-1" data-closed="" data-ending-style="" aria-describedby="_r_2b_" data-base-ui-focusable="" data-slot="dialog-content" aria-labelledby="b
+56215.04 LOG call@166   unexpected value "visible"
+56317.992 LOG call@166   locator resolved to <div id="_r_2d_" role="dialog" tabindex="-1" data-closed="" data-ending-style="" aria-describedby="_r_2b_" data-base-ui-focusable="" data-slot="dialog-content" aria-labelledby="b
+56318.007 LOG call@166   unexpected value "visible"
+56421.003 AFTER call@166 ok
+56424.774 BEFORE call@168 Frame.click {"selector":"internal:role=button[name=/Hành động khác|More actions/]","strict":true}
+56427.466 LOG call@168 waiting for getByRole('button', { name: /Hành động khác|More actions/ })
+56431.061 LOG call@168   locator resolved to <button tabindex="0" type="button" id="base-ui-_r_28_" aria-haspopup="menu" aria-expanded="false" aria-label="Hành động khác" data-slot="dropdown-menu-trigger" class="group/butto
+56431.592 LOG call@168 attempting click action
+56431.617 LOG call@168   waiting for element to be visible, enabled and stable
+56437.374 LOG call@168   element is visible, enabled and stable
+56437.386 LOG call@168   scrolling into view if needed
+56437.959 LOG call@168   done scrolling
+ INPUT call@168 {"x":1402,"y":79.5}
+56440.585 LOG call@168   performing click action
+56443.933 LOG call@168   click action done
+56443.945 LOG call@168   waiting for scheduled navigations to finish
+56444.246 LOG call@168   navigations have finished
+56444.303 AFTER call@168 ok
+56446.753 BEFORE call@170 Frame.click {"selector":"internal:role=menuitem[name=\"Chia sẻ\"i]","strict":true}
+56448.411 LOG call@170 waiting for getByRole('menuitem', { name: 'Chia sẻ' })
+56472.495 LOG call@170   locator resolved to <div tabindex="-1" role="menuitem" id="base-ui-_r_4c_" data-variant="default" data-slot="dropdown-menu-item" class="group/dropdown-menu-item relative flex cursor-default items-ce
+56473.005 LOG call@170 attempting click action
+56473.029 LOG call@170   waiting for element to be visible, enabled and stable
+56489.15 LOG call@170   element is visible, enabled and stable
+56489.162 LOG call@170   scrolling into view if needed
+56489.834 LOG call@170   done scrolling
+ INPUT call@170 {"x":1322.13,"y":150.75}
+56494.353 LOG call@170   performing click action
+56521.617 LOG call@170   click action done
+56521.628 LOG call@170   waiting for scheduled navigations to finish
+56522.009 LOG call@170   navigations have finished
+56522.173 AFTER call@170 ok
+56528.161 BEFORE call@172 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:text=\"Liên kết công khai\"s","expression":"to.be.visible","expectedValue":{"value":{"v":"und
+56529.93 LOG call@172 Expect "toBeVisible" with timeout 30000ms
+56529.936 LOG call@172 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Liên kết công khai', { exact: true })
+56532.186 AFTER call@172 ok
+56534.771 BEFORE call@174 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:testid=[data-testid=\"share-created-url\"s]","expression":"to.have.count","expectedNumber":0,
+56536.506 LOG call@174 Expect "toHaveCount" with timeout 5000ms
+56536.512 LOG call@174 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByTestId('share-created-url')
+56537.965 AFTER call@174 ok
+56540.024 BEFORE call@176 Frame.click {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:role=region[name=\"Liên kết công khai\"i] >> internal:role=button[name=/^Thu hồi/]","strict":
+56541.522 LOG call@176 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('region', { name: 'Liên kết công khai' }).getByRole('button', { name: /^Thu hồi/ })
+56545.134 LOG call@176   locator resolved to <button tabindex="0" type="button" data-slot="button" aria-label="Thu hồi 15:29" class="group/button inline-flex shrink-0 cursor-pointer items-center justify-center border border
+56545.676 LOG call@176 attempting click action
+56545.702 LOG call@176   waiting for element to be visible, enabled and stable
+56642.169 LOG call@176   element is not stable
+56642.184 LOG call@176 retrying click action
+56642.22 LOG call@176   waiting for element to be visible, enabled and stable
+56732.54 LOG call@176   element is not stable
+56732.554 LOG call@176 retrying click action
+56732.557 LOG call@176   waiting 20ms
+56755.423 LOG call@176   waiting for element to be visible, enabled and stable
+56826.871 LOG call@176   element is visible, enabled and stable
+56826.888 LOG call@176   scrolling into view if needed
+56828.632 LOG call@176   done scrolling
+ INPUT call@176 {"x":899.5,"y":776.5}
+56832.739 LOG call@176   performing click action
+56839.684 LOG call@176   click action done
+56839.694 LOG call@176   waiting for scheduled navigations to finish
+56840.279 LOG call@176   navigations have finished
+56840.341 AFTER call@176 ok
+56843.458 BEFORE call@178 Frame.expect {"selector":"internal:role=dialog[name=/^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/] >> internal:text=\"Chưa có liên kết nào.\"i","expression":"to.be.visible","expectedValue":{"value":{"v":"
+56845.19 LOG call@178 Expect "toBeVisible" with timeout 30000ms
+56845.197 LOG call@178 waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByText('Chưa có liên kết nào.')
+86845.479 AFTER call@178 ERROR {"message":"Expect failed","stack":"ExpectError: Expect failed\n    at _Frame.expect (/workspace/node_modules/.pnpm/playwright-core@1.62.1/node_modules/playwright-core/lib/coreBundle.js:23785:17)\n   
+##### SERVER DOC LINES
+15:29:05.831 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=8µs request_id=cursor/NorHR8Npm3-000132 correlation_id=3ba834dbe0461c3bb71d315c5cdd609f trace_id=3ba834dbe0461c3bb71d315c5cdd609f span_id=2894b12a4257685a
+15:29:05.833 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=2.961ms request_id=cursor/NorHR8Npm3-000131 correlation_id=2d1ad6b1ad95d8e6eb4b3d623e5c7e0b trace_id=2d1ad6b1ad95d8e6eb4b3d623e5c7e0b span_id=aea225d5545d2693 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:05.837 INF http request method=POST path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=201 duration=5.276ms request_id=cursor/NorHR8Npm3-000133 correlation_id=a8e9e7bb46f9633a376627b458f2d2de trace_id=a8e9e7bb46f9633a376627b458f2d2de span_id=a80d4ffcea89d4f0 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:05.860 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T2Z9CHF3V2D4PTN0AEVT8/heartbeat status=200 duration=8µs request_id=cursor/NorHR8Npm3-000135 correlation_id=9aff1ed8647dcb4dfab3051dabaaf5a7 trace_id=9aff1ed8647dcb4dfab3051dabaaf5a7 span_id=cd838853dae792eb
+15:29:05.862 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=2.366ms request_id=cursor/NorHR8Npm3-000134 correlation_id=174b76ac5a7233c1967b5fb3a9e8a72c trace_id=174b76ac5a7233c1967b5fb3a9e8a72c span_id=788d18a758854535 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:05.864 INF http request method=POST path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T2Z9CHF3V2D4PTN0AEVT8/heartbeat status=200 duration=2.573ms request_id=cursor/NorHR8Npm3-000136 correlation_id=c8690c74ab182e41bbc87b1d36c9865e trace_id=c8690c74ab182e41bbc87b1d36c9865e span_id=f6a83e7ba5b5136f organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:06.657 WRN http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=499 duration=312µs request_id=cursor/NorHR8Npm3-000137 correlation_id=3f81e4a35f9c08c2b955b097ae9d9edd trace_id=3f81e4a35f9c08c2b955b097ae9d9edd span_id=52dd3394785c015f actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:06.661 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=4.076ms request_id=cursor/NorHR8Npm3-000140 correlation_id=38ae5651c7b223949a13513dc21a6b53 trace_id=38ae5651c7b223949a13513dc21a6b53 span_id=e70c243abccdc58e organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:06.662 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=5.556ms request_id=cursor/NorHR8Npm3-000139 correlation_id=978fc3b33f9cbf06c1b26f6ae3f14b3e trace_id=978fc3b33f9cbf06c1b26f6ae3f14b3e span_id=564bffc658e8c318 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:06.663 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments status=200 duration=6.661ms request_id=cursor/NorHR8Npm3-000138 correlation_id=48dc83f0bd41496d9ece239058b80f6f trace_id=48dc83f0bd41496d9ece239058b80f6f span_id=68855e0ae717d14a organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:08.077 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=23µs request_id=cursor/NorHR8Npm3-000141 correlation_id=73c739ad1563d35d9d2191c31bcf4b6c trace_id=73c739ad1563d35d9d2191c31bcf4b6c span_id=c7ebb891f39b2523
+15:29:08.087 INF http request method=PATCH path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=8.379ms request_id=cursor/NorHR8Npm3-000142 correlation_id=d8fee86376611359515d2b48021a883b trace_id=d8fee86376611359515d2b48021a883b span_id=1864c31d33800ab9 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:08.502 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T2Z9CHF3V2D4PTN0AEVT8 status=200 duration=29µs request_id=cursor/NorHR8Npm3-000144 correlation_id=f57a1b5685466677deb25d33620effd8 trace_id=f57a1b5685466677deb25d33620effd8 span_id=a233a99e4e6c0e8f
+15:29:08.509 INF http request method=DELETE path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T2Z9CHF3V2D4PTN0AEVT8 status=204 duration=6.868ms request_id=cursor/NorHR8Npm3-000145 correlation_id=19423ee640d3bb953fdb851c518060aa trace_id=19423ee640d3bb953fdb851c518060aa span_id=09eebf3352e0d23c organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:08.520 WRN http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=499 duration=240µs request_id=cursor/NorHR8Npm3-000146 correlation_id=3840291e77ab7d840d4a501d3bafc2c0 trace_id=3840291e77ab7d840d4a501d3bafc2c0 span_id=3202eac3446f1197 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:10.453 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=6.994ms request_id=cursor/NorHR8Npm3-000224 correlation_id=1512735e98f1afa216390a3304216b2b trace_id=1512735e98f1afa216390a3304216b2b span_id=bf23f74a975de528 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:10.517 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments status=200 duration=1.705ms request_id=cursor/NorHR8Npm3-000232 correlation_id=ac23fe932823d20da8c7224abd248e00 trace_id=ac23fe932823d20da8c7224abd248e00 span_id=a47fb6f09b27cf6a organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:10.519 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=1.649ms request_id=cursor/NorHR8Npm3-000235 correlation_id=9b09575a90f94e58aad203d8eaeeca93 trace_id=9b09575a90f94e58aad203d8eaeeca93 span_id=aca8e2b5785ed759 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:10.521 INF http request method=POST path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=201 duration=2.424ms request_id=cursor/NorHR8Npm3-000237 correlation_id=8a926cffbb89da007669fdb14308fe6f trace_id=8a926cffbb89da007669fdb14308fe6f span_id=a6dc216d33e12ff2 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:10.572 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T33VSDX1VRMFXFWQ6G4QP/heartbeat status=200 duration=12µs request_id=cursor/NorHR8Npm3-000239 correlation_id=a19954d05df0ddc9833bc52201f75653 trace_id=a19954d05df0ddc9833bc52201f75653 span_id=e3ec109ea4d0020c
+15:29:10.574 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=3.647ms request_id=cursor/NorHR8Npm3-000238 correlation_id=1c2275b8198e574a2fdb2f33f6571d75 trace_id=1c2275b8198e574a2fdb2f33f6571d75 span_id=da4ffc6ca2ca6a09 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:10.576 INF http request method=POST path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T33VSDX1VRMFXFWQ6G4QP/heartbeat status=200 duration=2.72ms request_id=cursor/NorHR8Npm3-000240 correlation_id=3c1bf7b534b046a300d0d6661cd429fb trace_id=3c1bf7b534b046a300d0d6661cd429fb span_id=9dd3557caad13458 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:10.690 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=200 duration=18µs request_id=cursor/NorHR8Npm3-000241 correlation_id=7f5c8ac565f8d41973036fbb725c812f trace_id=7f5c8ac565f8d41973036fbb725c812f span_id=df3b86801fa817a0
+15:29:10.694 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=200 duration=3.482ms request_id=cursor/NorHR8Npm3-000243 correlation_id=5044dd0d3e2b6ea52811184c863ec747 trace_id=5044dd0d3e2b6ea52811184c863ec747 span_id=9a4cd989bbd122e8 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:10.720 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates status=200 duration=12µs request_id=cursor/NorHR8Npm3-000244 correlation_id=f0fd3679f3d9b968eeaf4877a3411a47 trace_id=f0fd3679f3d9b968eeaf4877a3411a47 span_id=296a7ec674dd9067
+15:29:10.720 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests status=200 duration=10µs request_id=cursor/NorHR8Npm3-000245 correlation_id=4ac6618828ae676b286037daf1df82e3 trace_id=4ac6618828ae676b286037daf1df82e3 span_id=1802a56ceff0b87f
+15:29:10.723 WRN http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests status=404 duration=1.681ms request_id=cursor/NorHR8Npm3-000247 correlation_id=97fb03cb9310efdc5df1d69c4cc0cc6c trace_id=97fb03cb9310efdc5df1d69c4cc0cc6c span_id=51b834ad4567ede9
+15:29:10.728 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates status=200 duration=6.689ms request_id=cursor/NorHR8Npm3-000246 correlation_id=07a51629988987f4f671b533dbb0a5ea trace_id=07a51629988987f4f671b533dbb0a5ea span_id=dc493c69c2b61945 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.214 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access status=200 duration=17µs request_id=cursor/NorHR8Npm3-000248 correlation_id=27a92f58c462a07c79fa76a043b60683 trace_id=27a92f58c462a07c79fa76a043b60683 span_id=b08b86034118b1d0
+15:29:11.220 INF http request method=PUT path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access status=200 duration=4.802ms request_id=cursor/NorHR8Npm3-000249 correlation_id=8eb352c9bb3dd7aedc434f68aac52537 trace_id=8eb352c9bb3dd7aedc434f68aac52537 span_id=d2ddd6fadcde5d38 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.252 INF http request method=PUT path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access status=200 duration=3.071ms request_id=cursor/NorHR8Npm3-000250 correlation_id=37b4988b9f622bf4c1a0430ae8c7dd5f trace_id=37b4988b9f622bf4c1a0430ae8c7dd5f span_id=4715356539ffd51a organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.254 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments status=200 duration=288µs request_id=cursor/NorHR8Npm3-000252 correlation_id=57398e6f725dda6134b86230bdbdd271 trace_id=57398e6f725dda6134b86230bdbdd271 span_id=bf46e91982b0df69
+15:29:11.257 ERR http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=500 duration=2.437ms request_id=cursor/NorHR8Npm3-000254 correlation_id=0573339737b4cbfe5cc01eb3c935042f trace_id=0573339737b4cbfe5cc01eb3c935042f span_id=4152bb6063460b48 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.258 WRN http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests status=404 duration=935µs request_id=cursor/NorHR8Npm3-000257 correlation_id=5738b459c346598d04d530c3fb4ae879 trace_id=5738b459c346598d04d530c3fb4ae879 span_id=372c896875b55eaf
+15:29:11.259 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates status=200 duration=5.161ms request_id=cursor/NorHR8Npm3-000251 correlation_id=a51a8f4dadadb52f7b22874072bc2d93 trace_id=a51a8f4dadadb52f7b22874072bc2d93 span_id=d34a49a2c6da0dfe organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.267 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=200 duration=10.111ms request_id=cursor/NorHR8Npm3-000256 correlation_id=32d72d087dec57d16ebed0a5a499af3a trace_id=32d72d087dec57d16ebed0a5a499af3a span_id=46451f15fd58eddb organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.268 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments status=200 duration=11.457ms request_id=cursor/NorHR8Npm3-000255 correlation_id=fb1052056eb8781bc3c317e0531993a1 trace_id=fb1052056eb8781bc3c317e0531993a1 span_id=cc04287ff207dae6 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.274 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=19.291ms request_id=cursor/NorHR8Npm3-000253 correlation_id=d163011d852d7be685c5c1457e2ca1a0 trace_id=d163011d852d7be685c5c1457e2ca1a0 span_id=ea219b58e134e1a5 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.433 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/links status=200 duration=17µs request_id=cursor/NorHR8Npm3-000258 correlation_id=f03852a7f10d87597b25bb682845d58b trace_id=f03852a7f10d87597b25bb682845d58b span_id=fdabc5784822bb90
+15:29:11.439 INF http request method=POST path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/links status=201 duration=5.828ms request_id=cursor/NorHR8Npm3-000259 correlation_id=1e077a5d6a466c3e51f63edbff19412e trace_id=1e077a5d6a466c3e51f63edbff19412e span_id=55488fe74e2ede26 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.481 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=200 duration=9.106ms request_id=cursor/NorHR8Npm3-000260 correlation_id=24ec8281b1a4228d2046f1ecc8a9cea2 trace_id=24ec8281b1a4228d2046f1ecc8a9cea2 span_id=3f767fefdcd891ad organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.655 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=480µs request_id=cursor/NorHR8Npm3-000261 correlation_id=430f533a53089bf6e1c5a7678210f76a trace_id=430f533a53089bf6e1c5a7678210f76a span_id=2d5eb46b5f5a70aa
+15:29:11.656 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=7µs request_id=cursor/NorHR8Npm3-000265 correlation_id=0c153e87b531eec48c03fed4b3aef69a trace_id=0c153e87b531eec48c03fed4b3aef69a span_id=2a74723f7e00d4b8
+15:29:11.659 WRN http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests status=404 duration=405µs request_id=cursor/NorHR8Npm3-000266 correlation_id=c188c97a35eebb5c58480a9e7273526f trace_id=c188c97a35eebb5c58480a9e7273526f span_id=32a892cb5a6b6544
+15:29:11.665 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=8.254ms request_id=cursor/NorHR8Npm3-000264 correlation_id=f6f7955efec4960cf953ddc4de668d2e trace_id=f6f7955efec4960cf953ddc4de668d2e span_id=62d9450b6017fab4 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.665 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=5.862ms request_id=cursor/NorHR8Npm3-000268 correlation_id=24037a8690da72046f38c7cd7f17a12a trace_id=24037a8690da72046f38c7cd7f17a12a span_id=ff4523e7b96351b7 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.665 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates status=200 duration=6.396ms request_id=cursor/NorHR8Npm3-000267 correlation_id=9d4b7e0f9dfeacd16e55224515b0511f trace_id=9d4b7e0f9dfeacd16e55224515b0511f span_id=918a6249c73cf412 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.674 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments status=200 duration=18.206ms request_id=cursor/NorHR8Npm3-000262 correlation_id=c4e016aee2db09b7424a6d88c8ec095c trace_id=c4e016aee2db09b7424a6d88c8ec095c span_id=64e38caf07dccb82 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:11.676 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=200 duration=19.439ms request_id=cursor/NorHR8Npm3-000263 correlation_id=8eaa7c111a287a08a5bec0af830982bc trace_id=8eaa7c111a287a08a5bec0af830982bc span_id=18b4a27c19558584 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.391 INF http request method=PUT path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access status=200 duration=7.789ms request_id=cursor/NorHR8Npm3-000269 correlation_id=2e262111c5f3e2c2db83afe432f6ca2d trace_id=2e262111c5f3e2c2db83afe432f6ca2d span_id=91c3be559f724851 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.590 INF http request method=PUT path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access status=200 duration=9.692ms request_id=cursor/NorHR8Npm3-000270 correlation_id=3f32660254af27fe7f0f7f9f9486c8c7 trace_id=3f32660254af27fe7f0f7f9f9486c8c7 span_id=82324ddcc1bce3a6 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.618 WRN http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests status=404 duration=1.898ms request_id=cursor/NorHR8Npm3-000275 correlation_id=23770e8b60abdf009e202375ae5af488 trace_id=23770e8b60abdf009e202375ae5af488 span_id=71e83ff572b54dce
+15:29:12.619 ERR http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=500 duration=4.016ms request_id=cursor/NorHR8Npm3-000271 correlation_id=60ed2477b90b0cb0ae2a21e6e03bf2fa trace_id=60ed2477b90b0cb0ae2a21e6e03bf2fa span_id=6ec63e3e01360e6d actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.626 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates status=200 duration=9.787ms request_id=cursor/NorHR8Npm3-000274 correlation_id=29a2310212158a471769d6c1cca488da trace_id=29a2310212158a471769d6c1cca488da span_id=53f1c6d39a747c2e organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.627 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments status=200 duration=10.71ms request_id=cursor/NorHR8Npm3-000272 correlation_id=45a8e7089910631e49c19408f705a794 trace_id=45a8e7089910631e49c19408f705a794 span_id=ddd1ec9d4d665216 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.631 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=15.121ms request_id=cursor/NorHR8Npm3-000273 correlation_id=118e4023ed7e2f52c90bd2e2e7f56191 trace_id=118e4023ed7e2f52c90bd2e2e7f56191 span_id=92c6f37ced3a284f organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.635 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=200 duration=15.155ms request_id=cursor/NorHR8Npm3-000276 correlation_id=fc1bae001924e8be9c991b2aa3ca55aa trace_id=fc1bae001924e8be9c991b2aa3ca55aa span_id=b95278b6acc3119f organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.679 WRN http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests status=404 duration=328µs request_id=cursor/NorHR8Npm3-000281 correlation_id=e89c0ed7f51029f777ef5d7d235aae2f trace_id=e89c0ed7f51029f777ef5d7d235aae2f span_id=9ebccbd8e790f844
+15:29:12.684 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments status=200 duration=6.277ms request_id=cursor/NorHR8Npm3-000277 correlation_id=76f22ceb3c5de67864e9ffcc2899e661 trace_id=76f22ceb3c5de67864e9ffcc2899e661 span_id=2117a2a108cf42e4 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.688 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=10.246ms request_id=cursor/NorHR8Npm3-000279 correlation_id=391cf67e538dd2682869487369cd8c6f trace_id=391cf67e538dd2682869487369cd8c6f span_id=bb7434d950db91f2 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.688 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=10.214ms request_id=cursor/NorHR8Npm3-000280 correlation_id=0aebae95612982aef2f4004b7cb2bdb8 trace_id=0aebae95612982aef2f4004b7cb2bdb8 span_id=32592cd876070273 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.690 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates status=200 duration=11.112ms request_id=cursor/NorHR8Npm3-000282 correlation_id=36e1788590759b45937bc3b1e0013528 trace_id=36e1788590759b45937bc3b1e0013528 span_id=a81030db8b7c595f organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:12.692 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=200 duration=14.764ms request_id=cursor/NorHR8Npm3-000278 correlation_id=54fc6459ec6778d54119b2af948d1212 trace_id=54fc6459ec6778d54119b2af948d1212 span_id=00481a0d554985f3 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:13.659 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=8µs request_id=cursor/NorHR8Npm3-000291 correlation_id=658bd8181654453f0068f72a9d18f942 trace_id=658bd8181654453f0068f72a9d18f942 span_id=dbf9526e321b1102
+15:29:13.659 WRN http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/access-requests status=404 duration=778µs request_id=cursor/NorHR8Npm3-000289 correlation_id=890dc416720358c079c20f48d47334d8 trace_id=890dc416720358c079c20f48d47334d8 span_id=2e5ab83f3af39f49
+15:29:13.665 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP status=200 duration=3.118ms request_id=cursor/NorHR8Npm3-000295 correlation_id=6193a51bfc41d5fe48722793e1b9a31c trace_id=6193a51bfc41d5fe48722793e1b9a31c span_id=f35a520c1f1b9ea3 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:13.668 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/shares status=200 duration=8.532ms request_id=cursor/NorHR8Npm3-000294 correlation_id=e6769d38e0675749f6450189a9b7a3ea trace_id=e6769d38e0675749f6450189a9b7a3ea span_id=2d76287c8ae4cb01 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:13.668 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/share-candidates status=200 duration=8.769ms request_id=cursor/NorHR8Npm3-000292 correlation_id=2e370794a76710f2f706e8afa773fc8f trace_id=2e370794a76710f2f706e8afa773fc8f span_id=6e8160a541da7062 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:13.668 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock status=200 duration=9.634ms request_id=cursor/NorHR8Npm3-000290 correlation_id=a5792b80ef6135821b2d671f55f70ffd trace_id=a5792b80ef6135821b2d671f55f70ffd span_id=b29b42894afa9f92 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:13.669 INF http request method=GET path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/comments status=200 duration=9.778ms request_id=cursor/NorHR8Npm3-000293 correlation_id=6acba792c87b5ac8555fd23611280acd trace_id=6acba792c87b5ac8555fd23611280acd span_id=e051c058ab90255d organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:40.590 INF http request method=OPTIONS path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T33VSDX1VRMFXFWQ6G4QP/heartbeat status=200 duration=17µs request_id=cursor/NorHR8Npm3-000300 correlation_id=8a79547b405f15f4b7184c187b45750e trace_id=8a79547b405f15f4b7184c187b45750e span_id=2d42c921ecc52e95
+15:29:40.598 INF http request method=POST path=/api/v1/documents/01M57T2YW76Z153T3A1DPNSHMP/edit-lock/01M57T33VSDX1VRMFXFWQ6G4QP/heartbeat status=200 duration=7.225ms request_id=cursor/NorHR8Npm3-000301 correlation_id=4e305aa3f4780e33b32082f8e742b47e trace_id=4e305aa3f4780e33b32082f8e742b47e span_id=6be9801073f38b19 organization_id=01M57T2X35ZQC02YXE7BNN4E3K workspace_id=01M57T2X5VKC5HVAM2PGQWY5T9 actor_id=01M57T2WP03TAD0D2C0XD3PXMS actor_kind=human
+15:29:48.701 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=11µs request_id=cursor/NorHR8Npm3-000406 correlation_id=edfab2b457c41514b9cfa610bdba28a1 trace_id=edfab2b457c41514b9cfa610bdba28a1 span_id=70452ca9ae43f3e3
+15:29:48.705 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=1.993ms request_id=cursor/NorHR8Npm3-000407 correlation_id=232970b2fb0120289325164b7d1fd29e trace_id=232970b2fb0120289325164b7d1fd29e span_id=a9adbf86c9f7517a organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.005 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=8µs request_id=cursor/NorHR8Npm3-000410 correlation_id=48fd0ebce95b0cc9e569212c9c9e558f trace_id=48fd0ebce95b0cc9e569212c9c9e558f span_id=0db4de5ea335d272
+15:29:49.010 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=4.505ms request_id=cursor/NorHR8Npm3-000412 correlation_id=8b05ffa1fc9ed591d54f645b96832b43 trace_id=8b05ffa1fc9ed591d54f645b96832b43 span_id=3f74aef209766bc7 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.023 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=7µs request_id=cursor/NorHR8Npm3-000414 correlation_id=7ce0da0835e6ef0904a0279d04a2054c trace_id=7ce0da0835e6ef0904a0279d04a2054c span_id=b7ec8207386ce48d
+15:29:49.024 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=8µs request_id=cursor/NorHR8Npm3-000416 correlation_id=f2ca44d6fdedbd796a28b93b22aea6e1 trace_id=f2ca44d6fdedbd796a28b93b22aea6e1 span_id=3b668f25ee21d74f
+15:29:49.025 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=1.812ms request_id=cursor/NorHR8Npm3-000415 correlation_id=d06aa25dc4f771b87950c68b2a1e5cd0 trace_id=d06aa25dc4f771b87950c68b2a1e5cd0 span_id=df57c10a0af56603 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.029 INF http request method=POST path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=201 duration=3.219ms request_id=cursor/NorHR8Npm3-000417 correlation_id=86850cf81420cdf52006b22be7f6d977 trace_id=86850cf81420cdf52006b22be7f6d977 span_id=9e4c5db17a69699e organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.056 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T49F351W5M1ANXGKFTVPT/heartbeat status=200 duration=8µs request_id=cursor/NorHR8Npm3-000419 correlation_id=a95a62949e68205844333f12bd38ee3a trace_id=a95a62949e68205844333f12bd38ee3a span_id=c3f8b7c0e49f3aa5
+15:29:49.058 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=2.609ms request_id=cursor/NorHR8Npm3-000418 correlation_id=d6a9924d568430081684cb6d11bfa248 trace_id=d6a9924d568430081684cb6d11bfa248 span_id=724272a71102e548 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.060 INF http request method=POST path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T49F351W5M1ANXGKFTVPT/heartbeat status=200 duration=2.842ms request_id=cursor/NorHR8Npm3-000420 correlation_id=1f265e5ee00f030b2fb1bc82597e4fa9 trace_id=1f265e5ee00f030b2fb1bc82597e4fa9 span_id=da4f864d118b5937 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.656 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=499 duration=496µs request_id=cursor/NorHR8Npm3-000421 correlation_id=fa3841d036fbf245a5daf12ae466ea58 trace_id=fa3841d036fbf245a5daf12ae466ea58 span_id=09121eabeba1dae5 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.658 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=2.17ms request_id=cursor/NorHR8Npm3-000423 correlation_id=451f531a21db4c04295645eede7f4669 trace_id=451f531a21db4c04295645eede7f4669 span_id=063c103297d6afa4 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.659 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=3.899ms request_id=cursor/NorHR8Npm3-000422 correlation_id=2777021d34a6fbb9f60e7c85101046c5 trace_id=2777021d34a6fbb9f60e7c85101046c5 span_id=f1094e39d69e52de organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:49.659 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=3.584ms request_id=cursor/NorHR8Npm3-000424 correlation_id=ed22ba25cfefbb1609ae1004922ba801 trace_id=ed22ba25cfefbb1609ae1004922ba801 span_id=c8ce43830fd78e6b organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:51.276 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=19µs request_id=cursor/NorHR8Npm3-000425 correlation_id=f4b8f4d9cdc31fd337a36f9ce08cdae7 trace_id=f4b8f4d9cdc31fd337a36f9ce08cdae7 span_id=9edeb209147d844d
+15:29:51.286 INF http request method=PATCH path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=8.28ms request_id=cursor/NorHR8Npm3-000426 correlation_id=eb88c7786346b7707a39777a68433c29 trace_id=eb88c7786346b7707a39777a68433c29 span_id=d19383ac4c7f48d8 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:51.703 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T49F351W5M1ANXGKFTVPT status=200 duration=29µs request_id=cursor/NorHR8Npm3-000428 correlation_id=bd8e4fe478881286f7b4d3ee82585d79 trace_id=bd8e4fe478881286f7b4d3ee82585d79 span_id=d93d17da67a68168
+15:29:51.709 INF http request method=DELETE path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T49F351W5M1ANXGKFTVPT status=204 duration=4.414ms request_id=cursor/NorHR8Npm3-000429 correlation_id=22cd504059aa34c238e47daaf816ed0c trace_id=22cd504059aa34c238e47daaf816ed0c span_id=ff54fdaa23b9de43 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:51.713 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=499 duration=187µs request_id=cursor/NorHR8Npm3-000430 correlation_id=087d40f550859ff9f524d738e9654f18 trace_id=087d40f550859ff9f524d738e9654f18 span_id=c2b6341bfcbe4408 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:53.415 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=3.347ms request_id=cursor/NorHR8Npm3-000507 correlation_id=d007eec223dc09b019b8eac6cee00c62 trace_id=d007eec223dc09b019b8eac6cee00c62 span_id=59c7c764d8498fa2 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:53.484 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=3.668ms request_id=cursor/NorHR8Npm3-000513 correlation_id=eee10196d06d49a6d650f2793be16ab0 trace_id=eee10196d06d49a6d650f2793be16ab0 span_id=be2849d3657f3984 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:53.484 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=3.757ms request_id=cursor/NorHR8Npm3-000515 correlation_id=4b85e279cb14ab2010b836a0877ccf26 trace_id=4b85e279cb14ab2010b836a0877ccf26 span_id=0ad29e1e0eee80ac organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:53.489 INF http request method=POST path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=201 duration=6.651ms request_id=cursor/NorHR8Npm3-000517 correlation_id=edfda5465a90b358735c7016d33eedd2 trace_id=edfda5465a90b358735c7016d33eedd2 span_id=c92bb893c60bfc49 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:53.513 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T4DTD79Q5QX9DFQ3H8KNG/heartbeat status=200 duration=9µs request_id=cursor/NorHR8Npm3-000519 correlation_id=29fa95d6f2b6b2ce8b53eb5f18159b57 trace_id=29fa95d6f2b6b2ce8b53eb5f18159b57 span_id=1aa4c49330b5054f
+15:29:53.516 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=3.517ms request_id=cursor/NorHR8Npm3-000518 correlation_id=349650d80eec27b624e5752140d2e0aa trace_id=349650d80eec27b624e5752140d2e0aa span_id=ce2b65b34086e823 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:53.517 INF http request method=POST path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T4DTD79Q5QX9DFQ3H8KNG/heartbeat status=200 duration=2.121ms request_id=cursor/NorHR8Npm3-000520 correlation_id=9f0f65352e4f022bb6b935fe7e6f5e5c trace_id=9f0f65352e4f022bb6b935fe7e6f5e5c span_id=22a88cc9f29ab3af organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:53.672 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=15µs request_id=cursor/NorHR8Npm3-000521 correlation_id=d0f9f318c2d02808aafb63159f2124f1 trace_id=d0f9f318c2d02808aafb63159f2124f1 span_id=c2f084f003dfeddd
+15:29:53.676 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=3.268ms request_id=cursor/NorHR8Npm3-000523 correlation_id=562ef1e09edfde2e2445355dbae0d091 trace_id=562ef1e09edfde2e2445355dbae0d091 span_id=28d69b470def2921 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:53.701 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates status=200 duration=10µs request_id=cursor/NorHR8Npm3-000524 correlation_id=249d163acece89e44cc5a1e1fba8e023 trace_id=249d163acece89e44cc5a1e1fba8e023 span_id=505b650754db9295
+15:29:53.702 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests status=200 duration=8µs request_id=cursor/NorHR8Npm3-000526 correlation_id=64eac113da11015c911695e19e230a12 trace_id=64eac113da11015c911695e19e230a12 span_id=3da65351ab195c13
+15:29:53.703 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests status=404 duration=170µs request_id=cursor/NorHR8Npm3-000527 correlation_id=a9560b8daa7c51bd3cff06ac69432cb8 trace_id=a9560b8daa7c51bd3cff06ac69432cb8 span_id=783fe7e31d5c16b7
+15:29:53.706 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates status=200 duration=3.339ms request_id=cursor/NorHR8Npm3-000525 correlation_id=9345fe266ee29c9ec0e74ad46bbf3bbf trace_id=9345fe266ee29c9ec0e74ad46bbf3bbf span_id=ef9013483a2cd89e organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.203 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access status=200 duration=20µs request_id=cursor/NorHR8Npm3-000528 correlation_id=8e332b0fd9eb65a18948473ea00dae42 trace_id=8e332b0fd9eb65a18948473ea00dae42 span_id=29eecf44938c74f5
+15:29:54.210 INF http request method=PUT path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access status=200 duration=5.814ms request_id=cursor/NorHR8Npm3-000529 correlation_id=712a3a163b73446198842d9121653237 trace_id=712a3a163b73446198842d9121653237 span_id=da03d10c18990f79 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.237 INF http request method=PUT path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access status=200 duration=3.139ms request_id=cursor/NorHR8Npm3-000530 correlation_id=8121f5a360ac7a22081899773018458c trace_id=8121f5a360ac7a22081899773018458c span_id=cf7552703770148c organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.250 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=8µs request_id=cursor/NorHR8Npm3-000532 correlation_id=48cfc78c801884ccc1870b1d5c81a3aa trace_id=48cfc78c801884ccc1870b1d5c81a3aa span_id=9f31c473d3a3b0d0
+15:29:54.253 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=4.385ms request_id=cursor/NorHR8Npm3-000531 correlation_id=df6b797acd6e292e9080dfde05032d16 trace_id=df6b797acd6e292e9080dfde05032d16 span_id=ffb715489522e7af organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.253 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests status=404 duration=182µs request_id=cursor/NorHR8Npm3-000536 correlation_id=b90c9f19fdea7537b04f47c0cf086d79 trace_id=b90c9f19fdea7537b04f47c0cf086d79 span_id=c1e4674d194ea430
+15:29:54.257 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates status=200 duration=4.05ms request_id=cursor/NorHR8Npm3-000535 correlation_id=5bdfd04fe97287a3050cadaa9ce07097 trace_id=5bdfd04fe97287a3050cadaa9ce07097 span_id=b946a07e01b88f7b organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.257 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=4.202ms request_id=cursor/NorHR8Npm3-000533 correlation_id=37dead42b81b45d407daa83d8e4221e4 trace_id=37dead42b81b45d407daa83d8e4221e4 span_id=d6326dd708797f89 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.260 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=6.289ms request_id=cursor/NorHR8Npm3-000537 correlation_id=feca694751e8d9516d5d33a71de6bfa9 trace_id=feca694751e8d9516d5d33a71de6bfa9 span_id=efb1f5d068c0378c organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.260 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=6.794ms request_id=cursor/NorHR8Npm3-000534 correlation_id=1f46ad4cad7463d768c296a59e05931b trace_id=1f46ad4cad7463d768c296a59e05931b span_id=956c5f6d61fc135b organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.470 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/links status=200 duration=16µs request_id=cursor/NorHR8Npm3-000538 correlation_id=05a7f1260841502a0dc52128aa5c6c75 trace_id=05a7f1260841502a0dc52128aa5c6c75 span_id=d2c9055dca31cfae
+15:29:54.475 INF http request method=POST path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/links status=201 duration=3.781ms request_id=cursor/NorHR8Npm3-000539 correlation_id=e79331966a2f9a035dead86ae19907e9 trace_id=e79331966a2f9a035dead86ae19907e9 span_id=7075ac82f55f7621 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.514 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=4.245ms request_id=cursor/NorHR8Npm3-000540 correlation_id=ba09fcfb43b231f79fb0d88610422dd0 trace_id=ba09fcfb43b231f79fb0d88610422dd0 span_id=c116e225e849393c organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.669 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=19µs request_id=cursor/NorHR8Npm3-000541 correlation_id=32f85682572892b0926263b948e14799 trace_id=32f85682572892b0926263b948e14799 span_id=c1df1106928f8d8d
+15:29:54.669 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=5µs request_id=cursor/NorHR8Npm3-000543 correlation_id=d3ef4879b9f9d2f5d25425c5822d81c6 trace_id=d3ef4879b9f9d2f5d25425c5822d81c6 span_id=d642298a8fd61871
+15:29:54.671 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests status=404 duration=378µs request_id=cursor/NorHR8Npm3-000546 correlation_id=f0b8ba22b803496c590ea43b8fb7790a trace_id=f0b8ba22b803496c590ea43b8fb7790a span_id=4619eb35faaadf05
+15:29:54.674 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates status=200 duration=3.134ms request_id=cursor/NorHR8Npm3-000547 correlation_id=860b40f9374647f3757ec46ab150ffc5 trace_id=860b40f9374647f3757ec46ab150ffc5 span_id=f6f1d9a3e9bce6b4 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.677 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=6.399ms request_id=cursor/NorHR8Npm3-000544 correlation_id=e46bd1dc2dcc9b232066a42a4466af6e trace_id=e46bd1dc2dcc9b232066a42a4466af6e span_id=6c7417a1b675960d organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.678 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=499 duration=5.515ms request_id=cursor/NorHR8Npm3-000548 correlation_id=407081178956c2b668f738e96a851d23 trace_id=407081178956c2b668f738e96a851d23 span_id=68065f66dee86ba2 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.678 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=7.424ms request_id=cursor/NorHR8Npm3-000545 correlation_id=3c617475c241371c75b833e79d3d64a3 trace_id=3c617475c241371c75b833e79d3d64a3 span_id=7d08b7b0ebab3c68 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.679 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=9.356ms request_id=cursor/NorHR8Npm3-000542 correlation_id=6ae386f196ae7853d596e1e537d1b9e1 trace_id=6ae386f196ae7853d596e1e537d1b9e1 span_id=093f56c38ba3313a organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:54.691 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=12.543ms request_id=cursor/NorHR8Npm3-000549 correlation_id=ba69d8c13998b9e27837c4e548c08b73 trace_id=ba69d8c13998b9e27837c4e548c08b73 span_id=676f46a9341779c0 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.473 INF http request method=PUT path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access status=200 duration=4.489ms request_id=cursor/NorHR8Npm3-000550 correlation_id=474f045531b747fc608cbd9daa280be2 trace_id=474f045531b747fc608cbd9daa280be2 span_id=ed088e88934f4e81 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.662 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests status=404 duration=4.707ms request_id=cursor/NorHR8Npm3-000555 correlation_id=396ee8d23b835e69925ada65677f40a6 trace_id=396ee8d23b835e69925ada65677f40a6 span_id=98131513857d3953
+15:29:55.663 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=5.448ms request_id=cursor/NorHR8Npm3-000556 correlation_id=281d1625ec1d4f889acae66cf950e87d trace_id=281d1625ec1d4f889acae66cf950e87d span_id=cd189661bd70f18d organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.665 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates status=200 duration=8.21ms request_id=cursor/NorHR8Npm3-000553 correlation_id=59b8382b3220d7e06c3e4706aa00b56f trace_id=59b8382b3220d7e06c3e4706aa00b56f span_id=0397a0a9798f24d6 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.670 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=14.414ms request_id=cursor/NorHR8Npm3-000551 correlation_id=9313546d81b2a502260cca6d01eea357 trace_id=9313546d81b2a502260cca6d01eea357 span_id=7fb356ac08b8bba6 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.674 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=17.696ms request_id=cursor/NorHR8Npm3-000554 correlation_id=b96cd3497e16d807f248603f82ff0e77 trace_id=b96cd3497e16d807f248603f82ff0e77 span_id=8da5d2332b2e8572 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.676 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=19.14ms request_id=cursor/NorHR8Npm3-000552 correlation_id=af42d156b6718f2ad40219e927c23a56 trace_id=af42d156b6718f2ad40219e927c23a56 span_id=eb995ac8a0a53c07 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.699 INF http request method=PUT path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access status=200 duration=5.682ms request_id=cursor/NorHR8Npm3-000557 correlation_id=2ef25631acd592319620cb8cb1636706 trace_id=2ef25631acd592319620cb8cb1636706 span_id=1cb768e612928b8b organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.730 ERR http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=500 duration=3.757ms request_id=cursor/NorHR8Npm3-000558 correlation_id=35fde9d5c0adccd2c72820351fd82160 trace_id=35fde9d5c0adccd2c72820351fd82160 span_id=52a650d6a10a2fe9 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.730 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests status=404 duration=606µs request_id=cursor/NorHR8Npm3-000562 correlation_id=34575462ea8937201c1cf3b75e824813 trace_id=34575462ea8937201c1cf3b75e824813 span_id=6a156377c858c81c
+15:29:55.734 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=7.664ms request_id=cursor/NorHR8Npm3-000559 correlation_id=4e6006c850cc63f44e3cab29b118ec8c trace_id=4e6006c850cc63f44e3cab29b118ec8c span_id=01e8e5909a11fb7d organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.738 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates status=200 duration=8.316ms request_id=cursor/NorHR8Npm3-000563 correlation_id=0798867875c1a80cf39b6f79440bae0c trace_id=0798867875c1a80cf39b6f79440bae0c span_id=2b173497ca1a987a organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.740 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=10.461ms request_id=cursor/NorHR8Npm3-000561 correlation_id=e8f40c2113238a8c714cca82119ea17f trace_id=e8f40c2113238a8c714cca82119ea17f span_id=dd8bd1dcceaf74fd organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:55.741 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=12.631ms request_id=cursor/NorHR8Npm3-000560 correlation_id=bc6151b5aac8ccfe53cde8e23ff3616d trace_id=bc6151b5aac8ccfe53cde8e23ff3616d span_id=e3ecf2a550310bc3 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:56.654 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=13µs request_id=cursor/NorHR8Npm3-000566 correlation_id=1f8664a8b42e9a0e78f758baa6e4d8aa trace_id=1f8664a8b42e9a0e78f758baa6e4d8aa span_id=26cdded35e8e45ce
+15:29:56.657 WRN http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/access-requests status=404 duration=497µs request_id=cursor/NorHR8Npm3-000572 correlation_id=70d3f1c537cf2aff7c44eb1ac2ce6547 trace_id=70d3f1c537cf2aff7c44eb1ac2ce6547 span_id=735598ce189cc5aa
+15:29:56.664 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A status=200 duration=7.5ms request_id=cursor/NorHR8Npm3-000571 correlation_id=8b44d2e61c0f5c916a8c57cb02572a92 trace_id=8b44d2e61c0f5c916a8c57cb02572a92 span_id=39f49f248c8e57a5 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:56.665 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock status=200 duration=8.635ms request_id=cursor/NorHR8Npm3-000567 correlation_id=c9fc3f4b4f2caa87947d55fbdc4bf6e0 trace_id=c9fc3f4b4f2caa87947d55fbdc4bf6e0 span_id=5d080531f97208e7 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:56.667 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/share-candidates status=200 duration=10.613ms request_id=cursor/NorHR8Npm3-000569 correlation_id=164103d78b12f123dac454a5e6cb22f0 trace_id=164103d78b12f123dac454a5e6cb22f0 span_id=e7140359eb9ca580 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:56.667 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/shares status=200 duration=11.298ms request_id=cursor/NorHR8Npm3-000568 correlation_id=1dbc0a710faab8047fa0d12434b1c962 trace_id=1dbc0a710faab8047fa0d12434b1c962 span_id=eaf280b4f49f7988 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:29:56.668 INF http request method=GET path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/comments status=200 duration=11.882ms request_id=cursor/NorHR8Npm3-000570 correlation_id=f418b035ac68f8dc0b4be1cf4a3e8a1c trace_id=f418b035ac68f8dc0b4be1cf4a3e8a1c span_id=a993f760f4133565 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+15:30:23.532 INF http request method=OPTIONS path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T4DTD79Q5QX9DFQ3H8KNG/heartbeat status=200 duration=17µs request_id=cursor/NorHR8Npm3-000583 correlation_id=8ea493156177c471cc265b445ddf7a99 trace_id=8ea493156177c471cc265b445ddf7a99 span_id=2f27e2978a205f86
+15:30:23.537 INF http request method=POST path=/api/v1/documents/01M57T4927J355VZS54ZB1JG4A/edit-lock/01M57T4DTD79Q5QX9DFQ3H8KNG/heartbeat status=200 duration=3.89ms request_id=cursor/NorHR8Npm3-000584 correlation_id=746a17153874f3d060852d2fe700b960 trace_id=746a17153874f3d060852d2fe700b960 span_id=6f062752d9814319 organization_id=01M57T47K86RQ7DFK5VT3Y1G89 workspace_id=01M57T47NV0E208TTR80HE1XR1 actor_id=01M57T475BNG0ATXMK5PX7B8XH actor_kind=human
+no passing test
+
+E2E_DIAG_EXIT=1
