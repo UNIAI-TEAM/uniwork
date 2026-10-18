@@ -207,7 +207,7 @@ WHERE d.organization_id = $2
   -- at one MVCC point, so it carries the list's ancestor-My-Folder exclusion
   -- too - an admin's cold start must not seed the offline library with a
   -- document inside another member's My Folder. Gated on see_all; the set is
-  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  -- uw_my_folder_foreign_ids (migration 9991792289293597).
   AND (NOT $4::boolean
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(

@@ -19,7 +19,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   -- (document_search.sql): a document inside another member's My Folder is
   -- not a candidate, whatever it carries. Gated on see_all so a non-admin
   -- administer-their-own read is untouched; the set is
-  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  -- uw_my_folder_foreign_ids (migration 9991792289293597).
   AND (NOT sqlc.arg(see_all)::boolean
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(
@@ -62,7 +62,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   -- (document_search.sql): a document inside another member's My Folder is
   -- not a candidate, whatever it carries. Gated on see_all so a non-admin
   -- administer-their-own read is untouched; the set is
-  -- uw_my_folder_foreign_ids (migration 9991792100200009).
+  -- uw_my_folder_foreign_ids (migration 9991792289293597).
   AND (NOT sqlc.arg(see_all)::boolean
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(

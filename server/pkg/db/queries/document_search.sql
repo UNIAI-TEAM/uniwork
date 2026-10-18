@@ -85,7 +85,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
         -- descendant explicitly shared with the actor is admitted by the
         -- share leg, so this removes only what admin scope ADDS (the card's
         -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792100200009), a downward parent_id walk seeded on the other
+        -- 9991792289293597), a downward parent_id walk seeded on the other
         -- members' My Folders, evaluated once per statement (it is not
         -- correlated to d) and used as an anti-join. For a caller who is not
         -- a workspace admin the see_all leg is false, so this is not
@@ -244,7 +244,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
         -- descendant explicitly shared with the actor is admitted by the
         -- share leg, so this removes only what admin scope ADDS (the card's
         -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792100200009), a downward parent_id walk seeded on the other
+        -- 9991792289293597), a downward parent_id walk seeded on the other
         -- members' My Folders, evaluated once per statement (it is not
         -- correlated to d) and used as an anti-join. For a caller who is not
         -- a workspace admin the see_all leg is false, so this is not
@@ -378,7 +378,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
         -- descendant explicitly shared with the actor is admitted by the
         -- share leg, so this removes only what admin scope ADDS (the card's
         -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792100200009), a downward parent_id walk seeded on the other
+        -- 9991792289293597), a downward parent_id walk seeded on the other
         -- members' My Folders, evaluated once per statement (it is not
         -- correlated to d) and used as an anti-join. For a caller who is not
         -- a workspace admin the see_all leg is false, so this is not
@@ -514,7 +514,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
         -- descendant explicitly shared with the actor is admitted by the
         -- share leg, so this removes only what admin scope ADDS (the card's
         -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792100200009), a downward parent_id walk seeded on the other
+        -- 9991792289293597), a downward parent_id walk seeded on the other
         -- members' My Folders, evaluated once per statement (it is not
         -- correlated to d) and used as an anti-join. For a caller who is not
         -- a workspace admin the see_all leg is false, so this is not
@@ -596,7 +596,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
         -- descendant explicitly shared with the actor is admitted by the
         -- share leg, so this removes only what admin scope ADDS (the card's
         -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792100200009), a downward parent_id walk seeded on the other
+        -- 9991792289293597), a downward parent_id walk seeded on the other
         -- members' My Folders, evaluated once per statement (it is not
         -- correlated to d) and used as an anti-join. For a caller who is not
         -- a workspace admin the see_all leg is false, so this is not
