@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -281,6 +283,14 @@ func TestMyFolderAdminSearchHidesForeignSubtreeRoutes(t *testing.T) {
 	resAdmin, outAdmin := doJSON(t, w.srv, "GET", docsBase+"?q=mfs-secret-http", w.token, nil)
 	if resAdmin.StatusCode != 200 {
 		t.Fatalf("admin GET search = %d %v", resAdmin.StatusCode, outAdmin)
+	}
+	blob, err := json.Marshal(outAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(blob)
+	if strings.Contains(body, childID) || strings.Contains(body, "mfs-secret-http") {
+		t.Fatalf("admin search leaked a page inside a member's My Folder (id or title in the body): %s", body)
 	}
 	for _, raw := range outAdmin["documents"].([]any) {
 		it, _ := raw.(map[string]any)
