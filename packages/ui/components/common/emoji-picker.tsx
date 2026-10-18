@@ -24,7 +24,9 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
     const picker = new Picker({
       data,
       onEmojiSelect: handleSelect,
-      theme: "auto",
+      // The app's theme, not the OS's: "auto" followed prefers-color-scheme, so
+      // a dark app on a light OS got a white panel with an unreadable search.
+      theme: container.closest(".dark") ? "dark" : "light",
       set: "native",
       previewPosition: "none",
       skinTonePosition: "search",
