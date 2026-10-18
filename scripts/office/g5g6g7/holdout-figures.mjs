@@ -200,7 +200,18 @@ export function isFailedResultPayload(root) {
 /**
  * The value-bearing leaves of one tool result, each a quantity: cell values, aggregate values, document text and
  * table cells. Never envelope keys, addresses, row or column metadata, counts of rows, or the text of a failed result.
- * (The field list is documented at readLeaves' callers; the holdout backend returns structured stand-ins.)
+ *
+ * PARITY LIMIT (review-g712-19 R19-7), stated plainly: this extractor reads the STRUCTURED JSON that the holdout backend
+ * (`holdout-backend.mjs`, `createBackend`) returns as a stand-in for each tool: `rows[].cells.*`, `cells.*`, `hits[].value`,
+ * aggregate `sum|average|min|max` (also under `groups`, an object keyed by group name), `blocks[].{preview,text,rows}`,
+ * `slides[].texts`, `pages[].lines`, `lines`, `text`, `frontmatter`. The real frame returns TEXT: each tool of the frame
+ * answers with a `ToolExecution.output` string (a read-range table, a formatted aggregate sentence). The frame tools live in
+ * `/home/ubuntu/projects/uniwork-office/apps/sheets/src/renderer/ai/tools.ts` (`read_range` output built near line 879 with
+ * `formatCellScalar` at line 771, `aggregate_range` output `formatRangeAggregate` at line 946, `read_cells` near line 1054,
+ * `find_cells` near line 1132) and in the sibling files `apps/docs`, `apps/pdf`, `apps/markdown` and `apps/html` under
+ * `src/renderer/ai/tools.ts` (no `ai/tools.ts` was found under apps/slides at this commit). No text parser exists here: a frame-shaped text
+ * envelope would supply no operand, and parity with the frame is NOT claimed. Failed results (an `error` field, ok:false,
+ * partial, a failed status) and spreadsheet error values supply nothing.
  */
 export function readLeaves(text) {
   const out = [];
