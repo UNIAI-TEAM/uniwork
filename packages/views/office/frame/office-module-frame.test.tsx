@@ -22,6 +22,20 @@ import { OfficeTooLargeProvider } from "../too-large-notice";
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
+// Modules whose grant lacks `print` (RHP-3): every module in the table grants it today, so the
+// host's narrowing is exercised by patching the grant for the modules this set names.
+const printlessModules = vi.hoisted(() => new Set<string>());
+vi.mock("@uniwork/core/office/office-modules", async (orig) => {
+  const original = await orig<typeof import("@uniwork/core/office/office-modules")>();
+  return {
+    ...original,
+    officeModuleSpec: (module: OfficeModule) => {
+      const spec = original.officeModuleSpec(module);
+      return printlessModules.has(module) ? { ...spec, grant: { ...spec.grant, print: false } } : spec;
+    },
+  };
+});
+
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
 const SOURCE_MINT_PATH = `/api/v1/workspaces/ws-1/documents/sources/${encodeURIComponent("chat:s-1")}/office/frame-token`;
 const minted = {
@@ -103,7 +117,7 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
   };
 }
 
-afterEach(async () => { requestMock.mockReset(); toast.error.mockReset(); toast.success.mockReset(); toast.dismiss.mockReset(); resetAuthStoreForTests(); await endOfficeDraftSession(); });
+afterEach(async () => { printlessModules.clear(); requestMock.mockReset(); toast.error.mockReset(); toast.success.mockReset(); toast.dismiss.mockReset(); resetAuthStoreForTests(); await endOfficeDraftSession(); });
 
 describe("OfficeModuleFrame", () => {
   it("serves the module's build and grants it only what its frame implements", async () => {
@@ -250,6 +264,37 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
     expect(screen.queryByRole("menuitem", { name: "In" })).toBeNull();
+  });
+
+  it("offers no Print for a module whose grant drops `print`, and Ctrl+P stays the browser's (RHP-3)", async () => {
+    printlessModules.add("markdown");
+    const frame = mountFrame("markdown", { inHeader: true, menu: true });
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { print: false } });
+    await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+
+    expect(screen.queryByRole("menuitem", { name: "In" })).toBeNull();
+    const press = new KeyboardEvent("keydown", { key: "p", ctrlKey: true, cancelable: true });
+    act(() => { window.dispatchEvent(press); });
+    expect(press.defaultPrevented).toBe(false);
+    expect(frame.sent("print")).toHaveLength(0);
+  });
+
+  it("re-enables Print after the frame refuses it, and the next click prints again (RHP-3)", async () => {
+    const frame = mountFrame("sheets", { inHeader: true, menu: true });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await screen.findByRole("menuitem", { name: "In" });
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "In" }));
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(1));
+    await frame.respondError(frame.sent("print")[0]!, { code: "cancelled", message: "user closed the dialog" });
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "In" })).not.toHaveAttribute("aria-disabled", "true"));
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "In" }));
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(2));
+    await frame.respond(frame.sent("print")[1]!, { printed: true });
   });
 
 

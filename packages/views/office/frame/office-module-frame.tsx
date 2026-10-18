@@ -364,9 +364,9 @@ export function OfficeModuleFrame({
   // The page's overflow menu gains Print once the frame can answer it (UNI-1911): granted
   // `print` and ready — a read-only user keeps it, a source viewer never mounts under a page
   // header, and `!isSource` keeps it hidden even if one ever did. The same `print()` Ctrl+P
-  // calls, so one click or keypress starts exactly one `host.print` (the session refuses a
-  // second while it is open) — the same path the frame's own Print in Docs/Slides/PDF takes,
-  // so this entry never opens a second dialog for them.
+  // calls, so the menu entry and Ctrl+P share the one `host.print` the session lets open at a
+  // time. The frame's own Print in Docs/Slides/PDF is an in-frame window.print, never
+  // `host.print`, but the browser print dialog is tab-modal, so it cannot stack a second one.
   const printMenuItem = useMemo(() => {
     if (!headerSlot || isSource || session.status !== "ready" || session.modal || !session.canPrint) return null;
     return (

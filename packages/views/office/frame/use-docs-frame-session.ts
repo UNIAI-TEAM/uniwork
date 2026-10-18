@@ -116,8 +116,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const sizeWarnedDoc = useRef<string | null>(null);
   const saveBlockedOpen = useRef(false);
   const downloadPending = useRef(false);
-  /** The print a `host.print` call has open: a second caller gets refused instead of a second dialog. */
-  const printingRef = useRef(false);
+  /** The print a `host.print` call has open: a second caller gets refused instead of a second
+   *  dialog. A token per call, so a print of a retired endpoint settling late cannot clear the
+   *  flag a print on the new host already took (RHP-2). */
+  const printingRef = useRef<object | null>(null);
   /** Whether the init the current handshake carries granted `print` (read once per handshake). */
   const printGrant = useRef(false);
   const initDownloadMaxBytes = useRef<number>(frameDownloadMaxBytes(documentLimits.upload_max_bytes));
@@ -138,7 +140,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     }
     saveBlockedOpen.current = false;
     downloadPending.current = false;
-    printingRef.current = false;
+    printingRef.current = null;
     printGrant.current = false;
     setSaveBlocked(null);
     initDownloadMaxBytes.current = frameDownloadMaxBytes(latest.current.documentLimits.upload_max_bytes);
@@ -538,7 +540,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // One print at a time (UNI-1911): the menu entry and Ctrl+P share this, and a second
     // `host.print` while the frame's dialog is already open would stack a second one.
     if (!host || printingRef.current) return false;
-    printingRef.current = true;
+    // Mine alone may clear: a print of an endpoint retry already disposed settles late, and its
+    // finally would otherwise reopen the entry while this call's dialog is still up.
+    const mine = {};
+    printingRef.current = mine;
     setPrinting(true);
     try {
       return (await host.print({ mode: "dialog" }, { timeoutMs: 10 * 60_000 })).printed;
@@ -546,8 +551,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       latest.current.options.onError(shapeOf(error), { fatal: false });
       return false;
     } finally {
-      printingRef.current = false;
-      setPrinting(false);
+      if (printingRef.current === mine) {
+        printingRef.current = null;
+        setPrinting(false);
+      }
     }
   }, [host]);
 

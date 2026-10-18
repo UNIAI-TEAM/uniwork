@@ -230,11 +230,15 @@ export interface DocsFrameSession {
    * session that never got ready reads false.
    */
   canPrint: boolean;
-  /** A `host.print` request is still open: every entry point must not start a second one. */
+  /** A `host.print` request is still open: the host's entry points (menu, Ctrl+P) must not start
+   *  a second one. */
   printing: boolean;
   /**
    * Ask the frame to print (`host.print`, dialog mode). Already-printing calls return false at
-   * once so a page and a frame entry point cannot stack two dialogs; the answer is the frame's.
+   * once, so the page's Print entry and Ctrl+P cannot stack two `host.print` requests; the
+   * frame's own Print is an in-frame window.print, never `host.print`, and the browser print
+   * dialog is tab-modal, so it cannot open a second dialog at the same time. The answer is the
+   * frame's.
    */
   print: () => Promise<boolean>;
   /** Tell the frame the document's display name changed (UNI-1847, after the first-save rename). */
