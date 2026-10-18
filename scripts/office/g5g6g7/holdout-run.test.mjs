@@ -33,16 +33,15 @@ after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 // References that do NOT pass the trace-only oracle (USER option B, lead answers Q1/Q2, 2026-10-18) when the stub façade runs
 // the model as a correct run would: it calls the required tools once and answers with the reference text. The reference
 // text of these cases states figures its operands do not show, a result of an arithmetic outside the permitted
-// derivations, or a slide number written as a location ("slide 3", not a count of slides: a closed kind phrase must name the
-// kind, review-g712-21 R21-2) (reference-text issue; the lead takes it to the Advisor and the user; editing a case would change
-// the case hash). A prose figure that only echoes a number of the question is exempt (round i, I-1), so those cases left the list. The runner tests below that need a PASSING reference pick a case outside this set. The list is pinned both ways:
+// derivations (reference-text issue; the lead takes it to the Advisor and the user; editing a case would change
+// the case hash). A prose figure that only echoes a number of the question is exempt (round i, I-1), and a location ordinal that a
+// read holds ("slide 3", "trang 2") is exempt too (round j, J-1), so those cases left the list. The runner tests below that need a PASSING reference pick a case outside this set. The list is pinned both ways:
 // the reference-grading test fails when a case leaves it or joins it, so it cannot go stale.
 const KNOWN_REFERENCE_GAPS = new Set([
   'HO-CROSS-009',
   'HO-CROSS-010',
   'HO-CROSS-011',
   'HO-CROSS-014',
-  'HO-PPTX-002',
   'HO-XLSX-001',
   'HO-XLSX-002',
   'HO-XLSX-003',
