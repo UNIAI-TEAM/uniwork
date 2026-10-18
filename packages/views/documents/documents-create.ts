@@ -41,7 +41,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
       if (type === "page") {
         const doc = await createPage.mutateAsync({
           title: t("documents.page.new_page"),
-          ...(parentId ? { parent_id: parentId } : {}),
+          ...(parentId ? { parent_id: parentId } : { destination: "my_folder" as const }),
         });
         onOpen(doc.id);
         return;
@@ -49,7 +49,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
       const doc = await createBlank.mutateAsync({
         format: type satisfies BlankDocumentFormat,
         title: t(`documents.home.default_names.${type}`),
-        ...(parentId ? { parentId } : {}),
+        ...(parentId ? { parent_id: parentId } : { destination: "my_folder" as const }),
         idempotencyKey: createSafeId(),
       });
       onOpen(doc.id);
