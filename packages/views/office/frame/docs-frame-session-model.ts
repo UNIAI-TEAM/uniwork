@@ -237,7 +237,7 @@ export interface FirstSaveNamer {
  * a declined save reads as the user's own Cancel, which keeps the frame's edits unsaved with no
  * error, and never waits on the frame's `api.save` timeout (the local build reports 120 s).
  */
-export const FIRST_SAVE_DECLINED: SaveResult = {
+const FIRST_SAVE_DECLINED: SaveResult = {
   ok: false,
   error: { code: "cancelled", message: "name the document before it saves", retryable: false },
 };

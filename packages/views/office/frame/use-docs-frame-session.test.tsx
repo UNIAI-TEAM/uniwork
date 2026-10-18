@@ -906,7 +906,7 @@ describe("useDocsFrameSession: first-save naming (UNI-1847, SAVE-01)", () => {
 
   it("a frame api.save on a still-unnamed blank is declined at once (no wait on its 120 s timeout), then the submit re-issues the save", async () => {
     const ask = vi.fn(async () => true);
-    const save = vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" }));
+    const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
     const frame = setup({ firstSave: { needsName: () => true, ask }, api: { save } });
     await frame.boot();
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
@@ -948,7 +948,7 @@ describe("useDocsFrameSession: first-save naming (UNI-1847, SAVE-01)", () => {
   });
 
   it("needsName false (named upload, version 2, page) never opens the dialog on either path", async () => {
-    const save = vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" }));
+    const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
     const frame = setup({ firstSave: named, api: { save } });
     await frame.boot();
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "3" });
