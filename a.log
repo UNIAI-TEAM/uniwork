@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+8271bbce72a8c1326d594dd440c6a478ff07bb0f
+8271bbce7 fix(documents): keep the size hint visible after a file is picked (UNI-1906 P-3)
+cdceded70 fix(documents): suppress the final progress transition on the nested indicator (UNI-1906 P-1)
+970f528ff fix(documents): hide the file input from assistive tech and describe the picker (UNI-1906 R1-2)
+442fb9d97 fix(documents): click the file input through a ref (UNI-1906 R1-3)
+2bbbf7971 fix(documents): do not bank a retried part's failed bytes (UNI-1906 R1-1)
+49b36a939 fix(documents): dismiss the waiting toast when its Cancel is pressed (UNI-1906 F4)
+1ec33b98a style(documents): drop a stray blank line in the picker block
+4e7572f38 test(documents): mark the queued-toast cancel call as ignored (UNI-1906 F4)
