@@ -1,0 +1,5 @@
+$ pnpm audit --audit-level high; rc=$?; echo; echo "CI_AUDIT_EXIT=$rc"
+5 vulnerabilities found
+Severity: 3 low | 1 moderate | 1 high (1 ignored)
+
+CI_AUDIT_EXIT=0
