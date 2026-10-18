@@ -574,8 +574,10 @@ func (s *DocumentService) commitClaimedFileVersion(
 		// engine output resolves by its version mime and keeps the placeholder.
 		if job != nil && current != nil && current.FileID.Valid && path.Ext(f.Filename) == "" &&
 			files.NormalizeContentType(f.ContentType) == "text/plain" {
-			if base, rerr := resolveUpload(ctx, fs, scope, current.FileID.String); rerr == nil && base.Filename != "" {
-				f.Filename = base.Filename
+			if base, rerr := resolveUpload(ctx, fs, scope, current.FileID.String); rerr == nil {
+				if name := s.versionFilename(ctx, locked, *current, base.Filename); isTxtFilename(name) {
+					f.Filename = name
+				}
 			}
 		}
 		if err := s.consumeStorage(ctx, q, actor, locked.OrganizationID, locked.WorkspaceID, f); err != nil {

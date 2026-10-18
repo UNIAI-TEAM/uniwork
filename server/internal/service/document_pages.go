@@ -549,13 +549,14 @@ func (s *DocumentService) currentFileInfo(ctx context.Context, doc db.Document) 
 }
 
 // versionFilename returns name unless it is an extensionless provider-output
-// placeholder on an engine-produced version whose own mime is text/plain, in
-// which case it walks the document's versions newest-first and returns the
-// most recent version's stored filename that carries an extension. Only a
-// .txt document needs that walk: text/plain is deliberately never mapped to
-// an engine format, so the name is the only thing that tells a .txt from the
-// nameless provider output. Every other engine output resolves by its version
-// mime and keeps the provider output's placeholder name untouched.
+// placeholder on an engine-produced version whose own mime is text/plain. In
+// that case it walks earlier versions newest-first (starting below
+// v.RestoredFrom when v is a restore, or below v.Version otherwise), skipping
+// only extensionless provider placeholders of earlier engine versions. The
+// first other version decides: if its file resolves and ends in .txt
+// (case-insensitive) that filename is returned; any other outcome (resolution
+// error, a non-.txt extension such as .log/.csv/.markdown, or no file) returns
+// name unchanged.
 func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, v db.DocumentVersion, name string) string {
 	if path.Ext(name) != "" || !v.EngineName.Valid || v.EngineName.String == "" || s.files == nil {
 		return name
@@ -563,17 +564,39 @@ func (s *DocumentService) versionFilename(ctx context.Context, doc db.Document, 
 	if files.NormalizeContentType(v.MimeType.String) != "text/plain" {
 		return name
 	}
+	maxVersion := v.Version
+	if v.RestoredFrom.Valid {
+		maxVersion = v.RestoredFrom.Int32
+	}
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
 	if vs, err := s.q.ListDocumentVersions(ctx, db.ListDocumentVersionsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	}); err == nil {
 		for _, prev := range vs {
-			if prev.Version >= v.Version || !prev.FileID.Valid {
+			if prev.Version == maxVersion && prev.RestoredFrom.Valid {
+				maxVersion = prev.RestoredFrom.Int32
 				continue
 			}
-			if pf, rerr := resolveUpload(ctx, s.files, scope, prev.FileID.String); rerr == nil && path.Ext(pf.Filename) != "" {
+			if prev.Version >= maxVersion {
+				continue
+			}
+			if !prev.FileID.Valid {
+				return name
+			}
+			pf, rerr := resolveUpload(ctx, s.files, scope, prev.FileID.String)
+			if rerr != nil || pf.Filename == "" {
+				return name
+			}
+			if path.Ext(pf.Filename) == "" && prev.EngineName.Valid && prev.EngineName.String != "" {
+				if prev.RestoredFrom.Valid {
+					maxVersion = prev.RestoredFrom.Int32
+				}
+				continue
+			}
+			if isTxtFilename(pf.Filename) {
 				return pf.Filename
 			}
+			return name
 		}
 	}
 	return name
