@@ -1725,6 +1725,7 @@ SELECT
   m.user_id,
   m.role,
   m.send_restricted,
+  m.last_read_at,
   u.email,
   u.display_name
 FROM chat_room_members m
@@ -1734,11 +1735,12 @@ ORDER BY m.created_at, m.user_id
 `
 
 type ListChatRoomMembersRow struct {
-	UserID         string `json:"user_id"`
-	Role           string `json:"role"`
-	SendRestricted bool   `json:"send_restricted"`
-	Email          string `json:"email"`
-	DisplayName    string `json:"display_name"`
+	UserID         string             `json:"user_id"`
+	Role           string             `json:"role"`
+	SendRestricted bool               `json:"send_restricted"`
+	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
+	Email          string             `json:"email"`
+	DisplayName    string             `json:"display_name"`
 }
 
 // tenant: parent room_id
@@ -1755,6 +1757,7 @@ func (q *Queries) ListChatRoomMembers(ctx context.Context, roomID string) ([]Lis
 			&i.UserID,
 			&i.Role,
 			&i.SendRestricted,
+			&i.LastReadAt,
 			&i.Email,
 			&i.DisplayName,
 		); err != nil {

@@ -328,6 +328,7 @@ SELECT
   m.user_id,
   m.role,
   m.send_restricted,
+  m.last_read_at,
   u.email,
   u.display_name
 FROM chat_room_members m

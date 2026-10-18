@@ -266,6 +266,8 @@ export const ChatRoomMemberSchema = z.object({
   display_name: z.string(),
   /** The room's creator, whom the server's moderation rules treat apart from `role`. */
   is_creator: z.boolean().catch(false),
+  /** Main-timeline read cursor (RFC 3339, sub-second); absent if never read. */
+  last_read_at: z.string().optional().catch(undefined),
 });
 export type ChatRoomMemberRecord = z.infer<typeof ChatRoomMemberSchema>;
 
