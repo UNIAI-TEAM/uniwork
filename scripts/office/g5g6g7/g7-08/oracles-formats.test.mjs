@@ -295,6 +295,57 @@ test('w2l: X-R2 names which operand of the hidden-and-totals conjunction failed,
   assert.deepEqual(noZ.details.predicates.errorCells, { '#DIV/0!': true, '#N/A': false, '#REF!': false });
 });
 
+// Real5 X-R2 reply of the web run (details.replyText of g7-08-real5/g7-08/X-R2-uniwork-web.json): it states
+// that the SUM total row includes the hidden row and never prints the figure.
+const REAL5_XR2_REPLY =
+  'Trả lời:  Phát hiện: trong cột “Giảm giá (Z)”, số 10 là mức giảm 10% theo ghi chú của workbook, còn 10% được lưu là giá trị 0,1 và định dạng phần trăm. Ô trống nghĩa là không giảm giá.' +
+  'Doanh thu Q1!F4: 10 — giảm 10%.Doanh thu Q1!F2: 10% — cũng giảm 10%.Doanh thu Q1!F5: trống — không giảm giá.' +
+  'Dòng ẩn là dòng 6 ở cả hai sheet doanh thu: Q1-005 và Q2-005. SUM ở dòng tổng tính cả dòng ẩn; SUBTOTAL(109,...) ở dòng “không tính dòng ẩn” bỏ qua dòng ẩn.' +
+  'Hai dòng tổng trên Doanh thu Q1: dòng 8 dùng SUM; dòng 9 dùng SUBTOTAL. Trên Doanh thu Q2: dòng 7 dùng SUM; dòng 8 dùng SUBTOTAL.' +
+  'Các ô lỗi trong toàn workbook:Doanh thu Q2!H5: #DIV/0!Doanh thu Q2!I2: #N/ATổng hợp!B7: #REF!' +
+  'Phạm vi kiểm tra là cả bốn sheet; không có dòng nào bị bỏ khỏi phạm vi. Các dòng ẩn đã được nhận diện như trên; không tính lại hay áp dụng quy tắc làm tròn. Kết quả phản ánh nội dung đang mở trong trình soạn thảo, gồm cả thay đổi chưa lưu.';
+
+test('w2o: X-R2 accepts an explicit statement that the SUM total row includes the hidden row, not a vague SUM mention', () => {
+  const base = { rowId: 'X-R2', fixtureBytes: xlsxFixture.bytes };
+  const withSumSentence = (sumSentence) =>
+    `Cột Z có số 10 thay vì 10% (phần trăm 0,1). Dòng 6 (Q1-005, Q2-005) đang ẩn. ${sumSentence} Các ô lỗi: #DIV/0!, #N/A, #REF!.`;
+  const verdict = (replyText) => oracleXlsxRead({ ...base, replyText });
+
+  // The real web reply passes.
+  const real = verdict(REAL5_XR2_REPLY);
+  assert.equal(real.status, VERDICT.PASS);
+  assert.equal(real.details.predicates.allRowsTotal, true);
+
+  // vi and en positives.
+  assert.equal(verdict(withSumSentence('SUM dòng 8 tính cả dòng ẩn; SUBTOTAL dòng 9 bỏ qua dòng ẩn.')).status, VERDICT.PASS);
+  assert.equal(verdict(withSumSentence('SUM ở dòng 8 bao gồm dòng ẩn, còn SUBTOTAL dòng 9 thì không.')).status, VERDICT.PASS);
+  assert.equal(verdict(withSumSentence('The SUM in row 8 includes the hidden row; SUBTOTAL in row 9 ignores it.')).status, VERDICT.PASS);
+
+  // Negatives: each fails on the allRowsTotal operand only.
+  const sumOnly = verdict(withSumSentence('Dòng 8 dùng SUM; dòng 9 dùng SUBTOTAL.'));
+  assert.equal(sumOnly.reason, 'xlsx_read_missing_hidden_or_total_handling');
+  assert.equal(sumOnly.details.predicates.allRowsTotal, false);
+  assert.equal(sumOnly.details.predicates.subtotalOrVisibleTotal, true);
+
+  const sumExcludes = verdict(withSumSentence('SUM dòng 8 không tính dòng ẩn; SUBTOTAL dòng 9 là tổng đã lọc.'));
+  assert.equal(sumExcludes.reason, 'xlsx_read_missing_hidden_or_total_handling');
+  assert.equal(sumExcludes.details.predicates.allRowsTotal, false);
+
+  const sumExcludesEn = verdict(withSumSentence('The SUM in row 8 excludes the hidden row; SUBTOTAL in row 9 is filtered.'));
+  assert.equal(sumExcludesEn.details.predicates.allRowsTotal, false);
+
+  const sumIgnoresNot = verdict(withSumSentence('SUM dòng 8 không tính cả dòng ẩn; SUBTOTAL dòng 9 là tổng đã lọc.'));
+  assert.equal(sumIgnoresNot.details.predicates.allRowsTotal, false);
+
+  const noSum = verdict(withSumSentence('Dòng 9 dùng SUBTOTAL(109,...) nên bỏ qua dòng ẩn, dòng tổng còn lại tính cả dòng ẩn.'));
+  assert.equal(noSum.reason, 'xlsx_read_missing_hidden_or_total_handling');
+  assert.equal(noSum.details.predicates.allRowsTotal, false);
+
+  // The SUBTOTAL half of the sentence must not lend its words to the SUM clause.
+  const subtotalIncludes = verdict(withSumSentence('SUM dòng 8 là tổng; SUBTOTAL dòng 9 tính cả dòng ẩn.'));
+  assert.equal(subtotalIncludes.details.predicates.allRowsTotal, false);
+});
+
 test('oraclePdfRead (F-R1) and oraclePdfEdit (F-E1) PASS faithful cases and FAIL/BLOCK every guard', () => {
   const validPdfRead = {
     fixtureBytes: pdfFixture.bytes,
