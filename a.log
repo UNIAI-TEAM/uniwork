@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+b04409a20e9a6be016c43795139938cba283de2f
+b04409a20e9a6be016c43795139938cba283de2f
+b04409a2 fix(shell): reset UniWork maps on account change, refresh late upload on cancel, and keep selected updater filter option
+2daa9c73 test(shell): pin DH1 fix11 regressions (R4-1, R4-4, R4-5, R4-7, R4-8, R4-9)
+0bd5d6bf fix(shell): keep DocumentsHome row menu button in cell flow and toolbar on one line at 1280px
