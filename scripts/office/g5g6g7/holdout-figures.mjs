@@ -361,15 +361,46 @@ const HEADING_STYLE_RE = /^(?:heading|tieu de)([1-6])$/;
 const HTML_HEADING_RE = /<h([1-6])[\s>]/i;
 const MD_HEADING_RE = /^ {0,3}(#{1,6})[ \t]+\S/;
 
-/** The heading level of one line of a markdown or html read, or 0. Lines inside a fenced code block are not headings. */
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+
+/** The text of a line outside HTML comments (`state.comment` carries an open comment to the next line). */
+function outsideComments(line, state) {
+  let out = '';
+  let rest = line;
+  for (;;) {
+    if (state.comment) {
+      const end = rest.indexOf('-->');
+      if (end < 0) return out;
+      rest = rest.slice(end + 3);
+      state.comment = false;
+    }
+    const start = rest.indexOf('<!--');
+    if (start < 0) return out + rest;
+    out += rest.slice(0, start);
+    rest = rest.slice(start + 4);
+    state.comment = true;
+  }
+}
+
+/**
+ * The heading counts per level (index 1..6) of the lines of a markdown or html read. A fenced code block is no heading
+ * source: it opens at a run of three or more backticks or tildes and closes only at a run of the same mark at least as long
+ * (R21-4). HTML comments and inline code hold no heading either.
+ */
 function headingLevelsOfLines(lines) {
   const levels = new Array(7).fill(0);
-  let fenced = false;
+  let fence = null;
+  const state = { comment: false };
   for (const line of lines) {
     if (typeof line !== 'string') continue;
-    if (/^ {0,3}(?:```|~~~)/.test(line)) { fenced = !fenced; continue; }
-    if (fenced) continue;
-    const level = MD_HEADING_RE.exec(line)?.[1].length ?? Number(HTML_HEADING_RE.exec(line)?.[1] ?? 0);
+    const f = FENCE_RE.exec(line);
+    if (fence) {
+      if (f && f[1][0] === fence.mark && f[1].length >= fence.len && f[2].trim() === '') fence = null;
+      continue;
+    }
+    if (!state.comment && f && !(f[1][0] === '`' && f[2].includes('`'))) { fence = { mark: f[1][0], len: f[1].length }; continue; }
+    const visible = outsideComments(line, state);
+    const level = MD_HEADING_RE.exec(visible)?.[1].length ?? Number(HTML_HEADING_RE.exec(visible.replace(/`[^`]*`/g, ' '))?.[1] ?? 0);
     if (level > 0) levels[level] += 1;
   }
   return levels;
