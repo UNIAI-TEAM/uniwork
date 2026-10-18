@@ -255,6 +255,46 @@ test('oracleXlsxRead (X-R1, X-R2) and oracleXlsxEdit (X-E1) PASS faithful cases 
   assert.equal(oracleXlsxEdit({ ...validXe1, panelFootprintText: '' }).reason, 'xlsx_edit_missing_footprint_before_save');
 });
 
+test('w2l: X-R2 names which operand of the hidden-and-totals conjunction failed, without moving a threshold', () => {
+  const truth = computeTruth(parseXlsxWorkbookBytes(xlsxFixture.bytes));
+  const q1AllVi = fmtVi(truth.q1_revenue_all);
+  const q1VisVi = fmtVi(truth.q1_revenue_visible);
+  const base = {
+    rowId: 'X-R2',
+    fixtureBytes: xlsxFixture.bytes,
+    replyText: `Cột Z có Q1-003/Q2-003 nhập số 10 thay vì 10% (phần trăm 0,1). Dòng 6 (Q1-005, Q2-005) đang ẩn nên SUBTOTAL dòng 9 là ${q1VisVi} khác SUM ${q1AllVi}. Các ô lỗi: #DIV/0!, #N/A, #REF!.`,
+  };
+  const allTrue = {
+    zMeaning: true, hiddenRowId: true, subtotalOrVisibleTotal: true, allRowsTotal: true,
+    errorCells: { '#DIV/0!': true, '#N/A': true, '#REF!': true },
+  };
+  const pass = oracleXlsxRead(base);
+  assert.equal(pass.status, VERDICT.PASS);
+  assert.deepEqual(pass.details.predicates, allTrue);
+
+  // Each operand alone, with the others still true: the verdict is the old reason, the details say which.
+  const noAllTotal = oracleXlsxRead({ ...base, replyText: base.replyText.replace(`SUM ${q1AllVi}`, 'SUM').replace(/\s*khác SUM\.?/, '') });
+  assert.equal(noAllTotal.reason, 'xlsx_read_missing_hidden_or_total_handling');
+  assert.deepEqual(noAllTotal.details.predicates, { ...allTrue, allRowsTotal: false });
+
+  const noHidden = oracleXlsxRead({ ...base, replyText: base.replyText.replace('Dòng 6 (Q1-005, Q2-005) đang ẩn nên ', '') });
+  assert.equal(noHidden.reason, 'xlsx_read_missing_hidden_or_total_handling');
+  assert.deepEqual(noHidden.details.predicates, { ...allTrue, hiddenRowId: false });
+
+  const noSubtotal = oracleXlsxRead({ ...base, replyText: base.replyText.replace(`SUBTOTAL dòng 9 là ${q1VisVi} khác `, 'dòng 9 khác ') });
+  assert.equal(noSubtotal.reason, 'xlsx_read_missing_hidden_or_total_handling');
+  assert.deepEqual(noSubtotal.details.predicates, { ...allTrue, subtotalOrVisibleTotal: false });
+
+  // The error-cell operand is reported too, and it is evaluated even when an earlier operand already failed.
+  const noRef = oracleXlsxRead({ ...base, replyText: base.replyText.replace('#REF!', '') });
+  assert.equal(noRef.reason, 'xlsx_read_error_cells_mismatch');
+  assert.deepEqual(noRef.details.predicates.errorCells, { '#DIV/0!': true, '#N/A': true, '#REF!': false });
+  const noZ = oracleXlsxRead({ ...base, replyText: 'Không giải thích cột giảm giá. #DIV/0!' });
+  assert.equal(noZ.reason, 'xlsx_read_missing_z_meaning');
+  assert.equal(noZ.details.predicates.zMeaning, false);
+  assert.deepEqual(noZ.details.predicates.errorCells, { '#DIV/0!': true, '#N/A': false, '#REF!': false });
+});
+
 test('oraclePdfRead (F-R1) and oraclePdfEdit (F-E1) PASS faithful cases and FAIL/BLOCK every guard', () => {
   const validPdfRead = {
     fixtureBytes: pdfFixture.bytes,

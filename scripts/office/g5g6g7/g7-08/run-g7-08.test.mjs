@@ -132,6 +132,22 @@ describe('G7-08 W2 web-driver pure observation builders and preflight guards', (
     assert.match(fe1Blocked.reason, /ẩn công cụ sửa text khi pdfium không có/);
   });
 
+  it('w2l: the row verdict carries the model\'s final reply text, whichever check decided it', () => {
+    const row = getRowById('X-R2');
+    const raw = {
+      rowId: 'X-R2', fixtureBytes: xlsxBytes, replyText: 'Câu trả lời cuối của mô hình',
+      versionsBefore: 1, versionsAfterAiTurn: 1, revisionBefore: 'r1', revisionAfterAiTurn: 'r1', saveIntentsDuringAiTurn: 0,
+      offeredTools: ['read_range'], controls: [], executedTools: ['read_range'],
+    };
+    const decidedByFormat = evaluateRowObserved(row, raw);
+    assert.equal(decidedByFormat.details.replyText, 'Câu trả lời cuối của mô hình');
+    assert.ok(decidedByFormat.details.predicates, 'the oracle predicates are still there');
+    const decidedByCapability = evaluateRowObserved(row, { ...raw, offeredTools: ['create_document'] });
+    assert.equal(decidedByCapability.reason, 'forbidden_or_unsupported_tool_offered');
+    assert.equal(decidedByCapability.details.replyText, 'Câu trả lời cuối của mô hình');
+    assert.equal('replyText' in evaluateRowObserved(row, { ...raw, replyText: '' }).details, false, 'nothing is recorded when there was no reply');
+  });
+
   it('w2l: the dry-run stub sends the edit rows with a fixture-valid payload, not apply_ops({})', () => {
     const callOf = (rowId, bytes) => {
       const call = buildDryRunStubModel(getRowById(rowId), bytes)({ state: { step: 0 } }).toolCalls[0].function;
