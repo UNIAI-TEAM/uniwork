@@ -62,7 +62,13 @@ describe("DocumentUploadDialog", () => {
     expect(screen.getByText("100%")).toBeInTheDocument();
     // The indicator's transition-all is suppressed on the last step so the
     // label can never say 100% while the bar is still animating toward it.
-    expect(bar).toHaveClass("*:data-[slot=progress-indicator]:transition-none");
+    // The indicator is a grandchild (root > track > indicator), so a direct
+    // child variant (`*:`) never matches it; the descendant variant does.
+    const indicator = bar.querySelector('[data-slot="progress-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.parentElement).toHaveAttribute("data-slot", "progress-track");
+    expect(indicator!.parentElement!.parentElement).toBe(bar);
+    expect(bar).toHaveClass("**:data-[slot=progress-indicator]:transition-none");
   });
 
   it("draws the progress track with a visible boundary (R2-F3)", () => {

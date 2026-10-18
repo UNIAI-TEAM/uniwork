@@ -233,7 +233,7 @@ export function DocumentUploadDialog({
                 value={percentage}
                 className={cn(
                   "*:data-[slot=progress-track]:bg-border *:data-[slot=progress-track]:ring-1 *:data-[slot=progress-track]:ring-input",
-                  percentage >= 100 && "*:data-[slot=progress-indicator]:transition-none",
+                  percentage >= 100 && "**:data-[slot=progress-indicator]:transition-none",
                 )}
                 aria-label={t("documents.upload.progress_status", { name: file?.name ?? "" })}
               >
