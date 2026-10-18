@@ -202,9 +202,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     const open = proxy("api.open", false, (api) => api.open);
     const upload = proxy("api.save", true, (api) => api.save);
     // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
-    // read-only) and the frame hears the same refusal the host gives a viewer, so it opens no
-    // conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
-    const lockAware = lockAwareSave(upload, (fields) => latest.current.editLock?.onLocked(fields));
+    // read-only) and lockAwareSave hands the frame a plain `internal` failure (L-3), so it opens
+    // no conflict dialog; until the lock is held again later saves are refused there without a
+    // request. Sending doc.editLock first waits for the protocol change (card c, Q4).
+    const lockAware = lockAwareSave(upload, (fields) => latest.current.editLock?.onLocked(fields), () => latest.current.editLock?.held !== false);
     const save = remoteAwareSave(lockAware, remote, applyBlock);
     // A save the frame starts (its button, Ctrl+S, the leave dialog) passes through here.
     // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session

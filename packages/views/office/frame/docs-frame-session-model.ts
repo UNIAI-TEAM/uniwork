@@ -457,21 +457,31 @@ export function attachFrameBundleProbe(options: {
 export function lockAwareSave<F extends (...args: never[]) => Promise<unknown>>(
   upload: F,
   onLocked: (fields: Record<string, unknown> | undefined) => void,
+  held: () => boolean = () => true,
 ): F {
+  // Set by a 423, cleared the moment the page holds the lock again. While set and the lock is not
+  // held, a save is refused here with the same shape and no upload: it would only be refused again.
+  let lost = false;
+  const refusal = (apiCode: unknown) => new DocsProtocolError({
+    code: "internal",
+    message: "api.save refused: the edit lock was lost",
+    status: 423,
+    details: { apiCode: apiCode ?? "document_locked" },
+  });
   return (async (...args: Parameters<F>) => {
+    if (lost) {
+      if (!held()) throw refusal(undefined);
+      lost = false;
+    }
     try {
       return await upload(...args);
     } catch (error) {
       const shape = shapeOf(error);
       if (shape.status !== 423) throw error;
+      lost = true;
       const fields = shape.details?.fields;
       onLocked(fields && typeof fields === "object" ? fields as Record<string, unknown> : undefined);
-      throw new DocsProtocolError({
-        code: "internal",
-        message: "api.save refused: the edit lock was lost",
-        status: 423,
-        details: { apiCode: shape.details?.apiCode ?? "document_locked" },
-      });
+      throw refusal(shape.details?.apiCode);
     }
   }) as F;
 }

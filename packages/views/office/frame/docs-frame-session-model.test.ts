@@ -4,6 +4,7 @@ import { DocsProtocolError } from "@uniwork/core/office/docs-frame-protocol";
 import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
 import { composeFrameInit } from "./docs-frame-init";
 import { frameCommentsLevel } from "./frame-comments-events";
+import type { FrameCommentsBinding } from "./use-frame-comments";
 // Every shipped module has AI panels, so the `spec.ai === false` row needs a module spec of its own.
 vi.mock("@uniwork/core/office/office-modules", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/office/office-modules")>();
@@ -285,6 +286,28 @@ describe("lockAwareSave (UNI-1907, L-3)", () => {
     expect(thrown).not.toMatchObject({ code: "forbidden" });
     expect(onLocked).toHaveBeenCalledTimes(1);
     expect(onLocked).toHaveBeenCalledWith(fields);
+  });
+
+  it("after a 423 refuses locally with no upload while the lock is lost, and goes through once it is held again", async () => {
+    const locked = new DocsProtocolError({ code: "forbidden", message: "document_locked", status: 423, details: { apiCode: "document_locked" } });
+    const save = vi.fn(async (): Promise<unknown> => { throw locked; });
+    let held = true;
+    const wrapped = lockAwareSave(save, vi.fn(), () => held);
+    await wrapped().catch(() => undefined);
+    held = false;
+    expect(save).toHaveBeenCalledTimes(1);
+    const again = await wrapped().catch((error: unknown) => error);
+    expect(again).toMatchObject({ code: "internal", status: 423, details: { apiCode: "document_locked" } });
+    expect(save).toHaveBeenCalledTimes(1);
+    held = true;
+    save.mockResolvedValueOnce({ ok: true });
+    await expect(wrapped()).resolves.toEqual({ ok: true });
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it("never refuses locally before a 423, whatever the held flag says", async () => {
+    const save = vi.fn(async () => "done");
+    await expect(lockAwareSave(save, vi.fn(), () => false)()).resolves.toBe("done");
   });
 
   it("passes a refusal that is not a 423 through untouched and never calls onLocked", async () => {
