@@ -1,5 +1,6 @@
 // G7-03b (UNI-1382) review r1 R1-9: the lifecycle of the office_offline_library
-// override - ownership, read-back after the lift, fail-stop, leftover cleanup.
+// override - ownership, read-back after the lift, fail-stop, and the clear of an
+// in-process leftover of the same tenant (a killed process is not recovered: R2-13).
 // Run: node --test scripts/office/g5g6g7/fault/app-offline-flag.test.mjs
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -101,7 +102,7 @@ test("a lift whose read-back cannot be read is a failure, not a silent success",
   assert.equal(tenant.guard.failure(), reason);
 });
 
-test("an FL run clears a leftover override at start, then enables its own", async () => {
+test("an FL run clears an in-process leftover override of the same tenant at start, then enables its own", async () => {
   const tenant = fakeTenant({ leftover: true });
   const run = tenant.guard.forRun();
   await run.enable();
