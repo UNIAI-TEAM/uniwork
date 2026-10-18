@@ -119,18 +119,6 @@ export function isModelCompletionPath(pathname) {
   return MODEL_COMPLETION_PATH_RE.test(String(pathname ?? ''));
 }
 
-/** R3-1: the tools a model request offered, so a real run carries tool-surface evidence too. */
-export function offeredToolsFromRequestBody(body) {
-  const tools = body?.tools;
-  if (!Array.isArray(tools)) return [];
-  const names = [];
-  for (const tool of tools) {
-    const name = tool?.function?.name ?? tool?.name;
-    if (typeof name === 'string' && name.trim()) names.push(name.trim());
-  }
-  return names;
-}
-
 /**
  * R3-1: a model response body without both token counts is an unknown, not a zero.
  * OpenAI-shaped bodies carry `usage.prompt_tokens`/`completion_tokens`; an

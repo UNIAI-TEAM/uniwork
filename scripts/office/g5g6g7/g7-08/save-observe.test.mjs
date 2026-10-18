@@ -19,7 +19,6 @@ import {
   isSaveIntentPath,
   observeModelWire,
   observeOldVersionAfterSave,
-  offeredToolsFromRequestBody,
   parseCommitBaseRevision,
   readVersionBytes,
   readVersionCount,
@@ -248,10 +247,6 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/uploads'), false);
     assert.equal(isModelCompletionPath(undefined), false);
 
-    assert.deepEqual(offeredToolsFromRequestBody({ tools: [{ function: { name: 'read_range' } }, { name: 'edit_block' }, { function: {} }] }), ['read_range', 'edit_block']);
-    assert.deepEqual(offeredToolsFromRequestBody({}), []);
-    assert.deepEqual(offeredToolsFromRequestBody(null), []);
-
     assert.deepEqual(usageFromModelResponseBody({ usage: { prompt_tokens: 12, completion_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
     assert.deepEqual(usageFromModelResponseBody({ usage: { input_tokens: 12, output_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
     assert.equal(usageFromModelResponseBody({ usage: { prompt_tokens: 12 } }), null);
@@ -325,7 +320,7 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     assert.equal(await settle(), 0, 'the observer settles every in-flight body before the caller reads it');
 
     assert.equal(requests.length, 1, 'only the model route is recorded');
-    assert.deepEqual(offeredToolsFromRequestBody(requests[0].body), ['read_range', 'edit_block']);
+    assert.deepEqual(requests[0].body.tools.map((t) => t.function.name), ['read_range', 'edit_block']);
     assert.equal(responses.length, 1);
     assert.deepEqual(responses[0], { status: 200, usage: { prompt_tokens: 100, completion_tokens: 20 }, toolCallNames: [] });
 
