@@ -189,7 +189,7 @@ export function AdminLockedCard({
         <span className="font-medium text-foreground">
           {metadata?.title?.trim() || t("documents.detail.untitled")}
         </span>
-        <Badge variant="outline">{t("documents.share.visibility_restricted")}</Badge>
+        <Badge variant="outline">{t("documents.scope.private")}</Badge>
         {metadata?.ownerName ? (
           <span>{t("documents.breakGlass.ownerLabel", { owner: metadata.ownerName })}</span>
         ) : null}

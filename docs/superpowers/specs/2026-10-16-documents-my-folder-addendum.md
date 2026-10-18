@@ -43,7 +43,7 @@ Tài liệu **bên trong** My Folder: chia sẻ, đổi tên, di chuyển ra ngo
 
 - `system_kind` (`"my_folder"` | vắng) thêm vào `DocumentDTO`, nút cây (`DocumentTreeNodeDTO`), hàng danh sách; client: enum lỏng (`z.string()` → thu hẹp, `default` trong `switch`), nhãn i18n `documents.my_folder.title` (vi "Thư mục của tôi", en "My Folder", 21 locale do lane web), không hiển thị `title` lưu trữ.
 - Cây/Home của chủ: My Folder hiện như thư mục gốc, xếp đầu (client sắp).
-- **Admin (Đã chốt 2026-10-16):** theo quyết định 3 của Advisor, admin không thấy nội dung My Folder người khác ngoài phạm vi admin hiện có. Hôm nay `seeAll` (owner/admin workspace) liệt kê mọi hàng restricted dạng khóa (`AdminScope`) → cây admin sẽ có một "My Folder" khóa cho mỗi thành viên. **Chốt:** tree/list/search bỏ My Folder của người khác khỏi kết quả của `seeAll` (mở theo id, báo cáo truy cập và admin-summary vẫn như cũ); tài liệu bên trong vẫn theo luật AdminScope hiện có (hàng khóa, không nội dung).
+- **Admin (Đã chốt 2026-10-16; sửa bởi MF-V7 — UNI-1891, Advisor 2026-10-18):** theo quyết định 3 của Advisor, admin không thấy nội dung My Folder người khác ngoài phạm vi admin hiện có. Dưới `seeAll` (owner/admin workspace), My Folder của thành viên khác **và mọi hậu duệ** bị loại khỏi cây/danh sách/tìm kiếm/thùng rác/gần đây, báo cáo truy cập và snapshot change-feed (không liệt kê, không đếm, không `title`, không id); mở theo id giữ nguyên (403). My Folder của chính người gọi và một hậu duệ được chia sẻ rõ ràng cho người gọi không đổi.
 
 ## 6. SHAREDBYME-01 — "Tôi đã chia sẻ"
 
@@ -63,6 +63,7 @@ Tài liệu **bên trong** My Folder: chia sẻ, đổi tên, di chuyển ra ngo
 | MF-5 | thư mục gốc tên "My Folder" của người dùng tạo được; hai thành viên mỗi người một My Folder | service + migration |
 | MF-6 | `system_kind` trên DTO/cây/danh sách; client enum lỏng + malformed | handler + core |
 | MF-7 | admin không thấy My Folder người khác trong cây/danh sách/tìm kiếm | service |
+| MF-7b | dưới `seeAll`, My Folder người khác và mọi hậu duệ bị loại khỏi cây/danh sách/tìm kiếm/thùng rác/gần đây + báo cáo truy cập + snapshot change-feed (không id, không `title`); mở theo id → 403; My Folder của mình và hậu duệ được chia sẻ cho mình không đổi | service + handler |
 | MF-8 | isolation: route ensure (B gọi ws của A → 404; chủ A → 200), `destination` không phải `_id` nên không cần `isoReferences` | handler |
 | SB-1 | `shared_by_me` trả đúng tập (share người, share nhóm, workspace; không: chỉ link, archived, owned, My Folder, của người khác) | service |
 | SB-2 | tenant + isolation biến thể truy vấn; client malformed | handler + core |

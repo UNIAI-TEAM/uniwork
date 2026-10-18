@@ -13,7 +13,10 @@ import {
   saveDocumentSource,
   type ListDocumentSourcesOpts,
 } from "../api/endpoints/documents-sources";
-import type { Document } from "../types/document";
+import type {
+  Document,
+  DocumentVisibility,
+} from "../types/document";
 import { useEnsureMyFolder, type CreateDocumentPlacementInput } from "./hooks";
 import { documentKeys } from "./keys";
 import { requireVerifiableDocument } from "./verify";
@@ -23,11 +26,13 @@ export { useEnsureMyFolder };
 export type CreateBlankFileInput = {
   format: BlankDocumentFormat;
   title: string;
+  visibility?: DocumentVisibility;
   idempotencyKey?: string;
 } & CreateDocumentPlacementInput;
 
 export type CreateFolderInput = {
   title: string;
+  visibility?: DocumentVisibility;
   idempotencyKey?: string;
 } & CreateDocumentPlacementInput;
 
@@ -92,13 +97,17 @@ export function useCreateBlankFile(wsId: string) {
   return useMutation({
     mutationFn: async (input: CreateBlankFileInput) => {
       const parent_id = input.parent_id ?? input.parentId;
+      const share = {
+        ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
+      };
       const body: CreateBlankDocumentBody =
         input.destination !== undefined
-          ? { format: input.format, title: input.title, destination: input.destination }
+          ? { format: input.format, title: input.title, destination: input.destination, ...share }
           : {
               format: input.format,
               title: input.title,
               ...(parent_id !== undefined ? { parent_id } : {}),
+              ...share,
             };
       return requireVerifiableDocument(
         await createBlankDocumentFile(wsId, body, { idempotencyKey: input.idempotencyKey }),
@@ -113,13 +122,17 @@ export function useCreateFolder(wsId: string) {
   return useMutation({
     mutationFn: async (input: CreateFolderInput) => {
       const parent_id = input.parent_id ?? input.parentId;
+      const share = {
+        ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
+      };
       const body: CreateDocumentBody =
         input.destination !== undefined
-          ? { kind: "folder", title: input.title, destination: input.destination }
+          ? { kind: "folder", title: input.title, destination: input.destination, ...share }
           : {
               kind: "folder",
               title: input.title,
               ...(parent_id !== undefined ? { parent_id } : {}),
+              ...share,
             };
       return requireVerifiableDocument(
         await createDocument(wsId, body, { idempotencyKey: input.idempotencyKey }),

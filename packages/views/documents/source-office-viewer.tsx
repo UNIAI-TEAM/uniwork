@@ -89,6 +89,7 @@ export function useSourceOfficeViewer({ wsId, organizationId, frameVersion, onDo
                       title={view.source.name}
                       frameVersion={view.version}
                       onSessionFailure={onSessionFailure}
+                      onCloseRequested={() => setView(null)}
                     />
                   }
                 />

@@ -256,6 +256,65 @@ describe("file from another module", () => {
     expect(document.activeElement).toBe(nameButton);
   });
 
+  it("closes the Office source viewer dialog on close_requested {reason:'escape'} from the frame, and ignores a second event or one while another host dialog sits on top", async () => {
+    route({
+      sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })],
+      post: (path) =>
+        path.includes("/office/frame-token")
+          ? {
+              token: "ofs1.tok", token_type: "Bearer", expires_at: "2026-10-17T09:10:00Z", expires_in: 600,
+              source_id: "chat:d9", parent_kind: "chat_channel", parent_id: "c1",
+              workspace_id: WS, organization_id: "org1", can_edit: false, module: "docs", readonly: true,
+            }
+          : {},
+    });
+    const adapter = renderView(nav(), { officeFrameVersion: () => "9.9.9-test" });
+    const row = await rowOf("Kế hoạch.docx");
+    fireEvent.click(sourceNameButton(row));
+    const dialog = await screen.findByRole("dialog", { name: /Kế hoạch\.docx/ });
+    const iframe = (await within(dialog).findByTestId("office-docs-frame-iframe")) as HTMLIFrameElement;
+    const win = iframe.contentWindow!;
+    const envelope = (kind: Envelope["kind"], type: string, payload: unknown, id: string): Envelope =>
+      ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, payload });
+    const post = (data: unknown) => act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin, source: win }));
+    });
+    vi.spyOn(win, "postMessage").mockImplementation((message: unknown) => {
+      const m = message as Envelope;
+      if (m.kind === "request" && m.type === "init") {
+        queueMicrotask(() => {
+          void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id));
+        });
+      }
+    });
+    await post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, module: "docs" }, "r-open"));
+    await waitFor(() => expect(dialog.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+
+    // While the frame's own modal or another dialog sits on top of the source viewer dialog, close_requested is ignored.
+    await post(envelope("event", "modal", { open: true }, "m-1"));
+    await post(envelope("event", "close_requested", { reason: "escape" }, "c-modal"));
+    expect(screen.getByRole("dialog", { name: /Kế hoạch\.docx/ })).toBeInTheDocument();
+    await post(envelope("event", "modal", { open: false }, "m-2"));
+
+    const topDialog = document.createElement("div");
+    topDialog.setAttribute("role", "alertdialog");
+    document.body.append(topDialog);
+    try {
+      await post(envelope("event", "close_requested", { reason: "escape" }, "c-top"));
+      expect(screen.getByRole("dialog", { name: /Kế hoạch\.docx/ })).toBeInTheDocument();
+    } finally {
+      topDialog.remove();
+    }
+
+    // Plain close_requested closes the source viewer dialog without navigating.
+    await post(envelope("event", "close_requested", { reason: "escape" }, "c-1"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // A second close_requested after the first close does nothing.
+    await post(envelope("event", "close_requested", { reason: "escape" }, "c-2"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(adapter.push).not.toHaveBeenCalled();
+  });
+
   it("still downloads a docx the server does not mark openable", async () => {
     route({ sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx", can_open_in_app: false })] });
     downloadBlob.mockResolvedValue(new Blob(["docx"]));

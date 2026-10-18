@@ -41,6 +41,8 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
       libraryHref={ws.documents()}
       myLevel={document.my_level}
       fileSizeBytes={document.file?.size_bytes}
+      // An unnamed blank's first save asks for its name on the page (UNI-1847, SAVE-01).
+      documentDetail={document}
       // A comment deep link (?comment=<id>): the editor's panel reveals it when it has comments.
       revealCommentId={searchParams.get("comment")}
       // A frame that serves comments is the page's one comments panel: the page hides its own.

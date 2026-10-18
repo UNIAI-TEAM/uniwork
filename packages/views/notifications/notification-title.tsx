@@ -8,6 +8,9 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { STATUS_CONFIG } from "../tasks/modes/status-config";
 import { isPurgeDate, purgeDate } from "./trashed-notice";
 
+/** The share levels the client words; any other value (a newer server) reads level-less. */
+const SHARE_LEVELS: ReadonlySet<string> = new Set(["view", "comment", "edit", "manage"]);
+
 /** Brackets each param in the rendered sentence so it can be found again. */
 const MARK = "⁣";
 
@@ -37,7 +40,9 @@ export function titleParts(render: (params: Record<string, string>) => string, p
  * empty name or a bare `{{document}}`. An edit-request answer has two
  * sentences: a decline reads "still editing", not "handed you editing"
  * (UNI-1645, server titles.go). The edit-lock kinds always carry the name, so
- * they have no title-less variant.
+ * they have no title-less variant. A document_shared row whose level is
+ * missing or not one the client words reads without the level clause
+ * (`_nolevel`), never "Quyền: ." and never the raw enum.
  */
 export function notificationTitleKey(n: Notification): string {
   if (n.kind === "document_edit_request_answered" && n.params.decision === "decline") {
@@ -48,6 +53,7 @@ export function notificationTitleKey(n: Notification): string {
   if (n.kind === "document_access_declined") return n.title_key;
   const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_") && !n.kind.startsWith("document_edit_");
   const key = untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
+  if (n.kind === "document_shared" && !SHARE_LEVELS.has(n.params.level ?? "")) return `${key}_nolevel`;
   // A trash notice whose purge date cannot be read says no deadline rather than "before ".
   return n.kind === "document_trashed_by_other" && !isPurgeDate(n.params.date ?? "") ? `${key}_nodate` : key;
 }
@@ -101,6 +107,12 @@ export function NotificationTitle({ notification: n, unread }: { notification: N
         return <span className="font-medium text-foreground">{purgeDate(value, i18n.language)}</span>;
       case "role":
         return <span className="font-medium text-foreground">{t(`people.role_${value}`, { defaultValue: value })}</span>;
+      case "level":
+        return (
+          <span className="font-medium text-foreground">
+            {SHARE_LEVELS.has(value) ? t(`documents.share.level_${value}`) : ""}
+          </span>
+        );
       default:
         return value;
     }

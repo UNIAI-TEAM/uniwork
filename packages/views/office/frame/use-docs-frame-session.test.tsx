@@ -26,7 +26,7 @@ const mintedSource = () => ({
 });
 
 /** A frame on the other side of the wire: records what the host posts, posts back as the iframe's window. */
-function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes, configPromise, fileRef }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number; configPromise?: Promise<unknown>; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
+function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes, configPromise, fileRef, onCloseRequested, firstSave }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number; configPromise?: Promise<unknown>; fileRef?: { kind: "document" | "source"; id: string }; onCloseRequested?: () => void; firstSave?: { needsName: () => boolean; ask: () => Promise<boolean> } } = {}) {
   const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
@@ -60,8 +60,10 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const options: DocsFrameSessionOptions = {
     iframeRef: { current: iframe }, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: ref,
     readonly, editLock, locale: "vi", theme: "light", onError, downloadName: () => "Kế hoạch: Q4 (bản của tôi)",
+    ...(onCloseRequested ? { onCloseRequested } : {}),
     api: { open: vi.fn(), save: vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" })), recents: vi.fn(), ...api } as unknown as DocsFrameApi,
-  };
+    ...(firstSave ? { firstSave } : {}),
+  } as DocsFrameSessionOptions;
   const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   return {
@@ -623,12 +625,13 @@ describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
     expect(requestMock.mock.calls.some(([path]) => path === SOURCE_MINT_PATH)).toBe(true);
     expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(false);
     const init = frame.sent("init")[0]?.payload as {
-      documentId: string; token: string;
-      capabilities: { comments?: boolean } & Record<string, boolean>;
+      documentId: string; token: string; profile?: string;
+      capabilities: { comments?: boolean; saveCopy?: boolean } & Record<string, boolean>;
       user?: unknown; recovery?: unknown; commentsLevel?: unknown;
     };
     expect(init.token).toBe("ofs1.tok");
     expect(init.documentId).toBe(SOURCE_ID);
+    expect(init.profile).toBe("readOnly");
     // A source frame can look and print only: every write, export, asset, AI and
     // desktop/download capability is off by construction.
     expect(init.capabilities).toMatchObject({
@@ -716,6 +719,7 @@ describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)"
     await frame.boot();
     expect(frame.hook.result.current.viewOnly).toBe(true);
     expect(frame.sent("init")[0]?.payload).toMatchObject({ capabilities: { save: false } });
+    expect(frame.sent("init")[0]?.payload).not.toHaveProperty("profile");
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
     expect(save).not.toHaveBeenCalled();
@@ -859,6 +863,322 @@ describe("useDocsFrameSession: api.saveCopy (UNI-1872, UNI-1892)", () => {
     const id = frame.request("api.saveCopy", { name: "Plan (copy)", data: new ArrayBuffer(4) });
     await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
     expect(saveCopy).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDocsFrameSession: close_requested (UNI-1876, UNI-1901)", () => {
+  it("forwards close_requested {reason:'escape'} to onCloseRequested once the session is live, and ignores it before ready or after failure/unload", async () => {
+    const onCloseRequested = vi.fn();
+    const frame = setup({ onCloseRequested });
+
+    // Not yet booted (booting): ignored.
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+
+    await frame.boot();
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+
+    // After fatal failure: ignored.
+    await frame.event("error", { error: { code: "internal", message: "boom" }, fatal: true });
+    expect(frame.hook.result.current.status).toBe("failed");
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores close_requested while a save, saveAs, saveCopy, or page Save is in flight, while the frame modal is open, or while saveBlocked is open", async () => {
+    let finishSave!: (v: { ok: true; file: typeof FILE; versionId: string }) => void;
+    let finishSaveAs!: (v: unknown) => void;
+    let finishSaveCopy!: (v: { documentId: string; title: string }) => void;
+    const onCloseRequested = vi.fn();
+    const frame = setup({
+      onCloseRequested,
+      api: {
+        save: vi.fn(() => ({ then: (onFulfilled: (v: { ok: true; file: typeof FILE; versionId: string }) => void) => { finishSave = onFulfilled; } } as unknown as Promise<{ ok: true; file: typeof FILE; versionId: string }>)),
+        saveAs: vi.fn(() => ({ then: (onFulfilled: (v: unknown) => void) => { finishSaveAs = onFulfilled; } } as unknown as Promise<unknown>)) as never,
+        saveCopy: vi.fn(() => ({ then: (onFulfilled: (v: { documentId: string; title: string }) => void) => { finishSaveCopy = onFulfilled; } } as unknown as Promise<{ documentId: string; title: string }>)),
+      },
+    });
+    await frame.boot();
+
+    // 1. Frame api.save in flight -> ignored.
+    const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saving"));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    await act(async () => { finishSave({ ok: true, file: FILE, versionId: "v2" }); });
+    await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
+
+    // 2. Frame api.saveAs in flight -> ignored.
+    const saveAsId = frame.request("api.saveAs", { name: "Copy.docx", data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saving"));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    await act(async () => {
+      finishSaveAs({ save: { ok: true, file: FILE, versionId: "v-c1" }, rebind: { documentId: "doc-1", token: minted(true) } });
+    });
+    await waitFor(() => expect(frame.answerTo(saveAsId)?.payload).toMatchObject({ ok: true }));
+
+    // 3. Frame api.saveCopy in flight -> ignored.
+    const copyId = frame.request("api.saveCopy", { name: "Copy", data: new ArrayBuffer(4) });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    await act(async () => { finishSaveCopy({ documentId: "doc-copy-1", title: "Copy" }); });
+    await waitFor(() => expect(frame.answerTo(copyId)?.payload).toEqual({ documentId: "doc-copy-1", title: "Copy" }));
+
+    // 4. Frame modal open -> ignored; after modal closes -> delivered.
+    await frame.event("modal", { open: true });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    await frame.event("modal", { open: false });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+
+    // 5. Host save_blocked dialog open -> ignored; after dismiss -> delivered.
+    await frame.event("save_blocked", { bytes: 300_000_000, max_bytes: 200_000_000, reason: "over_max_bytes" });
+    expect(frame.hook.result.current.saveBlocked).not.toBeNull();
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+    act(() => { frame.hook.result.current.dismissSaveBlocked(); });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(2);
+
+    // 6. Page Save (host.save) in flight -> ignored.
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(frame.sent("save")).toHaveLength(1));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(2);
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v3" });
+    await expect(saving).resolves.toBe("saved");
+  });
+
+  it("still ignores close_requested while the new session's save is in flight when the disposed session's saveCopy settles (RFH-4)", async () => {
+    let finishSaveCopy!: (v: { documentId: string; title: string }) => void;
+    let finishSave!: (v: { ok: true; file: typeof FILE; versionId: string }) => void;
+    const onCloseRequested = vi.fn();
+    const frame = setup({
+      onCloseRequested,
+      api: {
+        save: vi.fn(() => ({ then: (onFulfilled: (v: { ok: true; file: typeof FILE; versionId: string }) => void) => { finishSave = onFulfilled; } } as unknown as Promise<{ ok: true; file: typeof FILE; versionId: string }>)),
+        saveCopy: vi.fn(() => ({ then: (onFulfilled: (v: { documentId: string; title: string }) => void) => { finishSaveCopy = onFulfilled; } } as unknown as Promise<{ documentId: string; title: string }>)),
+      },
+    });
+    await frame.boot("i-1");
+
+    // A save the disposed session started, still open when retry replaces it.
+    frame.request("api.saveCopy", { name: "Copy", data: new ArrayBuffer(4) });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+    act(() => { frame.hook.result.current.retry(); });
+    await frame.boot("i-2");
+
+    // The new session's own save is in flight when the old saveCopy settles: its counter must
+    // not absorb the late decrement, so Esc still does not leave mid-save.
+    frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saving"));
+    await act(async () => { finishSaveCopy({ documentId: "doc-copy-1", title: "Copy" }); });
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+
+    // Once the new save settles, close_requested leaves again.
+    await act(async () => { finishSave({ ok: true, file: FILE, versionId: "v2" }); });
+    await waitFor(() => expect(frame.hook.result.current.saveState).toBe("saved"));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores close_requested while the first-save name dialog is open, and again while the named save is pending (UNI-1901)", async () => {
+    let resolveAsk!: (named: boolean) => void;
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => { resolveAsk = resolve; }));
+    const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const onCloseRequested = vi.fn();
+    const frame = setup({ onCloseRequested, firstSave: { needsName: () => true, ask }, api: { save } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+
+    // The naming wait counts as a save in flight: Esc while the dialog is open is ignored.
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+
+    // Named: the save the dialog was blocking is now pending - still no leave on Esc.
+    await act(async () => { resolveAsk(true); });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await settle();
+    expect(frame.sent("save")).toHaveLength(1);
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+
+    // Only once the whole save settles does close_requested reach onCloseRequested.
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v2" });
+    await expect(saving).resolves.toBe("saved");
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+  });
+
+});
+
+describe("useDocsFrameSession: first-save naming (UNI-1847, SAVE-01)", () => {
+  const named = { needsName: vi.fn(() => false), ask: vi.fn(async () => true) };
+
+  it("a page Save names the document first: cancelled stays unsaved, nothing reaches the frame", async () => {
+    const ask = vi.fn(async () => false);
+    const frame = setup({ firstSave: { needsName: () => true, ask } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    await expect(saving).resolves.toBe("cancelled");
+    expect(frame.sent("save")).toHaveLength(0);
+    expect(frame.options.api.save).not.toHaveBeenCalled();
+    expect(frame.hook.result.current.saveState).toBe("dirty");
+    expect(frame.onError).not.toHaveBeenCalled();
+  });
+
+  it("a page Save with an answer of true asks the frame to save as usual, then skips the dialog", async () => {
+    const ask = vi.fn(async () => true);
+    const frame = setup({ firstSave: { needsName: () => true, ask } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await settle();
+    expect(frame.sent("save")).toHaveLength(1);
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v2" });
+    await expect(saving).resolves.toBe("saved");
+    await frame.event("dirty", { dirty: false });
+    expect(frame.hook.result.current.saveState).toBe("saved");
+    // Named now: the next Save skips the dialog entirely.
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await settle();
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(frame.sent("save")).toHaveLength(2);
+    await frame.respond(frame.sent("save")[1]!, { ok: true, file: FILE, versionId: "v3" });
+    await expect(saving).resolves.toBe("saved");
+  });
+
+  it("a frame api.save on a still-unnamed blank is declined at once (no wait on its 120 s timeout), then the submit re-issues the save", async () => {
+    const ask = vi.fn(async () => true);
+    const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const frame = setup({ firstSave: { needsName: () => true, ask }, api: { save } });
+    await frame.boot();
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.answerTo(id)).toBeTruthy());
+    // The answer lands immediately with the protocol's own "the user cancelled" shape:
+    // the name dialog may stay open for hours and no frame timeout can fire.
+    expect(frame.answerTo(id)?.payload).toEqual({ ok: false, error: expect.objectContaining({ code: "cancelled" }) });
+    expect(save).not.toHaveBeenCalled();
+    // ask() resolves true (the title is written): the session re-issues the save itself.
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await settle();
+    expect(frame.sent("save")).toHaveLength(1);
+    // The re-issued save's own api.save reaches the upload path.
+    const upload = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await settle();
+    expect(frame.answerTo(upload)?.payload).toMatchObject({ ok: true });
+    expect(save).toHaveBeenCalledTimes(1);
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v2" });
+    await settle();
+    await frame.event("dirty", { dirty: false });
+    expect(frame.hook.result.current.saveState).toBe("saved");
+  });
+
+  it("a frame api.save declined by cancelling the name dialog never re-issues a save", async () => {
+    const ask = vi.fn(async () => false);
+    const save = vi.fn();
+    const frame = setup({ firstSave: { needsName: () => true, ask }, api: { save } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: false }));
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await settle();
+    expect(frame.sent("save")).toHaveLength(0);
+    expect(save).not.toHaveBeenCalled();
+    expect(frame.hook.result.current.saveState).toBe("dirty");
+  });
+
+  it("the name the dialog wrote names the next save's upload (UNI-1847, S01-V3)", async () => {
+    const save = vi.fn(async (_payload: unknown, _call: unknown) => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const frame = setup({ api: { save } });
+    await frame.boot();
+    act(() => { frame.hook.result.current.notifyRenamed({ fileId: "doc-1", name: "Kế hoạch Q4.docx" }); });
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true }));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0]?.[1]).toMatchObject({ documentId: "doc-1", filename: "Kế hoạch Q4.docx" });
+  });
+
+  it("a header Save and a frame Ctrl+S sharing one dialog send exactly one save once it is named", async () => {
+    const resolvers: ((named: boolean) => void)[] = [];
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => { resolvers.push(resolve); }));
+    const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const frame = setup({ firstSave: { needsName: () => true, ask }, api: { save } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: false }));
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(2));
+    // The one dialog settles every ask, in the order they joined it.
+    await act(async () => { for (const resolve of resolvers) resolve(true); });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await settle();
+    expect(frame.sent("save")).toHaveLength(1);
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v2" });
+    await settle();
+    await saving;
+    expect(frame.sent("save")).toHaveLength(1);
+  });
+
+  it("a Save whose name dialog outlives its frame (retry) sends nothing into the stale session", async () => {
+    let resolveAsk!: (named: boolean) => void;
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => { resolveAsk = resolve; }));
+    const frame = setup({ firstSave: { needsName: () => true, ask } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    act(() => { frame.hook.result.current.retry(); });
+    await act(async () => { resolveAsk(true); });
+    await expect(saving).resolves.toBe("failed");
+    expect(frame.sent("save")).toHaveLength(0);
+  });
+
+  it("needsName false (named upload, version 2, page) never opens the dialog on either path", async () => {
+    const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const frame = setup({ firstSave: named, api: { save } });
+    await frame.boot();
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "3" });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true }));
+    expect(save).toHaveBeenCalledTimes(1);
+    await frame.event("dirty", { dirty: true });
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await settle();
+    expect(named.ask).not.toHaveBeenCalled();
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v2" });
+    await expect(saving).resolves.toBe("saved");
+  });
+
+  it("a read-only viewer is refused before the dialog could open", async () => {
+    const ask = vi.fn(async () => true);
+    const frame = setup({ readonly: true, firstSave: { needsName: () => true, ask } });
+    await frame.boot();
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(ask).not.toHaveBeenCalled();
   });
 });
 

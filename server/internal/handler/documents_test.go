@@ -492,6 +492,95 @@ func TestDocumentAssetUploadAndStream(t *testing.T) {
 	}
 }
 
+// TestDocumentCommitIdenticalBytesNoOp is UNI-1900 on the REST commit route:
+// a second Save of the same bytes is 200 with the current version (D-E1), a
+// replay of that key and a third identical upload stay on that version, and
+// different bytes still mint version 2. The chunked upload-session path
+// stages an upload_id and then hits this same route.
+func TestDocumentCommitIdenticalBytesNoOp(t *testing.T) {
+	w := newDocsWorld(t)
+	txt := []byte("identical-bytes file body\n")
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"title": "same.txt"}, "same.txt", txt, map[string]string{"Idempotency-Key": "de1-create"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create: %d %s", res.StatusCode, raw)
+	}
+	var j map[string]any
+	_ = json.Unmarshal(raw, &j)
+	doc := j["document"].(map[string]any)
+	id := doc["id"].(string)
+	rev := doc["revision"].(string)
+	file, _ := doc["file"].(map[string]any)
+	versionID, _ := file["version_id"].(string)
+	if file["version"].(float64) != 1 || versionID == "" {
+		t.Fatalf("create file: %v", file)
+	}
+
+	stage := func(t *testing.T, name, key string, body []byte) string {
+		t.Helper()
+		res, raw := doMultipart(t, w.srv, "POST", "/api/v1/documents/"+id+"/uploads", w.token, nil, name, body, map[string]string{"Idempotency-Key": key})
+		if res.StatusCode != 201 {
+			t.Fatalf("upload %s: %d %s", name, res.StatusCode, raw)
+		}
+		var u map[string]any
+		_ = json.Unmarshal(raw, &u)
+		uploadID, _ := u["upload_id"].(string)
+		if uploadID == "" {
+			t.Fatalf("upload sdo: %s", raw)
+		}
+		return uploadID
+	}
+	versions := func(t *testing.T) int {
+		t.Helper()
+		res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+id+"/versions", w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("list versions: %d %v", res.StatusCode, out)
+		}
+		return len(out["versions"].([]any))
+	}
+
+	up := stage(t, "same-again.txt", "de1-up-1", txt)
+	res, out := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-1"}, map[string]any{"upload_id": up, "base_revision": rev})
+	if res.StatusCode != 200 {
+		t.Fatalf("identical commit: %d %v", res.StatusCode, out)
+	}
+	gotDoc := out["document"].(map[string]any)
+	gotVer := out["version"].(map[string]any)
+	if gotDoc["revision"] != rev || gotVer["id"] != versionID || gotVer["version"].(float64) != 1 {
+		t.Fatalf("identical commit moved the version: doc=%v ver=%v", gotDoc, gotVer)
+	}
+	if versions(t) != 1 {
+		t.Fatalf("versions after no-op = %d, want 1", versions(t))
+	}
+
+	res, replay := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-1"}, map[string]any{"upload_id": up, "base_revision": rev})
+	if res.StatusCode != 200 || replay["version"].(map[string]any)["id"] != versionID {
+		t.Fatalf("replay: %d %v", res.StatusCode, replay)
+	}
+	res, lookup := doJSONHeaders(t, w.srv, "GET", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-1"}, nil)
+	if res.StatusCode != 200 || lookup["outcome"] != "committed" || lookup["version_id"] != versionID ||
+		lookup["revision"] != rev {
+		t.Fatalf("intent lookup: %d %v", res.StatusCode, lookup)
+	}
+
+	up3 := stage(t, "same-third.txt", "de1-up-3", txt)
+	res, third := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-3"}, map[string]any{"upload_id": up3, "base_revision": rev})
+	if res.StatusCode != 200 || third["version"].(map[string]any)["id"] != versionID || versions(t) != 1 {
+		t.Fatalf("third identical: %d %v versions=%d", res.StatusCode, third, versions(t))
+	}
+
+	upDiff := stage(t, "different.txt", "de1-up-diff", []byte("different bytes entirely\n"))
+	res, diff := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-diff"}, map[string]any{"upload_id": upDiff, "base_revision": rev})
+	if res.StatusCode != 200 || diff["version"].(map[string]any)["version"].(float64) != 2 || versions(t) != 2 {
+		t.Fatalf("different bytes: %d %v versions=%d", res.StatusCode, diff, versions(t))
+	}
+}
+
 // TestDocumentsNilService501 proves every document route answers 501 (not a
 // panic) while the DocumentService is unwired, with the flag on.
 func TestDocumentsNilService501(t *testing.T) {

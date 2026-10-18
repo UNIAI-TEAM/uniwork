@@ -5,14 +5,16 @@ import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { createOfficeFrameApi, createOfficeFrameSourceApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import type { OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
+import type { FileMeta, OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
 import { officeFrameSrc, officeModuleSpec } from "@uniwork/core/office/office-modules";
+import type { Document } from "@uniwork/core/types/document";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
+import { useOptionalNavigation } from "../../navigation";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
 import type { DesktopOpenOutcome } from "../desktop-open-action";
 import { LeaveDialog } from "../leave-dialog";
@@ -30,6 +32,8 @@ import { useDocsFrameSession } from "./use-docs-frame-session";
 import type { OfficeFrameFileRef } from "./docs-frame-session-model";
 import { useFrameEditLock } from "./frame-edit-lock";
 import { useFrameComments } from "./use-frame-comments";
+import { hasHostDialogAbove, requestDocumentFrameLeave } from "./frame-close-requested";
+import { useFirstSaveNaming } from "./first-save-naming";
 
 export interface OfficeModuleFrameControls {
   save: () => Promise<boolean>;
@@ -72,8 +76,12 @@ export interface OfficeModuleFrameProps {
   onFrameCommentsChange?: (framePanel: boolean) => void;
   /** The session failed for good (mint refused, bundle missing, handshake timeout): the host may close the frame's host surface. */
   onSessionFailure?: (failure: ProtocolErrorShape) => void;
+  /** Called when the frame sends `close_requested {reason: 'escape'}`; defaults on a document route to leaving to `libraryHref` through the leave guard. */
+  onCloseRequested?: () => void;
   /** Stored document size in bytes, for the size-based lag banner fallback when the browser lacks a lag PerformanceObserver. */
   fileSizeBytes?: number | null;
+  /** The open document row (UNI-1847): an unnamed blank's first save asks for its name. */
+  documentDetail?: Document;
   /** Injectable feature-detection seam for `PerformanceObserver` `longtask`/`event` support. */
   hasLagObserver?: () => boolean;
   /** Injectable StorageAdapter seam for per-document lag banner dismissal (`office.lagBanner.dismissed:<documentId>`). */
@@ -116,7 +124,7 @@ function useFrameTheme(): Theme {
 export function OfficeModuleFrame({
   module, wsId, fileRef, title, frameVersion, api, readonly = false, fitContent = false,
   onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId,
-  onFrameCommentsChange, onSessionFailure, fileSizeBytes, hasLagObserver, lagStorage, className,
+  onFrameCommentsChange, onSessionFailure, onCloseRequested, fileSizeBytes, documentDetail, hasLagObserver, lagStorage, className,
 }: OfficeModuleFrameProps) {
   const isSource = fileRef.kind === "source";
   const frameApi = api ?? defaultFrameApi(module, isSource);
@@ -137,6 +145,8 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
+  const navigation = useOptionalNavigation();
+  const leavingByEscRef = useRef(false);
   const lag = useFrameLagBanner({
     iframeRef, frameOrigin, module, documentId: fileRef.id,
     fileSizeBytes, hasLagObserver, lagStorage,
@@ -149,12 +159,25 @@ export function OfficeModuleFrame({
   // lock: it never reads the page's, whatever provider it sits under.
   const pageEditLock = useFrameEditLock();
   const editLock = isSource ? null : pageEditLock;
+  // UNI-1847 (SAVE-01): the first save of a never-saved blank asks for its name before the
+  // upload; every save entry point (header, leave, the frame's own Save) goes through it.
+  // `onNamed` reaches the session's notifyRenamed through a ref: the session is created below.
+  const notifyRenamedRef = useRef<((file: FileMeta) => void) | null>(null);
+  const naming = useFirstSaveNaming({
+    document: isSource ? null : (documentDetail ?? null),
+    module,
+    wsId,
+    onNamed: (file) => notifyRenamedRef.current?.(file),
+  });
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, fileRef, editLock,
     // A source is read-only by construction; its `ofs1.` token writes nowhere.
     readonly: readonly || isSource,
     // Only a stored document has the comments the binding serves.
     comments: isSource ? undefined : frameComments.binding,
+    // The same my_level the binding reads: a `comment` level keeps a can_edit === false
+    // token out of the readOnly profile, so the commenter still comments (RFH-1).
+    myLevel,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -165,6 +188,8 @@ export function OfficeModuleFrame({
       toast.success(tRootRef.current("documents.copy.done", { title: stripExtension(name) }));
       onSavedAs?.(copyId, name);
     },
+    // The first save of a never-saved blank asks for its name before the upload (SAVE-01).
+    firstSave: isSource ? undefined : naming,
     // The frame asks to save a copy under the source's own name: name it the way UniWork names a copy.
     copyName: (name) => {
       const base = stripExtension(name);
@@ -182,7 +207,15 @@ export function OfficeModuleFrame({
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";
       toast.error(tRef.current(`errors.${key}`));
     },
+    onCloseRequested: () => {
+      if (onCloseRequested) {
+        if (!hasHostDialogAbove(containerRef.current)) onCloseRequested();
+        return;
+      }
+      requestDocumentFrameLeave({ container: containerRef.current, libraryHref, navigation, leaveOpen, leavingRef: leavingByEscRef });
+    },
   });
+  notifyRenamedRef.current = session.notifyRenamed;
   // A session that failed for good (mint refused, bundle missing, timeout) still renders its own
   // failure view; the host embedding it (the source-file viewer) may close its surface instead.
   const onSessionFailureRef = useRef(onSessionFailure);
@@ -442,6 +475,8 @@ export function OfficeModuleFrame({
         onChoice={(choice) => { if (choice !== "stay") finishLeave(true); }}
         finalFocus={finalFocus}
       />
+      {/* The first save of a never-saved blank names it first (UNI-1847, SAVE-01). */}
+      {naming.dialog}
     </div>
   );
 }

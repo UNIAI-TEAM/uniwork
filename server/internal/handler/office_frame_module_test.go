@@ -224,6 +224,22 @@ func frameModuleFiles(t *testing.T) []struct {
 	}
 }
 
+// changedFrameBody returns a second valid file of the module's format whose
+// bytes differ from body.
+func changedFrameBody(t *testing.T, module string, body []byte) []byte {
+	t.Helper()
+	switch module {
+	case "docs":
+		return frameDocx(t, "m-changed")
+	case "slides":
+		return frameZip(t, "[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml", "ppt/slides/slide1.xml", "ppt/slides/slide2.xml")
+	case "sheets":
+		return frameXlsx(t, 8)
+	default:
+		return append(append([]byte{}, body...), []byte("\n")...)
+	}
+}
+
 // restrictedFileSharedWith uploads a file document, restricts it and grants
 // memberID level on it.
 func (w *officeWorld) restrictedFileSharedWith(t *testing.T, name string, body []byte, memberID, level string) string {
@@ -267,7 +283,9 @@ func TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule(t *testing.T) {
 			}
 
 			ownerToken := w.mintFrameToken(t, documentID)["token"].(string)
-			res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", ownerToken, nil, m.name, m.body, nil)
+			// Different valid bytes: a commit whose bytes match the current
+			// version is a 200 no-op (UNI-1900) and would not move the revision.
+			res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", ownerToken, nil, m.name, changedFrameBody(t, m.module, m.body), nil)
 			if res.StatusCode != 201 {
 				t.Fatalf("owner upload = %d %s", res.StatusCode, raw)
 			}

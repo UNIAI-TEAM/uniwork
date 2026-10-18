@@ -680,6 +680,70 @@ describe("documents-collections endpoints", () => {
     expect(canManageTrashed({ my_level: "edit", admin_scope: true })).toBe(true);
     expect(canManageTrashed({ my_level: "edit", admin_scope: false })).toBe(false);
   });
+
+  // ---- SH-W2 (UNI-1785): share_scope on summary & tree rows ---------------
+
+  it("parses share_scope on list rows and tree nodes and degrades malformed shapes to undefined", async () => {
+    const validScope = {
+      home_workspace: true,
+      users: 5,
+      workspaces: 1,
+      organization: false,
+      public_link: true,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "s-valid", share_scope: validScope }),
+            summary({ id: "s-null", share_scope: null }),
+            summary({ id: "s-absent" }),
+            summary({ id: "s-bad-str", share_scope: "workspace" }),
+            summary({
+              id: "s-bad-neg",
+              share_scope: { ...validScope, users: -1 },
+            }),
+            summary({
+              id: "s-bad-missing",
+              share_scope: { home_workspace: true, users: 2 },
+            }),
+          ],
+        }),
+      ),
+    );
+    const out = await listDocuments("w1");
+    expect(out.documents[0]?.share_scope).toEqual(validScope);
+    expect(out.documents[1]?.share_scope).toBeNull();
+    expect(out.documents[2]?.share_scope).toBeUndefined();
+    expect(out.documents[3]?.share_scope).toBeUndefined();
+    expect(out.documents[4]?.share_scope).toBeUndefined();
+    expect(out.documents[5]?.share_scope).toBeUndefined();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          treeNode({
+            id: "f1",
+            kind: "folder",
+            visibility: "workspace",
+            share_scope: validScope,
+            children: [
+              treeNode({
+                id: "f2",
+                kind: "folder",
+                parent_id: "f1",
+                visibility: 42,
+                share_scope: { home_workspace: "nope" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+    const tree = await getDocumentTree("w1");
+    expect(tree.documents[0]?.visibility).toBe("workspace");
+    expect(tree.documents[0]?.share_scope).toEqual(validScope);
+    expect(tree.documents[0]?.children[0]?.visibility).toBeUndefined();
+    expect(tree.documents[0]?.children[0]?.share_scope).toBeUndefined();
+  });
 });
-
-
