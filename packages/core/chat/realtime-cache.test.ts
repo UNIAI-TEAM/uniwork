@@ -603,6 +603,15 @@ describe("thread reply cache patches", () => {
     expect(next?.[0]?.last_reply_at).toBe(reply.created_at);
   });
 
+  it("puts the replier first on the root's faces, once, three at most", () => {
+    const root = { ...sampleMessage("root1", "2026-01-01T10:00:00Z"), thread_participant_ids: ["u3", "u2", "u4"] };
+    const reply = { ...sampleMessage("r1", "2026-01-01T10:01:00Z"), thread_root_id: "root1", sender_id: "u2" };
+    expect(bumpThreadRootReplyCount([root], reply)?.[0]?.thread_participant_ids).toEqual(["u2", "u3", "u4"]);
+    const first = { ...sampleMessage("r2", "2026-01-01T10:02:00Z"), thread_root_id: "root1", sender_id: "u9" };
+    const bare = sampleMessage("root1", "2026-01-01T10:00:00Z");
+    expect(bumpThreadRootReplyCount([bare], first)?.[0]?.thread_participant_ids).toEqual(["u9"]);
+  });
+
   it("keeps thread replies off the main room list", async () => {
     const reply = {
       ...sampleMessage("r1", "2026-01-01T10:01:00Z"),

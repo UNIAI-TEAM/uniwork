@@ -347,6 +347,15 @@ func DefaultSpecs() []PurposeSpec {
 			Scope:   ScopeOrgWorkspaceOptional,
 			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
 		},
+		{
+			// A link preview's picture (ADR 0035): fetched by the server, kept
+			// once per URL per organization and shared by every room that
+			// links it, so it names no workspace.
+			Purpose: ChatLinkPreview,
+			Prefix:  "chat/link-previews",
+			Scope:   ScopeOrg,
+			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
+		},
 	}
 }
 

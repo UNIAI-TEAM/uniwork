@@ -18,6 +18,7 @@ import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import { chatPersonFaceClass } from "./chat-person-card";
 import { initialOf } from "./chat-initials";
 import type { NameContextEntry } from "./native-chat-message-mapping";
+import { ChatPeerDeliveredAtContext } from "./chat-delivered";
 
 type SeenBy = { members: readonly ChatRoomMemberRecord[]; nameContext: NameContextEntry[] };
 
@@ -50,8 +51,21 @@ export function useChatSeenBy(
   return { value, lastReadAt };
 }
 
-export function ChatSeenByProvider({ value, children }: { value: SeenBy | null; children: ReactNode }) {
-  return <SeenByContext.Provider value={value}>{children}</SeenByContext.Provider>;
+/** The open room's receipts: who has seen what (⋯ menu) and how far everyone else has received it (✓✓ grey). */
+export function ChatSeenByProvider({
+  value,
+  deliveredAt = null,
+  children,
+}: {
+  value: SeenBy | null;
+  deliveredAt?: string | null;
+  children: ReactNode;
+}) {
+  return (
+    <ChatPeerDeliveredAtContext.Provider value={deliveredAt}>
+      <SeenByContext.Provider value={value}>{children}</SeenByContext.Provider>
+    </ChatPeerDeliveredAtContext.Provider>
+  );
 }
 
 /**

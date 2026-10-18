@@ -10,12 +10,15 @@ import { ChatMessageBody } from "./chat-message-body";
 import { ChatFailedSendBar } from "./chat-failed-send-bar";
 import { isChatMediaMessageBody } from "./chat-expression-utils";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
 import { ChatReplyQuote } from "./chat-reply-quote";
+import { ChatThreadRepliers } from "./chat-thread-repliers";
 import { MessageTaskCard } from "./message-task-card";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
 import { useChatMessageLinksFor } from "./chat-message-links-context";
+import { ChatLinkPreviewCard, useChatLinkPreviewFor } from "./chat-link-preview-card";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
@@ -83,17 +86,20 @@ export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority
 
 /**
  * "4 trả lời · chưa đọc" under a thread root: a raised white pill on the wall,
- * a brand dot after the words while there is something unread (else when the
- * last reply came), and a chevron (canvas). It opens the thread.
+ * the latest repliers' faces first, a brand dot after the words while there
+ * is something unread (else when the last reply came), and a chevron
+ * (canvas). It opens the thread.
  */
 export function ChatThreadRepliesLink({
   message,
   isOwn,
   onThread,
+  nameContext = EMPTY_NAME_CONTEXT,
 }: {
   message: ChatMessage;
   isOwn: boolean;
   onThread?: (message: ChatMessage) => void;
+  nameContext?: ChatNameContextEntry[];
 }) {
   const { t, i18n } = useTranslation();
   if (!((message.replyCount ?? 0) > 0 && onThread && !message.threadRootId)) return null;
@@ -101,12 +107,14 @@ export function ChatThreadRepliesLink({
     <button
       type="button"
       className={cn(
-        "mt-1 inline-flex h-8.5 w-fit items-center gap-2 rounded-full bg-chat-bubble-other pr-2.5 pl-3 shadow-chat-bubble transition-colors duration-(--duration-fast)",
+        "mt-1 inline-flex h-8.5 w-fit items-center gap-2 rounded-full bg-chat-bubble-other pr-2.5 shadow-chat-bubble transition-colors duration-(--duration-fast)",
+        message.threadParticipantIds?.length ? "pl-1.75" : "pl-3",
         CHAT_ON_BUBBLE_HOVER,
         isOwn && "self-end",
       )}
       onClick={() => onThread(message)}
     >
+      <ChatThreadRepliers userIds={message.threadParticipantIds} nameContext={nameContext} />
       <span className="text-label font-semibold text-brand">
         {message.threadUnread
           ? t("chat.thread_replies_unread", { count: message.replyCount })
@@ -213,6 +221,8 @@ function ChatMessageRowImpl({
   const taskLinks = taskLinksOf(links);
   const hasTasks = !isPending && Boolean(workspaceId) && taskLinks.length > 0;
   const taskCard = hasTasks && taskLinks.some((link) => link.relation === "created_from");
+  // The card of its first link sits under the text, the time under the card (canvas).
+  const preview = useChatLinkPreviewFor(message.id);
   const meta = (
     <ChatMessageMeta
       message={message}
@@ -298,6 +308,7 @@ function ChatMessageRowImpl({
                 </div>
               ) : null}
 
+              <ChatForwardedLabel message={message} isOwn={isOwn} />
               {replyToMessage ? (
                 <ChatReplyQuote
                   message={replyToMessage}
@@ -311,8 +322,12 @@ function ChatMessageRowImpl({
                 body={message.body}
                 isOwn={isOwn}
                 nameContext={nameContext}
-                trailing={bare || taskCard ? null : meta}
+                trailing={bare || taskCard || preview ? null : meta}
               />
+              {preview ? <ChatLinkPreviewCard preview={preview} isOwn={isOwn} /> : null}
+              {preview && !taskCard ? (
+                <ChatMessageMeta message={message} isOwn={isOwn} showTime={lastOfRun} showReadReceipt={showReadReceipt} />
+              ) : null}
             </div>
 
             {bare && !taskCard ? meta : null}
@@ -340,7 +355,7 @@ function ChatMessageRowImpl({
 
             <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
 
-            <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
+            <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
 
           </div>
         </div>

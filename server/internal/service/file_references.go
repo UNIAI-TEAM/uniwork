@@ -90,6 +90,17 @@ func managedFileReferenceSources() []FileReferenceSource {
 			},
 		},
 		{
+			Table: "chat_link_previews", Column: "image_file_id", Provider: ChatLinkPreviewImageProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCChatLinkPreviewRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, fileReferenceTenant{FileID: files.FileID(r.FileID.String), OrganizationID: r.OrganizationID, Known: true})
+				}
+				return out, err
+			},
+		},
+		{
 			Table: "chat_messages", Column: "file_id", Provider: chatFileReferenceProvider{}.Name(),
 			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
 				rows, err := q.FileGCChatMessageRefTenants(ctx, ids)

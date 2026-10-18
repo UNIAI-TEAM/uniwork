@@ -22,6 +22,9 @@ catalog:
   # Electron nativeImage path.
   "@embedpdf/pdfium": "2.15.0"
   pdf-lib: "1.17.1"
+  # Chat PDF card (UNI-1908 F6): page count + first-page preview rendered in the
+  # browser, loaded lazily; the server never renders an untrusted PDF.
+  pdfjs-dist: "6.4.299"
   harfbuzzjs: "1.6.2"
   pngjs: "7.0.0"
   jpeg-js: "0.4.4"

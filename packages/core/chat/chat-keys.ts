@@ -37,9 +37,16 @@ export const chatKeys = {
     ["chat", "room-linked-tasks", wsId, roomId] as const,
   /** Prefix — a link or task change refreshes every room's linked tasks. */
   roomLinkedTasksRoot: (wsId: string) => ["chat", "room-linked-tasks", wsId] as const,
+  /** Link cards (ADR 0035) of one room's timeline, by the message ids it asked for. */
+  roomLinkPreviews: (wsId: string, roomId: string, messageIds: string) =>
+    ["chat", "room-link-previews", wsId, roomId, messageIds] as const,
+  /** Prefix — a card that became ready refreshes the room's lookups. */
+  roomLinkPreviewsRoom: (wsId: string, roomId: string) => ["chat", "room-link-previews", wsId, roomId] as const,
   /** Shared-media counts and newest photos of one room (the info panel). */
   roomSharedSummary: (wsId: string, roomId: string) =>
     ["chat", "room-shared-summary", wsId, roomId] as const,
+  /** The stored transcript of one voice message (UNI-1908 F2). */
+  voiceTranscript: (wsId: string, messageId: string) => ["chat", "voice-transcript", wsId, messageId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>

@@ -32,6 +32,7 @@ import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import { toastChatError } from "./chat-error-message";
 import { canAdminChannel, isChatRoomModerator } from "./chat-room-moderation-utils";
 import { LeaveConversationSection } from "./leave-conversation-section";
+import { ChatGroupManageSection } from "./chat-group-manage-section";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 
 /** Field labels as the canvas form draws them: 13px semibold, a shade under the values. */
@@ -329,6 +330,15 @@ export function ChannelSettingsSheet({
               </div>
             </form>
           )}
+
+          <ChatGroupManageSection
+            workspaceId={workspaceId}
+            roomId={channel.id}
+            permissions={channel.member_permissions}
+            canManage={canAdmin}
+            keys={["allow_forward"]}
+            title={t("chat.channel.permissions_title")}
+          />
 
           {!isDefault && canInvite && onAddMembers ? (
             <ChatSettingsSection className="py-1">

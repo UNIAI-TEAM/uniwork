@@ -7,6 +7,7 @@ import { isMessageSeenByPeer } from "@uniwork/core/chat/read-receipt-utils";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
+import { ChatPeerDeliveredAtContext } from "./chat-delivered";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
 import { MessageReactionPicker } from "./chat-message-hover-actions";
 
@@ -155,17 +156,21 @@ export function ChatMessageMeta({
 }) {
   const { t, i18n } = useTranslation();
   const peerReadAt = useContext(ChatPeerReadAtContext);
+  const deliveredAt = useContext(ChatPeerDeliveredAtContext);
   const pending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
   // A failed send keeps its time in the bubble; "Chưa gửi được" sits under it (ChatFailedSendBar).
   const withTime = showTime || message.deliveryStatus === "failed";
   if (!withTime && !pending && !message.editedAt && !showReadReceipt) return null;
   const onBrand = isOwn && !onWall && inline !== "media";
-  // Mine, on the server and timed: ✓ sent, ✓✓ once read (canvas). The latest read one says so in words.
+  // Mine, on the server and timed: ✓ sent, faint ✓✓ once every other member's device has it, ✓✓ once read
+  // (WebMessageKinds). The latest read one says so in words.
   const tick =
     isOwn && withTime && !showReadReceipt && !message.deliveryStatus && !isPendingChatMessageId(message.id)
       ? isMessageSeenByPeer(message.ts, peerReadAt)
         ? "seen"
-        : "sent"
+        : isMessageSeenByPeer(message.ts, deliveredAt)
+          ? "delivered"
+          : "sent"
       : null;
   const Tag = inline ? "span" : "p";
   return (
@@ -215,6 +220,15 @@ export function ChatMessageMeta({
           role="img"
           aria-label={t("chat.read_receipt")}
           className={cn("size-3.75", onBrand ? "text-chat-bubble-own-foreground" : inline === "media" ? undefined : "text-brand")}
+        />
+      ) : tick === "delivered" ? (
+        <CheckCheck
+          role="img"
+          aria-label={t("chat.receipt_delivered")}
+          className={cn(
+            "size-3.75",
+            onBrand ? "text-chat-bubble-own-foreground/60" : inline === "media" ? "opacity-60" : "text-muted-foreground",
+          )}
         />
       ) : tick === "sent" ? (
         <Check role="img" aria-label={t("chat.receipt_sent")} className="size-3.75" />

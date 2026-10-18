@@ -4,6 +4,7 @@ import {
   isMessageSeenByPeer,
   latestSeenOwnMessageIndex,
   seenByCount,
+  deliveredToAllAt,
   seenByMembers,
   shouldShowReadReceipt,
 } from "./read-receipt-utils";
@@ -122,5 +123,24 @@ describe("furthestReadAt", () => {
 
   it("is null when nobody else has read", () => {
     expect(furthestReadAt([{ user_id: "ME", last_read_at: "2026-03-26T11:00:00Z" }, { user_id: "A" }], "ME")).toBeNull();
+  });
+});
+
+describe("deliveredToAllAt", () => {
+  const at = (iso: string) => new Date(iso).toISOString();
+
+  it("is the earliest of the others' cursors, a read counting as delivered", () => {
+    const members = [
+      { user_id: "ME", last_delivered_at: "2026-03-26T09:00:00Z" },
+      { user_id: "A", last_delivered_at: "2026-03-26T10:05:00Z" },
+      { user_id: "B", last_read_at: "2026-03-26T10:02:00Z", last_delivered_at: "2026-03-26T10:01:00Z" },
+    ];
+    expect(deliveredToAllAt(members, "ME")).toBe(at("2026-03-26T10:02:00Z"));
+  });
+
+  it("is null while someone else has received nothing, or nobody else is there", () => {
+    expect(deliveredToAllAt([{ user_id: "A", last_delivered_at: "2026-03-26T10:00:00Z" }, { user_id: "B" }], "ME")).toBeNull();
+    expect(deliveredToAllAt([{ user_id: "ME", last_delivered_at: "2026-03-26T10:00:00Z" }], "ME")).toBeNull();
+    expect(deliveredToAllAt([{ user_id: "A", last_delivered_at: "not a time" }], "ME")).toBeNull();
   });
 });
