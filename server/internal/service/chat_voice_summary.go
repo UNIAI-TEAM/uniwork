@@ -194,7 +194,7 @@ func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[
 		})
 	}
 
-	return s.postVoiceCallSummaryMessage(ctx, room, callerID, wsID, callID, callLogID, parsed.Summary, parsed.Highlights, items)
+	return s.postVoiceCallSummaryMessage(ctx, room, callerID, wsID, callID, callLogID, parsed.Summary, parsed.HighlightTexts(), items)
 }
 
 func (s *ChatService) chatPathBase(ctx context.Context, workspaceID string) (string, error) {

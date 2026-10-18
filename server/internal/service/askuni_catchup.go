@@ -37,12 +37,21 @@ type CatchUpActionItemDTO struct {
 	SourceMessageID string `json:"source_message_id,omitempty"`
 }
 
+// CatchUpHighlightDTO is one key point and the message it came from, when the
+// model named one the pack holds.
+type CatchUpHighlightDTO struct {
+	Text            string `json:"text"`
+	SourceMessageID string `json:"source_message_id,omitempty"`
+}
+
 // CatchUpResult is the ephemeral brief returned to the client.
 type CatchUpResult struct {
-	Summary      string
-	Highlights   []string
-	ActionItems  []CatchUpActionItemDTO
-	MessageCount int
+	Summary    string
+	Highlights []string
+	// HighlightItems is Highlights with each one's source message.
+	HighlightItems []CatchUpHighlightDTO
+	ActionItems    []CatchUpActionItemDTO
+	MessageCount   int
 	// Mode is "unread" when last_read (or join) drove the window, or
 	// "recent" when falling back to the public 48h window (no membership).
 	Mode         string
@@ -73,11 +82,12 @@ func (s *AskUNIService) CatchUp(ctx context.Context, userID, workspaceID string,
 		return CatchUpResult{}, err
 	}
 	empty := CatchUpResult{
-		Summary:     "Nothing new since you last read.",
-		Highlights:  []string{},
-		ActionItems: []CatchUpActionItemDTO{},
-		Mode:        mode,
-		Since:       since,
+		Summary:        "Nothing new since you last read.",
+		Highlights:     []string{},
+		HighlightItems: []CatchUpHighlightDTO{},
+		ActionItems:    []CatchUpActionItemDTO{},
+		Mode:           mode,
+		Since:          since,
 	}
 	if in.Locale == "vi" {
 		empty.Summary = "Không có tin mới kể từ lần đọc trước."
@@ -132,23 +142,23 @@ func (s *AskUNIService) CatchUp(ctx context.Context, userID, workspaceID string,
 		return CatchUpResult{}, err
 	}
 
+	// ParseCatchUpJSON already cleared source ids the pack does not hold.
+	msgIDBySource := make(map[string]string, len(pack))
+	for _, src := range pack {
+		msgIDBySource[src.ID] = idByHref[src.Href]
+	}
+	highlights := make([]CatchUpHighlightDTO, 0, len(parsed.Highlights))
+	for _, h := range parsed.Highlights {
+		highlights = append(highlights, CatchUpHighlightDTO{Text: h.Text, SourceMessageID: msgIDBySource[h.SourceID]})
+	}
 	items := make([]CatchUpActionItemDTO, 0, len(parsed.ActionItems))
 	for _, a := range parsed.ActionItems {
-		msgID := ""
-		if a.SourceID != "" {
-			for _, src := range pack {
-				if src.ID == a.SourceID {
-					msgID = idByHref[src.Href]
-					break
-				}
-			}
-		}
 		items = append(items, CatchUpActionItemDTO{
-			Title: a.Title, Owner: a.Owner, Due: a.Due, SourceMessageID: msgID,
+			Title: a.Title, Owner: a.Owner, Due: a.Due, SourceMessageID: msgIDBySource[a.SourceID],
 		})
 	}
 	return CatchUpResult{
-		Summary: parsed.Summary, Highlights: parsed.Highlights, ActionItems: items,
+		Summary: parsed.Summary, Highlights: parsed.HighlightTexts(), HighlightItems: highlights, ActionItems: items,
 		MessageCount: len(msgs), Mode: mode, Since: since,
 		InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens,
 	}, nil
