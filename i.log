@@ -1,0 +1,42 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_UX_FLOOR_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-ux-floor.spec.ts --reporter=list > /tmp/uxl-office-ux-floor.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/uxl-office-ux-floor.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/uxl-office-ux-floor.log && echo "skipped: office-ux-floor has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/uxl-office-ux-floor.log || { echo "no passing test matched office-ux-floor"; [ $rc -eq 0 ] && rc=1; }; grep -E "[0-9]+ (passed|failed|flaky)" /tmp/uxl-office-ux-floor.log | tail -n 3; echo; echo "E2E_UX_FLOOR_EXIT=$rc"
+
+Running 29 tests using 1 worker
+
+(node:279447) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:279447) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 office-ux-floor.spec.ts:82:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light vi (5.8s)
+  ✓   2 office-ux-floor.spec.ts:82:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light en (6.0s)
+  ✓   3 office-ux-floor.spec.ts:82:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark vi (6.2s)
+  ✓   4 office-ux-floor.spec.ts:82:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark en (6.0s)
+  ✓   5 office-ux-floor.spec.ts:127:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert (4.4s)
+  ✓   6 office-ux-floor.spec.ts:172:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › aria-disabled choices (web offline) stay in the Tab loop with a reason (5.3s)
+  ✓   7 office-ux-floor.spec.ts:193:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy sits between Reload and Overwrite with edit access (4.7s)
+  ✓   8 office-ux-floor.spec.ts:203:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy creates a copy with the source visibility and leaves the open document in conflict (4.9s)
+  ✓   9 office-ux-floor.spec.ts:230:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Docs shows 'Xem khác biệt' before Reload (5.2s)
+  ✓  10 office-ux-floor.spec.ts:241:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › the window live nodes stay outside the inert tree while S5 is open (4.9s)
+  ✓  11 office-ux-floor.spec.ts:252:3 › live regions (Floor › Vùng live) › the frame has its two fixed live nodes from load, before any bar (3.2s)
+  ✓  12 office-ux-floor.spec.ts:266:3 › live regions (Floor › Vùng live) › an S6 bar is read once, through the window node; the bar itself is not live (6.4s)
+  ✓  13 office-ux-floor.spec.ts:294:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 buttons keep a visible border, not colour alone (4.4s)
+  ✓  14 office-ux-floor.spec.ts:311:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 aria-disabled buttons use GrayText text and border (4.7s)
+  ✓  15 office-ux-floor.spec.ts:340:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable (4.3s)
+  ✓  16 office-ux-floor.spec.ts:361:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable (3.8s)
+  ✓  17 office-ux-floor.spec.ts:379:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked (4.4s)
+  ✓  18 office-ux-floor.spec.ts:379:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked (4.9s)
+  ✓  19 office-ux-floor.spec.ts:398:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › reduced motion: no slide/fade on S6 or S5 (6.0s)
+  ✓  20 office-ux-floor.spec.ts:419:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer) (4.7s)
+  ✓  21 office-ux-floor.spec.ts:431:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi (4.9s)
+  ✓  22 office-ux-floor.spec.ts:431:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en (4.3s)
+  ✓  23 office-ux-floor.spec.ts:455:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — light (3.5s)
+  ✓  24 office-ux-floor.spec.ts:431:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi (4.9s)
+  ✓  25 office-ux-floor.spec.ts:431:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en (4.3s)
+  ✓  26 office-ux-floor.spec.ts:455:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark (3.5s)
+  ✓  27 office-ux-floor.spec.ts:480:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill (4.0s)
+  ✓  28 office-ux-floor.spec.ts:501:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it (3.8s)
+  ✓  29 office-ux-floor.spec.ts:514:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send (4.2s)
+
+  29 passed (3.2m)
+  29 passed (3.2m)
+
+E2E_UX_FLOOR_EXIT=0
