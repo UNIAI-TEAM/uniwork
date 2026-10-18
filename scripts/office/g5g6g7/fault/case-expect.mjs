@@ -39,8 +39,11 @@ const OFFLINE_KEYS = Object.freeze({
   boolean: ["capabilityOn", "neverReadyWhileFaulted", "neverServedTampered", "contentNotServed", "draftKept", "keptOldCopy",
     "neverExtendsLease", "nothingDecrypted", "accountALockedWhileSignedOut", "accountAScopeWiped", "deploymentAScopeUnchanged",
     "signedOutKeepsNoName"],
-  count: ["downloadRequestsMin", "plaintextCopies", "accountBRows", "accountBCopies", "accountBPlaintextNames",
-    "deploymentBRows", "deploymentBCopies", "deploymentARows"],
+  // `downloadRequestsMin` is a proxy-log key (expect.proxyLog), never an offline one (review r1 R1-1)
+  count: ["plaintextCopies", "accountBRows", "accountBCopies", "accountBPlaintextNames", "deploymentBRows", "deploymentBCopies", "deploymentARows",
+    "diskMountMb", "diskLeaveBytes", "layerBudgetBytes", "clockSkewMinutes", "renewRefusalStatus"],
+  // refusal codes of an offline action (fork shared/offline-library.ts OfflineFailureCode): a driver accepts these and no other
+  codes: ["openRefusalCodes"],
   states: ["faultedStates", "recoveredStates", "firstLaunchStates", "tamperAccepts", "tamperNeverStates"],
   text: ["lockReason"],
 });
@@ -54,7 +57,7 @@ function checkOffline(offline, where, problems) {
     return;
   }
   for (const key of Object.keys(offline)) {
-    if (!OFFLINE_KEYS.boolean.includes(key) && !OFFLINE_KEYS.count.includes(key) && !OFFLINE_KEYS.states.includes(key) && !OFFLINE_KEYS.text.includes(key))
+    if (!OFFLINE_KEYS.boolean.includes(key) && !OFFLINE_KEYS.count.includes(key) && !OFFLINE_KEYS.states.includes(key) && !OFFLINE_KEYS.text.includes(key) && !OFFLINE_KEYS.codes.includes(key))
       problems.push(`${where}: unknown expect.offline key "${key}"`);
   }
   for (const key of OFFLINE_KEYS.boolean) if (key in offline && typeof offline[key] !== "boolean") problems.push(`${where}: expect.offline.${key} is not a boolean`);
@@ -63,6 +66,11 @@ function checkOffline(offline, where, problems) {
     const list = offline[key];
     if (key in offline && !(Array.isArray(list) && list.length > 0 && list.every((s) => OFFLINE_ROW_STATES.includes(s))))
       problems.push(`${where}: expect.offline.${key} is not a non-empty list of offline row states`);
+  }
+  for (const key of OFFLINE_KEYS.codes) {
+    const list = offline[key];
+    if (key in offline && !(Array.isArray(list) && list.length > 0 && list.every((c) => typeof c === "string" && /^[a-z_]+$/.test(c))))
+      problems.push(`${where}: expect.offline.${key} is not a non-empty list of refusal codes`);
   }
   for (const key of OFFLINE_KEYS.text) if (key in offline && !(typeof offline[key] === "string" && offline[key])) problems.push(`${where}: expect.offline.${key} is not a string`);
 }

@@ -2870,6 +2870,7 @@
         "proxy-log.jsonl",
         "case-result.json",
         "offline-store-before.json",
+        "offline-store-faulted.json",
         "offline-store-after.json",
         "s3-offline-tab.png"
       ]
@@ -2948,11 +2949,22 @@
       "status": "ready",
       "scenario": "cache hỏng / checksum lệch: pin thất bại, không phục vụ từ cache dở",
       "source": "AC G5-A04; S3 › corrupt",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "lật byte các record ciphertext của store thư viện giữa hai lần khởi động app (không hook fork)"
+          "step": "lật byte ciphertext giữa hai lần khởi động; khởi động lại; rule cut-open: proxy reset mọi GET …/download để Mở chỉ còn đường cache offline; rồi gỡ rule và Thử lại"
         }
       ],
       "expect": {
@@ -2972,6 +2984,13 @@
             "corrupt"
           ],
           "tamperNeverStates": [
+            "ready"
+          ],
+          "openRefusalCodes": [
+            "corrupt"
+          ],
+          "plaintextCopies": 0,
+          "recoveredStates": [
             "ready"
           ]
         },
@@ -2996,6 +3015,7 @@
         "proxy-log.jsonl",
         "case-result.json",
         "offline-store-before.json",
+        "offline-store-faulted.json",
         "offline-store-after.json",
         "s3-offline-tab.png",
         "s11-lock-panel.png"
@@ -3304,7 +3324,11 @@
           "accountBCopies": 0,
           "signedOutKeepsNoName": true,
           "accountALockedWhileSignedOut": true,
-          "accountAScopeWiped": true
+          "accountAScopeWiped": true,
+          "firstLaunchStates": [
+            "ready"
+          ],
+          "plaintextCopies": 0
         },
         "notes": {
           "client": [
@@ -3328,8 +3352,7 @@
         "case-result.json",
         "offline-store-before.json",
         "offline-store-after.json",
-        "s3-offline-tab.png",
-        "s11-lock-panel.png"
+        "s3-offline-tab.png"
       ]
     },
     {
@@ -3362,7 +3385,10 @@
           "deploymentBRows": 0,
           "deploymentBCopies": 0,
           "deploymentARows": 1,
-          "deploymentAScopeUnchanged": true
+          "deploymentAScopeUnchanged": true,
+          "firstLaunchStates": [
+            "ready"
+          ]
         },
         "notes": {
           "client": [

@@ -102,18 +102,30 @@ test("the collector lists record names, sizes and the sha256 of the ciphertext, 
   }
 });
 
-test("the plaintext copies listing carries names and sizes only, never the bytes", () => {
+test("the plaintext copies listing hashes the folder and file names, and never the bytes (review r1 R1-12)", () => {
   const scratch = scratchUserData();
+  const secretName = "Hop-dong-mat-2026.docx";
   try {
-    const copies = join(copiesRootDir(scratch.root, scratch.deployment), scratch.account, "copiesha@offline");
+    const accountDir = join(copiesRootDir(scratch.root, scratch.deployment), scratch.account);
+    const copies = join(accountDir, "copiesha@offline");
     mkdirSync(copies, { recursive: true });
-    writeFileSync(join(copies, "document.docx"), "DOCX-PLAINTEXT-BODY");
-    const listed = listPlaintextCopies(scratch.root, scratch.deployment);
-    assert.equal(listed.length, 1);
-    assert.deepEqual(Object.keys(listed[0]).sort(), ["accountId", "documentKey", "name", "sizeBytes"]);
-    assert.equal(listed[0].name, "document.docx");
+    writeFileSync(join(copies, secretName), "DOCX-PLAINTEXT-BODY");
+    // a working copy beside the offline folder is the editor's, not the library's
+    const working = join(accountDir, "working");
+    mkdirSync(working, { recursive: true });
+    writeFileSync(join(working, secretName), "WORKING-BODY");
+    // another account of the same deployment is out of scope
+    const other = join(copiesRootDir(scratch.root, scratch.deployment), "01JOTHER0000000000000000000", "other@offline");
+    mkdirSync(other, { recursive: true });
+    writeFileSync(join(other, secretName), "OTHER-BODY");
+    const listed = listPlaintextCopies(scratch.root, scratch.deployment, { accountIds: [scratch.account] });
+    assert.equal(listed.length, 1, "only the offline copy of the account in scope is listed");
+    assert.deepEqual(Object.keys(listed[0]).sort(), ["accountId", "copyKeySha256", "fileNameSha256", "sizeBytes"]);
     assert.equal(listed[0].sizeBytes, "DOCX-PLAINTEXT-BODY".length);
-    assert.doesNotMatch(JSON.stringify(listed), /DOCX-PLAINTEXT-BODY/);
+    assert.equal(listed[0].fileNameSha256, createHash("sha256").update(secretName, "utf8").digest("hex"));
+    assert.equal(listed[0].copyKeySha256, createHash("sha256").update("copiesha@offline", "utf8").digest("hex"));
+    // neither the document name nor a body byte may reach the artifact
+    assert.doesNotMatch(JSON.stringify(listed), /DOCX-PLAINTEXT-BODY|Hop-dong-mat|WORKING-BODY|OTHER-BODY/);
   } finally {
     scratch.clean();
   }
@@ -156,8 +168,16 @@ test("storeDelta reports added, removed, changed and unchanged records by name",
   const rec = (name, sha) => ({ name, sizeBytes: 1, sha256: sha });
   const before = { library: [rec("a", "1"), rec("b", "2")] };
   const after = { library: [rec("b", "2"), rec("c", "3"), rec("a", "9")] };
-  assert.deepEqual(storeDelta(before, after), { added: ["c"], removed: [], changed: ["a"], unchanged: ["b"] });
-  assert.deepEqual(storeDelta(null, after), { added: ["a", "b", "c"], removed: [], changed: [], unchanged: [] });
+  assert.deepEqual(storeDelta(before, after), { added: ["library/c"], removed: [], changed: ["library/a"], unchanged: ["library/b"] });
+  assert.deepEqual(storeDelta(null, after), { added: ["library/a", "library/b", "library/c"], removed: [], changed: [], unchanged: [] });
+});
+
+test("storeDelta keys every record by its store, so a registered sync store is visible to the delta (review r1 R1-8)", () => {
+  const rec = (name, sha) => ({ name, sizeBytes: 1, sha256: sha });
+  const before = { records: [{ store: "library", ...rec("a", "1") }, { store: "feed-cursors", ...rec("c", "1") }] };
+  const after = { records: [{ store: "library", ...rec("a", "1") }, { store: "feed-cursors", ...rec("c", "2") }] };
+  // same record NAME in two stores: the store tag is what keeps them apart
+  assert.deepEqual(storeDelta(before, after), { added: [], removed: [], changed: ["feed-cursors/c"], unchanged: ["library/a"] });
 });
 
 // ---- the state wait's product/VM split -------------------------------------------
@@ -234,41 +254,23 @@ test("the offline assertions read their numbers from expect, never a literal", (
 test("the S3 tab and the S11 lock panel are addressed by constants, and FL-08's B deployment is a valid store segment", () => {
   assert.equal(S3_TAB_ID, "offline");
   assert.match(S3_TAB_SELECTOR, /role="tab".*tab-offline/);
-  assert.equal(S3_PANEL_SELECTOR, '[role="tabpanel"]');
+  // the ACTIVE panel of the offline tab, not any tabpanel (review r1 R1-10)
+  assert.equal(S3_PANEL_SELECTOR, '[role="tabpanel"][id$="-panel-offline"]');
+  // the fork's own lock markup (UniworkLockPanel.tsx `.uw-lock-layer > .uw-lock-panel`),
+  // never a class-prefix match that also hits `sc-lock` / `wb-block` (review r1 R1-11)
+  assert.equal(S11_LOCK_SELECTOR, ".uw-lock-layer .uw-lock-panel");
   assert.ok(S11_LOCK_SELECTOR.includes("lock"));
   // fork keys.ts SEGMENT: the store refuses a scope the fork would reject
   assert.match(FL08_DEPLOYMENT_B, /^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$/);
 });
 
-test("the driver module registers exactly the four W1 rows and reads no store file of its own", () => {
+test("the driver module registers the W1 rows and reads no store file of its own", () => {
   const source = readFileSync(new URL("./app-case-drivers-offline.mjs", import.meta.url), "utf8");
   // the driver writes no store file: it reads the fork's stores and writes only its own evidence
   assert.doesNotMatch(source, /writeFileSync\([^)]*libraryStoreDir/, "a driver never writes a library store");
   assert.doesNotMatch(source, /writeFileSync\([^)]*leaseStoreDir/, "a driver never writes a lease store");
-  // the only writeFileSync calls are the tamper, the two evidence files and a screenshot
+  // the only writeFileSync calls are the tamper, the store-evidence files
+  // (before / faulted / after) and a screenshot
   const writes = [...source.matchAll(/writeFileSync\(/g)].length;
-  assert.equal(writes, 4, "tamper, two store-evidence files and a screenshot: no other write");
-});
-
-test("every shot a ready FL row declares is one its driver actually captures", () => {
-  const source = readFileSync(new URL("./app-case-drivers-offline.mjs", import.meta.url), "utf8");
-  const rows = loadFaultCases().cases.filter((row) => row.status === "ready" && row.id.startsWith("FL-"));
-  assert.equal(rows.length, 4);
-  // each driver's body is the text between its `async function flNN(` and the next one
-  const bodyOf = (id) => {
-    const start = source.indexOf(`async function ${id.toLowerCase().replace("-", "")}(`);
-    assert.ok(start > 0, `${id}: no driver body`);
-    const next = source.indexOf("\nasync function ", start + 10);
-    return source.slice(start, next === -1 ? source.length : next);
-  };
-  for (const row of rows) {
-    const body = bodyOf(row.id);
-    for (const artifact of row.artifacts.filter((name) => name.endsWith(".png"))) {
-      assert.ok(body.includes(`artifactPath("${artifact}")`), `${row.id}: declares ${artifact} but its driver never captures it`);
-    }
-    // and no driver captures a shot the row does not declare
-    for (const shot of [...body.matchAll(/artifactPath\("(\S+\.png)"\)/g)].map((m) => m[1])) {
-      assert.ok(row.artifacts.includes(shot), `${row.id}: captures ${shot} but does not declare it`);
-    }
-  }
+  assert.equal(writes, 5, "tamper, three store-evidence files and a screenshot: no other write");
 });

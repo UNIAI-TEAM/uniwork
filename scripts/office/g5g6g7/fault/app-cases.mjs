@@ -239,6 +239,8 @@ async function runOne({ row, run, runs, caseDir, shared }) {
       return session;
     },
     waitSignedIn: (session) => waitSignedIn(session),
+    /** sign the running app in as another seeded account (FL-07's B) */
+    signInAs: (session, account) => signIn(session, tenant.apiOrigin, account),
     caseRules: (ids) => {
       const missing = ids.filter((id) => !row.proxyRules.some((r) => r.id === id));
       if (missing.length) throw new Error(`${row.id} has no proxy rule ${missing.join(", ")} in cases.json`);
