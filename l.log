@@ -1,0 +1,18 @@
+$ pnpm --filter @uniwork/views exec vitest run office/frame/ documents/documents-page-view-actions.test.tsx documents/documents-page-view.test.tsx documents/documents-library-row.test.tsx 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "VIEWS_FRAME_VITEST_EXIT=$rc"
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at focusWindow (/workspace/packages/views/office/frame/frame-focus.ts:6:31)
+    at /workspace/packages/views/office/frame/frame-focus.ts:32:5
+    at /workspace/packages/views/office/frame/office-module-frame.tsx:310:45
+    at Object.react_stack_bottom_frame (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+    at runWithFiberInDEV (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+    at commitHookEffectListMount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13) undefined
+
+ Test Files  14 passed (14)
+      Tests  532 passed (532)
+   Start at  07:38:01
+   Duration  19.22s (transform 3.27s, setup 3.12s, import 7.82s, tests 40.67s, environment 3.67s)
+
+
+VIEWS_FRAME_VITEST_EXIT=0
