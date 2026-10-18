@@ -44,7 +44,7 @@ import { ExitRangeError, parseExitRange, partialCaseResult, partialLabel, select
 import { guardCaseResult, harnessDownReason, seedBehindGuard } from "./app-process-guard.mjs";
 import { AppBlocked, closeApp, hasStoredSession, launchApp, signIn, waitFor, waitSignedIn } from "./app-session.mjs";
 import {
-  clearOfflineLibrary, clearSyncWrite, createFileDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, readOfflineLibraryOverride, runnerApiOrigin,
+  clearOfflineLibrary, clearSyncWrite, createAppDocument, enrollTotp, errorText, freshToken, grantPlatformAdmin, login, readOfflineLibraryOverride, runnerApiOrigin,
   revokeOrgOfflineLeases, seedAppTenant, setOfflineLibrary, setSyncWrite,
 } from "./app-tenant.mjs";
 import { caseExpect } from "./case-expect.mjs";
@@ -225,7 +225,7 @@ async function runOne({ row, run, runs, caseDir, shared }) {
     // cleared first, and only this run lifts it, with a read-back, in `finally`
     setOfflineLibrary: () => offlineFlag.enable(),
     newDocument: async () => {
-      const doc = await createFileDocument(tenant, fixture, `${row.id} run ${run.index}`);
+      const doc = await createAppDocument(tenant, fixture, `${row.id} run ${run.index}`);
       docs.set(doc.id, await collectServerVersions({ apiOrigin: tenant.apiOrigin, token: await ownerToken(), documentId: doc.id }));
       return doc;
     },

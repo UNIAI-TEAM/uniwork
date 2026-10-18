@@ -295,6 +295,19 @@ export async function createFileDocument(tenant, fixture, title) {
   return { id: doc.id, revision: String(doc.revision ?? "") };
 }
 
+/**
+ * A file document the app's account can open (G7-03b fix4 CL1-1). SH-S1 (UNI-1780)
+ * creates a root document PRIVATE by default (server/internal/service/document_permissions.go:453-471),
+ * so the plain-member app account sees it as 404 until it is shared: the owner
+ * creates it, then shares it with the app at edit level. `createFileDocument`
+ * itself stays as is (the server cases create and share their own).
+ */
+export async function createAppDocument(tenant, fixture, title, { create = createFileDocument, share = shareDocumentLevel } = {}) {
+  const doc = await create(tenant, fixture, title);
+  await share(tenant, doc.id, "edit");
+  return doc;
+}
+
 export async function headRevision(tenant, documentId) {
   const res = await must("read document", tenant.apiOrigin, `/api/v1/documents/${documentId}`, { as: tenant.owner },
     undefined, "/api/v1/documents/{documentID}");
