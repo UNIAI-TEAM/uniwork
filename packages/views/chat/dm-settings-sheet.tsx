@@ -34,6 +34,7 @@ import {
 import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
+import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
@@ -256,6 +257,8 @@ export function DmSettingsSheet({
               onClick={() => setNicknameOpen(true)}
             />
           </ChatSettingsSection>
+
+          {roomId ? <ChatRoomSharedTotals workspaceId={workspaceId} roomId={roomId} open={open} /> : null}
 
           <ChatSettingsSection className="mt-auto px-5 pt-3.5 pb-4.5">
             <BlockConversationSection

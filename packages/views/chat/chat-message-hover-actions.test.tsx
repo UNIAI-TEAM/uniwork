@@ -1,10 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
 import type { ChatMessage } from "./chat-messages";
+
+vi.mock("@uniwork/ui/components/common/emoji-picker", () => ({
+  EmojiPicker: ({ onSelect }: { onSelect: (emoji: string) => void }) => (
+    <button type="button" onClick={() => onSelect("🎉")}>
+      Pick 🎉
+    </button>
+  ),
+}));
 
 beforeAll(() => {
   initI18n();
@@ -82,5 +90,47 @@ describe("ChatMessageHoverActions", () => {
     await user.click(screen.getByRole("button", { name: "Thả 😢" }));
     expect(onToggleReaction).toHaveBeenCalledWith(row, "😢");
   });
-});
 
+  it("opens the emoji picker from Thêm cảm xúc; a pick toggles that emoji and closes it", async () => {
+    const user = userEvent.setup();
+    const onToggleReaction = vi.fn();
+    const row = message("m1");
+    render(
+      wrap(
+        <ChatMessageHoverActions
+          message={row}
+          isOwn={false}
+          onReply={vi.fn()}
+          onReact={vi.fn()}
+          onToggleReaction={onToggleReaction}
+        />,
+      ),
+    );
+    const more = screen.getByRole("button", { name: "Thêm cảm xúc" });
+    // Sits in the toolbar, so the arrows reach it like any other action.
+    expect(screen.getByRole("toolbar")).toContainElement(more);
+    await user.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    await user.click(await screen.findByRole("button", { name: "Pick 🎉" }));
+    expect(onToggleReaction).toHaveBeenCalledWith(row, "🎉");
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Pick 🎉" })).not.toBeInTheDocument());
+  });
+
+  it("opens the picker from the keyboard", async () => {
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <ChatMessageHoverActions
+          message={message("m1")}
+          isOwn
+          onReply={vi.fn()}
+          onReact={vi.fn()}
+          onToggleReaction={vi.fn()}
+        />,
+      ),
+    );
+    screen.getByRole("button", { name: "Thêm cảm xúc" }).focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("button", { name: "Pick 🎉" })).toBeInTheDocument();
+  });
+});

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { wrap } from "../test/api-mock";
+import { requestMock, wrap } from "../test/api-mock";
 import { DmSettingsSheet } from "./dm-settings-sheet";
 
 beforeAll(() => {
@@ -139,5 +139,47 @@ describe("DmSettingsSheet", () => {
     const row = screen.getByRole("button", { name: /Ghi chú, ghim, bình chọn/ });
     expect(row).toBeDisabled();
     expect(row).toHaveAccessibleDescription("Có sau tin nhắn đầu tiên trong cuộc trò chuyện");
+  });
+
+  it("lists the room's shared media after the bulletin rows, and photos open as a gallery", async () => {
+    requestMock.mockResolvedValue({
+      messages: [
+        {
+          id: "m1",
+          room_id: "room-dm",
+          workspace_id: "ws1",
+          sender_id: "u2",
+          sender_display_name: "Binh",
+          body: "![ảnh](https://media.tenor.com/a.png)",
+          created_at: "2026-10-01T03:00:00Z",
+        },
+      ],
+    });
+    render(
+      wrap(
+        <DmSettingsSheet
+          open
+          onOpenChange={vi.fn()}
+          workspaceId="ws1"
+          currentUserId="u1"
+          contact={contact}
+          roomId="room-dm"
+          youLabel="Bạn"
+          onLeave={vi.fn()}
+          blockedByMe={false}
+          blockedMe={false}
+          onBlock={vi.fn()}
+          onUnblock={vi.fn()}
+        />,
+      ),
+    );
+    const photos = await screen.findByRole("button", { name: "1 ảnh" });
+    const bulletin = screen.getByRole("button", { name: /Ghi chú, ghim, bình chọn/ });
+    expect(bulletin.compareDocumentPosition(photos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("/chat/rooms/room-dm/messages"));
+
+    fireEvent.click(photos);
+    expect(screen.getByRole("button", { name: "Quay lại" })).toBeInTheDocument();
+    expect(document.querySelector('img[src="https://media.tenor.com/a.png"]')).toBeInTheDocument();
   });
 });

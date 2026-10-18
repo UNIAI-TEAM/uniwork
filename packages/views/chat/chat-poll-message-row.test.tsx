@@ -37,14 +37,14 @@ function poll(allowMultiple: boolean) {
   };
 }
 
-function renderPoll(allowMultiple: boolean) {
+function renderPoll(allowMultiple: boolean, payload = poll(allowMultiple)) {
   return render(
     wrap(
       <ChatPollMessageRow
         messageId="p1"
         workspaceId="ws1"
         roomId="r1"
-        poll={poll(allowMultiple)}
+        poll={payload}
         senderLabel="Bạn"
         senderId="u1"
         isOwn
@@ -74,5 +74,21 @@ describe("ChatPollMessageRow", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: /Cơm/ }));
     expect(vote).toHaveBeenCalledWith({ roomId: "r1", messageId: "p1", optionId: "o2" });
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("shows each option's share beside its count once results are visible", () => {
+    renderPoll(false);
+    expect(screen.getByRole("button", { name: "Xem 2 người chọn Phở" })).toHaveTextContent("267%");
+    expect(screen.getByText("33%")).toBeInTheDocument();
+  });
+
+  it("hides the shares with the counts until the viewer votes when the poll says so", () => {
+    const hidden = poll(false);
+    renderPoll(false, {
+      ...hidden,
+      settings: { ...hidden.settings, hide_results_until_vote: true },
+      viewer_option_ids: [],
+    });
+    expect(screen.queryByText(/%$/)).not.toBeInTheDocument();
   });
 });

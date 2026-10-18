@@ -106,6 +106,32 @@ export function followUpDue(
   return { state: "upcoming", ts };
 }
 
+type FollowUpGroupKey = FollowUpDueState | "no_due";
+
+const GROUP_ORDER: readonly FollowUpGroupKey[] = ["overdue", "today", "upcoming", "no_due"];
+
+/**
+ * The list under its due headers — overdue, today, upcoming, no due date —
+ * on the same calendar as the due pills. Each group keeps the server's
+ * order; an empty group is left out.
+ */
+export function groupFollowUps<T extends { due_at?: string | null }>(
+  items: readonly T[],
+  now: Date = new Date(),
+): { key: FollowUpGroupKey; items: T[] }[] {
+  const buckets: Record<FollowUpGroupKey, T[]> = { overdue: [], today: [], upcoming: [], no_due: [] };
+  for (const item of items) buckets[followUpDue(item.due_at, now)?.state ?? "no_due"].push(item);
+  return GROUP_ORDER.filter((key) => buckets[key].length > 0).map((key) => ({ key, items: buckets[key] }));
+}
+
+/** Each group's header: its words, colour and dot (overdue in the danger colour). */
+const GROUP_HEADER: Record<FollowUpGroupKey, { labelKey: string; tone: string; dot: string }> = {
+  overdue: { labelKey: "chat.follow_up.group_overdue", tone: "text-destructive", dot: "bg-destructive-solid" },
+  today: { labelKey: "chat.day_today", tone: "text-warning", dot: "bg-warning-solid" },
+  upcoming: { labelKey: "chat.follow_up.group_upcoming", tone: "text-muted-foreground", dot: "bg-faint-foreground" },
+  no_due: { labelKey: "chat.follow_up.group_no_due", tone: "text-muted-foreground", dot: "bg-faint-foreground" },
+};
+
 /** "12 thg 9" / "Sep 12"; the year only when it is not this year; the time when it is today. */
 function formatDueDate(ts: number, locale: string, now: Date): string {
   if (messageDayKey(ts) === messageDayKey(now.getTime())) return formatMessageTime(ts, locale);
@@ -211,6 +237,9 @@ export function ChatFollowUpsSheet({
   const idBase = useId();
   const headingId = `${idBase}-title`;
   const rowId = (id: string) => `${idBase}-row-${id}`;
+  const groups = groupFollowUps(followUps);
+  // Rows in the order they are drawn, for the focus hand-off below.
+  const drawn = groups.flatMap((group) => group.items);
 
   // After a row is done, converted or removed it leaves the list; focus goes
   // to the row below (or above, at the end), else to the sheet's heading —
@@ -218,8 +247,8 @@ export function ChatFollowUpsSheet({
   const afterRowAction = (itemId: string, action: Promise<boolean> | void) => {
     void Promise.resolve(action).then((ok) => {
       if (!ok) return;
-      const index = followUps.findIndex((entry) => entry.id === itemId);
-      const neighbour = followUps[index + 1] ?? followUps[index - 1];
+      const index = drawn.findIndex((entry) => entry.id === itemId);
+      const neighbour = drawn[index + 1] ?? drawn[index - 1];
       const target = neighbour
         ? document.getElementById(rowId(neighbour.id))?.querySelector<HTMLElement>("button")
         : null;
@@ -267,79 +296,99 @@ export function ChatFollowUpsSheet({
   } else {
     body = (
       <>
-      <ul className="space-y-2.5">
-        {followUps.map((item) => {
-          const roomLabel = followUpRoomLabel(item, t);
-          const { sender, body: preview } = followUpMessagePreview(item, t);
-          const note = item.note.trim();
-          const pending = pendingIds?.has(item.id) ?? false;
-          return (
-            <li
-              key={item.id}
-              id={rowId(item.id)}
-              aria-busy={pending || undefined}
-              className="rounded-xl border border-border bg-surface px-3.5 py-3"
-            >
-              <div className="flex items-center gap-2">
-                <FollowUpRoomMark item={item} label={roomLabel} />
-                <p className="min-w-0 flex-1 truncate text-label font-semibold text-muted-foreground">
-                  {roomLabel}
-                </p>
-                <FollowUpDuePill dueAt={item.due_at} locale={i18n.language} />
-              </div>
-              <p className="mt-1.5 line-clamp-2 text-body text-foreground">
-                {sender ? <strong className="font-semibold">{`${sender}: `}</strong> : null}
-                {preview}
-              </p>
-              {note ? (
-                <p className="mt-1 line-clamp-2 text-label text-muted-foreground">
-                  {t("chat.follow_up.note", { note })}
-                </p>
-              ) : null}
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className={ROW_PILL}
-                  disabled={pending}
-                  onClick={() => afterRowAction(item.id, onComplete(item.id))}
+        <div className="space-y-4.5">
+          {groups.map((group) => {
+            const header = GROUP_HEADER[group.key];
+            const groupHeadingId = `${idBase}-group-${group.key}`;
+            return (
+              <section key={group.key} aria-labelledby={groupHeadingId} className="space-y-2">
+                <h3
+                  id={groupHeadingId}
+                  className={cn(
+                    "ml-1 flex items-center gap-1.5 text-caption font-semibold tracking-wider uppercase",
+                    header.tone,
+                  )}
                 >
-                  <Check className="size-3.5" aria-hidden />
-                  {t("chat.follow_up.complete")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className={ROW_PILL}
-                  disabled={pending}
-                  onClick={() => afterRowAction(item.id, onConvert(item.id))}
-                >
-                  <MODULE_ICONS.tasks className="size-3.5" aria-hidden />
-                  {t("chat.follow_up.convert")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(ROW_PILL, "ml-auto text-destructive hover:text-destructive")}
-                  disabled={pending}
-                  onClick={() => afterRowAction(item.id, onDelete(item))}
-                >
-                  <Trash2 className="size-3.5" aria-hidden />
-                  {t("chat.follow_up.delete")}
-                </Button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {followUps.length >= FOLLOW_UP_LIMIT ? (
-        <p className="px-1 pt-3 text-caption text-muted-foreground">
-          {t("chat.follow_up.list_capped", { limit: FOLLOW_UP_LIMIT })}
-        </p>
-      ) : null}
+                  <span aria-hidden className={cn("size-1.5 rounded-full", header.dot)} />
+                  {t(header.labelKey)}
+                </h3>
+                <ul className="space-y-2">
+                  {group.items.map((item) => {
+                    const roomLabel = followUpRoomLabel(item, t);
+                    const { sender, body: preview } = followUpMessagePreview(item, t);
+                    const note = item.note.trim();
+                    const pending = pendingIds?.has(item.id) ?? false;
+                    return (
+                      <li
+                        key={item.id}
+                        id={rowId(item.id)}
+                        aria-busy={pending || undefined}
+                        className="rounded-xl border border-border bg-surface px-3.5 py-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FollowUpRoomMark item={item} label={roomLabel} />
+                          <p className="min-w-0 flex-1 truncate text-label font-semibold text-muted-foreground">
+                            {roomLabel}
+                          </p>
+                          <FollowUpDuePill dueAt={item.due_at} locale={i18n.language} />
+                        </div>
+                        <p className="mt-1.5 line-clamp-2 text-body text-foreground">
+                          {sender ? <strong className="font-semibold">{`${sender}: `}</strong> : null}
+                          {preview}
+                        </p>
+                        {note ? (
+                          <p className="mt-1 line-clamp-2 text-label text-muted-foreground">
+                            {t("chat.follow_up.note", { note })}
+                          </p>
+                        ) : null}
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className={ROW_PILL}
+                            disabled={pending}
+                            onClick={() => afterRowAction(item.id, onComplete(item.id))}
+                          >
+                            <Check className="size-3.5" aria-hidden />
+                            {t("chat.follow_up.complete")}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className={ROW_PILL}
+                            disabled={pending}
+                            onClick={() => afterRowAction(item.id, onConvert(item.id))}
+                          >
+                            <MODULE_ICONS.tasks className="size-3.5" aria-hidden />
+                            {t("chat.follow_up.convert")}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={cn(ROW_PILL, "ml-auto text-destructive hover:text-destructive")}
+                            disabled={pending}
+                            onClick={() => afterRowAction(item.id, onDelete(item))}
+                          >
+                            <Trash2 className="size-3.5" aria-hidden />
+                            {t("chat.follow_up.delete")}
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+        {followUps.length >= FOLLOW_UP_LIMIT ? (
+          <p className="px-1 pt-3 text-caption text-muted-foreground">
+            {t("chat.follow_up.list_capped", { limit: FOLLOW_UP_LIMIT })}
+          </p>
+        ) : null}
       </>
     );
   }
