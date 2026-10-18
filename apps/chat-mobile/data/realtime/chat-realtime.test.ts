@@ -130,13 +130,14 @@ describe("list-level frames", () => {
     await vi.advanceTimersByTimeAsync(ROOM_ACTIVITY_DEBOUNCE_MS);
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
       chatKeys.rooms("w1"),
+      chatKeys.unreadSummary(),
       chatKeys.roomMembers("w1", "r1"),
       chatKeys.discoverableChannels("w1"),
     ]);
     realtime.handle(frame("chat.room.activity"));
     realtime.dispose();
     await vi.advanceTimersByTimeAsync(ROOM_ACTIVITY_DEBOUNCE_MS);
-    expect(invalidate).toHaveBeenCalledTimes(3);
+    expect(invalidate).toHaveBeenCalledTimes(4);
     realtime.dispose();
   });
 

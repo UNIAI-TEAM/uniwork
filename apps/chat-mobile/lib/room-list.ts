@@ -4,6 +4,7 @@
 // lib/rooms-display.ts orders and words them. Counts come straight from the
 // room records, so web and phone show the same numbers.
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
+import { isMessageSeenByPeer } from "@uniwork/core/chat/read-receipt-utils";
 import {
   chatRoomToContact,
   isDefaultWorkspaceChannel,
@@ -19,7 +20,9 @@ import {
   displayLabelForChatContact,
   formatChatSidebarPreviewText,
   formatChatSidebarTime,
+  isMissedCallPreview,
   sidebarEntryRoomId,
+  splitChatSidebarPreviewPrefix,
   type ChatContact,
   type ChatRoomPreference,
   type UnifiedSidebarEntry,
@@ -29,7 +32,10 @@ import { formatSidebarTypingPreview, typingNameByUserIdFromContext } from "./typ
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
 /** What a row's avatar shows: a person (with presence) or the kind of room. */
-export type RoomMark = { kind: "dm"; label: string; online: boolean } | { kind: "workspace" | "group" | "channel" | "private-channel" };
+export type RoomMark =
+  | { kind: "dm"; label: string; online: boolean; userId?: string }
+  | { kind: "group"; label?: string }
+  | { kind: "workspace" | "channel" | "private-channel" };
 
 /** The workspace room's name, unless it only repeats the workspace's (packages/views/chat/chat-page-utils.ts). */
 export function workspaceRoomTitle(roomName: string | null | undefined, workspaceName: string | null | undefined, defaultLabel: string): string {
@@ -62,8 +68,14 @@ export interface RoomListRow {
   room: ChatRoomRecord | null;
   title: string;
   mark: RoomMark;
+  /** The sender a group line names, bold before the body ("Quân: "). */
+  prefix: string | null;
   subtitle: string | null;
   typing: boolean;
+  /** A call that rang for the reader and nobody answered: the line is red. */
+  missed: boolean;
+  /** A DM whose last message is the reader's and the peer has read (✓✓ by the time). */
+  seen: boolean;
   time: string | null;
   unread: number;
   mentionUnread: number;
@@ -145,16 +157,22 @@ export function buildRoomList(input: {
       contacts: contacts as ChatContact[],
       fallbackNameByUserId,
     });
-    const previewText = formatChatSidebarPreviewText(preview, {
+    const previewOptions = {
       currentUserId,
-      isGroup,
       youLabel: t("chat.you"),
       voiceCallLabel: t("chat.sidebar_voice_call_preview"),
       voiceMessageLabel: t("chat.sidebar_voice_message_preview"),
+      missedCallLabel: t("chat.voice_call_log_missed"),
       fileMessageLabel: t("chat.sidebar_file_message_preview"),
       nicknamesByUserId,
       mediaLabels,
-    });
+    };
+    const previewText = formatChatSidebarPreviewText(preview, { ...previewOptions, isGroup });
+    const { prefix, body } = isGroup
+      ? splitChatSidebarPreviewPrefix(previewText, formatChatSidebarPreviewText(preview, { ...previewOptions, isGroup: false }))
+      : { prefix: null, body: previewText };
+    const ownLast = preview ? preview.senderId.trim().toUpperCase() === currentUserId.trim().toUpperCase() : false;
+    const seen = entry.kind === "dm" && ownLast && preview ? isMessageSeenByPeer(Date.parse(preview.createdAt), room?.peer_last_read_at) : false;
     let title: string;
     let mark: RoomMark;
     switch (entry.kind) {
@@ -168,11 +186,11 @@ export function buildRoomList(input: {
         break;
       case "group":
         title = entry.group.name;
-        mark = { kind: "group" };
+        mark = { kind: "group", label: title };
         break;
       case "dm":
         title = displayLabelForChatContact(entry.contact, nicknamesByUserId);
-        mark = { kind: "dm", label: title, online: input.isOnline(entry.contact.user_id) };
+        mark = { kind: "dm", label: title, online: input.isOnline(entry.contact.user_id), userId: entry.contact.user_id };
         break;
     }
     return {
@@ -182,8 +200,11 @@ export function buildRoomList(input: {
       room,
       title,
       mark,
-      subtitle: typing ?? previewText ?? (entry.kind === "workspace" ? t("chat.workspace_room_subtitle") : null),
+      prefix: typing ? null : prefix,
+      subtitle: typing ?? body ?? (entry.kind === "workspace" ? t("chat.workspace_room_subtitle") : null),
       typing: typing !== null,
+      missed: typing === null && isMissedCallPreview(preview, currentUserId),
+      seen,
       time: formatChatSidebarTime(preview?.createdAt, { yesterdayLabel: t("chat.sidebar_yesterday"), locale }),
       unread: roomId ? (unread[roomId] ?? 0) : 0,
       mentionUnread: roomId ? (mentions[roomId] ?? 0) : 0,

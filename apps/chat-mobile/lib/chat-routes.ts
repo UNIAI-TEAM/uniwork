@@ -16,4 +16,6 @@ export const chatRoutes = {
   info: (ws: WorkspaceSlugs, roomId: string) => `${base(ws)}/room/${encodeURIComponent(roomId)}/info`,
   newChat: (ws: WorkspaceSlugs) => `${base(ws)}/new-chat`,
   channels: (ws: WorkspaceSlugs) => `${base(ws)}/channels`,
+  /** A new group, or (with a room) more members for that group. */
+  newGroup: (ws: WorkspaceSlugs, roomId?: string) => `${base(ws)}/new-group${roomId ? `?room=${encodeURIComponent(roomId)}` : ""}`,
 };
