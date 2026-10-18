@@ -188,6 +188,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onOpen,
     description: t(parentForCreate && !isMyFolder(folderDoc) ? "documents.upload.description_folder" : "documents.upload.description"),
     rootDestination: "my_folder",
+    resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id,
   });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });

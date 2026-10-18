@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   ChunkedUploadError,
   chunkedUploadThreshold,
+  type UploadSessionTarget,
 } from "@uniwork/core/documents/chunked-upload";
 import {
   useChunkedDocumentUpload,
@@ -16,7 +17,6 @@ import type { DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import type { DocumentUploadDialogProps } from "./document-upload-dialog";
-
 interface UseDocumentFileUploadOptions {
   wsId: string;
   parentId: string | null;
@@ -26,9 +26,15 @@ interface UseDocumentFileUploadOptions {
   description?: string;
   /**
    * Small-file creates with no parent carry this destination marker (the
-   * server resolves it into the caller's My Folder) instead of a `parent_id`.
+   * server resolves it, e.g. `"my_folder"`) instead of a `parent_id`.
    */
   rootDestination?: "my_folder";
+  /**
+   * Resolves the parent a no-parent chunked session must target (the session
+   * API has no destination marker, so the workspace root is not an option).
+   * The first resolved id is remembered for the rest of the hook's life.
+   */
+  resolveRootParent?: () => Promise<string>;
 }
 
 /**
@@ -43,6 +49,7 @@ export function useDocumentFileUpload({
   onOpen,
   description,
   rootDestination,
+  resolveRootParent,
 }: UseDocumentFileUploadOptions) {
   const { t, i18n } = useTranslation();
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -69,13 +76,18 @@ export function useDocumentFileUpload({
   }, []);
 
   const createFile = useCreateDocumentFile(wsId);
-  const target = useMemo(
+  // The id a no-parent chunked session resolved to via `resolveRootParent`
+  // (e.g. the ensured My Folder). State so the hook's target — and with it
+  // resume-lookup keys — converges on it after the first root chunked start.
+  const [resolvedRootParent, setResolvedRootParent] = useState<string | null>(null);
+  const chunkedParentId = parentId ?? resolvedRootParent;
+  const target = useMemo<UploadSessionTarget>(
     () => ({
       kind: "workspace" as const,
       workspaceId: wsId,
-      ...(parentId ? { parentId } : {}),
+      ...(chunkedParentId ? { parentId: chunkedParentId } : {}),
     }),
-    [wsId, parentId],
+    [wsId, chunkedParentId],
   );
   // Small files create in one request: a named folder gets `parent_id`, the
   // workspace root (when configured) gets the destination marker instead —
@@ -105,6 +117,20 @@ export function useDocumentFileUpload({
       );
     },
   });
+  /**
+   * Chunked sessions can't carry `rootDestination`, so a no-parent start
+   * first asks `resolveRootParent` for the real parent (a Home-root upload
+   * must never land at the workspace root). Explicit on `start` because the
+   * hook's own target still points at the root on this call — unless the file
+   * already has a resume record saved at the root, which `start` continues.
+   */
+  const resolveChunkedTarget = async (file: File, filename: string): Promise<UploadSessionTarget | undefined> => {
+    if (parentId || !resolveRootParent || chunked.findResumable(file, filename)) return undefined;
+    const rootId = resolvedRootParent ?? (await resolveRootParent());
+    if (!rootId) return undefined;
+    if (resolvedRootParent === null) setResolvedRootParent(rootId);
+    return { kind: "workspace", workspaceId: wsId, parentId: rootId };
+  };
   const threshold = chunkedUploadThreshold(limits);
 
   const isChunkedFile = (file: { size: number }): boolean =>
@@ -123,7 +149,7 @@ export function useDocumentFileUpload({
       );
       dropToastRef.current = { id: toastId, file, percent: 0 };
       try {
-        await chunked.start({ file, filename: file.name });
+        await chunked.start({ file, filename: file.name, target: await resolveChunkedTarget(file, file.name) });
       } finally {
         if (dropToastRef.current?.id === toastId) dropToastRef.current = null;
         toast.dismiss(toastId);
@@ -147,7 +173,11 @@ export function useDocumentFileUpload({
     setUploadError(null);
     try {
       if (isChunkedFile(file)) {
-        const res = await chunked.start({ file, filename: file.name });
+        const res = await chunked.start({
+          file,
+          filename: file.name,
+          target: await resolveChunkedTarget(file, file.name),
+        });
         if (!mountedRef.current) return;
         if (res.kind === "document") {
           setUploadOpen(false);
