@@ -1,0 +1,89 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/documents-folders.spec.ts e2e/documents-sharing-ui.spec.ts e2e/documents.spec.ts > /tmp/rootnine-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rootnine-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/rootnine-E2E.log; grep -E "✘|\[failed\]" /tmp/rootnine-E2E.log | head -40; echo; echo "E2E_TARGETED_EXIT=$rc"
+    Error Context: test-results/documents-folders-FD-A10-m-1b709-nks-and-Từ-nơi-khác-listing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A10-m-1b709-nks-and-Từ-nơi-khác-listing/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A10-m-1b709-nks-and-Từ-nơi-khác-listing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) documents-sharing-ui.spec.ts:30:1 › share, public link, anonymous read, access log and revoke ─
+
+    Test timeout of 360000ms exceeded.
+
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Call log:
+      - waiting for getByRole('dialog', { name: /^(Chia sẻ tài liệu|Chia sẻ “|Share document|Share “)/ }).getByRole('combobox', { name: 'Đối tượng', exact: true })
+
+
+      51 |   await expect(dialog).toBeVisible({ timeout: 30_000 });
+      52 |   await expect(dialog.getByText("Người và nhóm có quyền")).toBeVisible({ timeout: 30_000 });
+    > 53 |   await dialog.getByRole("combobox", { name: "Đối tượng", exact: true }).click();
+         |                                                                          ^
+      54 |   await page.getByRole("option", { name: "Tổ chức" }).click();
+      55 |   await dialog.getByRole("button", { name: "Chia sẻ", exact: true }).click();
+      56 |   const revokeOrg = dialog.getByRole("button", { name: `Thu hồi ${seed.orgName}` });
+
+    Error Context: test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-sharing-ui-share-adddb--read-access-log-and-revoke/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) documents.spec.ts:132:1 › a file document takes a new version and downloads it ────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('Phiên bản 2')
+    Expected: visible
+    Timeout: 90000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 90000ms
+      - waiting for getByText('Phiên bản 2')
+
+
+      152 |   await versionDialog.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
+      153 |   await versionDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
+    > 154 |   await expect(page.getByText("Phiên bản 2")).toBeVisible({ timeout: 90_000 });
+          |                                               ^
+      155 |
+      156 |   // Download goes through the authenticated proxy route (no presigned URL).
+      157 |   const download = page.waitForEvent("download");
+
+    Error Context: test-results/documents-a-file-document--f7588-ew-version-and-downloads-it/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-a-file-document--f7588-ew-version-and-downloads-it/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-a-file-document--f7588-ew-version-and-downloads-it/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Slow test file: documents-sharing-ui.spec.ts (6.0m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  3 failed
+    documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing 
+    documents-sharing-ui.spec.ts:30:1 › share, public link, anonymous read, access log and revoke ──
+    documents.spec.ts:132:1 › a file document takes a new version and downloads it ─────────────────
+  1 skipped
+  22 passed (10.2m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test e2e/documents-folders.spec.ts e2e/documents-sharing-ui.spec.ts e2e/documents.spec.ts
+  3 failed
+  1 skipped
+  22 passed (10.2m)
+  ✘  16 documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing (310ms)
+  ✘  22 documents-sharing-ui.spec.ts:30:1 › share, public link, anonymous read, access log and revoke (6.0m)
+  ✘  24 documents.spec.ts:132:1 › a file document takes a new version and downloads it (1.6m)
+
+E2E_TARGETED_EXIT=1

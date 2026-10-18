@@ -1,0 +1,55 @@
+$ pnpm --filter @uniwork/web test; rc=$?; echo; echo "ROOT_WEB_TEST_EXIT=$rc"
+
+> @uniwork/web@0.0.0 test /workspace/apps/web
+> vitest run --passWithNoTests=false --coverage
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:3:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:4:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/apps/web
+      Coverage enabled with v8
+
+tar: Removing leading `../' from member names
+ ❯ features/landing/guide-product-facts.test.ts (3 tests | 2 failed) 9ms
+     × keeps en format limits aligned with the web host 6ms
+     × keeps vi format limits aligned with the web host 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  features/landing/guide-product-facts.test.ts > public product claims > keeps en format limits aligned with the web host
+ FAIL  features/landing/guide-product-facts.test.ts > public product claims > keeps vi format limits aligned with the web host
+AssertionError: expected [ 'Docs', 'Slides' ] to deeply equal [ 'Docs' ]
+
+- Expected
++ Received
+
+  [
+    "Docs",
++   "Slides",
+  ]
+
+ ❯ features/landing/guide-product-facts.test.ts:10:119
+      8|     expect(table.rows.map(row => row[1])).toEqual([".docx", ".xlsx", "…
+      9|     expect(table.rows.find(row => row[0] === "Sheets")?.[2]).not.toCon…
+     10|     expect(table.rows.filter(row => row[2].includes(locale === "vi" ? …
+       |                                                                                                                       ^
+     11|     expect(guideContent("office-files-and-ai", locale).sections.find(s…
+     12|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed | 24 passed (25)
+      Tests  2 failed | 218 passed (220)
+   Start at  12:42:30
+   Duration  9.72s (transform 5.54s, setup 2.02s, import 12.21s, tests 2.68s, environment 6.91s)
+
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 test: `vitest run --passWithNoTests=false --coverage`
+Exit status 1
+
+ROOT_WEB_TEST_EXIT=1
