@@ -76,24 +76,18 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND ((sqlc.arg(see_all)
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
-             ) mfs WHERE mfs.document_id = d.id))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = sqlc.arg(actor_id)
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+                  ) mfs WHERE mfs.document_id = d.id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -235,24 +229,18 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
   AND ((sqlc.arg(see_all)
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
-             ) mfs WHERE mfs.document_id = d.id))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = sqlc.arg(actor_id)
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+                  ) mfs WHERE mfs.document_id = d.id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -369,24 +357,18 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NOT NULL
   AND ((sqlc.arg(see_all)
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
-             ) mfs WHERE mfs.document_id = d.id))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = sqlc.arg(actor_id)
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+                  ) mfs WHERE mfs.document_id = d.id)))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
        OR (sqlc.arg(member_visible) AND NOT sqlc.arg(agent)::boolean
            AND d.visibility = 'workspace'
@@ -505,24 +487,18 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND ((sqlc.arg(see_all)
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
-             ) mfs WHERE mfs.document_id = d.id))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = sqlc.arg(actor_id)
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+                  ) mfs WHERE mfs.document_id = d.id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
@@ -587,24 +563,18 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                             OR (a.principal_type = 'workspace' AND a.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))))
   AND ((sqlc.arg(see_all)
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
-             ) mfs WHERE mfs.document_id = d.id))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = sqlc.arg(actor_id)
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+                  ) mfs WHERE mfs.document_id = d.id)))
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))

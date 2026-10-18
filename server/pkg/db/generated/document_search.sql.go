@@ -25,29 +25,23 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NOT NULL
   AND (($3
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               $4, $1, $2, $5::int
-             ) mfs WHERE mfs.document_id = d.id))
-       OR ($6 AND d.acl_owner_id = $4)
-       OR ($7 AND NOT $8::boolean
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = $4
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($5::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    $4, $1, $2, $6::int
+                  ) mfs WHERE mfs.document_id = d.id)))
+       OR ($7 AND d.acl_owner_id = $4)
+       OR ($8 AND NOT $9::boolean
            AND d.visibility = 'workspace'
            AND d.workspace_level = 'edit')
-       OR ($9 AND EXISTS (
+       OR ($10 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -57,23 +51,23 @@ WHERE d.organization_id = $1
               AND ((s.principal_type = 'user' AND s.principal_id = $4)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($10::text[]))))))
-  AND ($11::text IS NULL OR d.kind = $11)
-  AND ($12::text IS NULL OR d.kind <> $12)
-  AND ($13::text IS NULL OR d.updated_by = $13)
-  AND ($14::timestamptz IS NULL OR d.archived_at >= $14)
-  AND ($15::timestamptz IS NULL OR d.archived_at < $15)
-  AND ($16::text IS NULL
+                       AND s.principal_id = ANY($11::text[]))))))
+  AND ($12::text IS NULL OR d.kind = $12)
+  AND ($13::text IS NULL OR d.kind <> $13)
+  AND ($14::text IS NULL OR d.updated_by = $14)
+  AND ($15::timestamptz IS NULL OR d.archived_at >= $15)
+  AND ($16::timestamptz IS NULL OR d.archived_at < $16)
+  AND ($17::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
-           AND (cv.mime_type = $17::text
-                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($18::text[])))
-                    AND length(d.title) > length($16::text) + 1
-                    AND right(lower(d.title), length($16::text) + 1) = '.' || $16::text))))
+           AND (cv.mime_type = $18::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($19::text[])))
+                    AND length(d.title) > length($17::text) + 1
+                    AND right(lower(d.title), length($17::text) + 1) = '.' || $17::text))))
   -- UNI-1868: every row this view can return is already manage (the ladder
   -- above is manage-only), so the service refuses access=manage/edit here and
   -- 'restricted' - the row's visibility - is the one access filter it takes.
-  AND ($19::text IS NULL OR d.visibility = 'restricted')
+  AND ($20::text IS NULL OR d.visibility = 'restricted')
   -- A term can match on title for every row this view returns; it may match
   -- on content (search_text) only for a row the caller can act on AND read:
   -- managed by the caller's own access (flagged ACL owner - an effective
@@ -83,13 +77,13 @@ WHERE d.organization_id = $1
   -- branch. A restricted trashed row reached only through AdminScope matches
   -- on title alone - admins administer it but never read its content, and an
   -- edit holder's trash is read-only metadata either way (RESTORE-01 §3).
-  AND ($20::text IS NULL
-       OR (NOT $21::boolean
+  AND ($21::text IS NULL
+       OR (NOT $22::boolean
            AND (($3
                  AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
                  AND d.visibility <> 'restricted')
-                OR ($6::boolean AND d.acl_owner_id = $4)
-                OR ($9 AND EXISTS (
+                OR ($7::boolean AND d.acl_owner_id = $4)
+                OR ($10 AND EXISTS (
                      SELECT 1 FROM document_shares rs
                      WHERE rs.organization_id = d.organization_id
                        AND rs.workspace_id = d.workspace_id
@@ -99,14 +93,14 @@ WHERE d.organization_id = $1
                        AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                             OR (rs.principal_type = 'workspace'
-                                AND rs.principal_id = ANY($10::text[]))))))
-           AND d.search_text ILIKE '%' || $20::text || '%' ESCAPE '\')
-       OR (($21::boolean
+                                AND rs.principal_id = ANY($11::text[]))))))
+           AND d.search_text ILIKE '%' || $21::text || '%' ESCAPE '\')
+       OR (($22::boolean
             OR NOT (($3
                      AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
                      AND d.visibility <> 'restricted')
-                    OR ($6::boolean AND d.acl_owner_id = $4)
-                    OR ($9 AND EXISTS (
+                    OR ($7::boolean AND d.acl_owner_id = $4)
+                    OR ($10 AND EXISTS (
                          SELECT 1 FROM document_shares rs
                          WHERE rs.organization_id = d.organization_id
                            AND rs.workspace_id = d.workspace_id
@@ -116,12 +110,12 @@ WHERE d.organization_id = $1
                            AND ((rs.principal_type = 'user' AND rs.principal_id = $4)
                                 OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                                 OR (rs.principal_type = 'workspace'
-                                    AND rs.principal_id = ANY($10::text[])))))))
-           AND uw_fold_search(d.title) ILIKE '%' || $20::text || '%' ESCAPE '\'))
-  AND ($22::timestamptz IS NULL
-       OR (d.archived_at, d.id) < ($22, $23::text))
+                                    AND rs.principal_id = ANY($11::text[])))))))
+           AND uw_fold_search(d.title) ILIKE '%' || $21::text || '%' ESCAPE '\'))
+  AND ($23::timestamptz IS NULL
+       OR (d.archived_at, d.id) < ($23, $24::text))
 ORDER BY d.archived_at DESC, d.id DESC
-LIMIT $24
+LIMIT $25
 `
 
 type ListArchivedDocumentsPageParams struct {
@@ -129,6 +123,7 @@ type ListArchivedDocumentsPageParams struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	SeeAll          interface{}        `json:"see_all"`
 	ActorID         pgtype.Text        `json:"actor_id"`
+	ShareLevels     []string           `json:"share_levels"`
 	MaxLevel        int32              `json:"max_level"`
 	AclOwner        interface{}        `json:"acl_owner"`
 	MemberVisible   interface{}        `json:"member_visible"`
@@ -161,6 +156,7 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 		arg.WorkspaceID,
 		arg.SeeAll,
 		arg.ActorID,
+		arg.ShareLevels,
 		arg.MaxLevel,
 		arg.AclOwner,
 		arg.MemberVisible,
@@ -338,26 +334,20 @@ WHERE d.organization_id = $1
   AND d.parent_id IS NOT DISTINCT FROM $3
   AND (($4
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $5)
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               $5, $1, $2, $6::int
-             ) mfs WHERE mfs.document_id = d.id))
-       OR ($7 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($8::text[]))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = $5
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    $5, $1, $2, $7::int
+                  ) mfs WHERE mfs.document_id = d.id)))
+       OR ($8 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($6::text[]))
        OR ($9 AND d.acl_owner_id = $5)
        OR ($10 AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -365,7 +355,7 @@ WHERE d.organization_id = $1
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($8::text[])
+              AND s.level = ANY($6::text[])
               AND ((s.principal_type = 'user' AND s.principal_id = $5)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
@@ -388,7 +378,7 @@ WHERE d.organization_id = $1
            AND (($4 AND NOT (d.visibility = 'restricted'
                                             AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)))
                 OR ($9 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
-                OR ($7 AND NOT $21::boolean
+                OR ($8 AND NOT $21::boolean
                     AND d.visibility = 'workspace'
                     AND d.workspace_level = ANY($22::text[]))
                 OR ($10 AND EXISTS (
@@ -461,9 +451,9 @@ type ListDocumentsByParentPageParams struct {
 	ParentID        pgtype.Text        `json:"parent_id"`
 	SeeAll          interface{}        `json:"see_all"`
 	ActorID         pgtype.Text        `json:"actor_id"`
+	ShareLevels     []string           `json:"share_levels"`
 	MaxLevel        int32              `json:"max_level"`
 	MemberVisible   interface{}        `json:"member_visible"`
-	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
@@ -494,9 +484,9 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.ParentID,
 		arg.SeeAll,
 		arg.ActorID,
+		arg.ShareLevels,
 		arg.MaxLevel,
 		arg.MemberVisible,
-		arg.ShareLevels,
 		arg.AclOwner,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
@@ -617,26 +607,20 @@ WHERE d.organization_id = $5
   AND d.archived_at IS NULL
   AND (($2
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3)
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               $3, $5, $6, $7::int
-             ) mfs WHERE mfs.document_id = d.id))
-       OR ($8 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($9::text[]))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = $3
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($7::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    $3, $5, $6, $8::int
+                  ) mfs WHERE mfs.document_id = d.id)))
+       OR ($9 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($7::text[]))
        OR ($10 AND d.acl_owner_id = $3)
        OR ($11 AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -644,7 +628,7 @@ WHERE d.organization_id = $5
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($9::text[])
+              AND s.level = ANY($7::text[])
               AND ((s.principal_type = 'user' AND s.principal_id = $3)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
@@ -677,7 +661,7 @@ WHERE d.organization_id = $5
            AND (($2 AND NOT (d.visibility = 'restricted'
                                             AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)))
                 OR ($10 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
-                OR ($8 AND NOT $21::boolean
+                OR ($9 AND NOT $21::boolean
                     AND d.visibility = 'workspace'
                     AND d.workspace_level = ANY($22::text[]))
                 OR ($11 AND EXISTS (
@@ -767,9 +751,9 @@ type ListDocumentsPageParams struct {
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
+	ShareLevels     []string           `json:"share_levels"`
 	MaxLevel        int32              `json:"max_level"`
 	MemberVisible   interface{}        `json:"member_visible"`
-	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	Kind            pgtype.Text        `json:"kind"`
@@ -885,9 +869,9 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.ShareWorkspaces,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+		arg.ShareLevels,
 		arg.MaxLevel,
 		arg.MemberVisible,
-		arg.ShareLevels,
 		arg.AclOwner,
 		arg.AllowShares,
 		arg.Kind,
@@ -1016,26 +1000,20 @@ WHERE d.organization_id = $1
                             OR (a.principal_type = 'workspace' AND a.principal_id = ANY($14::text[]))))))))
   AND (($8
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3)
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               $3, $1, $2, $15::int
-             ) mfs WHERE mfs.document_id = d.id))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = $3
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($15::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    $3, $1, $2, $16::int
+                  ) mfs WHERE mfs.document_id = d.id)))
        OR ($10 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($16::text[]))
+           AND d.workspace_level = ANY($15::text[]))
        OR ($9 AND d.acl_owner_id = $3)
        OR ($13 AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -1068,8 +1046,8 @@ type ListRecentDocumentsPageParams struct {
 	AccessLevels    []string           `json:"access_levels"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
-	MaxLevel        int32              `json:"max_level"`
 	ShareLevels     []string           `json:"share_levels"`
+	MaxLevel        int32              `json:"max_level"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
 	PageLimit       int32              `json:"page_limit"`
@@ -1093,8 +1071,8 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 		arg.AccessLevels,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
-		arg.MaxLevel,
 		arg.ShareLevels,
+		arg.MaxLevel,
 		arg.CursorAt,
 		arg.CursorID,
 		arg.PageLimit,
@@ -1169,26 +1147,20 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NULL
   AND (($3
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
-        -- MYFOLDER-01 (UNI-1891): a document inside another member's My
-        -- Folder (system_kind = 'my_folder' owned by someone else) is
-        -- invisible to the see_all (workspace admin) leg - not listed, not
-        -- counted, no title, no id. It rides INSIDE this leg on purpose: the
-        -- actor's own My Folder and its subtree are admitted by the
-        -- acl_owner leg below (their acl_owner_id is the actor's), and a
-        -- descendant explicitly shared with the actor is admitted by the
-        -- share leg, so this removes only what admin scope ADDS (the card's
-        -- rule). The set comes from uw_my_folder_foreign_ids (migration
-        -- 9991792289293597), a downward parent_id walk seeded on the other
-        -- members' My Folders, evaluated once per statement (it is not
-        -- correlated to d) and used as an anti-join. For a caller who is not
-        -- a workspace admin the see_all leg is false, so this is not
-        -- consulted at all.
-        AND NOT EXISTS (
-             SELECT 1 FROM uw_my_folder_foreign_ids(
-               $4, $1, $2, $5::int
-             ) mfs WHERE mfs.document_id = d.id))
-       OR ($6 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($7::text[]))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = $4
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($5::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    $4, $1, $2, $6::int
+                  ) mfs WHERE mfs.document_id = d.id)))
+       OR ($7 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($5::text[]))
        OR ($8 AND d.acl_owner_id = $4)
        OR ($9 AND EXISTS (
             SELECT 1 FROM document_shares s
@@ -1208,9 +1180,9 @@ type ListTreeDocumentsParams struct {
 	WorkspaceID     string      `json:"workspace_id"`
 	SeeAll          interface{} `json:"see_all"`
 	ActorID         pgtype.Text `json:"actor_id"`
+	ShareLevels     []string    `json:"share_levels"`
 	MaxLevel        int32       `json:"max_level"`
 	MemberVisible   interface{} `json:"member_visible"`
-	ShareLevels     []string    `json:"share_levels"`
 	AclOwner        interface{} `json:"acl_owner"`
 	AllowShares     interface{} `json:"allow_shares"`
 	ShareWorkspaces []string    `json:"share_workspaces"`
@@ -1224,9 +1196,9 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 		arg.WorkspaceID,
 		arg.SeeAll,
 		arg.ActorID,
+		arg.ShareLevels,
 		arg.MaxLevel,
 		arg.MemberVisible,
-		arg.ShareLevels,
 		arg.AclOwner,
 		arg.AllowShares,
 		arg.ShareWorkspaces,

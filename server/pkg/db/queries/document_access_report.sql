@@ -14,13 +14,25 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
   AND (sqlc.arg(visibility)::text = '' OR d.visibility = sqlc.arg(visibility)::text)
-  -- MYFOLDER-01 (UNI-1891): the report is an admin (see_all) surface, so it
-  -- carries the same ancestor-My-Folder exclusion as the lists
-  -- (document_search.sql): a document inside another member's My Folder is
-  -- not a candidate, whatever it carries. Gated on see_all so a non-admin
-  -- administer-their-own read is untouched; the set is
-  -- uw_my_folder_foreign_ids (migration 9991792289293597).
+  -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
+  -- through see_all when it lives inside another member's My Folder. A row
+  -- stays when the actor is the ACL owner, it is workspace-visible at
+  -- share_levels, a live share covers them, or it is not in the foreign set
+  -- (uw_my_folder_foreign_ids, migration 9991792289293597).
   AND (NOT sqlc.arg(see_all)::boolean
+       OR d.acl_owner_id = sqlc.arg(actor_id)::text
+       OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+       OR EXISTS (
+            SELECT 1 FROM document_shares s
+            WHERE s.organization_id = d.organization_id
+              AND s.workspace_id = d.workspace_id
+              AND s.document_id = d.id
+              AND s.revoked_at IS NULL
+              AND s.level = ANY(sqlc.arg(share_levels)::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
+                   OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
+                   OR (s.principal_type = 'workspace'
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(
               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
@@ -57,13 +69,25 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
   AND (sqlc.arg(visibility)::text = '' OR d.visibility = sqlc.arg(visibility)::text)
-  -- MYFOLDER-01 (UNI-1891): the report is an admin (see_all) surface, so it
-  -- carries the same ancestor-My-Folder exclusion as the lists
-  -- (document_search.sql): a document inside another member's My Folder is
-  -- not a candidate, whatever it carries. Gated on see_all so a non-admin
-  -- administer-their-own read is untouched; the set is
-  -- uw_my_folder_foreign_ids (migration 9991792289293597).
+  -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
+  -- through see_all when it lives inside another member's My Folder. A row
+  -- stays when the actor is the ACL owner, it is workspace-visible at
+  -- share_levels, a live share covers them, or it is not in the foreign set
+  -- (uw_my_folder_foreign_ids, migration 9991792289293597).
   AND (NOT sqlc.arg(see_all)::boolean
+       OR d.acl_owner_id = sqlc.arg(actor_id)::text
+       OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+       OR EXISTS (
+            SELECT 1 FROM document_shares s
+            WHERE s.organization_id = d.organization_id
+              AND s.workspace_id = d.workspace_id
+              AND s.document_id = d.id
+              AND s.revoked_at IS NULL
+              AND s.level = ANY(sqlc.arg(share_levels)::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
+                   OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
+                   OR (s.principal_type = 'workspace'
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(
               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
@@ -129,3 +153,19 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND revoked_at IS NULL
   AND expires_at > now()
 ORDER BY document_id, granted_at, id;
+
+-- MYFOLDER-01 (UNI-1891): is this document in another member's My Folder
+-- subtree in this workspace? Used to refuse a folder-scoped report whose
+-- root the admin would reach only through see_all.
+-- name: DocumentInForeignMyFolder :one
+SELECT EXISTS (
+  SELECT 1
+  FROM documents d
+  WHERE d.organization_id = sqlc.arg(organization_id)
+    AND d.workspace_id = sqlc.arg(workspace_id)
+    AND d.id = sqlc.arg(document_id)
+    AND EXISTS (
+      SELECT 1 FROM uw_my_folder_foreign_ids(
+        sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+      ) mfs WHERE mfs.document_id = d.id)
+)::boolean AS in_set;

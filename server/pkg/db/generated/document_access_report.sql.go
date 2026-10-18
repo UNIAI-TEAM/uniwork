@@ -97,20 +97,58 @@ func (q *Queries) CountLiveDocumentShareLinksForDocuments(ctx context.Context, a
 	return items, nil
 }
 
+const documentInForeignMyFolder = `-- name: DocumentInForeignMyFolder :one
+SELECT EXISTS (
+  SELECT 1
+  FROM documents d
+  WHERE d.organization_id = $1
+    AND d.workspace_id = $2
+    AND d.id = $3
+    AND EXISTS (
+      SELECT 1 FROM uw_my_folder_foreign_ids(
+        $4, $1, $2, $5::int
+      ) mfs WHERE mfs.document_id = d.id)
+)::boolean AS in_set
+`
+
+type DocumentInForeignMyFolderParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+	ActorID        string `json:"actor_id"`
+	MaxLevel       int32  `json:"max_level"`
+}
+
+// MYFOLDER-01 (UNI-1891): is this document in another member's My Folder
+// subtree in this workspace? Used to refuse a folder-scoped report whose
+// root the admin would reach only through see_all.
+func (q *Queries) DocumentInForeignMyFolder(ctx context.Context, arg DocumentInForeignMyFolderParams) (bool, error) {
+	row := q.db.QueryRow(ctx, documentInForeignMyFolder,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.ActorID,
+		arg.MaxLevel,
+	)
+	var in_set bool
+	err := row.Scan(&in_set)
+	return in_set, err
+}
+
 const listDocumentAccessReportSubtreeCandidates = `-- name: ListDocumentAccessReportSubtreeCandidates :many
 WITH RECURSIVE sub AS (
   SELECT r.id, 1 AS lvl
   FROM documents r
   WHERE r.organization_id = $1
     AND r.workspace_id = $2
-    AND r.id = $9
+    AND r.id = $11
   UNION ALL
   SELECT c.id, sub.lvl + 1
   FROM documents c
   JOIN sub ON c.parent_id = sub.id
   WHERE c.organization_id = $1
     AND c.workspace_id = $2
-    AND sub.lvl < $6::int
+    AND sub.lvl < $8::int
 )
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
   d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
@@ -121,32 +159,46 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
   AND ($3::text = '' OR d.visibility = $3::text)
-  -- MYFOLDER-01 (UNI-1891): the report is an admin (see_all) surface, so it
-  -- carries the same ancestor-My-Folder exclusion as the lists
-  -- (document_search.sql): a document inside another member's My Folder is
-  -- not a candidate, whatever it carries. Gated on see_all so a non-admin
-  -- administer-their-own read is untouched; the set is
-  -- uw_my_folder_foreign_ids (migration 9991792289293597).
+  -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
+  -- through see_all when it lives inside another member's My Folder. A row
+  -- stays when the actor is the ACL owner, it is workspace-visible at
+  -- share_levels, a live share covers them, or it is not in the foreign set
+  -- (uw_my_folder_foreign_ids, migration 9991792289293597).
   AND (NOT $4::boolean
+       OR d.acl_owner_id = $5::text
+       OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
+       OR EXISTS (
+            SELECT 1 FROM document_shares s
+            WHERE s.organization_id = d.organization_id
+              AND s.workspace_id = d.workspace_id
+              AND s.document_id = d.id
+              AND s.revoked_at IS NULL
+              AND s.level = ANY($6::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+                   OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
+                   OR (s.principal_type = 'workspace'
+                       AND s.principal_id = ANY($7::text[]))))
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(
-              $5, $1, $2, $6::int
+              $5, $1, $2, $8::int
             ) mfs WHERE mfs.document_id = d.id))
-  AND d.id > $7::text
+  AND d.id > $9::text
 ORDER BY d.id
-LIMIT $8
+LIMIT $10
 `
 
 type ListDocumentAccessReportSubtreeCandidatesParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	Visibility     string `json:"visibility"`
-	SeeAll         bool   `json:"see_all"`
-	ActorID        string `json:"actor_id"`
-	MaxLevel       int32  `json:"max_level"`
-	AfterID        string `json:"after_id"`
-	MaxRows        int32  `json:"max_rows"`
-	RootID         string `json:"root_id"`
+	OrganizationID  string   `json:"organization_id"`
+	WorkspaceID     string   `json:"workspace_id"`
+	Visibility      string   `json:"visibility"`
+	SeeAll          bool     `json:"see_all"`
+	ActorID         string   `json:"actor_id"`
+	ShareLevels     []string `json:"share_levels"`
+	ShareWorkspaces []string `json:"share_workspaces"`
+	MaxLevel        int32    `json:"max_level"`
+	AfterID         string   `json:"after_id"`
+	MaxRows         int32    `json:"max_rows"`
+	RootID          string   `json:"root_id"`
 }
 
 type ListDocumentAccessReportSubtreeCandidatesRow struct {
@@ -176,6 +228,8 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 		arg.Visibility,
 		arg.SeeAll,
 		arg.ActorID,
+		arg.ShareLevels,
+		arg.ShareWorkspaces,
 		arg.MaxLevel,
 		arg.AfterID,
 		arg.MaxRows,
@@ -223,31 +277,45 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
   AND ($3::text = '' OR d.visibility = $3::text)
-  -- MYFOLDER-01 (UNI-1891): the report is an admin (see_all) surface, so it
-  -- carries the same ancestor-My-Folder exclusion as the lists
-  -- (document_search.sql): a document inside another member's My Folder is
-  -- not a candidate, whatever it carries. Gated on see_all so a non-admin
-  -- administer-their-own read is untouched; the set is
-  -- uw_my_folder_foreign_ids (migration 9991792289293597).
+  -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
+  -- through see_all when it lives inside another member's My Folder. A row
+  -- stays when the actor is the ACL owner, it is workspace-visible at
+  -- share_levels, a live share covers them, or it is not in the foreign set
+  -- (uw_my_folder_foreign_ids, migration 9991792289293597).
   AND (NOT $4::boolean
+       OR d.acl_owner_id = $5::text
+       OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
+       OR EXISTS (
+            SELECT 1 FROM document_shares s
+            WHERE s.organization_id = d.organization_id
+              AND s.workspace_id = d.workspace_id
+              AND s.document_id = d.id
+              AND s.revoked_at IS NULL
+              AND s.level = ANY($6::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+                   OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
+                   OR (s.principal_type = 'workspace'
+                       AND s.principal_id = ANY($7::text[]))))
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(
-              $5, $1, $2, $6::int
+              $5, $1, $2, $8::int
             ) mfs WHERE mfs.document_id = d.id))
-  AND d.id > $7::text
+  AND d.id > $9::text
 ORDER BY d.id
-LIMIT $8
+LIMIT $10
 `
 
 type ListDocumentAccessReportWorkspaceCandidatesParams struct {
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	Visibility     string `json:"visibility"`
-	SeeAll         bool   `json:"see_all"`
-	ActorID        string `json:"actor_id"`
-	MaxLevel       int32  `json:"max_level"`
-	AfterID        string `json:"after_id"`
-	MaxRows        int32  `json:"max_rows"`
+	OrganizationID  string   `json:"organization_id"`
+	WorkspaceID     string   `json:"workspace_id"`
+	Visibility      string   `json:"visibility"`
+	SeeAll          bool     `json:"see_all"`
+	ActorID         string   `json:"actor_id"`
+	ShareLevels     []string `json:"share_levels"`
+	ShareWorkspaces []string `json:"share_workspaces"`
+	MaxLevel        int32    `json:"max_level"`
+	AfterID         string   `json:"after_id"`
+	MaxRows         int32    `json:"max_rows"`
 }
 
 type ListDocumentAccessReportWorkspaceCandidatesRow struct {
@@ -279,6 +347,8 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 		arg.Visibility,
 		arg.SeeAll,
 		arg.ActorID,
+		arg.ShareLevels,
+		arg.ShareWorkspaces,
 		arg.MaxLevel,
 		arg.AfterID,
 		arg.MaxRows,
