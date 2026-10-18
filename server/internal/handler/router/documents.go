@@ -180,7 +180,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 	d.Post("/documents/{documentID}/upload-sessions", h.CreateDocumentUploadSession, apiOp{
 		summary: "Open a large upload session for a new version",
 		description: "Như route workspace nhưng cho phiên bản mới của tài liệu file trên path: body {filename, size_bytes, probe} + Idempotency-Key. " +
-			"Quyền sửa như POST /documents/{id}/uploads; hoàn tất trả DocumentUploadSDO để commit qua /versions/commit. Cùng ngưỡng, mã lỗi và thứ tự từ chối như route workspace; parent_id/title/visibility không nhận ở đây.",
+			"Quyền sửa như POST /documents/{id}/uploads; hoàn tất trả DocumentUploadSDO để commit qua /versions/commit. Cùng ngưỡng, mã lỗi và thứ tự từ chối như route workspace; parent_id/title/visibility không nhận ở đây. " +
+			"Tài liệu đang bị người khác giữ khóa sửa (hoặc một agent) -> 423 document_locked trước mọi giữ chỗ quota và trước khi mở phiên, với cùng fields như cổng commit (holder_id, holder_name, since, expires_at, held_by_me, current_revision; không có lock_id); người gọi đang giữ khóa (bất kỳ tab nào) hoặc không có khóa sống thì qua.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateUploadSessionSDI{},
 		sdo:    sdo.UploadSessionSDO{},
@@ -379,7 +380,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		description: "Bản sao standalone: consent phải là \"copy\" (thiếu -> 409 copy_consent_required). Cần quyền sửa nguồn. Bản sao giữ acl_owner_id/visibility/share của nguồn " +
 			"và ghi provenance (source_document_id/version/revision/checksum/format); bytes dùng lại đúng file_id nên không tính dung lượng lần hai. Tài liệu thuộc sở hữu C-14 -> 409 owner_requires_copy. " +
 			"Bản sao là một lần tạo trong workspace của nguồn nên cần chỗ thành viên ở đó: người chỉ sửa được nguồn qua chia sẻ/liên kết -> 403 workspace_seat_required (kể cả khi chấp nhận job); không sửa được thư mục cha -> 403 forbidden; tổ chức tạm ngưng/thành viên bị vô hiệu hóa giữ organization_suspended/member_deactivated. " +
-			"Có job_id: chấp nhận job convert đã completed (chỉ người tạo job) - bản sao là output OOXML, provenance ghi checksum nguồn + engine; job huỷ/đã chấp nhận -> 409 conversion_not_accepted; nguồn và lịch sử không đổi.",
+			"Có job_id: chấp nhận job convert đã completed (chỉ người tạo job) - bản sao là output OOXML, provenance ghi checksum nguồn + engine; job huỷ/đã chấp nhận -> 409 conversion_not_accepted; nguồn và lịch sử không đổi. " +
+			"Có upload_id (loại trừ lẫn nhau với job_id -> 400 invalid_request): phiên bản đầu của bản sao lấy từ bản tải lên đã stage của chính tài liệu này bởi cùng người gọi (khác tài liệu/người gọi/tổ chức -> 404 not_found; đã dùng -> 409 upload_already_committed; vượt DOCUMENT_MAX_BYTES -> 413 file_too_large).",
 		tags:   []string{"documents"},
 		sdi:    sdi.CopyDocumentSDI{},
 		sdo:    sdo.DocumentSDO{},

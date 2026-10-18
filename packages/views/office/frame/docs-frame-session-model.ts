@@ -1,8 +1,11 @@
 import type { RefObject } from "react";
+import type { QueryClient } from "@tanstack/react-query";
 import type { DocumentLimits } from "@uniwork/core/api/endpoints/config";
-import type { OfficeFrameAIGrant } from "@uniwork/core/api/endpoints/office-frame";
+import type { OfficeFrameAIGrant, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
+import { documentKeys } from "@uniwork/core/documents/keys";
+import { officeFrameKeys } from "@uniwork/core/documents/office-frame-hooks";
 import { docsFrameError, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
-import type { DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
+import type { ApiHandlers, DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
 import {
   DocsProtocolError,
   PROTOCOL_NS,
@@ -20,7 +23,7 @@ import {
   type Theme,
 } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
-import type { FrameBlock } from "./frame-remote-version";
+import { frameBlockError, type FrameBlock, type FrameRemoteVersion } from "./frame-remote-version";
 import type { FrameEditLock } from "./frame-edit-lock";
 import type { FrameCommentsBinding } from "./use-frame-comments";
 
@@ -224,18 +227,20 @@ export interface DocsFrameSession {
  * each cloud tool needs `ai` or `uniworkAi` plus its own grant. The frame then calls
  * the frame-token AI routes itself; a viewer keeps AI (it never saves).
  */
-export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false): Capabilities {
+export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false, copyRefused = readonly || !download): Capabilities {
   const spec = officeModuleSpec(module);
-  const grant = spec.grant;
-  const on = (key: keyof Capabilities) => grant[key] === true;
+  const { saveCopy: _saveCopy, ...grant } = spec.grant;
+  const on = (key: keyof Capabilities) => spec.grant[key] === true;
   const ai = spec.ai === true && aiGrant?.ai === true;
   // UniWork AI (G6-05) is its own grant, independent of BYOK `ai`.
   const uniworkAi = spec.ai === true && aiGrant?.uniwork_ai === true;
   // The cloud tools serve either AI, so an organization with only UniWork AI still gets the ones it is granted.
   const cloud = ai || uniworkAi;
+  const saveCopy = module === "docs" && on("saveCopy") && !copyRefused && download && Boolean(api.saveCopy);
   return {
     ...grant,
     save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents") && Boolean(api.recents), print: on("print"),
+    ...(saveCopy ? { saveCopy: true } : {}),
     exportPdf: on("exportPdf") && Boolean(api.export), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
     ai, uniworkAi, webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,
@@ -412,4 +417,26 @@ export function lockAwareSave<F extends (...args: never[]) => Promise<unknown>>(
       throw readOnly("api.save");
     }
   }) as F;
+}
+
+/**
+ * The frame's `api.saveCopy` (UNI-1872, UNI-1892): a copy stays on the document it opened, so the
+ * minted token's `can_edit` answers for it; refused only for source sessions (SRC-02b),
+ * `options.readonly`, or a viewer (`can_edit === false`), never merely because `lockedOut` is set.
+ */
+export function saveCopyHandler(deps: {
+  remote: FrameRemoteVersion;
+  latest: RefObject<{ options: DocsFrameSessionOptions; scopeId: string; copyRefused: boolean }>;
+  queryClient: QueryClient;
+  run: NonNullable<ApiHandlers["api.saveCopy"]>;
+}): ApiHandlers["api.saveCopy"] {
+  return async (payload, ctx) => {
+    if (deps.remote.blocked) throw frameBlockError(deps.remote.blocked);
+    const { options: current, scopeId: doc, copyRefused } = deps.latest.current;
+    const minted = deps.queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
+    if (copyRefused || minted?.can_edit === false) throw readOnly("api.saveCopy");
+    const result = await deps.run(payload, ctx);
+    void deps.queryClient.invalidateQueries({ queryKey: documentKeys.listRoot(current.wsId) });
+    return result;
+  };
 }
