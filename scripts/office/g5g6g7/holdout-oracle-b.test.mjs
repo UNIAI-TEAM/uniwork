@@ -499,7 +499,13 @@ describe('item 5 (R20-1): trace (d), the number of elements of a named kind in O
     const h2 = countCaseOf({ id: 'HO-DOCX-990', format: 'docx', anchor: 'heading_level_2', value: 4, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
     const dAsk = (text, report, result = blocks) => readAsk('get_document_context', 'docs', result, text, report);
     assert.equal(verdict(h2, dAsk('There are 4 level-2 headings.', { numbers: [4], items: [{ kind: 'count', anchor: 'heading_level_2', value: 4 }] })), 'pass');
-    assert.equal(verdict(h2, dAsk('There are 4 level-2 headings.', { numbers: [4], items: [{ kind: 'count', anchor: 'heading level 3', value: 4 }] })), 'fail', 'items name another level');
+    assert.equal(verdict(h2, dAsk('Counted.', { numbers: [4], items: [{ kind: 'count', anchor: 'heading level 3', value: 4 }] })), 'fail', 'items name another level');
+    // The reply names the kind in prose only (the item anchor is the document title): "4 level-2 sections", "4 mục cấp 2".
+    for (const text of ['There are 4 level-2 sections.', 'Có 4 mục cấp 2.', 'Có 4 tiêu đề cấp 2.']) {
+      assert.equal(verdict(h2, dAsk(text, { numbers: [4], items: [{ kind: 'count', anchor: 'Meeting notes', value: 4 }] })), 'pass', text);
+    }
+    assert.equal(verdict(h2, dAsk('There are 4 sections.', { numbers: [4], items: [{ kind: 'count', anchor: 'Meeting notes', value: 4 }] })), 'fail', 'a bare "sections" names no heading level');
+    assert.equal(verdict(h2, dAsk('There are 4 level-3 sections.', { numbers: [4], items: [{ kind: 'count', anchor: 'Meeting notes', value: 4 }] })), 'fail', 'another level');
     const normal = countCaseOf({ id: 'HO-DOCX-991', format: 'docx', anchor: 'normal', value: 2, numericName: 'normalCount', tool: 'get_document_context', op: 'read_document' });
     assert.equal(verdict(normal, dAsk('There are 2 normal blocks.', { numbers: [2], items: [{ kind: 'count', anchor: 'normal', value: 2 }] })), 'fail', 'a style that is not in the kind table has no kind');
     const para = countCaseOf({ id: 'HO-DOCX-992', format: 'docx', anchor: 'paragraphs', value: 6, numericName: 'paragraphCount', tool: 'get_document_context', op: 'read_document' });

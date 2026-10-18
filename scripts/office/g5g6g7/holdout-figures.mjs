@@ -326,10 +326,14 @@ const KIND_WORDS = [
   ['pages', 'pages?|trang'],
   ['lines', 'lines?|dong'],
 ].map(([kind, words]) => ({ kind, re: new RegExp(`^${COUNT_LEAD}(?:${words})${COUNT_TAIL}$`) }));
+// A heading level is named as "heading 2" / "headings level 2" / "level 2 headings" / "h2 headings"; "section" and "mục" name a
+// heading level only beside an explicit level word ("level 2 sections", "mục cấp 2"), never a bare "section 2" or "mục 2".
 const HEADING_WORDS = 'headings?|tieu de';
+const SECTION_WORDS = 'sections?|muc';
 const HEADING_RES = [
   new RegExp(`^${COUNT_LEAD}(?:${HEADING_WORDS})(?: level| lvl| cap)? ([1-6])${COUNT_TAIL}$`),
-  new RegExp(`^${COUNT_LEAD}(?:level|lvl|cap) ([1-6]) (?:${HEADING_WORDS})${COUNT_TAIL}$`),
+  new RegExp(`^${COUNT_LEAD}(?:level|lvl|cap) ([1-6]) (?:${HEADING_WORDS}|${SECTION_WORDS})${COUNT_TAIL}$`),
+  new RegExp(`^${COUNT_LEAD}(?:${SECTION_WORDS}) (?:level|lvl|cap) ([1-6])${COUNT_TAIL}$`),
   new RegExp(`^${COUNT_LEAD}h ([1-6]) (?:${HEADING_WORDS})${COUNT_TAIL}$`),
 ];
 
@@ -442,8 +446,9 @@ export function tracedByCount(claim, ctx) {
   if (claim.unit !== null && claim.unit !== undefined) return false;
   if (claim.currency || !Array.isArray(ctx.counts)) return false;
   const named = (kind, n) => ctx.namedKinds?.has(kind) || ctx.proseKinds?.get(n)?.has(kind);
+  const labelNamed = (kind) => ctx.namedKinds?.has(kind) || [...(ctx.proseKinds?.values() ?? [])].some((kinds) => kinds.has(kind));
   return ctx.counts.some((c) => claim.readings.some((r) => r.dp === 0
-    && ((nearEq(r.n, c.n) && named(c.kind, c.n)) || (headingLevelOf(c.kind) === r.n && ctx.namedKinds?.has(c.kind)))));
+    && ((nearEq(r.n, c.n) && named(c.kind, c.n)) || (headingLevelOf(c.kind) === r.n && labelNamed(c.kind)))));
 }
 
 /** A figure of report.numbers that the prose writes in percent units is a percent figure (`pctFromProse`), not a bare one. */
