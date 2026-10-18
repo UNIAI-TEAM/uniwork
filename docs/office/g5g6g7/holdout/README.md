@@ -330,6 +330,8 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
      `tiêu đề cấp 2`, `tiêu đề ở cấp 2`, `heading cấp 2`, `mục cấp 2`, `mục ở cấp 2` (cả `heading 2` và `tiêu đề 2` không chữ cấp). "mục"/
      "section" vẫn cần chữ cấp rõ ràng; một giới từ phải đi kèm chữ cấp (`headings at 2` không đạt). Một từ khác chen giữa danh từ đếm và
      cấp (`headings only at level 2`, `tiêu đề thường ở cấp 2`) không đạt: chữ số cấp thành một số bịa.
+     Vòng k (K-3): chữ số cấp của một cụm nhãn (`level 2 headings`) và số thứ tự vị trí được giữ (J-1) **không bao giờ là toán hạng hiện ra**
+     của một phép suy ra, cùng luật với lần nhắc lại (R22-1). Một số 2 viết riêng như toán hạng (`4x2`, `4+2`) vẫn là toán hạng.
 3. **Mọi con số trong lời văn và mọi giá trị của `report.numbers`** phải truy về một trong ba nguồn: (a) lá của một lần đọc
    thành công, tính theo từng lần gọi và theo số lần xuất hiện; (b) kết quả của một lần `compute` thành công; (c) một phép suy
    ra được phép (tổng, hiệu, tỷ lệ hoặc phần trăm của hai toán hạng đã hiện trong câu trả lời, hoặc tổng của mọi toán hạng cùng

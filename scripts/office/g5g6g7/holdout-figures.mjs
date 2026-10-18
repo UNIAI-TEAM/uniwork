@@ -17,6 +17,7 @@
 // merely echoes a question number (same value and same unit or marker, `echoesQuestion`) is exempt from the trace: it cannot fail
 // an answer, and it credits nothing (it is no source, no operand, no count and fills no numeric slot).
 // The echo is counted by occurrence: the question's own mentions are taken out of the shown operands (`echoOccurrences`, round k, R22-1).
+// A heading-level label digit (`labelKind`) and a held location are likewise no shown operand of a derivation (round k, K-3).
 //
 // A quantity keeps its unit: a figure with a unit or magnitude marker (k, m, bn, tr, triệu, tỷ, nghìn, ngàn, %, a
 // currency) matches only a source value with the same marker, or a percent derivation for %. A bare number never

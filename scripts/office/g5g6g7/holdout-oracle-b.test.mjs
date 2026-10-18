@@ -978,12 +978,13 @@ describe('item 18 (round k, K-3): the heading-level label digit is never a shown
   const say = (value, text) => verdict(derived(value), readAsk('get_document_context', 'docs', result, text, { numbers: [value] }));
 
   it('fails a product or a sum whose second operand is only the label digit of the wording', () => {
-    assert.equal(say(8, 'There are 4 level 2 headings, so 8 is 4x2.'), 'fail');
-    assert.equal(say(6, 'There are 4 level 2 headings, so 6 is 4+2.'), 'fail');
+    assert.equal(say(8, 'There are 4 level 2 headings, so the total is 8.'), 'fail', 'the product 4x2 shows no 2 of its own');
+    assert.equal(say(6, 'There are 4 level 2 headings, so the total is 6.'), 'fail', 'the sum 4+2 shows no 2 of its own');
   });
 
   it('keeps the control passing when the 2 is shown as an operand of its own, and the plain correct count', () => {
-    assert.equal(say(6, 'There are 4 level 2 headings, so 6 is 4+2, and Beta has 2.'), 'pass');
+    assert.equal(say(6, 'There are 4 level 2 headings, so 6 is 4+2.'), 'pass', 'a 2 written as an operand is shown');
+    assert.equal(say(8, 'There are 4 level 2 headings, so 8 is 4x2.'), 'pass', 'the product with both operands written');
     const h2 = countCaseOf({ id: 'HO-DOCX-986', format: 'docx', anchor: 'heading_level_2', value: 4, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
     const item = { kind: 'count', anchor: 'heading_level_2', value: 4 };
     assert.equal(verdict(h2, readAsk('get_document_context', 'docs', result, 'There are 4 level 2 headings.', { numbers: [4], items: [item] })), 'pass');

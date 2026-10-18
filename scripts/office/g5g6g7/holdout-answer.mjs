@@ -308,10 +308,10 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     const q = withProsePercent(figureQuantity(f), proseQs);
     return q ? { ...q, fromReport: true } : q;
   });
-  // A held location and the question's own mentions are exempt from the prose trace only: neither is a shown operand of a derivation
-  // (J-1, R22-1). A figure the question states once is one echo; a further prose mention of the value is the answer's own.
+  // A held location, a heading-level label digit and the question's own mentions are exempt or labelled, never a shown operand of a
+  // derivation (J-1, R22-1, K-3). A figure the question states once is one echo; a further prose mention of the value is the answer's own.
   const echoes = echoOccurrences(proseQs, [caseDoc.query?.vi, caseDoc.query?.en]);
-  const operands = operandsOf(reads.map((r) => r.q), [proseQs.filter((q, i) => !q.heldLocation && !echoes.has(i)), itemQs, reportQs.filter(Boolean)]);
+  const operands = operandsOf(reads.map((r) => r.q), [proseQs.filter((q, i) => !q.heldLocation && !q.labelKind && !echoes.has(i)), itemQs, reportQs.filter(Boolean)]);
   // Trace (d): a count of a kind the reply names. report.items names a kind by its anchor; the prose names one beside a
   // figure ("3 slides"). A figure that report.items marks as a count traces only through this (see traceClaim).
   const proseKinds = new Map();
