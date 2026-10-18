@@ -1,0 +1,8 @@
+$ cd apps/docs && npx vitest run tests/uni-1919-docs-web-bound.test.ts tests/g6-12-create-document-bound.test.ts tests/uniwork-view-only-ai.test.ts tests/web-capabilities.test.ts 2>&1 | tail -5; rc=${PIPESTATUS[0]}; echo; echo "DOCS_VITEST_EXIT=$rc"
+ Test Files  4 passed (4)
+      Tests  38 passed (38)
+   Start at  23:55:32
+   Duration  5.17s (transform 7.72s, setup 0ms, import 11.58s, tests 1.24s, environment 1.46s)
+
+
+DOCS_VITEST_EXIT=0

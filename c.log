@@ -1,0 +1,18 @@
+$ npm run build:web -- --all 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "BUILD_WEB_ALL_EXIT=$rc"
+../../../dist-web/sheets/0.1.0-21b0b1d/assets/ja-JP--QSNesYZ.js                      369.84 kB │ gzip:    66.69 kB
+../../../dist-web/sheets/0.1.0-21b0b1d/assets/vi-VN-I9pnaLK6.js                      383.86 kB │ gzip:    69.08 kB
+../../../dist-web/sheets/0.1.0-21b0b1d/assets/ru-RU-CwjYqy_z.js                      548.64 kB │ gzip:    79.41 kB
+../../../dist-web/sheets/0.1.0-21b0b1d/assets/hu-DVk7Y_ka-CCTZJfqn.js                765.41 kB │ gzip:   172.84 kB
+../../../dist-web/sheets/0.1.0-21b0b1d/assets/index-8Zk4cT_N.js                    4,057.36 kB │ gzip: 1,150.15 kB
+../../../dist-web/sheets/0.1.0-21b0b1d/assets/App-D9aoMZfD.js                      8,566.78 kB │ gzip: 2,437.15 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-sheets 0.1.0-21b0b1d: 219 files, 27.70 MiB (gzip 7.90); initial 4.12 MiB (gzip 1.13), deferred 23.57 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/sheets/0.1.0-21b0b1d
+✓ built in 1m 26s
+
+BUILD_WEB_ALL_EXIT=0

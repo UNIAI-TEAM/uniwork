@@ -1,0 +1,13 @@
+$ npx prettier --check $(git diff --name-only origin/main HEAD) 2>&1 | tail -10; rc=${PIPESTATUS[0]}; echo; echo "PRETTIER_EXIT=$rc"
+[error] No files matching the pattern were found: "apps/shell/tests/uniwork-edit-lock-banner-ui.test.ts".
+[error] No files matching the pattern were found: "apps/shell/tests/uniwork-edit-lock-client.test.ts".
+[error] No files matching the pattern were found: "apps/shell/tests/uniwork-edit-lock-fix3.test.ts".
+[error] No files matching the pattern were found: "apps/shell/tests/uniwork-edit-lock-fix5.test.ts".
+[error] No files matching the pattern were found: "apps/shell/tests/uniwork-edit-lock-fix6-be.test.ts".
+[error] No files matching the pattern were found: "apps/shell/tests/uniwork-edit-lock-fix9.test.ts".
+[error] No files matching the pattern were found: "apps/shell/tests/uniwork-edit-lock-session.test.ts".
+[error] No files matching the pattern were found: "apps/slides/src/renderer/uniwork-state.ts".
+[error] No files matching the pattern were found: "apps/slides/tests/uniwork-lock-follow.test.ts".
+All matched files use Prettier code style!
+
+PRETTIER_EXIT=2

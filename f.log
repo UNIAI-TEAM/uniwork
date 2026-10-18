@@ -1,0 +1,8 @@
+$ cd packages/ui && npx vitest run tests/uniwork-bound-for-ai.test.ts 2>&1 | tail -5; rc=${PIPESTATUS[0]}; echo; echo "UI_VITEST_EXIT=$rc"
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  23:55:28
+   Duration  153ms (transform 30ms, setup 0ms, import 39ms, tests 3ms, environment 0ms)
+
+
+UI_VITEST_EXIT=0

@@ -1,0 +1,83 @@
+$ npx playwright test -c web/e2e html-preview-security draft-recovery slides-presenter ai-web modules-smoke docs-web docs-rename-save conflict-dialog-layout docs-conflict-diff ui-forced-colors-picker size-gate open-refused sheets-too-large markdown-web pdf-web slides-web html-web sheets-ai --reporter=list > /tmp/pdfb-webe2e.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/pdfb-webe2e.log | tail -80; echo; echo "WEB_E2E_EXIT=$rc"
+  ✓  119 [chromium] › web/e2e/pdf-web.spec.ts:505:9 › pdf module on the web › Insert text draws "Xin chào": dialog takes the typing, text is placed and saved (775ms)
+  ✓  120 [chromium] › web/e2e/pdf-web.spec.ts:550:9 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office stays visible and explains (en); no app button without the grant (434ms)
+  ✓  121 [chromium] › web/e2e/pdf-web.spec.ts:550:9 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office stays visible and explains (vi); no app button without the grant (424ms)
+  ✓  122 [chromium] › web/e2e/pdf-web.spec.ts:571:9 › pdf module on the web: use-the-app messages and narrow zoom › Redact stays visible and explains (en); no app button without the grant (494ms)
+  ✓  123 [chromium] › web/e2e/pdf-web.spec.ts:571:9 › pdf module on the web: use-the-app messages and narrow zoom › Redact stays visible and explains (vi); no app button without the grant (474ms)
+  ✓  124 [chromium] › web/e2e/pdf-web.spec.ts:591:7 › pdf module on the web: use-the-app messages and narrow zoom › Redact: Open in app sends one app.open when the host grants desktopOpen (614ms)
+  ✓  125 [chromium] › web/e2e/pdf-web.spec.ts:605:7 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office: Open in app sends one app.open when the host grants desktopOpen (592ms)
+  ✓  126 [chromium] › web/e2e/pdf-web.spec.ts:619:7 › pdf module on the web: use-the-app messages and narrow zoom › a scanned document says OCR is an app feature, once, and OK dismisses it (554ms)
+  ✓  127 [chromium] › web/e2e/pdf-web.spec.ts:637:7 › pdf module on the web: use-the-app messages and narrow zoom › a text document shows no OCR notice (1.9s)
+  ✓  128 [chromium] › web/e2e/pdf-web.spec.ts:644:7 › pdf module on the web: use-the-app messages and narrow zoom › at 390 px the page opens at the 60 % floor, not 26 % (351ms)
+  ✓  129 [chromium] › web/e2e/pdf-web.spec.ts:665:7 › pdf module on the web: narrow slot › at 390 px the 60 % page is inside the slot and any overflow pans inside the page area (430ms)
+  ✓  130 [chromium] › web/e2e/sheets-ai.spec.ts:123:7 › sheets: web AI › grant off: no AI UI anywhere and no AI request (3.0s)
+  ✓  131 [chromium] › web/e2e/sheets-ai.spec.ts:149:7 › sheets: web AI › grant on at 390 px: the dock starts collapsed and opens as an overlay, the grid keeps its width (S-03) (1.6s)
+  ✓  132 [chromium] › web/e2e/sheets-ai.spec.ts:180:7 › sheets: web AI › grant on: panel, reply streams with the frame token, the model is offered only web-safe tools (1.7s)
+  ✓  133 [chromium] › web/e2e/sheets-ai.spec.ts:218:7 › sheets: web AI › view-only (no save grant): the composer carries the notice, the model gets read tools only (1.7s)
+  ✓  134 [chromium] › web/e2e/sheets-ai.spec.ts:246:7 › sheets: web AI › an editing frame has no view-only notice (1.4s)
+  ✓  135 [chromium] › web/e2e/sheets-ai.spec.ts:254:7 › sheets: web AI › grant on: a plan operation edits a cell and the save carries it (2.0s)
+  ✓  136 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 402 renders the credits_exhausted state (1.5s)
+  ✓  137 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 403 renders the entitlement_required state (1.5s)
+  ✓  138 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 404 renders the credential_missing state (1.5s)
+  ✓  139 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 424 renders the provider_auth_failed state (1.5s)
+  ✓  140 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 429 renders the rate_limited state (1.5s)
+  ✓  141 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 502 renders the provider_unreachable state (1.5s)
+  ✓  142 [chromium] › web/e2e/sheets-ai.spec.ts:339:7 › sheets: web AI › grant on: 503 cloud_unavailable from a cloud tool renders its state (1.4s)
+  ✓  143 [chromium] › web/e2e/sheets-ai.spec.ts:363:7 › sheets: web AI › AI settings = UniWork credentials: add a key from the gear, reply streams (1.9s)
+  ✓  144 [chromium] › web/e2e/sheets-ai.spec.ts:390:11 › sheets: web AI › screenshots light en (1.8s)
+  ✓  145 [chromium] › web/e2e/sheets-ai.spec.ts:390:11 › sheets: web AI › screenshots light vi (1.8s)
+  ✓  146 [chromium] › web/e2e/sheets-ai.spec.ts:390:11 › sheets: web AI › screenshots dark en (1.8s)
+  ✓  147 [chromium] › web/e2e/sheets-ai.spec.ts:390:11 › sheets: web AI › screenshots dark vi (1.8s)
+  ✓  148 [chromium] › web/e2e/sheets-too-large.spec.ts:115:7 › too_large: the host gets a fatal too_large, the frame shows its state (en, light) (1.0s)
+  ✓  149 [chromium] › web/e2e/sheets-too-large.spec.ts:115:7 › too_large: the host gets a fatal too_large, the frame shows its state (vi, dark) (1.0s)
+  ✓  150 [chromium] › web/e2e/size-gate.spec.ts:44:5 › fallback size gate (vi): warns near limit, blocks over max_bytes without api.save, and downloads copy (8.1s)
+  ✓  151 [chromium] › web/e2e/size-gate.spec.ts:99:5 › fallback size gate (en) and sizeUi:true suppression (1.6s)
+  ✓  152 [chromium] › web/e2e/size-gate.spec.ts:204:7 › docs: size-blocked save shows only the fallback dialog without sizeUi and shows nothing in-frame with sizeUi=1 (SIZE-v1-1) (1.1s)
+  ✓  153 [chromium] › web/e2e/size-gate.spec.ts:204:7 › sheets: size-blocked save shows only the fallback dialog without sizeUi and shows nothing in-frame with sizeUi=1 (SIZE-v1-1) (2.8s)
+  ✓  154 [chromium] › web/e2e/size-gate.spec.ts:204:7 › slides: size-blocked save shows only the fallback dialog without sizeUi and shows nothing in-frame with sizeUi=1 (SIZE-v1-1) (1.0s)
+  ✓  155 [chromium] › web/e2e/size-gate.spec.ts:204:7 › pdf: size-blocked save shows only the fallback dialog without sizeUi and shows nothing in-frame with sizeUi=1 (SIZE-v1-1) (853ms)
+  ✓  156 [chromium] › web/e2e/slides-presenter.spec.ts:200:7 › slides presenter view + audience window › granted: audience on the second screen, in sync both ways, closes cleanly (6.9s)
+  ✓  157 [chromium] › web/e2e/slides-presenter.spec.ts:303:7 › slides presenter view + audience window › denied: default-size window the user drags, still in sync (3.6s)
+  ✓  158 [chromium] › web/e2e/slides-presenter.spec.ts:333:7 › slides presenter view + audience window › screenshots: presenter + audience, light + dark, vi + en (9.9s)
+  ✓  159 [chromium] › web/e2e/slides-web.spec.ts:136:7 › slides web module › open -> edit -> undo -> save -> conflict -> export -> present -> print -> media (5.8s)
+  ✓  160 [chromium] › web/e2e/slides-web.spec.ts:267:7 › slides web module › web gating: no AI / AutoSave / Open / recents / font install / 3D UI, no save without a user action (1.1m)
+  ✓  161 [chromium] › web/e2e/slides-web.spec.ts:325:7 › slides web module › typing on the canvas marks the document dirty before the box is committed (1.7s)
+  ✓  162 [chromium] › web/e2e/slides-web.spec.ts:385:7 › slides web module › speaker notes load in the notes pane and the presenter view (700ms)
+  ✓  163 [chromium] › web/e2e/slides-web.spec.ts:410:7 › slides web module › view-only frame refuses typing: no editor, never dirty (1.2s)
+  ✓  164 [chromium] › web/e2e/slides-web.spec.ts:440:9 › slides web module › print-quality PDF: the use-the-app message, no Open button without the capability (en) (731ms)
+  ✓  165 [chromium] › web/e2e/slides-web.spec.ts:440:9 › slides web module › print-quality PDF: the use-the-app message, no Open button without the capability (vi) (611ms)
+  ✓  166 [chromium] › web/e2e/slides-web.spec.ts:463:7 › slides web module › 390 px: the slide fits the width, tabs scroll with a cue (560ms)
+  ✓  167 [chromium] › web/e2e/slides-web.spec.ts:487:7 › slides web module › presenter view chrome: readable sizes (701ms)
+  ✓  168 [chromium] › web/e2e/slides-web.spec.ts:513:7 › slides web module › screenshots: light + dark, vi + en (8.3s)
+  ✓  169 [chromium] › web/e2e/ui-forced-colors-picker.spec.ts:12:5 › S7 the selected picker option has a 2px Highlight border, not only a fill (71ms)
+
+
+  1) [chromium] › web/e2e/pdf-web.spec.ts:405:7 › pdf module on the web › vi ribbon with the AI panel open: the clipped band shows an overflow cue 
+
+    Error: console errors
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "Failed to load resource: the server responded with a status of 424 (Failed Dependency) @ http://localhost:4748/api/v1/office-frame/documents/f1/ai/byok/openai/models",
+    + ]
+
+      57 |   expect(csp, 'CSP violations').toEqual([])
+      58 |   expect(p.page, 'page errors').toEqual([])
+    > 59 |   expect(p.console, 'console errors').toEqual([])
+         |                                       ^
+      60 | }
+      61 |
+      62 | interface OpenOptions {
+
+    Error Context: web/e2e/.results/pdf-web-pdf-module-on-the--86ac2--band-shows-an-overflow-cue-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/pdf-web.spec.ts:405:7 › pdf module on the web › vi ribbon with the AI panel open: the clipped band shows an overflow cue 
+  168 passed (7.2m)
+
+WEB_E2E_EXIT=1

@@ -1,0 +1,8 @@
+$ cd apps/slides && npx vitest run tests/uni-1919-slides-web-bound.test.ts tests/g6-12-bound-wiring.test.ts tests/g6-12-bound-sidecar.test.ts tests/g6-09a-uniwork-tool-gating.test.ts 2>&1 | tail -5; rc=${PIPESTATUS[0]}; echo; echo "SLIDES_VITEST_EXIT=$rc"
+ Test Files  4 passed (4)
+      Tests  23 passed (23)
+   Start at  23:55:38
+   Duration  2.99s (transform 3.48s, setup 0ms, import 6.25s, tests 165ms, environment 1.48s)
+
+
+SLIDES_VITEST_EXIT=0

@@ -1,0 +1,8 @@
+$ cd apps/html && npx vitest run tests/uni-1919-html-web-bound.test.ts tests/uniwork-view-only-ai.test.ts tests/uniwork-save.test.ts 2>&1 | tail -5; rc=${PIPESTATUS[0]}; echo; echo "HTML_VITEST_EXIT=$rc"
+ Test Files  3 passed (3)
+      Tests  37 passed (37)
+   Start at  23:55:41
+   Duration  2.80s (transform 3.39s, setup 0ms, import 4.72s, tests 226ms, environment 1.83s)
+
+
+HTML_VITEST_EXIT=0

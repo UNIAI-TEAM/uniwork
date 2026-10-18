@@ -1,0 +1,11 @@
+$ npx eslint --max-warnings 0 $(git diff --name-only origin/main HEAD -- '*.ts' '*.tsx') 2>&1 | tail -20; rc=${PIPESTATUS[0]}; echo; echo "ESLINT_TOUCHED_EXIT=$rc"
+
+Oops! Something went wrong! :(
+
+ESLint: 10.8.0
+
+No files matching the pattern "apps/docs/tests/uniwork-lock-follow.test.ts" were found.
+Please check for typing mistakes in the pattern.
+
+
+ESLINT_TOUCHED_EXIT=2

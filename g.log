@@ -1,0 +1,8 @@
+$ cd apps/pdf && npx vitest run tests/uni-1919-pdf-web-bound.test.ts tests/uniwork-state.test.ts tests/g6-12-pdf-bound.test.ts tests/g6-09a-uniwork-tool-gating.test.ts tests/uniwork-save.test.ts 2>&1 | tail -5; rc=${PIPESTATUS[0]}; echo; echo "PDF_VITEST_EXIT=$rc"
+ Test Files  5 passed (5)
+      Tests  46 passed (46)
+   Start at  23:55:29
+   Duration  2.59s (transform 3.20s, setup 366ms, import 4.01s, tests 66ms, environment 2.29s)
+
+
+PDF_VITEST_EXIT=0
