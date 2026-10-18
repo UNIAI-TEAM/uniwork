@@ -189,7 +189,7 @@ describe("ShareAddSection (SH-W1 Area 1)", () => {
     expect(screen.getByRole("status")).toHaveTextContent("3 Chỉ xem");
 
     // Set Nguyễn An to Chỉnh sửa.
-    await user.click(screen.getByRole("combobox", { name: "Mức quyền Nguyễn An: Chỉ xem" }));
+    await user.click(screen.getByRole("combobox", { name: "Mức quyền của Nguyễn An" }));
     await user.click(await screen.findByRole("option", { name: "Chỉnh sửa" }));
     expect(screen.getByRole("status")).toHaveTextContent("2 Chỉ xem · 1 Chỉnh sửa");
 

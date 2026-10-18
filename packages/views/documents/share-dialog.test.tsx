@@ -691,7 +691,7 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(`${t("documents.share.level_label")} Team: ${t("documents.share.level_edit")}`, t("documents.share.level_view"));
+    await pickOption(t("documents.share.level_for", { name: "Team" }), t("documents.share.level_view"));
 
     await waitFor(() => expect(puts.length).toBe(1));
     expect(puts[0]).toEqual({
@@ -718,7 +718,7 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(`${t("documents.share.level_label")} Team: ${t("documents.share.level_edit")}`, t("documents.share.level_view"));
+    await pickOption(t("documents.share.level_for", { name: "Team" }), t("documents.share.level_view"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("visibility failed");
   });
