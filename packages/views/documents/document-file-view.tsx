@@ -3,10 +3,10 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { Download, FileText, RotateCcwClock, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useFlag } from "@uniwork/core/feature-flags";
+
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
-import { useOfficeEnabled, type OfficeEnabledState } from "@uniwork/core/documents/office-enabled";
+import { useOfficeEnabled, useOfficeTxtOpenEnabled, type OfficeEnabledState } from "@uniwork/core/documents/office-enabled";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
@@ -90,9 +90,11 @@ function officeFormat(doc: Document, txtOpen = false): string | null {
   if (mime.includes("presentationml.presentation") || filename.endsWith(".pptx")) return "pptx";
   if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
   if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
-  // UNI-1813: .txt opens as Markdown (plain mode in the frame) only while the
-  // public office_txt_open flag is on. By extension only: a bare text/plain
-  // file (notes.csv, app.log, no extension) never maps, flag on or off.
+  // UNI-1813: .txt opens as Markdown (plain mode in the frame) only while
+  // office_txt_open is on for the document's organization (the gate reads the
+  // organization-scoped answer, never the host default). By extension only:
+  // a bare text/plain file (notes.csv, app.log, no extension) never maps,
+  // flag on or off.
   if (txtOpen && filename.endsWith(".txt")) return "md";
   if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
   return null;
@@ -131,7 +133,7 @@ export type DocumentOfficeGate = { office: ReturnType<typeof useOfficeEnabled>; 
  * The page and the file view must read the same instance (review-fe-r1 R3).
  */
 export function useDocumentOfficeGate(doc: Document): DocumentOfficeGate {
-  const txtOpen = useFlag("office_txt_open", false);
+  const txtOpen = useOfficeTxtOpenEnabled(doc.organization_id);
   const format = officeFormat(doc, txtOpen);
   const office = useOfficeEnabled(doc.organization_id, format);
   // A page or a non-Office file never mounts the editor, so it never runs the leave guards either.

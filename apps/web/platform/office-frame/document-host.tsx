@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useTranslation } from "react-i18next";
-import { useFlag } from "@uniwork/core/feature-flags";
+import { useOfficeTxtOpenEnabled } from "@uniwork/core/documents/office-enabled";
 import type { Document } from "@uniwork/core/types/document";
 import { officeModuleForFormat } from "@uniwork/core/office/office-modules";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
@@ -37,7 +37,8 @@ export function detectDocumentFormat(document: Document, txtOpen = false): strin
   if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
   if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
   // UNI-1813: .txt opens in the markdown module only while office_txt_open is
-  // on. By extension only: a bare text/plain file never maps, flag on or off.
+  // on for the document's own organization. By extension only: a bare text/plain
+  // file never maps, flag on or off.
   if (txtOpen && filename.endsWith(".txt")) return "md";
   if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
   if (mime === "application/vnd.ms-excel" || filename.endsWith(".xls")) return "xls";
@@ -60,7 +61,7 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
 
 export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
   useOfficeTabTitle(props.document.title);
-  const format = detectDocumentFormat(props.document, useFlag("office_txt_open", false));
+  const format = detectDocumentFormat(props.document, useOfficeTxtOpenEnabled(props.document.organization_id));
   const officeModule = officeModuleForFormat(format);
   if (officeModule) return <OfficeModuleHost {...props} module={officeModule} />;
   return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;

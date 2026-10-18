@@ -1,13 +1,17 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryProvider } from "@uniwork/core/provider";
 import type { Document } from "@uniwork/core/types/document";
 
 // The document page's entry: a format a genoffice module opens goes to the lazy
 // module host with its module; anything else gets the typed unsupported state.
+// Only the transport and the flag service are replaced: the organization-scoped
+// config read (office_txt_open included) answers from the mocked request.
 const mocks = vi.hoisted(() => ({
   hostProps: vi.fn(),
   loaders: [] as Array<() => Promise<unknown>>,
+  request: vi.fn(),
   useFlag: vi.fn((_key: string, fallback: boolean) => fallback),
 }));
 vi.mock("next/dynamic", () => ({
@@ -17,6 +21,10 @@ vi.mock("next/dynamic", () => ({
   },
 }));
 vi.mock("@uniwork/core/feature-flags", () => ({ useFlag: mocks.useFlag }));
+vi.mock("@uniwork/core/api/http", async (orig) => ({
+  ...(await orig<typeof import("@uniwork/core/api/http")>()),
+  request: (...a: unknown[]) => mocks.request(...a),
+}));
 vi.mock("./module-frame-host", () => ({ OfficeModuleHost: "the module host" }));
 
 import { detectDocumentFormat, DocumentOfficeEditorHost } from "./document-host";
@@ -28,9 +36,22 @@ const doc = (filename: string, mime_type = "application/octet-stream") =>
 let root: Root;
 let container: HTMLDivElement;
 
+/** The document's organization's public config (a healthy answer always carries office_engine). */
+function answerConfig(flags: Record<string, boolean> = {}) {
+  mocks.request.mockImplementation((path: string) =>
+    path === "/api/v1/config?organization_id=org-1"
+      ? Promise.resolve({ flags: { office_engine: true, ...flags } })
+      : Promise.reject(new Error(`unexpected ${path}`)));
+}
+
+/** One macrotask: lets react-query publish the settled answer. */
+const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
 beforeEach(() => {
   mocks.hostProps.mockReset();
+  mocks.request.mockReset();
   mocks.useFlag.mockReset().mockImplementation((_key, fallback) => fallback);
+  answerConfig();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -42,7 +63,7 @@ afterEach(async () => {
 });
 
 const mount = (document: Document) => act(async () => {
-  root.render(createElement(DocumentOfficeEditorHost, { document, wsId: "ws-1", readonly: true }));
+  root.render(createElement(QueryProvider, null, createElement(DocumentOfficeEditorHost, { document, wsId: "ws-1", readonly: true })));
 });
 
 describe("DocumentOfficeEditorHost", () => {
@@ -67,16 +88,30 @@ describe("DocumentOfficeEditorHost", () => {
     expect(mocks.hostProps).not.toHaveBeenCalled();
   });
 
-  // UNI-1813: a .txt file opens in the markdown module only while the public
-  // office_txt_open flag is on; the flag read happens here, detectDocumentFormat
-  // stays pure.
-  it.each(["ghi-chu.txt", "README.TXT"])("opens %s in the markdown module while office_txt_open is on", async (filename) => {
-    mocks.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_txt_open" ? true : fallback));
+  // UNI-1813: a .txt file opens in the markdown module only while
+  // office_txt_open is on in the document's organization's own config answer;
+  // the host-level flag default no longer decides. The flag read happens here,
+  // detectDocumentFormat stays pure.
+  it.each(["ghi-chu.txt", "README.TXT"])("opens %s in the markdown module when the organization's answer turns office_txt_open on, global off", async (filename) => {
+    answerConfig({ office_txt_open: true });
     await mount(doc(filename, "text/plain"));
+    await settle();
     expect(mocks.hostProps).toHaveBeenCalledWith(expect.objectContaining({ module: "markdown" }));
   });
 
-  it("gives a .txt file the unsupported state while office_txt_open is off", async () => {
+  it("gives a .txt file the unsupported state when the organization's answer turns office_txt_open off, even with the global flag on", async () => {
+    mocks.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_txt_open" ? true : fallback));
+    answerConfig({ office_txt_open: false });
+    await mount(doc("ghi-chu.txt", "text/plain"));
+    await settle();
+    expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
+    expect(mocks.hostProps).not.toHaveBeenCalled();
+  });
+
+  it("gives a .txt file the unsupported state while the organization's answer is still loading", async () => {
+    mocks.request.mockImplementation((path: string) => path.startsWith("/api/v1/config")
+      ? new Promise(() => { /* never settles */ })
+      : Promise.reject(new Error(`unexpected ${path}`)));
     await mount(doc("ghi-chu.txt", "text/plain"));
     expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
     expect(mocks.hostProps).not.toHaveBeenCalled();
@@ -84,9 +119,10 @@ describe("DocumentOfficeEditorHost", () => {
 
   it.each(["notes.csv", "app.log", "no-extension"])("never gives %s a module, text/plain or not, flag on or off", async (filename) => {
     for (const flagOn of [false, true]) {
-      mocks.useFlag.mockImplementation((key: string, fallback: boolean) => (key === "office_txt_open" ? flagOn : fallback));
+      answerConfig({ office_txt_open: flagOn });
       mocks.hostProps.mockReset();
       await mount(doc(filename, "text/plain"));
+      await settle();
       expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
       expect(mocks.hostProps).not.toHaveBeenCalled();
       await act(async () => root.render(null));
