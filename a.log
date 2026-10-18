@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+682b1a962597f19b4beb48b8fcfe8080c81a37b8
+11c6a963f1fb6405e9e7376da81c7a91e8edfb51
+682b1a962 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1911-host-print
+11c6a963f chore: merge FRAME-SAVE-HYGIENE (UNI-1907, d8be4bb72) into the G5-G7 root
+a21d1f731 chore: merge AI-PLAN-UW plan + design (UNI-1910, 627bae666) into the G5-G7 root
+d8be4bb72 fix(office): a frame save after a lock-refused one is refused locally until the lock is held again
+fd7b1d8ae chore: merge S-4 shelving ends edit locks (UNI-1903, 35984ca0f) into the G5-G7 root
+129b6ecf5 chore: merge ARCHIVE-01 web + server (UNI-1845, 212c49fb0) into the G5-G7 root
+
+SYNCED_EXIT=0

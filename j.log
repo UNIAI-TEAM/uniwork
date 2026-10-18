@@ -1,0 +1,26 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19180 FRONTEND_ORIGIN=http://localhost:14100 API_PUBLIC_URL=http://localhost:19180 PREVIEW_ORIGIN=http://localhost:14101 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19180 NEXT_PUBLIC_WS_URL=ws://localhost:19180 NEXT_PUBLIC_APP_URL=http://localhost:14100 E2E_BASE_URL=http://localhost:14100 E2E_API_URL=http://localhost:19180 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); export OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-docs-web.spec.ts --reporter=list > /tmp/hpb2-office-docs-web.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/hpb2-office-docs-web.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; grep -qE "[0-9]+ (skipped|did not run)" /tmp/hpb2-office-docs-web.log && echo "skipped: office-docs-web has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/hpb2-office-docs-web.log || { echo "no passing test matched office-docs-web"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_DOCS_WEB_EXIT=$rc"
+
+Running 12 tests using 1 worker
+
+(node:20213) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20213) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 office-docs-web.spec.ts:52:3 › frame serving › index.html carries the pinned CSP, same-origin framing and revalidation (41ms)
+  ✓   2 office-docs-web.spec.ts:65:3 › frame serving › hashed assets and fonts are immutable and match the manifest digest (187ms)
+  ✓   3 office-docs-web.spec.ts:78:3 › frame serving › an unpinned version is a 404 that still carries the locked-down policy (83ms)
+  ✓   4 office-docs-web.spec.ts:84:3 › frame serving › the frame boots under its own CSP without a single violation (851ms)
+  ✓   5 office-docs-web.spec.ts:121:3 › open, edit, save › a DOCX opens in the frame, an edit is saved as a new version and survives a reopen (6.8s)
+  ✓   6 office-docs-web.spec.ts:159:3 › open, edit, save › Save as makes a copy, the page follows it and the frame keeps editing the copy (6.2s)
+  ✓   7 office-docs-web.spec.ts:202:3 › open, edit, save › the first save of a never-saved blank names it before it uploads (UNI-1847, SAVE-01) (4.6s)
+  ✓   8 office-docs-web.spec.ts:249:3 › open, edit, save › an inserted image passes the frame CSP and is stored in the docx (5.5s)
+  ✓   9 office-docs-web.spec.ts:277:3 › open, edit, save › PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback (3.4s)
+  ✓  10 office-docs-web.spec.ts:304:3 › open, edit, save › a token mint the server refuses with feature_disabled shows the unavailable notice (2.7s)
+  ✓  11 office-docs-web.spec.ts:315:3 › open, edit, save › an organization override turning the flag off shows the unavailable notice and no frame mounts (48.5s)
+  -  12 office-docs-web.spec.ts:329:3 › bundle not installed › a flag-on organization sees the not-set-up notice and no iframe is mounted
+
+  1 skipped
+  11 passed (1.3m)
+skipped: office-docs-web has gated or skipped tests
+
+E2E_DOCS_WEB_EXIT=0
