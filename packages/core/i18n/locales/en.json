@@ -8941,6 +8941,7 @@
       "version_description": "The new file becomes the working copy; the open version stays in history.",
       "pick": "Choose a file",
       "selected": "Selected {{name}}",
+      "no_file": "No file chosen",
       "size_hint": "Up to {{max}} per file.",
       "too_large_named": "{{name}} is {{size}}, which is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
       "unsupported_format": "The format of {{name}} is not supported.",
@@ -8956,7 +8957,10 @@
       "drop_progress": "Uploading {{name}} · {{percent}}%",
       "paused_status": "Paused",
       "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue.",
-      "document_locked": "Someone else is editing this document. Wait until they finish or take over editing, then try again."
+      "drop_queued": "Waiting to upload {{name}}",
+      "document_locked": "Someone else is editing this document. Wait until they finish or take over editing, then try again.",
+      "document_locked_by_me": "You are editing this document in another window. Save or close it there, then try again.",
+      "no_change": "No changes — kept the current version"
     },
     "file": {
       "metadata_title": "File details",

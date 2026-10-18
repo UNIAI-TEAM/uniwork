@@ -272,6 +272,7 @@ describe("useChunkedDocumentUpload", () => {
       session_id: "sess-saved",
       expires_at: "2099-01-01T00:00:00Z",
       idempotency_key: "idem-saved",
+      completed_parts: 1,
     });
 
     const { result } = renderHook(() => useChunkedDocumentUpload(target, { storage }), {
@@ -280,6 +281,27 @@ describe("useChunkedDocumentUpload", () => {
 
     expect(result.current.hasResumable(file)).toBe(true);
     expect(result.current.findResumable(file)?.session_id).toBe("sess-saved");
+  });
+
+  it("treats a resume record with no banked part as not resumable (R2-F2)", () => {
+    const qc = new QueryClient();
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    const file = makeFile(30);
+    for (const completed_parts of [undefined, 0]) {
+      saveResumableUpload(storage, uploadFileKey(file), target, {
+        session_id: "sess-empty",
+        expires_at: "2099-01-01T00:00:00Z",
+        idempotency_key: "idem-empty",
+        ...(completed_parts === undefined ? {} : { completed_parts }),
+      });
+
+      const { result } = renderHook(() => useChunkedDocumentUpload(target, { storage }), {
+        wrapper: makeWrapper(qc),
+      });
+
+      expect(result.current.hasResumable(file)).toBe(false);
+    }
   });
 
   it("pauses the active upload engine on unmount while preserving the resume record", async () => {

@@ -90,8 +90,11 @@ export function useChunkedDocumentUpload(
     [storage],
   );
 
+  // True only when the record holds real progress (R2-F2): a session that
+  // died before its first part has nothing the user would want to resume.
   const hasResumable = useCallback(
-    (file: File | Blob, filename?: string): boolean => findResumable(file, filename) !== null,
+    (file: File | Blob, filename?: string): boolean =>
+      (findResumable(file, filename)?.completed_parts ?? 0) > 0,
     [findResumable],
   );
   const start = useCallback(

@@ -75,7 +75,13 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
   await shot(page, "share-dialog-dark-vi");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
 
+  // A revoke whose dry run has something to say is confirmed in the row (share-access-confirm).
   await revokeOrg.click();
+  const confirmRevoke = dialog.getByTestId("share-access-confirm");
+  await expect
+    .poll(async () => (await confirmRevoke.isVisible()) || (await revokeOrg.count()) === 0, { timeout: 30_000 })
+    .toBe(true);
+  if (await confirmRevoke.isVisible()) await confirmRevoke.getByRole("button", { name: "Xác nhận" }).click();
   await expect(revokeOrg).toHaveCount(0, { timeout: 30_000 });
   // The owner row survives the revoke: the badge reads "Chủ sở hữu" and, for the owner, carries the transfer button.
   await expect(dialog.getByText("Chủ sở hữu", { exact: true })).toBeVisible();
