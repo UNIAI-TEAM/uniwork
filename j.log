@@ -1,0 +1,98 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --shard=2/6 > /tmp/uthree-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/uthree-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/uthree-E2E.log; grep -E "✘|\[failed\]" /tmp/uthree-E2E.log | head -40; echo; echo "E2E_SUITE2_EXIT=$rc"
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('.final-section').locator('.lovable-application')
+    Expected: ""
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for locator('.final-section').locator('.lovable-application')
+
+
+      60 |       await expect(closing).toHaveCSS("padding-top", sample.width < 768 ? "32px" : "48px");
+      61 |       await expect(closing).toHaveCSS("padding-bottom", "0px");
+    > 62 |       await expect(closing.locator(".lovable-application")).toHaveAttribute("inert", "");
+         |                                                             ^
+      63 |       await expect(closing.locator("figcaption")).toContainText(sample.locale === "en" ? "Illustrative sample data" : "Dữ liệu mẫu minh họa");
+      64 |     }
+      65 |     const frame = (await closing.boundingBox())!;
+
+    Error Context: test-results/landing-closing-product-led-closing-1554-vi-dark/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-closing-product-led-closing-1554-vi-dark/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-closing-product-led-closing-1554-vi-dark/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) landing-closing.spec.ts:18:3 › product-led closing / 390-vi-light ────────────────────────────
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('.final-section').locator('.lovable-application')
+    Expected: ""
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for locator('.final-section').locator('.lovable-application')
+
+
+      60 |       await expect(closing).toHaveCSS("padding-top", sample.width < 768 ? "32px" : "48px");
+      61 |       await expect(closing).toHaveCSS("padding-bottom", "0px");
+    > 62 |       await expect(closing.locator(".lovable-application")).toHaveAttribute("inert", "");
+         |                                                             ^
+      63 |       await expect(closing.locator("figcaption")).toContainText(sample.locale === "en" ? "Illustrative sample data" : "Dữ liệu mẫu minh họa");
+      64 |     }
+      65 |     const frame = (await closing.boundingBox())!;
+
+    Error Context: test-results/landing-closing-product-led-closing-390-vi-light/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-closing-product-led-closing-390-vi-light/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-closing-product-led-closing-390-vi-light/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13 failed
+    landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 1440-light ────────────
+    landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 768-light ─────────────
+    landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 820-dark ──────────────
+    landing-catalog.spec.ts:5:1 › catalog covers 25 reference entries without implying illustrations are working modules 
+    landing-catalog.spec.ts:30:1 › project and organization previews work locally and source links stay within the showcase 
+    landing-chapters.spec.ts:16:3 › public chapters 1440-vi-light ──────────────────────────────────
+    landing-chapters.spec.ts:16:3 › public chapters 390-en-dark ────────────────────────────────────
+    landing-chapters.spec.ts:16:3 › public chapters 1510-en-dark ───────────────────────────────────
+    landing-chapters.spec.ts:16:3 › public chapters 768-vi-light ───────────────────────────────────
+    landing-chapters.spec.ts:16:3 › public chapters 320-vi-light ───────────────────────────────────
+    landing-chapters.spec.ts:92:1 › contextual closing demo links open their actual preview ────────
+    landing-closing.spec.ts:18:3 › product-led closing / 1554-vi-dark ──────────────────────────────
+    landing-closing.spec.ts:18:3 › product-led closing / 390-vi-light ──────────────────────────────
+  55 passed (6.8m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=2/6
+  13 failed
+  55 passed (6.8m)
+  ✘  34 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 1440-light (11.5s)
+  ✘  35 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 768-light (11.3s)
+  ✘  36 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 820-dark (11.1s)
+  ✘  43 landing-catalog.spec.ts:5:1 › catalog covers 25 reference entries without implying illustrations are working modules (6.3s)
+  ✘  44 landing-catalog.spec.ts:30:1 › project and organization previews work locally and source links stay within the showcase (1.0m)
+  ✘  45 landing-chapters.spec.ts:16:3 › public chapters 1440-vi-light (9.4s)
+  ✘  46 landing-chapters.spec.ts:16:3 › public chapters 390-en-dark (9.0s)
+  ✘  47 landing-chapters.spec.ts:16:3 › public chapters 1510-en-dark (9.7s)
+  ✘  48 landing-chapters.spec.ts:16:3 › public chapters 768-vi-light (9.4s)
+  ✘  49 landing-chapters.spec.ts:16:3 › public chapters 320-vi-light (9.2s)
+  ✘  50 landing-chapters.spec.ts:92:1 › contextual closing demo links open their actual preview (6.0s)
+  ✘  52 landing-closing.spec.ts:18:3 › product-led closing / 1554-vi-dark (6.3s)
+  ✘  55 landing-closing.spec.ts:18:3 › product-led closing / 390-vi-light (6.3s)
+
+E2E_SUITE2_EXIT=1
