@@ -66,6 +66,7 @@ export function favoriteRow(fav: FavoriteLike, known?: Known): DocumentSummaryRo
     via: known?.via,
     archived_at: known?.archived_at,
     id: fav.document_id,
+    system_kind: known?.system_kind,
     workspace_id: fav.workspace_id,
     parent_id: fav.parent_id ?? null,
     kind: fav.kind,

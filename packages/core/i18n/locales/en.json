@@ -8924,7 +8924,8 @@
     },
     "upload": {
       "title": "Upload a file",
-      "description": "The file becomes a new document in this workspace.",
+      "description": "The file becomes a new document in My Folder (visible only to you).",
+      "description_folder": "The file becomes a new document in this folder.",
       "version_title": "Upload a new version",
       "version_description": "The new file becomes the working copy; the open version stays in history.",
       "pick": "Choose a file",
@@ -9502,6 +9503,10 @@
         "html": "Untitled HTML page.html",
         "pdf": "Untitled PDF.pdf"
       },
+      "my_folder": {
+        "label": "My Folder",
+        "open_failed": "Could not open My Folder. Try again."
+      },
       "folders": {
         "default_name": "New folder",
         "create_failed": "Could not create the folder. Try again.",
@@ -9534,7 +9539,7 @@
         "failed": "Could not rename the document. Try again."
       },
       "quick_create": {
-        "hint_root": "New files go to the workspace root and open straight in the editor.",
+        "hint_root": "New and uploaded files here go to My Folder (only you can see it) and open straight in the editor.",
         "label": "Quick create"
       },
       "create": {
@@ -9832,6 +9837,7 @@
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
       "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "my_folder_locked": "My Folder is a personal system folder — it can't be renamed, shared, moved or moved to the trash.",
       "unsupported_media_type": "This file format is not supported.",
       "upload_sessions_exhausted": "You have too many uploads open at once. Finish or cancel one, then try again.",
       "upload_session_expired": "The upload session expired. Choose the file again to start a new upload.",
