@@ -986,6 +986,16 @@ func TestDocumentManualPurge(t *testing.T) {
 			parent: expired.ID, archived: true,
 		})
 		f.version(t, expired, 1, "auto", "f-pg4-exp")
+		// BE-RET-1 (UNI-1904): the sweep deletes the purged document's grants
+		// whatever their expiry - a grant that ran out is still a row of a
+		// document that no longer exists, and a live-only DELETE
+		// (AND expires_at > now()) would strand it forever. The control is an
+		// unrelated document of the same organization the sweep never touches.
+		expiredGrant := f.breakGlass(t, tn, expired.ID, tn.wsAdmin.ID, time.Now().Add(-time.Hour), false)
+		controlDoc := f.treeDoc(t, tn, treeDocSpec{
+			ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+		})
+		controlGrant := f.breakGlass(t, tn, controlDoc.ID, tn.wsAdmin.ID, time.Now().Add(time.Hour), false)
 		rep, err := f.svc.PurgeExpired(f.ctx, time.Now())
 		if err != nil {
 			t.Fatalf("PurgeExpired: %v", err)
@@ -1003,6 +1013,17 @@ func TestDocumentManualPurge(t *testing.T) {
 		if afterChild.ParentID.Valid || !afterChild.ArchivedAt.Valid {
 			t.Fatalf("retained child after sweep: parent=%v archived=%v, want NULL parent in trash",
 				afterChild.ParentID, afterChild.ArchivedAt.Valid)
+		}
+		// BE-RET-1: the expired grant went with its document; the control's
+		// live grant on an untouched document stayed.
+		var n int
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT count(*) FROM document_break_glass_grants WHERE id = $1`, expiredGrant).Scan(&n); err != nil || n != 0 {
+			t.Fatalf("expired grant of the purged document = %d, err = %v, want 0", n, err)
+		}
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT count(*) FROM document_break_glass_grants WHERE id = $1`, controlGrant).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("control grant row = %d, err = %v, want 1", n, err)
 		}
 	})
 
