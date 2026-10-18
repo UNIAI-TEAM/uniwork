@@ -10,7 +10,7 @@ import { DocsProtocolError } from "./docs-frame-protocol";
 // The save legs of docs-frame-api.ts: how one logical save keys itself, when a
 // replayed upload earns exactly one retry, and how a chunked upload runs under
 // the call's abort signal. Split out so docs-frame-api.ts stays under the
-// 500-line module limit (UNI-1907, F1). No behaviour change.
+// 500-line module limit (UNI-1907, F1).
 
 /**
  * One Idempotency-Key per LOGICAL operation: the hash of what the operation
@@ -43,6 +43,13 @@ export function isExpiredUploadClaim(error: unknown): boolean {
   );
 }
 
+/** The protocol error of a call the caller cancelled; thrown by every leg boundary check. */
+export function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new DocsProtocolError({ code: "cancelled", message: "The operation was aborted." });
+  }
+}
+
 /**
  * One save leg = upload under `uploadKey`, then commit under the unchanged
  * commit key. An unchanged save reuses the same derived upload key for days;
@@ -52,21 +59,21 @@ export function isExpiredUploadClaim(error: unknown): boolean {
  * resurrected" stands, so the leg runs once more under a fresh upload key —
  * the commit key and fingerprint (document, base revision, checksum, engine)
  * do not depend on the upload id, so the commit replays the stored answer.
- * A second expired answer is an error, never a loop.
+ * A second expired answer is an error, never a loop. A cancelled call never
+ * runs the second leg (UNI-1907, F2).
  */
-export async function retryOnceWithFreshUploadKey<T>(uploadKey: string, leg: (uploadKey: string) => Promise<T>): Promise<T> {
+export async function retryOnceWithFreshUploadKey<T>(uploadKey: string, leg: (uploadKey: string) => Promise<T>, signal?: AbortSignal): Promise<T> {
   try {
     return await leg(uploadKey);
   } catch (error) {
     if (!isExpiredUploadClaim(error)) throw error;
+    if (signal) throwIfAborted(signal);
     return leg(`${uploadKey}:${createSafeId()}`);
   }
 }
 
 export async function runChunkedUpload(opts: ChunkedUploadOptions, signal: AbortSignal): Promise<ChunkedUploadResult> {
-  if (signal.aborted) {
-    throw new DocsProtocolError({ code: "cancelled", message: "The operation was aborted." });
-  }
+  throwIfAborted(signal);
   const upload = startChunkedUpload(opts);
   let canceling: Promise<void> | null = null;
   const onAbort = () => {

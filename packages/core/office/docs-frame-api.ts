@@ -41,10 +41,11 @@ import {
   type TokenPayload,
 } from "./docs-frame-protocol";
 import {
-  operationKey,
   isExpiredUploadClaim,
+  operationKey,
   retryOnceWithFreshUploadKey,
   runChunkedUpload,
+  throwIfAborted,
 } from "./docs-frame-save-leg";
 import { officeFrameSrc, officeModuleSpec } from "./office-modules";
 
@@ -317,8 +318,10 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
               },
               call.signal,
             ).then((out) => (out.kind === "upload" ? out.upload : null))
-          : await client.upload(payload.fileId, blob, uploadName, uploadKey);
+          : await client.upload(payload.fileId, blob, uploadName, uploadKey, call.signal);
         if (!upload) throw malformed("office-frame upload");
+        // A cancelled save commits nothing: the staged upload expires unused (UNI-1907, F2).
+        throwIfAborted(call.signal);
         try {
           const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);
           if (!doc || "source_id" in doc) throw malformed("office-frame commit");
@@ -335,7 +338,7 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
           throw error;
         }
       };
-      return retryOnceWithFreshUploadKey(`${key}:upload`, leg);
+      return retryOnceWithFreshUploadKey(`${key}:upload`, leg, call.signal);
     }),
 
     saveAs: (payload, call) => run(async () => {
@@ -376,7 +379,7 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
     saveCopy: (payload, call) => run(async () => {
       const name = ext.test(payload.name) ? payload.name : `${payload.name}.${extension}`;
       const key = await operationKey("savecopy", [call.documentId, payload.name], payload.data);
-      const upload = await clientFor(call).upload(call.documentId, new Blob([payload.data], { type: mimeType }), name, `${key}:upload`);
+      const upload = await clientFor(call).upload(call.documentId, new Blob([payload.data], { type: mimeType }), name, `${key}:upload`, call.signal);
       if (!upload) throw malformed("office-frame upload");
       const copied = await copyDocument(
         call.documentId,
