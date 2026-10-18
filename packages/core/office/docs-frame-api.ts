@@ -13,11 +13,7 @@ import {
 import {
   ChunkedUploadError,
   chunkedUploadThreshold,
-  startChunkedUpload,
-  type ChunkedUploadOptions,
-  type ChunkedUploadResult,
 } from "../documents/chunked-upload";
-import { createSafeId } from "../utils";
 import { runtimeConfig } from "../runtime-config";
 import {
   DocsProtocolError,
@@ -44,6 +40,12 @@ import {
   type SaveResult,
   type TokenPayload,
 } from "./docs-frame-protocol";
+import {
+  operationKey,
+  isExpiredUploadClaim,
+  retryOnceWithFreshUploadKey,
+  runChunkedUpload,
+} from "./docs-frame-save-leg";
 import { officeFrameSrc, officeModuleSpec } from "./office-modules";
 
 /** A proxied call carries the frame token and the one document it is scoped to. */
@@ -200,57 +202,6 @@ function sameDocument(fileId: string, call: DocsFrameCall): void {
   }
 }
 
-/**
- * One Idempotency-Key per LOGICAL operation: the hash of what the operation
- * is (kind, scope, base revision, the bytes), so a retry after a lost answer
- * replays the first attempt instead of colliding with it as a stale save.
- * Two different edits never share a key, because their bytes or base differ.
- */
-async function operationKey(kind: string, scope: readonly string[], bytes?: ArrayBuffer): Promise<string> {
-  const head = new TextEncoder().encode(JSON.stringify([kind, ...scope]));
-  const body = new Uint8Array(bytes ?? new ArrayBuffer(0));
-  const joined = new Uint8Array(head.length + 1 + body.length);
-  joined.set(head);
-  joined.set(body, head.length + 1);
-  const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", joined));
-  return `frame-${kind}-${Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("")}`;
-}
-
-/**
- * The refusal a repeated save draws when its staged upload outlived the 24h
- * claim window: 409 document_upload_invalid with reason file_claim_expired
- * (server: documentFileError over files.CodeClaimExpired). Only this exact
- * refusal earns a fresh upload key — anything else propagates.
- */
-function isExpiredUploadClaim(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    error.status === 409 &&
-    error.code === "document_upload_invalid" &&
-    error.fields?.["reason"] === "file_claim_expired"
-  );
-}
-
-/**
- * One save leg = upload under `uploadKey`, then commit under the unchanged
- * commit key. An unchanged save reuses the same derived upload key for days;
- * once the staged file's claim window closed, the upload (or, for a chunked
- * save, the commit that resolves the replayed upload_id) answers
- * file_claim_expired. The FileService rule "an expired session is never
- * resurrected" stands, so the leg runs once more under a fresh upload key —
- * the commit key and fingerprint (document, base revision, checksum, engine)
- * do not depend on the upload id, so the commit replays the stored answer.
- * A second expired answer is an error, never a loop.
- */
-async function retryOnceWithFreshUploadKey<T>(uploadKey: string, leg: (uploadKey: string) => Promise<T>): Promise<T> {
-  try {
-    return await leg(uploadKey);
-  } catch (error) {
-    if (!isExpiredUploadClaim(error)) throw error;
-    return leg(`${uploadKey}:${createSafeId()}`);
-  }
-}
-
 export type DocsFrameApiOptions = Pick<OfficeFrameClientOptions, "apiUrl" | "fetch"> & {
   /** Default byte threshold above which `save` and `saveAs` use chunked upload sessions when the call does not specify one; null or absent = single-request upload. */
   chunkedUploadThresholdBytes?: number | null;
@@ -261,24 +212,6 @@ function resolveThreshold(call: DocsFrameCall, options: DocsFrameApiOptions): nu
     ? call.chunkedUploadThresholdBytes
     : options.chunkedUploadThresholdBytes;
   return chunkedUploadThreshold({ chunked_upload_threshold_bytes: raw });
-}
-
-async function runChunkedUpload(opts: ChunkedUploadOptions, signal: AbortSignal): Promise<ChunkedUploadResult> {
-  if (signal.aborted) {
-    throw new DocsProtocolError({ code: "cancelled", message: "The operation was aborted." });
-  }
-  const upload = startChunkedUpload(opts);
-  let canceling: Promise<void> | null = null;
-  const onAbort = () => {
-    canceling = upload.cancel().catch(() => undefined);
-  };
-  signal.addEventListener("abort", onAbort, { once: true });
-  try {
-    return await upload.result;
-  } finally {
-    signal.removeEventListener("abort", onAbort);
-    if (canceling) await canceling;
-  }
 }
 
 /**
