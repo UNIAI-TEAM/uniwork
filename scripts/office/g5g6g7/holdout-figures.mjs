@@ -10,7 +10,9 @@
 //       sheets, pages, lines), or a named count field of that same result (slideCount, paragraphCount, lineCount,
 //       pageCount), but only when the reply or report.items names that kind; never across reads, never an inferred kind.
 // The values of APPLIED writes are a further source, listed in EXTRA_SOURCES so the lead can switch it off. The user's own
-// request is NOT a source (review-g712-20 G712-R20-2): a number copied from the question is never a figure.
+// request is NOT a source (review-g712-20 G712-R20-2): a number copied from the question is never a figure. A PROSE figure that
+// merely echoes a question number (same value and same unit or marker, `echoesQuestion`) is exempt from the trace: it cannot fail
+// an answer, and it credits nothing (it is no source, no operand, no count and fills no numeric slot).
 //
 // A quantity keeps its unit: a figure with a unit or magnitude marker (k, m, bn, tr, triệu, tỷ, nghìn, ngàn, %, a
 // currency) matches only a source value with the same marker, or a percent derivation for %. A bare number never
@@ -671,6 +673,17 @@ export function traceClaim(claim, ctx, { ignoreUnit = false } = {}) {
   if (extra) return { by: extra.tag };
   if (derivesFrom(claim, ctx.operands, { ignoreUnit })) return { by: 'derived' };
   return tracedByCount(claim, ctx) ? { by: 'count' } : { by: null };
+}
+
+/**
+ * Is a PROSE figure an echo of the question: the same value AND the same unit, marker and currency as a number the question
+ * states (USER 2026-10-18, round i)? An echo never fails an answer and never credits anything: the question is no figure
+ * source (EXTRA_SOURCES.request stays false), and the exemption is applied only to prose, never to report.numbers.
+ */
+export function echoesQuestion(q, questionQs) {
+  if (!q || q.readings.length === 0) return false;
+  return questionQs.some((w) => sameUnit(w.unit, q.unit) && (w.currency ?? null) === (q.currency ?? null)
+    && w.readings.some((wr) => q.readings.some((r) => nearEq(wr.n, r.n))));
 }
 
 /** Traceable-or-not with the loss reason: { by, unitOnly }. */

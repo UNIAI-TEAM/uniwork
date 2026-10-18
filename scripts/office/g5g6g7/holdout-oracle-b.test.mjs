@@ -640,8 +640,8 @@ describe('item 8 (round h, H-1): a plain report number may trace to a percent le
 // ---------- round i (review-g712-21 + the USER request-echo decision of 2026-10-18) ----------
 
 describe('item 9 (round i, I-1): a number echoed from the question never fails an answer and never credits anything', () => {
-  const asked = (en, value = 25) => mkCase({
-    query: { vi: 'Trong 10 ngày, giá trị là bao nhiêu?', en },
+  const asked = (en, value = 25, vi = 'Trong 10 ngày, giá trị là bao nhiêu?') => mkCase({
+    query: { vi, en },
     tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
     expected: { numeric: [{ name: 'v', value, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
     referenceAnswer: { numeric: { v: value }, structural: [], writes: 0, text: 'x' },
@@ -674,7 +674,7 @@ describe('item 9 (round i, I-1): a number echoed from the question never fails a
   it('is not an echo when the unit or marker differs from the one in the question', () => {
     assert.equal(verdict(within10, mkAsk('Within 10k days the value is 25.', { numbers: [25] }, cell(25))), 'fail', '10k against a bare 10');
     assert.equal(verdict(within10, mkAsk('Within 10% of days the value is 25.', { numbers: [25] }, cell(25))), 'fail', '10% against a bare 10');
-    const marked = asked('Within 10k days, what is the value?');
+    const marked = asked('Within 10k days, what is the value?', 25, 'Trong 10k ngày, giá trị là bao nhiêu?');
     assert.equal(verdict(marked, mkAsk('Within 10k days the value is 25.', { numbers: [25] }, cell(25))), 'pass', 'the same marker is an echo');
     assert.equal(verdict(marked, mkAsk('Within 10 days the value is 25.', { numbers: [25] }, cell(25))), 'fail', 'a bare 10 against 10k');
   });

@@ -13,7 +13,8 @@
 //     of the case). Every figure of the prose AND every value of `numbers` must also be traceable to a successful read of
 //     this turn, a successful compute result or a permitted derivation of shown operands, unit and magnitude markers
 //     included (holdout-figures.mjs); one that is not is an invented figure and fails the ask under the default
-//     "strict" policy;
+//     "strict" policy. A PROSE figure that only echoes a number of the question (same value and marker) is exempt: it never
+//     fails the ask and never credits anything; report.numbers has no such exemption;
 //   - cell/formula/heading/table_cell/count items: matched by kind, value AND the scorer's own anchor rule (identity for
 //     cell/formula/table_cell), so a right value at another anchor fails (`--anchors strict`, the default); `--anchors
 //     lenient` opts into value-first matching and counts every ask it rescued (`anchorLenient`), which makes a signed
@@ -36,7 +37,7 @@
 
 import { anchorMatches, countTopicKey, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
-import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, figureQuantity, kindsNear, kindsOfName, labelKindOf, operandsOf, quantitiesOf, readLeaves, tracedFigure, withProsePercent } from './holdout-figures.mjs';
+import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, echoesQuestion, figureQuantity, kindsNear, kindsOfName, labelKindOf, operandsOf, quantitiesOf, readLeaves, tracedFigure, withProsePercent } from './holdout-figures.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
@@ -284,6 +285,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     }
   }
   const queryText = [caseDoc.query?.vi, caseDoc.query?.en].filter((s) => typeof s === 'string').join('\n');
+  const questionQs = quantitiesOf(queryText, { prose: true });
   const extra = [];
   if (EXTRA_SOURCES.request) for (const q of quantitiesOf(queryText)) extra.push({ q, tag: 'request' });
   if (EXTRA_SOURCES.appliedWrites) for (const w of applied) for (const q of argumentLeaves(w.args)) extra.push({ q, tag: 'write' });
@@ -359,7 +361,8 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       if (bad || extraByPolicy) strictExtras.push(value);
     });
     for (const t of tracedProse) {
-      if (t.by) continue;
+      // A prose figure that echoes a question number (same value and marker) is neither checked nor counted (I-1).
+      if (t.by || echoesQuestion(t.q, questionQs)) continue;
       untraceable.push({ where: 'prose', value: t.q.raw, why: t.currency ? 'currency' : t.unitOnly ? 'unit' : 'no_source' });
       strictExtras.push(t.q.raw);
     }
