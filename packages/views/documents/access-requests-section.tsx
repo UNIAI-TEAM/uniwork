@@ -232,7 +232,7 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
                   >
                     <SelectTrigger
                       className="w-32"
-                      aria-label={`${t("documents.share.level_label")} ${name}`}
+                      aria-label={t("documents.share.level_for", { name })}
                     >
                       <SelectValue />
                     </SelectTrigger>
