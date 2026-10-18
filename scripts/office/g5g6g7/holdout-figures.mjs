@@ -732,6 +732,32 @@ export function echoesQuestion(q, questionQs) {
     && w.readings.some((wr) => q.readings.some((r) => nearEq(wr.n, r.n))));
 }
 
+/**
+ * The prose figures that only repeat what the question already states, by occurrence: for every value and unit or marker the
+ * question writes N times (the busiest of its texts, so a vi and an en wording of one question are not two mentions), the first
+ * N matching prose figures are the echo and no more. They are no shown operand of a derivation (round k, R22-1); a further
+ * mention of the same value is the answer's own and stays one. Returns the indexes into `proseQs`.
+ */
+export function echoOccurrences(proseQs, questionTexts) {
+  const keyOf = (q, r) => `${q.unit ?? ''}|${q.currency ?? ''}|${r.n}`;
+  const budget = new Map();
+  for (const text of questionTexts) {
+    const own = new Map();
+    for (const w of quantitiesOf(String(text ?? ''), { prose: true })) {
+      for (const r of w.readings) own.set(keyOf(w, r), (own.get(keyOf(w, r)) ?? 0) + 1);
+    }
+    for (const [k, n] of own) budget.set(k, Math.max(budget.get(k) ?? 0, n));
+  }
+  const echoes = new Set();
+  proseQs.forEach((q, i) => {
+    const key = q.readings.map((r) => keyOf(q, r)).find((k) => (budget.get(k) ?? 0) > 0);
+    if (key === undefined) return;
+    budget.set(key, budget.get(key) - 1);
+    echoes.add(i);
+  });
+  return echoes;
+}
+
 /** Traceable-or-not with the loss reason: { by, unitOnly }. */
 export function tracedFigure(claim, ctx) {
   const strict = traceClaim(claim, ctx);

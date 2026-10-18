@@ -37,7 +37,7 @@
 
 import { anchorMatches, countTopicKey, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
-import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, echoesQuestion, figureQuantity, heldLocation, kindsNear, kindsOfName, labelKindOf, locationKindsOf, operandsOf, quantitiesOf, readLeaves, sheetNamesOf, tracedFigure, withProsePercent } from './holdout-figures.mjs';
+import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, echoOccurrences, echoesQuestion, figureQuantity, heldLocation, kindsNear, kindsOfName, labelKindOf, locationKindsOf, operandsOf, quantitiesOf, readLeaves, sheetNamesOf, tracedFigure, withProsePercent } from './holdout-figures.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
@@ -308,7 +308,10 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     const q = withProsePercent(figureQuantity(f), proseQs);
     return q ? { ...q, fromReport: true } : q;
   });
-  const operands = operandsOf(reads.map((r) => r.q), [proseQs.filter((q) => !q.heldLocation), itemQs, reportQs.filter(Boolean)]);
+  // A held location and the question's own mentions are exempt from the prose trace only: neither is a shown operand of a derivation
+  // (J-1, R22-1). A figure the question states once is one echo; a further prose mention of the value is the answer's own.
+  const echoes = echoOccurrences(proseQs, [caseDoc.query?.vi, caseDoc.query?.en]);
+  const operands = operandsOf(reads.map((r) => r.q), [proseQs.filter((q, i) => !q.heldLocation && !echoes.has(i)), itemQs, reportQs.filter(Boolean)]);
   // Trace (d): a count of a kind the reply names. report.items names a kind by its anchor; the prose names one beside a
   // figure ("3 slides"). A figure that report.items marks as a count traces only through this (see traceClaim).
   const proseKinds = new Map();
