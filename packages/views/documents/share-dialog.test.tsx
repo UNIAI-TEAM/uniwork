@@ -268,7 +268,7 @@ describe("ShareDialog", () => {
     expect(screen.getByText("Bình")).toBeInTheDocument();
     expect(screen.getByText("Design")).toBeInTheDocument();
     // A revoked/dead grant is marked, not hidden.
-    expect(screen.getByText(t("documents.share.inactive"))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(t("documents.share.inactive")))).toBeInTheDocument();
     // The effective level is shown when it differs from the grant's own level.
     expect(
       screen.getAllByText(new RegExp(t("documents.share.effective", { level: t("documents.share.level_edit") }))).length,
@@ -691,7 +691,7 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(`${t("documents.share.level_label")} Team`, t("documents.share.level_view"));
+    await pickOption(`${t("documents.share.level_label")} Team: ${t("documents.share.level_edit")}`, t("documents.share.level_view"));
 
     await waitFor(() => expect(puts.length).toBe(1));
     expect(puts[0]).toEqual({
@@ -718,7 +718,7 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(`${t("documents.share.level_label")} Team`, t("documents.share.level_view"));
+    await pickOption(`${t("documents.share.level_label")} Team: ${t("documents.share.level_edit")}`, t("documents.share.level_view"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("visibility failed");
   });

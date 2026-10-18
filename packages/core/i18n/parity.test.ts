@@ -82,8 +82,8 @@ describe("vi/en parity", () => {
   });
 
   it("DOC-05 break-glass và thông báo document_break_glass có đủ bản vi/en đúng chuẩn", () => {
-    expect(VI["documents.breakGlass.lockedTitle"]).toBe("Tài liệu này ở chế độ hạn chế");
-    expect(EN["documents.breakGlass.lockedTitle"]).toBe("This document is restricted");
+    expect(VI["documents.breakGlass.lockedTitle"]).toBe("Tài liệu này là riêng tư");
+    expect(EN["documents.breakGlass.lockedTitle"]).toBe("This document is private");
     expect(VI["documents.breakGlass.reasonTooShort"]).toBe("Hãy nhập lý do ít nhất 10 ký tự.");
     expect(EN["documents.breakGlass.reasonTooShort"]).toBe(
       "Enter a reason of at least 10 characters.",
