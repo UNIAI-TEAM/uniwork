@@ -2,8 +2,8 @@
   {
     "id": "release-1-6-0",
     "version": "1.6.0",
-    "date": "2026-10-17",
-    "sourceRef": "4b50d7047808129eec84ee01bbda7a3dd8cea522",
+    "date": "2026-10-18",
+    "sourceRef": "22ea091760670c281c9996cbb45c136910655dd5",
     "contentKey": "v1_6_0",
     "sections": [
       {
@@ -18,7 +18,8 @@
       {
         "kind": "improvements",
         "items": [
-          "ccccea0fc160226064e08619e8012695125b2dc91"
+          "ccccea0fc160226064e08619e8012695125b2dc91",
+          "c22ea091760670c281c9996cbb45c136910655dd5"
         ]
       },
       {

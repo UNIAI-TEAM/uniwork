@@ -194,8 +194,8 @@
         }
       },
       "v1_6_0": {
-        "title": "Yêu cầu truy cập, chia sẻ cho nhiều người và chuyển quyền sở hữu tài liệu, cùng bản sửa tạo việc từ tóm tắt cuộc họp",
-        "summary": "Tài liệu có thêm công cụ quản lý quyền truy cập: thành viên gửi được yêu cầu truy cập, một tài liệu chia sẻ được cho nhiều người trong một lần, quyền sở hữu chuyển được cho thành viên khác, và người quản trị có báo cáo quyền truy cập. Thư viện Tài liệu hiện thêm các cột về quyền truy cập. Việc tạo task từ bản tóm tắt AI của cuộc họp được sửa để tạo đúng, đủ và chỉ một lần.",
+        "title": "Giao diện Chat mới, công cụ quản lý quyền truy cập tài liệu và bản sửa tạo việc từ tóm tắt cuộc họp",
+        "summary": "Chat trên web có giao diện mới với bảng thông tin, trả lời và sửa tin ngay trong ô soạn, và trạng thái đã xem từng tin trong nhóm và kênh. Tài liệu có thêm công cụ quản lý quyền truy cập: thành viên gửi được yêu cầu truy cập, một tài liệu chia sẻ được cho nhiều người trong một lần, quyền sở hữu chuyển được cho thành viên khác, và người quản trị có báo cáo quyền truy cập. Thư viện Tài liệu hiện thêm các cột về quyền truy cập. Việc tạo task từ bản tóm tắt AI của cuộc họp được sửa để tạo đúng, đủ và chỉ một lần.",
         "note": "Báo cáo quyền truy cập chỉ gồm những tài liệu bạn có quyền quản trị. Việc từ bản tóm tắt cuộc họp chỉ được tạo sau khi chủ trì xác nhận, và tóm tắt AI tuân theo gói đang dùng của tổ chức.",
         "features": {
           "cca3275dc8b0fb0b2296db9529abe6546bec9b1f4": "Chia sẻ một tài liệu cho nhiều người trong một lần, không cần thêm từng người.",
@@ -204,7 +204,8 @@
           "ca9583ec607f78bedf7a94c006620f1ee5d7c1081": "Khi mở một tài liệu chưa được cấp quyền, thành viên có thể gửi yêu cầu truy cập. Người quản lý tài liệu nhận thông báo và có thể duyệt hoặc từ chối yêu cầu."
         },
         "improvements": {
-          "ccccea0fc160226064e08619e8012695125b2dc91": "Thư viện Tài liệu có thêm các cột cho biết quyền truy cập của từng tài liệu."
+          "ccccea0fc160226064e08619e8012695125b2dc91": "Thư viện Tài liệu có thêm các cột cho biết quyền truy cập của từng tài liệu.",
+          "c22ea091760670c281c9996cbb45c136910655dd5": "Chat trên web có giao diện mới. Danh sách phòng chia tab kèm số đếm và cho thấy cuộc gọi nhỡ, độ dài tin thoại và dấu đã xem. Bảng thông tin bên phải gồm mô tả, việc từ cuộc trò chuyện, ảnh, tệp, liên kết, tin thoại và thành viên. Trả lời và sửa tin ngay trong ô soạn, thread mở ở bảng bên phải, tin gửi lỗi được giữ lại kèm nút \"Thử lại\", và ảnh gửi liền nhau gom thành album. Nhóm và kênh cho biết ai đã xem từng tin; nhóm có ảnh đại diện và mô tả. Bản này cũng sửa lỗi: mở liên kết tới một phòng không còn đánh dấu đã đọc phòng workspace, phòng có ảnh mở đúng ở tin mới nhất, liên kết và các thao tác nhảy tới một tin không còn bị kéo về cuối, bộ chọn emoji theo đúng chế độ sáng/tối, và bình chọn một lựa chọn không còn hiện là \"Chọn nhiều\"."
         },
         "fixes": {
           "c15cfad8411e546621d6df9d7b6503a128bac61cd": "Khi hộp thoại Chia sẻ không tải được danh sách thành viên, bạn có thể tải lại ngay trong hộp thoại.",

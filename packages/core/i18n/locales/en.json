@@ -194,8 +194,8 @@
         }
       },
       "v1_6_0": {
-        "title": "Document access requests, sharing with several people and ownership transfer, plus fixes to creating tasks from meeting summaries",
-        "summary": "Documents gains tools for managing access: members can request access, a document can be shared with several people at once, ownership can be transferred to another member, and administrators get an access report. The Documents library shows new access columns. Creating tasks from a meeting's AI summary is fixed so tasks are created correctly, completely and only once.",
+        "title": "A new Chat design, tools for managing document access, and fixes to creating tasks from meeting summaries",
+        "summary": "Chat on the web has a new design with an info panel, replying and editing right in the composer, and per-message seen status in groups and channels. Documents gains tools for managing access: members can request access, a document can be shared with several people at once, ownership can be transferred to another member, and administrators get an access report. The Documents library shows new access columns. Creating tasks from a meeting's AI summary is fixed so tasks are created correctly, completely and only once.",
         "note": "The access report only covers documents you administer. Tasks from a meeting summary are created only after the host confirms them, and AI summaries follow the organization's current plan.",
         "features": {
           "cca3275dc8b0fb0b2296db9529abe6546bec9b1f4": "Share a document with several people at once instead of adding them one by one.",
@@ -204,7 +204,8 @@
           "ca9583ec607f78bedf7a94c006620f1ee5d7c1081": "When a member opens a document they have no access to, they can request access. The document's managers get a notification and can approve or decline the request."
         },
         "improvements": {
-          "ccccea0fc160226064e08619e8012695125b2dc91": "The Documents library has new columns showing each document's access."
+          "ccccea0fc160226064e08619e8012695125b2dc91": "The Documents library has new columns showing each document's access.",
+          "c22ea091760670c281c9996cbb45c136910655dd5": "Chat on the web has a new design. The room list is split into tabs with counts and shows missed calls, voice message length and seen ticks. An info panel on the right shows the description, tasks from the conversation, photos, files, links, voice messages and members. You can reply to and edit messages right in the composer, threads open in the right panel, messages that fail to send are kept with a \"Retry\" button, and photos sent together are grouped into an album. Groups and channels show who has seen each message, and groups can have a photo and a description. This release also fixes several issues: opening a link to a room no longer marks the workspace room as read, rooms with images open at the latest message, links and jumps to a specific message are no longer pulled to the bottom, the emoji picker follows light/dark mode, and single-choice polls no longer show as \"multiple choice\"."
         },
         "fixes": {
           "c15cfad8411e546621d6df9d7b6503a128bac61cd": "If the Share dialog fails to load the member list, you can retry right in the dialog.",
