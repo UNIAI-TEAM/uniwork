@@ -354,6 +354,13 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
      Nó không bao giờ cộng điểm: không là nguồn, không là toán hạng, không là số đếm và không điền ô `expected.numeric`.
      `report.numbers` không có ngoại lệ này (dòng báo cáo chứa số của chính câu trả lời nên vẫn phải truy được). Một số của câu hỏi
      viết với đơn vị khác (`10` so với `10k`) không phải nhắc lại và chịu luật chặt.
+   - **Số thứ tự vị trí** (quyết định của lead, vòng j, J-1): một **số nguyên trong lời văn** đứng ngay sau một danh từ vị trí số ít
+     (`slide`, `page`, `sheet`, `trang`, `trang chiếu`; giữa danh từ và số chỉ được có `#`, `no.` hoặc `số`) là một **vị trí**
+     ("(slide 3)", "trang 2"), không phải số liệu, và được miễn truy vết **chỉ khi** một lần đọc thành công của lượt này giữ vị trí
+     đó (chỉ số không vượt quá số slide, số trang hoặc số sheet của một kết quả, hoặc có một sheet tên đúng như vậy). Vị trí không
+     được lần đọc nào giữ vẫn là số liệu và trượt như trước ("slide 9" khi lần đọc có 3 slide). Vị trí không bao giờ cộng điểm:
+     không điền `expected.numeric`, không là giá trị `report.numbers`, không là toán hạng, không là số đếm ("slide 3" không nêu
+     có 3 slide), và `report.numbers` không có ngoại lệ này.
    - **Giới hạn đã biết**: số viết bằng chữ ("hai mươi", "twenty") không được tách thành token nên không bị kiểm tra.
 4. **Lần gọi `compute` bị từ chối hay lỗi** (`error`, `denied`, `ok:false`, `partial`, trạng thái lỗi) không cộng điểm compute
    (R19-1); lần đọc lỗi cũng không cho lá nào.

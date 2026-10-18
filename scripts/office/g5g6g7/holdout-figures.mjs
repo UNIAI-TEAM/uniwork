@@ -26,6 +26,9 @@
 // Spelled-out numbers are not tokenized and never earn credit (a known limit).
 // Exempt from being a figure, and nothing else: cell or range addresses with real boundaries, line-start list
 // markers, unambiguous written-month dates, and the digits inside a whole URL or email token.
+// A location ordinal is a further exemption of the PROSE trace, and nothing else (round j, J-1): a plain integer directly after a singular
+// location noun (slide, page, sheet, trang, trang chiếu) that a successful read of this turn holds (`heldLocation`). It credits nothing:
+// it names no count, is no operand and fills no numeric slot, and report.numbers has no such exemption.
 
 import { UNIT_TOKENS } from './holdout-score.mjs';
 
