@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -5; node -p "require('./apps/web/platform/office-frame/docs.pin.json').version"
+762c641e32ba307520502d1e0ff3e89942c5b4c4
+762c641e3 feat(office): re-vendor protocol and re-pin frames to web-0.1.0-f6395d8 (UNI-1901)
+4b631882c test(office): add failing protocol tests for readOnly profile and close_requested (UNI-1901)
+ebc45babe chore: merge TRASH-NOTIFY-01 trash and restore notifications, server + web (UNI-1844, 024e27f64) into the G5-G7 root
+024e27f64 chore(merge): e6-server TN 364ce43e4 (root f6aebb640) into TRASH-NOTIFY-01 web
+364ce43e4 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1844-trash-notify
+0.1.0-f6395d8

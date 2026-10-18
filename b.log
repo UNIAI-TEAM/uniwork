@@ -1,0 +1,10 @@
+$ node apps/web/scripts/office-frame-sync.mjs --all; rc=$?; echo; echo "FRAME_SYNC_EXIT=$rc"; ls apps/web/public/office-frame/docs
+office-frame: docs 46 files verified, installed at /workspace/apps/web/public/office-frame/docs/0.1.0-f6395d8
+office-frame: pdf 229 files verified, installed at /workspace/apps/web/public/office-frame/pdf/0.1.0-f6395d8
+office-frame: markdown 90 files verified, installed at /workspace/apps/web/public/office-frame/markdown/0.1.0-f6395d8
+office-frame: html 7 files verified, installed at /workspace/apps/web/public/office-frame/html/0.1.0-f6395d8
+office-frame: slides 19 files verified, installed at /workspace/apps/web/public/office-frame/slides/0.1.0-f6395d8
+office-frame: sheets 219 files verified, installed at /workspace/apps/web/public/office-frame/sheets/0.1.0-f6395d8
+
+FRAME_SYNC_EXIT=0
+0.1.0-f6395d8
