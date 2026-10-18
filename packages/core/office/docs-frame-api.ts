@@ -44,7 +44,6 @@ import {
   type TokenPayload,
 } from "./docs-frame-protocol";
 import { officeFrameSrc, officeModuleSpec } from "./office-modules";
-import { sanitizeUploadFilename } from "./upload-filename";
 
 /** A proxied call carries the frame token and the one document it is scoped to. */
 export interface DocsFrameCall {
@@ -336,7 +335,7 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       if (!current || "source_id" in current) throw malformed("office-frame open");
       const blob = new Blob([payload.data], { type: mimeType });
       const threshold = resolveThreshold(call, options);
-      const uploadName = call.filename?.trim() ? sanitizeUploadFilename(call.filename) : current.file.filename;
+      const uploadName = call.filename?.trim() ? call.filename.trim() : current.file.filename;
       const upload = threshold !== null && payload.data.byteLength > threshold
         ? await runChunkedUpload(
             {

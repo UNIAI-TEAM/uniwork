@@ -99,7 +99,7 @@ describe("createDocsFrameApi", () => {
     expect(header(commit!.init, "Idempotency-Key")).toMatch(/:commit$/);
   });
 
-  it("uploads under the filename the call carries (the first-save rename), sanitized like every upload (UNI-1847)", async () => {
+  it("uploads under the filename the call carries (the first-save rename) (UNI-1847)", async () => {
     const { fetch, calls } = fakeFetch({
       "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
       "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
@@ -112,20 +112,6 @@ describe("createDocsFrameApi", () => {
     expect(result).toMatchObject({ ok: true });
     const upload = calls.find((c) => c.path.endsWith("/uploads"));
     expect((upload?.init.body as FormData).get("file")).toMatchObject({ name: "Kế hoạch Q4.docx" });
-  });
-
-  it("strips path parts, control characters and edge dots/spaces from a call filename (UNI-1847)", async () => {
-    const { fetch, calls } = fakeFetch({
-      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
-      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
-      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
-    });
-    await createDocsFrameApi({ apiUrl: API, fetch }).save(
-      { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" },
-      { ...call(), filename: "..\\eva\\ Kế hoạch .docx " },
-    );
-    const upload = calls.find((c) => c.path.endsWith("/uploads"));
-    expect((upload?.init.body as FormData).get("file")).toMatchObject({ name: "Kế hoạch .docx" });
   });
 
   it("ignores a blank call filename: the stored name still names the upload", async () => {
