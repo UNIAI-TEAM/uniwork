@@ -102,11 +102,29 @@ test("chat-only shell hides the module nav and hands other routes to the browser
   expect((await page.evaluate(() => window.__uniChat.external))[0]).toMatch(new RegExp(`${tasksPath}$`));
   await expect(page).toHaveURL(new RegExp(`${chatPath}$`));
 
-  // A deep link into chat is an in-shell push: no openExternal.
-  await page.evaluate(
-    (p) => window.__uniChat.deepLink?.(`uniworkchat://open?url=${encodeURIComponent(`${p}?room=x`)}`),
-    chatPath,
+  // A deep link into chat is an in-shell push: no openExternal. It names the workspace's
+  // own room: an unknown ?room= is dropped from the URL by design (use-chat-room-url.ts).
+  const roomId = await page.evaluate(
+    async ({ apiUrl, org, ws }) => {
+      const refreshed = await fetch(`${apiUrl}/api/v1/auth/refresh`, { method: "POST", credentials: "include" });
+      const { access_token: token } = (await refreshed.json()) as { access_token: string };
+      const headers = { authorization: `Bearer ${token}` };
+      const list = (await (await fetch(`${apiUrl}/api/v1/workspaces`, { headers })).json()) as {
+        workspaces: { id: string; slug: string; organization_slug: string }[];
+      };
+      const wsId = list.workspaces.find((w) => w.slug === ws && w.organization_slug === org)?.id;
+      const rooms = (await (await fetch(`${apiUrl}/api/v1/workspaces/${wsId}/chat/rooms`, { headers })).json()) as {
+        rooms: { id: string }[];
+      };
+      return rooms.rooms[0]?.id ?? "";
+    },
+    { apiUrl: e2eApiUrl, org: orgSlug, ws: wsSlug },
   );
-  await expect(page).toHaveURL(new RegExp(`${chatPath}\\?room=x$`), { timeout: 20_000 });
+  expect(roomId, "the workspace's default room").not.toBe("");
+  await page.evaluate(
+    ({ p, room }) => window.__uniChat.deepLink?.(`uniworkchat://open?url=${encodeURIComponent(`${p}?room=${room}`)}`),
+    { p: chatPath, room: roomId },
+  );
+  await expect(page).toHaveURL(new RegExp(`${chatPath}\\?room=${roomId}$`), { timeout: 20_000 });
   expect(await page.evaluate(() => window.__uniChat.external)).toHaveLength(1);
 });
