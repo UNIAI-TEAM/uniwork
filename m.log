@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18530 13450 13451 18540 13460 13461 18550 13470 13471 18560 13480; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18530/tcp 13450/tcp 13451/tcp 18540/tcp 13460/tcp 13461/tcp 18550/tcp 13470/tcp 13471/tcp 18560/tcp 13480/tcp 2>/dev/null; sleep 1; for p in 18560 13480; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+98445d12f8d936d3ee663fc507019a3b68afc91b
+98445d12f chore: merge G5-G7 root 6f4ca157a into the sharing lane
+6f4ca157a chore: merge MYFOLDER-01 web My Folder as the default save destination (UNI-1850, 772e06fa7) into the G5-G7 root
+772e06fa7 fix(documents): show the resume hint for a Home-root upload saved under My Folder (UNI-1850)
+74de60298 fix(documents): ignore a root resume record for a Home-root chunked upload (UNI-1850)

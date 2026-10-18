@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+98445d12f8d936d3ee663fc507019a3b68afc91b
+6f4ca157a8136e059823b160648dd8174cdd54a1
+98445d12f chore: merge G5-G7 root 6f4ca157a into the sharing lane
+6f4ca157a chore: merge MYFOLDER-01 web My Folder as the default save destination (UNI-1850, 772e06fa7) into the G5-G7 root
+772e06fa7 fix(documents): show the resume hint for a Home-root upload saved under My Folder (UNI-1850)
+74de60298 fix(documents): ignore a root resume record for a Home-root chunked upload (UNI-1850)
+ebc45babe chore: merge TRASH-NOTIFY-01 trash and restore notifications, server + web (UNI-1844, 024e27f64) into the G5-G7 root
+670e60362 chore: merge SH fe-fix-5 review_fe r4 minors (UNI-1784, 6e3465dc2) into the sharing lane
+6e3465dc2 fix(documents): return confirm-panel focus, announce picker error, pin layout classes (review_fe r4)
+9970b6c34 chore: merge SH be-fix-3 review_be r3 N-01 boundary test (UNI-1782, 76584bc7f) into the sharing lane
