@@ -74,6 +74,7 @@ export function DocumentUploadDialog({
   const [inputKey, setInputKey] = useState(0);
   const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
   const shareHintId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const effectiveShare = parentShared || shareWithWorkspace;
   const sendShare = showShareToggle && effectiveShare && !parentShared;
   const shareHintText = !showShareToggle
@@ -158,7 +159,7 @@ export function DocumentUploadDialog({
           <div className="flex flex-col gap-1.5">
             <input
               key={inputKey}
-              id="document-upload-file"
+              ref={inputRef}
               type="file"
               accept={accept}
               aria-label={t("documents.upload.pick")}
@@ -176,10 +177,7 @@ export function DocumentUploadDialog({
                 type="button"
                 variant="outline"
                 disabled={isBusy}
-                onClick={() => {
-                  const input = document.getElementById("document-upload-file");
-                  input?.click();
-                }}
+                onClick={() => inputRef.current?.click()}
               >
                 <FilePlus aria-hidden className="size-3.5" />
                 {t("documents.upload.pick")}

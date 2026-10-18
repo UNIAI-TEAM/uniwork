@@ -25,8 +25,7 @@ describe("DocumentUploadDialog", () => {
 
     // The native input is visually hidden and not keyboard reachable: the
     // button is the control.
-    const input = document.getElementById("document-upload-file") as HTMLInputElement;
-    expect(input).not.toBeNull();
+    const input = screen.getByLabelText(t("documents.upload.pick")) as HTMLInputElement;
     expect(input).toHaveClass("sr-only");
     expect(input).toHaveAttribute("tabindex", "-1");
     expect(screen.getByTestId("document-upload-selected")).toHaveTextContent(
