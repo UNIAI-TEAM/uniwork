@@ -35,7 +35,7 @@ export function ChatFailedSendBar({ workspaceId, message }: { workspaceId: strin
   return (
     <div
       role="alert"
-      className="mt-0.5 inline-flex min-h-7.5 w-fit items-center gap-1.5 self-end rounded-full bg-chat-chip py-0.5 pr-1 pl-2.5 text-label font-semibold text-destructive"
+      className="mt-0.5 inline-flex min-h-7.5 w-fit items-center gap-1.5 self-end rounded-full bg-chat-chip py-0.5 pr-1 pl-2.5 text-label font-semibold whitespace-nowrap text-destructive"
     >
       <CircleAlert className="size-4 shrink-0" aria-hidden />
       <span>{t("chat.message_failed")}</span>

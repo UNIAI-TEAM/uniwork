@@ -118,13 +118,14 @@ export function ComposerPriorityChip({
 export function ComposerEditBar({ preview, onCancel }: { preview: string; onCancel: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="mx-0.5 mt-1 flex items-center gap-2.5 rounded-2xl border-l-3 border-brand bg-muted py-1 pr-1 pl-3">
+    // A container: the hint shows by the field's own width, so the 400px thread panel on a wide screen drops it too.
+    <div className="@container mx-0.5 mt-1 flex items-center gap-2.5 rounded-2xl border-l-3 border-brand bg-muted py-1 pr-1 pl-3">
       <Pencil className="size-4.5 shrink-0 text-brand" aria-hidden />
       <span className="flex min-w-0 flex-1 flex-col py-0.5">
-        <span className="text-label font-semibold text-brand">{t("chat.editing_message")}</span>
+        <span className="truncate text-label font-semibold text-brand">{t("chat.editing_message")}</span>
         <span className="truncate text-label text-muted-foreground">{preview}</span>
       </span>
-      <span className="hidden shrink-0 text-caption text-muted-foreground sm:inline">{t("chat.editing_hint")}</span>
+      <span className="hidden shrink-0 text-caption text-muted-foreground @lg:inline">{t("chat.editing_hint")}</span>
       <Button
         type="button"
         variant="ghost"

@@ -496,7 +496,8 @@ export function ChatComposer({
             )}
           </div>
           {editing?.error ? (
-            <p role="alert" className="mt-1.5 mr-15 text-caption text-destructive">
+            // Under the field, not the attach button beside it.
+            <p role="alert" className={cn("mt-1.5 mr-15 pl-4 text-caption text-destructive", !textOnly && "ml-14")}>
               {editing.error}
             </p>
           ) : null}

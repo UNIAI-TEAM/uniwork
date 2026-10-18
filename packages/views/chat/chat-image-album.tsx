@@ -152,9 +152,10 @@ function AlbumTile({
           <Skeleton className="size-full rounded-none" />
         )}
         {moreCount > 0 ? (
+          // The meeting stage's media colours are dark in both themes; foreground/background would flip to a pale wash in dark mode.
           <span
             aria-hidden
-            className="absolute inset-0 flex items-center justify-center bg-foreground/55 font-display text-title font-bold text-background"
+            className="absolute inset-0 flex items-center justify-center bg-meeting-video-bg/55 font-display text-title font-bold text-meeting-stage-foreground"
           >
             +{moreCount}
           </span>

@@ -405,7 +405,8 @@ export function ChatFollowUpsSheet({
           </div>
           <SheetDescription className="pl-12">{t("chat.follow_up.list_description")}</SheetDescription>
         </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto bg-muted px-4 py-4">{body}</div>
+        {/* The grey body would square off the floating sheet's rounded bottom corners. */}
+        <div className="min-h-0 flex-1 overflow-y-auto bg-muted px-4 py-4 sm:rounded-b-2xl">{body}</div>
       </SheetContent>
     </Sheet>
   );

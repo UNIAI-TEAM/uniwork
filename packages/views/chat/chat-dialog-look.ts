@@ -21,7 +21,8 @@ export const CHAT_DIALOG_CLASS = [
  * off the edges with 20px corners; below sm it stays the full-screen sheet.
  */
 export const CHAT_SHEET_CLASS = [
-  "flex w-full flex-col gap-0 p-0 sm:max-w-md",
+  // Same variant order as the primitive's w-3/4 and sm:max-w-sm, so cn() drops those instead of letting them win.
+  "flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md",
   "sm:data-[side=right]:inset-y-3 sm:data-[side=right]:right-3 sm:data-[side=right]:h-auto sm:data-[side=right]:rounded-2xl sm:data-[side=right]:border",
   "[&_[data-slot=sheet-title]]:font-display [&_[data-slot=sheet-title]]:text-title [&_[data-slot=sheet-title]]:font-bold",
   "[&_[data-slot=sheet-close]]:top-3.5 [&_[data-slot=sheet-close]]:right-3 [&_[data-slot=sheet-close]]:size-11 [&_[data-slot=sheet-close]]:rounded-lg",
