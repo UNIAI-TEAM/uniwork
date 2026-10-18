@@ -85,8 +85,9 @@ describe("ShareAccessList review fixes", () => {
     render(tree(access([row({ id: "s2", principal_type: "organization", principal_id: "o1", level: "view" })])));
 
     await user.click(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Acme` }));
+    // Wait for the popup first, so the absence check runs against rendered options.
+    expect(await screen.findByRole("option", { name: t("documents.share.level_edit") })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: t("documents.share.level_manage") })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: t("documents.share.level_edit") })).toBeInTheDocument();
   });
 
   it("F-W1-10: a filter typed over 20 rows stops hiding rows once revocations bring the list under 20", async () => {

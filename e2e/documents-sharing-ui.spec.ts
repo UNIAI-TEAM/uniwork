@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { resolve } from "node:path";
 import { createPageWithText, documentAction, onboardDocumentsUser, shooter } from "./documents-onboard";
+import { pickCandidate, submitShare, who } from "./documents-share-fixtures";
 import { workspaceSeed } from "./onboard";
 
 /**
@@ -50,10 +51,14 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
   const dialog = shareDialog(page);
   await expect(dialog).toBeVisible({ timeout: 30_000 });
   await expect(dialog.getByText("Người và nhóm có quyền")).toBeVisible({ timeout: 30_000 });
-  await dialog.getByRole("combobox", { name: "Đối tượng", exact: true }).click();
-  await page.getByRole("option", { name: "Tổ chức" }).click();
-  await dialog.getByRole("button", { name: "Chia sẻ", exact: true }).click();
+  // The SHARING candidate picker (UNI-1784): pick the organization, then share. A grant the
+  // server warns about reads back its reach first (share-add-confirm); accept it.
+  await pickCandidate(dialog, seed.orgName, who(seed.orgName));
+  await submitShare(dialog).click();
   const revokeOrg = dialog.getByRole("button", { name: `Thu hồi ${seed.orgName}` });
+  const confirmOrg = dialog.getByTestId("share-add-confirm");
+  await expect(revokeOrg.or(confirmOrg)).toBeVisible({ timeout: 30_000 });
+  if (await confirmOrg.isVisible()) await confirmOrg.getByRole("button", { name: "Xác nhận" }).click();
   await expect(revokeOrg).toBeVisible({ timeout: 30_000 });
 
   // Public link: the raw URL is shown once.
@@ -70,7 +75,13 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
   await shot(page, "share-dialog-dark-vi");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
 
+  // A revoke whose dry run has something to say is confirmed in the row (share-access-confirm).
   await revokeOrg.click();
+  const confirmRevoke = dialog.getByTestId("share-access-confirm");
+  await expect
+    .poll(async () => (await confirmRevoke.isVisible()) || (await revokeOrg.count()) === 0, { timeout: 30_000 })
+    .toBe(true);
+  if (await confirmRevoke.isVisible()) await confirmRevoke.getByRole("button", { name: "Xác nhận" }).click();
   await expect(revokeOrg).toHaveCount(0, { timeout: 30_000 });
   // The owner row survives the revoke: the badge reads "Chủ sở hữu" and, for the owner, carries the transfer button.
   await expect(dialog.getByText("Chủ sở hữu", { exact: true })).toBeVisible();
