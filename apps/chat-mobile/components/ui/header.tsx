@@ -25,9 +25,13 @@ interface Props {
   large?: boolean;
   /** Below the large title (large only). */
   children?: ReactNode;
+  /** Compact only: the title in the middle (MobRoomInfo board). */
+  centered?: boolean;
+  /** Compact only: no bottom rule (MobNewChat, MobChannels boards). */
+  flat?: boolean;
 }
 
-export function Header({ title, subtitle, center, left, right, large = false, children }: Props) {
+export function Header({ title, subtitle, center, left, right, large = false, children, centered = false, flat = false }: Props) {
   if (large) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background px-4 pt-2">
@@ -39,7 +43,7 @@ export function Header({ title, subtitle, center, left, right, large = false, ch
           </View>
         ) : null}
         {title ? (
-          <Text accessibilityRole="header" className="mt-3 text-[30px] font-extrabold leading-9 tracking-tight text-foreground" numberOfLines={1}>
+          <Text accessibilityRole="header" className="mt-3 text-[30px] font-display font-extrabold leading-9 tracking-tight text-foreground" numberOfLines={1}>
             {title}
           </Text>
         ) : null}
@@ -49,25 +53,26 @@ export function Header({ title, subtitle, center, left, right, large = false, ch
     );
   }
   return (
-    <SafeAreaView edges={["top"]} className="bg-background border-b border-border">
+    <SafeAreaView edges={["top"]} className={flat ? "bg-background" : "bg-background border-b border-border"}>
       <View className="flex-row items-center h-12 px-2">
         {left ? <View className="flex-row items-center">{left}</View> : null}
-        <View className="flex-1 px-2 justify-center">
+        <View className={centered ? "flex-1 px-2 items-center justify-center" : "flex-1 px-2 justify-center"}>
           {center ??
             (title ? (
               <>
-                <Text accessibilityRole="header" className="text-lg font-bold text-foreground" numberOfLines={1}>
+                <Text accessibilityRole="header" className={centered ? "text-center text-[19px] font-display font-bold text-foreground" : "text-lg font-display font-bold text-foreground"} numberOfLines={1}>
                   {title}
                 </Text>
                 {subtitle ? (
-                  <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                  <Text className={centered ? "text-center text-xs text-muted-foreground" : "text-xs text-muted-foreground"} numberOfLines={1}>
                     {subtitle}
                   </Text>
                 ) : null}
               </>
             ) : null)}
         </View>
-        {right ? <View className="flex-row items-center gap-1">{right}</View> : null}
+        {/* A centred title needs the same width on both sides. */}
+        {right ? <View className="flex-row items-center gap-1">{right}</View> : centered ? <View className="w-11" /> : null}
       </View>
     </SafeAreaView>
   );
