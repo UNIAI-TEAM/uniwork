@@ -947,6 +947,45 @@ describe("useDocsFrameSession: first-save naming (UNI-1847, SAVE-01)", () => {
     expect(frame.hook.result.current.saveState).toBe("dirty");
   });
 
+  it("a header Save and a frame Ctrl+S sharing one dialog send exactly one save once it is named", async () => {
+    const resolvers: ((named: boolean) => void)[] = [];
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => { resolvers.push(resolve); }));
+    const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const frame = setup({ firstSave: { needsName: () => true, ask }, api: { save } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: false }));
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(2));
+    // The one dialog settles every ask, in the order they joined it.
+    await act(async () => { for (const resolve of resolvers) resolve(true); });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await settle();
+    expect(frame.sent("save")).toHaveLength(1);
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v2" });
+    await settle();
+    await saving;
+    expect(frame.sent("save")).toHaveLength(1);
+  });
+
+  it("a Save whose name dialog outlives its frame (retry) sends nothing into the stale session", async () => {
+    let resolveAsk!: (named: boolean) => void;
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => { resolveAsk = resolve; }));
+    const frame = setup({ firstSave: { needsName: () => true, ask } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    act(() => { frame.hook.result.current.retry(); });
+    await act(async () => { resolveAsk(true); });
+    await expect(saving).resolves.toBe("failed");
+    expect(frame.sent("save")).toHaveLength(0);
+  });
+
   it("needsName false (named upload, version 2, page) never opens the dialog on either path", async () => {
     const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
     const frame = setup({ firstSave: named, api: { save } });

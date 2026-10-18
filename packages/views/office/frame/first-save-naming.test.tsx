@@ -40,13 +40,17 @@ function setup({ doc = UNTITLED_DOC, module = "docs", onNamed }: { doc?: Documen
   // The dialog element is rebuilt on every hook render: it must be rendered inside the
   // hook's own tree (a captured element keeps its first `open=false` forever).
   const current = { naming: null as null | FirstSaveNaming };
+  const holder = { doc };
   function Harness() {
-    current.naming = useFirstSaveNaming({ document: doc, module: module as never, wsId: "ws-1", onNamed });
+    current.naming = useFirstSaveNaming({ document: holder.doc, module: module as never, wsId: "ws-1", onNamed });
     return current.naming.dialog;
   }
-  const view = render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>);
+  const tree = () => <QueryClientProvider client={client}><Harness /></QueryClientProvider>;
+  const view = render(tree());
   const hook = { result: { get current() { return current.naming!; } } };
-  return { hook, view, client };
+  /** The page now shows another document (same mounted hook). */
+  const switchTo = (next: Document) => { holder.doc = next; view.rerender(tree()); };
+  return { hook, view, client, switchTo };
 }
 
 afterEach(() => { vi.restoreAllMocks(); requestMock.mockReset(); });
@@ -78,6 +82,25 @@ describe("useFirstSaveNaming: the first-save name dialog (UNI-1847)", () => {
     await expect(answer).resolves.toBe(false);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     // Cancel names nothing: the next save asks again.
+    expect(hook.result.current.needsName()).toBe(true);
+  });
+
+  it("asks again for another never-saved blank after the first one was named (document switch)", async () => {
+    requestMock.mockImplementation((path: string, init?: MockInit) => {
+      if (path === "/api/v1/documents/doc-1" && init?.method === "PATCH") {
+        return Promise.resolve({ document: { ...UNTITLED_DOC, title: "Kế hoạch Q4", revision: "5" } });
+      }
+      if (path === "/api/v1/documents/doc-1") return Promise.resolve({ document: UNTITLED_DOC });
+      return Promise.reject(new Error(`unexpected ${init?.method ?? "GET"} ${path}`));
+    });
+    const { hook, switchTo } = setup();
+    await act(async () => { void hook.result.current.ask(); });
+    const input = (await screen.findByLabelText("Tên tài liệu")) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Kế hoạch Q4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(hook.result.current.needsName()).toBe(false));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    switchTo({ ...UNTITLED_DOC, id: "doc-2" } as Document);
     expect(hook.result.current.needsName()).toBe(true);
   });
 

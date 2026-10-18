@@ -237,10 +237,17 @@ export interface FirstSaveNamer {
  * a declined save reads as the user's own Cancel, which keeps the frame's edits unsaved with no
  * error, and never waits on the frame's `api.save` timeout (the local build reports 120 s).
  */
-const FIRST_SAVE_DECLINED: SaveResult = {
+export const FIRST_SAVE_DECLINED: SaveResult = {
   ok: false,
   error: { code: "cancelled", message: "name the document before it saves", retryable: false },
 };
+
+/** What the Save the page has open fails with when the host itself gave up on it (never `fatal`: that one is already on screen). */
+export function hostSaveCauseError(cause: HostSaveWatch["cause"]): ProtocolErrorShape | null {
+  if (cause === "watchdog") return { code: "timeout", message: "the editor did not answer the save in time", retryable: true };
+  if (cause === "unload") return { code: "internal", message: "the editor closed before it answered the save", retryable: true, details: { reason: "frame_unloaded" } };
+  return null;
+}
 
 /**
  * Capabilities this host grants. Routes that do not exist yet stay off.

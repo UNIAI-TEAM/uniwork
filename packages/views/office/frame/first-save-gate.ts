@@ -1,4 +1,5 @@
-import type { FirstSaveNamer } from "./docs-frame-session-model";
+import type { SaveResult } from "@uniwork/core/office/docs-frame-protocol";
+import { FIRST_SAVE_DECLINED, type FirstSaveNamer } from "./docs-frame-session-model";
 
 /**
  * UNI-1847 (SAVE-01): the one place a session decides whether a save may run as
@@ -24,6 +25,8 @@ export interface FirstSaveGate {
   pageAsk: (namer: FirstSaveNamer) => Promise<boolean>;
   /** Naming for a declined frame save: latches the name, then issues the page's Save. */
   frameAsk: (namer: FirstSaveNamer, reissue: () => void) => void;
+  /** A frame `api.save` of an unnamed blank: the answer to give at once (null when it may run), the naming started. */
+  declineFrameSave: (reissue: () => void) => SaveResult | null;
   /** A fresh session (retry, another document) asks again for its own blank. */
   reset: () => void;
 }
@@ -33,7 +36,7 @@ export function createFirstSaveGate(opts: {
   current: () => { firstSave?: FirstSaveNamer; viewOnly: boolean; savedOnce: boolean };
 }): FirstSaveGate {
   let namedOnce = false;
-  return {
+  const gate: FirstSaveGate = {
     pendingName: () => {
       const { firstSave, viewOnly, savedOnce } = opts.current();
       return firstSave && !savedOnce && !namedOnce && !viewOnly && firstSave.needsName() ? firstSave : null;
@@ -42,6 +45,13 @@ export function createFirstSaveGate(opts: {
     frameAsk: (namer, reissue) => {
       void namer.ask().then((named) => { if (named) { namedOnce = true; reissue(); } });
     },
+    declineFrameSave: (reissue) => {
+      const namer = gate.pendingName();
+      if (!namer) return null;
+      gate.frameAsk(namer, reissue);
+      return FIRST_SAVE_DECLINED;
+    },
     reset: () => { namedOnce = false; },
   };
+  return gate;
 }

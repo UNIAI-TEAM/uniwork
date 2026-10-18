@@ -11,6 +11,7 @@ import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { FolderNameDialog } from "../../documents/folder-name-dialog";
 import { loadMoveRevision } from "../../documents/document-tree-model";
 import type { FirstSaveNamer } from "./docs-frame-session-model";
+
 /**
  * UNI-1847 (SAVE-01), D1: the file a never-saved blank Office document stores.
  * The server's blank create names it `untitled.<ext>` (one of the six module
@@ -56,15 +57,14 @@ export function useFirstSaveNaming({
   // Latest values for the callbacks that outlive the render they were made in.
   const latest = useRef({ doc, module, wsId, onNamed });
   latest.current = { doc, module, wsId, onNamed };
-  // True once the title was written this session: the stored filename stays
-  // `untitled.<ext>` (FileService keeps its own name), so only this flag can tell.
-  const named = useRef(false);
+  // The document whose title was written this session (another blank prompts again): the stored
+  // filename stays `untitled.<ext>` (FileService keeps its own name), so only this can tell.
+  const named = useRef<string | null>(null);
   const pending = useRef<((named: boolean) => void)[]>([]);
   const [open, setOpen] = useState(false);
   const [initialTitle, setInitialTitle] = useState("");
   // A successful submit also fires onOpenChange(false): it must not read as a cancel.
   const namedThisClose = useRef(false);
-
 
   const settle = (namedNow: boolean) => {
     const asks = pending.current;
@@ -74,7 +74,7 @@ export function useFirstSaveNaming({
   };
 
   const submit = async (title: string): Promise<boolean | void> => {
-    const { doc: current, wsId: ws, module: mod, onNamed: named_ } = latest.current;
+    const { doc: current, wsId: ws, module: mod, onNamed: notify } = latest.current;
     if (!current) throw new Error("the document is not loaded");
     const revision = await loadMoveRevision(queryClient, ws, current.id).catch(() => null);
     if (!revision) throw new Error("the document revision could not be read");
@@ -84,17 +84,17 @@ export function useFirstSaveNaming({
     // The title changes everywhere the document is listed or opened.
     queryClient.setQueryData(documentKeys.detail(ws, current.id), updated);
     await queryClient.invalidateQueries({ queryKey: documentKeys.workspace(ws) });
-    named.current = true;
+    named.current = current.id;
     // The stored filename never follows the title: the frame's display name is
     // the title with the module's own extension, so its bar and recents read it.
     const filename = current.file?.filename ?? "";
     const ext = filename.match(/\.[A-Za-z0-9]{1,5}$/)?.[0] ?? `.${officeModuleSpec(mod).extension}`;
-    named_?.({ fileId: current.id, name: `${title}${ext}` });
+    notify?.({ fileId: current.id, name: `${title}${ext}` });
     return true;
   };
 
   const namer: FirstSaveNamer = {
-    needsName: () => !named.current && hasUntitledVersionOneFile(latest.current.doc),
+    needsName: () => named.current !== latest.current.doc?.id && hasUntitledVersionOneFile(latest.current.doc),
     ask: () =>
       new Promise<boolean>((resolve) => {
         pending.current.push(resolve);
@@ -123,4 +123,3 @@ export function useFirstSaveNaming({
 
   return { ...namer, dialog, open };
 }
-
