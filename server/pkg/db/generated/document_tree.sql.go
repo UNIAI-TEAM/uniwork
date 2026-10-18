@@ -201,6 +201,53 @@ func (q *Queries) ClearDocumentArchiveBatch(ctx context.Context, arg ClearDocume
 	return items, nil
 }
 
+const clearDocumentShelveBatch = `-- name: ClearDocumentShelveBatch :many
+UPDATE documents
+SET shelved_at = NULL,
+    shelved_by = NULL,
+    shelved_by_kind = NULL,
+    shelve_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND id = ANY($3::text[])
+  AND shelved_at IS NOT NULL
+RETURNING id
+`
+
+type ClearDocumentShelveBatchParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+}
+
+// The unshelve write: clears the shelved_* four of exactly the ids the
+// managed-subset walk returned. revision bumps like every restore path: a
+// row that leaves the shelf is a changed row, and a client holding the
+// pre-shelve revision must conflict on write rather than silently keep a
+// stale base. Trashed rows clear too - the shape CHECK holds in either
+// state and a later restore-from-trash no longer lands shelved.
+func (q *Queries) ClearDocumentShelveBatch(ctx context.Context, arg ClearDocumentShelveBatchParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, clearDocumentShelveBatch, arg.OrganizationID, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countLiveDocumentSubtreeByKind = `-- name: CountLiveDocumentSubtreeByKind :many
 SELECT d.kind, count(*) AS n
 FROM documents d
@@ -270,7 +317,7 @@ SET parent_id = NULL,
 WHERE id = $6
   AND organization_id = $7
   AND workspace_id = $8
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 `
 
 type DetachDocumentToRootParams struct {
@@ -344,12 +391,16 @@ func (q *Queries) DetachDocumentToRoot(ctx context.Context, arg DetachDocumentTo
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
 		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
 	)
 	return i, err
 }
 
 const listDocumentArchiveBatch = `-- name: ListDocumentArchiveBatch :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -416,6 +467,10 @@ func (q *Queries) ListDocumentArchiveBatch(ctx context.Context, arg ListDocument
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
 			&i.SystemKind,
+			&i.ShelvedAt,
+			&i.ShelvedBy,
+			&i.ShelvedByKind,
+			&i.ShelveBatchID,
 		); err != nil {
 			return nil, err
 		}
@@ -484,7 +539,7 @@ func (q *Queries) ListDocumentArchiveBatchAcl(ctx context.Context, arg ListDocum
 }
 
 const listDocumentChildrenOutsideSet = `-- name: ListDocumentChildrenOutsideSet :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -561,6 +616,93 @@ func (q *Queries) ListDocumentChildrenOutsideSet(ctx context.Context, arg ListDo
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
 			&i.SystemKind,
+			&i.ShelvedAt,
+			&i.ShelvedBy,
+			&i.ShelvedByKind,
+			&i.ShelveBatchID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentShelveBatch = `-- name: ListDocumentShelveBatch :many
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+FROM documents
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND shelve_batch_id = $3
+ORDER BY id
+`
+
+type ListDocumentShelveBatchParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ShelveBatchID  pgtype.Text `json:"shelve_batch_id"`
+}
+
+// One shelve batch's rows (unshelve reads this).
+func (q *Queries) ListDocumentShelveBatch(ctx context.Context, arg ListDocumentShelveBatchParams) ([]Document, error) {
+	rows, err := q.db.Query(ctx, listDocumentShelveBatch, arg.OrganizationID, arg.WorkspaceID, arg.ShelveBatchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Document{}
+	for rows.Next() {
+		var i Document
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.ParentID,
+			&i.Kind,
+			&i.Title,
+			&i.Icon,
+			&i.Visibility,
+			&i.Content,
+			&i.ContentText,
+			&i.SearchText,
+			&i.ContentBytes,
+			&i.CurrentVersion,
+			&i.FileVersionID,
+			&i.Revision,
+			&i.Position,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.AclOwnerID,
+			&i.SourceDocumentID,
+			&i.SourceVersionID,
+			&i.SourceRevision,
+			&i.SourceFormat,
+			&i.SourceEngine,
+			&i.TargetFormat,
+			&i.SourceChecksumSha256,
+			&i.ConversionReason,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.UpdatedBy,
+			&i.UpdatedByKind,
+			&i.ContentSavedAt,
+			&i.LastVersionAt,
+			&i.ArchivedAt,
+			&i.ArchivedBy,
+			&i.PurgeAfter,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ArchiveBatchID,
+			&i.ContentRevision,
+			&i.WorkspaceLevel,
+			&i.SystemKind,
+			&i.ShelvedAt,
+			&i.ShelvedBy,
+			&i.ShelvedByKind,
+			&i.ShelveBatchID,
 		); err != nil {
 			return nil, err
 		}
@@ -588,7 +730,7 @@ WITH RECURSIVE sub AS (
     AND d.workspace_id = $2
     AND sub.lvl < $4::int
 )
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, sub.lvl AS subtree_depth
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, sub.lvl AS subtree_depth
 FROM sub
 JOIN documents d ON d.id = sub.id
 `
@@ -643,6 +785,10 @@ type ListDocumentSubtreeRow struct {
 	ContentRevision      int64              `json:"content_revision"`
 	WorkspaceLevel       string             `json:"workspace_level"`
 	SystemKind           pgtype.Text        `json:"system_kind"`
+	ShelvedAt            pgtype.Timestamptz `json:"shelved_at"`
+	ShelvedBy            pgtype.Text        `json:"shelved_by"`
+	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
+	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
 	SubtreeDepth         int32              `json:"subtree_depth"`
 }
 
@@ -714,6 +860,10 @@ func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtr
 			&i.ContentRevision,
 			&i.WorkspaceLevel,
 			&i.SystemKind,
+			&i.ShelvedAt,
+			&i.ShelvedBy,
+			&i.ShelvedByKind,
+			&i.ShelveBatchID,
 			&i.SubtreeDepth,
 		); err != nil {
 			return nil, err
@@ -873,6 +1023,71 @@ func (q *Queries) ListLiveDocumentSubtreeIDs(ctx context.Context, arg ListLiveDo
 	return items, nil
 }
 
+const listUnshelvedLiveDocumentSubtreeIDs = `-- name: ListUnshelvedLiveDocumentSubtreeIDs :many
+WITH RECURSIVE sub AS (
+  SELECT r.id, 1 AS lvl
+  FROM documents r
+  WHERE r.organization_id = $2
+    AND r.workspace_id = $3
+    AND r.id = $4
+  UNION ALL
+  SELECT d.id, sub.lvl + 1
+  FROM documents d
+  JOIN sub ON d.parent_id = sub.id
+  WHERE d.organization_id = $2
+    AND d.workspace_id = $3
+    AND sub.lvl < $5::int
+)
+SELECT d.id
+FROM sub
+JOIN documents d ON d.id = sub.id
+WHERE d.archived_at IS NULL
+  AND d.shelved_at IS NULL
+LIMIT $1
+`
+
+type ListUnshelvedLiveDocumentSubtreeIDsParams struct {
+	MaxRows        int32  `json:"max_rows"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	RootID         string `json:"root_id"`
+	MaxLevel       int32  `json:"max_level"`
+}
+
+// The live AND not-yet-shelved ids of a subtree, at most max_rows of them:
+// the shelve command's walk (addendum §2 S-1). Same shape as
+// ListLiveDocumentSubtreeIDs - archived AND shelved nodes are still walked
+// (a shelved child can sit under a live one only after a partial unshelve,
+// and a live child of a shelved parent must be stamped with the rest) but
+// do not count against the cap - except shelved rows are also excluded from
+// the result set. The ids come back unordered; the caller sorts for a
+// stable refusal order.
+func (q *Queries) ListUnshelvedLiveDocumentSubtreeIDs(ctx context.Context, arg ListUnshelvedLiveDocumentSubtreeIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listUnshelvedLiveDocumentSubtreeIDs,
+		arg.MaxRows,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.RootID,
+		arg.MaxLevel,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockArchivedDocumentsByOwner = `-- name: LockArchivedDocumentsByOwner :many
 SELECT id, archive_batch_id
 FROM documents
@@ -936,7 +1151,7 @@ WHERE id = $7
   AND workspace_id = $9
   AND revision = $10
   AND archived_at IS NULL
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 `
 
 type MoveDocumentParams struct {
@@ -1015,6 +1230,10 @@ func (q *Queries) MoveDocument(ctx context.Context, arg MoveDocumentParams) (Doc
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
 		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
 	)
 	return i, err
 }
@@ -1031,7 +1250,7 @@ WHERE id = $5
   AND organization_id = $6
   AND workspace_id = $7
   AND archived_at IS NOT NULL
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 `
 
 type RenameArchivedDocumentParams struct {
@@ -1101,6 +1320,10 @@ func (q *Queries) RenameArchivedDocument(ctx context.Context, arg RenameArchived
 		&i.ContentRevision,
 		&i.WorkspaceLevel,
 		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
 	)
 	return i, err
 }
@@ -1261,4 +1484,62 @@ func (q *Queries) RestoreSingleDocument(ctx context.Context, arg RestoreSingleDo
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const shelveDocumentBatch = `-- name: ShelveDocumentBatch :many
+UPDATE documents
+SET shelved_at = now(),
+    shelved_by = $1,
+    shelved_by_kind = $2,
+    shelve_batch_id = $3
+WHERE organization_id = $4
+  AND workspace_id = $5
+  AND id = ANY($6::text[])
+  AND shelved_at IS NULL
+RETURNING id
+`
+
+type ShelveDocumentBatchParams struct {
+	ShelvedBy      pgtype.Text `json:"shelved_by"`
+	ShelvedByKind  pgtype.Text `json:"shelved_by_kind"`
+	ShelveBatchID  pgtype.Text `json:"shelve_batch_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	Ids            []string    `json:"ids"`
+}
+
+// Shelve stamping for one batch (ARCHIVE-01, UNI-1845; addendum §2 S-1):
+// every live, not-yet-shelved id of the subtree gets the same
+// shelve_batch_id. A row already shelved keeps its own batch - an unshelve
+// clears exactly one batch, the way a restore recovers exactly one archive
+// batch. shelved carries no purge_after: the trash sweep never sees it.
+// Unlike ArchiveDocumentBatch there is no archived_at guard: shelving an
+// item already in the trash is allowed (shelved and trashed are orthogonal
+// states), and it stamps only the shelved_* columns - the row stays
+// trashed.
+func (q *Queries) ShelveDocumentBatch(ctx context.Context, arg ShelveDocumentBatchParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, shelveDocumentBatch,
+		arg.ShelvedBy,
+		arg.ShelvedByKind,
+		arg.ShelveBatchID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.Ids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

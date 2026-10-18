@@ -274,6 +274,10 @@ var catalogue = []EventDef{
 	{Topic: "document.moved", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.archived", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.restored", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// ARCHIVE-01 (UNI-1845): the shelved state is the real archive, kept
+	// forever; ids plus the shelve batch, same shape as the trash rows.
+	{Topic: "document.shelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.unshelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Document comments (UNI-681): ids only, workspace scope like the task

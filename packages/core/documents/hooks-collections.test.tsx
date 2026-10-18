@@ -17,8 +17,11 @@ import {
   usePurgeDocument,
   useRecentDocuments,
   useRestoreDocument,
+  useShelveDocument,
   useSharedByMe,
   useSharedWithMe,
+  useShelvedDocuments,
+  useUnshelveDocument,
 } from "./hooks-collections";
 import { documentKeys } from "./keys";
 
@@ -582,6 +585,115 @@ describe("documents collection hooks", () => {
     expect(qc.getQueryState(trashKey)?.isInvalidated).toBe(false);
     expect(canManageTrashed({ my_level: "manage" })).toBe(true);
     expect(canManageTrashed({ my_level: "edit" })).toBe(false);
+  });
+
+  // ---- ARCHIVE-01 (UNI-1845): useShelveDocument / useUnshelveDocument ----
+
+  it("useShelveDocument posts to /shelve, caches the document and invalidates the workspace root incl. the shelved list", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: summary("d1", { shelved_at: "2026-10-17T00:00:00Z" }),
+        batch_id: "s1",
+        affected: ["d1"],
+      }),
+    );
+    const { qc, wrapper } = setup();
+    const shelvedKey = documentKeys.shelved("w1");
+    const listKey = documentKeys.list("w1", "");
+    const treeKey = documentKeys.tree("w1", "");
+    const otherWsShelved = documentKeys.shelved("w2");
+    qc.setQueryData(shelvedKey, { pages: [listBody([])], pageParams: [""] });
+    qc.setQueryData(listKey, listBody([]));
+    qc.setQueryData(treeKey, { documents: [] });
+    qc.setQueryData(otherWsShelved, { pages: [listBody([])], pageParams: [""] });
+
+    const { result } = renderHook(() => useShelveDocument("w1"), { wrapper });
+    let out: unknown;
+    await act(async () => {
+      out = await result.current.mutateAsync({ documentId: "d1", idempotencyKey: "sv-1" });
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/documents/d1/shelve");
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("sv-1");
+    expect(out).toMatchObject({ batch_id: "s1", affected: ["d1"] });
+    expect(qc.getQueryData(documentKeys.detail("w1", "d1"))).toMatchObject({
+      id: "d1",
+      shelved_at: "2026-10-17T00:00:00Z",
+    });
+    // One workspace-root invalidate covers the shelved list - it hangs off the root.
+    expect(qc.getQueryState(shelvedKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(treeKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(otherWsShelved)?.isInvalidated).toBe(false);
+  });
+
+  it("useUnshelveDocument accepts a bare documentId and refreshes the shelved list through the workspace root", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: summary("d1"), affected: ["d1"] }));
+    const { qc, wrapper } = setup();
+    const shelvedKey = documentKeys.shelved("w1");
+    qc.setQueryData(shelvedKey, { pages: [listBody([])], pageParams: [""] });
+
+    const { result } = renderHook(() => useUnshelveDocument("w1"), { wrapper });
+    let out: unknown;
+    await act(async () => {
+      out = await result.current.mutateAsync("d1");
+    });
+
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/documents/d1/unshelve");
+    expect(out).toMatchObject({ document: { id: "d1" }, affected: ["d1"] });
+    expect(qc.getQueryState(shelvedKey)?.isInvalidated).toBe(true);
+  });
+
+  it("useShelveDocument and useUnshelveDocument report an unverifiable answer without invalidating", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ batch_id: "s2", affected: ["d1"] }));
+    const { qc, wrapper } = setup();
+    const shelvedKey = documentKeys.shelved("w1");
+    qc.setQueryData(shelvedKey, { pages: [listBody([])], pageParams: [""] });
+
+    const shelve = renderHook(() => useShelveDocument("w1"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() => shelve.result.current.mutateAsync({ documentId: "d1" }));
+    });
+    expect(qc.getQueryState(shelvedKey)?.isInvalidated).toBe(false);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: { id: "d2" } }));
+    const unshelve = renderHook(() => useUnshelveDocument("w1"), { wrapper });
+    await act(async () => {
+      await expectNotVerifiable(() => unshelve.result.current.mutateAsync({ documentId: "d2" }));
+    });
+    expect(qc.getQueryState(shelvedKey)?.isInvalidated).toBe(false);
+  });
+
+  it("useShelvedDocuments queries shelved=true under documentKeys.shelved(wsId, filters) and follows next_cursor", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("d1", { shelved_at: "2026-10-17T00:00:00Z" })], "n1")))
+      .mockResolvedValueOnce(json(listBody([summary("d2", { shelved_at: "2026-10-17T01:00:00Z" })])));
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useShelvedDocuments("w1", { format: "docx" }), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages.length).toBe(2));
+    expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?format=docx&shelved=true&limit=50",
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?format=docx&shelved=true&cursor=n1&limit=50",
+    );
+    // The chips key the entry; the bare shelved key stays empty.
+    expect(qc.getQueryData(documentKeys.shelved("w1", documentFilterKey({ format: "docx" })))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.shelved("w1"))).toBeUndefined();
+  });
+
+  it("useShelvedDocuments stays idle without a workspace", () => {
+    const { wrapper } = setup();
+    renderHook(() => useShelvedDocuments("", {}), { wrapper });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

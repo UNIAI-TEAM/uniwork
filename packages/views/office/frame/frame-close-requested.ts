@@ -101,10 +101,12 @@ export async function runHostSave(deps: {
   savedOnce: RefObject<boolean>;
   saveBlockedOpen: RefObject<boolean>;
   latest: RefObject<{ options: DocsFrameSessionOptions; documentLimits: { upload_max_bytes: number } }>;
+  /** Error reporting with the session's shelved dedupe (ARCHIVE-01): a refusal already told by onShelved is not toasted again. */
+  reportError: (error: ProtocolErrorShape, fatal?: boolean) => void;
   setSaveState: (state: DocsFrameSaveState) => void;
   setSaveBlocked: (blocked: DocsFrameSaveBlocked | null) => void;
 }): Promise<DocsFrameSaveOutcome> {
-  const { reason, host, frameLife, hostSave, firstSaveGate, modalOpen, savedOnce, saveBlockedOpen, latest, setSaveState, setSaveBlocked } = deps;
+  const { reason, host, frameLife, hostSave, firstSaveGate, modalOpen, savedOnce, saveBlockedOpen, latest, reportError, setSaveState, setSaveBlocked } = deps;
   // One Save at a time: a second one (the page is inert while the frame's dialog is open) is refused, unsent.
   const life = frameLife.current;
   if (!host || hostSave.current || life.state !== "live") return "failed";
@@ -133,7 +135,7 @@ export async function runHostSave(deps: {
       return "failed";
     }
     if (error.code === "too_large" && saveBlockedOpen.current) return "failed";
-    latest.current.options.onError(error, { fatal: false });
+    reportError(error);
     return "failed";
   };
   try {

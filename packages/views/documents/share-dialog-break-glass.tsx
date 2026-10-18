@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { isBreakGlassRequiredError } from "@uniwork/core/api/endpoints/documents";
 import { useRevokeDocumentBreakGlass } from "@uniwork/core/documents/break-glass-queries";
-import { shareLevelNotAllowedMax } from "@uniwork/core/documents/errors";
+import { isDocumentShelvedError, shareLevelNotAllowedMax } from "@uniwork/core/documents/errors";
 import { isDocumentNotVerifiable } from "@uniwork/core/types/document";
 import type { DocumentBreakGlassGrant } from "@uniwork/core/types/document-access";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -41,6 +41,11 @@ export function shareErrorMessage(err: unknown, t: ReturnType<typeof useTranslat
   }
   if (errorCode(err) === "my_folder_locked") {
     return t("documents.errors.my_folder_locked");
+  }
+  // ARCHIVE-01 U-9: any share write refused by the shelve gate (409
+  // document_shelved) reads as the shelved sentence, not the raw envelope.
+  if (isDocumentShelvedError(err)) {
+    return t("documents.shelved_doc.write_blocked");
   }
   // A share for the document's own workspace above the home row's ceiling
   // (SH-S1 Q-S1) names that ceiling: say it here instead of the server's

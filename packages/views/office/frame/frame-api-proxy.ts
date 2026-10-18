@@ -1,8 +1,11 @@
 import { chunkedUploadThreshold } from "@uniwork/core/documents/chunked-upload";
-import { docsFrameError, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { officeFrameKeys } from "@uniwork/core/documents/office-frame-hooks";
+import { docsFrameError, docsFrameToken, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import type { ApiHandlers } from "@uniwork/core/office/docs-frame-host";
 import { DocsProtocolError, type FrameRequests, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
-import { readOnly, type DocsFrameSessionOptions } from "./docs-frame-session-model";
+import type { OfficeFrameSourceToken, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
+import type { QueryClient } from "@tanstack/react-query";
+import { readOnly, unauthorized, type DocsFrameSessionOptions } from "./docs-frame-session-model";
 
 /** The session values one proxied `api.*` call reads, live (the session's `latest` ref). */
 export interface FrameApiProxyState {
@@ -15,6 +18,35 @@ export interface FrameApiProxyState {
   documentLimits: Parameters<typeof chunkedUploadThreshold>[0];
   /** The name the first-save dialog wrote for this document (UNI-1847): the next save's upload carries it as filename. */
   renameName?: { id: string; name: string };
+}
+
+/** The session values the frame-token loader reads (the session's `latest` ref). */
+export interface FrameTokenLoaderState {
+  options: Pick<DocsFrameSessionOptions, "wsId">;
+  scopeId: string;
+  isSource: boolean;
+  refetch: (opts?: { cancelRefetch?: boolean }) => Promise<{ data: OfficeFrameToken | OfficeFrameSourceToken | null | undefined }>;
+}
+
+/**
+ * The token loader of one frame endpoint: read the query cache first (a render
+ * may not have seen the mint yet), then join the in-flight mint rather than
+ * minting twice.
+ */
+export function createFrameTokenLoader(
+  latest: { current: FrameTokenLoaderState },
+  queryClient: QueryClient,
+): () => Promise<TokenPayload> {
+  return async (): Promise<TokenPayload> => {
+    const { options: { wsId: ws }, scopeId: doc, isSource: source } = latest.current;
+    const cached = queryClient.getQueryData<OfficeFrameToken | OfficeFrameSourceToken | null>(
+      source ? officeFrameKeys.sourceToken(ws, doc) : officeFrameKeys.token(ws, doc),
+    );
+    if (cached) return docsFrameToken(cached);
+    const { data } = await latest.current.refetch({ cancelRefetch: false });
+    if (!data) throw unauthorized();
+    return docsFrameToken(data);
+  };
 }
 /**
  * Builds the `api.*` proxy of one frame endpoint: a write refuses a read-only viewer, the

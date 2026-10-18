@@ -6,6 +6,7 @@ import { useDocumentSettings, useDocumentShares } from "@uniwork/core/documents/
 import { useOrgWorkspaces } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import { canAdministerDocument } from "@uniwork/core/permissions";
+import { isShelved } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -69,6 +70,10 @@ export function ShareDialog({
   const adminNoteId = useId();
   const workspace = useShareWorkspace(doc, wsId);
   const user = useOptionalWorkspace()?.user ?? null;
+  // ARCHIVE-01 U-9 (Q-AR2): a shelved document only lets access be taken away, never given.
+  const shelved = isShelved(doc);
+  const shelvedNoteId = useId();
+  const lockedBy = shelved ? shelvedNoteId : undefined;
 
   // Owned documents inherit access from their parent task or meeting; they
   // have no share dialog (C-01 §5.4).
@@ -104,7 +109,6 @@ export function ShareDialog({
     orgWorkspaces.data?.find((w) => w.id === id)?.name ||
     (workspace.id === id && workspace.name ? workspace.name : "") ||
     t("documents.share.workspace_unknown");
-
   const storedWorkspace =
     access.data?.home_workspace?.workspace_name?.trim() ||
     orgWorkspaces.data?.find((w) => w.id === doc.workspace_id)?.name ||
@@ -187,6 +191,14 @@ export function ShareDialog({
                 onRetry={members.retry}
               />
             ) : null}
+            {shelved ? (
+              <p
+                id={shelvedNoteId}
+                className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground"
+              >
+                {t("documents.shelved_doc.share_note")}
+              </p>
+            ) : null}
 
             <ShareAddSection
               wsId={wsId}
@@ -198,6 +210,8 @@ export function ShareDialog({
               members={members}
               orgWorkspaces={orgWorkspaces.data ?? []}
               organization={organization}
+              shelved={shelved}
+              shelvedNoteId={lockedBy}
             />
 
             <ShareAccessList
@@ -212,6 +226,8 @@ export function ShareDialog({
               workspaceName={workspaceName}
               organization={organization}
               orgMembers={members.rows}
+              shelved={shelved}
+              shelvedNoteId={lockedBy}
             />
 
             <ShareDialogBreakGlassSection
@@ -240,6 +256,8 @@ export function ShareDialog({
               }
               locale={i18n.language}
               publicLinksEnabled={docSettings.data?.public_links_enabled}
+              locked={shelved}
+              lockedNoteId={lockedBy}
             />
           </div>
         )}
@@ -247,3 +265,4 @@ export function ShareDialog({
     </Dialog>
   );
 }
+

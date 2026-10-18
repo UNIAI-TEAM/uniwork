@@ -136,24 +136,7 @@ export function LibraryToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div role="group" aria-label={t("documents.home.chips_label")} className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden px-1 py-1">
-        {TYPE_CHIPS.map((value) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={chip === value}
-            onClick={() => onChip(value)}
-            className={cn(
-              "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-              chip === value
-                ? "border-foreground bg-foreground text-background"
-                : "border-border bg-background text-foreground hover:bg-accent",
-            )}
-          >
-            {t(`documents.home.chips.${value}`)}
-          </button>
-        ))}
-      </div>
+      <TypeChipRow chip={chip} onChip={onChip} />
       {/* The caption keeps the second "All" from reading as a repeat of the type chips, wherever the groups wrap. */}
       {/* ml-3 on top of the row gap: with only two options (archive) the group fits beside the chips and must still read as its own group. */}
       <div className="ml-3 flex max-w-full items-center gap-1.5">
@@ -200,6 +183,36 @@ export function LibraryToolbar({
           </SelectContent>
         </Select>
       </div>
+    </div>
+  );
+}
+
+export interface TypeChipRowProps {
+  chip: TypeChip;
+  onChip: (chip: TypeChip) => void;
+}
+
+/** The Loại chips of the list toolbar, which the shelved toolbar reuses as-is. */
+export function TypeChipRow({ chip, onChip }: TypeChipRowProps) {
+  const { t } = useTranslation();
+  return (
+    <div role="group" aria-label={t("documents.home.chips_label")} className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden px-1 py-1">
+      {TYPE_CHIPS.map((value) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={chip === value}
+          onClick={() => onChip(value)}
+          className={cn(
+            "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+            chip === value
+              ? "border-foreground bg-foreground text-background"
+              : "border-border bg-background text-foreground hover:bg-accent",
+          )}
+        >
+          {t(`documents.home.chips.${value}`)}
+        </button>
+      ))}
     </div>
   );
 }

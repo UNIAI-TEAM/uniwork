@@ -951,10 +951,12 @@ describe("useRealtimeSync", () => {
       vi.useRealTimers();
     });
 
-    // FD-06 (UNI-1466): the three tree frames refresh the workspace root too,
-    // which covers the tree, the folder content, search results and an open
-    // delete dialog's archive-impact counts. Ids only, no cache patching.
-    it.each(["document.moved", "document.archived", "document.restored"] as const)(
+    // FD-06 (UNI-1466): the tree frames refresh the workspace root too, which
+    // covers the tree, the folder content, search results and an open delete
+    // dialog's archive-impact counts. ARCHIVE-01 (UNI-1845): document.shelved /
+    // document.unshelved ride the same wave so the shelved list under the root
+    // refreshes. Ids only, no cache patching.
+    it.each(["document.moved", "document.archived", "document.restored", "document.shelved", "document.unshelved"] as const)(
       "invalidates the workspace root and the archive impact under it on %s",
       (type) => {
         vi.useFakeTimers();
@@ -963,6 +965,7 @@ describe("useRealtimeSync", () => {
         const tree = ["documents", "ws1", "tree", "", "folders_only"];
         qc.setQueryData(impact, { folders: 1, documents: 1, total: 3, max_nodes: 1000, too_large: false });
         qc.setQueryData(tree, { documents: [] });
+        qc.setQueryData(documentKeys.shelved("ws1"), { pages: [{ documents: [], next_cursor: null }], pageParams: [""] });
         client.emit({ type, payload: { document_id: "d1", workspace_id: "ws1" } } as WSMessage);
         act(() => {
           vi.advanceTimersByTime(250);
@@ -970,6 +973,7 @@ describe("useRealtimeSync", () => {
         expect(keysCalled(invalidate)).toContain(docRoot);
         expect(qc.getQueryState(impact)?.isInvalidated).toBe(true);
         expect(qc.getQueryState(tree)?.isInvalidated).toBe(true);
+        expect(qc.getQueryState(documentKeys.shelved("ws1"))?.isInvalidated).toBe(true);
         // Invalidation only: the cached counts are not rewritten by the frame.
         expect(qc.getQueryData(impact)).toEqual({
           folders: 1,
@@ -982,7 +986,7 @@ describe("useRealtimeSync", () => {
       },
     );
 
-    it.each(["document.moved", "document.archived", "document.restored"] as const)(
+    it.each(["document.moved", "document.archived", "document.restored", "document.shelved", "document.unshelved"] as const)(
       "ignores %s stamped with another workspace",
       (type) => {
         vi.useFakeTimers();

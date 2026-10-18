@@ -549,6 +549,7 @@ describe("Chunked document upload in views", () => {
       session_id: "sess-resume-1",
       expires_at: "2099-01-01T00:00:00Z",
       idempotency_key: "idem-resume-1",
+      completed_parts: 1,
     });
 
     const calls: string[] = [];
@@ -1236,7 +1237,7 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
     try {
       await openDialogAndSubmit(bigFile);
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent(t("documents.upload.document_locked"));
+      expect(alert).toHaveTextContent(t("documents.upload.document_locked_by_me"));
       expect(calls).toContain(`GET /api/v1/documents/${DOC_ID}/edit-lock`);
       expect(calls).not.toContain(`POST /api/v1/documents/${DOC_ID}/upload-sessions`);
       expect(calls).not.toContain("GET /api/v1/upload-sessions/sess-prior-2");
@@ -1561,6 +1562,254 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
     } finally {
       off();
     }
+  });
+
+  it("moves focus to the Upload button after a commit-time 423 refusal", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "commit-423.pdf");
+    const fields = { holder_id: "u2", holder_name: "Bình", held_by_me: false };
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-commit-423",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-commit-423/complete" && method === "POST") {
+        return {
+          upload_id: "up-commit-423",
+          checksum_sha256: "b".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        throw new ApiError("đang bị khóa", "document_locked", 423, undefined, fields);
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const partNum = Number(/part-(\d+)/.exec(String(input))?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    const refused = vi.fn();
+    const off = onWriteRefused(DOC_ID, refused);
+    try {
+      await openDialogAndSubmit(bigFile);
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(t("documents.upload.document_locked"));
+      expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`);
+      // The submit button remounted when the progress block unmounted; the
+      // refusal must leave focus inside the dialog, on Upload.
+      expect(screen.getByRole("button", { name: t("documents.upload.submit") })).toHaveFocus();
+    } finally {
+      off();
+    }
+  });
+
+  it("shows a neutral no-change toast when the commit answers the version the page already had", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "same-bytes.pdf");
+    const messageSpy = vi.spyOn(toast, "message").mockReturnValue("no-change-toast");
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-no-change",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-no-change/complete" && method === "POST") {
+        return {
+          upload_id: "up-no-change",
+          checksum_sha256: "a".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        // UNI-1900: identical bytes answer 200 with the version the document
+        // already carries (createdFileDoc's file.version_id is "v1").
+        return {
+          document: createdFileDoc(DOC_ID),
+          version: {
+            id: "v1",
+            document_id: DOC_ID,
+            version: 1,
+            kind: "file",
+            reason: "upload",
+            size_bytes: THRESHOLD + 1024,
+            checksum_sha256: "a".repeat(64),
+            created_at: "2026-10-18T01:05:00Z",
+          },
+        };
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const partNum = Number(/part-(\d+)/.exec(String(input))?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    await openDialogAndSubmit(bigFile);
+    await waitFor(() =>
+      expect(messageSpy).toHaveBeenCalledWith(t("documents.upload.no_change")),
+    );
+    expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`);
+    // The dialog closed as it does for a real new version.
+    expect(screen.queryByRole("button", { name: t("documents.upload.submit") })).not.toBeInTheDocument();
+  });
+
+  it("shows no toast when the commit answers a real new version", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "new-bytes.pdf");
+    const messageSpy = vi.spyOn(toast, "message").mockReturnValue("no-change-toast");
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        return {
+          session_id: "sess-new-version",
+          part_size: THRESHOLD,
+          total_parts: 2,
+          completed_parts: [],
+          parts: makePartUrls([1, 2]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-new-version/complete" && method === "POST") {
+        return {
+          upload_id: "up-new-version",
+          checksum_sha256: "b".repeat(64),
+          size_bytes: THRESHOLD + 1024,
+          claim_expires_at: "2099-01-02T01:00:00Z",
+        };
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/versions/commit` && method === "POST") {
+        return {
+          document: createdFileDoc(DOC_ID),
+          version: {
+            id: "v2",
+            document_id: DOC_ID,
+            version: 2,
+            kind: "file",
+            reason: "upload",
+            size_bytes: THRESHOLD + 1024,
+            checksum_sha256: "b".repeat(64),
+            created_at: "2026-10-18T01:05:00Z",
+          },
+        };
+      }
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const partNum = Number(/part-(\d+)/.exec(String(input))?.[1] ?? "1");
+        return new Response(null, { status: 200, headers: { ETag: `"etag-${partNum}"` } });
+      }),
+    );
+
+    await openDialogAndSubmit(bigFile);
+    await waitFor(() =>
+      expect(calls).toContain(`POST /api/v1/documents/${DOC_ID}/versions/commit`),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: t("documents.upload.submit") })).not.toBeInTheDocument(),
+    );
+    expect(messageSpy).not.toHaveBeenCalled();
+  });
+
+  // RAR-15: the upload picks up an earlier resume record; when the server
+  // answers the session-status read with 409 document_shelved the dialog must
+  // show the shelved copy, not the "resume the upload" one — the write can
+  // never land on an archived document.
+  it("surfaces a create-time 409 document_shelved as the shelved copy even with an open resume record (RAR-15)", async () => {
+    const calls: string[] = [];
+    const bigFile = makePdfFile(THRESHOLD + 1024, "create-409.pdf");
+    saveResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET, {
+      session_id: "sess-shelved-1",
+      expires_at: "2099-01-01T00:00:00Z",
+      idempotency_key: "idem-shelved-1",
+    });
+
+    editLockRoute.mockImplementation(async () => lockStateResponse(null));
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) return LIMITS_CONFIG;
+      if (path.startsWith(`/api/v1/documents/${DOC_ID}/versions`) && method === "GET") {
+        return { versions: [], next_cursor: null };
+      }
+      if (path === "/api/v1/upload-sessions/sess-shelved-1" && method === "GET") {
+        throw new ApiError("document is shelved", "document_shelved", 409, undefined, undefined, "read_only");
+      }
+      if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
+        throw new ApiError("document is shelved", "document_shelved", 409, undefined, undefined, "read_only");
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    render(wrap(<DocumentFileView wsId={WS} doc={createdFileDoc(DOC_ID)} readonly={false} />));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    await screen.findByText(t("documents.upload.size_hint", { max: "150 MB" }));
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    fireEvent.change(input, { target: { files: [bigFile] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(t("documents.shelved_doc.write_blocked"));
+    expect(alert).not.toHaveTextContent(t("documents.upload.failed_resumable"));
+    expect(alert).not.toHaveTextContent("document is shelved");
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    // The refusal is not a cleared session: the resume record stays, so this
+    // path really ran with resumable: true.
+    expect(findResumableUpload(defaultStorage, uploadFileKey(bigFile), VERSION_TARGET)).not.toBeNull();
   });
 
   it("takes no edit-lock pre-check for small files at or below the chunked threshold", async () => {

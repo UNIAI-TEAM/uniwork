@@ -172,7 +172,10 @@ func (s *OfficeFrameService) Mint(ctx context.Context, actor Actor, documentID s
 	if err != nil {
 		return OfficeFrameToken{}, err
 	}
-	return OfficeFrameToken{Token: token, ExpiresAt: time.UnixMilli(claims.ExpiresAt).UTC(), Claims: claims, CanEdit: d.Access.Level.rank() >= DocumentLevelEdit.rank()}, nil
+	// A shelved document stays openable (load admits it - it is not the
+	// trash) but is read-only: the token tells the frame so, and the save
+	// routes refuse on their own (ARCHIVE-01 §3, SH-6).
+	return OfficeFrameToken{Token: token, ExpiresAt: time.UnixMilli(claims.ExpiresAt).UTC(), Claims: claims, CanEdit: d.Access.Level.rank() >= DocumentLevelEdit.rank() && !d.Document.ShelvedAt.Valid}, nil
 }
 
 // Verify checks signature, version and lifetime. It does not touch the

@@ -1138,7 +1138,7 @@
       "loading": "Loading…",
       "export": {
         "title": "Export data",
-        "description": "The zip holds organization.json, manifest.json and one JSONL file per table. Attachment bytes are not included, and the activity log and invoices are left out.",
+        "description": "The zip holds organization.json, manifest.json and one JSONL file per table. Attachment bytes are not included, and the activity log and invoices are left out. The export includes every member's My Folder documents.",
         "submit": "Create export",
         "empty": "No exports yet.",
         "download": "Download",
@@ -8941,6 +8941,7 @@
       "version_description": "The new file becomes the working copy; the open version stays in history.",
       "pick": "Choose a file",
       "selected": "Selected {{name}}",
+      "no_file": "No file chosen",
       "size_hint": "Up to {{max}} per file.",
       "too_large_named": "{{name}} is {{size}}, which is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
       "unsupported_format": "The format of {{name}} is not supported.",
@@ -8956,7 +8957,10 @@
       "drop_progress": "Uploading {{name}} · {{percent}}%",
       "paused_status": "Paused",
       "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue.",
-      "document_locked": "Someone else is editing this document. Wait until they finish or take over editing, then try again."
+      "drop_queued": "Waiting to upload {{name}}",
+      "document_locked": "Someone else is editing this document. Wait until they finish or take over editing, then try again.",
+      "document_locked_by_me": "You are editing this document in another window. Save or close it there, then try again.",
+      "no_change": "No changes — kept the current version"
     },
     "file": {
       "metadata_title": "File details",
@@ -9403,6 +9407,52 @@
         "left_in_trash": "Some children stay in the trash."
       }
     },
+    "shelved_list": {
+      "title": "Archive",
+      "intro": "Finished documents are put away here: kept forever, read-only, no comments. Unarchiving an item restores it as before. Anyone who can see an item still opens and finds it (labelled “Archived”). Archiving a folder archives the whole tree; it needs Manage access.",
+      "badge": "Archived",
+      "shelve": "Archive",
+      "unshelve": "Unarchive",
+      "undo": "Undo",
+      "unshelve_item": "Unarchive {{title}}",
+      "no_permission": "You do not manage this item.",
+      "unshelve_failed": "Could not unarchive. Nothing changed.",
+      "shelve_failed": "Could not archive. Nothing changed.",
+      "too_large": "The folder holds too many items to archive in one go. Archive what's inside in parts first.",
+      "filter_by_label": "Archived by",
+      "filter_by_any": "Anyone",
+      "filter_loaded_only": "Filters what is loaded — load more to widen it.",
+      "shelved_by_former": "Former member",
+      "shelved_by_system": "System",
+      "sort_shelved_desc": "Archived most recently",
+      "columns": {
+        "name": "Name",
+        "access": "Access",
+        "shelved_by": "Archived by",
+        "shelved_at": "Archived at",
+        "actions": "Actions"
+      },
+      "empty_title": "No documents archived yet",
+      "empty_description": "Items a manager moves to Archive show up here.",
+      "no_matches_title": "Nothing matches",
+      "no_matches_description": "Nothing matches the filters in what has loaded.",
+      "shelve_title": "Archive this folder?",
+      "shelve_folder_body": "The whole folder and everything inside becomes read-only: {{subfolders}} and {{documents}}.",
+      "shelve_subfolders_one": "{{count}} subfolder",
+      "shelve_subfolders_other": "{{count}} subfolders",
+      "shelve_documents_one": "{{count}} document",
+      "shelve_documents_other": "{{count}} documents",
+      "shelve_loading": "Reading what is inside…",
+      "shelve_confirm": "Archive",
+      "shelve_submitting": "Archiving…",
+      "shelve_forbidden": "You do not manage every item in this folder.",
+      "toast": {
+        "shelved": "Archived {{title}}",
+        "unshelved": "Unarchived {{title}}",
+        "left_shelved": "Some children stay in Archive.",
+        "restored_to_shelved": "Restored {{title}} into Archive"
+      }
+    },
     "public": {
       "loading": "Loading the document…",
       "not_found_title": "This link is no longer active",
@@ -9687,6 +9737,7 @@
         "starred": "Starred",
         "shared": "Shared with me",
         "shared_by_me": "Shared by me",
+        "shelved": "Archive",
         "trash": "Trash",
         "folders": "Folders",
         "elsewhere": "From elsewhere",
@@ -9714,7 +9765,6 @@
         "meeting": "Meetings",
         "email": "Email"
       },
-
       "chips_label": "Filter by type",
       "chips": {
         "all": "All",
@@ -9917,6 +9967,17 @@
       "upload_size_mismatch": "The file size changed while uploading. Choose the file again and retry.",
       "upload_probe_mismatch": "The file content does not match the selected format. Check the file and try again.",
       "quota_exceeded": "Your organization is out of storage space. Free up space or upgrade your plan."
+    },
+    "shelved_doc": {
+      "label": "Archived",
+      "banner": "This document is archived: read-only, no comments.",
+      "unshelve": "Unarchive",
+      "unshelved": "Unarchived {{title}}",
+      "unshelve_failed": "Could not unarchive this document.",
+      "write_blocked": "This document is archived and read-only.",
+      "frame_save_blocked": "The document is archived, so it can't be saved.",
+      "comments_status": "This document is archived: comments are read-only.",
+      "share_note": "Archived document: you can only revoke access, not grant more."
     }
   },
   "squads": {

@@ -108,6 +108,7 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   const retryDelays = opts.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
 
   let sessionId: string | undefined;
+  let sessionExpiresAt = "";
   let partSize = 0;
   let totalParts = 0;
   let maxSentBytes = 0;
@@ -117,6 +118,12 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   // going, so the bar moves during the first 8 MiB part (V-1). Cleared when
   // that part settles, retries included.
   const inFlightBytes = new Map<number, number>();
+  // Bytes the transport already reported for a part whose send was then
+  // abandoned (pause abort, superseded pass): banked so the restarted send
+  // keeps the bar moving from the first new byte instead of holding still
+  // (R2-F1). Counted like fresh in-flight bytes and released when the part
+  // completes locally or the server claims it.
+  const restartBaseline = new Map<number, number>();
 
   let currentPhase: ChunkedUploadPhase = "probing";
   let paused = false;
@@ -137,8 +144,13 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
   function computeSentBytes(): number {
     let sum = 0;
     for (const partNumber of completedEtags.keys()) sum += partByteLength(partNumber);
-    for (const [partNumber, loaded] of inFlightBytes) {
+    for (const [partNumber, banked] of restartBaseline) {
       if (completedEtags.has(partNumber)) continue;
+      const covered = banked + (inFlightBytes.get(partNumber) ?? 0);
+      sum += Math.min(covered, partByteLength(partNumber));
+    }
+    for (const [partNumber, loaded] of inFlightBytes) {
+      if (completedEtags.has(partNumber) || restartBaseline.has(partNumber)) continue;
       sum += Math.min(loaded, partByteLength(partNumber));
     }
     maxSentBytes = Math.max(maxSentBytes, Math.min(totalBytes, sum));
@@ -151,19 +163,41 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
     opts.onProgress?.({ phase, sentBytes, totalBytes, ...(sessionId ? { sessionId } : {}) });
   }
 
+  // A send that ended without an etag still moved bytes; keep them for the
+  // restarted attempt's accounting.
+  function bankAbandonedBytes(partNumber: number): void {
+    const abandoned = inFlightBytes.get(partNumber) ?? 0;
+    inFlightBytes.delete(partNumber);
+    if (abandoned > 0) {
+      restartBaseline.set(partNumber, (restartBaseline.get(partNumber) ?? 0) + abandoned);
+    }
+  }
+
+  // The resume record carries how many parts the server has confirmed so a
+  // later page knows there is real progress behind it (R2-F2); refreshed on
+  // every snapshot and every completed part.
+  function persistResumeRecord(): void {
+    if (!opts.storage || !sessionId) return;
+    saveResumableUpload(opts.storage, fileKey, opts.target, {
+      session_id: sessionId,
+      expires_at: sessionExpiresAt,
+      idempotency_key: opts.idempotencyKey,
+      completed_parts: completedEtags.size,
+    });
+  }
+
   function applySessionSnapshot(session: UploadSession): void {
     sessionId = session.session_id;
+    sessionExpiresAt = session.expires_at;
     partSize = session.part_size;
     totalParts = session.total_parts;
-    for (const cp of session.completed_parts) completedEtags.set(cp.part_number, cp.etag);
-    for (const p of session.parts) partUrls.set(p.part_number, p);
-    if (opts.storage) {
-      saveResumableUpload(opts.storage, fileKey, opts.target, {
-        session_id: session.session_id,
-        expires_at: session.expires_at,
-        idempotency_key: opts.idempotencyKey,
-      });
+    for (const cp of session.completed_parts) {
+      completedEtags.set(cp.part_number, cp.etag);
+      inFlightBytes.delete(cp.part_number);
+      restartBaseline.delete(cp.part_number);
     }
+    for (const p of session.parts) partUrls.set(p.part_number, p);
+    persistResumeRecord();
   }
 
   async function waitWhilePaused(): Promise<void> {
@@ -311,13 +345,23 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
           throw new ChunkedUploadError("missing_etag", `Missing ETag on part ${partNumber}`);
         }
         inFlightBytes.delete(partNumber);
+        restartBaseline.delete(partNumber);
         completedEtags.set(partNumber, etag);
+        persistResumeRecord();
         emit("uploading");
         return;
       } catch (err) {
+        if (canceled) {
+          inFlightBytes.delete(partNumber);
+          throw new ChunkedUploadError("upload_canceled", "Upload was canceled");
+        }
+        if (paused || pauseGeneration !== gen || signal.aborted) {
+          bankAbandonedBytes(partNumber);
+          return;
+        }
+        // A retry sends the part from byte 0 again, so the failed attempt's
+        // bytes must not be banked or the bar would run ahead of real progress.
         inFlightBytes.delete(partNumber);
-        if (canceled) throw new ChunkedUploadError("upload_canceled", "Upload was canceled");
-        if (paused || pauseGeneration !== gen || signal.aborted) return;
         if (isClearedSessionError(err)) {
           if (opts.storage) clearResumableUpload(opts.storage, fileKey, opts.target);
           throw err;

@@ -31,6 +31,9 @@ import (
 //	POST   /api/v1/documents/{documentID}/archive                 (G1-05b)
 //	GET    /api/v1/documents/{documentID}/archive-impact          (FD-04)
 //	POST   /api/v1/documents/{documentID}/restore                 (G1-05b)
+//	POST   /api/v1/documents/{documentID}/purge                   (RESTORE-01)
+//	POST   /api/v1/documents/{documentID}/shelve                  (ARCHIVE-01)
+//	POST   /api/v1/documents/{documentID}/unshelve                (ARCHIVE-01)
 //	GET    /api/v1/documents/{documentID}/shares                  (G1-05b)
 //	POST   /api/v1/documents/{documentID}/shares                  (G1-05b)
 //	POST   /api/v1/documents/{documentID}/shares/batch            (UNI-1641)
@@ -605,6 +608,20 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		description: "Xóa vĩnh viễn một mục đang trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §2): dọn mọi bảng phụ thuộc, nhả blob qua FileService và ghi audit/outbox document.deleted (metadata manual_purge=true) trong một transaction. Mục đang sống -> 400 document_not_in_trash; dưới manage -> 403; không thấy -> 404; quá 1000 nút -> 400 folder_too_large.",
 		tags:        []string{"documents"},
 		status:      http.StatusNoContent,
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/shelve", h.ShelveDocument, apiOp{
+		summary:     "Shelve a document subtree",
+		description: "Lưu trữ tài liệu (hoặc thư mục) và cả cây con đang sống chưa lưu trữ trong một transaction sau khi kiểm manage trên từng node (ARCHIVE-01): mục lưu trữ chỉ đọc, giữ mãi, KHÔNG vào thùng rác và không bị dọn. Node restricted không manage được chặn cả lệnh; quá 1000 nút -> 400 folder_too_large; gốc My Folder -> 409 my_folder_locked; mục thuộc Work Product -> 409 document_owned_by_work_product. Gọi lại trên mục đã lưu trữ = 200 không đổi; Idempotency-Key replay trả kết quả đã lưu.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentArchiveSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/unshelve", h.UnshelveDocument, apiOp{
+		summary:     "Unshelve a document",
+		description: "Bỏ lưu trữ mục và các hậu duệ cùng shelve_batch_id còn lưu trữ mà người gọi quản lý (ARCHIVE-01 §2 S-2); hậu duệ không quản lý ở lại trong kho lưu trữ. Vị trí trong cây không đổi. Mục chưa lưu trữ = 200 không đổi gì; Idempotency-Key replay trả kết quả đã lưu.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
 	})
 	d.Get("/documents/{documentID}/shares", h.ListDocumentShares, apiOp{
