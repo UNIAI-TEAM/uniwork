@@ -184,6 +184,11 @@ function keysFor(
       }
       break;
     }
+    case "chat.room.member_read": {
+      // Someone's read cursor moved: only this room's "N người đã xem" changes.
+      if (payload.room_id) push(chatKeys.roomMembers(wsId, payload.room_id));
+      break;
+    }
     case "chat.channel.created":
     case "chat.channel.updated":
     case "chat.channel.archived": {

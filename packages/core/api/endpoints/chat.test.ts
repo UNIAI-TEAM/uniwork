@@ -552,6 +552,24 @@ describe("chat endpoints", () => {
     ]);
   });
 
+  it("listChatRoomMembers keeps a member whose last_read_at drifts, as never read", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        members: [
+          { user_id: "u1", role: "admin", email: "a@x.vn", display_name: "A", last_read_at: 42 },
+          { user_id: "u2", role: "member", email: "b@x.vn", display_name: "B", last_read_at: "2026-01-01T10:00:00.123456Z" },
+          { user_id: "u3", role: "member", email: "c@x.vn", display_name: "C" },
+        ],
+      }),
+    );
+    const members = await listChatRoomMembers("ws1", "room1");
+    expect(members.map((m) => [m.user_id, m.last_read_at])).toEqual([
+      ["u1", undefined],
+      ["u2", "2026-01-01T10:00:00.123456Z"],
+      ["u3", undefined],
+    ]);
+  });
+
   it("patchChatRoomMember degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await patchChatRoomMember("ws1", "room1", "user1", { role: "admin" })).toBe(false);
