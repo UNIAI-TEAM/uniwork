@@ -458,6 +458,32 @@ func (q *Queries) SetFileChecksum(ctx context.Context, arg SetFileChecksumParams
 	return result.RowsAffected(), nil
 }
 
+const setFileObjectVersion = `-- name: SetFileObjectVersion :execrows
+UPDATE files SET
+  object_version = $1,
+  updated_at = now()
+WHERE id = $2 AND object_version IS NULL
+`
+
+type SetFileObjectVersionParams struct {
+	ObjectVersion pgtype.Text `json:"object_version"`
+	ID            string      `json:"id"`
+}
+
+// tenant: by-id
+// Records the assembled object's version on a file that never staged, before
+// the durable cleanup job is queued: FileGC builds its locator from this row
+// and refuses an unversioned delete on a versioned bucket, so a failure
+// without this version would keep the object forever. Write-once: a version
+// a completed stage already verified is never overwritten.
+func (q *Queries) SetFileObjectVersion(ctx context.Context, arg SetFileObjectVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setFileObjectVersion, arg.ObjectVersion, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const sumOrgReadyFileBytes = `-- name: SumOrgReadyFileBytes :one
 SELECT COALESCE(sum(size_bytes), 0)::bigint AS ready_bytes
 FROM files

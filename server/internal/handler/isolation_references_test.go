@@ -190,6 +190,16 @@ var isoReferences = []isoReference{
 	// 409 for a parent of another tenant - the parent gate decides first.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent folder", body: map[string]any{
 		"title": isoUnique("ref folder"), "kind": "folder", "parent_id": isoRef("folder")}},
+	// The large-upload create route (BIGUP-S1): parent_id names a page or
+	// folder of the same workspace, checked before any session or part URL is
+	// created. Its control is also the route's write control, because the
+	// 4-open-per-person limit leaves no budget for a third seeded session.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/upload-sessions", what: "parent page", idempotent: true,
+		body: map[string]any{
+			"filename": "iso-ref-big.md", "size_bytes": isoUploadSessionSize,
+			"probe":     map[string]any{"head_b64": isoUploadSessionHead, "central_dir_b64": "", "cd_offset": 0, "cd_size": 0},
+			"parent_id": isoRef("document"),
+		}, covers: []string{"CreateUploadSessionSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "user principal", body: map[string]any{
 		"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentSDI.principal_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares/batch", what: "user principals", body: map[string]any{
@@ -220,6 +230,8 @@ var isoReferences = []isoReference{
 		"consent": "copy", "parent_id": isoRef("document")}, covers: []string{"CopyDocumentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "convert job", idempotent: true, body: map[string]any{
 		"consent": "copy", "job_id": isoRef("officeJob")}, noControl: "a serialize job is not a convert job", covers: []string{"CopyDocumentSDI.job_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "staged upload", idempotent: true, body: map[string]any{
+		"consent": "copy", "upload_id": isoRef("copyUpload")}, covers: []string{"CopyDocumentSDI.upload_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/files/blank", what: "parent page", idempotent: true, body: map[string]any{
 		"format": "md", "title": isoUnique("ref"), "parent_id": isoRef("document")}, noControl: "the office stub engine never finishes a blank document", covers: []string{"CreateBlankDocumentFileSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/save", what: "parent page", idempotent: true, body: map[string]any{

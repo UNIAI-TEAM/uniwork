@@ -337,3 +337,49 @@ type ListDocumentShareCandidatesSDI struct {
 	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"bmd1eWVuAHVzZXIAMDFKOA"`
 	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 20, tối đa 50" example:"20"`
 }
+
+// UploadSessionProbeSDI is the client's probe of the file it is about to
+// upload in parts (addendum §6.2): the first 64 KiB and, for a zip container,
+// the central directory, base64. The server checks the declared size of the
+// central directory against the decoded bytes and runs the same detector and
+// zip rules the single-request route runs, so an unsupported file is refused
+// before any part is signed.
+type UploadSessionProbeSDI struct {
+	HeadB64       string `json:"head_b64" description:"Base64 của tối đa 65536 byte đầu tệp (byte đã giải mã, không phải ký tự base64)" example:"UEsDBBQAAAAIAA=="`
+	CentralDirB64 string `json:"central_dir_b64" description:"Base64 của central directory + EOCD (và ZIP64 locator nếu có); rỗng khi tệp không phải zip" example:""`
+	CDOffset      int64  `json:"cd_offset" description:"Offset byte của central directory trong tệp; 0 khi không phải zip" example:"83820000"`
+	CDSize        int64  `json:"cd_size" description:"Độ dài byte của central_dir_b64 sau khi giải mã, tối đa 1 MiB; 0 khi không phải zip" example:"66080"`
+}
+
+// CreateUploadSessionSDI is the body of the three create routes of the large
+// upload flow (addendum §6.1/§6.2): POST
+// /api/v1/workspaces/{workspaceID}/documents/upload-sessions,
+// POST /api/v1/documents/{documentID}/upload-sessions and POST
+// /api/v1/office-frame/documents/{documentID}/upload-sessions. The parent
+// (workspace or document) rides on the path, never in the body; parent_id,
+// title and visibility are the workspace route's alone. size_bytes must be
+// above the single-request threshold (20 MiB) and within the document cap;
+// the Idempotency-Key header binds the request to its payload fingerprint.
+type CreateUploadSessionSDI struct {
+	Filename   string                `json:"filename" description:"Tên tệp; đuôi tệp phải nằm trong allowlist document_file và khớp nội dung probe" example:"Bao-cao-quy-4.docx"`
+	SizeBytes  int64                 `json:"size_bytes" description:"Kích thước khai báo của tệp (byte); ≤ 20 MiB -> 422 upload_session_too_small, trên upload_max_bytes -> 413 file_too_large" example:"83886080"`
+	ParentID   *string               `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace (chỉ route workspace); bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Title      *string               `json:"title" description:"Tiêu đề tài liệu sẽ tạo (chỉ route workspace); mặc định tên tệp đã làm sạch" example:"Báo cáo quý 4"`
+	Visibility *string               `json:"visibility" description:"restricted hoặc workspace (chỉ route workspace); bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
+	Probe      UploadSessionProbeSDI `json:"probe" description:"Probe đầu tệp và central directory để kiểm định dạng trước khi ký URL phần"`
+}
+
+// CompleteUploadSessionSDI is the body of POST .../upload-sessions/{sessionID}/complete
+// (addendum §6.4): every part the client uploaded, in any order. The server
+// compares the list with the storage's own ListParts; a missing part, a wrong
+// number or an ETag that does not match answers 422 upload_parts_invalid and
+// leaves the session open.
+type CompleteUploadSessionSDI struct {
+	Parts []UploadSessionPartSDI `json:"parts" description:"Danh sách phần đã PUT lên URL đã ký; đủ total_parts phần và ETag phải khớp storage" example:"[{\"part_number\":1,\"etag\":\"\\\"3858f62230ac3c915f300c664312c63f\\\"\"}]"`
+}
+
+// UploadSessionPartSDI is one part as the client uploaded it.
+type UploadSessionPartSDI struct {
+	PartNumber int    `json:"part_number" description:"Số thứ tự phần, 1..total_parts" example:"1"`
+	ETag       string `json:"etag" description:"ETag S3 trả về ở header ETag của PUT phần, kể cả dấu ngoặc kép" example:"\"3858f62230ac3c915f300c664312c63f\""`
+}

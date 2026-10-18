@@ -59,6 +59,10 @@ const (
 	KindDocumentAccessDeclined  = "document_access_declined"
 	// Direct user document share that raises effective access (SH-S3, UNI-1782).
 	KindDocumentShared = "document_shared"
+	// TRASH-NOTIFY-01 (UNI-1844): somebody else moved a person's document to
+	// the trash; the ACL owner hears once per archive batch. In-app only by
+	// default (Q-R2: no email, push off).
+	KindDocumentTrashedByOther = "document_trashed_by_other"
 )
 
 // Kinds is the list in display order.
@@ -73,6 +77,7 @@ var Kinds = []string{
 	KindChatMentioned, KindChatDM, KindChatThreadReplied,
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 	KindDocumentShared,
+	KindDocumentTrashedByOther,
 }
 
 var kindSet = func() map[string]bool {

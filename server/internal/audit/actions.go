@@ -286,6 +286,12 @@ const (
 	ActionPrivacyDeletionRequested   = "privacy.deletion_requested"
 	ActionPrivacyDeletionCancelled   = "privacy.deletion_cancelled"
 	ActionPrivacyOrganizationDeleted = "privacy.organization_deleted"
+
+	// Multipart upload sessions for large files (BIGUP S1-b / UNI-1862).
+	ActionDocumentUploadSessionOpened    = "document.upload_session_opened"
+	ActionDocumentUploadSessionCompleted = "document.upload_session_completed"
+	ActionDocumentUploadSessionAborted   = "document.upload_session_aborted"
+	ActionDocumentUploadSessionExpired   = "document.upload_session_expired"
 )
 
 // Chat message create and update are deliberately not audited: the volume is

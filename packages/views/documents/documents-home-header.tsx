@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useUpdateDocument } from "@uniwork/core/documents/hooks";
-import type { Document } from "@uniwork/core/types/document";
+import { isMyFolder, type Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -36,6 +36,8 @@ export interface DocumentsHomeHeaderProps {
   folderDoc: Document | null;
   /** The viewer may rename the open folder in the breadcrumb. */
   canRename: boolean;
+  /** The caller's personal root folder id, once known, so ancestor crumbs use the i18n label. */
+  myFolderId?: string | null;
   onRoot: () => void;
   onFolder: (folderId: string) => void;
   /** The commands the open folder's ⋯ menu may offer (its own level gates them). */
@@ -47,9 +49,13 @@ export interface DocumentsHomeHeaderProps {
   actions?: React.ReactNode;
 }
 
-export function DocumentsHomeHeader({ wsId, folderDoc, canRename, onRoot, onFolder, folderHandlers, search, canCreate, create, actions }: DocumentsHomeHeaderProps) {
+export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = null, onRoot, onFolder, folderHandlers, search, canCreate, create, actions }: DocumentsHomeHeaderProps) {
   const { t } = useTranslation();
   const rename = useUpdateDocument(wsId, folderDoc?.id ?? "");
+  const myFolder = isMyFolder(folderDoc);
+  const folderLabel = folderDoc
+    ? (myFolder ? t("documents.home.my_folder.label") : folderDoc.title) || t("documents.detail.untitled")
+    : t("documents.home.sidebar.home");
   const menuItems = folderDoc ? folderMenuItems(folderDoc, folderHandlers, t) : [];
   const starred = Boolean(folderDoc && folderHandlers.isStarred(folderDoc.id));
   const canMenu = Boolean(folderDoc) && (menuItems.length > 0 || Boolean(folderHandlers.onToggleStar));
@@ -59,22 +65,28 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, onRoot, onFold
         {folderDoc ? (
           <FolderBreadcrumb
             path={[
-              ...folderDoc.breadcrumbs.filter((crumb) => crumb.id !== folderDoc.id).map(({ id, title }) => ({ id, title })),
-              { id: folderDoc.id, title: folderDoc.title },
+              ...folderDoc.breadcrumbs
+                .filter((crumb) => crumb.id !== folderDoc.id)
+                .map(({ id, title }) => ({
+                  id,
+                  title: id === myFolderId ? t("documents.home.my_folder.label") : title,
+                })),
+              { id: folderDoc.id, title: folderLabel },
             ]}
-            canRename={canRename}
+            canRename={canRename && !myFolder}
             renaming={rename.isPending}
             onRoot={onRoot}
             onFolder={onFolder}
             onRename={(title) => {
+              if (myFolder) return;
               void rename
                 .mutateAsync({ patch: { revision: folderDoc.revision, title } })
                 .catch((error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.folders.rename_failed")));
             }}
           />
         ) : null}
-        <h1 className="flex min-w-0 items-center gap-2 text-title font-semibold">
-          <span className="truncate">{folderDoc?.title || t("documents.home.sidebar.home")}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate text-title font-semibold">{folderLabel}</h1>
           {folderDoc && canMenu ? (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -109,7 +121,7 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, onRoot, onFold
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
-        </h1>
+        </div>
       </div>
       <DocumentsSearchBox
         search={search}
@@ -126,8 +138,8 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, onRoot, onFold
 
 /**
  * Under the home header, for people who may create here: the Tạo nhanh strip
- * and the root-create hint at the workspace root (the "only you see it" note
- * waits on MYFOLDER-01), the info line naming the open folder inside one.
+ * and the My Folder root-create hint at the workspace root, or the info line
+ * naming the open folder inside one.
  */
 export function DocumentsHomeNote({ folderTitle, create }: { folderTitle: string | null; create: CreateChoicesProps | null }) {
   const { t } = useTranslation();

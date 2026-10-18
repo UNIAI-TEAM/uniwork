@@ -584,10 +584,12 @@
         "document_access_requested": "Yêu cầu truy cập tài liệu",
         "document_access_approved": "Được cấp quyền truy cập tài liệu",
         "document_access_declined": "Yêu cầu truy cập bị từ chối",
-        "document_shared": "Tài liệu được chia sẻ với bạn"
+        "document_shared": "Tài liệu được chia sẻ với bạn",
+        "document_trashed_by_other": "Tài liệu của bạn bị chuyển vào thùng rác"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
+      "email_all": "Email cho mọi loại phù hợp",
       "push_unavailable_server": "Máy chủ này chưa bật thông báo đẩy, nên thông báo đến hộp việc và email.",
       "push_unavailable_browser": "Trình duyệt này không nhận được thông báo đẩy, nên thông báo đến hộp việc và email.",
       "browser_banners_allow": "Cho phép báo tin nhắn mới khi tab UniWork đang ẩn"
@@ -5067,6 +5069,8 @@
     "group_older": "Cũ hơn",
     "merged_other_one": "và {{count}} thay đổi khác",
     "merged_other_other": "và {{count}} thay đổi khác",
+    "trashed_more_one": "và {{count}} mục khác",
+    "trashed_more_other": "và {{count}} mục khác",
     "deleted": "đã xóa",
     "unread_dot": "Chưa đọc",
     "unread_elsewhere": "Có thông báo chưa đọc ở workspace khác",
@@ -5137,7 +5141,11 @@
       "document_shared": "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn. Quyền: {{level}}.",
       "document_shared_untitled": "{{actor}} đã chia sẻ một tài liệu với bạn. Quyền: {{level}}.",
       "document_shared_nolevel": "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn.",
-      "document_shared_untitled_nolevel": "{{actor}} đã chia sẻ một tài liệu với bạn."
+      "document_shared_untitled_nolevel": "{{actor}} đã chia sẻ một tài liệu với bạn.",
+      "document_trashed_by_other": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
+      "document_trashed_by_other_untitled": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
+      "document_trashed_by_other_nodate": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác",
+      "document_trashed_by_other_untitled_nodate": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác"
     },
     "kindTitle": {
       "document_mentioned": "Bạn được nhắc tên trong bình luận",
@@ -5149,7 +5157,8 @@
       "document_access_requested": "Yêu cầu truy cập tài liệu",
       "document_access_approved": "Đã được cấp quyền",
       "document_access_declined": "Yêu cầu bị từ chối",
-      "document_shared": "Tài liệu được chia sẻ"
+      "document_shared": "Tài liệu được chia sẻ",
+      "document_trashed_by_other": "Tài liệu của bạn đã vào thùng rác"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",
@@ -8916,7 +8925,8 @@
     },
     "upload": {
       "title": "Tải tệp lên",
-      "description": "Tệp trở thành một tài liệu mới trong workspace.",
+      "description": "Tệp trở thành tài liệu mới trong Thư mục của tôi (chỉ bạn thấy).",
+      "description_folder": "Tệp trở thành tài liệu mới trong thư mục này.",
       "version_title": "Tải phiên bản mới",
       "version_description": "Tệp mới trở thành bản làm việc; phiên bản đang mở vẫn nằm trong lịch sử.",
       "pick": "Chọn tệp",
@@ -8924,9 +8934,19 @@
       "size_hint": "Tối đa {{max}} mỗi tệp.",
       "too_large_named": "{{name}} nặng {{size}}, vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
       "unsupported_format": "Định dạng của {{name}} chưa được hỗ trợ.",
+      "unreadable_file": "Không đọc được tệp {{name}}. Tệp có thể bị hỏng.",
       "submit": "Tải lên",
       "submitting": "Đang tải lên…",
-      "cancel": "Hủy"
+      "cancel": "Hủy",
+      "pause": "Tạm dừng",
+      "resume": "Tiếp tục",
+      "checking": "Đang kiểm tra tệp…",
+      "resume_hint": "Tiếp tục tải lên từ lần trước.",
+      "progress_status": "Đang tải lên {{name}}",
+      "drop_progress": "Đang tải lên {{name}} · {{percent}}%",
+      "paused_status": "Đã tạm dừng",
+      "failed_resumable": "Chưa tải lên hết tệp. Tiến độ đã được giữ lại — bấm Tải lên để tiếp tục.",
+      "document_locked": "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại."
     },
     "file": {
       "metadata_title": "Thông tin tệp",
@@ -9342,6 +9362,7 @@
         "purge_in": "Xóa vĩnh viễn sau",
         "actions": "Thao tác"
       },
+      "focus_further": "Mục bạn mở có thể nằm ở phần chưa tải. Bấm Tải thêm để xem.",
       "deleted_by_unknown": "Thành viên cũ",
       "read_only": "Chỉ xem · người quản lý khôi phục",
       "restore": "Khôi phục",
@@ -9529,6 +9550,10 @@
         "html": "Trang HTML chưa đặt tên.html",
         "pdf": "PDF chưa đặt tên.pdf"
       },
+      "my_folder": {
+        "label": "Thư mục của tôi",
+        "open_failed": "Không thể mở Thư mục của tôi. Thử lại."
+      },
       "folders": {
         "default_name": "Thư mục mới",
         "create_failed": "Không thể tạo thư mục. Thử lại.",
@@ -9561,7 +9586,7 @@
         "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
       "quick_create": {
-        "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
+        "hint_root": "File mới tạo hoặc tải lên ở đây sẽ nằm trong Thư mục của tôi (chỉ bạn thấy) và mở ngay trong trình soạn thảo.",
         "label": "Tạo nhanh"
       },
       "create": {
@@ -9649,6 +9674,7 @@
         "recent": "Gần đây",
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
+        "shared_by_me": "Tôi đã chia sẻ",
         "trash": "Thùng rác",
         "folders": "Thư mục",
         "elsewhere": "Từ nơi khác",
@@ -9668,6 +9694,7 @@
         "recent": "Gần đây",
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
+        "shared_by_me": "Tôi đã chia sẻ",
         "archived": "Thùng rác",
         "sources": "Từ nơi khác",
         "chat": "Trò chuyện",
@@ -9748,6 +9775,7 @@
         "preview_loading": "Đang tải ảnh…",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
+        "view_only_notice": "Chỉ xem · thay đổi sẽ không được lưu",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",
         "menu": "Thao tác cho {{title}}",
@@ -9771,6 +9799,8 @@
         "starred_description": "Gắn sao từ menu ⋯ của một dòng để tìm lại nhanh.",
         "shared_title": "Chưa có tài liệu nào được chia sẻ với bạn",
         "shared_description": "Tài liệu người khác chia sẻ với bạn sẽ hiện ở đây.",
+        "shared_by_me_title": "Chưa chia sẻ tài liệu nào",
+        "shared_by_me_description": "Tài liệu và thư mục bạn chia sẻ với người khác hoặc cả workspace sẽ hiện ở đây.",
         "archived_title": "Thùng rác đang trống",
         "archived_description": "Tài liệu đã xóa nằm ở đây trong 30 ngày.",
         "sources_title": "Chưa có file nào",
@@ -9866,7 +9896,15 @@
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
       "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
-      "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại."
+      "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
+      "my_folder_locked": "Thư mục của tôi là thư mục hệ thống cá nhân — không thể đổi tên, chia sẻ, di chuyển hoặc chuyển vào thùng rác.",
+      "unsupported_media_type": "Định dạng tệp này chưa được hỗ trợ.",
+      "upload_sessions_exhausted": "Bạn đang có quá nhiều phiên tải lên cùng lúc. Hãy hoàn tất hoặc hủy bớt rồi thử lại.",
+      "upload_session_expired": "Phiên tải lên đã hết hạn. Hãy chọn lại tệp để tải lên từ đầu.",
+      "upload_parts_invalid": "Dữ liệu tải lên chưa đầy đủ hoặc không khớp. Hãy thử tải lên lại.",
+      "upload_size_mismatch": "Kích thước tệp đã thay đổi trong lúc tải lên. Hãy chọn lại tệp và thử lại.",
+      "upload_probe_mismatch": "Nội dung tệp không khớp với định dạng đã chọn. Hãy kiểm tra lại tệp.",
+      "quota_exceeded": "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói."
     }
   },
   "squads": {
@@ -10055,6 +10093,8 @@
       "errors": {
         "unauthorized": "Phiên chỉnh sửa đã hết hạn. Hãy thử lại.",
         "forbidden": "Bạn không có quyền thực hiện thao tác này trong tài liệu.",
+        "read_only_source": "Tệp này chỉ xem, không lưu được.",
+        "read_only_source_export": "Tệp này chỉ xem, không xuất được.",
         "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi.",
         "conflict": "Đã có người lưu phiên bản mới hơn. Hãy mở lại tài liệu để xem trước khi lưu.",
         "too_large": "Tệp quá lớn để tải lên.",

@@ -152,7 +152,7 @@ describe("OfficeModuleHost", () => {
     expect(failed()).toBeNull();
     await until(() => (mocks.frameProps.mock.calls.at(-1)?.[0] as { desktopOpen?: { deploymentId?: string } }).desktopOpen?.deploymentId !== undefined);
     expect(mocks.frameProps).toHaveBeenCalledWith(expect.objectContaining({
-      module: "sheets", wsId: "ws-1", documentId: "doc-1", title: "Deck", frameVersion: "0.2.0-abc1234", readonly: true, className: "c",
+      module: "sheets", wsId: "ws-1", fileRef: { kind: "document", id: "doc-1" }, title: "Deck", frameVersion: "0.2.0-abc1234", readonly: true, className: "c",
     }));
     // "Open in desktop app", with the organization's deployment binding once config answers.
     const last = mocks.frameProps.mock.calls.at(-1)![0] as { desktopOpen: { deploymentId?: string; channel?: string; launch?: unknown; loadInstallers?: unknown } };

@@ -130,7 +130,7 @@ Request (cả ba route; `parent_id`, `title`, `visibility` chỉ ở route works
 }
 ```
 
-Header `Idempotency-Key` bắt buộc (cùng key + cùng lệnh → cùng phiên, `200`; cùng key + lệnh khác → `409 idempotency_payload_mismatch`, mã hiện có của `BeginIdempotent`; r4 bỏ mã mới `idempotency_conflict`).
+Header `Idempotency-Key` bắt buộc (cùng key + cùng lệnh → cùng phiên, `200`; cùng key + lệnh khác → `409 idempotency_payload_mismatch`, mã hiện có của `BeginIdempotent`; r4 bỏ mã mới `idempotency_conflict`). Thiếu header hoặc header rỗng → `400 invalid_request` trước mọi kiểm tra khác (r5, BIGUP-S1 review: key rỗng từng tắt cả bảo đảm D7).
 
 Server, trước khi nhận phần nào: `size_bytes` trong `(20 MiB, DOCUMENT_MAX_BYTES]` (≤ 20 MiB → `422 upload_session_too_small`: dùng luồng thường; > cap → `413 file_too_large` + `fields.max_bytes`); đuôi tệp được nhận; quyền (tạo trong workspace / sửa tài liệu, cùng thứ tự từ chối như route upload hiện có); quota `storage.bytes` **giữ chỗ** `size_bytes`; probe chạy detector + luật zip (OOXML/ODF: `[Content_Types].xml`, thư mục chính khớp đuôi, không macro, số mục và kích thước giải nén khai báo trong giới hạn; `cd_size ≤ 1 MiB`; `head_b64 ≤ 64 KiB`) → sai thì `415 unsupported_media_type` + `fields.reason`; giới hạn phiên đang mở mỗi người → `429 upload_sessions_exhausted` + `Retry-After`.
 
@@ -148,6 +148,8 @@ Response `201`:
 ```
 
 URL phần là presigned PUT S3 multipart tới khoá object của chính dòng `files` của phiên (r4: tệp chưa được claim nên chưa tài liệu nào đọc được, tức là đã đóng vai staging; không phải copy lúc hoàn tất), TTL 1 giờ; client gửi `PUT` thẳng, `credentials: 'omit'`, ghi lại `ETag`.
+
+**Khoá sửa (BIGUP-LOCKCHECK, r6):** hai route tạo cho **phiên bản mới** (`POST /api/v1/documents/{documentID}/upload-sessions` và `POST /api/v1/office-frame/documents/{documentID}/upload-sessions`) từ chối ngay bằng `423 document_locked` khi tài liệu đang có một nhiệm kỳ khoá sửa còn sống mà người gọi không giữ (người khác giữ, hoặc một agent giữ) — trước khi giữ chỗ quota và trước khi mở phiên, nên không phần nào được tải lên và không dòng phiên nào được tạo; thân lỗi dùng đúng các trường của cổng commit (`holder_id`, `holder_name`, `since`, `expires_at`, `held_by_me`, `current_revision`; **không** có `lock_id`). Người gọi đang giữ khoá (bất kỳ tab/thiết bị nào) hoặc không có nhiệm kỳ còn sống (kể cả nhiệm kỳ đã quá hạn nhưng chưa bị dọn) thì qua; nhiệm kỳ của chính người gọi được coi là "giữ" nên `held_by_me` luôn `false` trong lỗi này, vì thân tạo phiên không mang `edit_lock_id`. Kiểm tra này **chỉ đọc** (không khoá dòng, không gia hạn heartbeat, không ghi audit/outbox) và **chỉ** áp cho hai route tạo phiên bản: route tạo trong workspace, luồng tải một lượt và cổng commit (`checkDocumentEditLock`) không đổi; cổng commit vẫn là nơi quyết định cuối, nên khoá bị lấy sau khi mở phiên vẫn từ chối ở commit với cùng `423` và cùng copy.
 
 ### 6.3 Trạng thái / làm mới URL
 

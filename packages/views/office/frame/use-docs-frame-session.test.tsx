@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
@@ -11,16 +12,25 @@ import type { FrameEditLock } from "./frame-edit-lock";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
+const SOURCE_ID = "chat:s-1";
+const SOURCE_MINT_PATH = `/api/v1/workspaces/ws-1/documents/sources/${encodeURIComponent(SOURCE_ID)}/office/frame-token`;
 const FILE = { fileId: "doc-1", name: "Plan.docx" };
 const minted = (canEdit = true) => ({
   token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: canEdit, module: "docs",
 });
+const mintedSource = () => ({
+  token: "ofs1.tok", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
+  source_id: SOURCE_ID, parent_kind: "chat_channel", parent_id: "c-1",
+  workspace_id: "ws-1", organization_id: "org-1", can_edit: false, module: "docs", readonly: true,
+});
 
 /** A frame on the other side of the wire: records what the host posts, posts back as the iframe's window. */
-function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes, configPromise }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number; configPromise?: Promise<unknown> } = {}) {
+function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, api = {} as Partial<DocsFrameApi>, editLock, uploadMaxBytes, configPromise, fileRef }: { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; api?: Partial<DocsFrameApi>; editLock?: FrameEditLock; uploadMaxBytes?: number; configPromise?: Promise<unknown>; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
+  const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
+    if (path === SOURCE_MINT_PATH) return Promise.resolve({ ...mintedSource(), module });
     if (String(path).startsWith("/api/v1/config")) {
       if (configPromise) return configPromise;
       return Promise.resolve(uploadMaxBytes !== undefined ? { flags: {}, documents: { limits: { upload_max_bytes: uploadMaxBytes } } } : { flags: {} });
@@ -48,7 +58,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const options: DocsFrameSessionOptions = {
-    iframeRef: { current: iframe }, frameOrigin: window.location.origin, module, wsId: "ws-1", documentId: "doc-1",
+    iframeRef: { current: iframe }, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: ref,
     readonly, editLock, locale: "vi", theme: "light", onError, downloadName: () => "Kế hoạch: Q4 (bản của tôi)",
     api: { open: vi.fn(), save: vi.fn(async () => ({ ok: true, file: FILE, versionId: "v2" })), recents: vi.fn(), ...api } as unknown as DocsFrameApi,
   };
@@ -207,7 +217,7 @@ describe("useDocsFrameSession: a Save the page sends to the frame", () => {
     await frame.respond(request, { ok: false, error: { code, message: "refused", status } });
     await expect(saving).resolves.toBe("failed");
     expect(frame.hook.result.current.saveState).toBe("error");
-    expect(frame.onError).toHaveBeenCalledWith(expect.objectContaining({ code }));
+    expect(frame.onError).toHaveBeenCalledWith(expect.objectContaining({ code }), { fatal: false });
   });
 
   it("holds a navigate save through the frame's conflict dialog until the frame answers", async () => {
@@ -546,6 +556,29 @@ describe("useDocsFrameSession: api.download", () => {
     });
   });
 
+  it("forwards chunked_upload_threshold_bytes from document limits on DocsFrameCall to api.save and api.saveAs (UNI-1863)", async () => {
+    const save = vi.fn(async (_payload: unknown, _call: unknown) => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const saveAs = vi.fn(async (_payload: unknown, _call: unknown) => ({
+      save: { ok: true as const, file: FILE, versionId: "v-c1" },
+      rebind: { documentId: "doc-2", token: minted(true) },
+    }));
+    const frame = setup({
+      configPromise: Promise.resolve({
+        flags: {},
+        documents: { limits: { upload_max_bytes: 200 * 1024 * 1024, save_warn_ratio: 0.9, chunked_upload_threshold_bytes: 20_971_520 } },
+      }),
+      api: { save, saveAs } as unknown as Partial<DocsFrameApi>,
+    });
+    await waitFor(() => expect(frame.client.getQueryData(["public-config"])).toBeDefined());
+    await frame.boot();
+    const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
+    expect(save.mock.calls[0]?.[1]).toMatchObject({ documentId: "doc-1", chunkedUploadThresholdBytes: 20_971_520 });
+    const saveAsId = frame.request("api.saveAs", { name: "Copy", data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.answerTo(saveAsId)?.payload).toMatchObject({ ok: true }));
+    expect(saveAs.mock.calls[0]?.[1]).toMatchObject({ workspaceId: "ws-1", chunkedUploadThresholdBytes: 20_971_520 });
+  });
+
   it("calls onError when the frame replies with an error to doc.download (R1-3)", async () => {
     const frame = setup();
     await frame.boot();
@@ -578,6 +611,99 @@ describe("useDocsFrameSession: api.download", () => {
     await frame.respond(frame.sent("doc.download")[1]!, { delivered: true });
     await settle();
     expect(frame.onError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useDocsFrameSession: a source file session (UNI-1869)", () => {
+  const sourceRef = { kind: "source" as const, id: SOURCE_ID };
+
+  it("mints on the source route, opens view-only and never offers a write or host extra", async () => {
+    const frame = setup({ fileRef: sourceRef });
+    await frame.boot();
+    expect(requestMock.mock.calls.some(([path]) => path === SOURCE_MINT_PATH)).toBe(true);
+    expect(requestMock.mock.calls.some(([path]) => path === MINT_PATH)).toBe(false);
+    const init = frame.sent("init")[0]?.payload as {
+      documentId: string; token: string;
+      capabilities: { comments?: boolean } & Record<string, boolean>;
+      user?: unknown; recovery?: unknown; commentsLevel?: unknown;
+    };
+    expect(init.token).toBe("ofs1.tok");
+    expect(init.documentId).toBe(SOURCE_ID);
+    // A source frame can look and print only: every write, export, asset, AI and
+    // desktop/download capability is off by construction.
+    expect(init.capabilities).toMatchObject({
+      save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false,
+      attachments: false, images: false, ai: false, uniworkAi: false,
+      desktopOpen: false, download: false,
+      print: true,
+    });
+    expect(init.capabilities.comments ?? false).toBe(false);
+    expect(init.commentsLevel).toBeUndefined();
+    expect(init.user).toBeUndefined();
+    expect(init.recovery).toBeUndefined();
+    expect(frame.hook.result.current.viewOnly).toBe(true);
+  });
+
+  it("refuses api.save and api.download even if a frame asks anyway", async () => {
+    const frame = setup({ fileRef: sourceRef });
+    await frame.boot();
+    const saveId = frame.request("api.save", { fileId: SOURCE_ID, data: new ArrayBuffer(4), etag: "0" });
+    await waitFor(() => expect(frame.answerTo(saveId)?.error?.code).toBe("forbidden"));
+    const dlId = frame.request("api.download", { data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.answerTo(dlId)?.error?.code).toBe("forbidden"));
+  });
+
+  it("fails the session as not_found when the mint is refused", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === SOURCE_MINT_PATH
+        ? Promise.reject(new ApiError("not found", "not_found", 404))
+        : Promise.reject(new Error(`unexpected ${path}`)),
+    );
+    const iframe = document.createElement("iframe");
+    document.body.append(iframe);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    // Built once: a fresh iframeRef per render would restart the session every render.
+    const options: DocsFrameSessionOptions = {
+      iframeRef: { current: iframe }, frameOrigin: window.location.origin, module: "docs", wsId: "ws-1", fileRef: sourceRef,
+      readonly: false, locale: "vi", theme: "light", onError: vi.fn(), api: {} as DocsFrameApi,
+    };
+    const hook = renderHook(() => useDocsFrameSession(options), { wrapper });
+    await waitFor(() => expect(hook.result.current.status).toBe("failed"));
+    expect(hook.result.current.failure?.code).toBe("not_found");
+  });
+
+  it("makes no lock request and ignores an edit lock in scope: view-only, no lock id, no onLocked", async () => {
+    const onLocked = vi.fn();
+    const save = vi.fn();
+    // A lock provider in scope (here: not held, which would lock a document out) must not touch a source.
+    const frame = setup({ fileRef: sourceRef, editLock: { held: false, lockId: undefined, onLocked }, api: { save } as unknown as Partial<DocsFrameApi> });
+    await frame.boot();
+    expect(frame.hook.result.current.viewOnly).toBe(true);
+    const id = frame.request("api.save", { fileId: SOURCE_ID, data: new ArrayBuffer(4), etag: "0" });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(save).not.toHaveBeenCalled();
+    expect(onLocked).not.toHaveBeenCalled();
+    // The only transport calls are the source mint and the flag config: no documents/* lock route.
+    const paths = requestMock.mock.calls.map(([path]) => String(path));
+    expect(paths.filter((path) => !path.startsWith("/api/v1/config") && path !== SOURCE_MINT_PATH)).toEqual([]);
+    expect(paths.some((path) => /lock/i.test(path))).toBe(false);
+    // A lock arriving later never re-attaches a source frame.
+    frame.options.editLock = { held: true, lockId: "L2", onLocked };
+    frame.hook.rerender();
+    expect(frame.hook.result.current.attempt).toBe(0);
+  });
+
+  it("does not fail the session when a source api.open rejects with cancelled (N1)", async () => {
+    const open = vi.fn(async () => {
+      throw new DocsProtocolError({ code: "cancelled", message: "aborted" });
+    });
+    const frame = setup({ fileRef: sourceRef, api: { open } });
+    await frame.boot();
+    const openId = frame.request("api.open", { fileId: SOURCE_ID });
+    await waitFor(() => expect(frame.answerTo(openId)?.error?.code).toBe("cancelled"));
+    expect(frame.hook.result.current.status).toBe("ready");
+    expect(frame.hook.result.current.failure).toBeNull();
   });
 });
 
@@ -633,3 +759,106 @@ describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)"
     expect(frame.hook.result.current.viewOnly).toBe(false);
   });
 });
+
+describe("useDocsFrameSession: api.saveCopy (UNI-1872, UNI-1892)", () => {
+  const unlockedLock: FrameEditLock = { held: false, lockId: undefined, onLocked: vi.fn() };
+  const sourceRef = { kind: "source" as const, id: SOURCE_ID };
+  const initCapabilities = (frame: { sent: (type: string) => Envelope[] }): Record<string, unknown> => {
+    const payload = frame.sent("init")[0]?.payload;
+    if (payload && typeof payload === "object" && "capabilities" in payload && payload.capabilities && typeof payload.capabilities === "object") {
+      return payload.capabilities as Record<string, unknown>;
+    }
+    return {};
+  };
+
+  it("grants saveCopy in init.capabilities for editable or locked-out docs with api.saveCopy, and omits it for source, readonly, viewer, or non-docs", async () => {
+    const saveCopy = vi.fn(async () => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const editableDocs = setup({ module: "docs", api: { saveCopy } });
+    await editableDocs.boot();
+    expect(initCapabilities(editableDocs).saveCopy).toBe(true);
+
+    const unlockedDocs = setup({ module: "docs", editLock: unlockedLock, api: { saveCopy } });
+    await unlockedDocs.boot();
+    expect(unlockedDocs.hook.result.current.viewOnly).toBe(true);
+    expect(initCapabilities(unlockedDocs)).toMatchObject({
+      save: false,
+      saveAs: false,
+      saveCopy: true,
+    });
+
+    const sourceDocs = setup({ module: "docs", fileRef: sourceRef, api: { saveCopy } });
+    await sourceDocs.boot();
+    expect("saveCopy" in initCapabilities(sourceDocs)).toBe(false);
+
+    const readonlyDocs = setup({ module: "docs", readonly: true, api: { saveCopy } });
+    await readonlyDocs.boot();
+    expect("saveCopy" in initCapabilities(readonlyDocs)).toBe(false);
+
+    const viewerDocs = setup({ module: "docs", canEdit: false, api: { saveCopy } });
+    await viewerDocs.boot();
+    expect("saveCopy" in initCapabilities(viewerDocs)).toBe(false);
+
+    const editableMarkdown = setup({ module: "markdown", api: { saveCopy } });
+    await editableMarkdown.boot();
+    expect("saveCopy" in initCapabilities(editableMarkdown)).toBe(false);
+  });
+
+  it("proxies api.saveCopy to the host api, returns {documentId, title}, keeps the open document bound and dirty, and invalidates workspace document lists", async () => {
+    const saveCopy = vi.fn(async (_payload: unknown, _call: unknown) => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const frame = setup({ module: "docs", api: { saveCopy } });
+    const invalidateSpy = vi.spyOn(frame.client, "invalidateQueries");
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+    const bytes = new Uint8Array([1, 2, 3, 4]).buffer;
+    const id = frame.request("api.saveCopy", { name: "Plan (copy)", data: bytes });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toEqual({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    expect(saveCopy).toHaveBeenCalledTimes(1);
+    expect(saveCopy.mock.calls[0]?.[0]).toEqual({ name: "Plan (copy)", data: bytes });
+    expect(saveCopy.mock.calls[0]?.[1]).toMatchObject({ workspaceId: "ws-1", documentId: "doc-1", token: "tok-1" });
+    expect(frame.hook.result.current.dirty).toBe(true);
+    expect(frame.hook.result.current.saveState).toBe("dirty");
+    expect(frame.received.some((m) => m.type === "token")).toBe(false);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["documents", "ws-1", "list"] });
+  });
+
+  it("proxies api.saveCopy without editLockId on a locked-out docs tab while still refusing api.save and api.saveAs", async () => {
+    const save = vi.fn();
+    const saveAs = vi.fn();
+    const saveCopy = vi.fn(async (_payload: unknown, _call: unknown) => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const frame = setup({ module: "docs", editLock: unlockedLock, api: { save, saveAs, saveCopy } as unknown as Partial<DocsFrameApi> });
+    const invalidateSpy = vi.spyOn(frame.client, "invalidateQueries");
+    await frame.boot();
+    expect(frame.hook.result.current.viewOnly).toBe(true);
+
+    const bytes = new Uint8Array([9, 8, 7, 6]).buffer;
+    const copyId = frame.request("api.saveCopy", { name: "Plan (copy)", data: bytes });
+    await waitFor(() => expect(frame.answerTo(copyId)?.payload).toEqual({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    expect(saveCopy).toHaveBeenCalledTimes(1);
+    expect(saveCopy.mock.calls[0]?.[0]).toEqual({ name: "Plan (copy)", data: bytes });
+    expect(saveCopy.mock.calls[0]?.[1]).toMatchObject({ workspaceId: "ws-1", documentId: "doc-1", token: "tok-1" });
+    expect(saveCopy.mock.calls[0]?.[1]).not.toHaveProperty("editLockId");
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["documents", "ws-1", "list"] });
+
+    const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
+    await waitFor(() => expect(frame.answerTo(saveId)?.error?.code).toBe("forbidden"));
+    expect(save).not.toHaveBeenCalled();
+
+    const saveAsId = frame.request("api.saveAs", { name: "Plan 2", data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.answerTo(saveAsId)?.error?.code).toBe("forbidden"));
+    expect(saveAs).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a source session", { fileRef: sourceRef }],
+    ["the page is readonly", { readonly: true }],
+    ["the current token cannot edit", { canEdit: false }],
+  ])("refuses api.saveCopy when %s", async (_why, opts) => {
+    const saveCopy = vi.fn(async () => ({ documentId: "doc-copy-1", title: "Plan (copy)" }));
+    const frame = setup({ module: "docs", api: { saveCopy }, ...opts });
+    await frame.boot();
+    const id = frame.request("api.saveCopy", { name: "Plan (copy)", data: new ArrayBuffer(4) });
+    await waitFor(() => expect(frame.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(saveCopy).not.toHaveBeenCalled();
+  });
+});
+

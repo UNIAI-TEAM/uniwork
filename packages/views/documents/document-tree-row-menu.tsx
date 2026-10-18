@@ -10,7 +10,7 @@ import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/docume
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { paths } from "@uniwork/core/paths";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -81,6 +81,7 @@ export function toSummaryRow(
   return {
     ...row,
     position: node.position,
+    system_kind: node.system_kind ?? known?.system_kind ?? null,
   };
 }
 
@@ -120,11 +121,12 @@ export function DocumentTreeRowMenu({
   const resolvedLevel =
     myLevel ?? nodeLevelField ?? (detail.isError ? undefined : detail.data?.my_level) ?? knownLevel;
   const level = rowLevel({ my_level: resolvedLevel });
+  const myFolder = isMyFolder(node);
   const canEdit = canMoveRow(level);
-  const canDelete = canArchiveRow(level);
+  const canDelete = !myFolder && canArchiveRow(level);
   // The report lists grants, which only a manager may read (the server decides again).
   const canReport = canArchiveRow(level) && Boolean(actions?.onAccessReport);
-  const title = node.title || t("documents.detail.untitled");
+  const title = (myFolder ? t("documents.home.my_folder.label") : node.title) || t("documents.detail.untitled");
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setOpen}>
@@ -175,20 +177,24 @@ export function DocumentTreeRowMenu({
               <FolderPlus aria-hidden className="size-3.5" />
               {t("documents.tree.menu.new_subfolder")}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-              onClick={() => actions?.onRename(node)}
-            >
-              <Pencil aria-hidden className="size-3.5" />
-              {t("documents.tree.menu.rename")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-              onClick={() => actions?.onMoveTo(node)}
-            >
-              <FolderInput aria-hidden className="size-3.5" />
-              {t("documents.tree.menu.move_to")}
-            </DropdownMenuItem>
+            {!myFolder ? (
+              <>
+                <DropdownMenuItem
+                  className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+                  onClick={() => actions?.onRename(node)}
+                >
+                  <Pencil aria-hidden className="size-3.5" />
+                  {t("documents.tree.menu.rename")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+                  onClick={() => actions?.onMoveTo(node)}
+                >
+                  <FolderInput aria-hidden className="size-3.5" />
+                  {t("documents.tree.menu.move_to")}
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </>
         ) : null}
         {canReport ? (
@@ -252,10 +258,18 @@ export function useTreeRowMenuDialogs({
 
   const actions: TreeRowMenuActions = {
     onNewSubfolder: (node) => setCreatingUnder(node),
-    onRename: (node) => setRenamingNode(node),
-    onMoveTo: (node) => rowDialogs.onMove(resolveSummaryRow(node)),
-    onDelete: (node) => rowDialogs.onArchive(resolveSummaryRow(node)),
-    // Favorites are organization-scoped: without one the list cannot be read, so the item is not offered.
+    onRename: (node) => {
+      if (isMyFolder(node)) return;
+      setRenamingNode(node);
+    },
+    onMoveTo: (node) => {
+      if (isMyFolder(node)) return;
+      rowDialogs.onMove(resolveSummaryRow(node));
+    },
+    onDelete: (node) => {
+      if (isMyFolder(node)) return;
+      rowDialogs.onArchive(resolveSummaryRow(node));
+    },
     onToggleStar: workspace?.organization_id
       ? (node, starred) => {
           const op = starred ? unfavorite : favorite;
@@ -281,7 +295,7 @@ export function useTreeRowMenuDialogs({
         mode="create"
         wsId={wsId}
         parentId={creatingUnder?.id ?? null}
-        parentTitle={creatingUnder?.title ?? ""}
+        parentTitle={(creatingUnder && isMyFolder(creatingUnder) ? t("documents.home.my_folder.label") : creatingUnder?.title) ?? ""}
         parentShared={creatingUnder?.share_scope != null ? Boolean(creatingUnder.share_scope.home_workspace) : undefined}
         onSuccess={() => {
           if (creatingUnder) onCreatedSubfolder?.(creatingUnder.id);

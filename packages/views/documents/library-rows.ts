@@ -1,4 +1,4 @@
-import { DOCUMENT_FILE_FORMATS, type DocumentList, type DocumentTreeNode } from "@uniwork/core/types/document";
+import { DOCUMENT_FILE_FORMATS, isMyFolder, type DocumentList, type DocumentTreeNode } from "@uniwork/core/types/document";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { defaultStorage } from "@uniwork/core/platform";
 import type { StorageAdapter } from "@uniwork/core/types/storage";
@@ -295,12 +295,13 @@ export interface FolderInfo {
   title: string;
   parentId: string | null;
   kind: string;
+  systemKind?: string | null;
 }
 
 /** Every tree node by id, so a row's folder path is a walk up parent ids. */
 export function indexTree(nodes: DocumentTreeNode[], into = new Map<string, FolderInfo>()): Map<string, FolderInfo> {
   for (const node of nodes) {
-    into.set(node.id, { id: node.id, title: node.title, parentId: node.parent_id ?? null, kind: node.kind });
+    into.set(node.id, { id: node.id, title: node.title, parentId: node.parent_id ?? null, kind: node.kind, systemKind: node.system_kind ?? null });
     indexTree(node.children, into);
   }
   return into;
@@ -336,7 +337,7 @@ export interface RowGroup {
  * source row has no folder in the workspace tree, so under "group by folder"
  * it joins the group of its module.
  */
-export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<string, FolderInfo>): RowGroup[] {
+export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<string, FolderInfo>, myFolderLabel?: string): RowGroup[] {
   if (groupBy === "none") return [{ key: "all", title: "", rows }];
   const groups = new Map<string, RowGroup>();
   const add = (key: string, title: string, row: LibraryRow) => {
@@ -351,8 +352,13 @@ export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<strin
     else {
       const path = folderPath(index, row.doc.parent_id);
       const last = path.at(-1);
-      if (last) add(`folder:${last.id}`, path.map((node) => node.title).join(" / "), row);
-      else if (isFolderRow(row)) add("folders", "", row);
+      if (last) {
+        add(
+          `folder:${last.id}`,
+          path.map((node) => (isMyFolder({ system_kind: node.systemKind }) && myFolderLabel ? myFolderLabel : node.title)).join(" / "),
+          row,
+        );
+      } else if (isFolderRow(row)) add("folders", "", row);
       else add("unfiled", "", row);
     }
   }

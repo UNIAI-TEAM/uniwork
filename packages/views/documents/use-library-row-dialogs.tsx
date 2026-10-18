@@ -7,8 +7,8 @@ import { toast } from "sonner";
 import { useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { useSaveSourceToFolder } from "@uniwork/core/documents/hooks-library";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
+import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
 import { isParentWorkspaceShared, type CreateShareOptions } from "./documents-create";
@@ -86,10 +86,11 @@ export function useLibraryRowDialogs({
       if (movedDoc.title && movedDoc.title !== doc.title) {
         toast.success(t("documents.home.move.moved_renamed", { title: movedDoc.title }));
       } else {
+        const targetNode = parentId === null ? undefined : findTreeNode(tree, parentId);
         const folder =
           parentId === null
             ? t("documents.home.move.root")
-            : findTreeNode(tree, parentId)?.title || t("documents.detail.untitled");
+            : (isMyFolder(targetNode) ? t("documents.home.my_folder.label") : targetNode?.title) || t("documents.detail.untitled");
         toast.success(t("documents.home.move.moved_to", { folder }));
       }
     } catch (failure) {
@@ -204,15 +205,22 @@ export function useLibraryRowDialogs({
       setNaming({
         mode: "create",
         parentId: doc.id,
-        parentTitle: doc.title,
+        parentTitle: isMyFolder(doc) ? t("documents.home.my_folder.label") : doc.title,
         parentShared: isParentWorkspaceShared(doc, findTreeNode(tree, doc.id)),
       }),
-    onRename: (doc) => setNaming({ mode: "rename", doc }),
+    onRename: (doc) => {
+      if (isMyFolder(doc)) return;
+      setNaming({ mode: "rename", doc });
+    },
     onMove: (doc) => {
+      if (isMyFolder(doc)) return;
       setError(null);
       setMoving(doc);
     },
-    onArchive: (doc) => setArchiving(doc),
+    onArchive: (doc) => {
+      if (isMyFolder(doc)) return;
+      setArchiving(doc);
+    },
     dialogs,
   };
 }

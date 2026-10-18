@@ -6,6 +6,7 @@ import type { Notification, TaskStatus } from "@uniwork/core/types";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { STATUS_CONFIG } from "../tasks/modes/status-config";
+import { isPurgeDate, purgeDate } from "./trashed-notice";
 
 /** The share levels the client words; any other value (a newer server) reads level-less. */
 const SHARE_LEVELS: ReadonlySet<string> = new Set(["view", "comment", "edit", "manage"]);
@@ -52,7 +53,9 @@ export function notificationTitleKey(n: Notification): string {
   if (n.kind === "document_access_declined") return n.title_key;
   const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_") && !n.kind.startsWith("document_edit_");
   const key = untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
-  return n.kind === "document_shared" && !SHARE_LEVELS.has(n.params.level ?? "") ? `${key}_nolevel` : key;
+  if (n.kind === "document_shared" && !SHARE_LEVELS.has(n.params.level ?? "")) return `${key}_nolevel`;
+  // A trash notice whose purge date cannot be read says no deadline rather than "before ".
+  return n.kind === "document_trashed_by_other" && !isPurgeDate(n.params.date ?? "") ? `${key}_nodate` : key;
 }
 
 /**
@@ -64,7 +67,7 @@ export function notificationTitleKey(n: Notification): string {
  * to In review" reads at a glance.
  */
 export function NotificationTitle({ notification: n, unread }: { notification: Notification; unread: boolean }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const parts = titleParts((params) => t(notificationTitleKey(n), { ...params, defaultValue: n.kind }), n.params);
   const isAgent = n.actor_kind === "agent";
 
@@ -100,6 +103,8 @@ export function NotificationTitle({ notification: n, unread }: { notification: N
           </span>
         );
       }
+      case "date":
+        return <span className="font-medium text-foreground">{purgeDate(value, i18n.language)}</span>;
       case "role":
         return <span className="font-medium text-foreground">{t(`people.role_${value}`, { defaultValue: value })}</span>;
       case "level":

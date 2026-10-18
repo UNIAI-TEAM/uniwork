@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
@@ -78,6 +81,14 @@ type Draft struct {
 	// Claim is set on mention drafts: the rule only reads mention rows, the
 	// consumer's write() claims the row in the notification's own tx.
 	Claim *MentionClaim
+	// OncePerGroup is set on drafts that may never write a second row for
+	// the same (user, kind, group_key) - the open-row merge upsert alone
+	// does not cover a first row already read or archived (BE-TN-3). The
+	// consumer takes a transaction-scoped advisory lock on the group and then
+	// checks for an existing row inside the notification's own transaction,
+	// so a concurrent event of the same group waits and treats the committed
+	// row as already delivered (BE-TN-9).
+	OncePerGroup bool
 }
 
 // env is what a rule may touch: read queries, the membership gate and the
@@ -112,7 +123,10 @@ var rules = map[string]rule{
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
 	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
 	// effective level on the document.
-	"document.shared":        ruleDocumentShared,
+	"document.shared": ruleDocumentShared,
+	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
+	// document; the ACL owner hears once per archive batch.
+	"document.archived":      ruleDocumentTrashed,
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,
 	"member.role_changed":    ruleRoleChanged,
@@ -709,6 +723,105 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 			"level":       level,
 		},
 	}}, nil
+}
+
+// ruleDocumentTrashed tells the ACL owners of an archive batch's documents
+// that somebody else moved their work to the trash (TRASH-NOTIFY-01, addendum
+// §4 N-2/N-3). One document.archived row lands per node, all sharing
+// archive_batch_id, while the person wants one row per batch: the rule
+// answers with a draft only on the event whose document is the recipient's
+// top-most node of the batch - the owned node with the fewest ancestors also
+// in the batch, the smaller id breaking a tie. The group key carries
+// recipient and batch, and OncePerGroup makes the write path treat any
+// existing row of the group - read, archived or still open - as the claim
+// already taken, so a re-elected top after a restore or purge can never
+// produce a second row nor bump the merge count (BE-TN-3). The batch read
+// itself is the narrow ACL projection: one event per node would otherwise
+// re-read a full Document row, content included, for every sibling
+// (BE-TN-7); only the elected top's title is fetched, once per owner.
+// A node restored or purged before the event is consumed dropped its batch
+// id and leaves the read; an archived event arriving after the batch was
+// purged reads an empty batch and emits nothing, and purge itself emits
+// document.deleted, which has no rule (N-5).
+func ruleDocumentTrashed(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	docID, batchID, wsID := p["document_id"], p["archive_batch_id"], p["workspace_id"]
+	if wsID == "" && ev.WorkspaceID.Valid {
+		wsID = ev.WorkspaceID.String
+	}
+	if docID == "" || batchID == "" || wsID == "" {
+		return nil, nil
+	}
+	orgID, err := orgOf(ctx, e.q, ev, wsID)
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := e.q.ListDocumentArchiveBatchAcl(ctx, db.ListDocumentArchiveBatchAclParams{
+		OrganizationID: orgID, WorkspaceID: wsID, ArchiveBatchID: pgtype.Text{String: batchID, Valid: true},
+	})
+	if err != nil || len(nodes) == 0 {
+		return nil, err
+	}
+	inBatch := make(map[string]db.ListDocumentArchiveBatchAclRow, len(nodes))
+	for _, d := range nodes {
+		inBatch[d.ID] = d
+	}
+	depth := func(d db.ListDocumentArchiveBatchAclRow) (n int) {
+		for p := d.ParentID; p.Valid && inBatch[p.String].ID != ""; p = inBatch[p.String].ParentID {
+			n++
+		}
+		return n
+	}
+	byOwner := map[string][]db.ListDocumentArchiveBatchAclRow{}
+	purgeAfter := ""
+	for _, d := range nodes {
+		if !d.ArchivedAt.Valid {
+			continue
+		}
+		if purgeAfter == "" && d.PurgeAfter.Valid {
+			purgeAfter = d.PurgeAfter.Time.Format(time.RFC3339)
+		}
+		if d.AclOwnerID.Valid {
+			byOwner[d.AclOwnerID.String] = append(byOwner[d.AclOwnerID.String], d)
+		}
+	}
+	var out []Draft
+	for owner, docs := range byOwner {
+		top := docs[0]
+		for _, d := range docs[1:] {
+			if dt, tt := depth(d), depth(top); dt < tt || (dt == tt && d.ID < top.ID) {
+				top = d
+			}
+		}
+		if top.ID != docID {
+			continue // this owner's draft rides the event of their top node
+		}
+		// The elected node's title is the one full-row read: the batch
+		// projection carries no content columns, and a node purged between
+		// the two reads means the batch is gone and no notice is owed (N-5).
+		doc, err := e.q.GetDocumentByID(ctx, top.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		r := newRecipients(ctx, e, ev, wsID)
+		r.add(owner)
+		params := map[string]string{
+			"actor": actorName(ctx, e.q, ev), "document": doc.Title, "date": purgeAfter,
+			"document_id": top.ID, "archive_batch_id": batchID, "count": strconv.Itoa(len(docs) - 1),
+		}
+		ds, err := r.drafts(orgID, KindDocumentTrashedByOther,
+			"document:"+batchID+":trashed:"+owner, "document", top.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		for i := range ds {
+			ds[i].OncePerGroup = true
+		}
+		out = append(out, ds...)
+	}
+	return out, nil
 }
 
 func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {

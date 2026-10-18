@@ -35,6 +35,7 @@ import {
   requireVerifiableUpload,
 } from "./verify";
 export { useDocumentLimits } from "./limits";
+export { useChunkedDocumentUpload } from "./use-chunked-document-upload";
 
 // TanStack Query owns documents server state. Mutations return null when the
 // response cannot prove the write; the guards in ./verify turn that into
@@ -190,6 +191,11 @@ export function useUpdateDocument(wsId: string, documentId: string) {
       ),
     onSuccess: (doc) => {
       qc.setQueryData(documentKeys.detail(wsId, documentId), doc);
+      // UNI-1851 F2: the share dialog's workspace/restricted switch rides this
+      // hook; a visibility flip adds or drops the row in the caller's Shared
+      // by me list, so refresh its root without waiting for
+      // document.workspace_access_changed.
+      void qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) });
       return doc;
     },
   });

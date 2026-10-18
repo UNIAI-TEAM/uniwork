@@ -427,6 +427,62 @@ func (q *Queries) ListDocumentArchiveBatch(ctx context.Context, arg ListDocument
 	return items, nil
 }
 
+const listDocumentArchiveBatchAcl = `-- name: ListDocumentArchiveBatchAcl :many
+SELECT id, parent_id, acl_owner_id, archived_at, archived_by, purge_after
+FROM documents
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND archive_batch_id = $3
+ORDER BY id
+`
+
+type ListDocumentArchiveBatchAclParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ArchiveBatchID pgtype.Text `json:"archive_batch_id"`
+}
+
+type ListDocumentArchiveBatchAclRow struct {
+	ID         string             `json:"id"`
+	ParentID   pgtype.Text        `json:"parent_id"`
+	AclOwnerID pgtype.Text        `json:"acl_owner_id"`
+	ArchivedAt pgtype.Timestamptz `json:"archived_at"`
+	ArchivedBy pgtype.Text        `json:"archived_by"`
+	PurgeAfter pgtype.Timestamptz `json:"purge_after"`
+}
+
+// The trash-notification rule's per-event batch read (TRASH-NOTIFY-01): one
+// document.archived row lands per node, so a full-row batch read would
+// re-materialize every document - content included - once per node. The
+// election needs only the ACL columns; the elected top's title is fetched
+// separately, once per owner.
+func (q *Queries) ListDocumentArchiveBatchAcl(ctx context.Context, arg ListDocumentArchiveBatchAclParams) ([]ListDocumentArchiveBatchAclRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentArchiveBatchAcl, arg.OrganizationID, arg.WorkspaceID, arg.ArchiveBatchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentArchiveBatchAclRow{}
+	for rows.Next() {
+		var i ListDocumentArchiveBatchAclRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentID,
+			&i.AclOwnerID,
+			&i.ArchivedAt,
+			&i.ArchivedBy,
+			&i.PurgeAfter,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentChildrenOutsideSet = `-- name: ListDocumentChildrenOutsideSet :many
 SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind
 FROM documents

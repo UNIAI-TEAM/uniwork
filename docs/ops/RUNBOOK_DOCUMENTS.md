@@ -147,6 +147,53 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
      giữ nguyên DB/object; không chạy down migration hay purge dữ liệu như thao
      tác rollback (plan §8.2).
 
+## Phiên tải lên tệp lớn (> 20 MiB, BIGUP-S1)
+
+Tệp tài liệu lớn hơn 20 MiB không đi qua API: client mở một phiên, `PUT` từng phần 8 MiB thẳng lên
+URL presigned của bucket, rồi gọi `complete` để server ghép và kiểm tra. Contract:
+`docs/superpowers/specs/2026-10-17-bigup-upload-sessions-contract.md`.
+
+- **Chỉ bật khi store có multipart + presign.** `GET /api/v1/config` có
+  `documents.limits.chunked_upload_threshold_bytes` (20971520) khi bật; backend `local` không có trường này
+  và mọi tệp đi luồng một request (giới hạn vẫn là `DOCUMENT_MAX_BYTES`).
+- **Giới hạn:** mỗi người tối đa 4 phiên `open`/`validating` trên mọi tổ chức (`429 upload_sessions_exhausted`,
+  `Retry-After: 60`); phiên sống 24 giờ; URL phần sống 1 giờ (`GET .../upload-sessions/{id}` cấp URL mới).
+- **Quota:** giữ chỗ `size_bytes` lúc mở phiên; nhả khi huỷ, hết hạn, kiểm tra hỏng, hoặc reconcile của
+  FileService khi mở phiên hỏng giữa chừng (job `reconcile` theo hạn lease của phiên).
+- **Khoá sửa:** route tạo phiên cho **phiên bản mới** (`POST /documents/{id}/upload-sessions` và route frame)
+  trả `423 document_locked` ngay khi người khác (hoặc một agent) đang giữ khoá sửa còn sống — chưa giữ chỗ quota,
+  chưa mở phiên, không phần nào được tải lên; người gọi đang giữ khoá hoặc không có khoá sống thì qua. Cổng commit
+  vẫn là nơi quyết định cuối. Chi tiết: addendum size-cap §6.2.
+- **GC:** `DocumentWorkers.Run` (10 phút một lần) gọi `ExpireMultipartUploads`: nhận các phiên quá hạn, abort
+  multipart, huỷ phiên FileService (nhả quota), audit `document.upload_session_expired` với actor `system`.
+  Abort trên storage là best-effort: lỗi chỉ ghi log WARN `documents: multipart GC abort failed`
+  (`session_id`, `upload_id`) và dòng vẫn chuyển `expired`; phần dở dang còn lại do luật lifecycle bên dưới dọn.
+- **Luật lifecycle bucket (bắt buộc, vận hành tự cấu hình; server không cấu hình bucket):**
+  `AbortIncompleteMultipartUpload` sau **2 ngày** trên tiền tố `<S3_KEY_PREFIX>v1/` của môi trường (gốc
+  FileService, xem `RUNBOOK_FILE_GC.md` › Gốc môi trường). Luật này chỉ đụng multipart chưa hoàn tất, không
+  xoá object đã ghi. Thiếu luật thì phần của phiên mà GC abort hỏng sẽ nằm lại và tính tiền lưu trữ.
+- **CORS:** trình duyệt `PUT` thẳng lên bucket và đọc header `ETag`, nên bucket phải cho phép `PUT` từ origin
+  web và `ExposeHeaders: ETag` (`OFFICE_ENV_CHECKLIST.md` §3). Preflight của server (`internal/storage/preflight.go`)
+  không kiểm tra CORS: thiếu CORS thì tải lên tệp lớn hỏng ở trình duyệt, còn API vẫn khoẻ.
+
+Kiểm tra nhanh (chỉ đọc):
+
+```sql
+-- Phiên đang mở hoặc đang kiểm tra, theo tổ chức
+SELECT organization_id, status, count(*), min(created_at), max(expires_at)
+FROM file_multipart_uploads
+WHERE status IN ('open', 'validating')
+GROUP BY organization_id, status;
+
+-- Phiên lẽ ra đã được GC (quá hạn hơn 30 phút mà chưa đóng): worker không chạy hoặc lease kẹt
+SELECT id, status, lease_owner, lease_expires_at, expires_at
+FROM file_multipart_uploads
+WHERE status IN ('open', 'validating') AND expires_at < now() - interval '30 minutes';
+```
+
+Một phiên `validating` có `lease_expires_at` đã qua là phiên mà lần `complete` trước bị cắt giữa chừng: client gọi
+lại `complete` sẽ nhận lại phiên, hoặc GC dọn khi phiên hết hạn. Không sửa dòng bằng tay.
+
 ## Leo thang
 
 - `outcome="error"` hoặc `"unavailable"` > 5% số lần lưu trong 10 phút → sev 2,

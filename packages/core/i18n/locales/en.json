@@ -585,10 +585,12 @@
         "document_access_requested": "Document access requests",
         "document_access_approved": "Document access granted",
         "document_access_declined": "Document access request declined",
-        "document_shared": "Documents shared with you"
+        "document_shared": "Documents shared with you",
+        "document_trashed_by_other": "Your document moved to the trash"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
+      "email_all": "Email for every eligible kind",
       "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
       "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
       "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden"
@@ -5071,6 +5073,8 @@
     "group_older": "Older",
     "merged_other_one": "and {{count}} more change",
     "merged_other_other": "and {{count}} more changes",
+    "trashed_more_one": "and {{count}} more",
+    "trashed_more_other": "and {{count}} more",
     "deleted": "deleted",
     "unread_dot": "Unread",
     "unread_elsewhere": "Unread notifications in another workspace",
@@ -5141,7 +5145,11 @@
       "document_shared": "{{actor}} shared “{{document}}” with you ({{level}}).",
       "document_shared_untitled": "{{actor}} shared a document with you ({{level}}).",
       "document_shared_nolevel": "{{actor}} shared “{{document}}” with you.",
-      "document_shared_untitled_nolevel": "{{actor}} shared a document with you."
+      "document_shared_untitled_nolevel": "{{actor}} shared a document with you.",
+      "document_trashed_by_other": "{{actor}} moved your document to trash. Restore it before {{date}}",
+      "document_trashed_by_other_untitled": "{{actor}} moved one of your documents to trash. Restore it before {{date}}",
+      "document_trashed_by_other_nodate": "{{actor}} moved your document to trash",
+      "document_trashed_by_other_untitled_nodate": "{{actor}} moved one of your documents to trash"
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
@@ -5153,7 +5161,8 @@
       "document_access_requested": "Document access request",
       "document_access_approved": "Access granted",
       "document_access_declined": "Request declined",
-      "document_shared": "Document shared"
+      "document_shared": "Document shared",
+      "document_trashed_by_other": "Your document was moved to trash"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",
@@ -8921,7 +8930,8 @@
     },
     "upload": {
       "title": "Upload a file",
-      "description": "The file becomes a new document in this workspace.",
+      "description": "The file becomes a new document in My Folder (visible only to you).",
+      "description_folder": "The file becomes a new document in this folder.",
       "version_title": "Upload a new version",
       "version_description": "The new file becomes the working copy; the open version stays in history.",
       "pick": "Choose a file",
@@ -8929,9 +8939,19 @@
       "size_hint": "Up to {{max}} per file.",
       "too_large_named": "{{name}} is {{size}}, which is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
       "unsupported_format": "The format of {{name}} is not supported.",
+      "unreadable_file": "Couldn't read {{name}}. The file may be damaged.",
       "submit": "Upload",
       "submitting": "Uploading…",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "pause": "Pause",
+      "resume": "Resume",
+      "checking": "Checking file…",
+      "resume_hint": "Continuing upload from last time.",
+      "progress_status": "Uploading {{name}}",
+      "drop_progress": "Uploading {{name}} · {{percent}}%",
+      "paused_status": "Paused",
+      "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue.",
+      "document_locked": "Someone else is editing this document. Wait until they finish or take over editing, then try again."
     },
     "file": {
       "metadata_title": "File details",
@@ -9348,6 +9368,7 @@
         "purge_in": "Deleted forever in",
         "actions": "Actions"
       },
+      "focus_further": "The item you opened may be further down. Select Load more to see it.",
       "deleted_by_unknown": "Former member",
       "read_only": "View only · a manager restores",
       "restore": "Restore",
@@ -9535,6 +9556,10 @@
         "html": "Untitled HTML page.html",
         "pdf": "Untitled PDF.pdf"
       },
+      "my_folder": {
+        "label": "My Folder",
+        "open_failed": "Could not open My Folder. Try again."
+      },
       "folders": {
         "default_name": "New folder",
         "create_failed": "Could not create the folder. Try again.",
@@ -9567,7 +9592,7 @@
         "failed": "Could not rename the document. Try again."
       },
       "quick_create": {
-        "hint_root": "New files go to the workspace root and open straight in the editor.",
+        "hint_root": "New and uploaded files here go to My Folder (only you can see it) and open straight in the editor.",
         "label": "Quick create"
       },
       "create": {
@@ -9656,6 +9681,7 @@
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
+        "shared_by_me": "Shared by me",
         "trash": "Trash",
         "folders": "Folders",
         "elsewhere": "From elsewhere",
@@ -9675,6 +9701,7 @@
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
+        "shared_by_me": "Shared by me",
         "archived": "Trash",
         "sources": "From elsewhere",
         "chat": "Chat",
@@ -9755,6 +9782,7 @@
         "preview_loading": "Loading image…",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
+        "view_only_notice": "View only · changes will not be saved",
         "download": "Download",
         "save_to_folder": "Save to folder",
         "menu": "Actions for {{title}}",
@@ -9778,6 +9806,8 @@
         "starred_description": "Star a document from a row's ⋯ menu to find it again quickly.",
         "shared_title": "Nothing has been shared with you yet",
         "shared_description": "Documents others share with you show up here.",
+        "shared_by_me_title": "You haven't shared any documents yet",
+        "shared_by_me_description": "Documents and folders you own and share with others or the workspace show up here.",
         "archived_title": "The trash is empty",
         "archived_description": "Deleted documents sit here for 30 days.",
         "sources_title": "No files yet",
@@ -9873,7 +9903,15 @@
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
-      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again."
+      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "my_folder_locked": "My Folder is a personal system folder — it can't be renamed, shared, moved or moved to the trash.",
+      "unsupported_media_type": "This file format is not supported.",
+      "upload_sessions_exhausted": "You have too many uploads open at once. Finish or cancel one, then try again.",
+      "upload_session_expired": "The upload session expired. Choose the file again to start a new upload.",
+      "upload_parts_invalid": "The uploaded parts were incomplete or did not match. Try uploading again.",
+      "upload_size_mismatch": "The file size changed while uploading. Choose the file again and retry.",
+      "upload_probe_mismatch": "The file content does not match the selected format. Check the file and try again.",
+      "quota_exceeded": "Your organization is out of storage space. Free up space or upgrade your plan."
     }
   },
   "squads": {
@@ -10062,6 +10100,8 @@
       "errors": {
         "unauthorized": "Your editing session expired. Try again.",
         "forbidden": "You do not have permission to do that in this document.",
+        "read_only_source": "This file is view-only and can't be saved.",
+        "read_only_source_export": "This file is view-only and can't be exported.",
         "not_found": "This document no longer exists or was moved.",
         "conflict": "Someone saved a newer version. Reopen the document to see it before saving.",
         "too_large": "The file is too large to upload.",

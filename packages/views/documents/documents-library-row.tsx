@@ -20,6 +20,8 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { isMyFolder } from "@uniwork/core/types/document";
+import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import {
@@ -55,6 +57,8 @@ export interface LibraryRowHandlers {
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Image sources only: fetches the bytes and opens them view-only. */
   onPreviewSource?: (sourceId: string, name: string) => void;
+  /** Office formats the server marks openable (UNI-1869): opens the view-only module frame; absent falls back to download. */
+  onViewSource?: (source: DocumentSourceFile) => void;
   onDownloadSource: (sourceId: string) => void;
   onSaveSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Absent outside an organization (no favorites there). */
@@ -103,10 +107,11 @@ export function LibraryRowView({
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
-  const title = rowTitle(row) || t("documents.detail.untitled");
+  const doc = row.type === "document" ? row.doc : null;
+  const myFolder = isMyFolder(doc);
+  const title = (myFolder ? t("documents.home.my_folder.label") : rowTitle(row)) || t("documents.detail.untitled");
   const format = rowFormat(row);
   const folder = isFolderRow(row);
-  const doc = row.type === "document" ? row.doc : null;
   const source = row.type === "source" ? row.source : null;
   const sourceLinked = source ? sourceParentLinked(source.parent) : false;
 
@@ -147,10 +152,12 @@ export function LibraryRowView({
     if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") {
-      // U-SRC1: the primary click opens the file view-only where the row can
-      // (images today), else downloads it; "Xem nơi đính kèm" is a secondary.
+      // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
+      // row can (image preview, or the module frame for an Office format),
+      // else downloads it; "Xem nơi đính kèm" is a secondary.
       const open = sourceOpenAction(row.source);
       if (open === "image" && handlers.onPreviewSource) handlers.onPreviewSource(row.source.id, row.source.name);
+      else if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
       else handlers.onDownloadSource(row.source.id);
     }
   };
@@ -182,14 +189,13 @@ export function LibraryRowView({
     if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
       actions.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
     }
-    if (handlers.onRename && canMoveRow(level)) {
+    if (!myFolder && handlers.onRename && canMoveRow(level)) {
       actions.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
     }
-    if (handlers.onMove && canMoveRow(level)) {
+    if (!myFolder && handlers.onMove && canMoveRow(level)) {
       actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
     }
-    if (handlers.onArchive && canArchiveRow(level)) {
-      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
+    if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
       actions.push(
         folder
           ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }
