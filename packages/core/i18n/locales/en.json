@@ -10079,6 +10079,7 @@
         "description": "Your document is still opening. This can happen on a slow connection."
       },
       "mine_file_name": "{{title}} (my version)",
+      "remote_author_you": "you",
       "failure": {
         "unavailable": {
           "title": "This document cannot open on the web yet",

@@ -10072,6 +10072,7 @@
         "description": "Tài liệu vẫn đang được mở. Điều này có thể xảy ra khi kết nối chậm."
       },
       "mine_file_name": "{{title}} (bản của tôi)",
+      "remote_author_you": "bạn",
       "failure": {
         "unavailable": {
           "title": "Chưa mở được tài liệu trên web",
