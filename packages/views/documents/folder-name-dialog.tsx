@@ -14,6 +14,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -59,6 +60,13 @@ export interface FolderNameDialogProps {
   onSubmit?: (title: string, options?: CreateShareOptions) => Promise<boolean | void> | boolean | void;
   pending?: boolean;
   error?: string | null;
+  /** Secondary line under the title (the first-save hint; folders keep their own wording). */
+  description?: string;
+  /** Submit button label; defaults to the shared create/rename copy. */
+  submitLabel?: string;
+  /** Focuses the name input with the whole draft selected (defaults to true in rename mode). */
+  selectAllOnOpen?: boolean;
+  "data-testid"?: string;
 }
 
 /**
@@ -86,6 +94,10 @@ export function FolderNameDialog({
   onSubmit,
   pending: externalPending = false,
   error: externalError = null,
+  description,
+  submitLabel,
+  selectAllOnOpen = mode === "rename",
+  "data-testid": testId,
 }: FolderNameDialogProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -96,6 +108,7 @@ export function FolderNameDialog({
   const [busy, setBusy] = useState(false);
   const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
   const keyRef = useRef<{ title: string; parentId: string | null; shared: boolean; key: string } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -249,9 +262,18 @@ export function FolderNameDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (isPending ? undefined : onOpenChange(next))}>
-      <DialogContent className="sm:max-w-md" showCloseButton={!isPending} closeLabel={t("common.close")}>
+      <DialogContent
+        className="sm:max-w-md"
+        showCloseButton={!isPending}
+        closeLabel={t("common.close")}
+        data-testid={testId}
+        // The portal mounts the input after `open` flips: focus+select here, at mount time,
+        // so a proposed name opens selected and typing replaces it (S01-V1).
+        {...(selectAllOnOpen ? { initialFocus: () => { inputRef.current?.select(); return inputRef.current; } } : {})}
+      >
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
+          {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -259,6 +281,7 @@ export function FolderNameDialog({
               {t(isDocumentRename ? "documents.home.rename.label" : "documents.home.folders.rename_label")}
             </Label>
             <Input
+              ref={inputRef}
               id={inputId}
               value={draft}
               placeholder={t(
@@ -319,11 +342,12 @@ export function FolderNameDialog({
               aria-busy={isPending || undefined}
             >
               {isPending ? <Spinner aria-hidden role="presentation" /> : null}
-              {t(
-                mode === "create"
-                  ? "documents.home.folders.create_submit"
-                  : "documents.home.folders.rename_submit",
-              )}
+              {submitLabel ??
+                t(
+                  mode === "create"
+                    ? "documents.home.folders.create_submit"
+                    : "documents.home.folders.rename_submit",
+                )}
             </Button>
           </DialogFooter>
         </form>

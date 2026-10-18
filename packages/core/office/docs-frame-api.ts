@@ -1,5 +1,5 @@
 import { ApiError } from "../api/http";
-import { createDocumentFile } from "../api/endpoints/documents";
+import { createDocumentFile, ensureMyFolder, getDocument } from "../api/endpoints/documents";
 import { copyDocument } from "../api/endpoints/office";
 import {
   createOfficeFrameClient,
@@ -58,6 +58,9 @@ export interface DocsFrameCall {
   editLockId?: string;
   /** Bytes above which `save` and `saveAs` route through chunked upload sessions (UNI-1863); null or absent = single-request upload. */
   chunkedUploadThresholdBytes?: number | null;
+  /** Filename the save's upload carries instead of the stored one (the name the first-save
+   *  dialog wrote, UNI-1847): sanitized the way the server's `files.SanitizeFilename` reads it. */
+  filename?: string;
 }
 
 /**
@@ -279,6 +282,20 @@ async function runChunkedUpload(opts: ChunkedUploadOptions, signal: AbortSignal)
 }
 
 /**
+ * Where a save-as copy lands without a chosen folder (UNI-1847, D6): beside its
+ * source document, or into the caller's My Folder when the source sits at the
+ * workspace root (the root itself is not a folder a file can be filed under).
+ */
+async function saveAsParentId(call: DocsFrameCall): Promise<string> {
+  const source = await getDocument(call.documentId, call.signal);
+  if (!source) throw malformed("GET /api/v1/documents/{id}");
+  if (source.parent_id) return source.parent_id;
+  const myFolder = await ensureMyFolder(call.workspaceId, { signal: call.signal });
+  if (!myFolder) throw malformed("documents/my-folder");
+  return myFolder.id;
+}
+
+/**
  * The DocsFrameApi on the UniWork office-frame routes (W6): every call is made
  * with the frame token only (Bearer, `credentials: 'omit'`), never the session.
  * `OfficeModuleFrame` uses one by default, so the web host mounts it inside
@@ -347,24 +364,27 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
         throw new DocsProtocolError({ code: "malformed", message: "save needs the etag (base revision) the frame opened with" });
       }
       const key = await operationKey("save", [payload.fileId, baseRevision], payload.data);
-      // The stored file keeps its own name: the upload is named after what open answered.
+      // The stored file keeps its own name: the upload is named after what open answered -
+      // unless the call carries the name the first-save dialog wrote (UNI-1847, S01-V3), which
+      // renames the stored file to the document's name on this save.
       const current = await client.open(payload.fileId);
       if (!current || "source_id" in current) throw malformed("office-frame open");
       const blob = new Blob([payload.data], { type: mimeType });
       const threshold = resolveThreshold(call, options);
+      const uploadName = call.filename?.trim() ? call.filename.trim() : current.file.filename;
       const leg = async (uploadKey: string): Promise<SaveResult> => {
         const upload = threshold !== null && payload.data.byteLength > threshold
           ? await runChunkedUpload(
               {
                 file: blob,
-                filename: current.file.filename,
+                filename: uploadName,
                 target: { kind: "frame", documentId: payload.fileId, frameToken: call.token },
                 idempotencyKey: uploadKey,
                 fetch: sessionFetch,
               },
               call.signal,
             ).then((out) => (out.kind === "upload" ? out.upload : null))
-          : await client.upload(payload.fileId, blob, current.file.filename, uploadKey);
+          : await client.upload(payload.fileId, blob, uploadName, uploadKey);
         if (!upload) throw malformed("office-frame upload");
         try {
           const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);
@@ -390,13 +410,17 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       const title = name.replace(ext, "");
       const file = new File([payload.data], name, { type: mimeType });
       const key = await operationKey("saveas", [call.workspaceId, name, payload.folderId ?? ""], payload.data);
+      // UNI-1847 (D6): the copy lands beside its source - never at the workspace root. A
+      // folder the frame's picker chose wins; else the source's own parent; a root document's
+      // copy goes into the caller's My Folder (the workspace root is not a folder).
+      const parentId = payload.folderId ?? (await saveAsParentId(call));
       const threshold = resolveThreshold(call, options);
       const created = threshold !== null && payload.data.byteLength > threshold
         ? await runChunkedUpload(
             {
               file,
               filename: name,
-              target: { kind: "workspace", workspaceId: call.workspaceId, parentId: payload.folderId, title },
+              target: { kind: "workspace", workspaceId: call.workspaceId, parentId, title },
               idempotencyKey: `${key}:upload`,
               fetch: sessionFetch,
             },
@@ -405,7 +429,7 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
         : await createDocumentFile(
             call.workspaceId,
             file,
-            { title, parent_id: payload.folderId },
+            { title, parent_id: parentId },
             { idempotencyKey: key, signal: call.signal },
           );
       if (!created) throw malformed("documents/files");
