@@ -446,8 +446,14 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
         const sendBtn = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
         await expect(sendBtn, "S9: Send is enabled after the disclosure acknowledgement").not.toHaveAttribute("aria-disabled", "true");
         await sendBtn.click();
-        await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
-        await audit(frame, ".ai-chat", "S9 result/error", mode);
+        // S9: the turn reached its end, then the error line is checked explicitly. The pinned frame's action toolbar
+        // also appears on a failed turn (its `showToolbar` accepts `entry.error`), so the toolbar alone does not prove
+        // an answer; the assertion below is what does. `.ai-msg-error` is exactly what a frame whose same-origin AI
+        // POST never reached the API shows (split-origin, before the app proxied the frame AI routes).
+        await frame.locator(".ai-chat .ai-msg-toolbar").first().waitFor({ state: "visible", timeout: 90_000 });
+        const errorLine = await frame.locator(".ai-chat .ai-msg-error").first().isVisible().catch(() => false);
+        expect(errorLine, "S9: the UniWork AI turn rendered an error line, not an answer — the frame's AI POST must reach the API (on a split-origin setup the app rewrites /api/v1/office-frame/documents/{id}/ai/... to NEXT_PUBLIC_API_URL)").toBe(false);
+        await audit(frame, ".ai-chat", "S9 result", mode);
         await shot(frame, `s9-result-${mode}-${locale}`);
       });
     }
