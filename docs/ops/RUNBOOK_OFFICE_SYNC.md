@@ -71,8 +71,11 @@ hoặc attempt cũ bị fence (một attempt có claim hết hạn không bao gi
 **Kiểm tra.** Intent còn không (tra bằng route ở mục trên)? Nếu `committed`: không có gì mất. Nếu `not_committed`: được cấp
 attempt n+1 gắn cùng intent và cùng snapshot; claim cũ đã được ghi audit như hàng rào của attempt n.
 
-**Khắc phục.** Không thay `upload_id` rồi dùng lại khóa commit có fingerprint cũ (fingerprint buộc payload). App tự gửi
-lại byte của đúng snapshot dưới attempt mới. Retention ngắn hơn thời gian offline của người dùng là lý do thường gặp:
+**Khắc phục.** Không dùng lại khóa commit cho byte khác (fingerprint buộc tài liệu, base, checksum, engine; không gồm
+`upload_id`, nên upload mới của cùng byte dưới cùng khóa là hợp lệ). App tự gửi lại byte của đúng snapshot dưới attempt mới,
+với khóa upload mới. Lần commit **đầu tiên** bị từ chối vì claim hết hạn bị chặn trước khi claim intent, nên tra cứu trả
+`unknown` và intent ở `reconciling` kẹt; tự resume trường hợp này chờ quyết định B69-full (UNI-1918, gộp với backlog
+B73/B74, Advisor 2026-10-19). Retention ngắn hơn thời gian offline của người dùng là lý do thường gặp:
 `OfficeIntentLookupUnknown`. Cửa sổ giữ thật do G5-D2 chốt; dev dùng giá trị tạm.
 
 ## Quota và engine outage

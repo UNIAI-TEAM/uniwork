@@ -207,6 +207,9 @@ ghi kỳ vọng theo spec/EXPERIENCE, không theo hành vi hiện tại. OQ-F4, 
   file_claim_expired`, `document_files.go:249`) ở bước resolve upload, trước khi claim intent; fork `errors.ts` không
   ánh xạ mã này nên thành `server_error` → `committing → reconciling` → tra 410 unknown (key chưa claim) →
   `reconciling-stuck`. Spec §10.2 đòi resume theo logical intent và re-upload. FQ-24 ghi kỳ vọng spec, ghi chú "predicted FAIL F4".
+  UNI-1918 (2026-10-19): FQ-24 **chờ quyết định B69-full** (server tách "chưa từng nhận"/"đã dọn", hoặc bằng chứng phía
+  app, hoặc không làm; gộp với B73/B74) — không phải hồi quy. B69-lite giữ lý do lỗi, tách khóa upload khỏi khóa commit và
+  tra một lần; `unknown` vẫn kẹt.
 - **OQ-F5 — núm thời gian và dung lượng.** Fork `QUEUE_LIMITS.stuckAfterMs` (1 giờ) và `recheckMs` (15 phút) là hằng;
   ngân sách store 1 GiB; server `commitIntentSweepTick` (10 phút) là hằng nên "intent đã bị dọn → 410" không dựng được
   nhanh (FQ-10 dùng key lạ/của người khác thay thế). Lead: FQ-42 `pending F-clock`; FQ-44 dùng restart; FQ-53 cần nạp store nhanh. Cập nhật WI-4: F-clock có ở fork

@@ -285,7 +285,8 @@ khóa cloud payload, giữ ciphertext và checkpoint có thể ghi bền, hướ
 | cancelled | Chỉ khi biết chưa commit; hủy queue không tự xóa nháp |
 
 **Hợp đồng resume bắt buộc với G1/FileService:** upload claim có thể hết hạn trước khi thiết bị online.
-Không thay `upload_id` rồi dùng lại commit key có fingerprint cũ. Service cần operation tra/reconcile theo
+Không thay `upload_id` rồi dùng lại commit key có fingerprint cũ cho byte khác (fingerprint gồm tài liệu, base, checksum,
+engine — không gồm `upload_id`; upload mới của **cùng byte** dưới cùng commit key là hợp lệ, addendum size-cap §6.4). Service cần operation tra/reconcile theo
 logical intent; chỉ khi xác định attempt cũ chưa commit và không thể late-commit mới được cấp attempt/key mới
 gắn cùng logical intent và snapshot. Kết quả committed giữ đủ lâu để retry không nhân đôi sau restart.
 Nếu chưa chứng minh được trạng thái, giữ reconciling và cho người dùng hướng dẫn, không tạo version mới.
