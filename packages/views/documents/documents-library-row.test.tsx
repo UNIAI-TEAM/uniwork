@@ -152,6 +152,67 @@ describe("access column", () => {
   });
 });
 
+describe("narrow secondary line at 390 (< 29rem, UNI-1902)", () => {
+  it("wraps meta (editor · date · size) above level · restricted below 29rem with a non-truncating date and no orphan separator", () => {
+    renderList([
+      doc("a", "Hợp đồng mẫu.docx", {
+        my_level: "manage",
+        via: "owner" as DocumentSummaryRow["via"],
+        visibility: "restricted",
+        updated_at: "2026-10-17T03:00:00Z",
+        size_bytes: 2500,
+      }),
+      doc("b", "Không người sửa.docx", {
+        updated_by: "",
+        my_level: "view",
+        visibility: "workspace",
+        updated_at: "2026-10-17T03:00:00Z",
+        size_bytes: 2500,
+      }),
+    ]);
+    const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;
+    expect(line).toHaveClass("flex-wrap", "@min-[29rem]/library:flex-nowrap");
+
+    const metaGroup = line.querySelector("[data-library-meta-line]") as HTMLElement;
+    const accessGroup = line.querySelector("[data-library-access-group]") as HTMLElement;
+    expect(metaGroup).toBeTruthy();
+    expect(accessGroup).toBeTruthy();
+    expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[29rem]/library:basis-auto", "@min-[42rem]/library:hidden");
+    expect(accessGroup).toHaveClass("shrink-0");
+
+    const editorEl = within(metaGroup).getByText("An");
+    expect(editorEl).toHaveClass("min-w-0", "truncate");
+
+    const dateSizeEl = Array.from(metaGroup.querySelectorAll("span")).find((el) => el.textContent?.includes("2,4 KB")) as HTMLElement;
+    expect(dateSizeEl).toBeTruthy();
+    expect(dateSizeEl.textContent).toMatch(/17\/10\/2(6|026)/);
+    expect(dateSizeEl).toHaveClass("shrink-0");
+    expect(dateSizeEl).not.toHaveClass("truncate");
+
+    expect(within(accessGroup).getByText("Chủ sở hữu")).toBeTruthy();
+    expect(within(accessGroup).getByText("Hạn chế")).toBeTruthy();
+
+    expect(metaGroup.firstElementChild?.textContent).not.toBe("·");
+    expect(metaGroup.lastElementChild?.textContent).not.toBe("·");
+    expect(accessGroup.firstElementChild?.textContent).not.toBe("·");
+    expect(accessGroup.lastElementChild?.textContent).not.toBe("·");
+
+    const interDot = Array.from(line.children).find((el) => el.textContent === "·") as HTMLElement;
+    expect(interDot).toBeTruthy();
+    expect(interDot).toHaveClass("hidden", "@min-[29rem]/library:inline", "@min-[42rem]/library:hidden");
+
+    const lineB = document.querySelector('[data-library-row="b"] [data-library-access-line]') as HTMLElement;
+    const metaB = lineB.querySelector("[data-library-meta-line]") as HTMLElement;
+    const accessB = lineB.querySelector("[data-library-access-group]") as HTMLElement;
+    expect(metaB).toHaveClass("@min-[29rem]/library:hidden");
+    expect(metaB.firstElementChild?.textContent).not.toBe("·");
+    expect(metaB.lastElementChild?.textContent).not.toBe("·");
+    expect(accessB.firstElementChild?.textContent).not.toBe("·");
+    expect(accessB.lastElementChild?.textContent).not.toBe("·");
+    expect(Array.from(lineB.children).find((el) => el.textContent === "·")).toBeUndefined();
+  });
+});
+
 describe("size column", () => {
   it("is right-aligned and tabular-nums in header and cell", () => {
     renderList([doc("a", "A.docx")]);
