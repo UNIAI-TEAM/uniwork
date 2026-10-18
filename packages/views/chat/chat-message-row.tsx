@@ -8,6 +8,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageBody } from "./chat-message-body";
+import { ChatFailedSendBar } from "./chat-failed-send-bar";
 import { isChatMediaMessageBody } from "./chat-expression-utils";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
@@ -175,7 +176,8 @@ function ChatMessageRowImpl({
   const { i18n } = useTranslation();
   const reveal = useMessageActionsReveal();
   const nameClass = senderNameClass(message.sender, isOwn);
-  const isPending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
+  // Sending, queued or failed: not on the server yet, so nothing to act on.
+  const isPending = Boolean(message.deliveryStatus);
   // A sticker or GIF is not text: there is nothing to edit in it.
   const isMedia = isChatMediaMessageBody(message.body);
   const canEdit = isOwn && !isPending && message.kind !== "voice_call_log" && !message.voiceCall && !isMedia;
@@ -288,6 +290,10 @@ function ChatMessageRowImpl({
             </div>
 
             {bare ? meta : null}
+
+            {message.deliveryStatus === "failed" && workspaceId ? (
+              <ChatFailedSendBar workspaceId={workspaceId} message={message} />
+            ) : null}
 
             <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
 

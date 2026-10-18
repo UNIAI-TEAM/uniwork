@@ -110,7 +110,9 @@ export function ChatMessageMeta({
 }) {
   const { t, i18n } = useTranslation();
   const pending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
-  if (!showTime && !pending && !message.editedAt && !showReadReceipt) return null;
+  // A failed send keeps its time in the bubble; "Chưa gửi được" sits under it (ChatFailedSendBar).
+  const withTime = showTime || message.deliveryStatus === "failed";
+  if (!withTime && !pending && !message.editedAt && !showReadReceipt) return null;
   const onBrand = isOwn && !onWall;
   return (
     <p
@@ -133,13 +135,13 @@ export function ChatMessageMeta({
           <Clock3 className="size-3" aria-hidden />
           {message.deliveryStatus === "queued" ? t("chat.message_queued") : t("chat.message_sending")}
         </span>
-      ) : showTime ? (
+      ) : withTime ? (
         <time dateTime={new Date(message.ts).toISOString()} aria-hidden>
           {formatMessageTime(message.ts, i18n.language)}
         </time>
       ) : null}
       {/* The dot only separates it from a time or a sending state before it. */}
-      {message.editedAt ? <span>{pending || showTime ? `· ${t("chat.edited_label")}` : t("chat.edited_label")}</span> : null}
+      {message.editedAt ? <span>{pending || withTime ? `· ${t("chat.edited_label")}` : t("chat.edited_label")}</span> : null}
       {showReadReceipt ? (
         <span
           className={cn(

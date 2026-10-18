@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/http";
 import {
   CHAT_SEND_MAX_ATTEMPTS,
+  isChatSendNetworkError,
   isRetriableChatSendError,
   runWithChatSendRetry,
 } from "./send-retry";
@@ -19,6 +20,14 @@ describe("isRetriableChatSendError", () => {
   it("does not retry validation or auth failures", () => {
     expect(isRetriableChatSendError(new ApiError("bad", "invalid", 400))).toBe(false);
     expect(isRetriableChatSendError(new ApiError("forbidden", "forbidden", 403))).toBe(false);
+  });
+});
+
+describe("isChatSendNetworkError", () => {
+  it("is only the request that never reached the server", () => {
+    expect(isChatSendNetworkError(new TypeError("Failed to fetch"))).toBe(true);
+    expect(isChatSendNetworkError(new ApiError("down", "internal", 503))).toBe(false);
+    expect(isChatSendNetworkError(new ApiError("rate", "rate_limited", 429))).toBe(false);
   });
 });
 
