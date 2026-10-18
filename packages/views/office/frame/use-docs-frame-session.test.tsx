@@ -735,7 +735,7 @@ describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)"
     expect(save.mock.calls[0]?.[1]).toMatchObject({ documentId: "doc-1", editLockId: "L1" });
   });
 
-  it("423 on save flips the host lock state to lost: onLocked gets the holder, the frame a read-only refusal, never {ok:false}", async () => {
+  it("423 on save flips the host lock state to lost: onLocked gets the holder, the frame a plain failure, never {ok:false} or a revoke (UNI-1907 L-3)", async () => {
     const fields = { holder_id: "u2", holder_name: "An", held_by_me: false };
     const locked = new DocsProtocolError({ code: "forbidden", message: "document_locked (HTTP 423)", status: 423, details: { apiCode: "document_locked", fields } });
     const save = vi.fn(async () => { throw locked; });
@@ -743,7 +743,10 @@ describe("useDocsFrameSession: the page's edit lock (UNI-1645, addendum §11.1)"
     const frame = setup({ editLock: lockOf(true, onLocked), api: { save } as unknown as Partial<DocsFrameApi> });
     await frame.boot();
     const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" });
-    await waitFor(() => expect(frame.answerTo(id)?.error).toMatchObject({ code: "forbidden", status: 403 }));
+    // `forbidden` without an org apiCode would lock the vendored frame as 'revoked' and draw the
+    // red lost-access bar; `internal` keeps the edits dirty and shows only the localized
+    // save-failed line while the page's own lock banner explains (L-3).
+    await waitFor(() => expect(frame.answerTo(id)?.error).toMatchObject({ code: "internal", status: 423, details: { apiCode: "document_locked" } }));
     expect(frame.answerTo(id)?.payload).toBeUndefined();
     expect(onLocked).toHaveBeenCalledWith(fields);
     // The current pin advertises no editLock capability: no doc.editLock is sent (Q4).
