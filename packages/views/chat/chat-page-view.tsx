@@ -52,6 +52,7 @@ import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";
 import { ChatPageContent } from "./chat-page-content";
+import { ChatSeenByProvider, useChatSeenBy } from "./chat-seen-by";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
 import { useChatBlockActions } from "./use-chat-block-actions";
@@ -260,9 +261,6 @@ export function ChatPageView({
   useChatRoomScopes(chatScopeRoomIds);
   useChatPageSignals(workspaceId, currentUserId, authReady);
 
-  const peerLastReadAt =
-    target.kind === "dm" ? (activeRoomRecord?.peer_last_read_at ?? null) : null;
-
   const showLoading =
     !authReady ||
     (target.kind === "workspace" && ensureRoom.isPending && !workspaceRoomId) ||
@@ -370,6 +368,8 @@ export function ChatPageView({
       ),
     [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId, authUser?.avatar_url, authUser?.id],
   );
+  const seenBy = useChatSeenBy(activeRoomRecord, activeRoomMembers, nameContext, currentUserId);
+  const peerLastReadAt = target.kind === "dm" ? (activeRoomRecord?.peer_last_read_at ?? null) : seenBy.lastReadAt;
   const roomPreviewsByRoomId = useMemo(
     () => applyKnownPeopleToRoomPreviews(rawRoomPreviews, nameContext),
     [nameContext, rawRoomPreviews],
@@ -434,97 +434,99 @@ export function ChatPageView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ChatPageContent
-        target={target}
-        setTarget={setTarget}
-        currentUserId={currentUserId}
-        headerTitle={headerTitle}
-        workspaceRoomTitle={workspaceRoomName}
-        contacts={contacts}
-        groups={groups}
-        channels={channels}
-        activeContact={activeContact}
-        activeGroup={activeGroup}
-        activeChannel={activeChannel}
-        workspaceId={workspaceId}
-        messageRefreshKey={messageRefreshKey}
-        activeRoomId={activeRoomId}
-        showLoading={showLoading}
-        connectError={connectError}
-        pendingOutboxCount={pendingOutboxCount}
-        isWorkspaceError={isError}
-        onRefetchWorkspace={refetchRooms}
-        workspaceRoomId={workspaceRoomId}
-        unreadByRoomId={unreadByRoomId}
-        mentionUnreadByRoomId={mentionUnreadByRoomId}
-        roomPreviewsByRoomId={roomPreviewsByRoomId}
-        unreadBadgesReady={unreadBadgesReady}
-        nicknamesByUserId={nicknamesByUserId}
-        nameContext={nameContext}
-        replyTo={replyTo}
-        onReplyToChange={setReplyTo}
-        activeThreadRootId={activeThreadRootId}
-        onActiveThreadRootIdChange={setActiveThreadRootId}
-        composerDraftKey={composerDraftKey}
-        composerPriority={composerPriority}
-        onComposerPriorityChange={setComposerPriority}
-        onSend={() => void provisionAndSend()}
-        onSendMedia={(body) => void sendMessageBody(body)}
-        onSendVoice={handleSendVoice}
-        onSendFile={handleSendFile}
-        onSendThreadReply={(draftKey, rootId) =>
-          void provisionAndSend(() => readChatComposerDraft(draftKey), (value) => setDraft(draftKey, value), rootId)
-        }
-        onSendThreadMedia={(rootId, body) => void sendMessageBody(body, rootId)}
-        groupSettingsOpen={groupSettingsOpen}
-        onGroupSettingsOpenChange={setGroupSettingsOpen}
-        dmSettingsOpen={dmSettingsOpen}
-        onDmSettingsOpenChange={setDmSettingsOpen}
-        dmBlocked={dmBlocked}
-        dmBlockedByMe={Boolean(blockStatus?.blocked_by_me)}
-        dmBlockedMe={Boolean(blockStatus?.blocked_me)}
-        onBlockContact={() => void handleBlockContact()}
-        onUnblockContact={() => void handleUnblockContact()}
-        blockingContact={blockingContact}
-        unblockingContact={unblockingContact}
-        addMembersOpen={addMembersOpen}
-        onAddMembersOpenChange={setAddMembersOpen}
-        createGroupOpen={createGroupOpen}
-        onCreateGroupOpenChange={setCreateGroupOpen}
-        channelSettingsOpen={channelSettingsOpen}
-        onChannelSettingsOpenChange={setChannelSettingsOpen}
-        creatingGroup={creatingGroup}
-        onCreateGroup={handleCreateGroup}
-        invitingMembers={invitingMembers}
-        onAddGroupMembers={handleAddGroupMembers}
-        leavingConversation={leavingConversation}
-        onLeaveGroup={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
-        onLeaveDm={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
-        onLeaveChannel={() => leaveRoomAnd(() => setChannelSettingsOpen(false))}
-        groupMemberProfiles={groupMemberProfiles}
-        mentionCandidates={mentionCandidates}
-        typingLabel={typingLabel}
-        onVoiceCall={() => void handleStartVoiceCall()}
-        voiceCallDisabled={callControlsDisabled}
-        onVideoCall={() => void handleStartVideoCall()}
-        videoCallDisabled={callControlsDisabled}
-        workspaceMembers={workspaceMembers}
-        memberAvatarByUserId={memberAvatarByUserId}
-        workspaceSettingsOpen={workspaceSettingsOpen}
-        onWorkspaceSettingsOpenChange={setWorkspaceSettingsOpen}
-        messageSearchOpen={messageSearchOpen}
-        onMessageSearchOpenChange={setMessageSearchOpen}
-        jumpToMessageId={jumpToMessageId}
-        onJumpToMessageIdChange={setJumpToMessageId}
-        chatSendRestricted={chatSendRestricted}
-        chatSendMutedByModerator={chatSendMutedByModerator}
-        canPinMessages={canPinMessages}
-        canModerate={roomPermissions.isModerator}
-        canCreatePolls={canCreatePolls}
-        canCreateNotes={canCreateNotes}
-        peerLastReadAt={peerLastReadAt}
-        t={t}
-      />
+      <ChatSeenByProvider value={seenBy.value}>
+        <ChatPageContent
+          target={target}
+          setTarget={setTarget}
+          currentUserId={currentUserId}
+          headerTitle={headerTitle}
+          workspaceRoomTitle={workspaceRoomName}
+          contacts={contacts}
+          groups={groups}
+          channels={channels}
+          activeContact={activeContact}
+          activeGroup={activeGroup}
+          activeChannel={activeChannel}
+          workspaceId={workspaceId}
+          messageRefreshKey={messageRefreshKey}
+          activeRoomId={activeRoomId}
+          showLoading={showLoading}
+          connectError={connectError}
+          pendingOutboxCount={pendingOutboxCount}
+          isWorkspaceError={isError}
+          onRefetchWorkspace={refetchRooms}
+          workspaceRoomId={workspaceRoomId}
+          unreadByRoomId={unreadByRoomId}
+          mentionUnreadByRoomId={mentionUnreadByRoomId}
+          roomPreviewsByRoomId={roomPreviewsByRoomId}
+          unreadBadgesReady={unreadBadgesReady}
+          nicknamesByUserId={nicknamesByUserId}
+          nameContext={nameContext}
+          replyTo={replyTo}
+          onReplyToChange={setReplyTo}
+          activeThreadRootId={activeThreadRootId}
+          onActiveThreadRootIdChange={setActiveThreadRootId}
+          composerDraftKey={composerDraftKey}
+          composerPriority={composerPriority}
+          onComposerPriorityChange={setComposerPriority}
+          onSend={() => void provisionAndSend()}
+          onSendMedia={(body) => void sendMessageBody(body)}
+          onSendVoice={handleSendVoice}
+          onSendFile={handleSendFile}
+          onSendThreadReply={(draftKey, rootId) =>
+            void provisionAndSend(() => readChatComposerDraft(draftKey), (value) => setDraft(draftKey, value), rootId)
+          }
+          onSendThreadMedia={(rootId, body) => void sendMessageBody(body, rootId)}
+          groupSettingsOpen={groupSettingsOpen}
+          onGroupSettingsOpenChange={setGroupSettingsOpen}
+          dmSettingsOpen={dmSettingsOpen}
+          onDmSettingsOpenChange={setDmSettingsOpen}
+          dmBlocked={dmBlocked}
+          dmBlockedByMe={Boolean(blockStatus?.blocked_by_me)}
+          dmBlockedMe={Boolean(blockStatus?.blocked_me)}
+          onBlockContact={() => void handleBlockContact()}
+          onUnblockContact={() => void handleUnblockContact()}
+          blockingContact={blockingContact}
+          unblockingContact={unblockingContact}
+          addMembersOpen={addMembersOpen}
+          onAddMembersOpenChange={setAddMembersOpen}
+          createGroupOpen={createGroupOpen}
+          onCreateGroupOpenChange={setCreateGroupOpen}
+          channelSettingsOpen={channelSettingsOpen}
+          onChannelSettingsOpenChange={setChannelSettingsOpen}
+          creatingGroup={creatingGroup}
+          onCreateGroup={handleCreateGroup}
+          invitingMembers={invitingMembers}
+          onAddGroupMembers={handleAddGroupMembers}
+          leavingConversation={leavingConversation}
+          onLeaveGroup={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
+          onLeaveDm={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
+          onLeaveChannel={() => leaveRoomAnd(() => setChannelSettingsOpen(false))}
+          groupMemberProfiles={groupMemberProfiles}
+          mentionCandidates={mentionCandidates}
+          typingLabel={typingLabel}
+          onVoiceCall={() => void handleStartVoiceCall()}
+          voiceCallDisabled={callControlsDisabled}
+          onVideoCall={() => void handleStartVideoCall()}
+          videoCallDisabled={callControlsDisabled}
+          workspaceMembers={workspaceMembers}
+          memberAvatarByUserId={memberAvatarByUserId}
+          workspaceSettingsOpen={workspaceSettingsOpen}
+          onWorkspaceSettingsOpenChange={setWorkspaceSettingsOpen}
+          messageSearchOpen={messageSearchOpen}
+          onMessageSearchOpenChange={setMessageSearchOpen}
+          jumpToMessageId={jumpToMessageId}
+          onJumpToMessageIdChange={setJumpToMessageId}
+          chatSendRestricted={chatSendRestricted}
+          chatSendMutedByModerator={chatSendMutedByModerator}
+          canPinMessages={canPinMessages}
+          canModerate={roomPermissions.isModerator}
+          canCreatePolls={canCreatePolls}
+          canCreateNotes={canCreateNotes}
+          peerLastReadAt={peerLastReadAt}
+          t={t}
+        />
+      </ChatSeenByProvider>
     </div>
   );
 }

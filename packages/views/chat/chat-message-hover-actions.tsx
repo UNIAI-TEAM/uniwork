@@ -32,6 +32,7 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
+import { ChatSeenByMenuItem } from "./chat-seen-by";
 import { MODULE_ICONS } from "../layout/module-icons";
 
 /**
@@ -310,6 +311,7 @@ export function ChatMessageHoverActions({
             }
           />
           <DropdownMenuContent align={isOwn ? "end" : "start"}>
+            {isOwn ? <ChatSeenByMenuItem message={message} /> : null}
             {workHubActions ? (
               <>
                 <DropdownMenuItem onClick={() => onFollowUp?.(message)} disabled={!onFollowUp}>

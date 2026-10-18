@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  furthestReadAt,
   isMessageSeenByPeer,
   latestSeenOwnMessageIndex,
   seenByCount,
@@ -104,5 +105,22 @@ describe("seenByMembers / seenByCount", () => {
 
   it("sees nothing of a message whose time does not parse", () => {
     expect(seenByCount({ created_at: "" }, members, "SENDER")).toBe(0);
+  });
+});
+
+describe("furthestReadAt", () => {
+  it("is the latest cursor among the others, ignoring mine and unreadable ones", () => {
+    const members = [
+      { user_id: "ME", last_read_at: "2026-03-26T11:00:00Z" },
+      { user_id: "A", last_read_at: "2026-03-26T10:00:00Z" },
+      { user_id: "B", last_read_at: "2026-03-26T10:30:00.5Z" },
+      { user_id: "C" },
+      { user_id: "D", last_read_at: "junk" },
+    ];
+    expect(furthestReadAt(members, "ME")).toBe("2026-03-26T10:30:00.5Z");
+  });
+
+  it("is null when nobody else has read", () => {
+    expect(furthestReadAt([{ user_id: "ME", last_read_at: "2026-03-26T11:00:00Z" }, { user_id: "A" }], "ME")).toBeNull();
   });
 });

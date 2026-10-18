@@ -368,9 +368,12 @@ export function NativeChatMessagePanel({
     [canSendMessages, linksByMessageId],
   );
 
+  // The read pointers follow the main timeline: no "Đã xem" inside a thread.
+  const receiptReadAt = threadRoot ? null : peerLastReadAt;
   const layout = useMemo(
-    () => layoutNativeChatMessages(messages, { currentUserId, youLabel, nameContext, peerLastReadAt, unreadSince }),
-    [currentUserId, messages, nameContext, peerLastReadAt, unreadSince, youLabel],
+    () =>
+      layoutNativeChatMessages(messages, { currentUserId, youLabel, nameContext, peerLastReadAt: receiptReadAt, unreadSince }),
+    [currentUserId, messages, nameContext, receiptReadAt, unreadSince, youLabel],
   );
   const rowContext = useMemo<NativeChatMessageContext>(
     () => ({

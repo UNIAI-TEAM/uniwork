@@ -84,3 +84,22 @@ export function seenByCount(
 ): number {
   return seenByMembers(message, members, senderId).length;
 }
+
+/**
+ * The furthest read cursor among the members other than `selfId`, or null. A
+ * group's one "Đã xem" mark sits on the latest own message it reached, the
+ * way a DM's sits on the peer's (latestSeenOwnMessageIndex).
+ */
+export function furthestReadAt(members: readonly ReadPointer[], selfId: string): string | null {
+  let best: string | null = null;
+  let bestTs = -Infinity;
+  for (const member of members) {
+    if (member.user_id === selfId || !member.last_read_at) continue;
+    const ts = Date.parse(member.last_read_at);
+    if (ts > bestTs) {
+      bestTs = ts;
+      best = member.last_read_at;
+    }
+  }
+  return best;
+}
