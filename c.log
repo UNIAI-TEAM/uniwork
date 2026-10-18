@@ -1,0 +1,24 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; gofmt -l internal/service internal/handler; go vet ./internal/service ./internal/handler && AI_PROVIDER=fake go test ./internal/service -run "MyFolder|AccessReport|ChangesSnapshot|DocumentChanges|DocumentTree|Recent|Trash|AdminScope|SharedByMe|SharedWithMe|Search|ListDocuments" -count=1 -timeout 40m -v > /tmp/svc.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)" /tmp/svc.log | tail -20; grep -cE "^\s*--- PASS" /tmp/svc.log; grep -E "^\s*--- (PASS|FAIL): TestAdminListingsHideForeignMyFolderSubtree" /tmp/svc.log | head -20; echo; echo "TEST_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- SKIP: TestAccessReportExplain1000Docs (0.00s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	27.066s
+196
+--- PASS: TestAdminListingsHideForeignMyFolderSubtree (0.27s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/flat_list (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/search (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/children_under_foreign_My_Folder (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/children_under_private_folder (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/tree_explicit_foreign_root (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/trash (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/recent_with_admin_access_log (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/access_report_workspace (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/folder-scoped_report_on_foreign_folder (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/folder-scoped_export_on_foreign_folder (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/ordinary_restricted_folder_report (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/control_manage_share_list (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/control_manage_share_report (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/control_admin_ACL-owned_moved_in (0.00s)
+    --- PASS: TestAdminListingsHideForeignMyFolderSubtree/control_workspace-visible_inside (0.00s)
+
+TEST_SVC_EXIT=0
