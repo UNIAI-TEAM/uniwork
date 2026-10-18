@@ -14,6 +14,7 @@ import { harnessPaths, readStartStatus, startGate } from '../harness/lib.mjs';
 import { documentUrl, webFrameSelectors, webLogin } from '../harness/web.mjs';
 import { startStubFacade } from '../holdout-stub-facade.helper.mjs';
 import { computeTruth } from '../holdout-xlsx-truth.mjs';
+import { AI_TURN_TIMEOUT_MS, turnNotFinishedVerdict, waitForAiTurnDone } from './ai-turn-wait.mjs';
 import { docxRoundTripHook, runDocxRoundTrip } from './docx-roundtrip.mjs';
 import {
   VERDICT, blockedVerdict, diffDocxNonDocumentParts, extractPdfTextFromBytes, failVerdict,
@@ -240,7 +241,7 @@ export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
 
 export async function runWebMatrixRow(runEntry, {
   runDir, repoRoot = DEFAULT_REPO_ROOT, dryRun = false, fetchImpl = fetch,
-  env = process.env, timeoutMs = 45_000, observedOverride = null,
+  env = process.env, timeoutMs = 45_000, turnTimeoutMs = AI_TURN_TIMEOUT_MS, observedOverride = null,
   webOrigin: injectedWebOrigin = null, apiOrigin: injectedApiOrigin = null, injectedPage = null, injectedRowBody = null,
 } = {}) {
   const row = getRowById(runEntry?.rowId ?? runEntry?.id) ?? runEntry;
@@ -387,17 +388,13 @@ export async function runWebMatrixRow(runEntry, {
       const ackBtn = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
       if (ackBtn) { await ackBtn.click().catch(() => {}); await sleep(100); }
       await sendBtn.click();
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        const busy = await frame.$(FRAME_AI_SELECTORS.busy);
-        const msgCount = await frame.$$eval(FRAME_AI_SELECTORS.assistantMsg, (els) => els.length).catch(() => 0);
-        if (!busy && msgCount > 0) break;
-        await sleep(250);
-      }
+      // w2n: the panel's own done state ends the wait; the bound only catches a turn that never finishes.
+      return waitForAiTurnDone(frame, { selectors: FRAME_AI_SELECTORS, timeoutMs: turnTimeoutMs });
     };
     let turnError = null;
+    let turnWait = { finished: false, elapsedMs: 0 };
     try {
-      await runAiTurn();
+      turnWait = await runAiTurn();
     } catch (err) {
       turnError = err;
     }
@@ -421,6 +418,14 @@ export async function runWebMatrixRow(runEntry, {
     const usage = evaluateWireObservation({
       requests: wireRequests, responses: wireResponses, aiPaths, frameAiOrigin: webOrigin, sawTurnEffects,
     });
+    // w2n: a turn still in progress at the bound has no answer yet; the panel text is a progress line,
+    // so it is a timeout (usage kept), never scored and never a content FAIL.
+    if (!turnWait.finished) {
+      return {
+        ...turnNotFinishedVerdict({ timeoutMs: turnTimeoutMs, elapsedMs: turnWait.elapsedMs, usage }),
+        documentId, preconditions, screenshotPath,
+      };
+    }
     if (usage.unobserved) {
       return {
         ...blockedVerdict(usage.reason, {
