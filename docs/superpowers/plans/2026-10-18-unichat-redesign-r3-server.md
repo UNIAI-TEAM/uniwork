@@ -1,6 +1,6 @@
 # UniChat R3 — Tính năng chat cần server — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — UNI-1894, nhánh `feature/UNI-1894-unichat-r3-tinh-nang-chat-can-server` (xếp trên R1; phần giao diện nối sau khi R2 xong).
+> **Trạng thái:** in-progress — UNI-1894; code xong (S1–S8), gộp chung một PR với R1, R2, R4 trên nhánh `feature/UNI-1881-unichat-giao-dien-chat-moi`.
 
 **Goal:** Bốn tính năng canvas vẽ mà cần server, mỗi cái theo đúng mẫu đã có trong repo.
 
@@ -33,6 +33,13 @@
   `authorizeRoomRead`, chỉ task của workspace trên URL (task gắn từ workspace khác của DM/nhóm cấp tổ chức bị
   bỏ). Client: `useChatRoomLinkedTasks`, `topic` trong `useUpdateChatRoomSettings`; làm mới khi liên kết hoặc
   task đổi.
+- [x] **S7 — Cuộc gọi nhỡ và độ dài tin thoại trên danh sách** (canvas `Main`). Danh sách phòng (DM/nhóm, kênh)
+  và tin mới nhất của một phòng trả `last_message_call_outcome` (chỉ nhật ký cuộc gọi) và
+  `last_message_duration_ms` (chỉ tin thoại); danh sách kênh khám phá / theo dự án trả rỗng.
+- [x] **S8 — Tóm tắt ảnh / tệp đã chia sẻ** (bảng thông tin). `GET .../chat/rooms/{roomID}/shared-summary` →
+  số ảnh / GIF / video / tệp / liên kết / thoại và tối đa 6 ảnh mới nhất (ký URL như danh sách tin), một truy
+  vấn, cổng `authorizeRoomRead`, luật đếm chép từ `sharedItemsFromMessages` và đã đối chiếu trên mọi phòng
+  seed; không migration. Thay việc client lật tới 500 tin mỗi lần mở phòng; lịch sử chỉ tải khi mở tab.
 
 ## Hoãn — cần quyết định của chủ sản phẩm
 

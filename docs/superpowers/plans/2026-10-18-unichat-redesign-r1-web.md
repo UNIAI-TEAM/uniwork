@@ -1,6 +1,6 @@
 # UniChat R1 — Giao diện chat mới cho web và desktop — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — UNI-1881, nhánh `feature/UNI-1881-unichat-r1-giao-dien-chat-moi-cho-web-va`.
+> **Trạng thái:** in-progress — UNI-1881; code xong, gộp chung một PR với R2–R4 trên nhánh `feature/UNI-1881-unichat-giao-dien-chat-moi`.
 
 **Goal:** Mọi màn chat trên web (desktop dùng lại web) khớp canvas thiết kế, hành vi giữ nguyên.
 

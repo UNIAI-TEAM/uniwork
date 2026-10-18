@@ -1,6 +1,6 @@
 # UniChat — Nâng cấp giao diện chat theo canvas thiết kế
 
-> **Trạng thái:** in-progress — R1 (web + desktop) đang làm trên UNI-1881; R2–R4 chưa bắt đầu.
+> **Trạng thái:** in-progress — R1–R4 và đợt khớp canvas (§6) xong trong code, gộp một PR trên nhánh `feature/UNI-1881-unichat-giao-dien-chat-moi`, chờ review; mobile chưa qua đợt khớp canvas.
 
 **Issue:** UNI-1881 (sub-issue của epic UNI-1826). **Nguồn thiết kế:** canvas Claude
 "UniChat — Nâng cấp giao diện chat" (https://claude.ai/artifact/6bxcJnFj5gemA3BBqGgC8L),
@@ -53,3 +53,24 @@ Mỗi đợt sau R1 có issue và spec lát riêng trước khi code.
 Mọi luật trong `CLAUDE.md` › UI Rules: chỉ token ngữ nghĩa, không màu cứng; bốn hợp đồng
 truy cập của primitive; mọi chữ JSX qua `t()`; file `.ts/.tsx` ≤ 500 dòng; icon lucide tên chuẩn.
 Test hiện có của từng component phải còn xanh; test nào khẳng định class cũ thì đổi theo class mới.
+
+## 6. Đợt khớp canvas (2026-10-18)
+
+Chủ sản phẩm so app thật với canvas và yêu cầu giống 100%. Quyết định của chủ sản phẩm: **desktop
+(UniChat) y canvas** — cột workspace 72px, không thanh trên, không thẻ bo; **web giữ điều hướng UniWork**
+nhưng vùng chat (danh sách, hội thoại, bảng thông tin) phải khớp; **làm luôn phần server** cần cho bảng
+thông tin. Cách làm: dựng dữ liệu y canvas trong DB local, chụp app thật cạnh ảnh render của từng bảng Web*
+và Main, sửa tới khi khớp.
+
+- Bố cục đổi so với §4: bảng thông tin thành cột thứ ba (mở sẵn khi khung rộng ≥ 780px, nhớ lựa chọn đóng
+  theo thiết bị, hẹp hơn thì thành lớp phủ); cột danh sách 380px từ xl.
+- Server thêm (đều qua cổng đọc phòng, có test cách ly): mô tả nhóm dùng lại cột `chat_rooms.topic`;
+  `GET …/rooms/{roomID}/linked-tasks`; `last_message_call_outcome` / `last_message_duration_ms` trên danh
+  sách phòng; `GET …/rooms/{roomID}/shared-summary` (đếm ảnh/tệp/liên kết/thoại + 6 ảnh mới nhất, thay việc
+  lật 500 tin ở client mỗi lần mở phòng). Không migration.
+- Khi hai bảng vẽ khác nhau, bảng chi tiết hơn của thành phần đó thắng: thẻ bình chọn theo WebCardKinds,
+  thanh ghim theo WebSearchPins.
+- Cố ý giữ khác canvas: màu trạng thái việc lấy từ danh mục trạng thái của workspace; màu người/phòng là
+  tint định danh, không phải mã hex của canvas; trên web ⌘K vẫn là bảng lệnh chung.
+- Còn thiếu vì chưa có dữ liệu server: bản chép và tốc độ tin thoại, xem trước liên kết, dấu "đã tới máy",
+  người trả lời trên nhãn thread, trang PDF, tiến độ tải xuống. Mobile (các bảng Mob*) chưa qua đợt này.

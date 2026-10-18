@@ -1,6 +1,6 @@
 # UniChat R4 — Giao diện mobile theo canvas — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — UNI-1895, nhánh `feature/UNI-1895-unichat-r4-giao-dien-mobile` (xếp trên R1).
+> **Trạng thái:** in-progress — UNI-1895; code xong, gộp chung một PR với R1–R3 trên nhánh `feature/UNI-1881-unichat-giao-dien-chat-moi`; chưa qua đợt khớp canvas (spec §6).
 
 **Goal:** `apps/chat-mobile` khớp trang "Mobile" và "Tổng quan" của canvas: tường chat, bong bóng ghép lượt,
 ô soạn bo tròn, sheet nhấn giữ có thanh cảm xúc, danh sách có nút workspace và chip lọc, các tab Cuộc gọi /

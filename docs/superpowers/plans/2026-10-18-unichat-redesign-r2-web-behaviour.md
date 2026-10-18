@@ -1,6 +1,6 @@
 # UniChat R2 — Hành vi chat mới trên web — Kế hoạch triển khai
 
-> **Trạng thái:** in-progress — UNI-1893, nhánh `feature/UNI-1893-unichat-r2-hanh-vi-chat-moi-tren-web` (xếp trên R1).
+> **Trạng thái:** in-progress — UNI-1893; code xong, gộp chung một PR với R1, R3, R4 trên nhánh `feature/UNI-1881-unichat-giao-dien-chat-moi`.
 
 **Goal:** Các hành vi canvas vẽ mà chỉ cần client: sửa tin ngay trong ô soạn, thread mở bảng bên phải,
 tin gửi lỗi giữ bong bóng + Thử lại, gom album và xem ảnh lướt được, lối vào Bắt kịp nhanh, bảng emoji
