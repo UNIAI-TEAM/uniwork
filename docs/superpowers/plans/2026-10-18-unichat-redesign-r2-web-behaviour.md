@@ -19,15 +19,22 @@ có ô icon.
 
 ## Tasks
 
-- [ ] **A — Dòng tin** (UNI-1893): tin gửi lỗi giữ bong bóng với "Chưa gửi được · Thử lại / Bỏ tin này"
+- [x] **A — Dòng tin** (UNI-1893): tin gửi lỗi giữ bong bóng với "Chưa gửi được · Thử lại / Bỏ tin này"
   (store outbox + merge optimistic ở `packages/core/chat`), gom ảnh liên tiếp cùng người gửi thành album,
   xem ảnh có Tải xuống, mũi tên trước/sau, dải ảnh "2 / 3".
-- [ ] **B — Cảm xúc & thẻ**: nút "Thêm cảm xúc" trên thanh rê chuột mở bảng emoji (dùng lại dữ liệu
+- [x] **B — Cảm xúc & thẻ**: nút "Thêm cảm xúc" trên thanh rê chuột mở bảng emoji (dùng lại dữ liệu
   emoji của bộ chọn biểu cảm), % trên phương án bình chọn, nhóm Theo dõi sau Quá hạn / Hôm nay / Sắp tới /
   Không có hạn.
-- [ ] **C — Cuộc gọi & hộp xác nhận**: bảng người tham gia ở chế độ toàn màn hình; `ConfirmDialog` và
+- [x] **C — Cuộc gọi & hộp xác nhận**: bảng người tham gia ở chế độ toàn màn hình; `ConfirmDialog` và
   `FormDialogFooter` nhận prop tùy chọn (ô icon, nút đặc, biến thể nút Hủy) và chat dùng chúng.
-- [ ] **D — Khung trang**: sửa tin trong ô soạn (thay hộp thoại), thread thành bảng bên phải từ `lg`,
+- [x] **D — Khung trang**: sửa tin trong ô soạn (thay hộp thoại), thread thành bảng bên phải từ `lg`,
   thanh tìm kiếm mở dưới header, thẻ "Bắt kịp nhanh" trên danh sách và chip "N tin chưa đọc" + "Tóm tắt nhanh"
   ở mốc chưa đọc.
-- [ ] **E — Kiểm**: typecheck, lint, test chat + core chat, render sáng/tối, rồi PR.
+- [x] **E — Kiểm**: typecheck, lint, test chat + core chat, render sáng/tối, rồi PR.
+
+## Ghi chú khi xong (2026-10-18)
+
+- Kiểm: vitest views 124 file / 631 test, core 58 file / 534 test, tsc core + views, eslint `chat/` + `common/`
+  (kể cả `chat-page-content.tsx`, giờ 348 dòng), knip, test hợp đồng; render sáng / tối bằng trình duyệt thật.
+- Còn lại: thanh "N trả lời" dưới tin gốc trong bảng thread, nhãn dưới nút điều khiển cuộc gọi, chữ "Search"
+  tiếng Anh trong bảng emoji (emoji-mart tải bản dịch qua mạng — không bật), trạng thái nhấn của nút tìm kiếm.
