@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1645c-el1b-desktop; git log --oneline -3
+3ccf98850c5527627bb86ef6d57198f2ac70acf5
+3ccf98850c5527627bb86ef6d57198f2ac70acf5
+3ccf9885 revert(shell): R3-4 denied reacquire path back to r3b behaviour, deferred to EL-2
+3d8b420a fix(shell): keep a denied edit-lock reacquire read-only in memory, not in the binding
+537b2122 test(shell): pin the in-memory read-only of a denied edit-lock reacquire
