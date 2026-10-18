@@ -1,0 +1,7 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; test -z "$(gofmt -l internal pkg)"; f=$?; go vet ./internal/service ./internal/handler/dto/sdo; v=$?; echo "GOFMT_EXIT=$f"; echo "GO_VET_EXIT=$v"; [ $f -eq 0 ] && [ $v -eq 0 ]); rc=$?; echo; echo "GOSTATIC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+GOFMT_EXIT=0
+GO_VET_EXIT=0
+
+GOSTATIC_EXIT=0

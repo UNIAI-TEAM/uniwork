@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -7
+fd9d7dc865fbf23d88b0f2ded6a75fac1f2d69eb
+95ad7e118b415cee5e437df9abc02e6431f43d78
+fd9d7dc86 test(service): fix the move-guard quote scan's dead skip
+642890a91 test(service): skip quoted strings in the move-guard WHERE scan
+d47f298f9 test(service): close the two move-guard SQL spellings
+09bfb60fb fix(core): mirror the three missing error classes for documents
+bf49257dd test(service): reach the Q7 in-transaction seat recheck
+e03756d1c refactor(service): take the workspace tree lock for copy and convert creates
+95ad7e118 docs(office): say the frame rewrite ids are matched case-insensitively (UNI-1912)
