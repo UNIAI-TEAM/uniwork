@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -208,10 +209,14 @@ func TestEditLockRefusesCommitRoutesHandler(t *testing.T) {
 	// member's staged upload is an edit, so the home row must carry edit.
 	shareEditToWorkspace(t, w.srv, w.token, docID, w.wsID)
 
+	// Every staged file differs from the current version: a commit whose
+	// bytes match it is a 200 no-op (UNI-1900) and would not move the revision.
+	staged := 0
 	stage := func(t *testing.T, token string) string {
 		t.Helper()
+		staged++
 		res, raw := doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/uploads", token, nil,
-			"locked.docx", frameDocx(t, "staged"), nil)
+			"locked.docx", frameDocx(t, fmt.Sprintf("staged-%d", staged)), nil)
 		if res.StatusCode != http.StatusCreated {
 			t.Fatalf("stage upload: %d %s", res.StatusCode, raw)
 		}
