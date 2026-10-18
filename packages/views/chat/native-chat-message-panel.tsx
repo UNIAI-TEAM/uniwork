@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { usePendingChatMessagesStore } from "@uniwork/core/chat/pending-messages-store";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
+import { selectSidebarTypingUserIds, useSidebarTypingStore } from "@uniwork/core/chat/sidebar-typing-store";
 import { stopChatVoicePlayback } from "@uniwork/core/chat/voice-playback-store";
 import { listChatRoomMessagesAround } from "@uniwork/core/api/endpoints/chat";
 import {
@@ -27,18 +28,20 @@ import type { ChatMessageLinkRecord } from "@uniwork/core/api/endpoints/chat-lin
 import type { ChatMessage } from "./chat-messages";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import { ChatMessageLinksProvider } from "./chat-message-links-context";
+import { CHAT_WALL } from "./chat-wall";
 import { ChatReplyComposerBar } from "./chat-reply-quote";
 import { toastChatError } from "./chat-error-message";
-import { VirtualChatMessageList, updateStickToBottomFromScroll } from "./virtual-chat-message-list";
+import { VirtualChatMessageList, updateStickToBottomFromScroll, useReaderScrollAt } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { toChatMessage } from "./native-chat-message-mapping";
 import { NativeChatLiveRegion } from "./native-chat-live-region";
+import { ChatTypingBubble } from "./native-chat-typing-bubble";
 import {
   NativeChatMessageItem,
   layoutNativeChatMessages,
   type NativeChatMessageContext,
 } from "./native-chat-message-item";
-import { buildMainTimelineMessages, buildThreadViewMessages } from "./native-chat-message-timeline";
+import { buildMainTimelineMessages, buildThreadViewMessages, countNewSince } from "./native-chat-message-timeline";
 import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 import { focusChatMessage, useNativeChatMessageActions } from "./use-native-chat-message-actions";
 
@@ -117,6 +120,7 @@ export function NativeChatMessagePanel({
 }) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const readerScrollAtRef = useReaderScrollAt(scrollRef);
   const stickToBottomRef = useRef(true);
   const programmaticScrollRef = useRef(false);
   const [inPlaceThread, setThreadRoot] = useState<ChatMessage | null>(null);
@@ -143,6 +147,8 @@ export function NativeChatMessagePanel({
   // Mirrors stickToBottomRef for rendering: the "back to latest" button shows
   // only once the reader has scrolled away from the newest message.
   const [awayFromLatest, setAwayFromLatest] = useState(false);
+  // The newest message when the reader scrolled away: the jump button counts what came after it.
+  const [awaySinceId, setAwaySinceId] = useState<string | null>(null);
   const threadQuery = useChatThreadMessages(workspaceId, roomId, threadRoot?.id ?? "", threadsEnabled && !!threadRoot);
   // An open thread pages its own older replies (UNI-1679), not the room's.
   const hasMore = threadRoot ? threadQuery.hasNextPage : roomHasMore;
@@ -162,6 +168,7 @@ export function NativeChatMessagePanel({
       state.listForWorkspace(workspaceId, currentUserId).filter((entry) => entry.roomId === roomId),
     ),
   );
+  const typingUserIds = useSidebarTypingStore(useShallow((state) => selectSidebarTypingUserIds(state, roomId)));
   const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(workspaceId);
 
   const allMessages = useMemo(
@@ -262,6 +269,13 @@ export function NativeChatMessagePanel({
     onActiveThreadRootIdChange?.(threadRoot?.id ?? null);
   }, [onActiveThreadRootIdChange, threadRoot?.id]);
 
+  // The typing bubble grows the timeline under the newest row: stay pinned to it.
+  const someoneTyping = typingUserIds.length > 0;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (someoneTyping && el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
+  }, [someoneTyping]);
+
   // Own optimistic / pending sends must keep the viewport on the newest row.
   const lastTimelineMessage = messages[messages.length - 1];
   useEffect(() => {
@@ -348,7 +362,14 @@ export function NativeChatMessagePanel({
     if (programmaticScrollRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
+    // Pinned, and the reader did not scroll: the list moved under them (a row
+    // measured, a photo loaded, the browser adjusting). Stay on the newest.
+    if (stickToBottomRef.current && Date.now() - readerScrollAtRef.current > 1000) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
     const nearBottom = updateStickToBottomFromScroll(el, stickToBottomRef);
+    if (!nearBottom && !awayFromLatest) setAwaySinceId(messages[messages.length - 1]?.id ?? null);
     setAwayFromLatest(!nearBottom);
     // Near-top while stick-to-bottom is usually a layout flash after a reload
     // before pin runs — never page older history in that state.
@@ -372,8 +393,15 @@ export function NativeChatMessagePanel({
   const receiptReadAt = threadRoot ? null : peerLastReadAt;
   const layout = useMemo(
     () =>
-      layoutNativeChatMessages(messages, { currentUserId, youLabel, nameContext, peerLastReadAt: receiptReadAt, unreadSince }),
-    [currentUserId, messages, nameContext, receiptReadAt, unreadSince, youLabel],
+      layoutNativeChatMessages(messages, {
+        currentUserId,
+        youLabel,
+        nameContext,
+        peerLastReadAt: receiptReadAt,
+        unreadSince,
+        threadRoot: threadRoot ? { id: threadRoot.id, replyCount: Math.max(threadRoot.replyCount ?? 0, messages.length - 1) } : null,
+      }),
+    [currentUserId, messages, nameContext, receiptReadAt, threadRoot, unreadSince, youLabel],
   );
   const rowContext = useMemo<NativeChatMessageContext>(
     () => ({
@@ -383,11 +411,12 @@ export function NativeChatMessagePanel({
       youLabel,
       nameContext,
       showSenderName,
+      inThread: Boolean(threadRoot),
       canPinMessages,
       canModerate,
       actions,
     }),
-    [actions, canModerate, canPinMessages, currentUserId, nameContext, roomId, showSenderName, workspaceId, youLabel],
+    [actions, canModerate, canPinMessages, currentUserId, nameContext, roomId, showSenderName, threadRoot, workspaceId, youLabel],
   );
 
   const renderMessage = useCallback(
@@ -473,16 +502,15 @@ export function NativeChatMessagePanel({
         <div
           ref={scrollRef}
           onScroll={onScroll}
-          // The chat wall: a cool tint with a faint dot grid behind the bubbles.
-          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-chat-wall bg-[radial-gradient(var(--chat-wall-dot)_1.2px,transparent_1.4px)] bg-size-[22px_22px] px-3 pt-2 pb-4 sm:px-4"
+          className={`min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain ${CHAT_WALL}`}
           role="log"
           aria-live="off"
           aria-label={t("chat.messages_region")}
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard to scroll it (axe scrollable-region-focusable)
           tabIndex={0}
         >
-          {/* One readable column however wide the window is. */}
-          <div className="mx-auto w-full max-w-3xl">
+          {/* One readable column however wide the window is; the side thread is narrower (canvas). */}
+          <div className={sideThreadPanel ? "w-full p-4" : "mx-auto w-full max-w-195 px-3 pt-5 pb-3 sm:px-7"}>
             <ChatMessageLinksProvider value={linksValue}>
               <VirtualChatMessageList
                 key={roomId}
@@ -503,6 +531,7 @@ export function NativeChatMessagePanel({
                 renderMessage={renderMessage}
               />
             </ChatMessageLinksProvider>
+            {threadRoot || anchorMessages ? null : <ChatTypingBubble userIds={typingUserIds} nameContext={nameContext} />}
           </div>
         </div>
         <NativeChatLiveRegion
@@ -511,7 +540,9 @@ export function NativeChatMessagePanel({
           currentUserId={currentUserId}
           senderLabelOf={senderLabelOf}
         />
-        {awayFromLatest && !threadRoot && !activeAnchorId ? <ChatJumpToLatestButton onClick={scrollToLatest} /> : null}
+        {awayFromLatest && !threadRoot && !activeAnchorId ? (
+          <ChatJumpToLatestButton onClick={scrollToLatest} newCount={countNewSince(messages, awaySinceId, currentUserId)} />
+        ) : null}
       </div>
       {replyTo ? (
         <ChatReplyComposerBar
@@ -528,3 +559,4 @@ export function NativeChatMessagePanel({
     </div>
   );
 }
+

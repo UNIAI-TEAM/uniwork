@@ -26,7 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-g
 import { DateTimeField } from "../common/datetime-field";
 import { toDateOnly } from "../common/date-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_CLASS, CHAT_FIELD_INPUT_CLASS, CHAT_FIELD_TEXTAREA_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
 
@@ -204,6 +204,7 @@ export function ChatCreateReminderDialog({
             </div>
             <Textarea
               id="reminder-body"
+              className={CHAT_FIELD_TEXTAREA_CLASS}
               value={body}
               maxLength={REMINDER_BODY_MAX_LENGTH}
               rows={4}

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCheck, Clock3 } from "lucide-react";
+import { CheckCheck, Clock3, FaceSlightlySmiling } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
@@ -34,10 +34,13 @@ export function ChatReactionChips({
   message,
   isOwn,
   onToggleReaction,
+  onReact,
 }: {
   message: ChatMessage;
   isOwn: boolean;
   onToggleReaction?: (message: ChatMessage, emoji: string) => void;
+  /** The round smiley after the chips: opens the full picker. */
+  onReact?: (message: ChatMessage) => void;
 }) {
   const { t } = useTranslation();
   const entries = Object.entries(message.reactions);
@@ -62,7 +65,7 @@ export function ChatReactionChips({
             // The pill stays 28px to the eye; on touch an invisible ::after
             // extends the target to 44px so a thumb lands on it.
             className={cn(
-              "relative inline-flex h-7 items-center gap-1 rounded-full border px-2 text-label transition-colors duration-(--duration-fast) disabled:cursor-default pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2 pointer-coarse:after:content-['']",
+              "relative inline-flex h-7 items-center gap-1 rounded-full border px-2.25 text-label transition-colors duration-(--duration-fast) disabled:cursor-default pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-2 pointer-coarse:after:content-['']",
               pressed
                 ? "border-brand bg-brand-subtle hover:bg-brand/15 disabled:hover:bg-brand-subtle"
                 : "border-border bg-surface hover:bg-surface-hover disabled:hover:bg-surface",
@@ -73,7 +76,7 @@ export function ChatReactionChips({
               <span
                 className={cn(
                   "font-semibold tabular-nums",
-                  pressed ? "text-brand-subtle-foreground" : "text-muted-foreground",
+                  pressed ? "text-brand" : "text-chat-chip-foreground",
                 )}
               >
                 {count}
@@ -82,6 +85,16 @@ export function ChatReactionChips({
           </button>
         );
       })}
+      {onReact ? (
+        <button
+          type="button"
+          aria-label={t("chat.action_react_more")}
+          onClick={() => onReact(message)}
+          className="relative inline-flex size-7 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
+        >
+          <FaceSlightlySmiling className="size-3.75" aria-hidden />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -92,6 +105,10 @@ export function ChatReactionChips({
  * message is on its way). Inside a bubble it sits at the bottom-right in the
  * bubble's own meta colour; `onWall` draws it as a small chip on the chat
  * wall instead (under a sticker, GIF or anything drawn without a bubble).
+ * `inline="float"` floats it at the end of the text's last line, dropped to
+ * the bubble's foot, and onto a line of its own when that line is full;
+ * `inline="end"` ends a flex row (a voice message's duration line);
+ * `inline="media"` sits on a photo's bottom-right corner (canvas).
  * The time for a screen reader lives in the message's accessible name
  * instead (ChatMessageA11yLabel).
  */
@@ -101,26 +118,39 @@ export function ChatMessageMeta({
   showTime,
   showReadReceipt = false,
   onWall = false,
+  inline,
 }: {
   message: ChatMessage;
   isOwn: boolean;
   showTime: boolean;
   showReadReceipt?: boolean;
   onWall?: boolean;
+  inline?: "float" | "end" | "media";
 }) {
   const { t, i18n } = useTranslation();
   const pending = message.deliveryStatus === "sending" || message.deliveryStatus === "queued";
   // A failed send keeps its time in the bubble; "Chưa gửi được" sits under it (ChatFailedSendBar).
   const withTime = showTime || message.deliveryStatus === "failed";
   if (!withTime && !pending && !message.editedAt && !showReadReceipt) return null;
-  const onBrand = isOwn && !onWall;
+  const onBrand = isOwn && !onWall && inline !== "media";
+  const Tag = inline ? "span" : "p";
   return (
-    <p
+    <Tag
       className={cn(
         "flex items-center gap-1 text-micro tabular-nums",
         onWall
           ? cn("mt-0.5 w-fit rounded-md bg-chat-chip px-2 py-0.5 text-chat-chip-foreground", isOwn && "self-end")
-          : cn("mt-0.5 ml-auto justify-end", onBrand ? "text-chat-bubble-own-meta" : "text-muted-foreground"),
+          : inline === "media"
+            ? // Over a photo's corner, on the stage's dark wash in both themes (canvas).
+              "absolute right-2 bottom-2 rounded-md bg-meeting-video-bg/55 px-1.5 py-0.5 text-meeting-stage-foreground"
+            : cn(
+                inline === "float"
+                  ? "relative top-[7px] float-right ml-3 h-[21px]"
+                  : inline === "end"
+                    ? "ml-auto"
+                    : "mt-0.5 ml-auto justify-end",
+                onBrand ? "text-chat-bubble-own-meta" : "text-muted-foreground",
+              ),
       )}
     >
       {pending ? (
@@ -153,6 +183,6 @@ export function ChatMessageMeta({
           <span className="sr-only sm:not-sr-only">{t("chat.read_receipt")}</span>
         </span>
       ) : null}
-    </p>
+    </Tag>
   );
 }

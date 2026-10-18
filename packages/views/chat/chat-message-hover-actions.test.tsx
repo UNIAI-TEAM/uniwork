@@ -81,14 +81,14 @@ describe("ChatMessageHoverActions", () => {
         />,
       ),
     );
-    for (const emoji of ["👍", "❤️", "😂", "😮", "😢", "🙏"]) {
+    for (const emoji of ["👍", "❤️", "😂", "🎉", "😮", "🙏"]) {
       // One button per emoji: the quick 👍 replaces the old single "Thả 👍" action.
       expect(screen.getAllByRole("button", { name: `Thả ${emoji}` })).toHaveLength(1);
     }
     const heart = screen.getByRole("button", { name: "Thả ❤️" });
     expect(heart).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Thả 😢" }));
-    expect(onToggleReaction).toHaveBeenCalledWith(row, "😢");
+    await user.click(screen.getByRole("button", { name: "Thả 🎉" }));
+    expect(onToggleReaction).toHaveBeenCalledWith(row, "🎉");
   });
 
   it("opens the emoji picker from Thêm cảm xúc; a pick toggles that emoji and closes it", async () => {

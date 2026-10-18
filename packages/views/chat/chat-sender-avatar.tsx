@@ -3,7 +3,7 @@
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ChatPersonCard, chatPersonFaceClass, useChatPersonMessage } from "./chat-person-card";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
 
 type SenderProfile = {
   user_id: string;
@@ -46,7 +46,14 @@ export function ChatSenderAvatar({
       }
       triggerClassName="inline-flex shrink-0 rounded-full"
     >
-      <ActorAvatar name={name} initials={initialOf(name)} avatarUrl={avatarUrl} size="lg" className={cn("shrink-0", chatPersonFaceClass(userId))} />
+      {/* 34px with 12px initials (canvas): between the lg and xl tiers, so sized here. */}
+      <ActorAvatar
+        name={name}
+        initials={initialsOf(name)}
+        avatarUrl={avatarUrl}
+        size="fluid"
+        className={cn("size-8.5 shrink-0 text-caption", chatPersonFaceClass(userId))}
+      />
     </ChatPersonCard>
   );
 }

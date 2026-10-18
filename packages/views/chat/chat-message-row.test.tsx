@@ -160,11 +160,11 @@ describe("ChatMessageRow", () => {
 
 describe("chatBubbleShape", () => {
   it("joins a run on the sender's side and ends it in a tail corner", () => {
-    expect(chatBubbleShape(false, true)).toBe("rounded-2xl rounded-bl-xs");
-    expect(chatBubbleShape(false, true, false)).toBe("rounded-2xl rounded-bl-sm");
-    expect(chatBubbleShape(false, false, false)).toBe("rounded-2xl rounded-l-sm");
-    expect(chatBubbleShape(false, false, true)).toBe("rounded-2xl rounded-tl-sm rounded-bl-xs");
-    expect(chatBubbleShape(true, false, true)).toBe("rounded-2xl rounded-tr-sm rounded-br-xs");
+    expect(chatBubbleShape(false, true)).toBe("rounded-[18px] rounded-bl-[4px]");
+    expect(chatBubbleShape(false, true, false)).toBe("rounded-[18px] rounded-bl-sm");
+    expect(chatBubbleShape(false, false, false)).toBe("rounded-[18px] rounded-tl-sm rounded-bl-sm");
+    expect(chatBubbleShape(false, false, true)).toBe("rounded-[18px] rounded-tl-sm rounded-bl-[4px]");
+    expect(chatBubbleShape(true, false, true)).toBe("rounded-[18px] rounded-tr-sm rounded-br-[4px]");
   });
 });
 

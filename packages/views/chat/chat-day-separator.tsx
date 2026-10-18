@@ -66,3 +66,18 @@ export function ChatUnreadSeparator() {
     </div>
   );
 }
+
+/** In a thread, between the root and its replies: "4 trả lời" on a line (canvas). */
+export function ChatRepliesSeparator({ count }: { count: number }) {
+  const { t } = useTranslation();
+  const label = t("chat.thread_replies", { count });
+  return (
+    <div className="flex items-center gap-2.5 pt-4 pb-1">
+      <span aria-hidden className="h-px flex-1 bg-faint-foreground/40" />
+      <span role="separator" aria-label={label} className={`${WALL_CHIP_CLASS} tabular-nums`}>
+        {label}
+      </span>
+      <span aria-hidden className="h-px flex-1 bg-faint-foreground/40" />
+    </div>
+  );
+}

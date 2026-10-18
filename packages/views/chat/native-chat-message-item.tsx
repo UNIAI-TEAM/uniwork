@@ -18,7 +18,7 @@ import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { imageAlbumSpans, messageGrouping } from "./native-chat-message-grouping";
 import { messageDayKey } from "./chat-message-time";
-import { ChatDaySeparator, ChatUnreadSeparator } from "./chat-day-separator";
+import { ChatDaySeparator, ChatRepliesSeparator, ChatUnreadSeparator } from "./chat-day-separator";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 
 export type NativeChatMessageActions = {
@@ -44,6 +44,8 @@ export type NativeChatMessageContext = {
   youLabel: string;
   nameContext: NameContextEntry[];
   showSenderName: boolean;
+  /** The timeline is one thread: its root does not link to itself. */
+  inThread: boolean;
   canPinMessages: boolean;
   /** Room moderator: may delete someone else's reminder (the server's isChatRoomModerator). */
   canModerate: boolean;
@@ -68,6 +70,10 @@ export type NativeChatRowLayout = {
   album?: ChatMessage[];
   /** Drawn inside an earlier row's album: renders nothing of its own. */
   inAlbum: boolean;
+  /** A call log row: the UNI summary of that call, when there is one. */
+  callSummaryId?: string;
+  /** In a thread, the first reply: "N trả lời" between the root and its replies (canvas). */
+  opensReplies?: number;
 };
 
 /**
@@ -84,6 +90,8 @@ export function layoutNativeChatMessages(
     nameContext: NameContextEntry[];
     peerLastReadAt: string | null;
     unreadSince?: string | null;
+    /** The timeline is this thread: its root first, then the replies. */
+    threadRoot?: { id: string; replyCount: number } | null;
   },
 ): NativeChatRowLayout[] {
   const names = new Map(input.nameContext.map((entry) => [entry.user_id, entry.display_name?.trim() ?? ""]));
@@ -97,6 +105,10 @@ export function layoutNativeChatMessages(
     albums.set(start, messages.slice(start, end));
     for (let index = start + 1; index < end; index += 1) inAlbum.add(index);
   }
+  const summaryOfCall = new Map<string, string>();
+  for (const message of messages) {
+    if (message.voiceCallSummary) summaryOfCall.set(message.voiceCallSummary.call_log_message_id, message.id);
+  }
   const labelOf = (sender: string) =>
     sender === input.currentUserId ? input.youLabel : names.get(sender) || sender;
   return messages.map((message, index) => {
@@ -104,13 +116,17 @@ export function layoutNativeChatMessages(
     const next = grouping[index + 1];
     // The message this row points back to: its reply parent, or — for an
     // AI call summary — the call's log row.
+    // In a thread every reply answers the root above it: no quote of it (canvas).
     const replyTarget = message.replyToEventId
-      ? byId.get(message.replyToEventId)
+      ? message.replyToEventId === input.threadRoot?.id
+        ? undefined
+        : byId.get(message.replyToEventId)
       : message.voiceCallSummary
         ? byId.get(message.voiceCallSummary.call_log_message_id)
         : undefined;
     return {
-      opensDay: !previous || messageDayKey(previous.ts) !== messageDayKey(message.ts),
+      // A thread opens on its root, not on a day chip.
+      opensDay: previous ? messageDayKey(previous.ts) !== messageDayKey(message.ts) : !input.threadRoot,
       opensUnread: index === unreadIndex,
       compactTop: grouping[index]?.compactTop ?? false,
       showAvatar: grouping[index]?.showAvatar ?? true,
@@ -125,6 +141,9 @@ export function layoutNativeChatMessages(
       replySenderLabel: replyTarget ? labelOf(replyTarget.sender) : undefined,
       album: albums.get(index),
       inAlbum: inAlbum.has(index),
+      callSummaryId: summaryOfCall.get(message.id),
+      opensReplies:
+        input.threadRoot && previous?.id === input.threadRoot.id ? input.threadRoot.replyCount : undefined,
     };
   });
 }
@@ -204,15 +223,23 @@ function MessageBody({
     );
   }
   if (message.kind === "voice_call_log" || message.voiceCall) {
-    return <VoiceCallLogRow workspaceId={workspaceId} roomId={roomId} message={message} currentUserId={currentUserId} />;
+    const summaryId = layout.callSummaryId;
+    const jump = actions.onJumpToMessage;
+    return (
+      <VoiceCallLogRow
+        workspaceId={workspaceId}
+        roomId={roomId}
+        message={message}
+        currentUserId={currentUserId}
+        onViewSummary={summaryId && jump ? () => jump(summaryId) : undefined}
+      />
+    );
   }
   if (message.voiceCallSummary) {
     return (
       <VoiceCallSummaryRow
         workspaceId={workspaceId}
         message={message}
-        senderLabel={senderLabel}
-        showSenderName={showSenderName}
         compactTop={compactTop}
         isOwn={isOwn}
         callLog={layout.replyTarget}
@@ -236,7 +263,7 @@ function MessageBody({
     onReply: live ? actions.onReply : undefined,
     onReact: live ? actions.onReact : undefined,
     onToggleReaction: live ? actions.onToggleReaction : undefined,
-    onThread: live ? actions.onThread : undefined,
+    onThread: live && !context.inThread ? actions.onThread : undefined,
     onPin: live && canPinMessages ? actions.onPin : undefined,
     onCopy: live ? actions.onCopy : undefined,
     onDelete: live ? actions.onDelete : undefined,
@@ -296,10 +323,11 @@ export const NativeChatMessageItem = memo(function NativeChatMessageItem({
   highlighted: boolean;
 }) {
   const body = <MessageBody message={message} layout={layout} context={context} highlighted={highlighted} />;
-  if (!layout.opensDay && !layout.opensUnread) return body;
+  if (!layout.opensDay && !layout.opensUnread && !layout.opensReplies) return body;
   return (
     <div>
-      {layout.opensDay ? <ChatDaySeparator ts={message.ts} /> : null}
+      {layout.opensReplies ? <ChatRepliesSeparator count={layout.opensReplies} /> : null}
+      {layout.opensDay && !layout.opensReplies ? <ChatDaySeparator ts={message.ts} /> : null}
       {layout.opensUnread ? <ChatUnreadSeparator /> : null}
       {body}
     </div>
@@ -327,6 +355,8 @@ function sameRow(
     a.replyTarget === b.replyTarget &&
     a.replySenderLabel === b.replySenderLabel &&
     a.inAlbum === b.inAlbum &&
+    a.callSummaryId === b.callSummaryId &&
+    a.opensReplies === b.opensReplies &&
     sameMessages(a.album, b.album)
   );
 }

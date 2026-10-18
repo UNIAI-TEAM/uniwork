@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, PhoneIncoming, PhoneMissed, PhoneOff, Play, Video, VideoOff } from "lucide-react";
+import { CircleAlert, Phone, PhoneIncoming, PhoneMissed, PhoneOff, Play, Video, VideoOff } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -55,11 +55,14 @@ export function VoiceCallLogRow({
   roomId,
   message,
   currentUserId,
+  onViewSummary,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
   currentUserId: string;
+  /** UNI summarised this call: "Xem tóm tắt" jumps to that summary. */
+  onViewSummary?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const [recordingOpen, setRecordingOpen] = useState(false);
@@ -68,16 +71,20 @@ export function VoiceCallLogRow({
   const missed =
     message.voiceCall?.outcome === "unanswered" && message.voiceCall.caller_id !== currentUserId;
   const summary = voiceCallLogLabel(message, currentUserId, t);
+  // A group call says how many joined; who they were is one hover away (canvas).
   const participantLabels = formatVoiceCallParticipantLabels(message, currentUserId, t("chat.you"));
-  const label = participantLabels ? t("chat.voice_call_log_with_participants", {
-    summary,
-    participants: participantLabels,
-  }) : summary;
+  const people = message.voiceCall?.participants?.length ?? 0;
+  const label =
+    people > 2
+      ? t("chat.voice_call_log_with_participants", {
+          summary,
+          participants: t("chat.voice_call_log_people", { count: people }),
+        })
+      : summary;
   const Icon = voiceCallLogIcon(message.voiceCall?.outcome, message.voiceCall?.video === true);
   const recordingId = message.voiceCall?.recording_id?.trim();
   const recordingReady =
     message.voiceCall?.recording_status === "COMPLETE" && Boolean(recordingId);
-  const completed = message.voiceCall?.outcome === "completed";
 
   return (
     <>
@@ -85,14 +92,17 @@ export function VoiceCallLogRow({
       <div className="flex justify-center py-1.5">
         <div
           className={cn(
-            "inline-flex min-h-8 max-w-[90%] flex-wrap items-center justify-center gap-1.5 rounded-full py-1 pl-3 text-label",
-            recordingReady ? "pr-1" : "pr-3",
+            "inline-flex min-h-8 max-w-[90%] flex-wrap items-center justify-center gap-1.5 rounded-xl py-1 pl-3 text-label",
+            recordingReady || onViewSummary ? "pr-1" : "pr-3",
             missed ? "bg-destructive-soft text-destructive-soft-foreground" : "bg-chat-chip text-chat-chip-foreground",
           )}
         >
-          <Icon aria-hidden className={cn("size-4 shrink-0", completed && "text-success")} />
+          <Icon aria-hidden className={cn("shrink-0", message.voiceCall?.video ? "size-4" : "size-3.75")} />
           {/* A long participant list truncates; the full line stays one hover away. */}
-          <span className={cn("truncate tabular-nums", missed ? "font-semibold" : "font-medium")} title={label}>
+          <span
+            className={cn("truncate tabular-nums", missed ? "font-semibold" : "font-medium")}
+            title={participantLabels || label}
+          >
             {label}
           </span>
           <time
@@ -119,7 +129,21 @@ export function VoiceCallLogRow({
               {t("chat.voice_call_log_recording_processing")}
             </span>
           ) : message.voiceCall?.recording_status === "FAILED" ? (
-            <span className="shrink-0 font-semibold text-destructive">{t("chat.voice_call_log_recording_failed")}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-destructive">
+              <CircleAlert aria-hidden className="size-3.25" />
+              {t("chat.voice_call_log_recording_failed")}
+            </span>
+          ) : null}
+          {onViewSummary ? (
+            <Button
+              type="button"
+              variant="brandSubtle"
+              size="xs"
+              className="h-6 shrink-0 rounded-lg px-2.5 text-label font-semibold"
+              onClick={onViewSummary}
+            >
+              {t("chat.voice_call_log_view_summary")}
+            </Button>
           ) : null}
         </div>
       </div>

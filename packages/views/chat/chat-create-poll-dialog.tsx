@@ -26,7 +26,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { DateTimeField } from "../common/datetime-field";
 import { toDateOnly } from "../common/date-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_CLASS, CHAT_FIELD_INPUT_CLASS, CHAT_FIELD_TEXTAREA_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatFormFooterNote } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
@@ -168,6 +168,7 @@ export function ChatCreatePollDialog({
             </div>
             <Textarea
               id="poll-question"
+              className={CHAT_FIELD_TEXTAREA_CLASS}
               value={question}
               maxLength={POLL_QUESTION_MAX_LENGTH}
               rows={3}
@@ -193,6 +194,8 @@ export function ChatCreatePollDialog({
                   <li key={option.id} className="flex items-center gap-1.5">
                     <Input
                       id={optionInputId(option.id)}
+                      variant="subtle"
+                      className={CHAT_FIELD_INPUT_CLASS}
                       value={option.value}
                       maxLength={POLL_OPTION_MAX_LENGTH}
                       placeholder={label}
@@ -260,7 +263,7 @@ export function ChatCreatePollDialog({
           </div>
 
           <FieldSet className="gap-0 border-t border-border pt-4">
-            <legend className="mb-1 text-overline font-semibold text-muted-foreground uppercase">
+            <legend className="mb-1 text-caption font-semibold tracking-wider text-muted-foreground uppercase">
               {t("chat.poll_advanced_settings")}
             </legend>
             <PinToTopRow
@@ -285,7 +288,7 @@ export function ChatCreatePollDialog({
           </FieldSet>
 
           <FieldSet className="gap-0 border-t border-border pt-4">
-            <legend className="mb-1 text-overline font-semibold text-muted-foreground uppercase">
+            <legend className="mb-1 text-caption font-semibold tracking-wider text-muted-foreground uppercase">
               {t("chat.poll_anonymous_title")}
             </legend>
             <PollSettingRow

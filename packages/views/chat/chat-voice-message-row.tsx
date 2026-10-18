@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { Pause, Play } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
@@ -14,15 +14,18 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, ChatThreadRepliesLink, chatBubbleShape } from "./chat-message-row";
+import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
 import { useFreshChatMediaUrl } from "./use-chat-media-url";
 import { senderNameClass } from "./sender-colors";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
+import { taskLinksOf } from "@uniwork/core/chat/message-links";
+import { useChatMessageLinksFor } from "./chat-message-links-context";
+import { MessageTaskCard } from "./message-task-card";
 
-/** A fixed sound-wave silhouette: decoration, not the recording's real levels (percent heights). */
-const WAVE_BARS = [30, 50, 75, 45, 90, 65, 100, 60, 40, 80, 100, 50, 30, 65, 90, 45, 75, 100, 60, 40, 50, 80, 65, 30, 45, 90, 75, 50, 100, 60, 40, 65];
+/** A fixed sound-wave silhouette (the canvas's own): decoration, not the recording's real levels, in px. */
+const WAVE_BARS = [8, 14, 20, 12, 24, 18, 26, 16, 10, 22, 26, 14, 8, 18, 24, 12, 20, 26, 16, 10, 14, 22, 18, 8, 12, 24, 20, 14, 26, 16, 10, 18, 12, 8, 14, 10];
 
 function formatDuration(durationMs: number): string {
   const seconds = Math.max(0, Math.ceil(durationMs / 1000));
@@ -40,11 +43,14 @@ function VoicePlayer({
   roomId,
   message,
   isOwn,
+  meta,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
   isOwn: boolean;
+  /** The time and delivery state, at the end of the duration line. */
+  meta: ReactNode;
 }) {
   const { t } = useTranslation();
   const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
@@ -61,7 +67,7 @@ function VoicePlayer({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <Button
           type="button"
           size="icon"
@@ -79,17 +85,19 @@ function VoicePlayer({
           ) : playing ? (
             <Pause className="size-4 fill-current" aria-hidden />
           ) : (
-            <Play className="size-4 fill-current" aria-hidden />
+            <Play className="size-4.5 fill-current" aria-hidden />
           )}
         </Button>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="sr-only">{t("chat.voice_message")}</span>
-          <span aria-hidden className="flex h-7 items-center justify-between gap-0.5">
+          {/* The wave is the seek bar: an invisible range over it, a dot at the playhead (canvas). */}
+          <span className="relative flex h-6.5 items-center gap-0.5 rounded-sm has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-ring">
             {WAVE_BARS.map((height, index) => (
               <span
                 key={index}
+                aria-hidden
                 className={cn(
-                  "w-0.75 shrink-0 rounded-full",
+                  "max-w-0.75 flex-1 rounded-xs",
                   index / WAVE_BARS.length < played
                     ? isOwn
                       ? "bg-chat-bubble-own-foreground"
@@ -98,34 +106,42 @@ function VoicePlayer({
                       ? "bg-chat-bubble-own-foreground/45"
                       : "bg-faint-foreground/50",
                 )}
-                style={{ height: `${height}%` }}
+                style={{ height }}
               />
             ))}
+            {active && durationMs > 0 ? (
+              <>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute top-1/2 -mt-1.5 -ml-1.5 size-3 rounded-full ring-2",
+                    isOwn ? "bg-chat-bubble-own-foreground ring-chat-bubble-own" : "bg-brand ring-chat-bubble-other",
+                  )}
+                  style={{ left: `${played * 100}%` }}
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={durationMs}
+                  step={100}
+                  value={Math.min(positionMs, durationMs)}
+                  aria-label={t("chat.message_list.voice_seek")}
+                  aria-valuetext={t("chat.message_list.voice_position", {
+                    position: formatDuration(positionMs),
+                    duration: formatDuration(durationMs),
+                  })}
+                  onChange={(event) => seekChatVoicePlayback(message.id, Number(event.target.value))}
+                  className="absolute inset-0 m-0 size-full cursor-pointer opacity-0"
+                />
+              </>
+            ) : null}
           </span>
-          <span className={cn("text-caption tabular-nums", isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
+          <span className={cn("flex items-center gap-2 text-caption tabular-nums", isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
             {active ? `${formatDuration(positionMs)} / ${formatDuration(durationMs)}` : formatDuration(durationMs)}
+            {meta}
           </span>
         </span>
       </div>
-      {active && durationMs > 0 ? (
-        <input
-          type="range"
-          min={0}
-          max={durationMs}
-          step={100}
-          value={Math.min(positionMs, durationMs)}
-          aria-label={t("chat.message_list.voice_seek")}
-          aria-valuetext={t("chat.message_list.voice_position", {
-            position: formatDuration(positionMs),
-            duration: formatDuration(durationMs),
-          })}
-          onChange={(event) => seekChatVoicePlayback(message.id, Number(event.target.value))}
-          className={cn(
-            "h-1.5 w-full cursor-pointer pointer-coarse:h-6",
-            isOwn ? "accent-chat-bubble-own-foreground" : "accent-brand",
-          )}
-        />
-      ) : null}
       {status === "error" ? (
         <p className={cn("text-caption", !isOwn && "text-destructive")} role="alert">
           {t("chat.voice_load_failed")}
@@ -183,6 +199,9 @@ function ChatVoiceMessageRowImpl({
   onFollowUp?: (message: ChatMessage) => void;
 }) {
   const reveal = useMessageActionsReveal();
+  // A task made from this message follows it as one more bubble of the run (canvas).
+  const { links } = useChatMessageLinksFor(message.id);
+  const taskCard = !message.deliveryStatus && taskLinksOf(links).length > 0;
 
   return (
     <article
@@ -191,13 +210,14 @@ function ChatVoiceMessageRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
+        CHAT_ROW_HOVER,
         compactTop ? "mt-0.5" : "mt-3",
         isOwn ? "justify-end" : "justify-start gap-2",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       {!isOwn ? (
-        <div className="w-8 shrink-0 self-end">
+        <div className="w-8.5 shrink-0 self-end">
           {lastOfRun ? (
             <ChatSenderAvatar
               userId={message.sender}
@@ -212,16 +232,16 @@ function ChatVoiceMessageRowImpl({
         ref={reveal.rootRef}
         {...reveal.bind}
         className={cn(
-          "group/message relative flex max-w-[min(85%,22rem)] flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
+          "group/message relative flex max-w-[85%] flex-col gap-1 sm:max-w-[72%] pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
           isOwn ? "items-end" : "items-start",
         )}
       >
         <div className={chatMessageActionsRailClass(isOwn)}>
-          <div className="flex min-w-0 flex-col gap-1">
+          <div className={cn("flex min-w-0 flex-col gap-0.5", isOwn ? "items-end" : "items-start")}>
             <div
               className={cn(
-                "w-72 max-w-full px-3 py-2",
-                chatBubbleShape(isOwn, !compactTop, lastOfRun),
+                "w-85 max-w-full px-3 pt-[7px] pb-2",
+                chatBubbleShape(isOwn, !compactTop, lastOfRun && !taskCard),
                 isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
               )}
             >
@@ -230,10 +250,23 @@ function ChatVoiceMessageRowImpl({
                   {senderLabel}
                 </p>
               ) : null}
-              <VoicePlayer workspaceId={workspaceId} roomId={roomId} message={message} isOwn={isOwn} />
-              <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+              <VoicePlayer
+                workspaceId={workspaceId}
+                roomId={roomId}
+                message={message}
+                isOwn={isOwn}
+                meta={taskCard ? null : <ChatMessageMeta message={message} isOwn={isOwn} showTime={lastOfRun} inline="end" />}
+              />
             </div>
-            <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
+            {taskCard ? (
+              <MessageTaskCard
+                workspaceId={workspaceId}
+                messageId={message.id}
+                isOwn={isOwn}
+                meta={<ChatMessageMeta message={message} isOwn={false} showTime={lastOfRun} inline="end" />}
+              />
+            ) : null}
+            <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
             <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
           </div>
           <ChatMessageHoverActions

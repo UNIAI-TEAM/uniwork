@@ -45,7 +45,7 @@ export function chatMessageActionsRailClass(isOwn: boolean): string {
 }
 
 /** The quick reactions the bar offers before the other actions. */
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "😮", "🙏"] as const;
 
 // The composer's emoji set (search, categories, recently used), loaded on first open.
 const EmojiPicker = lazy(() =>
@@ -80,7 +80,7 @@ function MessageReactionPicker({
                   type="button"
                   variant="ghost"
                   size="icon-lg"
-                  className="shrink-0 text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground"
+                  className="size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground"
                   aria-label={label}
                 />
               }
@@ -128,7 +128,7 @@ function MessageActionButton({
             type="button"
             variant={pressed ? "secondary" : "ghost"}
             size="icon-lg"
-            className="shrink-0 text-muted-foreground hover:text-foreground aria-pressed:text-foreground"
+            className="size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground aria-pressed:text-foreground"
             aria-label={label}
             aria-pressed={pressed ? true : undefined}
             disabled={disabled}
@@ -235,7 +235,7 @@ export function ChatMessageHoverActions({
       onKeyDown={onKeyDown}
       onFocusCapture={onFocusCapture}
       className={cn(
-        "pointer-events-none absolute bottom-full z-10 mb-1.5 flex w-max items-center gap-0.5 rounded-xl border border-border bg-popover p-1 opacity-0 shadow-floating",
+        "pointer-events-none absolute bottom-full z-10 mb-1.5 flex w-max items-center rounded-xl border border-border bg-popover p-1 opacity-0 shadow-floating",
         "after:absolute after:inset-x-0 after:top-full after:h-1.5 after:content-['']",
         (forceOpen || pickerOpen) && "pointer-events-auto opacity-100",
         "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
@@ -253,7 +253,7 @@ export function ChatMessageHoverActions({
                 onClick={() => onToggleReaction(message, emoji)}
                 pressed={mine.has(emoji)}
               >
-                <span aria-hidden className="text-title-lg leading-none">
+                <span aria-hidden className="text-display-sm leading-none">
                   {emoji}
                 </span>
               </MessageActionButton>
@@ -303,7 +303,7 @@ export function ChatMessageHoverActions({
                 type="button"
                 variant="ghost"
                 size="icon-lg"
-                className="shrink-0 text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground"
+                className="size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground"
                 aria-label={t("chat.action_more")}
               >
                 <Ellipsis className="size-5" aria-hidden />

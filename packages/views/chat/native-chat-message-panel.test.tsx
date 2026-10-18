@@ -81,6 +81,8 @@ import { toast } from "sonner";
 // @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
 // so render rows synchronously in this test.
 vi.mock("./virtual-chat-message-list", () => ({
+  // Every scroll here stands for the reader's own.
+  useReaderScrollAt: () => ({ current: Date.now() }),
   updateStickToBottomFromScroll: (_el: HTMLElement, ref: { current: boolean }) => {
     ref.current = nearBottom;
     return nearBottom;
@@ -306,7 +308,7 @@ describe("NativeChatMessagePanel", () => {
     expect(messageArticle("Reply")).toBeInTheDocument();
 
     rerender(wrap(panel({ threadsEnabled: true, onOpenThread, openThreadRootId: "m1" })));
-    expect(messageArticle("Hi team").closest(".ring-brand")).not.toBeNull();
+    expect(messageArticle("Hi team").closest("[data-highlighted]")).not.toBeNull();
   });
 
   it("as the side thread panel shows only its thread, names the room, and closing asks the page", async () => {

@@ -415,7 +415,7 @@ export function ChatExpressionPicker({
                 </div>
               ) : (
                 <>
-                  <p className="px-3.5 pt-2 pb-1.5 text-overline font-semibold text-muted-foreground uppercase">
+                  <p className="px-3.5 pt-2 pb-1.5 text-micro font-semibold tracking-wider text-muted-foreground uppercase">
                     {activePack?.name ?? t("chat.expression_tab_sticker")}
                   </p>
                   <StickerGrid

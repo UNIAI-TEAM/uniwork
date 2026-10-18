@@ -10,7 +10,7 @@ import { toastChatError } from "./chat-error-message";
 import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, chatMessageLabelId } from "./chat-message-parts";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, chatBubbleShape } from "./chat-message-row";
+import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { MessageTaskCard } from "./message-task-card";
@@ -166,6 +166,39 @@ function AlbumTile({
   );
 }
 
+/** One photo in the viewer's strip; the one on show is ringed. */
+function ViewerThumb({
+  workspaceId,
+  roomId,
+  message,
+  current,
+  onPick,
+}: {
+  workspaceId: string;
+  roomId: string;
+  message: ChatMessage;
+  current: boolean;
+  onPick: () => void;
+}) {
+  const { t } = useTranslation();
+  const file = message.file;
+  const { src, status, onError } = useChatMediaSrc(workspaceId, roomId, message.id, file?.thumb_url || file?.url, file?.url_expires_at);
+  return (
+    <button
+      type="button"
+      aria-label={t("chat.message_list.file_open_named", { name: file?.filename || t("chat.file_untitled") })}
+      aria-current={current || undefined}
+      onClick={onPick}
+      className={cn(
+        "h-12 w-16 shrink-0 overflow-hidden rounded-md bg-foreground/10",
+        current && "ring-2 ring-foreground ring-offset-2 ring-offset-background",
+      )}
+    >
+      {status === "ready" && src ? <img src={src} alt="" className="size-full object-cover" onError={onError} /> : null}
+    </button>
+  );
+}
+
 function ChatImageAlbumRowImpl({
   workspaceId,
   roomId,
@@ -210,6 +243,7 @@ function ChatImageAlbumRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
+        CHAT_ROW_HOVER,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-0.5" : "mt-3",
       )}
@@ -221,7 +255,7 @@ function ChatImageAlbumRowImpl({
             <ChatSenderAvatar userId={head.sender} name={senderLabel} avatarUrl={senderAvatarUrl} nameContext={nameContext} />
           </span>
         ) : (
-          <span className="w-8 shrink-0" aria-hidden />
+          <span className="w-8.5 shrink-0" aria-hidden />
         )}
         <div className={cn("flex min-w-0 flex-col gap-1", isOwn ? "items-end" : "items-start")}>
           <div
@@ -259,7 +293,7 @@ function ChatImageAlbumRowImpl({
             </div>
           </div>
           {album.map((message) => (
-            <MessageTaskCard key={message.id} workspaceId={workspaceId} messageId={message.id} className={cn(isOwn && "items-end self-end")} />
+            <MessageTaskCard key={message.id} workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
           ))}
         </div>
       </div>
@@ -277,6 +311,16 @@ function ChatImageAlbumRowImpl({
         position={viewing === null ? undefined : { current: viewing + 1, total: album.length }}
         onPrev={() => step(-1)}
         onNext={() => step(1)}
+        thumbnails={album.map((message, index) => (
+          <ViewerThumb
+            key={message.id}
+            workspaceId={workspaceId}
+            roomId={roomId}
+            message={message}
+            current={index === viewing}
+            onPick={() => setViewing(index)}
+          />
+        ))}
       />
     </article>
   );

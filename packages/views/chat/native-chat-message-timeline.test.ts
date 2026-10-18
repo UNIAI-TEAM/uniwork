@@ -5,6 +5,7 @@ import { toChatMessage } from "./native-chat-message-mapping";
 import {
   buildMainTimelineMessages,
   buildThreadViewMessages,
+  countNewSince,
 } from "./native-chat-message-timeline";
 
 const rootRecord: ChatMessageRecord = {
@@ -85,5 +86,20 @@ describe("queued thread replies", () => {
       ],
     });
     expect(echoed.map((message) => message.id)).toEqual(["root1", "reply1"]);
+  });
+});
+
+describe("countNewSince", () => {
+  const at = (id: string, sender: string) => toChatMessage({ ...rootRecord, id, sender_id: sender });
+  const messages = [at("a", "u2"), at("b", "u1"), at("c", "u2"), at("d", "u3")];
+
+  it("counts others' messages after the one the reader left at", () => {
+    expect(countNewSince(messages, "a", "u1")).toBe(2);
+  });
+
+  it("is zero when the reader left at the newest or the message is not loaded", () => {
+    expect(countNewSince(messages, "d", "u1")).toBe(0);
+    expect(countNewSince(messages, "gone", "u1")).toBe(0);
+    expect(countNewSince(messages, null, "u1")).toBe(0);
   });
 });

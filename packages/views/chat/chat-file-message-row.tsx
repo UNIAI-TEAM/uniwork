@@ -4,11 +4,12 @@ import { memo } from "react";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
+import { isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, ChatThreadRepliesLink, chatBubbleShape } from "./chat-message-row";
+import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
@@ -66,6 +67,11 @@ function ChatFileMessageRowImpl({
 }) {
   const reveal = useMessageActionsReveal();
   const edgeToEdge = chatFileIsEdgeToEdge(message.file);
+  // A GIF is the message itself, like a sticker: no bubble, its time on a chip
+  // under it. A photo keeps a 3px rim and its time on its corner (canvas).
+  const contentType = message.file ? resolveChatFileContentType(message.file) : undefined;
+  const gif = contentType === "image/gif" && !replyToMessage;
+  const photo = edgeToEdge && !gif && !isChatPdfContentType(contentType);
 
   return (
     <article
@@ -74,6 +80,7 @@ function ChatFileMessageRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
+        CHAT_ROW_HOVER,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-0.5" : "mt-3",
       )}
@@ -91,7 +98,7 @@ function ChatFileMessageRowImpl({
             />
           </span>
         ) : (
-          <span className="w-8 shrink-0" aria-hidden />
+          <span className="w-8.5 shrink-0" aria-hidden />
         )}
         <div
           ref={reveal.rootRef}
@@ -108,9 +115,9 @@ function ChatFileMessageRowImpl({
               <div
                 className={cn(
                   "max-w-full overflow-hidden",
-                  chatBubbleShape(isOwn, !compactTop),
-                  isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
-                  edgeToEdge ? "p-1" : "px-3 py-2",
+                  !gif && chatBubbleShape(isOwn, !compactTop),
+                  !gif && (isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
+                  gif ? "flex flex-col gap-1" : photo ? "p-0.75" : edgeToEdge ? "p-1" : "px-3 py-2",
                 )}
               >
                 {showSenderName && !isOwn && showAvatar ? (
@@ -118,7 +125,7 @@ function ChatFileMessageRowImpl({
                     className={cn(
                       "text-label font-semibold",
                       senderNameClass(message.sender, isOwn),
-                      edgeToEdge ? "px-2 pt-1 pb-1" : "mb-1",
+                      gif ? "px-1" : edgeToEdge ? "px-2.25 pt-1 pb-1.25" : "mb-1",
                     )}
                     aria-hidden
                   >
@@ -135,24 +142,34 @@ function ChatFileMessageRowImpl({
                     />
                   </div>
                 ) : null}
-                <ChatFileAttachment
-                  workspaceId={workspaceId}
-                  roomId={roomId}
-                  message={message}
-                  isOwn={isOwn}
-                  sender={{ userId: message.sender, name: senderLabel, avatarUrl: senderAvatarUrl, ts: message.ts }}
-                />
-                <div className={cn(edgeToEdge ? "px-2 pb-0.5" : undefined)}>
-                  <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+                <div
+                  className={cn(
+                    // The photo follows the bubble 3px in: 15 round, 4 under the name and at the tail (canvas).
+                    photo && "relative overflow-hidden rounded-[15px] [&>button]:rounded-none",
+                    photo && showSenderName && !isOwn && showAvatar && "rounded-t-[4px]",
+                    photo && (isOwn ? "rounded-br-[4px]" : "rounded-bl-[4px]"),
+                  )}
+                >
+                  <ChatFileAttachment
+                    workspaceId={workspaceId}
+                    roomId={roomId}
+                    message={message}
+                    isOwn={isOwn}
+                    sender={{ userId: message.sender, name: senderLabel, avatarUrl: senderAvatarUrl, ts: message.ts }}
+                  />
+                  {photo ? <ChatMessageMeta message={message} isOwn={isOwn} showTime inline="media" /> : null}
                 </div>
+                {gif ? (
+                  <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall />
+                ) : photo ? null : (
+                  <div className={cn(edgeToEdge ? "px-2 pb-0.5" : undefined)}>
+                    <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+                  </div>
+                )}
               </div>
-              <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
+              <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
               <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
-              <MessageTaskCard
-                workspaceId={workspaceId}
-                messageId={message.id}
-                className={cn(isOwn && "items-end self-end")}
-              />
+              <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
             </div>
             <ChatMessageHoverActions
               message={message}

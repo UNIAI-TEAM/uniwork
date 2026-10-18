@@ -144,10 +144,13 @@ export function ChatMessageBody({
   body,
   isOwn,
   nameContext,
+  trailing,
 }: {
   body: string;
   isOwn: boolean;
   nameContext: ChatNameContextEntry[];
+  /** Floated after the last word: the bubble's time and delivery state. */
+  trailing?: ReactNode;
 }) {
   const { t } = useTranslation();
   // The body takes the bubble's text colour (white on my brand bubble, ink on
@@ -178,6 +181,7 @@ export function ChatMessageBody({
   return (
     <p className={textClass}>
       {renderMessageText(body, nameContext, { link: linkClass, mention: mentionClass }, t("chat.mention_all"))}
+      {trailing}
     </p>
   );
 }

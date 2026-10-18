@@ -2,12 +2,12 @@
 
 import { useMemo } from "react";
 import {
+  AlarmClock,
   ChartColumn,
   Bell,
   CircleAlert,
-  Clock,
-  FileUp,
   Megaphone,
+  Paperclip,
   Plus,
   StickyNote,
 } from "lucide-react";
@@ -48,9 +48,9 @@ type ComposerAttachMenuItem =
   | { separator: true };
 
 const ATTACH_MENU_ITEMS: ComposerAttachMenuItem[] = [
-  { id: "attach_file", icon: FileUp, labelKey: "composer_attach_file", tone: "brand" },
+  { id: "attach_file", icon: Paperclip, labelKey: "composer_attach_file", tone: "gray" },
   { id: "create_poll", icon: ChartColumn, labelKey: "composer_create_poll", tone: "blue" },
-  { id: "create_reminder", icon: Clock, labelKey: "composer_create_reminder", tone: "teal" },
+  { id: "create_reminder", icon: AlarmClock, labelKey: "composer_create_reminder", tone: "teal" },
   { id: "create_note", icon: StickyNote, labelKey: "composer_create_note", tone: "yellow" },
   { id: "create_post", icon: Megaphone, labelKey: "composer_create_post", tone: "orange" },
   { separator: true },
@@ -129,7 +129,8 @@ export function ComposerAttachMenu({
           <ComposerToolbarButton
             label={t("chat.composer_attach")}
             disabled={disabled}
-            className="size-12 bg-chat-bubble-other shadow-chat-bubble hover:bg-muted aria-expanded:ring-2 aria-expanded:ring-primary"
+            // Open, the + turns into an × on the brand wash (canvas).
+            className="size-12 bg-chat-bubble-other shadow-chat-bubble hover:bg-muted aria-expanded:text-brand aria-expanded:ring-2 aria-expanded:ring-primary aria-expanded:[&_svg]:rotate-45 [&_svg]:transition-transform [&_svg]:duration-(--duration-fast)"
           >
             <Plus aria-hidden />
           </ComposerToolbarButton>
@@ -149,7 +150,7 @@ export function ComposerAttachMenu({
             // Opens the file picker inside the click's user-gesture stack.
             onClick={() => onAction(item.id)}
           >
-            <IconTile icon={item.icon} size="sm" tone={item.tone} />
+            <IconTile icon={item.icon} size="sm" tone={item.tone} className="[&_svg]:size-4" />
             {t(`chat.${item.labelKey}`)}
           </DropdownMenuItem>
         ))}
@@ -160,7 +161,7 @@ export function ComposerAttachMenu({
           </DropdownMenuLabel>
           {flagItems.map((item) => (
             <DropdownMenuItem key={item.id} className={ATTACH_ITEM_CLASS} onClick={() => onAction(item.id)}>
-              <IconTile icon={item.icon} size="sm" tone={item.tone} />
+              <IconTile icon={item.icon} size="sm" tone={item.tone} className="[&_svg]:size-4" />
               {t(`chat.${item.labelKey}`)}
             </DropdownMenuItem>
           ))}

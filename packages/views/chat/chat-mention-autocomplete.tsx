@@ -8,7 +8,8 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
+import { chatPersonFaceClass } from "./chat-person-card";
 
 const PANEL_CLASS = "flex flex-col overflow-hidden rounded-xl bg-popover shadow-floating ring-1 ring-border";
 
@@ -98,7 +99,7 @@ export function ChatMentionAutocomplete({
           {candidates.map((candidate, index) => {
             const selected = index === selectedIndex;
             const isAll = candidate.kind === "all";
-            const initials = isAll ? "@" : initialOf(candidate.label);
+            const initials = isAll ? "@" : initialsOf(candidate.label);
 
             return (
               <button
@@ -120,8 +121,8 @@ export function ChatMentionAutocomplete({
                 }}
               >
                 {isAll ? (
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand-subtle-foreground">
-                    <Users className="size-4" aria-hidden />
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand-subtle-foreground">
+                    <Users className="size-4.5" aria-hidden />
                   </span>
                 ) : (
                   <ActorAvatar
@@ -130,8 +131,8 @@ export function ChatMentionAutocomplete({
                     avatarUrl={
                       candidate.userId ? lookupMemberAvatarUrl(memberAvatarByUserId, candidate.userId) : undefined
                     }
-                    size="lg"
-                    className="shrink-0"
+                    size="fluid"
+                    className={cn("size-9 shrink-0 text-caption", candidate.userId && chatPersonFaceClass(candidate.userId))}
                   />
                 )}
                 <span className="min-w-0 flex-1">
@@ -150,6 +151,18 @@ export function ChatMentionAutocomplete({
             );
           })}
         </div>
+        {/* How to drive it from the field (canvas). */}
+        <p
+          aria-hidden
+          className="flex h-8.5 shrink-0 items-center gap-3 border-t border-border bg-muted/60 px-3.5 text-caption text-muted-foreground dark:bg-foreground/5"
+        >
+          {(["mention_keys_move", "mention_keys_insert", "mention_keys_close"] as const).map((key) => (
+            <span key={key}>
+              <kbd className="font-sans text-micro font-semibold text-chat-chip-foreground">{t(`chat.${key}_key`)}</kbd>{" "}
+              {t(`chat.${key}`)}
+            </span>
+          ))}
+        </p>
       </div>
     );
   return createPortal(panel, document.body);

@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogTitle } from "@uniwork/ui/components/ui/di
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
 import { formatMessageDateTime } from "./chat-message-time";
 
 /** A soft round control on the dark stage (canvas: a white wash). */
@@ -32,6 +32,7 @@ export function ChatImagePreviewDialog({
   position,
   onPrev,
   onNext,
+  thumbnails,
 }: {
   open: boolean;
   name: string;
@@ -46,6 +47,8 @@ export function ChatImagePreviewDialog({
   position?: { current: number; total: number };
   onPrev?: () => void;
   onNext?: () => void;
+  /** The album's photos as a strip under the stage, the one on show ringed (canvas). */
+  thumbnails?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -69,7 +72,7 @@ export function ChatImagePreviewDialog({
             <>
               <ActorAvatar
                 name={sender.name}
-                initials={initialOf(sender.name)}
+                initials={initialsOf(sender.name)}
                 avatarUrl={sender.avatarUrl}
                 size="lg"
                 className={chatPersonFaceClass(sender.userId)}
@@ -133,7 +136,8 @@ export function ChatImagePreviewDialog({
             </Button>
           ) : null}
         </div>
-        <div className="flex min-h-5 shrink-0 justify-center px-5 pt-4 pb-6">
+        <div className="flex min-h-5 shrink-0 items-center justify-center gap-2 px-5 pt-4 pb-6">
+          {thumbnails}
           {position ? (
             <span
               aria-live="polite"

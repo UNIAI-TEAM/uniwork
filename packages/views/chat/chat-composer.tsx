@@ -28,7 +28,6 @@ import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageB
 import { CHAT_FILE_ACCEPT, CHAT_FILE_MAX_LABEL, isChatFileTooLarge, pickChatAcceptedFiles } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
-import { SidebarTypingDots } from "./sidebar-typing-dots";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
 
 /** Show the character count once a message gets this close to the limit. */
@@ -283,15 +282,10 @@ export function ChatComposer({
           stageAcceptedFiles(files);
         }}
       />
-      {typingLabel ? (
-        <p
-          className="mx-auto flex w-full max-w-183 items-center gap-1.5 pl-15 text-label font-medium text-brand"
-          aria-live="polite"
-        >
-          <SidebarTypingDots />
-          {typingLabel}
-        </p>
-      ) : null}
+      {/* Seen in the header and as a bubble on the timeline; heard from here. */}
+      <p className="sr-only" aria-live="polite">
+        {typingLabel}
+      </p>
       {disabled && readOnlyReason ? (
         <ComposerReadOnlyBar reason={readOnlyReason} placeholder={placeholder} textareaRef={textareaRef} />
       ) : voiceActive ? (
@@ -462,7 +456,7 @@ export function ChatComposer({
               <Button
                 type="submit"
                 size="icon-lg"
-                className="size-12 rounded-full hover:bg-primary/90"
+                className="size-12 rounded-full shadow-md shadow-primary/30 hover:bg-primary/90"
                 aria-label={editing ? saveLabel : sendLabel}
                 title={editing ? saveLabel : undefined}
                 disabled={!canSend}
@@ -482,7 +476,7 @@ export function ChatComposer({
               <Button
                 type="button"
                 size="icon-lg"
-                className="size-12 rounded-full hover:bg-primary/90"
+                className="size-12 rounded-full shadow-md shadow-primary/30 hover:bg-primary/90"
                 aria-label={recordLabel}
                 title={recordLabel}
                 disabled={disabled}

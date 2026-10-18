@@ -1,23 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Calendar, CircleCheck, Link2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUnlinkChatMessage } from "@uniwork/core/chat";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
 import { useTask } from "@uniwork/core/tasks";
-import { IconTile, tintClass } from "@uniwork/ui/components/common/icon-tile";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { MODULE_ICONS } from "../layout/module-icons";
-import { moduleTone } from "../layout/module-tones";
-import { StatusIcon } from "../tasks/icons/status-icon";
 import { STATUS_CONFIG } from "../tasks/modes/status-config";
 import { ConfirmDialog } from "../common/form-dialog";
 import { ChatTaskPeekDialog } from "./chat-task-peek-dialog";
 import { toastChatError } from "./chat-error-message";
 import { useChatMessageLinksFor } from "./chat-message-links-context";
+import { CHAT_BUBBLE_OTHER, CHAT_ON_BUBBLE_HOVER, CHAT_ON_BUBBLE_LINE, chatBubbleShape } from "./chat-message-row";
+import { formatTaskDue } from "./chat-info-panel-utils";
+import { chatPersonFaceClass } from "./chat-person-card";
+import { initialsOf } from "./chat-initials";
 
 function MessageTaskLinkRow({
   workspaceId,
@@ -32,7 +34,7 @@ function MessageTaskLinkRow({
   linkId: string;
   canUnlink: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: task } = useTask(taskId);
   const unlink = useUnlinkChatMessage(workspaceId);
   const [peekOpen, setPeekOpen] = useState(false);
@@ -42,47 +44,64 @@ function MessageTaskLinkRow({
   const openLabel = t("chat.link.open_task", { identifier, title });
   const statusTone = task?.status ? STATUS_CONFIG[task.status]?.tone : undefined;
 
+  const assignee = task?.assignee;
   return (
     <>
-      {/* A linked task reads as a task everywhere: the tasks tint on its glyph,
-          its identifier, and its status in the status's own words and icon. */}
-      <div className="flex min-h-12 w-full max-w-full items-center gap-2.5 rounded-lg border border-border bg-surface py-1 pr-1 pl-2.5 shadow-chat-bubble">
-        <IconTile icon={MODULE_ICONS.tasks} tone={moduleTone("tasks")} size="sm" />
+      {/* The task as a card inside the bubble: its title, who has it, when it
+          is due and its status in the status's own words and tint (canvas). */}
+      <div className={cn("relative rounded-xl border bg-muted/60 text-foreground dark:bg-foreground/8", CHAT_ON_BUBBLE_LINE)}>
         {task ? (
           <button
             type="button"
-            className="min-w-0 flex-1 truncate rounded-sm py-1 text-left text-body text-foreground hover:underline"
+            className={cn("block w-full rounded-xl px-3 py-2.5 text-left", CHAT_ON_BUBBLE_HOVER, canUnlink && "pr-10")}
             aria-label={openLabel}
             onClick={() => setPeekOpen(true)}
           >
-            <span className="text-muted-foreground tabular-nums">{identifier}</span>
-            <span className="mx-1 text-muted-foreground">·</span>
-            <span className="font-medium">{title}</span>
+            <span className="block font-display text-body font-bold">{title}</span>
+            <span className="mt-2 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+              {assignee ? (
+                <span className="inline-flex items-center gap-1.25">
+                  <ActorAvatar
+                    name={assignee.display_name}
+                    initials={initialsOf(assignee.display_name)}
+                    avatarUrl={assignee.avatar_url}
+                    size="xs"
+                    className={chatPersonFaceClass(assignee.id)}
+                  />
+                  {assignee.display_name}
+                </span>
+              ) : null}
+              {task.due_date ? (
+                <span className="inline-flex items-center gap-1 tabular-nums">
+                  <Calendar className="size-3.25" aria-hidden />
+                  {formatTaskDue(task.due_date, i18n.language)}
+                </span>
+              ) : null}
+              {task.status ? (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 font-semibold",
+                    statusTone ? tintClass[statusTone] : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {t(`tasks.status_${task.status}`, { defaultValue: task.status })}
+                </span>
+              ) : null}
+            </span>
           </button>
         ) : (
-          <span className="flex min-w-0 flex-1 items-center gap-2 py-1" aria-busy>
+          <span className="flex flex-col gap-2 px-3 py-2.5" aria-busy>
             <span className="sr-only">{title}</span>
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="h-3 flex-1" />
+            <Skeleton className="h-3.5 w-2/3" />
+            <Skeleton className="h-3 w-1/2" />
           </span>
         )}
-        {task?.status ? (
-          <span
-            className={cn(
-              "inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-caption font-semibold",
-              statusTone ? tintClass[statusTone] : "bg-muted text-muted-foreground",
-            )}
-          >
-            <StatusIcon status={task.status} className="size-3.5" inheritColor />
-            {t(`tasks.status_${task.status}`, { defaultValue: task.status })}
-          </span>
-        ) : null}
         {canUnlink ? (
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+            className="absolute top-1.5 right-1.5 size-7 rounded-lg text-muted-foreground hover:text-foreground pointer-coarse:size-11"
             aria-label={t("chat.message_list.unlink_named", { identifier: identifier ?? "", title })}
             disabled={unlink.isPending}
             onClick={() => setConfirmOpen(true)}
@@ -118,22 +137,44 @@ function MessageTaskLinkRow({
   );
 }
 
-/** Compact task cards under a chat message when message↔task links exist. */
+/**
+ * The tasks made from (or linked to) a message, as one more bubble in the
+ * sender's run under it: a line saying so, a card per task, and the run's
+ * time at its foot (canvas).
+ */
 export function MessageTaskCard({
   workspaceId,
   messageId,
-  className,
+  isOwn = false,
+  meta,
 }: {
   workspaceId: string;
   messageId: string;
-  className?: string;
+  /** The message is mine: "của bạn", and the bubble on my side. */
+  isOwn?: boolean;
+  /** The message's time and delivery state, moved here from the bubble above. */
+  meta?: ReactNode;
 }) {
+  const { t } = useTranslation();
   const { links, canUnlink } = useChatMessageLinksFor(messageId);
   const taskLinks = taskLinksOf(links);
   if (taskLinks.length === 0) return null;
+  const created = taskLinks.some((link) => link.relation === "created_from");
+  const Icon = created ? CircleCheck : Link2;
 
   return (
-    <div className={cn("mt-2 flex w-full flex-col gap-1.5", className)} data-testid="message-task-card">
+    <div
+      className={cn("flex w-85 max-w-full flex-col gap-1.5 px-2.5 py-2", chatBubbleShape(isOwn, false), CHAT_BUBBLE_OTHER)}
+      data-testid="message-task-card"
+    >
+      <p className="flex items-center gap-1.5 px-0.5 text-label text-muted-foreground">
+        <Icon className="size-3.75 shrink-0" aria-hidden />
+        {created
+          ? isOwn
+            ? t("chat.link.card_created_from_yours")
+            : t("chat.link.card_created_from_this")
+          : t("chat.link.card_linked")}
+      </p>
       {taskLinks.map((link) => (
         <MessageTaskLinkRow
           key={link.id}
@@ -144,6 +185,7 @@ export function MessageTaskCard({
           canUnlink={canUnlink}
         />
       ))}
+      {meta ? <div className="flex justify-end px-0.5">{meta}</div> : null}
     </div>
   );
 }

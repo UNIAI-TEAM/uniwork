@@ -10,7 +10,7 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_CLASS, CHAT_FIELD_INPUT_CLASS, CHAT_FIELD_TEXTAREA_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
@@ -94,6 +94,7 @@ export function ChatCreateNoteDialog({
               </div>
               <Textarea
                 id="note-body"
+                className={CHAT_FIELD_TEXTAREA_CLASS}
                 value={body}
                 maxLength={NOTE_BODY_MAX_LENGTH}
                 rows={6}

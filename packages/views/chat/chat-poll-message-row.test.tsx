@@ -78,7 +78,7 @@ describe("ChatPollMessageRow", () => {
 
   it("shows each option's share beside its count once results are visible", () => {
     renderPoll(false);
-    expect(screen.getByRole("button", { name: "Xem 2 người chọn Phở" })).toHaveTextContent("267%");
+    expect(screen.getByRole("button", { name: "Xem 2 người chọn Phở" })).toHaveTextContent("67%");
     expect(screen.getByText("33%")).toBeInTheDocument();
   });
 

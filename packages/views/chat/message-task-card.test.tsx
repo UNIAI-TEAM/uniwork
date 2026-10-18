@@ -107,4 +107,13 @@ describe("MessageTaskCard", () => {
     expect(unlink).toHaveBeenCalledWith({ messageId: "m1", linkId: "link1" });
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
+
+  it("says the task was made from the message, in the reader's words", () => {
+    const { unmount } = wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" />);
+    expect(screen.getByText("Đã gắn việc với tin nhắn này")).toBeInTheDocument();
+    unmount();
+    LINKS.set("m1", [{ ...LINKS.get("m1")![0]!, relation: "created_from" }]);
+    wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" isOwn />);
+    expect(screen.getByText("Đã tạo việc từ tin nhắn của bạn")).toBeInTheDocument();
+  });
 });

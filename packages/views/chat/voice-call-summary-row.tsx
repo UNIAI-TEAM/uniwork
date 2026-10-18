@@ -14,11 +14,15 @@ import { formatVoiceCallDuration } from "./voice-call-duration";
 type VoiceCallSummaryPayload = NonNullable<ChatMessage["voiceCallSummary"]>;
 type ActionItem = VoiceCallSummaryPayload["action_items"][number];
 
+/** "2026-10-22" → "22/10" (canvas); anything else as written. */
+function shortDue(due: string): string {
+  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(due.trim());
+  return match ? `${match[2]}/${match[1]}` : due;
+}
+
 export function VoiceCallSummaryRow({
   workspaceId,
   message,
-  showSenderName,
-  senderLabel,
   compactTop,
   isOwn,
   callLog,
@@ -26,8 +30,6 @@ export function VoiceCallSummaryRow({
 }: {
   workspaceId: string;
   message: ChatMessage;
-  showSenderName?: boolean;
-  senderLabel: string;
   compactTop?: boolean;
   isOwn?: boolean;
   /** The call's log message, when it is loaded, for the "from the call at …" line. */
@@ -59,16 +61,22 @@ export function VoiceCallSummaryRow({
       {/* AI output: the overline says it was generated, the header carries
           when, and every action item points back to the message it came from
           (Agent Principles — attributed, timestamped, sourced). */}
+      {/* UNI wrote it, whoever's account posted it: its name in the brand and its tile at the card's foot (canvas). */}
       <ChatCard
         icon={Sparkles}
         tone="brand"
         label={t("chat.voice_call_summary_badge")}
-        senderLabel={senderLabel}
-        senderId={message.sender}
+        senderLabel={t("ai.uni")}
+        senderClassName="text-brand"
         isOwn={isOwn}
         ts={message.ts}
-        showSenderName={showSenderName}
+        showSenderName
         compactTop={compactTop}
+        avatar={
+          <span aria-hidden className="flex size-8.5 items-center justify-center rounded-[11px] bg-primary text-primary-foreground">
+            <Sparkles className="size-4.5" />
+          </span>
+        }
         wide
       >
         {/* Sourced: the summary says which call it came from and links back to it. */}
@@ -91,17 +99,17 @@ export function VoiceCallSummaryRow({
         ) : null}
 
         {summaryText ? (
-          <p className="whitespace-pre-wrap text-body leading-relaxed text-foreground text-pretty">{summaryText}</p>
+          <p className="whitespace-pre-wrap text-body-lg text-foreground text-pretty">{summaryText}</p>
         ) : null}
 
         {empty ? <p className="text-body text-muted-foreground">{t("chat.voice_call_summary_empty")}</p> : null}
 
         {summary.highlights.length > 0 ? (
           <section className="mt-3 flex flex-col gap-1.5">
-            <h4 className="text-overline text-muted-foreground uppercase">{t("chat.ai.highlights")}</h4>
+            <h4 className="text-micro font-semibold tracking-wider text-muted-foreground uppercase">{t("chat.ai.highlights")}</h4>
             <ul className="space-y-1">
               {summary.highlights.map((highlight, index) => (
-                <li key={`${index}-${highlight}`} className="flex gap-2 text-body text-foreground">
+                <li key={`${index}-${highlight}`} className="flex gap-2 text-body-lg text-foreground">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" aria-hidden />
                   <span className="min-w-0 text-pretty">{highlight}</span>
                 </li>
@@ -112,7 +120,7 @@ export function VoiceCallSummaryRow({
 
         {summary.action_items.length > 0 ? (
           <section className="mt-3 flex flex-col gap-1.5">
-            <h4 className="flex items-center gap-1.5 text-overline text-muted-foreground uppercase">
+            <h4 className="flex items-center gap-1.5 text-micro font-semibold tracking-wider text-muted-foreground uppercase">
               <ListChecks aria-hidden className="size-3.5" />
               {t("chat.ai.action_items")}
             </h4>
@@ -122,7 +130,7 @@ export function VoiceCallSummaryRow({
                 const detail =
                   item.owner || item.due ? (
                     <span className="mt-0.5 block text-caption text-muted-foreground tabular-nums">
-                      {[item.owner, item.due].filter(Boolean).join(" · ")}
+                      {[item.owner, item.due && shortDue(item.due)].filter(Boolean).join(" · ")}
                     </span>
                   ) : null;
                 return (

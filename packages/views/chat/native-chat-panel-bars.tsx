@@ -91,20 +91,30 @@ export function ChatAnchorBar({ onBackToLatest }: { onBackToLatest: () => void }
   );
 }
 
-/** Floats over the timeline once the reader has scrolled away from the newest message. */
-export function ChatJumpToLatestButton({ onClick }: { onClick: () => void }) {
+/**
+ * Floats over the timeline's bottom-right once the reader has scrolled away
+ * from the newest message: a round button, with how many messages arrived
+ * since on a brand badge (canvas).
+ */
+export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () => void; newCount?: number }) {
   const { t } = useTranslation();
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
-      className="absolute bottom-3 left-1/2 h-8.5 -translate-x-1/2 rounded-full border-transparent bg-surface-raised px-3.5 font-semibold shadow-menu"
+      aria-label={newCount > 0 ? t("chat.jump_latest_new", { count: newCount }) : t("chat.search_back_to_latest")}
+      className="absolute right-6 bottom-4 flex size-12 items-center justify-center rounded-full bg-surface-raised text-chat-chip-foreground shadow-menu transition-colors duration-(--duration-fast) hover:bg-surface-hover"
       onClick={onClick}
     >
-      <ArrowDown aria-hidden />
-      {t("chat.search_back_to_latest")}
-    </Button>
+      <ArrowDown className="size-5" aria-hidden />
+      {newCount > 0 ? (
+        <span
+          aria-hidden
+          className="absolute -top-1.5 -right-1 h-5.5 min-w-5.5 rounded-full bg-primary px-1.5 text-center text-caption leading-5.5 font-semibold text-primary-foreground tabular-nums"
+        >
+          {newCount > 99 ? "99+" : newCount}
+        </span>
+      ) : null}
+    </button>
   );
 }
 
@@ -137,7 +147,7 @@ export function ChatOlderMessagesSkeleton({ label }: { label: string }) {
     <div className="pb-3" role="status" aria-busy>
       <span className="sr-only">{label}</span>
       <div className="flex items-start gap-2">
-        <Skeleton className="size-8 shrink-0 rounded-full" />
+        <Skeleton className="size-8.5 shrink-0 rounded-full" />
         <div className="flex flex-col gap-1.5">
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-9 w-56 rounded-2xl" />

@@ -76,6 +76,24 @@ export function updateStickToBottomFromScroll(
   return stickToBottomRef.current;
 }
 
+/** When the reader last scrolled by hand in the scroller: wheel, touch, pointer, key or focus. */
+export function useReaderScrollAt(scrollRef: RefObject<HTMLDivElement | null>): RefObject<number> {
+  const at = useRef(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const mark = () => {
+      at.current = Date.now();
+    };
+    const events = ["wheel", "touchmove", "pointerdown", "keydown", "focusin"] as const;
+    for (const name of events) el.addEventListener(name, mark, { passive: true });
+    return () => {
+      for (const name of events) el.removeEventListener(name, mark);
+    };
+  }, [scrollRef]);
+  return at;
+}
+
 /** Renders only visible chat rows to keep long histories smooth. */
 export function VirtualChatMessageList({
   messages,

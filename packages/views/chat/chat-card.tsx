@@ -29,6 +29,7 @@ export function ChatCard({
   status,
   wide = false,
   avatar,
+  senderClassName,
   children,
 }: {
   icon: LucideIcon;
@@ -46,6 +47,8 @@ export function ChatCard({
   wide?: boolean;
   /** Theirs only: the sender's avatar, in the gutter at the card's foot. */
   avatar?: ReactNode;
+  /** The name's colour when it is not a person's (UNI is the brand). */
+  senderClassName?: string;
   children: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
@@ -70,24 +73,24 @@ export function ChatCard({
           : t("chat.message_list.card_label_no_time", { kind: label, sender: senderLabel })}
       </span>
       {isOwn ? null : avatar ? (
-        <span className="w-8 shrink-0 self-end">{avatar}</span>
+        <span className="w-8.5 shrink-0 self-end">{avatar}</span>
       ) : (
-        <span className="w-8 shrink-0" aria-hidden />
+        <span className="w-8.5 shrink-0" aria-hidden />
       )}
       <div
         className={cn(
-          "min-w-0 flex-1 px-3.5 pt-3 pb-2.5",
+          "min-w-0 max-w-[85%] px-3.5 pt-3 pb-2.5",
           chatBubbleShape(isOwn, !compactTop),
           CHAT_BUBBLE_OTHER,
-          wide ? "max-w-[min(85%,32rem)]" : "max-w-[min(85%,26rem)]",
+          wide ? "w-120" : "w-105",
         )}
       >
         <header className="flex items-center gap-2.5">
-          <IconTile icon={icon} tone={tone} size="sm" />
+          <IconTile icon={icon} tone={tone} size="sm" className="[&_svg]:size-4" />
           <div className="min-w-0 flex-1" aria-hidden>
             {/* The kind, and whose it is when the column does not say: mine
                 sit on the right, so only theirs carry the name. */}
-            <p className="truncate text-overline text-muted-foreground uppercase">
+            <p className="truncate text-micro font-semibold tracking-wider text-muted-foreground uppercase">
               {label}
               {showSenderName || isOwn ? null : <span className="normal-case"> · {senderLabel}</span>}
             </p>
@@ -95,7 +98,7 @@ export function ChatCard({
               <p
                 className={cn(
                   "truncate text-label font-semibold",
-                  senderId ? senderNameClass(senderId, isOwn) : "text-foreground",
+                  senderClassName ?? (senderId ? senderNameClass(senderId, isOwn) : "text-foreground"),
                 )}
               >
                 {senderLabel}

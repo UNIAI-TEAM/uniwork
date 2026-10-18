@@ -15,7 +15,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_CLASS, CHAT_FIELD_INPUT_CLASS, CHAT_FIELD_TEXTAREA_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
 import { PinToTopRow } from "./chat-pin-to-top-row";
@@ -113,6 +113,8 @@ export function ChatCreatePostDialog({
               </div>
               <Input
                 id="post-title"
+                variant="subtle"
+                className={CHAT_FIELD_INPUT_CLASS}
                 value={title}
                 maxLength={POST_TITLE_MAX_LENGTH}
                 aria-required
@@ -141,6 +143,7 @@ export function ChatCreatePostDialog({
               </div>
               <Textarea
                 id="post-body"
+                className={CHAT_FIELD_TEXTAREA_CLASS}
                 value={body}
                 maxLength={POST_BODY_MAX_LENGTH}
                 rows={8}
