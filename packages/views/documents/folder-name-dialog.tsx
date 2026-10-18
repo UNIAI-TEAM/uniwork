@@ -58,7 +58,7 @@ export interface FolderNameDialogProps {
   description?: string;
   /** Submit button label; defaults to the shared create/rename copy. */
   submitLabel?: string;
-  /** Focuses the name input with the whole draft selected (first save proposes a name). */
+  /** Focuses the name input with the whole draft selected (defaults to true in rename mode). */
   selectAllOnOpen?: boolean;
   "data-testid"?: string;
 }
@@ -88,7 +88,7 @@ export function FolderNameDialog({
   error: externalError = null,
   description,
   submitLabel,
-  selectAllOnOpen = false,
+  selectAllOnOpen = mode === "rename",
   "data-testid": testId,
 }: FolderNameDialogProps) {
   const { t } = useTranslation();
@@ -106,14 +106,8 @@ export function FolderNameDialog({
       setDraft(initialName);
       setFieldError(null);
       keyRef.current = null;
-      // Naming a new document proposes the whole title so typing replaces it.
-      if (selectAllOnOpen) {
-        const input = inputRef.current;
-        input?.focus();
-        input?.select();
-      }
     }
-  }, [open, mode, initialName, selectAllOnOpen]);
+  }, [open, mode, initialName]);
 
   const isPending = externalPending || busy || createFolder.isPending || updateFolder.isPending;
   const displayError = fieldError ?? externalError;
@@ -223,7 +217,15 @@ export function FolderNameDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (isPending ? undefined : onOpenChange(next))}>
-      <DialogContent className="sm:max-w-md" showCloseButton={!isPending} closeLabel={t("common.close")} data-testid={testId}>
+      <DialogContent
+        className="sm:max-w-md"
+        showCloseButton={!isPending}
+        closeLabel={t("common.close")}
+        data-testid={testId}
+        // The portal mounts the input after `open` flips: focus+select here, at mount time,
+        // so a proposed name opens selected and typing replaces it (S01-V1).
+        {...(selectAllOnOpen ? { initialFocus: () => { inputRef.current?.select(); return inputRef.current; } } : {})}
+      >
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}

@@ -90,8 +90,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const documentLimits = useDocumentLimits();
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource, renameName: undefined as { id: string; name: string } | undefined });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource, renameName: latest.current.renameName };
   // The current frame was initialised read-only because the lock was not held: holding it later
   // re-attaches the frame in edit mode (a read-only frame has nothing unsaved to lose).
   const initLockedOut = useRef(false);
@@ -296,10 +296,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
             context.signal,
           ).catch((error: unknown) => { const shape = shapeOf(error); if (latest.current.isSource && shape.code !== "cancelled") failSession(shape); throw error; }),
         "api.save": async (payload, context) => {
-          // UNI-1847 (SAVE-01, D4): a frame save of a still-unnamed blank is declined first -
-          // with the protocol's own "the user cancelled" so no conflict dialog opens - and the
-          // page names the document, then sends the Save itself. Declining at once keeps the
-          // frame's 120 s answer timeout out of a dialog that may stay open for hours.
+          // UNI-1847 (SAVE-01, D4 + S01-V2): a frame save of a still-unnamed blank is declined
+          // at once and the page names the document, then sends the Save itself. The pinned
+          // frame has no silent cancel shape - every api.save answer that is not ok/conflict/
+          // too_large lands in the status bar as "Lưu thất bại" (bundle: hEe maps cancelled to
+          // webSaveFailedGeneric), and its api.save request times out at No.transfer (120 s),
+          // so holding the answer while the dialog is open cannot help either.
           const declined = firstSaveGate.current.declineFrameSave(() => void pageSave.current?.("user"));
           if (declined) return declined;
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
@@ -582,9 +584,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       .catch((error: unknown) => {
         if (life.state === "live") latest.current.options.onError(shapeOf(error), { fatal: false });
       })
-      .finally(() => {
-        downloadPending.current = false;
-      });
+      .finally(() => { downloadPending.current = false; });
   }, [frameOrigin, iframeRef]);
 
   const tokenFailure = !token && (tokenQuery.isError || (tokenQuery.isSuccess && tokenQuery.data === null)) ? shapeOf(tokenQuery.error ?? unauthorized()) : null;
@@ -596,8 +596,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   }, [refetchToken, tokenFailure]);
 
   // The document's name changed on the page (the first-save dialog named it): the frame's
-  // title bar and recents read the same name without waiting on a save (UNI-1847, D5).
+  // title bar and recents read the same name without waiting on a save (UNI-1847, D5) -
+  // and the next save's upload carries that filename so the stored file follows (S01-V3).
   const notifyRenamed = useCallback((file: FileMeta) => {
+    latest.current.renameName = { id: file.fileId, name: file.name };
     if (frameLife.current.state === "live") host?.notifyRenamed(file);
   }, [host]);
   return { status: failure ? "failed" : status, slow: slow && status === "booting" && !failure, viewOnly, failure, dirty,

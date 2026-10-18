@@ -117,7 +117,7 @@ describe("useFirstSaveNaming: the first-save name dialog (UNI-1847)", () => {
     let answer!: Promise<boolean>;
     await act(async () => { answer = hook.result.current.ask(); });
     const input = (await screen.findByLabelText("Tên tài liệu")) as HTMLInputElement;
-    expect(input.value).toBe("Tài liệu chưa đặt tên.docx");
+    expect(input.value).toBe("Tài liệu chưa đặt tên");
     fireEvent.change(input, { target: { value: "Kế hoạch Q4" } });
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await expect(answer).resolves.toBe(true);
@@ -129,6 +129,28 @@ describe("useFirstSaveNaming: the first-save name dialog (UNI-1847)", () => {
     expect(named).toHaveBeenCalledWith({ fileId: "doc-1", name: "Kế hoạch Q4.docx" });
     // Named once this session: saves from here on never ask again.
     expect(hook.result.current.needsName()).toBe(false);
+  });
+
+  it("prefills the title without its file extension and opens with the name selected", async () => {
+    const { hook } = setup();
+    let answer!: Promise<boolean>;
+    await act(async () => { answer = hook.result.current.ask(); });
+    const input = (await screen.findByLabelText("Tên tài liệu")) as HTMLInputElement;
+    // The stored title still carries ".docx", the saved name does not.
+    expect(input.value).toBe("Tài liệu chưa đặt tên");
+    // Typing replaces the proposal: the whole field is selected on open.
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await expect(answer).resolves.toBe(false);
+  });
+
+  it("prefills a title without the document's extension untouched (a different suffix stays)", async () => {
+    const titled = { ...UNTITLED_DOC, title: "Báo cáo.txt" } as Document;
+    const { hook } = setup({ doc: titled });
+    await act(async () => { void hook.result.current.ask(); });
+    expect(((await screen.findByLabelText("Tên tài liệu")) as HTMLInputElement).value).toBe("Báo cáo.txt");
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
   });
 
   it("keeps an unchanged name and rejects empty or over-long names inside the dialog", async () => {

@@ -220,7 +220,7 @@ test.describe("open, edit, save", () => {
     const dialog = page.getByRole("dialog", { name: "Đặt tên tài liệu" });
     await expect(dialog).toBeVisible({ timeout: 30_000 });
     const input = dialog.getByLabel("Tên tài liệu");
-    await expect(input).toHaveValue("untitled.docx");
+    await expect(input).toHaveValue("untitled");
     const title = `Kế hoạch ${Date.now().toString(36)}`;
     await input.fill(title);
     await dialog.getByRole("button", { name: "Lưu" }).click();

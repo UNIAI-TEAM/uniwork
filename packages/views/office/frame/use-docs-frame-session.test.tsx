@@ -947,6 +947,17 @@ describe("useDocsFrameSession: first-save naming (UNI-1847, SAVE-01)", () => {
     expect(frame.hook.result.current.saveState).toBe("dirty");
   });
 
+  it("the name the dialog wrote names the next save's upload (UNI-1847, S01-V3)", async () => {
+    const save = vi.fn(async (_payload: unknown, _call: unknown) => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const frame = setup({ api: { save } });
+    await frame.boot();
+    act(() => { frame.hook.result.current.notifyRenamed({ fileId: "doc-1", name: "Kế hoạch Q4.docx" }); });
+    const id = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(frame.answerTo(id)?.payload).toMatchObject({ ok: true }));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0]?.[1]).toMatchObject({ documentId: "doc-1", filename: "Kế hoạch Q4.docx" });
+  });
+
   it("a header Save and a frame Ctrl+S sharing one dialog send exactly one save once it is named", async () => {
     const resolvers: ((named: boolean) => void)[] = [];
     const ask = vi.fn(() => new Promise<boolean>((resolve) => { resolvers.push(resolve); }));

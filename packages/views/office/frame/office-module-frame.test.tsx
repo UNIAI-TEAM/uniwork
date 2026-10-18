@@ -744,7 +744,7 @@ describe("first save names a never-saved blank (UNI-1847, SAVE-01)", () => {
     expect(dialog).toBeTruthy();
     expect(screen.getByText("Bạn có thể đổi tên sau trong thư mục.")).toBeTruthy();
     const input = screen.getByLabelText("Tên tài liệu") as HTMLInputElement;
-    expect(input.value).toBe("Tài liệu chưa đặt tên.docx");
+    expect(input.value).toBe("Tài liệu chưa đặt tên");
     fireEvent.change(input, { target: { value: "Kế hoạch Q4" } });
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -754,6 +754,8 @@ describe("first save names a never-saved blank (UNI-1847, SAVE-01)", () => {
     const upload = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "4" });
     await waitFor(() => expect(frame.answerTo(upload)?.payload).toMatchObject({ ok: true }));
     expect(lastApi!.save).toHaveBeenCalledTimes(1);
+    // The new name names the stored file too: the upload goes as "Kế hoạch Q4.docx".
+    expect(vi.mocked(lastApi!.save).mock.calls[0]?.[1]).toMatchObject({ filename: "Kế hoạch Q4.docx" });
     // The frame heard its new name before the save finished.
     const renamed = frame.received.find((m) => m.kind === "event" && m.type === "file.renamed");
     expect(renamed).toBeTruthy();

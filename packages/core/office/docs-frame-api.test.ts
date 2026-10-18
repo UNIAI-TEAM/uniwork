@@ -99,6 +99,49 @@ describe("createDocsFrameApi", () => {
     expect(header(commit!.init, "Idempotency-Key")).toMatch(/:commit$/);
   });
 
+  it("uploads under the filename the call carries (the first-save rename), sanitized like every upload (UNI-1847)", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    const result = await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" },
+      { ...call(), filename: "Kế hoạch Q4.docx" },
+    );
+    expect(result).toMatchObject({ ok: true });
+    const upload = calls.find((c) => c.path.endsWith("/uploads"));
+    expect((upload?.init.body as FormData).get("file")).toMatchObject({ name: "Kế hoạch Q4.docx" });
+  });
+
+  it("strips path parts, control characters and edge dots/spaces from a call filename (UNI-1847)", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" },
+      { ...call(), filename: "..\\eva\\ Kế hoạch .docx " },
+    );
+    const upload = calls.find((c) => c.path.endsWith("/uploads"));
+    expect((upload?.init.body as FormData).get("file")).toMatchObject({ name: "Kế hoạch .docx" });
+  });
+
+  it("ignores a blank call filename: the stored name still names the upload", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () => json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: new ArrayBuffer(4), etag: "7" },
+      { ...call(), filename: "   " },
+    );
+    const upload = calls.find((c) => c.path.endsWith("/uploads"));
+    expect((upload?.init.body as FormData).get("file")).toMatchObject({ name: "Plan.docx" });
+  });
+
   it("commits with the host's edit lock id when the call carries one (UNI-1645)", async () => {
     const { fetch, calls } = fakeFetch({
       "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
@@ -447,6 +490,24 @@ describe("createDocsFrameApi chunked upload sessions above threshold (UNI-1863)"
     const commit = calls.find((c) => c.path.endsWith("/versions/commit"))!;
     expect(JSON.parse(String(commit.init.body))).toEqual({ upload_id: "up-sess-1", base_revision: "7", edit_lock_id: "lock-1" });
     expect(header(commit.init, "Idempotency-Key")).toBe(header(createSess.init, "Idempotency-Key")?.replace(/:upload$/, ":commit"));
+  });
+
+  it("names the chunked save's upload session with the call's filename (the first-save rename, UNI-1847)", async () => {
+    const { fetch, calls } = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(DOC),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions": () => json(sessionBody("sess-fn", "fpart"), 201),
+      "PUT /s3/fpart-1": partOk('"e1"'),
+      "PUT /s3/fpart-2": partOk('"e2"'),
+      "POST /api/v1/office-frame/documents/doc-1/upload-sessions/sess-fn/complete": () =>
+        json({ upload_id: "up-sess-fn", checksum_sha256: "abc", size_bytes: 12, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(COMMITTED),
+    });
+    await createDocsFrameApi({ apiUrl: API, fetch }).save(
+      { fileId: "doc-1", data: OVER_BYTES, etag: "7" },
+      { ...call(), chunkedUploadThresholdBytes: THRESHOLD, filename: "Kế hoạch Q4.docx" },
+    );
+    const createSess = calls.find((c) => c.path === "/api/v1/office-frame/documents/doc-1/upload-sessions")!;
+    expect(JSON.parse(String(createSess.init.body))).toMatchObject({ filename: "Kế hoạch Q4.docx" });
   });
 
   it("keeps a save at or below the threshold on the single-request frame upload route", async () => {

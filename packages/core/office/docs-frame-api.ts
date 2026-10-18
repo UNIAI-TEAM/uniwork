@@ -44,6 +44,7 @@ import {
   type TokenPayload,
 } from "./docs-frame-protocol";
 import { officeFrameSrc, officeModuleSpec } from "./office-modules";
+import { sanitizeUploadFilename } from "./upload-filename";
 
 /** A proxied call carries the frame token and the one document it is scoped to. */
 export interface DocsFrameCall {
@@ -57,6 +58,9 @@ export interface DocsFrameCall {
   editLockId?: string;
   /** Bytes above which `save` and `saveAs` route through chunked upload sessions (UNI-1863); null or absent = single-request upload. */
   chunkedUploadThresholdBytes?: number | null;
+  /** Filename the save's upload carries instead of the stored one (the name the first-save
+   *  dialog wrote, UNI-1847): sanitized the way the server's `files.SanitizeFilename` reads it. */
+  filename?: string;
 }
 
 /**
@@ -325,23 +329,26 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
         throw new DocsProtocolError({ code: "malformed", message: "save needs the etag (base revision) the frame opened with" });
       }
       const key = await operationKey("save", [payload.fileId, baseRevision], payload.data);
-      // The stored file keeps its own name: the upload is named after what open answered.
+      // The stored file keeps its own name: the upload is named after what open answered -
+      // unless the call carries the name the first-save dialog wrote (UNI-1847, S01-V3), which
+      // renames the stored file to the document's name on this save.
       const current = await client.open(payload.fileId);
       if (!current || "source_id" in current) throw malformed("office-frame open");
       const blob = new Blob([payload.data], { type: mimeType });
       const threshold = resolveThreshold(call, options);
+      const uploadName = call.filename?.trim() ? sanitizeUploadFilename(call.filename) : current.file.filename;
       const upload = threshold !== null && payload.data.byteLength > threshold
         ? await runChunkedUpload(
             {
               file: blob,
-              filename: current.file.filename,
+              filename: uploadName,
               target: { kind: "frame", documentId: payload.fileId, frameToken: call.token },
               idempotencyKey: `${key}:upload`,
               fetch: sessionFetch,
             },
             call.signal,
           ).then((out) => (out.kind === "upload" ? out.upload : null))
-        : await client.upload(payload.fileId, blob, current.file.filename, `${key}:upload`);
+        : await client.upload(payload.fileId, blob, uploadName, `${key}:upload`);
       if (!upload) throw malformed("office-frame upload");
       try {
         const doc = await client.commit(payload.fileId, { upload_id: upload.upload_id, base_revision: baseRevision, ...(call.editLockId ? { edit_lock_id: call.editLockId } : {}) }, `${key}:commit`);

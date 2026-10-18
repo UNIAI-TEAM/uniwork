@@ -234,8 +234,9 @@ export interface FirstSaveNamer {
 
 /**
  * The `api.save` answer the host gives while the naming dialog asks instead (UNI-1847):
- * a declined save reads as the user's own Cancel, which keeps the frame's edits unsaved with no
- * error, and never waits on the frame's `api.save` timeout (the local build reports 120 s).
+ * a declined save reads as the user's own Cancel in the protocol - the frame keeps its
+ * edits unsaved and never waits on its api.save timeout (the pinned bundle's
+ * No.transfer, 120 s; the frame prints its own generic failure line, S01-V2).
  */
 export const FIRST_SAVE_DECLINED: SaveResult = {
   ok: false,

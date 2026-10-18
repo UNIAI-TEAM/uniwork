@@ -25,6 +25,15 @@ export function hasUntitledVersionOneFile(doc: Pick<Document, "file"> | null | u
   return /^untitled\.(docx|xlsx|pptx|pdf|md|html)$/i.test(file.filename);
 }
 
+/**
+ * The extension the document's stored file carries (the module's own when the
+ * file names none): it builds the name the frame displays and, stripped from a
+ * default title, the name the dialog proposes (S01-V5).
+ */
+function fileExtension(doc: Document | null | undefined, mod: OfficeModule): string {
+  return doc?.file?.filename.match(/\.[A-Za-z0-9]{1,5}$/)?.[0] ?? `.${officeModuleSpec(mod).extension}`;
+}
+
 /** `useFirstSaveNaming`'s return: the session's `firstSave` namer plus the dialog it owns. */
 export interface FirstSaveNaming extends FirstSaveNamer {
   /** The naming dialog to render inside the frame host. */
@@ -87,9 +96,7 @@ export function useFirstSaveNaming({
     named.current = current.id;
     // The stored filename never follows the title: the frame's display name is
     // the title with the module's own extension, so its bar and recents read it.
-    const filename = current.file?.filename ?? "";
-    const ext = filename.match(/\.[A-Za-z0-9]{1,5}$/)?.[0] ?? `.${officeModuleSpec(mod).extension}`;
-    notify?.({ fileId: current.id, name: `${title}${ext}` });
+    notify?.({ fileId: current.id, name: `${title}${fileExtension(current, mod)}` });
     return true;
   };
 
@@ -99,7 +106,12 @@ export function useFirstSaveNaming({
       new Promise<boolean>((resolve) => {
         pending.current.push(resolve);
         if (pending.current.length === 1) {
-          setInitialTitle(latest.current.doc?.title ?? "");
+          const { doc: current, module: mod } = latest.current;
+          // A default title carries the format's extension; the name the user saves does
+          // not, so the dialog proposes it stripped (S01-V5). Any other suffix stays.
+          const ext = fileExtension(current, mod);
+          const title = current?.title ?? "";
+          setInitialTitle(title.toLowerCase().endsWith(ext.toLowerCase()) ? title.slice(0, -ext.length) : title);
           setOpen(true);
         }
       }),
