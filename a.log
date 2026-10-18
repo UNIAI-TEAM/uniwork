@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+d3ea04c28fe420c39135b27d9a55fbc4eb2403b0
+ebc45babe326b625fa0c094f162e623295fec5fb
+d3ea04c28 chore(merge): G5-G7 root ebc45babe into ARCHIVE-01 web
+ebc45babe chore: merge TRASH-NOTIFY-01 trash and restore notifications, server + web (UNI-1844, 024e27f64) into the G5-G7 root
+26504f7d0 fix(documents): drop the page-view clear-filters change for Lưu trữ (RAR-16)
+56c0bc1bc fix(documents): clear-filters also releases the Lưu trữ member filter (RAR-16)
+2a208d53a test(documents): pin document_shelved over the resumable fallback and the Lưu trữ clear-filters path (RAR-15, RAR-16)
+1d9fb5c25 test(views): pass shelved to composeFrameInit in merged saveCopy tests (UNI-1845, UNI-1892)
+f611c122f test(views): pin api.saveCopy on a mid-session shelved document (UNI-1845, UNI-1892)
+864a75a1b chore(merge): e6-server ARCHIVE 333086de3 (root f6aebb640) into ARCHIVE-01 web
+024e27f64 chore(merge): e6-server TN 364ce43e4 (root f6aebb640) into TRASH-NOTIFY-01 web
+364ce43e4 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1844-trash-notify

@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+d3ea04c28fe420c39135b27d9a55fbc4eb2403b0
+d3ea04c28 chore(merge): G5-G7 root ebc45babe into ARCHIVE-01 web
+ebc45babe chore: merge TRASH-NOTIFY-01 trash and restore notifications, server + web (UNI-1844, 024e27f64) into the G5-G7 root
+26504f7d0 fix(documents): drop the page-view clear-filters change for Lưu trữ (RAR-16)
+56c0bc1bc fix(documents): clear-filters also releases the Lưu trữ member filter (RAR-16)
