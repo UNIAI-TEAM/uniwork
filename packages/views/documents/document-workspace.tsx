@@ -101,7 +101,7 @@ export function DocumentWorkspace({
   const { push } = useNavigation();
   // One live gate for the layout and the file view: a pending leave guard keeps both on the editor (R3).
   const officeGate = useDocumentOfficeGate(doc);
-  const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeGate.editorOpen, Boolean(officeEditorHost));
+  const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeGate.editorOpen, Boolean(officeEditorHost), officeGate.txtOpen);
   // ARCHIVE-01: a shelved document is read-only at every level, and so is one whose autosave was just
   // refused with document_shelved (someone shelved it while this page was open): the unsaved editor
   // content stays, nothing more is sent, and the document is read again. The save machine lives in the

@@ -473,6 +473,63 @@ describe("DocumentFileView", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/v1/documents/d1/download");
   });
+  // UNI-1813: a .txt file opens in the markdown frame only while the public
+  // office_txt_open flag is on; by extension only, a bare text/plain mime never
+  // maps.
+  describe("a .txt file behind office_txt_open", () => {
+    const txtDocument = (filename = "ghi-chu.txt", mime = "text/plain") => fileDocument({
+      file: {
+        file_id: "f1", version_id: "v2", version: 2, filename,
+        mime_type: mime, size_bytes: 128, checksum_sha256: "a".repeat(64),
+      },
+    });
+
+    it.each(["ghi-chu.txt", "README.TXT"])("mounts the markdown editor on %s while the flag is on", async (filename) => {
+      mockApi();
+      featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) =>
+        key === "office_txt_open" || key === "office_engine" || fallback);
+      const officeHost = vi.fn(({ readonly: isReadonly }: { readonly: boolean }) => (
+        <div data-testid="office-host" data-readonly={String(isReadonly)}>Office host</div>
+      ));
+      render(wrap(<DocumentFileView wsId={WS} doc={txtDocument(filename)} readonly officeEditorHost={officeHost} />));
+
+      expect(await screen.findByTestId("office-host")).toHaveAttribute("data-readonly", "true");
+      expect(officeHost.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ wsId: WS, readonly: true }));
+      expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
+    });
+
+    it("keeps the download card while the flag is off, engine flag on or not", async () => {
+      mockApi();
+      for (const flags of [
+        (key: string, fallback: boolean) => (key === "office_engine" ? true : fallback),
+        (key: string, fallback: boolean) => (key === "office_engine" ? false : fallback),
+      ]) {
+        featureFlagMock.useFlag.mockImplementation(flags);
+        const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+        const view = render(wrap(<DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={officeHost} />));
+
+        expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+        expect(screen.getByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+        expect(officeHost).not.toHaveBeenCalled();
+        view.unmount();
+      }
+    });
+
+    it.each(["notes.csv", "app.log", "no-extension"])("never opens %s in the editor, text/plain or not, flag on or off", async (filename) => {
+      mockApi();
+      for (const flagOn of [false, true]) {
+        featureFlagMock.useFlag.mockImplementation((key: string, fallback: boolean) =>
+          key === "office_txt_open" ? flagOn : key === "office_engine" ? true : fallback);
+        const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+        const view = render(wrap(<DocumentFileView wsId={WS} doc={txtDocument(filename)} readonly={false} officeEditorHost={officeHost} />));
+
+        expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
+        expect(screen.getByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+        expect(officeHost).not.toHaveBeenCalled();
+        view.unmount();
+      }
+    });
+  });
 });
 
 // UNI-1645 CFE-1-2 / CFE-1-12: the file-version commit under the edit lock.

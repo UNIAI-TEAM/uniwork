@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useTranslation } from "react-i18next";
+import { useFlag } from "@uniwork/core/feature-flags";
 import type { Document } from "@uniwork/core/types/document";
 import { officeModuleForFormat } from "@uniwork/core/office/office-modules";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
@@ -27,7 +28,7 @@ const OfficeModuleHost = dynamic(() => import("./module-frame-host").then((modul
  * (server/internal/service/document_office_capability.go) and never edits them
  * in place, so they are named here and get the unsupported state.
  */
-export function detectDocumentFormat(document: Document): string {
+export function detectDocumentFormat(document: Document, txtOpen = false): string {
   const filename = document.file?.filename.toLowerCase() ?? "";
   const mime = document.file?.mime_type.toLowerCase() ?? "";
   if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
@@ -35,6 +36,9 @@ export function detectDocumentFormat(document: Document): string {
   if (mime.includes("presentationml.presentation") || filename.endsWith(".pptx")) return "pptx";
   if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
   if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
+  // UNI-1813: .txt opens in the markdown module only while office_txt_open is
+  // on. By extension only: a bare text/plain file never maps, flag on or off.
+  if (txtOpen && filename.endsWith(".txt")) return "md";
   if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
   if (mime === "application/vnd.ms-excel" || filename.endsWith(".xls")) return "xls";
   if (mime === "application/vnd.oasis.opendocument.text" || filename.endsWith(".odt")) return "odt";
@@ -56,7 +60,7 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
 
 export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
   useOfficeTabTitle(props.document.title);
-  const format = detectDocumentFormat(props.document);
+  const format = detectDocumentFormat(props.document, useFlag("office_txt_open", false));
   const officeModule = officeModuleForFormat(format);
   if (officeModule) return <OfficeModuleHost {...props} module={officeModule} />;
   return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;

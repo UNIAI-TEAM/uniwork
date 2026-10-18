@@ -3,6 +3,7 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { Download, FileText, RotateCcwClock, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
 import { useOfficeEnabled, type OfficeEnabledState } from "@uniwork/core/documents/office-enabled";
@@ -81,7 +82,7 @@ function Fact({ label, value, mono }: { label: string; value: string; mono?: boo
  * cannot open anything is worse than saying the format is not editable here
  * yet.
  */
-function officeFormat(doc: Document): string | null {
+function officeFormat(doc: Document, txtOpen = false): string | null {
   const filename = doc.file?.filename.toLowerCase() ?? "";
   const mime = doc.file?.mime_type.toLowerCase() ?? "";
   if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
@@ -89,6 +90,10 @@ function officeFormat(doc: Document): string | null {
   if (mime.includes("presentationml.presentation") || filename.endsWith(".pptx")) return "pptx";
   if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
   if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
+  // UNI-1813: .txt opens as Markdown (plain mode in the frame) only while the
+  // public office_txt_open flag is on. By extension only: a bare text/plain
+  // file (notes.csv, app.log, no extension) never maps, flag on or off.
+  if (txtOpen && filename.endsWith(".txt")) return "md";
   if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
   return null;
 }
@@ -113,11 +118,11 @@ function useLiveEditorGate(state: OfficeEnabledState, answeredAt: number): boole
 }
 
 /** True when the file opens in the Office editor instead of the file card. */
-export function usesOfficeEditor(doc: Document, officeEnabled: boolean, hasHost: boolean): boolean {
-  return officeEnabled && hasHost && Boolean(doc.file) && officeFormat(doc) !== null;
+export function usesOfficeEditor(doc: Document, officeEnabled: boolean, hasHost: boolean, txtOpen = false): boolean {
+  return officeEnabled && hasHost && Boolean(doc.file) && officeFormat(doc, txtOpen) !== null;
 }
 
-export type DocumentOfficeGate = { office: ReturnType<typeof useOfficeEnabled>; editorOpen: boolean };
+export type DocumentOfficeGate = { office: ReturnType<typeof useOfficeEnabled>; editorOpen: boolean; txtOpen: boolean };
 
 /**
  * The Office editor is allowed for this document (`office_engine` and the
@@ -126,11 +131,12 @@ export type DocumentOfficeGate = { office: ReturnType<typeof useOfficeEnabled>; 
  * The page and the file view must read the same instance (review-fe-r1 R3).
  */
 export function useDocumentOfficeGate(doc: Document): DocumentOfficeGate {
-  const format = officeFormat(doc);
+  const txtOpen = useFlag("office_txt_open", false);
+  const format = officeFormat(doc, txtOpen);
   const office = useOfficeEnabled(doc.organization_id, format);
   // A page or a non-Office file never mounts the editor, so it never runs the leave guards either.
   const editorOpen = useLiveEditorGate(format !== null && doc.file ? office.state : "off", office.answeredAt);
-  return { office, editorOpen };
+  return { office, editorOpen, txtOpen };
 }
 
 export function DocumentFileView(props: DocumentFileViewProps) {
@@ -148,7 +154,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
   const versions = useDocumentVersions(wsId, doc.id);
   const actions = useDocumentFileActions(wsId, doc);
   const { download, downloading } = actions;
-  const officeFormatId = officeFormat(doc);
+  const officeFormatId = officeFormat(doc, gate.txtOpen);
   const { office, editorOpen } = gate;
   const formatName = useOfficeFormatName();
 
@@ -160,7 +166,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
     );
   }
 
-  if (usesOfficeEditor(doc, editorOpen, Boolean(OfficeEditorHost)) && OfficeEditorHost) {
+  if (usesOfficeEditor(doc, editorOpen, Boolean(OfficeEditorHost), gate.txtOpen) && OfficeEditorHost) {
     // The editor replaces this view, so its file commands move to the page
     // overflow menu (version history is already one of its entries).
     return (
