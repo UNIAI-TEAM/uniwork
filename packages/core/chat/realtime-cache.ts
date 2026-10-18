@@ -147,7 +147,10 @@ export function insertCreatedRoomMessage(
 
 /** A message created or deleted on the main timeline can change the info panel's media counts. */
 function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: string): void {
-  void qc.invalidateQueries({ queryKey: chatKeys.roomSharedSummary(wsId, roomId) });
+  const queryKey = chatKeys.roomSharedSummary(wsId, roomId);
+  // Only a summary someone loaded can be stale; skipping the rest keeps message frames to their timeline patch.
+  if (!qc.getQueryState(queryKey)) return;
+  void qc.invalidateQueries({ queryKey });
 }
 
 function patchWorkspaceMessageListIfLoaded(
