@@ -15,7 +15,7 @@ import { extendTailwindMerge } from "tailwind-merge";
  */
 const FONT_SIZES = [
   "micro", "caption", "label", "body", "body-lg",
-  "title-sm", "title", "title-lg",
+  "title-sm", "title", "title-lg", "title-xl",
   "display-sm", "display",
   "hero-sm", "hero", "hero-lg",
   "avatar-stage",
@@ -41,6 +41,7 @@ const COLORS = [
   "chat-sender-5", "chat-sender-6", "chat-sender-7", "chat-sender-8",
   "chat-wall", "chat-wall-dot", "chat-bubble-own", "chat-bubble-own-foreground",
   "chat-bubble-own-meta", "chat-bubble-other", "chat-chip", "chat-chip-foreground",
+  "chat-rail", "chat-rail-border",
   "meeting-bar-bg", "meeting-bar-border", "meeting-bar-foreground",
   "meeting-bar-chip-bg", "meeting-bar-chip-hover",
   "meeting-tile-name-bg", "meeting-tile-name-foreground",

@@ -272,6 +272,9 @@
   --chat-bubble-shadow: 0 1px 1px rgb(15 23 42 / 0.08);
   --chat-chip: rgb(255 255 255 / 0.9);
   --chat-chip-foreground: #3b4250;
+  /* UniChat's workspace rail (the desktop shell's left column) and its hairline. */
+  --chat-rail: #f4f6f9;
+  --chat-rail-border: #eceef2;
 
   /* ClickUp elevation: borders do the work, shadows stay tiny. feature-card
      for surfaces, hero-card + a 1px hairline for menus, the agent-card
@@ -508,6 +511,8 @@
   --chat-bubble-shadow: 0 1px 1px rgb(0 0 0 / 0.3);
   --chat-chip: rgb(38 38 42 / 0.92);
   --chat-chip-foreground: #d4d4d8;
+  --chat-rail: #0a0a0b;
+  --chat-rail-border: #232326;
 
   /* Dark tints: the hue mixed into the surface grey, glyph lifted to the
      light-theme signal weight. violet 5.82, blue 6.79, pink 6.47, orange
@@ -724,6 +729,8 @@ html.dark[data-accent] {
   --color-chat-bubble-other: var(--chat-bubble-other);
   --color-chat-chip: var(--chat-chip);
   --color-chat-chip-foreground: var(--chat-chip-foreground);
+  --color-chat-rail: var(--chat-rail);
+  --color-chat-rail-border: var(--chat-rail-border);
   --color-tint-violet: var(--tint-violet);
   --color-tint-violet-foreground: var(--tint-violet-foreground);
   --color-tint-blue: var(--tint-blue);
@@ -818,6 +825,8 @@ html.dark[data-accent] {
   --text-title-sm: calc(16px * var(--font-scale));   --text-title-sm--line-height: calc(22px * var(--font-scale));  --text-title-sm--letter-spacing: -0.015em;
   --text-title: calc(18px * var(--font-scale));      --text-title--line-height: calc(24px * var(--font-scale));     --text-title--letter-spacing: -0.02em;
   --text-title-lg: calc(20px * var(--font-scale));   --text-title-lg--line-height: calc(26px * var(--font-scale));  --text-title-lg--letter-spacing: -0.02em;
+  /* The chat list's workspace name and the canvas' sheet titles: 800 22/28. */
+  --text-title-xl: calc(22px * var(--font-scale));   --text-title-xl--line-height: calc(28px * var(--font-scale));  --text-title-xl--letter-spacing: -0.01em;
   --text-display-sm: calc(24px * var(--font-scale)); --text-display-sm--line-height: calc(30px * var(--font-scale)); --text-display-sm--letter-spacing: -0.025em;
   --text-display: calc(36px * var(--font-scale));    --text-display--line-height: calc(40px * var(--font-scale));   --text-display--letter-spacing: -0.03em;
   /* Hero roles (screen-leading headlines only). ClickUp's 1.1 leading and
@@ -849,7 +858,7 @@ html.dark[data-accent] {
    this block lands after the generated utilities, so the display face won and
    typed text in inputs rendered in the heading family. */
 @layer utilities {
-  :where(.text-title-sm, .text-title, .text-title-lg,
+  :where(.text-title-sm, .text-title, .text-title-lg, .text-title-xl,
   .text-display-sm, .text-display,
   .text-hero-sm, .text-hero, .text-hero-lg):not(.font-sans) {
     font-family: var(--font-display);

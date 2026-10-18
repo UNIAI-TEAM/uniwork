@@ -27,11 +27,17 @@ vi.mock("./workspace-realtime-sync", () => ({ WorkspaceRealtimeSync: () => null 
 vi.mock("./workspace-chat-presence", () => ({ WorkspaceChatPresence: () => null }));
 vi.mock("./workspace-chat-attention", () => ({ WorkspaceChatAttention: () => null }));
 vi.mock("./entitlement-gate-toast", () => ({ EntitlementGateToastHost: () => null }));
-vi.mock("./app-sidebar", () => ({
-  AppSidebar: (p: { variant?: string }) => <div data-testid="app-sidebar" data-variant={p.variant ?? "full"} />,
-}));
+vi.mock("./app-sidebar", () => ({ AppSidebar: () => <div data-testid="app-sidebar" /> }));
+vi.mock("./workspace-rail", () => ({ WorkspaceRail: () => <div data-testid="workspace-rail" /> }));
+vi.mock("./workspace-chat-toast", () => ({ WorkspaceChatToast: () => null }));
 vi.mock("./navigation-progress", () => ({ NavigationProgress: () => null }));
-vi.mock("./workspace-top-bar", () => ({ WorkspaceChrome: ({ children }: { children: ReactNode }) => children }));
+vi.mock("./workspace-top-bar", () => ({
+  WorkspaceChrome: ({ children, bare }: { children: ReactNode; bare?: boolean }) => (
+    <div data-testid="chrome" data-bare={String(Boolean(bare))}>
+      {children}
+    </div>
+  ),
+}));
 
 const flush = async () => {
   await new Promise((resolve) => queueMicrotask(() => resolve(null)));
@@ -82,21 +88,25 @@ describe("DashboardLayout workspace storage scope", () => {
 });
 
 describe("DashboardLayout variant", () => {
-  it("renders the full sidebar by default", () => {
+  it("renders the full sidebar and the top bar by default", () => {
     render(
       <DashboardLayout orgSlug="acme" wsSlug="team">
         <p>workspace body</p>
       </DashboardLayout>,
     );
-    expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-variant", "full");
+    expect(screen.getByTestId("app-sidebar")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-rail")).toBeNull();
+    expect(screen.getByTestId("chrome")).toHaveAttribute("data-bare", "false");
   });
 
-  it("hands a chat-only variant to the sidebar", () => {
+  it("swaps the sidebar for the workspace rail and drops the top bar in chat-only", () => {
     render(
       <DashboardLayout orgSlug="acme" wsSlug="team" variant="chat-only">
         <p>workspace body</p>
       </DashboardLayout>,
     );
-    expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-variant", "chat-only");
+    expect(screen.getByTestId("workspace-rail")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-sidebar")).toBeNull();
+    expect(screen.getByTestId("chrome")).toHaveAttribute("data-bare", "true");
   });
 });
