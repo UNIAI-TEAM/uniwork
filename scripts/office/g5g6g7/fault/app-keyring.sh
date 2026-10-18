@@ -20,6 +20,15 @@
 # stays in a variable of this script (never exported, printed or written): only
 # this script can unlock the collection it created.
 #
+# Why unlock restarts the daemon (G7-03b fix4 CL1-5): a collection locked through
+# Secret.Service.Lock is NOT unlocked again by `gnome-keyring-daemon --unlock`
+# sent over the control socket (gnome-keyring 40, the Ubuntu 22.04 package; the
+# client answers rc=0 and the collection stays locked, so every FL-09 run ended
+# "the collection is still locked after unlock"). A daemon that starts with the
+# password does unlock it, so unlock stops the daemon and starts a new one on the
+# same XDG_DATA_HOME keyring file with the password on stdin - the very path that
+# brought the first one up. The secrets stored before the lock are still there.
+#
 #   APP_KEYRING_CONTROL=1 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh \
 #     node scripts/office/g5g6g7/fault/app-cases.mjs --case FL-09 --run-dir .harness-run
 set -u
@@ -35,15 +44,18 @@ export XDG_DATA_HOME="$WORK/data" XDG_RUNTIME_DIR="$WORK/run"
 mkdir -p -m 700 "$XDG_DATA_HOME" "$XDG_RUNTIME_DIR"
 GKD_PID=""
 CTL_PID=""
+# the daemon of the moment: control-mode unlock replaces it, from the control loop's own subshell
+GKD_PID_FILE="$WORK/gkd.pid"
 cleanup() {
   if [ -n "$CTL_PID" ]; then
     kill "$CTL_PID" 2> /dev/null || true
     wait "$CTL_PID" 2> /dev/null || true
   fi
-  if [ -n "$GKD_PID" ]; then
-    kill "$GKD_PID" 2> /dev/null || true
-    wait "$GKD_PID" 2> /dev/null || true
-  fi
+  current="$(cat "$GKD_PID_FILE" 2> /dev/null || true)"
+  for pid in $current $GKD_PID; do
+    kill "$pid" 2> /dev/null || true
+  done
+  [ -z "$GKD_PID" ] || wait "$GKD_PID" 2> /dev/null || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -63,6 +75,7 @@ fi
 KEYRING_PASSWORD="$(head -c 24 /dev/urandom | base64 | tr -d '\n=/+')"
 printf '%s' "$KEYRING_PASSWORD" | gnome-keyring-daemon --foreground --unlock --components=secrets > "$WORK/gkd.log" 2>&1 &
 GKD_PID=$!
+printf '%s' "$GKD_PID" > "$GKD_PID_FILE"
 CTL_PASSWORD=""
 if [ "${APP_KEYRING_CONTROL:-}" = 1 ]; then CTL_PASSWORD="$KEYRING_PASSWORD"; fi
 unset KEYRING_PASSWORD
@@ -98,6 +111,26 @@ collection_locked() {
   dbus-send --session --print-reply --dest=org.freedesktop.secrets "$1" \
     org.freedesktop.DBus.Properties.Get string:org.freedesktop.Secret.Collection string:Locked 2> /dev/null | sed -n 's/.*boolean \(true\|false\).*/\1/p'
 }
+# stops the daemon of the moment and waits until it has left the bus: the next one must own the name
+stop_keyring() {
+  pid="$(cat "$GKD_PID_FILE" 2> /dev/null || true)"
+  [ -z "$pid" ] || kill "$pid" 2> /dev/null || true
+  for _ in $(seq 1 20); do
+    if { [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; } && ! name_owned; then return 0; fi
+    sleep 0.25
+  done
+  return 1
+}
+# starts a daemon on the same keyring file with the password, like the first one; waits until it owns the name
+start_unlocked_keyring() {
+  printf '%s' "$CTL_PASSWORD" | gnome-keyring-daemon --foreground --unlock --components=secrets >> "$WORK/gkd.log" 2>&1 &
+  printf '%s' "$!" > "$GKD_PID_FILE"
+  for _ in $(seq 1 30); do
+    name_owned && return 0
+    sleep 0.25
+  done
+  return 1
+}
 keyring_ctl_loop() {
   while true; do
     cmd=""
@@ -113,8 +146,14 @@ keyring_ctl_loop() {
           if [ "$(collection_locked "$coll")" = true ]; then reply=ok; else reply="fail: the collection is still unlocked after Lock"; fi
           ;;
         unlock)
-          printf '%s' "$CTL_PASSWORD" | GNOME_KEYRING_CONTROL="$XDG_RUNTIME_DIR/keyring" gnome-keyring-daemon --unlock > /dev/null 2>&1 || true
-          if [ "$(collection_locked "$coll")" = false ]; then reply=ok; else reply="fail: the collection is still locked after unlock"; fi
+          if ! stop_keyring; then
+            reply="fail: the locked keyring daemon did not leave the bus"
+          elif ! start_unlocked_keyring; then
+            reply="fail: the keyring daemon did not come back on the bus after unlock"
+          else
+            coll="$(default_collection)"
+            if [ "$(collection_locked "$coll")" = false ]; then reply=ok; else reply="fail: the collection is still locked after unlock"; fi
+          fi
           ;;
         *) reply="fail: unknown command" ;;
       esac
