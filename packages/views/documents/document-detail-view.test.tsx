@@ -13,6 +13,7 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import "../test/lazy-document-editor";
 import { useReportFrameComments } from "./document-comments-context";
 import { DocumentDetailView } from "./document-detail-view";
 

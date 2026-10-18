@@ -8,6 +8,7 @@ import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwo
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import "../test/lazy-document-editor";
 import { editLockRoute } from "../test/edit-lock-fake";
 import { DocumentDetailView } from "./document-detail-view";
 import { VersionHistorySheet } from "./version-history-sheet";
