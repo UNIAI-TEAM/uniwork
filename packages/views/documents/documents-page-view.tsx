@@ -29,7 +29,8 @@ import { LibraryToolbar } from "./documents-library-toolbar";
 import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-folders-grid";
 import { DocumentsShelvedView } from "./documents-shelved-view";
 import { DocumentsTrashView } from "./documents-trash-view";
-import { DocumentsSidebar, DocumentsSidebarSheet, SOURCE_KINDS, type LibraryView } from "./documents-sidebar";
+import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
+import { downloadSourceFile } from "./download-source-file";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
@@ -45,46 +46,7 @@ import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
 import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
-
-function viewFromSearchParams(searchParams: URLSearchParams): LibraryView {
-  if (searchParams.get("folder")) return { kind: "home" };
-  const rawView = searchParams.get("view");
-  switch (rawView) {
-    case "recent":
-    case "starred":
-    case "shared":
-    case "archived":
-      return { kind: rawView };
-    case "shared-by-me":
-      return { kind: "sharedByMe" };
-    case "shelved":
-      return { kind: "shelved" };
-    case "sources": {
-      const rawSource = searchParams.get("source");
-      const source =
-        rawSource && (SOURCE_KINDS as readonly string[]).includes(rawSource)
-          ? (rawSource as (typeof SOURCE_KINDS)[number])
-          : null;
-      return { kind: "sources", source };
-    }
-    default:
-      return { kind: "home" };
-  }
-  return { kind: "home" };
-}
-
-function buildDocumentsViewUrl(
-  wsPaths: { documents: () => string; documentsFolder: (folderId: string) => string },
-  next: LibraryView,
-  nextFolder: string | null,
-): string {
-  const targetFolder = next.kind === "home" ? nextFolder : null;
-  if (targetFolder) return wsPaths.documentsFolder(targetFolder);
-  const base = wsPaths.documents();
-  if (next.kind === "home") return base;
-  if (next.kind === "sources") return next.source ? `${base}?view=sources&source=${encodeURIComponent(next.source)}` : `${base}?view=sources`;
-  return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
-}
+import { buildDocumentsViewUrl, viewFromSearchParams } from "./documents-view-url";
 
 export interface DocumentsPageViewProps {
   wsId: string;
@@ -158,28 +120,22 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const sourcePreview = useSourcePreview(downloadSource);
   // The row-menu download (and the viewer's fallback when no module frame can
   // host the file): one code path for both, named for the file.
-  const downloadSourceFile = (sourceId: string) => {
-    void downloadSource.mutateAsync({ sourceId }).then(
-      (blob) => {
-        const name = library.state.rows.find((row) => row.type === "source" && row.source.id === sourceId);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = name?.type === "source" ? name.source.name : "";
-        document.body.append(link);
-        link.click();
-        link.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const downloadFile = (sourceId: string) =>
+    downloadSourceFile({
+      sourceId,
+      fetchBlob: (id) => downloadSource.mutateAsync({ sourceId: id }),
+      fileName: (id) => {
+        const name = library.state.rows.find((row) => row.type === "source" && row.source.id === id);
+        return name?.type === "source" ? name.source.name : "";
       },
-      (error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.row.download_failed")),
-    );
-  };
+      failedCopy: t("documents.home.row.download_failed"),
+    });
 
   const officeViewer = useSourceOfficeViewer({
     wsId,
     organizationId: context?.workspace.organization_id,
     frameVersion: officeFrameVersion ?? (() => ""),
-    onDownload: (source) => downloadSourceFile(source.id),
+    onDownload: (source) => downloadFile(source.id),
   });
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
@@ -284,8 +240,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onPreviewSource: sourcePreview.open,
     // UNI-1869: an Office source opens view-only in its module frame; no module
     // or no installed build takes the download the click always offered.
-    onViewSource: (source) => { if (!officeViewer.open(source)) downloadSourceFile(source.id); },
-    onDownloadSource: downloadSourceFile,
+    onViewSource: (source) => { if (!officeViewer.open(source)) downloadFile(source.id); },
+    onDownloadSource: downloadFile,
     onSaveSource: rowDialogs.onSaveSource,
     onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
     onRename: rowCommands ? rowDialogs.onRename : undefined,
