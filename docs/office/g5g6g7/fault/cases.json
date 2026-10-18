@@ -3414,7 +3414,10 @@
           ],
           "renewRefusalStatus": 403,
           "plaintextCopies": 0,
-          "renewRefusalCode": "offline_lease_revoked"
+          "renewRefusalCode": "offline_lease_revoked",
+        "regrantStates": [
+          "ready"
+        ]
         },
         "notes": {
           "client": [

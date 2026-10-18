@@ -45,7 +45,7 @@ const OFFLINE_KEYS = Object.freeze({
   // refusal codes of an offline action (fork shared/offline-library.ts OfflineFailureCode): a driver accepts these and no other
   codes: ["openRefusalCodes"],
   // shortLeaseStates: what a row reads once the rewritten short lease is granted (fork lease/clock.ts: < 4 h left = lease-expiring)
-  states: ["faultedStates", "recoveredStates", "firstLaunchStates", "shortLeaseStates", "tamperAccepts", "tamperNeverStates"],
+  states: ["faultedStates", "recoveredStates", "firstLaunchStates", "shortLeaseStates", "regrantStates", "tamperAccepts", "tamperNeverStates"],
   text: ["lockReason", "renewRefusalCode"],
 });
 

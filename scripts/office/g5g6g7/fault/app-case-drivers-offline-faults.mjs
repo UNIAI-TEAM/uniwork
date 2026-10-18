@@ -431,6 +431,11 @@ async function fl05(ctx) {
   };
 }
 
+/** the 200 lease PUTs after a log position */
+function leaseGrantsSince(log, boundary) {
+  return log.slice(boundary).filter((entry) => entry.method === "PUT" && String(entry.path).endsWith("/office/offline-lease") && entry.status === 200);
+}
+
 // ---- FL-06: the lease is revoked on D while the app is offline ------------------------
 async function fl06(ctx) {
   const faulted = ctx.expect.offline("faultedStates");
@@ -470,9 +475,23 @@ async function fl06(ctx) {
   const shots = await captureRowShots(ctx, session, { s11: true, s3: true });
   const faultedState = collectOfflineState(storeArgs(ctx, [doc.id]));
   const copies = listPlaintextCopies(ctx.userDataDir(), ctx.deploymentId(), { accountIds: [ctx.tenant.app.userId] });
-  const log = await ctx.proxyLog();
   writeStoreEvidence(ctx.runDirOut(), { before, faulted: faultedState, after: faultedState });
   const evidence = revoke.evidence;
+  // (b) the regrant is BY DESIGN: the CLI bumps the org policy epoch and ends every old-epoch lease, it does not ban new
+  // grants (D office_lease.go:294-355, fork lease/manager.ts:653-674). A fresh grant needs the live session: with the
+  // network cut a pin cannot take one, with it back the pin gets a lease under the NEW epoch (the CLI line's epoch)
+  const regrantStates = ctx.expect.offline("regrantStates");
+  await ctx.setRules(ctx.caseRules(["cut-network"]));
+  const offlineBoundary = (await ctx.proxyLog()).length;
+  await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
+  const offlineRow = await rowReading(session, doc.id);
+  const offlineGrants = leaseGrantsSince(await ctx.proxyLog(), offlineBoundary);
+  await ctx.clearRules();
+  const onlineBoundary = (await ctx.proxyLog()).length;
+  await pinDocument(session, { documentId: doc.id, workspaceId: ctx.tenant.workspaceId });
+  const regranted = await awaitRowState(ctx, session, doc.id, regrantStates);
+  const onlineGrants = leaseGrantsSince(await ctx.proxyLog(), onlineBoundary);
+  const log = await ctx.proxyLog();
   return {
     documentId: doc.id,
     assertions: [
@@ -497,6 +516,21 @@ async function fl06(ctx) {
       assertion("retry_answered", "an answer (a refusal is expected)", retry?.ok === true ? "ok" : retry?.code ?? "no answer", Boolean(retry)),
       assertion("row_revoked", faulted.join("|"), row?.state ?? "never", Boolean(row)),
       refusalAssertion(ctx, "open_refused_permission_revoked", opened),
+      // (b) no grant without the live session: the copy stays revoked while the network is cut
+      assertion(
+        "regrant_needs_live_session",
+        "no lease grant and the row still revoked while offline",
+        `${offlineGrants.length} grant(s), row ${offlineRow?.state ?? "unread"}`,
+        offlineGrants.length === 0 && offlineRow?.state !== undefined && !regrantStates.includes(offlineRow.state),
+      ),
+      // (b) with the live session the fresh grant lands under the NEW epoch the CLI reported, and the copy is usable again
+      assertion(
+        "regrant_records_new_epoch",
+        `a 200 lease grant with policy_epoch ${evidence?.epoch ?? "?"} (the CLI line's epoch)`,
+        onlineGrants.map((entry) => `${entry.status} policy_epoch ${entry.policyEpoch ?? "unread"}`).join(",") || "(no grant seen)",
+        Number.isInteger(evidence?.epoch) && onlineGrants.some((entry) => entry.policyEpoch === evidence.epoch),
+      ),
+      assertion("regrant_row_usable", regrantStates.join("|"), regranted?.state ?? "never", Boolean(regranted)),
       offlineCountAssertion(ctx, "no_plaintext_copy_left", "plaintextCopies", copies.length),
       ...shots,
       ...noWriteAssertions(ctx, log, doc.id),

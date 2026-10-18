@@ -67,6 +67,9 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     expireAfterPolls: 2,
     diskFull: false,
     revoked: false,
+    // the org's offline policy epoch (the revoke CLI bumps it) and how many fresh grants a live session may still take under it
+    policyEpoch: 1,
+    regrantsLeft: 1,
     revokedSeen: new Set(),
     revokeFails: false,
     keyringLocked: false,
@@ -161,21 +164,25 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
    * rollback. Every grant moves the document's lease record, so "the lease was not extended" is a real store
    * comparison.
    */
-  const leasePut = (documentId) => {
+  const leasePut = (documentId, fresh = false) => {
     const path = `/api/v1/documents/${documentId}/office/offline-lease`;
     const rule = matchingRule("PUT", path);
     if (rule?.action.type === "reset") {
       world.log.push({ method: "PUT", path, status: "reset", ruleId: rule.id });
       return "cut";
     }
-    if (world.revoked) {
+    // a renewal of a lease from an older policy epoch is refused; a fresh grant (a pin, no lease token) is a new row under the new epoch
+    const oldEpoch = (world.leases.get(documentId)?.epoch ?? 1) < world.policyEpoch;
+    if (world.revoked && ((!fresh && oldEpoch) || (fresh && world.regrantsLeft <= 0))) {
       world.log.push({ method: "PUT", path, status: 403, ruleId: rule?.id ?? null, errorCode: world.revokeErrorCode ?? "offline_lease_revoked" });
       return "revoked";
     }
-    world.log.push({ method: "PUT", path, status: 200, ruleId: rule?.id ?? null });
+    if (world.revoked && fresh && oldEpoch) world.regrantsLeft -= 1;
+    world.log.push({ method: "PUT", path, status: 200, ruleId: rule?.id ?? null, policyEpoch: world.grantEpochOverride ?? world.policyEpoch });
+    world.revokedSeen.delete(documentId);
     const short = rule?.action.type === "rewrite_json";
     const ttlMs = short ? rule.action.patch.expires_at.now_plus_ms : FULL_LEASE_MS;
-    world.leases.set(documentId, { short, ttlMs, grantedAt: Date.now(), polls: 0, expired: false });
+    world.leases.set(documentId, { short, ttlMs, grantedAt: Date.now(), polls: 0, expired: false, epoch: world.policyEpoch });
     world.rollbackLatched = false;
     writeRecord(world.leaseDir(), `lease/${documentId}`, Buffer.from(`lease-${documentId}-${++world.leaseSeq}`));
     return "granted";
@@ -240,7 +247,7 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       }
       world.rows.set(documentId, { state: "ready", name: "doc" });
       world.writeLibrary(documentId);
-      leasePut(documentId);
+      leasePut(documentId, true);
       return { ok: true };
     },
     downloadNow: async (documentId) => {
@@ -517,6 +524,7 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       world.vmCalls.push(["revoke"]);
       if (world.revokeFails) return { failure: "uniwork-admin revoke-offline-leases exited 1: no organization", evidence: null };
       world.revoked = true;
+      world.policyEpoch = 2;
       const revoked = world.revokedCount ?? world.leases.size;
       const orgId = world.revokeOrgId ?? ctx.tenant.orgId;
       return { failure: null, evidence: { line: `${orgId} offline policy epoch now 2, ${revoked} live lease(s) revoked`, orgId, epoch: 2, revoked } };

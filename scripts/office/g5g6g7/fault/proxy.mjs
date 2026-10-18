@@ -29,6 +29,19 @@ export function errorCodeOf(body) {
 }
 
 
+/** `policy_epoch` of a lease grant answer (top level, `lease` or `data`) when it is a non-negative integer, else null. */
+export function policyEpochOf(body) {
+  try {
+    const parsed = JSON.parse(body.toString("utf8"));
+    const epoch = parsed?.policy_epoch ?? parsed?.lease?.policy_epoch ?? parsed?.data?.policy_epoch;
+    return Number.isInteger(epoch) && epoch >= 0 ? epoch : null;
+  } catch {
+    return null;
+  }
+}
+
+const LEASE_PATH_SUFFIX = "/office/offline-lease";
+
 const CONTROL_PREFIX = "/__fault";
 
 function sleep(ms) {
@@ -207,7 +220,7 @@ export async function startFaultProxy({
     return { idempotencyKey: true, keyTag };
   }
 
-  function recordLog({ startTime, method, path, status, idempotencyKey, keyTag, ruleId, errorCode }) {
+  function recordLog({ startTime, method, path, status, idempotencyKey, keyTag, ruleId, errorCode, policyEpoch }) {
     const entry = {
       ts: new Date().toISOString(),
       method: String(method || "GET").toUpperCase(),
@@ -220,6 +233,8 @@ export async function startFaultProxy({
       // the error code of a JSON 4xx/5xx answer (`error.code`), never the body: an app row
       // must tell `offline_lease_revoked` from any other 403 (G7-03b R2-9)
       ...(errorCode ? { errorCode } : {}),
+      // the policy epoch a lease grant answered with (G7-03b R2-9: a regrant after a revoke records the NEW epoch)
+      ...(Number.isInteger(policyEpoch) ? { policyEpoch } : {}),
     };
     const serialized = `${JSON.stringify(entry)}\n`;
     logEntries.push(serialized);
@@ -345,7 +360,7 @@ export async function startFaultProxy({
     bufferedBody = null,
   }) {
     let logged = false;
-    const logOnce = (status, errorCode = null) => {
+    const logOnce = (status, errorCode = null, policyEpoch = null) => {
       if (logged) return;
       logged = true;
       recordLog({
@@ -357,6 +372,7 @@ export async function startFaultProxy({
         keyTag,
         ruleId,
         errorCode,
+        policyEpoch,
       });
     };
 
@@ -417,7 +433,8 @@ export async function startFaultProxy({
           res.writeHead(statusCode, proxyRes.headers);
         }
         // the first 4 KiB of an uncompressed 4xx/5xx answer, read on the side only to name its error code
-        const sniffError = statusCode >= 400 && !proxyRes.headers["content-encoding"];
+        const leaseGrant = statusCode === 200 && req.method === "PUT" && String(cleanPath).endsWith(LEASE_PATH_SUFFIX);
+        const sniffError = (statusCode >= 400 || leaseGrant) && !proxyRes.headers["content-encoding"];
         const sniffed = [];
         let sniffedBytes = 0;
         proxyRes.on("data", (chunk) => {
@@ -431,7 +448,8 @@ export async function startFaultProxy({
           }
         });
         proxyRes.on("end", () => {
-          logOnce(statusCode, sniffError ? errorCodeOf(Buffer.concat(sniffed)) : null);
+          const sniffedBody = sniffError ? Buffer.concat(sniffed) : null;
+          logOnce(statusCode, sniffedBody && !leaseGrant ? errorCodeOf(sniffedBody) : null, sniffedBody && leaseGrant ? policyEpochOf(sniffedBody) : null);
           if (!res.writableEnded && !res.destroyed) {
             res.end();
           }

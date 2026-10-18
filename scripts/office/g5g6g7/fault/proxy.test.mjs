@@ -817,3 +817,27 @@ test("the proxy log names the error code of a JSON 4xx answer (never the body) s
   for (const path of ["/html", "/gzip", "/fine"]) assert.equal("errorCode" in entries[path], false, `${path}: no code recorded`);
   assert.equal(log.includes("SECRET-BODY-TEXT"), false, "the body never reaches the log");
 });
+
+test("the proxy log records policy_epoch of a 200 lease PUT answer and nothing else of the body (R2-9 regrant)", async (t) => {
+  const upstream = http.createServer((req, res) => {
+    req.resume();
+    const body = req.url.endsWith("/office/offline-lease")
+      ? JSON.stringify({ policy_epoch: 3, token: "SECRET-TOKEN" })
+      : JSON.stringify({ policy_epoch: 9 });
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(body);
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  const proxy = await startFaultProxy({ target: `http://127.0.0.1:${upstream.address().port}` });
+  t.after(async () => {
+    await proxy.close();
+    await new Promise((resolve) => upstream.close(resolve));
+  });
+  await (await fetch(`${proxy.origin}/api/v1/documents/d1/office/offline-lease`, { method: "PUT" })).arrayBuffer();
+  await (await fetch(`${proxy.origin}/api/v1/other`, { method: "PUT" })).arrayBuffer();
+  const log = await (await fetch(`${proxy.origin}/__fault/log`)).text();
+  const entries = log.trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(entries[0].policyEpoch, 3);
+  assert.equal("policyEpoch" in entries[1], false, "only a lease grant answer is read");
+  assert.equal(log.includes("SECRET-TOKEN"), false);
+});

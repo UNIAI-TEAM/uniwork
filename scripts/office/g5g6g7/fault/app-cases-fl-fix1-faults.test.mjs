@@ -351,3 +351,36 @@ test("R2-11: an unproven cleanup stops every later row through the shared guard,
   assert.match(uncleanBlocker(guard.unclean()), /^not run: an earlier row could not prove its cleanup \(unmount of the tmpfs: busy\)/);
   assert.equal(guard.failure(), null, "the override lift is a separate failure");
 });
+
+// ---- R2-9 amendment: the regrant after a revoke is BY DESIGN and FL-06 asserts it ----------------
+
+test("R2-9 amendment: FL-06 asserts the regrant - none without the live session, then one fresh grant under the NEW epoch from the CLI line", async () => {
+  const { byName, failed, world } = await run("FL-06");
+  assert.deepEqual(failed, []);
+  assert.deepEqual(world.row.expect.offline.regrantStates, ["ready"]);
+  assert.match(byName.regrant_needs_live_session.actual, /^0 grant\(s\), row revoked$/);
+  assert.match(byName.regrant_records_new_epoch.actual, /^200 policy_epoch 2$/);
+  assert.match(byName.regrant_records_new_epoch.expected, /policy_epoch 2 \(the CLI line's epoch\)/);
+  assert.equal(byName.regrant_row_usable.actual, "ready");
+});
+
+test("R2-9 amendment: FL-06 a regrant stamped with the OLD epoch is not the new epoch - regrant_records_new_epoch fails", async () => {
+  const { failed } = await run("FL-06", (w) => { w.grantEpochOverride = 1; });
+  assert.ok(failed.includes("regrant_records_new_epoch"));
+});
+
+test("R2-9 amendment: FL-06 a product that cannot take the one fresh grant (no regrant) fails regrant_records_new_epoch and regrant_row_usable", async () => {
+  const { failed } = await run("FL-06", (w) => { w.regrantsLeft = 0; });
+  assert.ok(failed.includes("regrant_records_new_epoch"));
+  assert.ok(failed.includes("regrant_row_usable"));
+  assert.equal(failed.includes("renew_refused_after_revoke"), false, "the old-epoch renewal refusal is unchanged");
+});
+
+test("R2-9 amendment: FL-06 the renewal of the OLD-epoch lease is still refused with the exact code before the regrant", async () => {
+  const { byName, world } = await run("FL-06");
+  assert.match(byName.renew_refused_after_revoke.actual, /403 offline_lease_revoked/);
+  const puts = world.log.filter((entry) => entry.method === "PUT");
+  const refused = puts.findIndex((entry) => entry.status === 403);
+  const regrant = puts.findIndex((entry, index) => index > refused && entry.status === 200);
+  assert.ok(refused >= 0 && regrant > refused, "the refusal comes first, the regrant after it");
+});
