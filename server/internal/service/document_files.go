@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -168,23 +169,42 @@ func (s *DocumentService) uploadChecked(
 	}
 	var facts document.FileFacts
 	checked := false
-	up, err := fs.Upload(ctx, files.UploadInput{
-		Actor:          actor,
-		Purpose:        purpose,
-		Scope:          scope,
-		IdempotencyKey: key,
-		Filename:       in.Filename,
-		Body:           in.Body,
-		Check: func(_ context.Context, body io.ReaderAt, size int64, contentType string) error {
-			var err error
-			facts, err = document.ValidateFile(body, size, contentType, s.fileLimits())
-			if err != nil {
-				return documentValidationError(err)
-			}
-			checked = true
-			return nil
-		},
-	})
+	upload := func(uploadKey string) (files.Upload, error) {
+		checked = false
+		return fs.Upload(ctx, files.UploadInput{
+			Actor:          actor,
+			Purpose:        purpose,
+			Scope:          scope,
+			IdempotencyKey: uploadKey,
+			Filename:       in.Filename,
+			Body:           in.Body,
+			Check: func(_ context.Context, body io.ReaderAt, size int64, contentType string) error {
+				var err error
+				facts, err = document.ValidateFile(body, size, contentType, s.fileLimits())
+				if err != nil {
+					return documentValidationError(err)
+				}
+				checked = true
+				return nil
+			},
+		})
+	}
+	up, err := upload(key)
+	// R1-2 case 2 (UNI-1900): a frame Save derives its upload key from
+	// (documentId, baseRevision, bytes), and an identical-bytes no-op leaves
+	// baseRevision where it was and its upload staged. Once that staged upload
+	// passes its 24h claim window (files.ClaimTTL), FileService refuses the
+	// key with file_claim_expired before reading a byte from in.Body (FS-C1 §4
+	// step 2) and after verifying the command fingerprint. Stepping to a
+	// deterministic generation suffix re-stages the bytes without changing the
+	// FileService T1-Q8 contract, while a retry within the new window still
+	// replays the restaged upload.
+	for gen := 1; err != nil && in.IdempotencyKey != "" && isFileClaimExpired(err) && gen <= maxExpiredUploadRestages; gen++ {
+		up, err = upload(key + ":" + strconv.Itoa(gen))
+	}
+	if err != nil && in.IdempotencyKey != "" && isFileClaimExpired(err) {
+		up, err = upload(key + ":" + util.NewID())
+	}
 	if err != nil {
 		err = documentFileError(err)
 		s.recordDocumentUploadQuota(purpose, err)
@@ -197,6 +217,15 @@ func (s *DocumentService) uploadChecked(
 		}
 	}
 	return up, facts, nil
+}
+
+// maxExpiredUploadRestages bounds how many expired 24h windows a single
+// deterministic upload key steps across before falling back to a one-off key.
+const maxExpiredUploadRestages = 8
+
+func isFileClaimExpired(err error) bool {
+	var fe *files.Error
+	return errors.As(err, &fe) && fe.Code == files.CodeClaimExpired
 }
 
 // checkStoredFile reads the stored bytes back through Open into a temporary
