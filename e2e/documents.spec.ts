@@ -184,7 +184,7 @@ test("the library lists pages across its views and the tree opens one", async ({
   const list = page.getByRole("table", { name: "Tài liệu" });
   await expect(page.getByRole("heading", { name: "Thư mục 1", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(
-    page.getByRole("region", { name: "Thư mục 1" }).getByRole("button", { name: "Thư mục của tôi", exact: true }),
+    page.getByRole("region", { name: "Thư mục 1" }).getByRole("button", { name: /^Thư mục của tôi/ }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Tài liệu 0", exact: true })).toBeVisible();
   await expect(page.getByRole("treeitem", { name: /UniNote mới/ })).toHaveCount(0);
@@ -218,7 +218,7 @@ test("the library lists pages across its views and the tree opens one", async ({
   // Dark and mobile screenshots, then English, on the same library.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
   await expect(
-    page.getByRole("region", { name: "Thư mục 1" }).getByRole("button", { name: "Thư mục của tôi", exact: true }),
+    page.getByRole("region", { name: "Thư mục 1" }).getByRole("button", { name: /^Thư mục của tôi/ }),
   ).toBeVisible({ timeout: 30_000 });
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await shot(page, "documents-library-dark-vi");

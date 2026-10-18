@@ -288,7 +288,7 @@ describe("creates from Documents Home", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.upload.button") }));
-    expect(await screen.findByText("Tệp trở thành một tài liệu mới trong workspace.")).toBeInTheDocument();
+    expect(await screen.findByText("Tệp trở thành tài liệu mới trong thư mục này.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("documents.upload.cancel") }));
 
     const zone = screen.getByRole("region", { name: t("documents.page.title") });

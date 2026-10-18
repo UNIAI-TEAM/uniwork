@@ -8916,7 +8916,7 @@
     "upload": {
       "title": "Upload a file",
       "description": "The file becomes a new document in My Folder (visible only to you).",
-      "description_folder": "The file becomes a new document in this workspace.",
+      "description_folder": "The file becomes a new document in this folder.",
       "version_title": "Upload a new version",
       "version_description": "The new file becomes the working copy; the open version stays in history.",
       "pick": "Choose a file",
@@ -9519,7 +9519,7 @@
         "failed": "Could not rename the document. Try again."
       },
       "quick_create": {
-        "hint_root": "New and uploaded files here go to My Folder (visible only to you) and open straight in the editor.",
+        "hint_root": "New and uploaded files here go to My Folder (only you can see it) and open straight in the editor.",
         "label": "Quick create"
       },
       "create": {
