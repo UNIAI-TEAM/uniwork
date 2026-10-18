@@ -201,18 +201,24 @@ export function oracleXlsxRead(observed) {
     return passVerdict('xlsx_read_xr1_ok', { q1RevenueAll: truth.q1_revenue_all });
   }
 
-  // X-R2: Z 10 vs 10%, hidden rows, total rows, error cells.
-  const zMeaningOk = /10%/.test(reply) && /\b10\b/.test(reply) && /phần trăm|percent|0[,.]1/i.test(reply);
-  if (!zMeaningOk) return failVerdict('xlsx_read_missing_z_meaning');
-  const hiddenAndTotalsOk =
-    /Q1-005|Q2-005|dòng\s*6|hidden/i.test(reply) &&
-    (/SUBTOTAL/i.test(reply) || containsToken(reply, q1VisVi) || containsToken(reply, String(truth.q1_revenue_visible))) &&
-    (containsToken(reply, q1AllVi) || containsToken(reply, String(truth.q1_revenue_all)));
-  if (!hiddenAndTotalsOk) return failVerdict('xlsx_read_missing_hidden_or_total_handling');
-  for (const errCode of ['#DIV/0!', '#N/A', '#REF!']) {
-    if (!reply.includes(errCode)) return failVerdict('xlsx_read_error_cells_mismatch', { missingError: errCode });
+  // X-R2: Z 10 vs 10%, hidden rows, total rows, error cells. w2l: every operand is evaluated up front and
+  // returned in `details.predicates`, so a FAIL says which one failed; the accepted answers, the order of
+  // the checks and the reasons are unchanged.
+  const predicates = {
+    zMeaning: /10%/.test(reply) && /\b10\b/.test(reply) && /phần trăm|percent|0[,.]1/i.test(reply),
+    hiddenRowId: /Q1-005|Q2-005|dòng\s*6|hidden/i.test(reply),
+    subtotalOrVisibleTotal: /SUBTOTAL/i.test(reply) || containsToken(reply, q1VisVi) || containsToken(reply, String(truth.q1_revenue_visible)),
+    allRowsTotal: containsToken(reply, q1AllVi) || containsToken(reply, String(truth.q1_revenue_all)),
+    errorCells: Object.fromEntries(['#DIV/0!', '#N/A', '#REF!'].map((errCode) => [errCode, reply.includes(errCode)])),
+  };
+  if (!predicates.zMeaning) return failVerdict('xlsx_read_missing_z_meaning', { predicates });
+  if (!(predicates.hiddenRowId && predicates.subtotalOrVisibleTotal && predicates.allRowsTotal)) {
+    return failVerdict('xlsx_read_missing_hidden_or_total_handling', { predicates });
   }
-  return passVerdict('xlsx_read_xr2_ok', { errorCellCount: truth.error_cell_count });
+  for (const [errCode, found] of Object.entries(predicates.errorCells)) {
+    if (!found) return failVerdict('xlsx_read_error_cells_mismatch', { missingError: errCode, predicates });
+  }
+  return passVerdict('xlsx_read_xr2_ok', { errorCellCount: truth.error_cell_count, predicates });
 }
 
 /** XLSX edit oracle (X-E1) reusing holdout-xlsx-truth.mjs and holdout-write-proof.mjs. */

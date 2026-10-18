@@ -140,7 +140,15 @@ const FORMAT_ORACLES = Object.freeze({
   'H-R1': oracleHtmlRead, 'H-E1': oracleHtmlEdit,
 });
 
+// w2l: the model's final reply is evidence whichever check decided the row (X-R2 needs it to show which
+// operand failed), so it travels in the verdict details.
 export function evaluateRowObserved(rowOrEntry, raw) {
+  const verdict = scoreRowObserved(rowOrEntry, raw);
+  const reply = typeof raw?.replyText === 'string' ? raw.replyText : '';
+  return reply ? { ...verdict, details: { ...verdict.details, replyText: reply } } : verdict;
+}
+
+function scoreRowObserved(rowOrEntry, raw) {
   const row = rowOrEntry?.id ? rowOrEntry : getRowById(rowOrEntry?.rowId);
   if (!row) return blockedVerdict('unknown_matrix_row');
   if (!raw || typeof raw !== 'object') return blockedVerdict('missing_row_observation');
@@ -480,7 +488,7 @@ export async function runWebMatrixRow(runEntry, {
       if (editStage.stop?.missingSelector) {
         return { ...missingSelectorVerdict(editStage.stop.missingSelector, { rowId: row.id }), documentId, usage, preconditions, screenshotPath };
       }
-      if (editStage.stop) return { ...editStage.stop, documentId, usage, preconditions, screenshotPath };
+      if (editStage.stop) return { ...editStage.stop, details: { ...editStage.stop.details, replyText }, documentId, usage, preconditions, screenshotPath };
       Object.assign(rawObserved, editStage.observed);
       if (row.format === 'docx') {
         rawObserved.roundTrip = await runDocxRoundTrip(rawObserved.afterBytes);
