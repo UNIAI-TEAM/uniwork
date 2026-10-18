@@ -1,0 +1,78 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/documents-share.spec.ts > /tmp/utwo-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/utwo-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/utwo-E2E.log; grep -E "✘|\[failed\]" /tmp/utwo-E2E.log | head -40; echo; echo "E2E_TARGETED_EXIT=$rc"
+
+Running 9 tests using 1 worker
+
+(node:18127) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18127) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-share.spec.ts:63:1 › U-SH2 a new page is private; the create toggle shares it with the workspace at View (Q-S3) (3.7s)
+  ✓  2 documents-share.spec.ts:101:1 › AC01 one person at View: popup, confirmation toast, list row, and a dry run writes nothing (2.9s)
+  ✓  3 documents-share.spec.ts:134:1 › AC02 ten people at View in one batch (86ms)
+  ✘  4 documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary (6.0m)
+(node:18273) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18273) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  5 documents-share.spec.ts:190:1 › AC04 the workspace at View goes through the home row, not a share row (3.8s)
+  ✓  6 documents-share.spec.ts:217:1 › AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused for the organization and the home row (3.4s)
+  ✓  7 documents-share.spec.ts:271:1 › AC06 + AC12 Organization at Edit with a Person at View: the person keeps Edit and the popup says why (2.3s)
+  ✓  8 documents-share.spec.ts:305:1 › AC07 revoking a Person at Edit while the Workspace stays at View: the preview sentence, then the toast (2.9s)
+  ✓  9 documents-share.spec.ts:336:1 › AC08 revoking every source leaves the document private; an admin keeps admin scope only (2.3s)
+
+
+  1) documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary 
+
+    Test timeout of 360000ms exceeded.
+
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Call log:
+      - waiting for getByRole('listbox').filter({ visible: true }).getByRole('option', { name: 'Nhận xét' })
+        - locator resolved to <div role="option" tabindex="-1" aria-selected="false" data-slot="select-item" class="relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-body outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2">…</div>
+      - attempting click action
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting for element to be visible, enabled and stable
+        - element is not visible
+      - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not visible
+        - retrying click action
+          - waiting 100ms
+        690 × waiting for element to be visible, enabled and stable
+            - element is not visible
+          - retrying click action
+            - waiting 500ms
+
+
+      176 |   // Changing the common level never overwrites a level set per person without asking.
+      177 |   await dialog.getByRole("combobox", { name: "Mức quyền", exact: true }).click();
+    > 178 |   await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Nhận xét" }).click();
+          |                                                                                                       ^
+      179 |   await expect(dialog.getByText("Đặt tất cả 3 đối tượng thành Nhận xét?")).toBeVisible();
+      180 |   await dialog.getByRole("button", { name: /^Hu/ }).click();
+      181 |   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
+
+    Error Context: test-results/documents-share-AC03-three-24f12--levels-with-a-live-summary/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-share-AC03-three-24f12--levels-with-a-live-summary/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-share-AC03-three-24f12--levels-with-a-live-summary/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary 
+  8 passed (7.0m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test e2e/documents-share.spec.ts
+  1 failed
+  8 passed (7.0m)
+  ✘  4 documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary (6.0m)
+
+E2E_TARGETED_EXIT=1
