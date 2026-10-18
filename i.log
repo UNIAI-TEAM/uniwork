@@ -1,0 +1,11 @@
+$ pnpm --filter @uniwork/web typecheck; rc=$?; echo; echo "WEB_TC_EXIT=$rc"
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+../../packages/views/documents/share-access-rows.tsx(4,15): error TS2305: Module '"react-i18next"' has no exported member 'TFunction'.
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 typecheck: `tsc --noEmit`
+Exit status 2
+
+WEB_TC_EXIT=2

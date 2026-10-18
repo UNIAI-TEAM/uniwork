@@ -1,0 +1,12 @@
+$ pnpm --filter @uniwork/views typecheck; rc=$?; echo; echo "VIEWS_TC_EXIT=$rc"
+
+> @uniwork/views@0.0.0 typecheck /workspace/packages/views
+> tsc --noEmit
+
+documents/share-access-list.test.tsx(292,28): error TS2550: Property 'withResolvers' does not exist on type 'PromiseConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2024' or later.
+documents/share-access-rows.tsx(4,15): error TS2305: Module '"react-i18next"' has no exported member 'TFunction'.
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 typecheck: `tsc --noEmit`
+Exit status 2
+
+VIEWS_TC_EXIT=2
