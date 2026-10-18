@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -517,6 +518,35 @@ func TestChatPollReminderNote(t *testing.T) {
 	if out["message"].(map[string]any)["poll"] == nil {
 		t.Fatalf("missing poll: %v", out["message"])
 	}
+}
+
+// "N người đã xem" compares read pointers with message times, so the member
+// list carries each pointer at full precision, not RFC 3339 seconds.
+func TestChatRoomMembersCarryTheReadPointerAtFullPrecision(t *testing.T) {
+	f := setupChatFixture(t, "seen")
+	res, out := doJSON(t, f.srv, "POST", roomMessagesPath(f, f.groupRoomID), f.tokens["a"], map[string]string{"body": "seen?"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("send: %d %v", res.StatusCode, out)
+	}
+	// The cursor is the message time in microseconds; sending moved a's pointer to it.
+	micros, _, _ := strings.Cut(out["message"].(map[string]any)["cursor"].(string), ".")
+	res, out = doJSON(t, f.srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/rooms/"+f.groupRoomID+"/members", f.tokens["a"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list members: %d %v", res.StatusCode, out)
+	}
+	for _, raw := range out["members"].([]any) {
+		m := raw.(map[string]any)
+		if m["user_id"] != f.ids["a"] {
+			continue
+		}
+		readAt, _ := m["last_read_at"].(string)
+		at, err := time.Parse(time.RFC3339Nano, readAt)
+		if err != nil || strconv.FormatInt(at.UnixMicro(), 10) != micros {
+			t.Fatalf("last_read_at = %q, want the message time %s µs", readAt, micros)
+		}
+		return
+	}
+	t.Fatalf("sender missing from members %v", out["members"])
 }
 
 func TestChatModeration(t *testing.T) {

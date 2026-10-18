@@ -319,6 +319,7 @@ type ChatRoomMemberDTO struct {
 	Email          string `json:"email" description:"Account email" example:"member@example.com"`
 	DisplayName    string `json:"display_name" description:"Display name" example:"Nguyen Van A"`
 	IsCreator      bool   `json:"is_creator" description:"True for the member who created the room" example:"false"`
+	LastReadAt     string `json:"last_read_at,omitempty" description:"RFC3339 (sub-second) main-timeline read cursor of the member; absent if never read" example:"2026-03-26T10:00:00.123456Z"`
 }
 
 // ChatRoomMemberListSDO is GET .../rooms/{roomID}/members.

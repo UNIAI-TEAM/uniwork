@@ -456,10 +456,14 @@ func (h *handlers) listChatRoomMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.ChatRoomMemberDTO, 0, len(members))
 	for _, m := range members {
-		out = append(out, sdo.ChatRoomMemberDTO{
+		dto := sdo.ChatRoomMemberDTO{
 			UserID: m.UserID, Role: m.Role, SendRestricted: m.SendRestricted,
 			Email: m.Email, DisplayName: m.DisplayName, IsCreator: m.IsCreator,
-		})
+		}
+		if m.LastReadAt != nil {
+			dto.LastReadAt = m.LastReadAt.UTC().Format(time.RFC3339Nano)
+		}
+		out = append(out, dto)
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatRoomMemberListSDO{Members: out})
 }
