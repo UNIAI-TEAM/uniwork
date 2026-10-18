@@ -61,8 +61,8 @@ export function onCloseRequestedEvent(
  * Leave the full document view on `close_requested` the same way the host's
  * own Back / Esc path does: through `leaveGuardAllows(libraryHref)` (which
  * opens the in-app leave dialog when dirty) and then `navigation.push`.
- * Ignores the event while a host dialog sits on top or while a leave is
- * already pending or committed.
+ * Ignores the event while a host dialog sits on top or while a leave is in
+ * flight; an allowed leave whose push did not unmount the frame arms again.
  */
 export function requestDocumentFrameLeave(deps: {
   container: HTMLElement | null;
@@ -76,11 +76,12 @@ export function requestDocumentFrameLeave(deps: {
   if (hasHostDialogAbove(container)) return;
   leavingRef.current = true;
   void leaveGuardAllows(libraryHref).then((allowed) => {
+    // An allowed leave usually unmounts this frame with the view; when it does not
+    // (same href, an adapter that refused), later Esc presses must still leave.
     if (allowed) {
       navigation.push(libraryHref);
-    } else {
-      leavingRef.current = false;
     }
+    leavingRef.current = false;
   });
 }
 

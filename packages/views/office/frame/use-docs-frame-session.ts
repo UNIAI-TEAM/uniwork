@@ -108,7 +108,6 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const saveBlockedOpen = useRef(false);
   const downloadPending = useRef(false);
   const initDownloadMaxBytes = useRef<number>(frameDownloadMaxBytes(documentLimits.upload_max_bytes));
-  const activeSaves = useRef(0);
 
   useEffect(() => {
     setStatus("booting");
@@ -124,7 +123,6 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     }
     saveBlockedOpen.current = false;
     downloadPending.current = false;
-    activeSaves.current = 0;
     setSaveBlocked(null);
     initDownloadMaxBytes.current = frameDownloadMaxBytes(latest.current.documentLimits.upload_max_bytes);
     modalOpen.current = false;
@@ -133,6 +131,10 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     const life: FrameLife = { state: "live" };
     frameLife.current = life;
     const saveWatchRef = hostSave;
+    // Saves this endpoint has in flight, counted per session: a save of the disposed session
+    // that settles after a retry must not decrement the new session's count and let Esc leave
+    // while the new session's own save is still open.
+    const saves = { n: 0 };
     // `endpoint` is assigned below, before any frame can open anything to announce.
     const remote = createFrameRemoteVersion({
       // A source is not a documents row: there is no remote feed for it.
@@ -199,8 +201,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
     const rawSaveCopy = proxy("api.saveCopy", true, (api) => api.saveCopy);
     const saveCopy: typeof rawSaveCopy = async (payload, context) => {
-      activeSaves.current += 1;
-      try { return await rawSaveCopy(payload, context); } finally { activeSaves.current = Math.max(0, activeSaves.current - 1); }
+      saves.n += 1;
+      try { return await rawSaveCopy(payload, context); } finally { saves.n = Math.max(0, saves.n - 1); }
     };
     const open = proxy("api.open", false, (api) => api.open);
     const upload = proxy("api.save", true, (api) => api.save);
@@ -213,12 +215,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session
     // that replaced it keeps its own state.
     const tracked = <T,>(run: () => Promise<T>, settled: (result: T) => DocsFrameSaveState) => {
-      activeSaves.current += 1;
+      saves.n += 1;
       setSaveState("saving");
       return run().then(
-        (result) => { activeSaves.current = Math.max(0, activeSaves.current - 1); if (life.state !== "disposed") setSaveState(settled(result)); return result; },
+        (result) => { saves.n = Math.max(0, saves.n - 1); if (life.state !== "disposed") setSaveState(settled(result)); return result; },
         (error: unknown) => {
-          activeSaves.current = Math.max(0, activeSaves.current - 1);
+          saves.n = Math.max(0, saves.n - 1);
           if (life.state === "disposed") throw error;
           const blockedMax = saveBlockedMaxBytes(error, latest.current.documentLimits.upload_max_bytes);
           if (blockedMax !== null && life.state === "live") {
@@ -456,7 +458,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     });
     onCloseRequestedEvent(endpoint, {
       isLiveAndReady: () => life.state === "live" && booted && !frameDocGone,
-      isSaving: () => activeSaves.current > 0 || hostSave.current !== null,
+      isSaving: () => saves.n > 0 || hostSave.current !== null,
       isModalOrBlocked: () => modalOpen.current || saveBlockedOpen.current,
       onCloseRequested: () => { latest.current.options.onCloseRequested?.(); },
     });
