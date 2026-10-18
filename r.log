@@ -1,0 +1,21 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:13470 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:13471 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:13470 E2E_BASE_URL=http://localhost:13470 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-share.spec.ts --reporter=list > /tmp/sh6-SHARE.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/sh6-SHARE.log | tail -n 120; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 4000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/sh6-SHARE.log || { echo "no passing test in documents-share.spec.ts"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_SHARE_EXIT=$rc"
+
+Running 9 tests using 1 worker
+
+(node:158320) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:158320) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-share.spec.ts:63:1 › U-SH2 a new page is private; the create toggle shares it with the workspace at View (Q-S3) (3.6s)
+  ✓  2 documents-share.spec.ts:101:1 › AC01 one person at View: popup, confirmation toast, list row, and a dry run writes nothing (3.9s)
+  ✓  3 documents-share.spec.ts:134:1 › AC02 ten people at View in one batch (183ms)
+  ✓  4 documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary (5.3s)
+  ✓  5 documents-share.spec.ts:190:1 › AC04 the workspace at View goes through the home row, not a share row (4.5s)
+  ✓  6 documents-share.spec.ts:217:1 › AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused for the organization and the home row (5.1s)
+  ✓  7 documents-share.spec.ts:271:1 › AC06 + AC12 Organization at Edit with a Person at View: the person keeps Edit and the popup says why (2.8s)
+  ✓  8 documents-share.spec.ts:305:1 › AC07 revoking a Person at Edit while the Workspace stays at View: the preview sentence, then the toast (3.7s)
+  ✓  9 documents-share.spec.ts:336:1 › AC08 revoking every source leaves the document private; an admin keeps admin scope only (2.4s)
+
+  9 passed (34.8s)
+
+E2E_SHARE_EXIT=0

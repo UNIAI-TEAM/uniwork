@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+670e6036205cc5d623f64d10dcbafc8de9be7162
+bf693b001da6512bbf33d867c35250179106a63b
+670e60362 chore: merge SH fe-fix-5 review_fe r4 minors (UNI-1784, 6e3465dc2) into the sharing lane
+6e3465dc2 fix(documents): return confirm-panel focus, announce picker error, pin layout classes (review_fe r4)
+9970b6c34 chore: merge SH be-fix-3 review_be r3 N-01 boundary test (UNI-1782, 76584bc7f) into the sharing lane
+76584bc7f test(documents): pin the direct-downgrade guard's two boundaries
+25037ccdb chore: merge SH fe-fix-4 tester_visual r1 items (UNI-1784, fe5751a3a) into the sharing lane
+fe5751a3a fix(documents): polish share popup states, locked-card badge and create toggle (TV1-06..15)
+3d0f38cd7 fix(documents): keep share popup rows, names and confirm panels within the dialog (TV1-01..04)
+1966c8c08 chore: merge SH fe-fix-3 review_fe r3 items (UNI-1784, 075fd5600) into the sharing lane
