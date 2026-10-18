@@ -43,6 +43,9 @@ type ChatRoomSummary struct {
 	PeerDisplayName    string
 	// PeerLastReadAt is the DM peer's read cursor (nil for non-DM or never read).
 	PeerLastReadAt *time.Time
+	// PeerLastDeliveredAt is how far the DM peer's devices acknowledged
+	// holding the room (nil for non-DM or never acknowledged).
+	PeerLastDeliveredAt *time.Time
 	// LastReadAt is the caller's own read cursor (nil if never read): where
 	// the client draws "new messages" and starts a catch-up summary.
 	LastReadAt            *time.Time
@@ -168,6 +171,7 @@ func (s *ChatService) directRooms(ctx context.Context, userID, orgID, workspaceI
 			t := row.PeerLastReadAt.Time
 			summary.PeerLastReadAt = &t
 		}
+		summary.PeerLastDeliveredAt = timePtr(row.PeerLastDeliveredAt)
 		applyLastMessagePreview(&summary, lastMessagePreviewFromListRow(
 			row.LastMessageBody, row.LastMessageKind, row.LastMessageSenderID,
 			row.LastMessageSenderName, row.LastMessageCallOutcome, int(row.LastMessageDurationMs), row.LastMessageAt,
@@ -704,9 +708,9 @@ func (s *ChatService) roomSummary(
 			}
 			if member, mErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 				RoomID: roomID, UserID: peerID,
-			}); mErr == nil && member.LastReadAt.Valid {
-				t := member.LastReadAt.Time
-				out.PeerLastReadAt = &t
+			}); mErr == nil {
+				out.PeerLastReadAt = timePtr(member.LastReadAt)
+				out.PeerLastDeliveredAt = timePtr(member.LastDeliveredAt)
 			}
 		}
 	}

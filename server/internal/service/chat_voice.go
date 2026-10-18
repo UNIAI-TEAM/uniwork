@@ -826,6 +826,7 @@ func chatMessageRowFromMessageFields(
 		Note:             noteFromMetadata(kind, meta, body),
 		Post:             postFromMetadata(kind, meta, body),
 		Priority:         priorityFromMetadata(meta),
+		ForwardedFrom:    meta.ForwardedFrom,
 	}
 	if editedAt.Valid {
 		t := editedAt.Time

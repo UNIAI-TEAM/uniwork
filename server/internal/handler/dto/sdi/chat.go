@@ -186,6 +186,13 @@ type ChatRoomMemberPermissionsSDI struct {
 	AllowCreateNotes   *bool `json:"allow_create_notes,omitempty" description:"Members may create notes and reminders" example:"true"`
 	AllowCreatePolls   *bool `json:"allow_create_polls,omitempty" description:"Members may create polls" example:"true"`
 	AllowSendMessages  *bool `json:"allow_send_messages,omitempty" description:"Members may send chat messages" example:"true"`
+	AllowForward       *bool `json:"allow_forward,omitempty" description:"Members may forward this room's messages to other rooms" example:"true"`
+}
+
+// ForwardChatMessageSDI is POST .../chat/messages/{messageID}/forward.
+type ForwardChatMessageSDI struct {
+	TargetRoomIDs []string `json:"target_room_ids" description:"1–10 rooms the caller may send in" example:"[\"01J8X4ROOM0N1P2Q3R4S5T6U7V8\"]"`
+	Comment       string   `json:"comment,omitempty" description:"Optional text sent by the caller just before the forwarded copy in each room" example:"Mọi người xem giúp"`
 }
 
 // SetChatNicknameSDI is PUT .../users/{userID}/nickname.

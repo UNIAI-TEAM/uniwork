@@ -17,6 +17,8 @@ type ChatRoomMemberPermissions struct {
 	AllowCreateNotes   bool `json:"allow_create_notes"`
 	AllowCreatePolls   bool `json:"allow_create_polls"`
 	AllowSendMessages  bool `json:"allow_send_messages"`
+	// AllowForward lets members forward this room's messages elsewhere.
+	AllowForward bool `json:"allow_forward"`
 }
 
 // chatRoomNameMaxRunes caps a renamed group or workspace room, the same as a channel name.
@@ -29,6 +31,7 @@ func defaultChatRoomMemberPermissions() ChatRoomMemberPermissions {
 		AllowCreateNotes:   true,
 		AllowCreatePolls:   true,
 		AllowSendMessages:  true,
+		AllowForward:       true,
 	}
 }
 
@@ -36,7 +39,8 @@ func memberPermissionsFromRaw(raw []byte) ChatRoomMemberPermissions {
 	if len(raw) == 0 {
 		return defaultChatRoomMemberPermissions()
 	}
-	var out ChatRoomMemberPermissions
+	// A key the stored row predates (allow_forward) keeps its default.
+	out := defaultChatRoomMemberPermissions()
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return defaultChatRoomMemberPermissions()
 	}

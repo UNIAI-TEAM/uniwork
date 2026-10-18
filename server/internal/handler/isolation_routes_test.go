@@ -162,6 +162,11 @@ func isoIdemOnly(_ *isoWorld, tn *isoTenant) isoBody {
 	return isoBody{headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag}}
 }
 
+// isoForwardBody forwards into the tenant's own group room.
+func isoForwardBody(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"target_room_ids": []any{tn.ids["room"]}}}
+}
+
 func isoJSON(v any) func(*isoWorld, *isoTenant) isoBody {
 	return func(*isoWorld, *isoTenant) isoBody { return isoBody{json: v} }
 }
@@ -504,6 +509,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/chat/dm":                                            {body: isoWith(map[string]string{"user_id": "peer"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages":                                      {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/links":                    {body: isoWith(map[string]string{"target_id": "task"}, map[string]any{"target_type": "task"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/forward":                  {body: isoForwardBody},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages":                       {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/file":                  {body: isoFile("note.pdf", "application/pdf", tinyPDF, map[string]string{"client_msg_id": ""})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/voice":                 {body: isoFile("voice.webm", "audio/webm", tinyWebM, map[string]string{"client_msg_id": "", "duration_ms": "4000"})},

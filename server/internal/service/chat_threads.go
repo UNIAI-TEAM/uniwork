@@ -251,6 +251,9 @@ func (s *ChatService) SendThreadReply(
 	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, threadRootID, root.SenderID, mentions); err != nil {
 		return ChatMessageRow{}, err
 	}
+	if err := requestChatLinkPreview(ctx, q, userID, room, msg.ID, body); err != nil {
+		return ChatMessageRow{}, err
+	}
 
 	if link, err := q.GetChatThreadTaskLinkByThread(ctx, threadRootID); err == nil {
 		if err := auditRecorder.Emit(ctx, q, Human(userID), audit.Event{

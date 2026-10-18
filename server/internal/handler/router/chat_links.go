@@ -40,6 +40,13 @@ func registerChatLinks(r api, h Routes, chatWriteLimit func(http.Handler) http.H
 			sdo:         sdo.ChatMessageLinkListSDO{},
 			auth:        true,
 		})
+		lk.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/link-previews", h.ListChatRoomLinkPreviews, apiOp{
+			summary:     "List link previews of many chat messages",
+			description: "Thẻ xem trước liên kết (ADR 0035) của nhiều tin trong một phòng (message_ids=a,b,…; tối đa 200): tiêu đề, mô tả, tên trang và ảnh đã lưu trong kho UniWork (URL đã ký). Chỉ tin đã có thẻ.",
+			tags:        []string{"chat"},
+			sdo:         sdo.ChatLinkPreviewListSDO{},
+			auth:        true,
+		})
 		lk.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/linked-tasks", h.ListChatRoomLinkedTasks, apiOp{
 			summary:     "List tasks linked from a chat room",
 			description: "Các task được gắn từ tin nhắn của phòng, mỗi task một lần, gắn gần nhất trước, kèm tổng số. Chỉ task của workspace trên URL.",

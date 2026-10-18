@@ -443,10 +443,13 @@ type Routes struct {
 	ListChatThreads                  http.HandlerFunc
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
+	ForwardChatMessage               http.HandlerFunc
 	ListChatMessageLinks             http.HandlerFunc
 	ListChatRoomMessageLinks         http.HandlerFunc
+	ListChatRoomLinkPreviews         http.HandlerFunc
 	ListChatRoomLinkedTasks          http.HandlerFunc
 	GetChatRoomSharedSummary         http.HandlerFunc
+	TranscribeChatVoiceMessage       http.HandlerFunc
 	DeleteChatMessageLink            http.HandlerFunc
 	SyncChatThreadTask               http.HandlerFunc
 	UnsyncChatThreadTask             http.HandlerFunc
@@ -463,6 +466,7 @@ type Routes struct {
 	RemoveChatRoomMember             http.HandlerFunc
 	LeaveChatRoom                    http.HandlerFunc
 	MarkChatRoomRead                 http.HandlerFunc
+	AckChatDelivered                 http.HandlerFunc
 	MuteChatRoom                     http.HandlerFunc
 	UnmuteChatRoom                   http.HandlerFunc
 	ListWorkspaceChatMessages        http.HandlerFunc
