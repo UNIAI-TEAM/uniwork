@@ -50,13 +50,14 @@ export interface OfficeModuleSpec {
 }
 
 const EDIT_PRINT: OfficeModuleGrant = { save: true, saveAs: true, print: true };
+const EDIT_PRINT_PDF: OfficeModuleGrant = { save: true, saveAs: true, print: true, exportPdf: true };
 const EDIT_PRINT_HTML_IMAGES: OfficeModuleGrant = { save: true, saveAs: true, print: true, exportHtml: true, images: true };
 
 const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   docs: {
     flag: OFFICE_DOCS_WEB_FLAG, format: "docx", extension: "docx",
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    grant: { save: true, saveAs: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true },
+    grant: { save: true, saveAs: true, saveCopy: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true },
     recovery: true, ai: true,
   },
   pdf: { flag: "office_pdf_web", format: "pdf", extension: "pdf", mimeType: "application/pdf", grant: EDIT_PRINT, recovery: true, ai: true },
@@ -64,7 +65,7 @@ const OFFICE_MODULE_SPECS: Readonly<Record<OfficeModule, OfficeModuleSpec>> = {
   html: { flag: "office_html_web", format: "html", extension: "html", mimeType: "text/html", grant: EDIT_PRINT_HTML_IMAGES, recovery: true, ai: true },
   slides: {
     flag: "office_slides_web", format: "pptx", extension: "pptx",
-    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: EDIT_PRINT, recovery: true, ai: true,
+    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", grant: EDIT_PRINT_PDF, recovery: true, ai: true,
   },
   sheets: {
     flag: "office_sheets_web", format: "xlsx", extension: "xlsx",

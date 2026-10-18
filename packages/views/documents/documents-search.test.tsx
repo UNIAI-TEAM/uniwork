@@ -537,7 +537,7 @@ describe("Documents unified search (FD-10)", () => {
 
     // The home board has its own header row (no collection header).
     const heading = screen.getByRole("heading", { level: 1, name: t("documents.home.sidebar.home") });
-    const row = heading.parentElement!.parentElement!;
+    const row = heading.parentElement!.parentElement!.parentElement!;
     expect(screen.getAllByRole("searchbox")).toHaveLength(1);
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     const searchBox = searchInput.parentElement!;
@@ -552,3 +552,33 @@ describe("Documents unified search (FD-10)", () => {
   });
 });
 
+
+// ARCHIVE-01 (UNI-1845) U-6 + UI-AR8: a shelved search hit wears the "Đã lưu
+// trữ" badge beside its name; the order is the server's.
+describe("shelved search results (U-6)", () => {
+  it("badges a shelved hit and leaves un-shelved hits unmarked", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        return Promise.resolve({
+          documents: [
+            summary({ id: "d1", kind: "file", title: "Hợp đồng cũ.docx", shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u2", path: [] }),
+            summary({ id: "d2", kind: "file", title: "Hợp đồng mới.docx", path: [] }),
+          ],
+          next_cursor: null,
+        });
+      }
+      if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+    renderSearchView();
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "hop dong" } });
+
+    const old = await screen.findByText("Hợp đồng cũ.docx");
+    const row = old.closest("li");
+    expect(row && within(row as HTMLElement).getByText(t("documents.shelved_list.badge"))).toBeTruthy();
+    const fresh = await screen.findByText("Hợp đồng mới.docx");
+    const freshRow = fresh.closest("li");
+    expect(freshRow && within(freshRow as HTMLElement).queryByText(t("documents.shelved_list.badge"))).toBeNull();
+  });
+});

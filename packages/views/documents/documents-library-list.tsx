@@ -7,8 +7,10 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
+import type { Member } from "@uniwork/core/types/workspace";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryGroupSpans, libraryLadder, type LibraryColumnId } from "./library-columns";
+import { ShelvedRowView, type ShelvedRowActions } from "./documents-shelved-row";
+import { libraryGroupSpans, libraryLadder, shelvedLadder, type LibraryColumnId } from "./library-columns";
 import type { RowGroup } from "./library-rows";
 
 const COLUMN_LABEL: Record<LibraryColumnId, string> = {
@@ -18,6 +20,18 @@ const COLUMN_LABEL: Record<LibraryColumnId, string> = {
   updated: "documents.home.columns.updated",
   size: "documents.home.columns.size",
   actions: "documents.home.columns.actions",
+  // Shelved-only columns: the base map must still satisfy Record<LibraryColumnId, string>.
+  shelved_by: "documents.shelved_list.columns.shelved_by",
+  shelved_at: "documents.shelved_list.columns.shelved_at",
+};
+
+// The Lưu trữ table reads its own header keys (documents.shelved_list.columns.*)
+// for every column; it shares the shell, the group spanners and the states only.
+const SHELVED_COLUMN_LABEL: Record<LibraryColumnId, string> = {
+  ...COLUMN_LABEL,
+  name: "documents.shelved_list.columns.name",
+  access: "documents.shelved_list.columns.access",
+  actions: "documents.shelved_list.columns.actions",
 };
 
 export interface DocumentsLibraryListProps {
@@ -38,6 +52,17 @@ export interface DocumentsLibraryListProps {
   typeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
+  /** The Lưu trữ layout (ARCHIVE-01 U-2): the shelved ladder and
+   *  ShelvedRowView with its own columns and per-row commands. */
+  shelved?: {
+    actions: ShelvedRowActions;
+    /** The workspace member list by user id, feeding the Lưu trữ bởi column. */
+    members: ReadonlyMap<string, Member>;
+    membersReady: boolean;
+  };
+  /** The no-matches copy of the open view when it is not the generic library
+   *  wording (the shelved list names its own empty-filtered line). */
+  emptyFiltered?: { title: string; description: string };
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -62,6 +87,8 @@ export function DocumentsLibraryList({
   accessFiltered = false,
   typeFiltered = false,
   cardsShown = false,
+  shelved,
+  emptyFiltered,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -110,22 +137,25 @@ export function DocumentsLibraryList({
       return (
         <CollectionPageState
           icon={Search}
-          title={t("documents.library.no_matches_title")}
-          description={t(
-            accessFiltered && typeFiltered
-              ? clientFiltered && hasMore
-                ? "documents.home.no_matches_filters_more_description"
-                : "documents.home.no_matches_filters_description"
-              : accessFiltered
+          title={emptyFiltered?.title ?? t("documents.library.no_matches_title")}
+          description={
+            emptyFiltered?.description ??
+            t(
+              accessFiltered && typeFiltered
                 ? clientFiltered && hasMore
-                  ? "documents.home.no_matches_access_more_description"
-                  : "documents.home.no_matches_access_description"
-                : clientFiltered && hasMore
-                  ? "documents.home.no_matches_more_description"
-                  : cardsShown
-                    ? "documents.home.no_matches_description"
-                    : "documents.home.no_matches_plain_description",
-          )}
+                  ? "documents.home.no_matches_filters_more_description"
+                  : "documents.home.no_matches_filters_description"
+                : accessFiltered
+                  ? clientFiltered && hasMore
+                    ? "documents.home.no_matches_access_more_description"
+                    : "documents.home.no_matches_access_description"
+                  : clientFiltered && hasMore
+                    ? "documents.home.no_matches_more_description"
+                    : cardsShown
+                      ? "documents.home.no_matches_description"
+                      : "documents.home.no_matches_plain_description",
+            )
+          }
           role="status"
           actions={
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -155,8 +185,9 @@ export function DocumentsLibraryList({
     return "";
   };
 
-  const ladder = libraryLadder();
+  const ladder = shelved ? shelvedLadder() : libraryLadder();
   const groupSpans = libraryGroupSpans(ladder);
+  const columnLabel = shelved ? SHELVED_COLUMN_LABEL : COLUMN_LABEL;
 
   return (
     <div className="@container/library flex flex-col">
@@ -180,7 +211,7 @@ export function DocumentsLibraryList({
             <tr className="border-b border-border text-caption text-muted-foreground">
               {ladder.columns.map((column) => (
                 <th key={column.id} scope="col" className={cn("px-3 py-2 font-medium", column.cell)}>
-                  {column.id === "actions" ? <span className="sr-only">{t(COLUMN_LABEL[column.id])}</span> : t(COLUMN_LABEL[column.id])}
+                  {column.id === "actions" ? <span className="sr-only">{t(columnLabel[column.id])}</span> : t(columnLabel[column.id])}
                 </th>
               ))}
             </tr>
@@ -199,7 +230,19 @@ export function DocumentsLibraryList({
                 </tr>
               ) : null}
               {group.rows.map((row) => (
-                <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} />
+                shelved ? (
+                  <ShelvedRowView
+                    key={row.id}
+                    row={row}
+                    members={shelved.members}
+                    membersReady={shelved.membersReady}
+                    ladder={ladder}
+                    shelved={shelved.actions}
+                    onOpen={handlers.onOpen}
+                  />
+                ) : (
+                  <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} />
+                )
               ))}
             </tbody>
           ))}

@@ -1,20 +1,5 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
-import {
-  DocumentBreakGlassGrantSchema,
-  DocumentPersonAccessSchema,
-  type DocumentBreakGlassGrant,
-  type DocumentPersonAccess,
-} from "./document-access";
-import {
-  DOCUMENT_COMMENT_KINDS,
-  DocumentCommentMentionSchema,
-  DocumentCommentRevisionListEnvelopeSchema,
-  DocumentCommentRevisionSchema,
-  type DocumentCommentKind,
-  type DocumentCommentMention,
-  type DocumentCommentRevision,
-} from "./document-comments";
 
 // Wire contract for the Documents API (C-01 §5 + §14; UNI-679, G1-05a).
 // The versioned samples in docs/parity/documents-api are the source of truth
@@ -91,6 +76,9 @@ export const DOCUMENT_ERROR_CLASSES = [
   "incompatible",
   "session",
   "locked",
+  // ARCHIVE-01 (UNI-1845): every write on a shelved document refuses with 409
+  // document_shelved, class read_only (addendum §0, §3).
+  "read_only",
 ] as const;
 export type DocumentErrorClass = (typeof DOCUMENT_ERROR_CLASSES)[number];
 
@@ -145,6 +133,11 @@ export const DocumentSchema = z.object({
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
   archived_by: z.string().nullable().optional().catch(undefined),
+  // ARCHIVE-01 (UNI-1845): the "Lưu trữ" state, separate from trash (§0). A
+  // shelved row can also be trashed, so the two pairs coexist; drifted values
+  // read as absent like archived_at/archived_by.
+  shelved_at: z.string().nullable().optional().catch(undefined),
+  shelved_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
@@ -193,6 +186,16 @@ export function canManageTrashed(
     default:
       return false;
   }
+}
+
+/** True when a document or list row sits in "Lưu trữ" (ARCHIVE-01): shelved
+ *  at any time, including while it also sits in the trash - trashing a shelved
+ *  item keeps its shelved pair. `shelved_at` is the marker the server always
+ *  sends on a shelved row; a row missing it is simply not shelved. */
+export function isShelved(
+  doc: { shelved_at?: string | null } | null | undefined,
+): boolean {
+  return !!doc?.shelved_at;
 }
 
 export const DocumentVersionSchema = z.object({
@@ -319,6 +322,21 @@ const DocumentRowEditLockSchema = z.object({
   held_by_me: z.boolean().catch(false),
 });
 
+/**
+ * Compact share-scope counts attached to list and summary rows (SH-S3 §2.1,
+ * addendum §6.4 / §7): lets every row show who can see the document without a
+ * per-row shares fetch. A malformed or partial block degrades to `undefined`
+ * so the row still renders and falls back to `visibility`.
+ */
+export const DocumentShareScopeSchema = z.object({
+  home_workspace: z.boolean(),
+  users: z.number().int().nonnegative(),
+  workspaces: z.number().int().nonnegative(),
+  organization: z.boolean(),
+  public_link: z.boolean(),
+});
+export type DocumentShareScope = z.infer<typeof DocumentShareScopeSchema>;
+
 export const DocumentSummarySchema = z.object({
   id: z.string(),
   organization_id: z.string().optional().default(""),
@@ -349,10 +367,15 @@ export const DocumentSummarySchema = z.object({
   my_level: z.string().nullable().optional().catch(undefined),
   via: z.string().nullable().optional(),
   admin_scope: z.boolean().optional().catch(undefined),
+  share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
   archived_by: z.string().nullable().optional().catch(undefined),
+  // ARCHIVE-01: the shelved pair rides every list row (trash rows too, so a
+  // restored row can keep its shelved badge - addendum §4, Q-UI3).
+  shelved_at: z.string().nullable().optional().catch(undefined),
+  shelved_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
@@ -466,6 +489,8 @@ export interface DocumentTreeNode {
   icon?: string | null;
   kind: DocumentKind;
   system_kind?: DocumentSystemKind | null;
+  visibility?: DocumentVisibility;
+  share_scope?: DocumentShareScope | null;
   position: number;
   children: DocumentTreeNode[];
 }
@@ -478,6 +503,8 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
     icon: z.string().nullable().optional(),
     kind: z.string(),
     system_kind: z.string().nullable().optional().catch(undefined),
+    visibility: z.string().optional().catch(undefined),
+    share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
     position: z.number().optional().default(0),
     children: z.array(DocumentTreeNodeSchema).optional().default([]),
   }),
@@ -486,85 +513,27 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
 export const DocumentTreeSchema = z.object({ documents: z.array(DocumentTreeNodeSchema) });
 export type DocumentTree = z.infer<typeof DocumentTreeSchema>;
 
-export { DocumentPersonAccessSchema, type DocumentPersonAccess };
-
-export const DocumentShareSchema = z.object({
-  id: z.string(),
-  principal_type: z.string(),
-  principal_id: z.string(),
-  level: z.string(),
-  active: z.boolean().optional().default(true),
-  effective_level: z.string().nullable().optional(),
-  effective_via: z.string().nullable().optional(),
-  granted_by: z.string().optional().default(""),
-  granted_by_kind: z.string().optional().default("human"),
-  created_at: z.string().optional().default(""),
-});
-export type DocumentShare = Omit<z.infer<typeof DocumentShareSchema>, "level" | "effective_level" | "effective_via"> & {
-  level: DocumentAccessLevel;
-  effective_level?: DocumentAccessLevel | null;
-  effective_via?: DocumentAccessVia | null;
-};
-
-export const DocumentLinkSchema = z.object({
-  id: z.string(),
-  expires_at: z.string().nullable().optional(),
-  view_count: z.number().optional().default(0),
-  created_by: z.string().optional().default(""),
-  created_by_kind: z.string().optional().default("human"),
-  created_at: z.string().optional().default(""),
-});
-export type DocumentLink = z.infer<typeof DocumentLinkSchema>;
-
-/** The access overview: my level always; grants/links/acl-owner/break-glass at manage or admin scope. */
-export const DocumentAccessSchema = z
-  .object({
-    my_level: z.string().optional(),
-    admin_scope: z.boolean().optional().catch(undefined),
-    via: z.string().optional().default(""),
-    acl_owner: DocumentPersonAccessSchema.nullable().optional(),
-    shares: z.array(DocumentShareSchema).optional(),
-    links: z.array(DocumentLinkSchema).optional(),
-    break_glass: z
-      .unknown()
-      .optional()
-      .transform((raw): DocumentBreakGlassGrant[] | undefined => {
-        if (raw === undefined || raw === null) return undefined;
-        if (!Array.isArray(raw)) return [];
-        const grants: DocumentBreakGlassGrant[] = [];
-        for (const item of raw) {
-          const parsed = DocumentBreakGlassGrantSchema.safeParse(item);
-          if (parsed.success) grants.push(parsed.data as DocumentBreakGlassGrant);
-        }
-        return grants;
-      }),
-  })
-  // The level is how a real answer is told from a malformed one. It may be
-  // empty (an admin-only caller holds no level), but the key must be there
-  // unless the server says admin_scope; anything else degrades to null.
-  .refine((v) => v.my_level !== undefined || v.admin_scope === true)
-  .transform((v) => ({ ...v, my_level: v.my_level ?? "" }));
-export type DocumentAccess = Omit<z.infer<typeof DocumentAccessSchema>, "my_level" | "via"> & {
-  my_level: DocumentAccessLevel;
-  via: DocumentAccessVia;
-  /** True for a workspace admin administering a restricted document they do not own (DOC-05). */
-  admin_scope?: boolean;
-};
-
-export const DocumentShareEnvelopeSchema = z.object({ share: DocumentShareSchema });
-export type DocumentShareEnvelope = { share: DocumentShare };
-
-/** A batch grant (UNI-1641): one live row per distinct principal, in request order. */
-export const DocumentShareBatchSchema = z.object({ shares: z.array(DocumentShareSchema) });
-export type DocumentShareBatch = { shares: DocumentShare[] };
-
-/** A freshly minted link: the raw token rides this answer exactly once. */
-export const DocumentLinkEnvelopeSchema = z.object({
-  link: DocumentLinkSchema,
-  token: z.string(),
-  url: z.string(),
-});
-export type DocumentLinkEnvelope = { link: DocumentLink; token: string; url: string };
+export {
+  DocumentAccessSchema,
+  DocumentAccessSourceSchema,
+  DocumentHomeWorkspaceAccessSchema,
+  DocumentLinkEnvelopeSchema,
+  DocumentLinkSchema,
+  DocumentPersonAccessSchema,
+  DocumentShareBatchSchema,
+  DocumentShareEnvelopeSchema,
+  DocumentShareSchema,
+  type DocumentAccess,
+  type DocumentAccessSource,
+  type DocumentHomeWorkspaceAccess,
+  type DocumentLink,
+  type DocumentLinkEnvelope,
+  type DocumentPersonAccess,
+  type DocumentShare,
+  type DocumentShareBatch,
+  type DocumentShareEnvelope,
+  type DocumentShareWarningCode,
+} from "./document-access";
 
 export const DocumentAccessLogSchema = z.object({
   id: z.string(),
@@ -618,7 +587,7 @@ export {
   type DocumentCommentKind,
   type DocumentCommentMention,
   type DocumentCommentRevision,
-};
+} from "./document-comments";
 export {
   DocumentCommentEnvelopeSchema,
   DocumentCommentListEnvelopeSchema,
@@ -627,26 +596,3 @@ export {
   type DocumentCommentListEnvelope,
   type DocumentCommentMentionWithoutAccess,
 } from "./document-access";
-
-// ---- Favorites (G1-07; UNI-681 lane 07b) ------------------------------------
-
-/** One favorited document in the caller's list: what a favorites panel needs
- *  to open the document, not the full payload (GET /documents/{id} has it). */
-export const DocumentFavoriteSchema = z.object({
-  document_id: z.string(),
-  favorite_id: z.string().optional().default(""),
-  workspace_id: z.string().optional().default(""),
-  title: z.string().optional().default(""),
-  kind: z.string().optional().default("page"),
-  icon: z.string().nullish(),
-  parent_id: z.string().nullish(),
-  favorited_at: z.string().optional().default(""),
-});
-export type DocumentFavorite = Omit<z.infer<typeof DocumentFavoriteSchema>, "kind"> & {
-  kind: DocumentKind;
-};
-
-export const DocumentFavoriteEnvelopeSchema = z.object({ favorite: DocumentFavoriteSchema });
-export const DocumentFavoriteListEnvelopeSchema = z.object({
-  favorites: z.array(DocumentFavoriteSchema),
-});

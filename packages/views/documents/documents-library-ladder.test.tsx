@@ -26,6 +26,7 @@ function file(id: string, over: Partial<DocumentSummaryRow> = {}): DocumentSumma
     kind: "file",
     title: "Báo cáo tổng kết quý",
     visibility: "restricted",
+    share_scope: { users: 0, home_workspace: false, workspaces: 0, organization: false, public_link: false },
     revision: "1",
     current_version: 1,
     position: 0,
@@ -197,7 +198,7 @@ describe("column ladder", () => {
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const accessLine = row.querySelector("[data-library-access-line]") as HTMLElement;
     expect(accessLine).toBeTruthy();
-    expect(accessLine.textContent).toContain("Hạn chế");
+    expect(accessLine.textContent).toContain("Riêng tư");
     const hidesAt = rungOf(accessLine, /^hidden$/);
     // It hides at the very width the column appears, so the info is never shown twice or lost.
     expect(hidesAt).toBe(944);
@@ -216,7 +217,7 @@ describe("column ladder", () => {
     const line = nameCell.querySelector("[data-library-access-line]") as HTMLElement;
     expect(line).toHaveClass("min-w-0", "overflow-hidden");
     // The lock label never shrinks or wraps; whatever must give way (editor, date, size) is the truncating part.
-    const mark = Array.from(line.querySelectorAll("span")).find((el) => el.textContent === "Hạn chế") as HTMLElement;
+    const mark = Array.from(line.querySelectorAll("span")).find((el) => el.textContent === "Riêng tư") as HTMLElement;
     const markBox = mark.closest("span.shrink-0") as HTMLElement;
     expect(markBox).toBeTruthy();
     expect(line.querySelector("span.truncate")).toBeTruthy();

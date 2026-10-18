@@ -61,6 +61,9 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND parent_id IS NOT DISTINCT FROM sqlc.arg(parent_id)
   AND owner_id IS NULL
   AND archived_at IS NULL
+  -- ARCHIVE-01 (Q-AR3 = a): shelved children leave the listing the office
+  -- frame walks.
+  AND shelved_at IS NULL
 ORDER BY position, id;
 
 -- The owner surface (§13.3/C-14): the live documents a work product owns.

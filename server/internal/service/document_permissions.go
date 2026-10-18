@@ -136,6 +136,14 @@ func (s *DocumentService) resolveLevel(ctx context.Context, q *db.Queries, actor
 // that answer (RequireMemberQ reads the organization row too), so the skipped
 // check can never admit a closed tenant.
 func (s *DocumentService) resolveLevelInTenant(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (DocumentAccess, error) {
+	return s.resolveLevelInTenantFromShares(ctx, q, actor, doc, nil, false)
+}
+
+func (s *DocumentService) resolveLevelInTenantWithShares(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, shares []db.DocumentShare) (DocumentAccess, error) {
+	return s.resolveLevelInTenantFromShares(ctx, q, actor, doc, shares, true)
+}
+
+func (s *DocumentService) resolveLevelInTenantFromShares(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, shares []db.DocumentShare, sharesLoaded bool) (DocumentAccess, error) {
 	none := DocumentAccess{}
 	switch actor.Kind {
 	case audit.KindHuman, audit.KindAgent:
@@ -204,13 +212,16 @@ func (s *DocumentService) resolveLevelInTenant(ctx context.Context, q *db.Querie
 		return best, nil
 	}
 
-	shares, err := q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		DocumentID:     doc.ID,
-	})
-	if err != nil {
-		return none, err
+	if !sharesLoaded {
+		var err error
+		shares, err = q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
+			OrganizationID: doc.OrganizationID,
+			WorkspaceID:    doc.WorkspaceID,
+			DocumentID:     doc.ID,
+		})
+		if err != nil {
+			return none, err
+		}
 	}
 	for _, sh := range shares {
 		lvl := DocumentLevel(sh.Level)
@@ -563,11 +574,26 @@ func validPreviewAssetID(value string) bool {
 // my_level) is ever trusted: share grants and revokes lock the same row, so
 // a revoke that commits first is seen here, and one that starts later waits
 // for this command to finish.
+//
+// The default gate is the shelve gate too (addendum §3): a shelved document
+// is read-only for everyone, so the mutation refuses ErrDocumentShelved
+// before fn runs. Commands §3 names allowed on a shelved document -
+// favourites, the copy's source lock, share/link/break-glass revokes -
+// run through withDocumentMutationOnShelved instead.
 func (s *DocumentService) withDocumentMutation(
 	ctx context.Context, actor Actor, documentID string, required DocumentLevel,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
-	return s.withDocumentMutationLocked(ctx, actor, documentID, "", required, fn)
+	return s.withDocumentMutationLocked(ctx, actor, documentID, "", required, shelveWriteRefused, fn)
+}
+
+// withDocumentMutationOnShelved is withDocumentMutation for a command §3
+// keeps allowed on a shelved document.
+func (s *DocumentService) withDocumentMutationOnShelved(
+	ctx context.Context, actor Actor, documentID string, required DocumentLevel,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
+) error {
+	return s.withDocumentMutationLocked(ctx, actor, documentID, "", required, shelveWriteAllowed, fn)
 }
 
 // withFileSaveMutation is withDocumentMutation at edit for the version-save
@@ -580,7 +606,7 @@ func (s *DocumentService) withFileSaveMutation(
 	ctx context.Context, actor Actor, documentID string,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
-	return s.withDocumentGateLocked(ctx, actor, documentID, "", decideFileSave, fn)
+	return s.withDocumentGateLocked(ctx, actor, documentID, "", decideFileSave, shelveWriteRefused, fn)
 }
 
 // decideFileSave is the locked gate of a version save. The archived answer
@@ -610,27 +636,28 @@ func decideFileSave(doc db.Document, access DocumentAccess) error {
 // still names the row's workspace; a row that somehow disagrees is refused
 // rather than trusted.
 func (s *DocumentService) withDocumentMutationLocked(
-	ctx context.Context, actor Actor, documentID, treeWorkspaceID string, required DocumentLevel,
+	ctx context.Context, actor Actor, documentID, treeWorkspaceID string, required DocumentLevel, shelve shelveGate,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
 	return s.withDocumentGateLocked(ctx, actor, documentID, treeWorkspaceID, func(doc db.Document, access DocumentAccess) error {
 		return decideDocumentContent(doc, access, required)
-	}, fn)
+	}, shelve, fn)
 }
 
 // withDocumentViewOrAdministerMutationLocked is withDocumentMutationLocked
 // whose outer gate admits a reader or an AdminScope caller; fn decides what
-// each of them may change (visibility, shares).
+// each of them may change (visibility, shares), and shelve carries the
+// command's stance on a shelved document (addendum §3).
 func (s *DocumentService) withDocumentViewOrAdministerMutationLocked(
-	ctx context.Context, actor Actor, documentID, treeWorkspaceID string,
+	ctx context.Context, actor Actor, documentID, treeWorkspaceID string, shelve shelveGate,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
-	return s.withDocumentGateLocked(ctx, actor, documentID, treeWorkspaceID, decideDocumentViewOrAdminister, fn)
+	return s.withDocumentGateLocked(ctx, actor, documentID, treeWorkspaceID, decideDocumentViewOrAdminister, shelve, fn)
 }
 
 func (s *DocumentService) withDocumentGateLocked(
 	ctx context.Context, actor Actor, documentID, treeWorkspaceID string,
-	decide func(db.Document, DocumentAccess) error,
+	decide func(db.Document, DocumentAccess) error, shelve shelveGate,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
 ) error {
 	if !validActor(actor) || documentID == "" {
@@ -663,6 +690,14 @@ func (s *DocumentService) withDocumentGateLocked(
 	}
 	if err := decide(doc, access); err != nil {
 		return err
+	}
+	// The shelve gate sits between the command's access answer and its body:
+	// a caller who may not see the row gets that answer (404/403) and never
+	// learns the state; anyone who may sees read-only for what it is.
+	if shelve == shelveWriteRefused {
+		if err := requireNotShelved(doc); err != nil {
+			return err
+		}
 	}
 	if err := fn(q, doc, access); err != nil {
 		return err

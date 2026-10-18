@@ -7,10 +7,11 @@ import { toast } from "sonner";
 import { useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { useSaveSourceToFolder } from "@uniwork/core/documents/hooks-library";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
+import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
+import { isParentWorkspaceShared, type CreateShareOptions } from "./documents-create";
 import { findTreeNode, loadMoveRevision } from "./document-tree-model";
 import { FolderNameDialog } from "./folder-name-dialog";
 import { FolderPickerDialog } from "./folder-picker-dialog";
@@ -19,12 +20,13 @@ import type { DocumentSummaryRow } from "./library-rows";
 type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
 type NameDialogState =
-  | { mode: "create"; parentId: string | null; parentTitle?: string }
+  | { mode: "create"; parentId: string | null; parentTitle?: string; parentShared?: boolean; shareWithWorkspace?: boolean }
   | { mode: "rename"; doc: DocumentSummaryRow };
 
 export interface LibraryRowDialogs {
   onSaveSource: (row: SourceRow) => void;
-  onCreateFolder: () => void;
+  /** `options.shareWithWorkspace` opens the dialog with its share toggle already on. */
+  onCreateFolder: (options?: CreateShareOptions) => void;
   onNewSubfolder: (doc: DocumentSummaryRow) => void;
   onRename: (doc: DocumentSummaryRow) => void;
   onMove: (doc: DocumentSummaryRow) => void;
@@ -46,6 +48,7 @@ export function useLibraryRowDialogs({
   tree,
   folderId,
   folderTitle,
+  parentShared,
 }: {
   wsId: string;
   tree: DocumentTreeNode[];
@@ -53,6 +56,8 @@ export function useLibraryRowDialogs({
   folderId: string | null;
   /** Title of the open folder for the "New -> Folder" dialog header. */
   folderTitle?: string;
+  /** True when the open folder already shares with the home workspace. */
+  parentShared?: boolean;
 }): LibraryRowDialogs {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -81,10 +86,11 @@ export function useLibraryRowDialogs({
       if (movedDoc.title && movedDoc.title !== doc.title) {
         toast.success(t("documents.home.move.moved_renamed", { title: movedDoc.title }));
       } else {
+        const targetNode = parentId === null ? undefined : findTreeNode(tree, parentId);
         const folder =
           parentId === null
             ? t("documents.home.move.root")
-            : findTreeNode(tree, parentId)?.title || t("documents.detail.untitled");
+            : (isMyFolder(targetNode) ? t("documents.home.my_folder.label") : targetNode?.title) || t("documents.detail.untitled");
         toast.success(t("documents.home.move.moved_to", { folder }));
       }
     } catch (failure) {
@@ -104,6 +110,8 @@ export function useLibraryRowDialogs({
         mode={naming?.mode ?? "create"}
         parentId={naming?.mode === "create" ? naming.parentId : null}
         parentTitle={naming?.mode === "create" ? naming.parentTitle : undefined}
+        parentShared={naming?.mode === "create" ? naming.parentShared : undefined}
+        initialShareWithWorkspace={naming?.mode === "create" ? Boolean(naming.shareWithWorkspace) : false}
         folderId={naming?.mode === "rename" ? naming.doc.id : ""}
         initialName={naming?.mode === "rename" ? naming.doc.title : ""}
         kind={naming?.mode === "rename" ? naming.doc.kind : "folder"}
@@ -185,14 +193,34 @@ export function useLibraryRowDialogs({
       setError(null);
       setSaving(row);
     },
-    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle }),
-    onNewSubfolder: (doc) => setNaming({ mode: "create", parentId: doc.id, parentTitle: doc.title }),
-    onRename: (doc) => setNaming({ mode: "rename", doc }),
+    onCreateFolder: (options) =>
+      setNaming({
+        mode: "create",
+        parentId: folderId,
+        parentTitle: folderTitle,
+        parentShared,
+        shareWithWorkspace: Boolean(options?.shareWithWorkspace),
+      }),
+    onNewSubfolder: (doc) =>
+      setNaming({
+        mode: "create",
+        parentId: doc.id,
+        parentTitle: isMyFolder(doc) ? t("documents.home.my_folder.label") : doc.title,
+        parentShared: isParentWorkspaceShared(doc, findTreeNode(tree, doc.id)),
+      }),
+    onRename: (doc) => {
+      if (isMyFolder(doc)) return;
+      setNaming({ mode: "rename", doc });
+    },
     onMove: (doc) => {
+      if (isMyFolder(doc)) return;
       setError(null);
       setMoving(doc);
     },
-    onArchive: (doc) => setArchiving(doc),
+    onArchive: (doc) => {
+      if (isMyFolder(doc)) return;
+      setArchiving(doc);
+    },
     dialogs,
   };
 }

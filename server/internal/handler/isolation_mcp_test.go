@@ -181,6 +181,15 @@ func TestIsolationMCP(t *testing.T) {
 	aTask2, aProject, aLabel, aComment := a.get(t, "task2"), a.get(t, "project"), a.get(t, "label"), a.get(t, "taskComment")
 	bTask, bProject, bMeeting := b.get(t, "task"), b.get(t, "project"), b.get(t, "meeting")
 	aDoc, aFile, bDoc := a.get(t, "document"), a.get(t, "fileDocument"), b.get(t, "document")
+	// aPage and bPage name one page by its own body phrase. The world holds
+	// more marker-titled documents than one search returns (the tool caps its
+	// documents at 10, most recently updated first - the merge with the edit
+	// lock added two more marker-titled pages, and the archive's own shelved
+	// pair shows up in search per the ARCHIVE-01 spec), and the page is the
+	// oldest row, so the bare marker cuts it off. The assertions below are
+	// about search reaching documents, not about how many rows the world
+	// seeds.
+	aPage, bPage := a.marker+" page body", b.marker+" page body"
 	// A holds a third task, so it has a PREFIX-N that B's workspace does not:
 	// both workspaces count from 1 under the same prefix, and a ref that B's
 	// own workspace can answer would test nothing.
@@ -474,8 +483,8 @@ func TestIsolationMCP(t *testing.T) {
 			t.Errorf("%s list_tasks by A's project leaked %s: %s", label, leak, raw)
 		}
 		// B's own workspace searched for A's marker finds no document of A's, and
-		// the same search for B's own marker finds B's page, so a documentless
-		// answer is not a world without documents.
+		// the same search by B's page's own body phrase finds B's page, so a
+		// documentless answer is not a world without documents.
 		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "search", map[string]string{"workspace_id": b.wsID, "query": a.marker})
 		if status != http.StatusOK || isToolError(raw) {
 			t.Errorf("%s search in B's workspace by A's marker: %d %s", label, status, raw)
@@ -483,9 +492,9 @@ func TestIsolationMCP(t *testing.T) {
 		if leak := a.leakIn(raw, ""); leak != "" {
 			t.Errorf("%s search in B's workspace by A's marker leaked %s: %s", label, leak, raw)
 		}
-		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "search", map[string]string{"workspace_id": b.wsID, "query": b.marker})
+		status, raw = mcpCallTool(t, w, b.ids["mcpAccess"], "search", map[string]string{"workspace_id": b.wsID, "query": bPage})
 		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), bDoc) {
-			t.Errorf("%s search in B's workspace by B's marker does not find B's page: %d %s", label, status, raw)
+			t.Errorf("%s search in B's workspace by B's page phrase does not find B's page: %d %s", label, status, raw)
 		}
 		for _, at := range docAttacks {
 			status, raw := mcpCallToolJSON(t, w, b.ids["mcpAccess"], at.tool, at.args)
@@ -630,7 +639,7 @@ func TestIsolationMCP(t *testing.T) {
 				t.Errorf("A's own get_document of the page does not show its Markdown: %s", raw)
 			}
 		}
-		status, raw := mcpCallTool(t, w, a.ids["mcpAccess"], "search", map[string]string{"workspace_id": a.wsID, "query": a.marker})
+		status, raw := mcpCallTool(t, w, a.ids["mcpAccess"], "search", map[string]string{"workspace_id": a.wsID, "query": aPage})
 		if status != http.StatusOK || isToolError(raw) || !strings.Contains(string(raw), aDoc) {
 			t.Errorf("A's own search does not find A's page: %d %s", status, raw)
 		}

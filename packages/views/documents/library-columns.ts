@@ -38,7 +38,16 @@
  * | 59rem     | + Truy cập                           |
  */
 
-export type LibraryColumnId = "name" | "access" | "editor" | "updated" | "size" | "actions";
+export type LibraryColumnId =
+  | "name"
+  | "access"
+  | "editor"
+  | "updated"
+  | "size"
+  | "actions"
+  // Shelved-only columns (ARCHIVE-01 U-2): who archived it and when.
+  | "shelved_by"
+  | "shelved_at";
 
 interface LibraryColumn {
   id: LibraryColumnId;
@@ -90,6 +99,37 @@ const LADDER: LibraryLadder = {
 
 export function libraryLadder(): LibraryLadder {
   return LADDER;
+}
+
+// Shelved ladder (Archive.dc, ARCHIVE-01 U-2): Name (with the folder path as
+// its secondary line) / Truy cập / Lưu trữ bởi / Lưu trữ lúc / Actions. Below
+// 46rem only Name and the actions exist; the member name lands last because
+// its 160px are the widest single addition.
+//
+// | container | shelved                          |
+// | --------- | -------------------------------- |
+// | < 46rem   | Name, actions                    |
+// | 46rem     | + Truy cập, Lưu trữ lúc          |
+// | 56rem     | + Lưu trữ bởi                    |
+const SHELVED: LibraryLadder = {
+  columns: [
+    NAME,
+    { id: "access", col: "hidden w-24 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
+    { id: "shelved_by", col: "hidden w-40 @min-[56rem]/library:table-column", cell: "hidden @min-[56rem]/library:table-cell" },
+    { id: "shelved_at", col: "hidden w-28 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
+    // Two labelled commands (restore from Lưu trữ, move to trash) plus the ⋯ menu.
+    { id: "actions", col: "w-24 pointer-coarse:w-28 @min-[46rem]/library:w-48", cell: "" },
+  ],
+  head: "hidden bg-muted/50 @min-[46rem]/library:table-header-group",
+  quick: "",
+  metaHides: "@min-[46rem]/library:hidden",
+  metaTailHides: "@min-[46rem]/library:hidden",
+  accessLineHides: "@min-[56rem]/library:hidden",
+};
+
+/** The Lưu trữ table's ladder: the access column plus the shelved pair. */
+export function shelvedLadder(): LibraryLadder {
+  return SHELVED;
 }
 
 /** The visibility class of one column's cells, or null when this ladder has no such column. */

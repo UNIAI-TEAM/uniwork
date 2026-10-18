@@ -583,10 +583,13 @@
         "chat_thread_replied": "Trả lời trong thread bạn theo dõi",
         "document_access_requested": "Yêu cầu truy cập tài liệu",
         "document_access_approved": "Được cấp quyền truy cập tài liệu",
-        "document_access_declined": "Yêu cầu truy cập bị từ chối"
+        "document_access_declined": "Yêu cầu truy cập bị từ chối",
+        "document_shared": "Tài liệu được chia sẻ với bạn",
+        "document_trashed_by_other": "Tài liệu của bạn bị chuyển vào thùng rác"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
+      "email_all": "Email cho mọi loại phù hợp",
       "push_unavailable_server": "Máy chủ này chưa bật thông báo đẩy, nên thông báo đến hộp việc và email.",
       "push_unavailable_browser": "Trình duyệt này không nhận được thông báo đẩy, nên thông báo đến hộp việc và email.",
       "browser_banners_allow": "Cho phép báo tin nhắn mới khi tab UniWork đang ẩn"
@@ -1134,7 +1137,7 @@
       "loading": "Đang tải…",
       "export": {
         "title": "Xuất dữ liệu",
-        "description": "Zip gồm organization.json, manifest.json và một tệp JSONL cho mỗi bảng. Không có nội dung tệp đính kèm; nhật ký hoạt động và hóa đơn không nằm trong bản xuất.",
+        "description": "Zip gồm organization.json, manifest.json và một tệp JSONL cho mỗi bảng. Không có nội dung tệp đính kèm; nhật ký hoạt động và hóa đơn không nằm trong bản xuất. Bản xuất bao gồm tài liệu trong Thư mục của tôi của mọi thành viên.",
         "submit": "Tạo bản xuất",
         "empty": "Chưa có bản xuất nào.",
         "download": "Tải về",
@@ -5066,6 +5069,8 @@
     "group_older": "Cũ hơn",
     "merged_other_one": "và {{count}} thay đổi khác",
     "merged_other_other": "và {{count}} thay đổi khác",
+    "trashed_more_one": "và {{count}} mục khác",
+    "trashed_more_other": "và {{count}} mục khác",
     "deleted": "đã xóa",
     "unread_dot": "Chưa đọc",
     "unread_elsewhere": "Có thông báo chưa đọc ở workspace khác",
@@ -5132,7 +5137,15 @@
       "document_access_requested_untitled": "{{actor}} xin quyền truy cập một tài liệu.",
       "document_access_approved": "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",
       "document_access_approved_untitled": "{{actor}} đã cấp cho bạn quyền truy cập một tài liệu.",
-      "document_access_declined": "Yêu cầu truy cập tài liệu của bạn đã bị từ chối."
+      "document_access_declined": "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
+      "document_shared": "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn. Quyền: {{level}}.",
+      "document_shared_untitled": "{{actor}} đã chia sẻ một tài liệu với bạn. Quyền: {{level}}.",
+      "document_shared_nolevel": "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn.",
+      "document_shared_untitled_nolevel": "{{actor}} đã chia sẻ một tài liệu với bạn.",
+      "document_trashed_by_other": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
+      "document_trashed_by_other_untitled": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
+      "document_trashed_by_other_nodate": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác",
+      "document_trashed_by_other_untitled_nodate": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác"
     },
     "kindTitle": {
       "document_mentioned": "Bạn được nhắc tên trong bình luận",
@@ -5143,7 +5156,9 @@
       "document_break_glass": "Truy cập khẩn cấp vào tài liệu",
       "document_access_requested": "Yêu cầu truy cập tài liệu",
       "document_access_approved": "Đã được cấp quyền",
-      "document_access_declined": "Yêu cầu bị từ chối"
+      "document_access_declined": "Yêu cầu bị từ chối",
+      "document_shared": "Tài liệu được chia sẻ",
+      "document_trashed_by_other": "Tài liệu của bạn đã vào thùng rác"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",
@@ -8812,7 +8827,12 @@
       "readonly_description": "Bạn xem được bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.",
       "revoked_title": "Bạn không còn quyền xem tài liệu này",
       "revoked_description": "Nội dung đã bị ẩn theo quyền hiện tại. Xin lại quyền truy cập nếu bạn cần xem tiếp.",
-      "archived_banner": "Tài liệu này đang ở trong thùng rác — chỉ xem."
+      "archived_banner": "Tài liệu này đang ở trong thùng rác — chỉ xem.",
+      "first_save": {
+        "title": "Đặt tên tài liệu",
+        "hint": "Bạn có thể đổi tên sau trong thư mục.",
+        "submit": "Lưu"
+      }
     },
     "save": {
       "status_label": "Trạng thái lưu",
@@ -8910,17 +8930,32 @@
     },
     "upload": {
       "title": "Tải tệp lên",
-      "description": "Tệp trở thành một tài liệu mới trong workspace.",
+      "description": "Tệp trở thành tài liệu mới trong Thư mục của tôi (chỉ bạn thấy).",
+      "description_folder": "Tệp trở thành tài liệu mới trong thư mục này.",
       "version_title": "Tải phiên bản mới",
       "version_description": "Tệp mới trở thành bản làm việc; phiên bản đang mở vẫn nằm trong lịch sử.",
       "pick": "Chọn tệp",
       "selected": "Đã chọn {{name}}",
+      "no_file": "Chưa chọn tệp",
       "size_hint": "Tối đa {{max}} mỗi tệp.",
       "too_large_named": "{{name}} nặng {{size}}, vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
       "unsupported_format": "Định dạng của {{name}} chưa được hỗ trợ.",
+      "unreadable_file": "Không đọc được tệp {{name}}. Tệp có thể bị hỏng.",
       "submit": "Tải lên",
       "submitting": "Đang tải lên…",
-      "cancel": "Hủy"
+      "cancel": "Hủy",
+      "pause": "Tạm dừng",
+      "resume": "Tiếp tục",
+      "checking": "Đang kiểm tra tệp…",
+      "resume_hint": "Tiếp tục tải lên từ lần trước.",
+      "progress_status": "Đang tải lên {{name}}",
+      "drop_progress": "Đang tải lên {{name}} · {{percent}}%",
+      "paused_status": "Đã tạm dừng",
+      "failed_resumable": "Chưa tải lên hết tệp. Tiến độ đã được giữ lại — bấm Tải lên để tiếp tục.",
+      "drop_queued": "Đang chờ tải lên {{name}}",
+      "document_locked": "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại.",
+      "document_locked_by_me": "Bạn đang sửa tài liệu này ở một cửa sổ khác. Lưu hoặc đóng cửa sổ đó rồi thử lại.",
+      "no_change": "Không có thay đổi — giữ nguyên phiên bản hiện tại"
     },
     "file": {
       "metadata_title": "Thông tin tệp",
@@ -9027,14 +9062,15 @@
     "share": {
       "title": "Chia sẻ tài liệu",
       "title_named": "Chia sẻ “{{title}}”",
-      "stored_in": "Lưu tại: {{workspace}}",
+      "stored_in": "Lưu tại: Workspace {{workspace}}",
+      "home_badge": "Nơi lưu",
       "description": "Cấp quyền cho người, workspace hoặc tổ chức. Danh sách bên dưới là quyền thật đang có.",
       "manage_only": "Bạn cần quyền quản lý để chia sẻ tài liệu này.",
       "loading": "Đang tải quyền truy cập…",
       "error": "Không tải được quyền truy cập.",
       "retry": "Thử lại",
       "access_title": "Người và nhóm có quyền",
-      "my_level": "Mức của bạn: {{level}}",
+      "my_level": "Quyền của bạn: {{level}}",
       "acl_owner": "Chủ sở hữu",
       "owner": {
         "transfer_button": "Chuyển quyền sở hữu",
@@ -9053,16 +9089,21 @@
         "failed": "Chưa chuyển được quyền sở hữu. Hãy thử lại.",
         "owned_by_work_product": "Tài liệu này thuộc về một sản phẩm công việc nên không đổi được chủ sở hữu."
       },
+      "via_owner": "chủ sở hữu",
       "via_member": "thành viên workspace",
       "via_share": "chia sẻ trực tiếp",
       "via_link": "liên kết công khai",
       "via_ai_context": "ngữ cảnh AI",
+      "via_organization": "tổ chức",
+      "via_workspace_named": "Workspace {{name}}",
+      "via_organization_named": "Tổ chức {{name}}",
       "level_view": "Chỉ xem",
-      "level_comment": "Bình luận",
+      "level_comment": "Nhận xét",
       "level_edit": "Chỉnh sửa",
       "level_manage": "Quản lý",
+      "level_other": "Mức khác",
       "inactive": "Không còn hiệu lực",
-      "effective": "Mức hiệu lực: {{level}}",
+      "effective": "Quyền thực tế: {{level}}",
       "revoke": "Thu hồi",
       "revoke_pending": "Đang thu hồi…",
       "revoke_failed": "Không thu hồi được quyền này.",
@@ -9075,6 +9116,53 @@
       "principal_placeholder": "Chọn đối tượng",
       "principal_search": "Tìm theo tên",
       "principal_empty": "Không có đối tượng phù hợp.",
+      "candidate_search": "Tìm theo tên, email hoặc nhóm",
+      "candidate_has_access": "Đã có quyền: {{level}}",
+      "candidate_workspace_sub": "Mọi thành viên của workspace này",
+      "candidate_organization_sub": "Mọi thành viên trong tổ chức",
+      "selected_count": "Đã chọn {{count}}",
+      "custom_levels_toggle": "Thiết lập quyền riêng",
+      "custom_levels_summary": "{{summary}}",
+      "apply_all_button": "Áp dụng cho tất cả",
+      "apply_all_confirm": "Đặt tất cả {{count}} đối tượng thành {{level}}?",
+      "apply_all_accept": "Áp dụng",
+      "apply_all_cancel": "Huỷ",
+      "on_existing_keep": "Giữ {{level}}",
+      "on_existing_update": "Cập nhật thành {{level}}",
+      "shared_toast": "Đã chia sẻ cho {{count}} đối tượng",
+      "updated_toast": "Đã cập nhật quyền của {{name}} thành {{level}}",
+      "confirm_accept": "Xác nhận",
+      "confirm_cancel": "Huỷ",
+      "warning_wide_scope_workspace": "Chia sẻ cho Workspace {{name}} ({{count}} thành viên) ở mức {{level}}",
+      "warning_wide_scope_organization": "Chia sẻ cho toàn bộ Tổ chức {{name}} ({{count}} thành viên) ở mức {{level}}",
+      "warning_direct_below_group": "{{name}} vẫn có quyền {{effectiveLevel}} qua {{source}}",
+      "warning_downgrade_person": "Đổi quyền của {{name}} từ {{before}} xuống {{after}}",
+      "warning_downgrade_group": "Đổi quyền của {{name}} từ {{before}} xuống {{after}} ({{count}} thành viên bị ảnh hưởng)",
+      "revoke_confirm_lose": "Thu hồi quyền của {{name}}? {{name}} sẽ không còn mở được tài liệu này.",
+      "revoke_confirm_keep": "Thu hồi quyền chia sẻ trực tiếp của {{name}}? {{name}} vẫn có quyền {{level}} qua {{source}}.",
+      "revoke_confirm_group": "Thu hồi quyền của {{name}} ({{memberCount}} thành viên)? {{losingCount}} thành viên sẽ mất quyền mở tài liệu.",
+      "warning_generic": "Thay đổi này ảnh hưởng đến quyền của {{name}}",
+      "warning_generic_done": "Đã thay đổi quyền của {{name}}",
+      "warning_wide_scope_workspace_done": "Đã chia sẻ cho Workspace {{name}} ({{count}} thành viên) ở mức {{level}}",
+      "warning_wide_scope_organization_done": "Đã chia sẻ cho toàn bộ Tổ chức {{name}} ({{count}} thành viên) ở mức {{level}}",
+      "warning_direct_below_group_done": "Đã cập nhật quyền của {{name}}. {{name}} vẫn có quyền {{effectiveLevel}} qua {{source}}.",
+      "warning_downgrade_person_done": "Đã đổi quyền của {{name}} từ {{before}} xuống {{after}}",
+      "warning_downgrade_group_done": "Đã đổi quyền của {{name}} từ {{before}} xuống {{after}} ({{count}} thành viên bị ảnh hưởng)",
+      "revoke_done_lose": "Đã thu hồi quyền của {{name}}. {{name}} không còn mở được tài liệu này.",
+      "revoke_done_keep": "Đã thu hồi quyền chia sẻ trực tiếp của {{name}}. {{name}} vẫn có quyền {{level}} qua {{source}}.",
+      "revoke_done_group": "Đã thu hồi quyền của {{name}} ({{memberCount}} thành viên). {{losingCount}} thành viên đã mất quyền mở tài liệu.",
+      "rejected_unknown": "Không chia sẻ được cho đối tượng này",
+      "level_manage_capped_hint": "Workspace gốc và Tổ chức tối đa là Chỉnh sửa, nên hai nhóm này sẽ nhận quyền Chỉnh sửa.",
+      "candidates_more": "Tải thêm",
+      "candidates_error": "Không tải được danh sách đối tượng.",
+      "rejected_not_in_org": "Không thuộc tổ chức này",
+      "rejected_level_not_allowed": "Mức quyền không hợp lệ cho đối tượng này",
+      "rejected_duplicate": "Đối tượng bị trùng trong danh sách",
+      "rejected_break_glass": "Cần mở truy cập khẩn cấp trước khi thay đổi quyền",
+      "access_filter_placeholder": "Lọc người và nhóm có quyền",
+      "access_filter_label": "Lọc danh sách quyền",
+      "sources_toggle": "Nguồn quyền ({{count}})",
+      "source_item": "{{level}} qua {{source}}",
       "people_placeholder": "Tìm theo tên hoặc email",
       "people_empty": "Không có thành viên phù hợp.",
       "people_loading": "Đang tải thành viên…",
@@ -9085,8 +9173,6 @@
       "members_error_limit": "Danh sách quá dài nên chỉ hiển thị một phần thành viên.",
       "people_already_shared": "Đã có quyền",
       "people_chosen": "Người đã chọn",
-      "people_selected_one": "Đã chọn {{count}} người",
-      "people_selected_other": "Đã chọn {{count}} người",
       "people_limit": "Tối đa {{max}} người mỗi lần chia sẻ. Bỏ bớt để thêm người khác.",
       "people_remove": "Bỏ chọn {{name}}",
       "people_removed": "Đã bỏ chọn {{name}}",
@@ -9098,16 +9184,12 @@
       "submitting": "Đang chia sẻ…",
       "submit_failed": "Không chia sẻ được. Kiểm tra lại đối tượng và mức quyền.",
       "grant_added": "Đã cập nhật quyền.",
-      "visibility_title": "Chế độ hiển thị",
       "visibility_workspace": "Cả workspace",
-      "visibility_workspace_hint": "Mọi thành viên workspace xem được tài liệu.",
       "visibility_restricted": "Hạn chế",
-      "visibility_restricted_hint": "Chỉ người được chia sẻ và người quản lý xem được.",
-      "visibility_save": "Lưu chế độ hiển thị",
-      "visibility_saving": "Đang lưu…",
-      "visibility_failed": "Không đổi được chế độ hiển thị.",
       "links_title": "Liên kết công khai",
       "links_description": "Ai có URL đều xem được, không cần đăng nhập.",
+      "links_policy_enabled": "Tổ chức cho phép liên kết công khai",
+      "links_policy_disabled": "Tổ chức không cho phép liên kết công khai",
       "links_empty": "Chưa có liên kết nào.",
       "links_off": "Liên kết công khai đang tắt cho tổ chức.",
       "links_off_action": "Mở cài đặt tài liệu",
@@ -9289,6 +9371,7 @@
         "purge_in": "Xóa vĩnh viễn sau",
         "actions": "Thao tác"
       },
+      "focus_further": "Mục bạn mở có thể nằm ở phần chưa tải. Bấm Tải thêm để xem.",
       "deleted_by_unknown": "Thành viên cũ",
       "read_only": "Chỉ xem · người quản lý khôi phục",
       "restore": "Khôi phục",
@@ -9316,6 +9399,52 @@
         "restored_root": "Đã khôi phục {{title}} về gốc workspace",
         "restored_folder": "Đã khôi phục {{title}} về {{folder}}",
         "left_in_trash": "Một số mục con vẫn ở lại thùng rác."
+      }
+    },
+    "shelved_list": {
+      "title": "Lưu trữ",
+      "intro": "Tài liệu đã xong việc được cất ở đây: giữ mãi, chỉ đọc, không bình luận. Bỏ lưu trữ đưa mục về như cũ. Ai xem được vẫn mở và tìm thấy (nhãn “Đã lưu trữ”). Lưu trữ một thư mục là lưu cả cây; cần quyền Quản lý.",
+      "badge": "Đã lưu trữ",
+      "shelve": "Lưu trữ",
+      "unshelve": "Bỏ lưu trữ",
+      "undo": "Hoàn tác",
+      "unshelve_item": "Bỏ lưu trữ {{title}}",
+      "no_permission": "Bạn không quản lý mục này.",
+      "unshelve_failed": "Không bỏ lưu trữ được. Chưa có gì thay đổi.",
+      "shelve_failed": "Không lưu trữ được. Chưa có gì thay đổi.",
+      "too_large": "Thư mục có quá nhiều mục nên chưa lưu trữ hết được một lần. Hãy lưu trữ từng phần bên trong trước.",
+      "filter_by_label": "Lưu trữ bởi",
+      "filter_by_any": "Bất kỳ ai",
+      "filter_loaded_only": "Chỉ lọc trong phần đã tải — tải thêm để lọc rộng hơn.",
+      "shelved_by_former": "Cựu thành viên",
+      "shelved_by_system": "Hệ thống",
+      "sort_shelved_desc": "Lưu trữ gần nhất",
+      "columns": {
+        "name": "Tên",
+        "access": "Truy cập",
+        "shelved_by": "Lưu trữ bởi",
+        "shelved_at": "Lưu trữ lúc",
+        "actions": "Thao tác"
+      },
+      "empty_title": "Chưa có tài liệu nào được lưu trữ",
+      "empty_description": "Mục mà người quản lý đưa vào Lưu trữ sẽ hiện ở đây.",
+      "no_matches_title": "Không có mục nào khớp",
+      "no_matches_description": "Không mục nào khớp bộ lọc trong phần đã tải.",
+      "shelve_title": "Lưu trữ thư mục này?",
+      "shelve_folder_body": "Cả thư mục và mọi thứ bên trong sẽ thành chỉ đọc: {{subfolders}} và {{documents}}.",
+      "shelve_subfolders_one": "{{count}} thư mục con",
+      "shelve_subfolders_other": "{{count}} thư mục con",
+      "shelve_documents_one": "{{count}} tài liệu",
+      "shelve_documents_other": "{{count}} tài liệu",
+      "shelve_loading": "Đang đọc bên trong…",
+      "shelve_confirm": "Lưu trữ",
+      "shelve_submitting": "Đang lưu trữ…",
+      "shelve_forbidden": "Bạn không quản lý mọi mục trong thư mục này.",
+      "toast": {
+        "shelved": "Đã lưu trữ {{title}}",
+        "unshelved": "Đã bỏ lưu trữ {{title}}",
+        "left_shelved": "Một số mục con vẫn ở trong Lưu trữ.",
+        "restored_to_shelved": "Đã khôi phục {{title}} vào Lưu trữ"
       }
     },
     "public": {
@@ -9476,6 +9605,10 @@
         "html": "Trang HTML chưa đặt tên.html",
         "pdf": "PDF chưa đặt tên.pdf"
       },
+      "my_folder": {
+        "label": "Thư mục của tôi",
+        "open_failed": "Không thể mở Thư mục của tôi. Thử lại."
+      },
       "folders": {
         "default_name": "Thư mục mới",
         "create_failed": "Không thể tạo thư mục. Thử lại.",
@@ -9508,7 +9641,7 @@
         "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
       "quick_create": {
-        "hint_root": "File mới nằm ở thư mục gốc của workspace và mở ngay trong trình soạn thảo.",
+        "hint_root": "File mới tạo hoặc tải lên ở đây sẽ nằm trong Thư mục của tôi (chỉ bạn thấy) và mở ngay trong trình soạn thảo.",
         "label": "Tạo nhanh"
       },
       "create": {
@@ -9561,7 +9694,11 @@
         },
         "folder": {
           "menu": "Thư mục"
-        }
+        },
+        "share_workspace_toggle": "Chia sẻ với workspace",
+        "share_workspace_hint": "Mọi thành viên của workspace này sẽ {{level}} tài liệu mới",
+        "share_workspace_inherited": "Thư mục này đang chia sẻ với workspace nên tài liệu mới cũng vậy",
+        "share_workspace_level_view": "chỉ xem"
       },
       "sections": {
         "folders": "Thư mục",
@@ -9592,6 +9729,8 @@
         "recent": "Gần đây",
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
+        "shared_by_me": "Tôi đã chia sẻ",
+        "shelved": "Lưu trữ",
         "trash": "Thùng rác",
         "folders": "Thư mục",
         "elsewhere": "Từ nơi khác",
@@ -9611,6 +9750,7 @@
         "recent": "Gần đây",
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
+        "shared_by_me": "Tôi đã chia sẻ",
         "archived": "Thùng rác",
         "sources": "Từ nơi khác",
         "chat": "Trò chuyện",
@@ -9618,7 +9758,6 @@
         "meeting": "Cuộc họp",
         "email": "Email"
       },
-
       "chips_label": "Lọc theo loại",
       "chips": {
         "all": "Tất cả",
@@ -9645,10 +9784,6 @@
         "manage": "Quản lý",
         "owner": "Chủ sở hữu",
         "you_prefix": "Bạn: {{level}}"
-      },
-      "visibility": {
-        "workspace": "Workspace",
-        "restricted": "Hạn chế"
       },
       "group_by": {
         "label": "Nhóm theo",
@@ -9695,6 +9830,7 @@
         "preview_loading": "Đang tải ảnh…",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
+        "view_only_notice": "Chỉ xem · thay đổi sẽ không được lưu",
         "download": "Tải xuống",
         "save_to_folder": "Lưu vào thư mục",
         "menu": "Thao tác cho {{title}}",
@@ -9718,6 +9854,8 @@
         "starred_description": "Gắn sao từ menu ⋯ của một dòng để tìm lại nhanh.",
         "shared_title": "Chưa có tài liệu nào được chia sẻ với bạn",
         "shared_description": "Tài liệu người khác chia sẻ với bạn sẽ hiện ở đây.",
+        "shared_by_me_title": "Chưa chia sẻ tài liệu nào",
+        "shared_by_me_description": "Tài liệu và thư mục bạn chia sẻ với người khác hoặc cả workspace sẽ hiện ở đây.",
         "archived_title": "Thùng rác đang trống",
         "archived_description": "Tài liệu đã xóa nằm ở đây trong 30 ngày.",
         "sources_title": "Chưa có file nào",
@@ -9790,6 +9928,20 @@
         "error_description": "Kiểm tra kết nối rồi thử lại."
       }
     },
+    "scope": {
+      "private": "Riêng tư",
+      "people_one": "{{count}} người",
+      "people_other": "{{count}} người",
+      "workspace": "Workspace",
+      "workspaces_one": "{{count}} workspace",
+      "workspaces_other": "{{count}} workspace",
+      "organization": "Tổ chức",
+      "multiple": "Nhiều phạm vi",
+      "public_link": "Liên kết công khai",
+      "tooltip_home_workspace": "Workspace {{name}}",
+      "tooltip_other_workspaces_one": "{{count}} workspace khác",
+      "tooltip_other_workspaces_other": "{{count}} workspace khác"
+    },
     "errors": {
       "document_parent_kind": "Không đặt được ở đây: thư mục chỉ nằm ở gốc hoặc trong thư mục khác; UniNote và file nằm trong UniNote hoặc thư mục.",
       "document_cycle": "Không thể chuyển một mục vào chính nó hoặc vào mục con của nó.",
@@ -9799,7 +9951,26 @@
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
       "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
-      "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại."
+      "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
+      "my_folder_locked": "Thư mục của tôi là thư mục hệ thống cá nhân — không thể đổi tên, chia sẻ, di chuyển hoặc chuyển vào thùng rác.",
+      "unsupported_media_type": "Định dạng tệp này chưa được hỗ trợ.",
+      "upload_sessions_exhausted": "Bạn đang có quá nhiều phiên tải lên cùng lúc. Hãy hoàn tất hoặc hủy bớt rồi thử lại.",
+      "upload_session_expired": "Phiên tải lên đã hết hạn. Hãy chọn lại tệp để tải lên từ đầu.",
+      "upload_parts_invalid": "Dữ liệu tải lên chưa đầy đủ hoặc không khớp. Hãy thử tải lên lại.",
+      "upload_size_mismatch": "Kích thước tệp đã thay đổi trong lúc tải lên. Hãy chọn lại tệp và thử lại.",
+      "upload_probe_mismatch": "Nội dung tệp không khớp với định dạng đã chọn. Hãy kiểm tra lại tệp.",
+      "quota_exceeded": "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói."
+    },
+    "shelved_doc": {
+      "label": "Đã lưu trữ",
+      "banner": "Tài liệu này đã được lưu trữ: chỉ đọc, không bình luận.",
+      "unshelve": "Bỏ lưu trữ",
+      "unshelved": "Đã bỏ lưu trữ {{title}}",
+      "unshelve_failed": "Không bỏ lưu trữ được tài liệu này.",
+      "write_blocked": "Tài liệu đã được lưu trữ, chỉ đọc.",
+      "frame_save_blocked": "Tài liệu đã được lưu trữ nên không lưu được.",
+      "comments_status": "Tài liệu đã lưu trữ: bình luận chỉ để đọc.",
+      "share_note": "Tài liệu đã lưu trữ: chỉ thu hồi được quyền, không cấp thêm."
     }
   },
   "squads": {
@@ -9958,6 +10129,7 @@
         "description": "Tài liệu vẫn đang được mở. Điều này có thể xảy ra khi kết nối chậm."
       },
       "mine_file_name": "{{title}} (bản của tôi)",
+      "remote_author_you": "bạn",
       "failure": {
         "unavailable": {
           "title": "Chưa mở được tài liệu trên web",
@@ -9988,6 +10160,8 @@
       "errors": {
         "unauthorized": "Phiên chỉnh sửa đã hết hạn. Hãy thử lại.",
         "forbidden": "Bạn không có quyền thực hiện thao tác này trong tài liệu.",
+        "read_only_source": "Tệp này chỉ xem, không lưu được.",
+        "read_only_source_export": "Tệp này chỉ xem, không xuất được.",
         "not_found": "Tài liệu không còn tồn tại hoặc đã được chuyển đi.",
         "conflict": "Đã có người lưu phiên bản mới hơn. Hãy mở lại tài liệu để xem trước khi lưu.",
         "too_large": "Tệp quá lớn để tải lên.",

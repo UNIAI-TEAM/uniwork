@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ArchiveRestore, ShieldAlert, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { canManageTrashed, type DocumentTreeNode } from "@uniwork/core/types/document";
+import { canManageTrashed, isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
 import type { Member } from "@uniwork/core/types/workspace";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -34,6 +35,13 @@ export interface DocumentsTrashViewProps {
   onOpen?: (doc: DocumentSummaryRow) => void;
   /** The folder tree, to name the folder a row sat in. */
   tree?: DocumentTreeNode[];
+  /** The trashed document a notification pointed at (`?focus=`); its row is highlighted, scrolled to, and its Khôi phục focused. */
+  focusId?: string | null;
+  /** The first time a focus id is claimed: "focus" scrolls and moves the keyboard, "reveal" only scrolls (the row came in through a Load more the user pressed). Later mounts (scope switch, refetch) get null and keep the highlight. */
+  claimFocus?: (documentId: string) => "focus" | "reveal" | null;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 function folderTitles(nodes: DocumentTreeNode[], into: Map<string, string> = new Map()): Map<string, string> {
@@ -61,9 +69,53 @@ function purgeDaysLeft(purgeAfter: string | null | undefined, now: Date = new Da
  * mutation and the purge dialog (use-trash-actions). Rows offer Restore and
  * Delete forever at manage level (`canManageTrashed`, RESTORE-01).
  */
-export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, members, membersReady, onOpen, tree }: DocumentsTrashViewProps) {
+export function DocumentsTrashView({
+  rows,
+  loading,
+  failure,
+  onRetry,
+  actions,
+  members,
+  membersReady,
+  onOpen,
+  tree,
+  focusId,
+  claimFocus,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
+}: DocumentsTrashViewProps) {
   const { t, i18n } = useTranslation();
   const titles = useMemo(() => folderTitles(tree ?? []), [tree]);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const pagedFromCount = useRef<number | null>(null);
+  useEffect(() => {
+    const prevCount = !loadingMore ? pagedFromCount.current : null;
+    if (!loadingMore && pagedFromCount.current !== null && (rows.length > pagedFromCount.current || !hasMore)) {
+      pagedFromCount.current = null;
+    }
+    const rowEl = focusId ? rowRefs.current.get(focusId) : undefined;
+    const claim = focusId && rowEl ? claimFocus?.(focusId) : null;
+    if (rowEl && claim) {
+      rowEl.scrollIntoView?.({ block: "center" });
+      if (claim === "focus" || !hasMore) {
+        const restore = rowEl.querySelector<HTMLElement>("[data-trash-restore]");
+        if (restore) {
+          // focusVisible: the move comes from a pointer click on a notification, which alone would hide the ring.
+          restore.focus({ focusVisible: true } as FocusOptions);
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+    if (prevCount !== null && !hasMore) {
+      const firstNew = rows[prevCount] ? rowRefs.current.get(rows[prevCount].id) : undefined;
+      const target = firstNew?.querySelector<HTMLElement>("[data-trash-restore]") ?? tableRef.current;
+      target?.focus({ focusVisible: true } as FocusOptions);
+    }
+  }, [focusId, claimFocus, rows, hasMore, loadingMore]);
 
   const header = (
     <div className="flex flex-col gap-1">
@@ -138,7 +190,7 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
             pushed off-screen (TV-2). Rungs: Xóa lúc + Xóa vĩnh viễn sau at
             40rem, Xóa bởi last at 54rem — it needs the widest room for a
             member name. */}
-        <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.trash.title")}>
+        <table ref={tableRef} tabIndex={-1} className="w-full table-fixed border-collapse text-left" aria-label={t("documents.trash.title")}>
           <colgroup>
             <col />
             <col className="hidden w-[200px] @min-[54rem]/trash:table-column" />
@@ -187,7 +239,16 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
                   <DocumentTypeIcon format={folder ? "folder" : rowFormat(documentRow(doc))} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
                   <span className="min-w-0 flex-1">
                     {/* TV-12: the truncated name still reads in full on hover. */}
-                    <span title={title} className="block truncate text-body font-medium text-foreground">{title}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span title={title} className="block min-w-0 truncate text-body font-medium text-foreground">{title}</span>
+                      {/* U-11: a shelved row that also sits in the trash keeps its
+                          label — "Đã lưu trữ" beside the title (Q-UI3: shelved_at rides trash rows). */}
+                      {isShelved(doc) ? (
+                        <Badge variant="secondary" className="shrink-0 text-caption">
+                          {t("documents.shelved_list.badge")}
+                        </Badge>
+                      ) : null}
+                    </span>
                     {origin ? <span className="block truncate text-caption text-muted-foreground">{origin}</span> : null}
                     {/* Narrow widths carry the meta the columns have not joined
                         yet (RESTORE-01): deleted-at + countdown below 40rem,
@@ -203,8 +264,18 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
                   </span>
                 </>
               );
+              const focused = focusId === doc.id;
               return (
-                <tr key={doc.id} data-trash-row={doc.id} className="border-b border-border last:border-b-0">
+                <tr
+                  key={doc.id}
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(doc.id, el);
+                    else rowRefs.current.delete(doc.id);
+                  }}
+                  data-trash-row={doc.id}
+                  data-focused={focused || undefined}
+                  className={cn("border-b border-border last:border-b-0", focused && "bg-accent/60 ring-2 ring-inset ring-ring")}
+                >
                   <td className="px-3 py-3">
                     {onOpen && manage && !folder ? (
                       <button type="button" onClick={() => onOpen(doc)} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">
@@ -237,6 +308,7 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
                           size="sm"
                           className="w-7 px-0 @min-[40rem]/trash:w-auto @min-[40rem]/trash:px-2.5"
                           aria-label={t("documents.trash.restore_item", { title })}
+                          data-trash-restore
                           disabled={actions.isRestoring(doc.id)}
                           aria-busy={actions.isRestoring(doc.id) || undefined}
                           onClick={() => actions.onRestore(doc)}
@@ -267,6 +339,29 @@ export function DocumentsTrashView({ rows, loading, failure, onRetry, actions, m
           </tbody>
         </table>
       </div>
+      {hasMore && onLoadMore ? (
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-disabled={loadingMore || undefined}
+            aria-busy={loadingMore || undefined}
+            onClick={() => {
+              if (!loadingMore) {
+                pagedFromCount.current = rows.length;
+                onLoadMore();
+              }
+            }}
+          >
+            {loadingMore ? t("documents.library.loading_more") : t("documents.library.load_more")}
+          </Button>
+        </div>
+      ) : null}
+      {/* Always rendered so a screen reader hears the text when it appears; empty it takes no room. */}
+      <p role="status" className="text-caption text-muted-foreground empty:sr-only">
+        {focusId && hasMore && !rows.some((doc) => doc.id === focusId) ? t("documents.trash.focus_further") : null}
+      </p>
       <p className="rounded-lg bg-muted px-3 py-2.5 text-caption text-muted-foreground">{t("documents.trash.note")}</p>
     </div>
   );

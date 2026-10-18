@@ -17,6 +17,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone, type ModuleKey } from "../layout/module-tones";
 import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
+import type { CreateShareOptions } from "./documents-create";
 import { DocumentTree } from "./document-tree";
 import { FolderNameDialog } from "./folder-name-dialog";
 
@@ -26,6 +27,8 @@ export type LibraryView =
   | { kind: "recent" }
   | { kind: "starred" }
   | { kind: "shared" }
+  | { kind: "sharedByMe" }
+  | { kind: "shelved" }
   | { kind: "archived" }
   | { kind: "sources"; source: DocumentSourceKind | null };
 
@@ -43,7 +46,10 @@ export interface DocumentsSidebarProps {
   wsId: string;
   view: LibraryView;
   folderId: string | null;
-  /** Number of starred documents in this workspace, once known. */
+  /** The caller's personal root folder id, once known. */
+  myFolderId?: string | null;
+  /** True while `POST .../my-folder` is in flight from the sub-nav row. */
+  myFolderPending?: boolean;
   starredCount: number | null;
   /** False when the sources API is not deployed: the section is hidden. */
   sourcesAvailable: boolean;
@@ -55,7 +61,8 @@ export interface DocumentsSidebarProps {
   open?: boolean;
   onView: (view: LibraryView) => void;
   onFolder: (folderId: string) => void;
-  onNewFolder: (title?: string) => Promise<boolean | void> | boolean | void;
+  onMyFolder?: () => void;
+  onNewFolder: (title?: string, options?: CreateShareOptions) => Promise<boolean | void> | boolean | void;
   className?: string;
   /** A host may supply its own folder tree while reusing the collection navigation. */
   folderTree?: ReactNode;
@@ -67,6 +74,7 @@ function NavItem({
   label,
   count,
   current,
+  disabled,
   onClick,
 }: {
   /** A plain row: one muted line glyph, no tile. */
@@ -76,13 +84,15 @@ function NavItem({
   label: string;
   count?: number | null;
   current: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       aria-current={current ? "page" : undefined}
-      onClick={onClick}
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onClick}
       className={cn(
         "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
         current && "bg-accent font-medium",
@@ -120,6 +130,8 @@ export function DocumentsSidebar({
   wsId,
   view,
   folderId,
+  myFolderId = null,
+  myFolderPending = false,
   starredCount,
   sourcesAvailable,
   canCreate,
@@ -127,6 +139,7 @@ export function DocumentsSidebar({
   open = true,
   onView,
   onFolder,
+  onMyFolder,
   onNewFolder,
   className,
   folderTree,
@@ -144,9 +157,18 @@ export function DocumentsSidebar({
   return (
     <nav aria-label={t("documents.home.sidebar.label")} className={cn("flex min-h-0 flex-col overflow-y-auto p-2", className)}>
       <NavItem icon={DOCUMENTS_NAV_ICONS.home} label={t("documents.home.sidebar.home")} current={isView("home")} onClick={() => onView({ kind: "home" })} />
+      <NavItem
+        icon={DOCUMENTS_NAV_ICONS.myFolders}
+        label={t("documents.home.my_folder.label")}
+        current={view.kind === "home" && Boolean(myFolderId) && folderId === myFolderId}
+        disabled={myFolderPending}
+        onClick={() => (myFolderId ? onFolder(myFolderId) : onMyFolder?.())}
+      />
       <NavItem icon={DOCUMENTS_NAV_ICONS.recent} label={t("documents.home.sidebar.recent")} current={isView("recent")} onClick={() => onView({ kind: "recent" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.starred} label={t("documents.home.sidebar.starred")} count={starredCount} current={isView("starred")} onClick={() => onView({ kind: "starred" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.shared} label={t("documents.home.sidebar.shared")} current={isView("shared")} onClick={() => onView({ kind: "shared" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.sharedByMe} label={t("documents.home.sidebar.shared_by_me")} current={isView("sharedByMe")} onClick={() => onView({ kind: "sharedByMe" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.shelved} label={t("documents.home.sidebar.shelved")} current={isView("shelved")} onClick={() => onView({ kind: "shelved" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.trash} label={t("documents.home.sidebar.trash")} current={isView("archived")} onClick={() => onView({ kind: "archived" })} />
 
       <SectionLabel
@@ -200,7 +222,7 @@ export function DocumentsSidebar({
         wsId={wsId}
         initialName={t("documents.home.folders.default_name")}
         pending={newFolderPending}
-        onSubmit={(title) => onNewFolder(title)}
+        onSubmit={(title, options) => (options ? onNewFolder(title, options) : onNewFolder(title))}
       />
     </nav>
   );

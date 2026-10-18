@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -6,8 +6,8 @@ import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwo
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { NavigationProvider, type NavigationAdapter } from "../navigation";
-import { requestMock, wrap } from "../test/api-mock";
+import { type NavigationAdapter } from "../navigation";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
 
 // RESTORE-01 (UNI-1843) trash view: per-item restore, permanent delete behind
@@ -78,6 +78,8 @@ function purgeInDays(days: number): string {
 
 interface Routes {
   list?: (path: string) => unknown[];
+  /** next_cursor of a list page; null (the default) is the last page. */
+  cursor?: (path: string) => string | null;
   members?: () => unknown[];
   post?: (path: string) => unknown;
 }
@@ -99,18 +101,18 @@ function route(routes: Routes) {
     if (path.startsWith(`${LIST_BASE}/recent`)) return run(() => ({ documents: [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/shared-with-me`)) return run(() => ({ documents: [], next_cursor: null }));
     if (method === "POST") return run(() => routes.post?.(path) ?? {});
-    if (path.startsWith(LIST_BASE)) return run(() => ({ documents: routes.list?.(path) ?? [], next_cursor: null }));
+    if (path.startsWith(LIST_BASE)) return run(() => ({ documents: routes.list?.(path) ?? [], next_cursor: routes.cursor?.(path) ?? null }));
     return Promise.resolve({});
   });
 }
 
-function nav(): NavigationAdapter {
+function nav(search = ""): NavigationAdapter {
   return {
     push: vi.fn(),
     replace: vi.fn(),
     back: vi.fn(),
     pathname: "/acme/doi/documents",
-    searchParams: new URLSearchParams(),
+    searchParams: new URLSearchParams(search),
     getShareableUrl: (p) => p,
   };
 }
@@ -118,14 +120,13 @@ function nav(): NavigationAdapter {
 function renderView(adapter: NavigationAdapter = nav(), onOpen: (id: string) => void = vi.fn()) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   render(
-    wrap(
-      <NavigationProvider value={adapter}>
-        <WorkspaceProvider workspace={workspace} user={user}>
-          <FeatureFlagsProvider service={service}>
-            <DocumentsPageView wsId={WS} onOpen={onOpen} />
-          </FeatureFlagsProvider>
-        </WorkspaceProvider>
-      </NavigationProvider>,
+    wrapWithNav(
+      <WorkspaceProvider workspace={workspace} user={user}>
+        <FeatureFlagsProvider service={service}>
+          <DocumentsPageView wsId={WS} onOpen={onOpen} />
+        </FeatureFlagsProvider>
+      </WorkspaceProvider>,
+      adapter,
     ),
   );
   return adapter;
@@ -596,5 +597,274 @@ describe("permanent delete", () => {
     expect(trigger.isConnected).toBe(false);
     expect(document.activeElement).not.toBe(trigger);
     expect(document.activeElement && document.body.contains(document.activeElement)).toBe(true);
+  });
+});
+
+// ARCHIVE-01 (UNI-1845) U-11 + UI-AR8: a shelved trash row wears the "Đã lưu
+// trữ" label and restoring it lands back in Lưu trữ.
+describe("shelved trash rows (U-11)", () => {
+  it("marks a shelved row with the Đã lưu trữ label", async () => {
+    route({ list: () => [trashed({ shelved_at: "2026-10-09T03:00:00Z", shelved_by: "u2" }), trashed({ id: "d2", title: "Chưa lưu trữ" })] });
+    renderView();
+    await openTrash();
+    const row = await rowOf("Kế hoạch Q4");
+    expect(within(row).getAllByText(t("documents.shelved_list.badge")).length).toBeGreaterThan(0);
+    const plain = await rowOf("Chưa lưu trữ");
+    expect(within(plain).queryByText(t("documents.shelved_list.badge"))).toBeNull();
+  });
+
+  it("toasts 'into Lưu trữ' when the restored document comes back shelved", async () => {
+    let restored = false;
+    route({
+      list: (path) =>
+        new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? (restored ? [] : [trashed({ shelved_at: "2026-10-09T03:00:00Z", shelved_by: "u2" })]) : [],
+      post: (path) => {
+        if (path !== "/api/v1/documents/d1/restore") return {};
+        restored = true;
+        return { document: { ...trashed(), archived_at: null, archived_by: null, purge_after: null, shelved_at: "2026-10-09T03:00:00Z" }, affected: ["d1"] };
+      },
+    });
+    renderView();
+    await openTrash();
+    fireEvent.click(within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(t("documents.shelved_list.toast.restored_to_shelved", { title: "Kế hoạch Q4" })),
+    );
+  });
+  it("reads only the answer's shelved_at: a row unshelved meanwhile toasts the plain restore (RAR-06)", async () => {
+    let restored = false;
+    route({
+      list: (path) =>
+        new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? (restored ? [] : [trashed({ shelved_at: "2026-10-09T03:00:00Z", shelved_by: "u2" })]) : [],
+      post: (path) => {
+        if (path !== "/api/v1/documents/d1/restore") return {};
+        restored = true;
+        return { document: { ...trashed(), archived_at: null, archived_by: null, purge_after: null, shelved_at: null }, affected: ["d1"] };
+      },
+    });
+    renderView();
+    await openTrash();
+    fireEvent.click(within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(toast.success).not.toHaveBeenCalledWith(t("documents.shelved_list.toast.restored_to_shelved", { title: "Kế hoạch Q4" }));
+  });
+});
+
+// TRASH-NOTIFY-01 (UNI-1844, N-4): the trashed-by-other notification opens
+// `?view=archived&focus=<id>`; the list scrolls to that row, highlights it and
+// puts the keyboard on its Khôi phục. An id that is not in the list is ignored.
+describe("focused trash row", () => {
+  const scrollIntoView = vi.fn();
+  beforeEach(() => {
+    scrollIntoView.mockReset();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
+  it("opens straight on the trash and highlights, scrolls to and focuses the Khôi phục of the focused row", async () => {
+    route({ list: () => [trashed({ id: "d0", title: "Biên bản" }), trashed({ id: "d1" }), trashed({ id: "d2", title: "Hợp đồng" })] });
+    renderView(nav("view=archived&focus=d1"));
+    const row = await rowOf("Kế hoạch Q4");
+    const restore = within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    expect(row).toHaveAttribute("data-focused", "true");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView.mock.contexts[0]).toBe(row);
+    for (const title of ["Biên bản", "Hợp đồng"]) {
+      expect(await rowOf(title)).not.toHaveAttribute("data-focused");
+    }
+  });
+
+  it("highlights a focused row the viewer cannot manage without moving focus into a missing button", async () => {
+    route({ list: () => [trashed({ id: "d1", my_level: "edit" })] });
+    renderView(nav("view=archived&focus=d1"));
+    const row = await rowOf("Kế hoạch Q4");
+    await waitFor(() => expect(row).toHaveAttribute("data-focused", "true"));
+    expect(within(row).queryByRole("button")).toBeNull();
+  });
+
+  it("shows the plain trash list for an id that is gone, without an error or a highlight", async () => {
+    route({ list: () => [trashed({ id: "d2", title: "Hợp đồng" })] });
+    renderView(nav("view=archived&focus=already-restored"));
+    const row = await rowOf("Hợp đồng");
+    expect(row).not.toHaveAttribute("data-focused");
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("ignores focus outside the trash", async () => {
+    route({ list: () => [trashed()] });
+    renderView(nav("focus=d1"));
+    await screen.findAllByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-focused]")).toBeNull();
+  });
+
+  it("moves focus with a visible ring (focusVisible) so Khôi phục shows it", async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    route({ list: () => [trashed({ id: "d1" })] });
+    renderView(nav("view=archived&focus=d1"));
+    await rowOf("Kế hoạch Q4");
+    await waitFor(() => expect(focus).toHaveBeenCalledWith({ focusVisible: true }));
+    focus.mockRestore();
+  });
+
+  it("marks the focused row apart from hover with a ring token", async () => {
+    route({ list: () => [trashed({ id: "d1" })] });
+    renderView(nav("view=archived&focus=d1"));
+    const row = await rowOf("Kế hoạch Q4");
+    await waitFor(() => expect(row).toHaveAttribute("data-focused", "true"));
+    expect(row.className).toContain("ring-ring");
+  });
+
+  it("says the item may be further down while the list has more pages, and drops the line once the row loads", async () => {
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1", title: "Biên bản" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    expect(await screen.findByText(t("documents.trash.focus_further"))).toBeInTheDocument();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.load_more") }));
+    const row = await rowOf("Hợp đồng");
+    expect(row).toHaveAttribute("data-focused", "true");
+    expect(screen.queryByText(t("documents.trash.focus_further"))).toBeNull();
+  });
+
+  it("keeps the further-down line in an always-present live region, empty when there is nothing to say", async () => {
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1", title: "Biên bản" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    const region = await screen.findByRole("status");
+    expect(region).toHaveTextContent(t("documents.trash.focus_further"));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.library.load_more") }));
+    await rowOf("Hợp đồng");
+    // The same node empties; it is not removed and re-inserted with its text.
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toBeEmptyDOMElement();
+  });
+
+  it("scrolls to and highlights a row that first appears after Load more, and leaves the keyboard on Load more", async () => {
+    // A third page exists, so the Load more button the keyboard sits on stays in the document.
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1", title: "Biên bản" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? "c3" : "c2"),
+    });
+    renderView(nav("view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    const row = await rowOf("Hợp đồng");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    expect(scrollIntoView.mock.contexts[0]).toBe(row);
+    expect(row).toHaveAttribute("data-focused", "true");
+    expect(more).toHaveFocus();
+  });
+
+  it("shows no further-down line once the list is exhausted without the row", async () => {
+    route({ list: () => [trashed({ id: "d2", title: "Hợp đồng" })] });
+    renderView(nav("view=archived&focus=gone"));
+    await rowOf("Hợp đồng");
+    expect(screen.queryByText(t("documents.trash.focus_further"))).toBeNull();
+  });
+
+  it("applies the scroll and focus once per focus id: not again after a scope switch back or a manual Load more", async () => {
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived&focus=d1"));
+    const row = await rowOf("Kế hoạch Q4");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    const restore = within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    // A manual Load more must not pull focus back to the focused row.
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    await rowOf("Hợp đồng");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(restore).not.toHaveFocus();
+    // Leaving the trash and coming back remounts the rows: still no second jump.
+    const recent = await screen.findAllByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) });
+    fireEvent.click(recent[0]!);
+    await openTrash();
+    const again = await rowOf("Kế hoạch Q4");
+    expect(again).toHaveAttribute("data-focused", "true");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(within(again).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).not.toHaveFocus();
+  });
+
+  it("focuses Khôi phục when a new focus id arrives after Load more, while keeping focus on Load more for the paged id", async () => {
+    route({
+      list: (path) => (path.includes("cursor=c2") ? [trashed({ id: "d9", title: "Hợp đồng" })] : [trashed({ id: "d1", title: "Biên bản" })]),
+      cursor: (path) => (path.includes("cursor=c2") ? "c3" : "c2"),
+    });
+    const adapter = renderView(fakeNav("/acme/doi/documents?view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    const pagedRow = await rowOf("Hợp đồng");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    expect(pagedRow).toHaveAttribute("data-focused", "true");
+    expect(more).toHaveFocus();
+
+    act(() => adapter.push("/acme/doi/documents?view=archived&focus=d1"));
+    const firstRow = await rowOf("Biên bản");
+    const restore = within(firstRow).getByRole("button", { name: t("documents.trash.restore_item", { title: "Biên bản" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    expect(firstRow).toHaveAttribute("data-focused", "true");
+    expect(pagedRow).not.toHaveAttribute("data-focused");
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
+  it("moves focus to the revealed row's Khôi phục inside the trash list when Load more reveals the last page", async () => {
+    route({
+      list: (path) =>
+        path.includes("cursor=c2")
+          ? [trashed({ id: "d8", title: "Báo cáo" }), trashed({ id: "d9", title: "Hợp đồng" })]
+          : [trashed({ id: "d1", title: "Biên bản" })],
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived&focus=d9"));
+    await rowOf("Biên bản");
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    const row = await rowOf("Hợp đồng");
+    await waitFor(() => expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull());
+    const list = screen.getByRole("table", { name: t("documents.trash.title") });
+    const restore = within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Hợp đồng" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    expect(list.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("moves focus inside the trash list instead of body when Load more reveals the last page without a focus target on it", async () => {
+    route({
+      list: (path) =>
+        path.includes("cursor=c2")
+          ? [trashed({ id: "d8", title: "Báo cáo" }), trashed({ id: "d9", title: "Hợp đồng" })]
+          : [trashed({ id: "d1", title: "Biên bản" })],
+      cursor: (path) => (path.includes("cursor=c2") ? null : "c2"),
+    });
+    renderView(nav("view=archived"));
+    await rowOf("Biên bản");
+    const more = screen.getByRole("button", { name: t("documents.library.load_more") });
+    more.focus();
+    fireEvent.click(more);
+    const firstNew = await rowOf("Báo cáo");
+    await waitFor(() => expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull());
+    const list = screen.getByRole("table", { name: t("documents.trash.title") });
+    const restore = within(firstNew).getByRole("button", { name: t("documents.trash.restore_item", { title: "Báo cáo" }) });
+    await waitFor(() => expect(restore).toHaveFocus());
+    expect(list.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
   });
 });

@@ -413,6 +413,11 @@ func (s *DocumentService) authorizeParentIn(ctx context.Context, actor Actor, pa
 	if parent.WorkspaceID != workspaceID || parent.OwnerKind.Valid {
 		return ErrNotFound
 	}
+	// A shelved parent is read-only: the create under it is refused here as
+	// it will be under the row lock (lockPageParent).
+	if err := requireNotShelved(parent); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -449,6 +454,11 @@ func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, act
 	// The trash is not a place to create in, whoever may restore it.
 	if parent.ArchivedAt.Valid {
 		return db.Document{}, ErrNotFound
+	}
+	// A shelved parent is read-only too (addendum §3): create under it is a
+	// write on the parent, refused after its access gate.
+	if err := requireNotShelved(parent); err != nil {
+		return db.Document{}, err
 	}
 	if !childKindAllowed(parent.Kind, childKind) {
 		return db.Document{}, errDocumentParentKind()
@@ -660,7 +670,7 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 	// The outer gate admits an AdminScope caller (DOC-05) so they can narrow
 	// visibility; every content field still needs edit, and an admin-only
 	// caller is told the content is restricted.
-	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if isMyFolder(doc) {
 			return errMyFolderLocked()
 		}

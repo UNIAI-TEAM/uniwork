@@ -30,7 +30,21 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
-  AND (sqlc.arg(see_all)::boolean
+  -- ARCHIVE-01: shelved rows stay in the snapshot - read-only is a feed-row
+  -- flag; it is trashed rows that the snapshot excludes (archived_at above).
+  AND ((sqlc.arg(see_all)::boolean
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels, or it is
+        -- not in the foreign set; a live share is the OR below. Removes only
+        -- what admin scope ADDS. Set: uw_my_folder_foreign_ids
+        -- (migration 9991792289293597).
+        AND (d.acl_owner_id = sqlc.arg(actor_id)::text
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+                  ) mfs WHERE mfs.document_id = d.id)))
        OR (sqlc.arg(member_visible)::boolean AND d.visibility = 'workspace'
            AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
        OR (sqlc.arg(acl_owner)::boolean AND d.acl_owner_id = sqlc.arg(actor_id)::text)
@@ -166,7 +180,7 @@ SELECT COALESCE((
 -- which would drag content, content_text and search_text through a hot read.
 SELECT
   d.id, d.organization_id, d.workspace_id, d.kind, d.revision,
-  d.current_version, d.file_version_id, d.archived_at,
+  d.current_version, d.file_version_id, d.archived_at, d.shelved_at,
   d.owner_id, d.visibility, d.acl_owner_id, d.workspace_level
 FROM documents d
 WHERE d.organization_id = sqlc.arg(organization_id)

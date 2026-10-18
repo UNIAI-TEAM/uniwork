@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyEmail } from "./auth-nav";
 import { workspaceSeed, type WorkspaceSeed } from "./onboard";
@@ -149,7 +149,12 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   // A new version: uploads + versions/commit, then the history grows.
   await page.getByRole("button", { name: "Tải phiên bản mới" }).click();
   const versionDialog = page.getByRole("dialog", { name: "Tải phiên bản mới" });
-  await versionDialog.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
+  // Different bytes: an identical file makes no new version (VERSION-DEDUP, UNI-1900).
+  await versionDialog.getByLabel("Chọn tệp").setInputFiles({
+    name: "parity-upload.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.concat([readFileSync(FIXTURE), Buffer.from("\nversion 2\n")]),
+  });
   await versionDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
   await expect(page.getByText("Phiên bản 2")).toBeVisible({ timeout: 90_000 });
 
@@ -177,14 +182,21 @@ test("the library lists pages across its views and the tree opens one", async ({
     timeout: 60_000,
   });
 
-  // Back to the library: the table carries the new page, and the "Tài liệu"
-  // section's h2 is the server's own row count. The sidebar tree lists folders only.
+  // Back to the library: the home root lists root items only (the "Thư mục của tôi"
+  // card under "Thư mục 1" and "Tài liệu 0"), while the new page lives inside
+  // "Thư mục của tôi". The sidebar tree lists folders only.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
   const list = page.getByRole("table", { name: "Tài liệu" });
-  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Thư mục 1", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.getByRole("region", { name: "Thư mục 1" }).getByRole("button", { name: /^Thư mục của tôi/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tài liệu 0", exact: true })).toBeVisible();
   await expect(page.getByRole("treeitem", { name: /UniNote mới/ })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Tài liệu 1", exact: true })).toBeVisible();
 
+  await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
+  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Tài liệu 1", exact: true })).toBeVisible();
   // The sidebar views read their own endpoints (nothing is shared with anyone).
   await sidebar(page).getByRole("button", { name: "Gần đây", exact: true }).click();
   await expect(sidebar(page).getByRole("button", { name: "Gần đây", exact: true })).toHaveAttribute(
@@ -202,6 +214,7 @@ test("the library lists pages across its views and the tree opens one", async ({
   await page.getByRole("option", { name: "Docs" }).click();
   await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
+  await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
   await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
   // The row opens the document.
   await libraryRowButton(list, /UniNote mới/).click();
@@ -209,7 +222,9 @@ test("the library lists pages across its views and the tree opens one", async ({
 
   // Dark and mobile screenshots, then English, on the same library.
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
-  await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.getByRole("region", { name: "Thư mục 1" }).getByRole("button", { name: /^Thư mục của tôi/ }),
+  ).toBeVisible({ timeout: 30_000 });
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await shot(page, "documents-library-dark-vi");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));

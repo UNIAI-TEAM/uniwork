@@ -65,7 +65,9 @@ export function favoriteRow(fav: FavoriteLike, known?: Known): DocumentSummaryRo
     // Starred view, and an owned one keeps "Bạn: Chủ sở hữu" (SV-1).
     via: known?.via,
     archived_at: known?.archived_at,
+    share_scope: known?.share_scope,
     id: fav.document_id,
+    system_kind: known?.system_kind,
     workspace_id: fav.workspace_id,
     parent_id: fav.parent_id ?? null,
     kind: fav.kind,

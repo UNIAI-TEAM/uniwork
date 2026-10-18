@@ -178,12 +178,16 @@ func emptyPublicTables(t *testing.T, pool *pgxpool.Pool) {
 
 // clearRowsDownGuardsRefuse deletes the leftover rows that a down migration
 // refuses on purpose, and nothing else. The isolation matrix leaves FileService
-// attachments (no object_key) on purpose, 969's down refuses them, and the
-// recording file_id columns are guarded the same way by 972, so which package
-// ran first decided whether a long rollback passed. It must not truncate: the
-// shared test DB holds rows that later migrations seed (the billing plans), and
-// a rollback that stops above them never puts them back for the packages that
-// run afterwards.
+// attachments (no object_key) on purpose, 969's down refuses them, the
+// recording file_id columns are guarded the same way by 972, and 0004's down
+// rebuilds the pre-system_kind folder-name unique index (a single-statement
+// CONCURRENTLY file) before 0001 drops system_kind, which refuses the root My
+// Folder rows (system_kind = 'my_folder', title = 'My Folder') that
+// EnsureMyFolder tests leave behind — so which package ran first decided
+// whether a long rollback passed. It must not truncate: the shared test DB
+// holds rows that later migrations seed (the billing plans), and a rollback
+// that stops above them never puts them back for the packages that run
+// afterwards.
 func clearRowsDownGuardsRefuse(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
@@ -191,6 +195,7 @@ func clearRowsDownGuardsRefuse(t *testing.T, pool *pgxpool.Pool) {
 		`DELETE FROM attachments WHERE object_key IS NULL`,
 		`DELETE FROM meeting_recordings WHERE file_id IS NOT NULL`,
 		`DELETE FROM chat_voice_recordings WHERE file_id IS NOT NULL`,
+		`DELETE FROM documents WHERE system_kind IS NOT NULL`,
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)

@@ -36,13 +36,13 @@ const workspace: Workspace = {
 };
 
 /** The screen is gated by `documents`; the flag has to be on to see anything. */
-function withFlag(ui: React.ReactElement, on: boolean, initialUrl?: string) {
+function withFlag(ui: React.ReactElement, on: boolean, nav = fakeNav()) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: on } }));
   return wrapWithNav(
     <WorkspaceProvider workspace={workspace} user={sessionUser}>
       <FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>
     </WorkspaceProvider>,
-    fakeNav(initialUrl),
+    nav,
   );
 }
 
@@ -77,9 +77,11 @@ function renderView(
   const desktopOpen = typeof opts === "boolean" ? undefined : opts.desktopOpen;
   const officeHome = typeof opts === "boolean" ? undefined : opts.officeHome;
   const initialUrl = typeof opts === "boolean" ? undefined : opts.initialUrl;
-  return render(
-    withFlag(<DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} officeHome={officeHome} />, on, initialUrl),
-  );
+  const nav = fakeNav(initialUrl);
+  return {
+    ...render(withFlag(<DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} officeHome={officeHome} />, on, nav)),
+    nav,
+  };
 }
 
 function queryOf(path: string) {
@@ -497,6 +499,85 @@ describe("DocumentsPageView", () => {
     expect(await screen.findByText("Được chia sẻ")).toBeInTheDocument();
   });
 
+  describe("Shared by me view (?view=shared-by-me, UNI-1851)", () => {
+    it("navigates to ?view=shared-by-me from the sidebar, requests shared_by_me=true without parent_id even from a folder, and renders the heading and rows", async () => {
+      const urls: string[] = [];
+      route({
+        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: (path) => {
+          urls.push(path);
+          const q = queryOf(path);
+          if (q.get("shared_by_me") === "true") {
+            return [summary({ id: "sbm1", title: "Đề xuất ngân sách Q4.docx", kind: "file", via: "owner", visibility: "restricted" })];
+          }
+          return [];
+        },
+      });
+      const { nav } = renderView(vi.fn(), { initialUrl: `/acme/doi/documents?folder=fo1` });
+      await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+
+      await openView("shared_by_me");
+      expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents?view=shared-by-me");
+      expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.shared_by_me") })).toBeInTheDocument();
+      expect(await screen.findByText("Đề xuất ngân sách Q4.docx")).toBeInTheDocument();
+
+      const sbmCalls = urls.filter((u) => queryOf(u).get("shared_by_me") === "true");
+      expect(sbmCalls.length).toBeGreaterThan(0);
+      for (const u of sbmCalls) {
+        expect(queryOf(u).has("parent_id")).toBe(false);
+      }
+    });
+
+    it("parses ?view=shared-by-me on initial load and shows the Shared by me empty state when the list is empty", async () => {
+      route({ list: () => [] });
+      renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
+
+      expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.shared_by_me") })).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: t("documents.home.sidebar.shared_by_me") })[0]).toHaveAttribute("aria-current", "page");
+      expect(await screen.findByText(t("documents.home.empty.shared_by_me_title"))).toBeInTheDocument();
+      expect(screen.getByText(t("documents.home.empty.shared_by_me_description"))).toBeInTheDocument();
+    });
+
+    it("offers Rename, Move and Archive on a shared-by-me row the caller manages", async () => {
+      route({
+        list: (path) =>
+          queryOf(path).get("shared_by_me") === "true"
+            ? [summary({ id: "sbm3", title: "Đề xuất ngân sách Q4.docx", my_level: "manage", via: "owner", visibility: "restricted" })]
+            : [],
+      });
+      renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
+      const row = await rowOf("Đề xuất ngân sách Q4.docx");
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách Q4.docx" }) }));
+      await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+      expect(screen.getByRole("menuitem", { name: t("documents.home.row.rename") })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: t("documents.home.row.archive") })).toBeInTheDocument();
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
+    });
+
+    it("degrades a malformed shared_by_me response to the retryable error state without crashing", async () => {
+      let calls = 0;
+      requestMock.mockImplementation((path: string) => {
+        if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
+        if (path.startsWith(`${LIST_BASE}/sources`)) return Promise.resolve({ items: [], next_cursor: null });
+        if (path.startsWith(LIST_BASE) && queryOf(path).get("shared_by_me") === "true") {
+          calls += 1;
+          return calls === 1
+            ? Promise.resolve({ documents: "not-an-array" })
+            : Promise.resolve({ documents: [summary({ id: "sbm2", title: "Tài liệu đã chia sẻ" })], next_cursor: null });
+        }
+        return Promise.resolve({ documents: [], next_cursor: null });
+      });
+      renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
+
+      expect(await screen.findByText(t("documents.library.error_title"))).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: t("documents.library.retry") }));
+      expect(await screen.findByText("Tài liệu đã chia sẻ")).toBeInTheDocument();
+    });
+  });
+
   it("navigates into a folder from its card, lists its children and renames it on the breadcrumb", async () => {
     const urls: string[] = [];
     route({
@@ -579,6 +660,7 @@ describe("DocumentsPageView", () => {
     expect((call?.[1] as { body?: unknown }).body).toEqual({
       format: "docx",
       title: t("documents.home.default_names.docx"),
+      destination: "my_folder",
     });
   });
 
@@ -1646,7 +1728,7 @@ async function choose(comboboxName: string | RegExp, option: string | RegExp) {
 }
 
 /** Switches the view through the sidebar nav (the scope tabs are gone). */
-async function openView(view: "home" | "recent" | "starred" | "shared" | "trash") {
+async function openView(view: "home" | "recent" | "starred" | "shared" | "shared_by_me" | "trash") {
   const buttons = await screen.findAllByRole("button", { name: t(`documents.home.sidebar.${view}`) });
   fireEvent.click(buttons[0]!);
 }

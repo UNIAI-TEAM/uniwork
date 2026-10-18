@@ -1,8 +1,8 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { e2eBaseUrl } from "./api-url";
+import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 import {
-  listVersions, readPinnedFrame, seedDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
+  listVersions, openSeededDocument, readPinnedFrame, releaseSeededEditLock, seedDocx, seedUntitledDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
 } from "./office-docs-web-fixtures";
 import { expectFrameNotice } from "./office-module-web-fixtures";
 
@@ -114,11 +114,15 @@ test.describe("open, edit, save", () => {
     await setFlag("office_engine", seeded.organizationId, true);
   });
 
+  test.afterEach(async ({ request }) => {
+    await releaseSeededEditLock(request, seeded);
+  });
+
   test("a DOCX opens in the frame, an edit is saved as a new version and survives a reopen", async ({ page, request }) => {
     const marker = `uw-docs-web-${Date.now().toString(36)}`;
     const before = await listVersions(request, seeded.account.token, seeded.documentId);
     await signInAs(page, seeded.account.email);
-    await page.goto(seeded.documentUrl);
+    await openSeededDocument(page, seeded);
 
     const frame = page.locator(FRAME_SELECTOR);
     await expect(frame).toBeVisible({ timeout: 60_000 });
@@ -144,7 +148,8 @@ test.describe("open, edit, save", () => {
 
     // Reopen from scratch: the edit comes back from the stored version.
     await page.goto("about:blank");
-    await page.goto(seeded.documentUrl);
+    await releaseSeededEditLock(request, seeded);
+    await openSeededDocument(page, seeded);
     const reopened = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
     await expect(reopened).toBeVisible({ timeout: 60_000 });
     await expect(reopened).toContainText(marker, { timeout: 30_000 });
@@ -156,7 +161,7 @@ test.describe("open, edit, save", () => {
     const token = seeded.account.token;
     const originalBefore = await listVersions(request, token, seeded.documentId);
     await signInAs(page, seeded.account.email);
-    await page.goto(seeded.documentUrl);
+    await openSeededDocument(page, seeded);
     const editor = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
     await expect(editor).toBeVisible({ timeout: 60_000 });
     await editor.click();
@@ -194,6 +199,53 @@ test.describe("open, edit, save", () => {
     expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
   });
 
+  test("the first save of a never-saved blank names it before it uploads (UNI-1847, SAVE-01)", async ({ page, request, browser }) => {
+    // Seed through a throwaway context so this test's blank does not share the suite's document.
+    const context = await browser.newContext({ baseURL: baseUrl });
+    let blank: SeededDocx;
+    try {
+      blank = await seedUntitledDocx(await context.newPage(), baseUrl, `docs-web-blank-${Date.now().toString(36)}`);
+    } finally {
+      await context.close();
+    }
+    await signInAs(page, blank.account.email);
+    await openSeededDocument(page, blank);
+
+    const editor = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
+    await expect(editor).toBeVisible({ timeout: 60_000 });
+    await editor.click();
+    await page.keyboard.press("Control+s");
+
+    // The page asks for a name before any upload leaves the frame.
+    const dialog = page.getByRole("dialog", { name: "Đặt tên tài liệu" });
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    const input = dialog.getByLabel("Tên tài liệu");
+    await expect(input).toHaveValue("untitled");
+    const title = `Kế hoạch ${Date.now().toString(36)}`;
+    await input.fill(title);
+    await dialog.getByRole("button", { name: "Lưu" }).click();
+    await expect(dialog).toBeHidden({ timeout: 30_000 });
+
+    // The title changed on the server and the save went through as a new version.
+    await expect.poll(
+      async () => (await listVersions(request, blank.account.token, blank.documentId)).length,
+      { timeout: 60_000, intervals: [1_000] },
+    ).toBeGreaterThan(0);
+    const detail = await request.get(`${e2eApiUrl}/api/v1/documents/${blank.documentId}`, {
+      headers: { authorization: `Bearer ${blank.account.token}` },
+    });
+    expect(detail.ok(), `document detail: HTTP ${detail.status()}`).toBeTruthy();
+    const { document } = (await detail.json()) as { document: { title: string } };
+    expect(document.title).toBe(title);
+
+    // Named now: the next save asks nothing and stores another version.
+    await editor.click();
+    await page.keyboard.type(".");
+    await page.keyboard.press("Control+s");
+    await expect(page.getByRole("dialog", { name: "Đặt tên tài liệu" })).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("05-first-save-named.png") });
+  });
+
   test("an inserted image passes the frame CSP and is stored in the docx", async ({ page, request }) => {
     // The frame embeds images as data: URIs (it never calls api.images.upload), which `img-src 'self' data: blob:` allows.
     const violations: string[] = [];
@@ -201,7 +253,7 @@ test.describe("open, edit, save", () => {
     const token = seeded.account.token;
     const before = await listVersions(request, token, seeded.documentId);
     await signInAs(page, seeded.account.email);
-    await page.goto(seeded.documentUrl);
+    await openSeededDocument(page, seeded);
     const frame = page.frameLocator(FRAME_SELECTOR);
     await expect(frame.locator(EDITOR).first()).toBeVisible({ timeout: 60_000 });
 
@@ -224,7 +276,7 @@ test.describe("open, edit, save", () => {
 
   test("PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback", async ({ page }) => {
     await signInAs(page, seeded.account.email);
-    await page.goto(seeded.documentUrl);
+    await openSeededDocument(page, seeded);
     const frame = page.frameLocator(FRAME_SELECTOR);
     await expect(frame.locator(EDITOR).first()).toBeVisible({ timeout: 60_000 });
     // The web build has no menu entry for PDF export; the renderer exposes the action as window.__exportPdf.
@@ -255,7 +307,7 @@ test.describe("open, edit, save", () => {
       status: 403, contentType: "application/json", body: JSON.stringify({ error: { code: "feature_disabled", message: "feature is disabled" } }),
     }));
     await signInAs(page, seeded.account.email);
-    await page.goto(seeded.documentUrl);
+    await openSeededDocument(page, seeded);
     await expectFrameNotice(page, "unavailable", "chưa bật mở loại tệp này trên web");
     await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
   });
@@ -264,7 +316,7 @@ test.describe("open, edit, save", () => {
     await setFlag("office_docs_web", seeded.organizationId, false);
     try {
       await signInAs(page, seeded.account.email);
-      await page.goto(seeded.documentUrl);
+      await openSeededDocument(page, seeded);
       await expectFrameNotice(page, "unavailable", "chưa bật mở loại tệp này trên web");
       await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
     } finally {

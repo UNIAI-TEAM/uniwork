@@ -16,8 +16,8 @@ import {
  * place: the sidebar draws each at `size-4` in `text-muted-foreground`, no
  * tile (docs/conventions.md › Icons). Rows that come from another module
  * (Chat, Meetings, Email, Tasks) use `MODULE_ICONS` and the module tint
- * instead. Archive, sharedByMe and trash name rows the design has but the
- * sidebar does not draw yet.
+ * instead. `archive` and `myFolders` name rows the design has that the
+ * sidebar does not draw directly.
  */
 export const DOCUMENTS_NAV_ICONS = {
   home: House,
@@ -27,6 +27,7 @@ export const DOCUMENTS_NAV_ICONS = {
   shared: Users,
   sharedByMe: Share2,
   archive: Archive,
+  shelved: Archive,
   trash: Trash,
   folder: Folder,
 } as const satisfies Record<string, LucideIcon>;

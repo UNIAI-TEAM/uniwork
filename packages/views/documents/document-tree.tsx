@@ -12,6 +12,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
 import { useDocumentTree, useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { useDocumentFavorites } from "@uniwork/core/documents/hooks-favorites";
+import { documentKeys } from "@uniwork/core/documents/keys";
+import { isMyFolder } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -21,8 +23,9 @@ import { TreeRowItem } from "./document-tree-row";
 import { useTreeRowMenuDialogs } from "./document-tree-row-menu";
 import {
   findTreeNode, flattenTree, foldersOnly, loadMoveRevision, moveRefused, moveTooDeep,
-  siblingMovePosition, siblingsOf, subtreeIds, type TreeRow,
+  myFolderFirst, siblingMovePosition, siblingsOf, subtreeIds, type TreeRow,
 } from "./document-tree-model";
+import { knownDocuments } from "./starred-rows";
 import { useTreeReveal } from "./use-tree-reveal";
 
 /* ---- the tree ----------------------------------------------------------- */
@@ -84,8 +87,9 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
   );
   const nodes = useMemo(() => {
     const forest = query.data?.documents ?? [];
-    return folders ? foldersOnly(forest) : forest;
-  }, [query.data, folders]);
+    const ordered = rootId ? forest : myFolderFirst(forest);
+    return folders ? foldersOnly(ordered) : ordered;
+  }, [query.data, folders, rootId]);
   const rows = useMemo(() => flattenTree(nodes, expanded), [nodes, expanded]);
   useTreeReveal({ wsId, currentId, enabled, visible, rows, rowRefs, setExpanded });
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -150,14 +154,15 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
 
   const onDragStart = (event: DragStartEvent) => {
     const id = String(event.active.id).replace(/^doc:/, "");
-    setDragRow(rows.find((row) => row.node.id === id) ?? null);
+    const row = rows.find((item) => item.node.id === id) ?? null;
+    setDragRow(row && !isMyFolder(row.node) ? row : null);
   };
 
   const onDragEnd = (event: DragEndEvent) => {
     const dragged = dragRow;
     setDragRow(null);
     const targetId = event.over?.data.current?.id as string | undefined;
-    if (!dragged || !targetId) return;
+    if (!dragged || isMyFolder(dragged.node) || !targetId) return;
     const draggedId = dragged.node.id;
     setFocusedId(draggedId);
     if (refuseMove(draggedId, targetId)) return;
@@ -174,7 +179,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
       // the next sibling of its parent.
       if ((event.ctrlKey || event.metaKey) && event.key.startsWith("Arrow")) {
         // One move at a time, as on the drag path: a second one would race it.
-        if (movingId) {
+        if (movingId || isMyFolder(row.node)) {
           event.preventDefault();
           return;
         }
@@ -296,6 +301,8 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
     rows[0]?.node.id ??
     null;
 
+  const knownById = knownDocuments(queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) }));
+
   return (
     <div className={cn("min-h-0 overflow-y-auto p-2", className)} aria-busy={movingId ? true : undefined}>
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -305,6 +312,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
               key={row.node.id}
               wsId={wsId}
               row={row}
+              shareScope={row.node.share_scope ?? knownById.get(row.node.id)?.share_scope}
               starred={starredIds.has(row.node.id)}
               expanded={expanded.has(row.node.id)}
               focused={focusedId === row.node.id}
@@ -324,7 +332,7 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
         <DragOverlay>
           {dragRow ? (
             <div className="rounded-md border bg-background px-2 py-1 text-body shadow-md">
-              {dragRow.node.title || t("documents.detail.untitled")}
+              {(isMyFolder(dragRow.node) ? t("documents.home.my_folder.label") : dragRow.node.title) || t("documents.detail.untitled")}
             </div>
           ) : null}
         </DragOverlay>

@@ -4,7 +4,10 @@ import { ChevronRight, Star } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import type { DocumentShareScope } from "@uniwork/core/types/document";
+import { isMyFolder } from "@uniwork/core/types/document";
 import { cn } from "@uniwork/ui/lib/utils";
+import { DocumentShareScopeBadge } from "./document-share-scope-badge";
 import {
   DocumentTreeRowMenu, isRowMenuShortcut, TREE_ROW_KEYSHORTCUTS, type TreeRowMenuActions,
 } from "./document-tree-row-menu";
@@ -27,6 +30,7 @@ function treeRowPaddingLeft(depth: number): number {
 interface TreeRowItemProps {
   wsId: string;
   row: TreeRow;
+  shareScope?: DocumentShareScope | null;
   starred: boolean;
   expanded: boolean;
   focused: boolean;
@@ -43,20 +47,20 @@ interface TreeRowItemProps {
 }
 
 export function TreeRowItem({
-  wsId, row, starred, expanded, focused, current, tabbable, moving, dragDisabled,
+  wsId, row, shareScope, starred, expanded, focused, current, tabbable, moving, dragDisabled,
   menuActions, registerRef, onFocusRequest, onKeyDown, onToggle, onOpen,
 }: TreeRowItemProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const drag = useDraggable({ id: `doc:${row.node.id}`, disabled: dragDisabled });
+  const myFolder = isMyFolder(row.node);
+  const drag = useDraggable({ id: `doc:${row.node.id}`, disabled: dragDisabled || myFolder });
   const drop = useDroppable({ id: `drop:${row.node.id}`, data: { id: row.node.id } });
   const { setNodeRef: setDragRef, isDragging } = drag;
   const { setNodeRef: setDropRef, isOver } = drop;
-
   // The dnd-kit `attributes` are not spread: they force role="button", which
   // is the wrong role inside a tree. Keyboard navigation is the tree's own.
   const { listeners } = drag;
-  const label = row.node.title || t("documents.detail.untitled");
+  const label = (myFolder ? t("documents.home.my_folder.label") : row.node.title) || t("documents.detail.untitled");
 
   return (
     <div
@@ -140,6 +144,12 @@ export function TreeRowItem({
       {starred ? (
         <Star role="img" aria-label={t("documents.home.row.starred")} className="ml-1 size-3.5 shrink-0 fill-current text-brand" />
       ) : null}
+      <DocumentShareScopeBadge
+        shareScope={shareScope ?? row.node.share_scope}
+        compact
+        focusable={false}
+        className="ml-1"
+      />
       <DocumentTreeRowMenu
         wsId={wsId}
         node={row.node}

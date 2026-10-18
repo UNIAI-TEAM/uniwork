@@ -234,29 +234,11 @@ describe('G6-08 synthetic dev set & guard', () => {
     assert.equal(summary.outsideAllowlistTotal, 0);
   });
 
-  it('verifies office_uniwork_ai@2 goldens obey the tool allowlist and contain no dev-set case answers', async () => {
+  it('verifies office_uniwork_ai@2 and @3 goldens obey the tool allowlist and contain no dev-set case answers', async () => {
     const { PACK_MODULES, TOOLS_DOC, auditCommon, auditSection, parseMechanicalTable } =
       await import('./instruction-pack-tools.mjs');
     const toolsDoc = fs.readFileSync(path.join(repoRoot, TOOLS_DOC), 'utf8');
     const { byModule } = parseMechanicalTable(toolsDoc);
-    const v2File = (sec) => `server/internal/ai/testdata/office_uniwork_ai_v2_${sec}.golden`;
-    const commonText = fs.readFileSync(path.join(repoRoot, v2File('common')), 'utf8');
-    const findings = [...auditCommon({ file: v2File('common'), text: commonText, byModule })];
-    const allTexts = [commonText];
-    for (const mod of PACK_MODULES) {
-      const txt = fs.readFileSync(path.join(repoRoot, v2File(mod)), 'utf8');
-      allTexts.push(txt);
-      findings.push(
-        ...auditSection({ section: mod, file: v2File(mod), text: txt, tools: byModule.get(mod) }),
-      );
-    }
-    assert.deepEqual(
-      findings.map((f) => f.message),
-      [],
-      `v2 instruction-pack tool-name violation(s)`,
-    );
-
-    const combinedPack = allTexts.join('\n');
     const forbiddenAnswers = [
       '51300',
       '61020',
@@ -283,12 +265,31 @@ describe('G6-08 synthetic dev set & guard', () => {
       '150 nhân viên',
       'ba buổi tập huấn',
     ];
-    for (const ans of forbiddenAnswers) {
-      assert.equal(
-        combinedPack.includes(ans),
-        false,
-        `office_uniwork_ai@2 pack text must not contain dev-set answer "${ans}"`,
+    for (const version of [2, 3]) {
+      const vFile = (sec) => `server/internal/ai/testdata/office_uniwork_ai_v${version}_${sec}.golden`;
+      const commonText = fs.readFileSync(path.join(repoRoot, vFile('common')), 'utf8');
+      const findings = [...auditCommon({ file: vFile('common'), text: commonText, byModule })];
+      const allTexts = [commonText];
+      for (const mod of PACK_MODULES) {
+        const txt = fs.readFileSync(path.join(repoRoot, vFile(mod)), 'utf8');
+        allTexts.push(txt);
+        findings.push(
+          ...auditSection({ section: mod, file: vFile(mod), text: txt, tools: byModule.get(mod) }),
+        );
+      }
+      assert.deepEqual(
+        findings.map((f) => f.message),
+        [],
+        `v${version} instruction-pack tool-name violation(s)`,
       );
+      const combinedPack = allTexts.join('\n');
+      for (const ans of forbiddenAnswers) {
+        assert.equal(
+          combinedPack.includes(ans),
+          false,
+          `office_uniwork_ai@${version} pack text must not contain dev-set answer "${ans}"`,
+        );
+      }
     }
   });
 
