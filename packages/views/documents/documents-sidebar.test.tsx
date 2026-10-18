@@ -81,7 +81,7 @@ describe("DocumentsSidebar sub-nav", () => {
 
   it("keeps the same entries on the trash view", () => {
     renderSidebar({ view: { kind: "archived" } });
-    expect(navLabels().slice(0, 7)).toEqual([
+    expect(navLabels().slice(0, 8)).toEqual([
       t("documents.home.sidebar.home"),
       t("documents.home.my_folder.label"),
       t("documents.home.sidebar.recent"),
