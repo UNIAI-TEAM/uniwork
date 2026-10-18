@@ -45,6 +45,9 @@ Runbook vận hành (không gắn alert, mở theo bước deploy):
 | Runbook | Dùng khi |
 | --- | --- |
 | [documents-folder-name-index.md](documents-folder-name-index.md) | Index unique tên thư mục (`idx_documents_folder_name_uidx`, FD-02/UNI-1462) INVALID hoặc không dựng được sau deploy |
+| [unichat-desktop-release.md](unichat-desktop-release.md) | Cắt, kiểm, rollback bản desktop UniChat (tag `chat-desktop-v*`, feed `chat-desktop-feed`, UNI-1835) |
+| [unichat-mobile-release.md](unichat-mobile-release.md) | Thiết lập, cắt, OTA, rollback bản mobile UniChat (tag `chat-mobile-v*`, EAS, nightly Maestro, UNI-1836) |
+| [unichat-pilot.md](unichat-pilot.md) | Pilot nội bộ UniChat: chuẩn bị, triage mỗi sáng, đo người dùng hằng ngày và `uniwork_push_suppressed_total`, điều kiện dừng (UNI-1838) |
 
 Alert `Office*` và `UniworkAi*` (G7-07) chỉ đọc metric mà code server D đăng ký (`scripts/office/alert-metrics.test.mjs`).
 Ngưỡng của chúng là đề xuất theo load profile, **pending G7-D1** (người dùng chốt). Các mục vận hành không có alert

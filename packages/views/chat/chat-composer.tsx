@@ -1,18 +1,30 @@
 "use client";
 
-import { useCallback, useId, useImperativeHandle, useRef, useState, type Ref } from "react";
-import { Mic, Send } from "lucide-react";
+import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { Check, Mic, Paperclip, Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { CHAT_MESSAGE_BODY_MAX_LENGTH } from "@uniwork/core/chat/client-msg-id";
 import { useChatComposerDraftStore } from "@uniwork/core/chat/composer-draft-store";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ComposerAttachMenu, ComposerToolbarButton, type ComposerAttachAction } from "./chat-composer-attach-menu";
-import { ComposerPriorityChip, ComposerVoiceBar, StagedFileChip } from "./chat-composer-parts";
+import {
+  ComposerCharCounter,
+  ComposerDropOverlay,
+  ComposerEditBar,
+  ComposerPriorityChip,
+  ComposerReadOnlyBar,
+  ComposerVoiceBar,
+  StagedFileChip,
+  type ComposerReadOnlyReason,
+} from "./chat-composer-parts";
 import { ChatExpressionPicker } from "./chat-expression-picker";
+import type { ChatMessage } from "./chat-messages";
+import { ChatReplyComposerBar } from "./chat-reply-quote";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
@@ -28,6 +40,16 @@ const COUNTER_THRESHOLD = 200;
 export type ChatComposerHandle = {
   /** Put the caret back in the message field (after reply, thread, cancel). */
   focus: () => void;
+};
+
+/** A sent message being edited in place of a new one (only the author's text messages). */
+export type ChatComposerEditing = {
+  message: { id: string; body: string };
+  saving: boolean;
+  /** Why the last save failed; edit mode stays, with the text. */
+  error: string | null;
+  onSave: (text: string) => void;
+  onCancel: () => void;
 };
 
 type ChatComposerProps = {
@@ -50,6 +72,22 @@ type ChatComposerProps = {
   showCreatePoll?: boolean;
   /** A host may provide its own voice capture flow. */
   onRecordVoice?: () => void;
+  /** Set with `disabled` when the room is read-only for this person: the field becomes one centred line. */
+  readOnlyReason?: ComposerReadOnlyReason;
+  /** `readOnlyReason="blocked"`: I blocked the DM peer (else they blocked me); the pill says which. */
+  blockedByMe?: boolean;
+  /** "Bỏ chặn" in the blocked pill, shown when I blocked them. */
+  onUnblock?: () => void;
+  unblocking?: boolean;
+  /** Puts the field into edit mode: the edit bar above it, the text prefilled, Save instead of Send. */
+  editing?: ChatComposerEditing | null;
+  /** A thread reply: text, emoji and stickers only — no attach menu, no voice. */
+  textOnly?: boolean;
+  /** The message being answered: its quote heads the pill until sent or cancelled. */
+  replyTo?: ChatMessage | null;
+  /** Who wrote `replyTo` ("Bạn" for me), named in the quote. */
+  replyToSenderLabel?: string;
+  onCancelReply?: () => void;
   ref?: Ref<ChatComposerHandle>;
 };
 
@@ -72,6 +110,15 @@ export function ChatComposer({
   onSendFile,
   showCreatePoll = true,
   onRecordVoice,
+  readOnlyReason,
+  blockedByMe,
+  onUnblock,
+  unblocking,
+  editing = null,
+  textOnly = false,
+  replyTo = null,
+  replyToSenderLabel,
+  onCancelReply,
   ref,
 }: ChatComposerProps) {
   const { t } = useTranslation();
@@ -79,11 +126,26 @@ export function ChatComposer({
   const mentionAnchorRef = useRef<HTMLDivElement>(null);
   const mentionListId = useId();
   const counterId = useId();
+  const stagedLabelId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Pasted, dropped or picked files wait here until the message is sent, so
   // a wrong file can be taken back before anyone sees it.
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
-  const canSend = !disabled && (draft.trim().length > 0 || stagedFiles.length > 0);
+  // Edit mode types into its own text, so the draft is there again, as it
+  // was, when the edit is saved or cancelled.
+  const [editDraft, setEditDraft] = useState<{ id: string; text: string } | null>(null);
+  const editingId = editing?.message.id ?? null;
+  const value = editing
+    ? editDraft?.id === editing.message.id
+      ? editDraft.text
+      : deserializeMessageBodyToComposerDraft(editing.message.body)
+    : draft;
+  const setValue = editing
+    ? (next: string) => setEditDraft({ id: editing.message.id, text: next })
+    : onDraftChange;
+  const canSend = editing
+    ? !disabled && !editing.saving && value.trim().length > 0
+    : !disabled && (draft.trim().length > 0 || stagedFiles.length > 0);
   const mentionEnabled = mentionCandidates !== undefined;
   const voiceRecorder = useChatVoiceRecorder();
   const voiceActive = voiceRecorder.state !== "idle" || Boolean(voiceRecorder.error);
@@ -92,21 +154,33 @@ export function ChatComposer({
     focus: () => window.requestAnimationFrame(() => textareaRef.current?.focus()),
   }));
 
-  const normalizeDraft = (value: string) => deserializeMessageBodyToComposerDraft(value);
-  const updateDraft = (value: string) => onDraftChange(normalizeDraft(value));
+  const normalizeDraft = (next: string) => deserializeMessageBodyToComposerDraft(next);
+  const updateDraft = (next: string) => setValue(normalizeDraft(next));
+
+  // Entering edit mode puts the caret at the end of the message.
+  useEffect(() => {
+    setEditDraft(null);
+    if (!editingId) return;
+    window.requestAnimationFrame(() => {
+      const node = textareaRef.current;
+      if (!node) return;
+      node.focus();
+      node.setSelectionRange(node.value.length, node.value.length);
+    });
+  }, [editingId]);
 
   const mentions = useComposerMentions({
     enabled: mentionEnabled,
     candidates: mentionCandidates,
     allLabel: t("chat.mention_all"),
-    draft,
+    draft: value,
     onDraftChange: updateDraft,
     textareaRef,
   });
 
   const stageAcceptedFiles = useCallback(
     (files: File[]) => {
-      if (disabled || !onSendFile) return;
+      if (disabled || editing || !onSendFile) return;
       const accepted = pickChatAcceptedFiles(files);
       const ready = accepted.filter((file) => !isChatFileTooLarge(file));
       if (accepted.length < files.length) toast.error(t("chat.file_type_unsupported"));
@@ -115,11 +189,11 @@ export function ChatComposer({
       setStagedFiles((current) => [...current, ...ready]);
       textareaRef.current?.focus();
     },
-    [disabled, onSendFile, t],
+    [disabled, editing, onSendFile, t],
   );
 
   const { isDragOver, dropZoneProps } = useFileDropZone({
-    enabled: Boolean(onSendFile) && !disabled && !voiceActive,
+    enabled: Boolean(onSendFile) && !disabled && !voiceActive && !editing,
     onDrop: stageAcceptedFiles,
   });
 
@@ -139,9 +213,9 @@ export function ChatComposer({
   // An emoji goes where the caret is, not at the end of the message.
   const insertEmoji = (emoji: string) => {
     const el = textareaRef.current;
-    const start = el?.selectionStart ?? draft.length;
+    const start = el?.selectionStart ?? value.length;
     const end = el?.selectionEnd ?? start;
-    updateDraft(`${draft.slice(0, start)}${emoji}${draft.slice(end)}`);
+    updateDraft(`${value.slice(0, start)}${emoji}${value.slice(end)}`);
     const caret = start + emoji.length;
     window.requestAnimationFrame(() => {
       const node = textareaRef.current;
@@ -152,7 +226,8 @@ export function ChatComposer({
   };
 
   const handleSendMedia = (body: string) => {
-    if (disabled) return;
+    // A sticker is a message of its own; it cannot replace the text being edited.
+    if (disabled || editing) return;
     if (onSendMedia) {
       void onSendMedia(body);
       return;
@@ -165,10 +240,14 @@ export function ChatComposer({
   // token. UTF-16 length counts an emoji as 2, so this is never looser than it.
   const remaining =
     CHAT_MESSAGE_BODY_MAX_LENGTH -
-    serializeComposerDraftToMessageBody(draft, mentionCandidates ?? [], t("chat.mention_all")).length;
+    serializeComposerDraftToMessageBody(value, mentionCandidates ?? [], t("chat.mention_all")).length;
 
   const submit = () => {
     if (!canSend) return;
+    if (editing) {
+      if (remaining >= 0) editing.onSave(value);
+      return;
+    }
     if (stagedFiles.length > 0 && onSendFile) {
       // One upload at a time: the server holds each file in memory while it
       // checks it, and a handful of large ones at once can exhaust the pod.
@@ -192,20 +271,12 @@ export function ChatComposer({
   };
 
   const showCounter = remaining <= COUNTER_THRESHOLD;
+  const recordLabel = t("chat.composer_state.record");
+  const saveLabel = t("chat.edit_dialog_save");
 
   return (
-    <div
-      className={cn("relative flex shrink-0 flex-col gap-1.5 border-t border-border bg-surface px-3 py-2.5 sm:px-4")}
-      {...dropZoneProps}
-    >
-      {isDragOver ? (
-        <p
-          className="pointer-events-none absolute inset-1 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-brand bg-brand-subtle text-body font-medium text-brand-subtle-foreground"
-          aria-live="polite"
-        >
-          {t("chat.file_drop_hint")}
-        </p>
-      ) : null}
+    <div className="relative flex shrink-0 flex-col gap-1.5 bg-chat-wall px-3 pt-1 pb-3 sm:px-6 sm:pb-5" {...dropZoneProps}>
+      {isDragOver ? <ComposerDropOverlay /> : null}
       <input
         ref={fileInputRef}
         type="file"
@@ -221,36 +292,26 @@ export function ChatComposer({
           stageAcceptedFiles(files);
         }}
       />
-      {typingLabel ? (
-        <p className="px-1 text-caption text-muted-foreground" aria-live="polite">
-          {typingLabel}
-        </p>
-      ) : null}
-      {stagedFiles.length > 0 ? (
-        <div role="group" className="flex flex-wrap gap-1.5" aria-label={t("chat.composer_staged_files")}>
-          {stagedFiles.map((file, index) => (
-            <StagedFileChip
-              key={`${file.name}-${file.size}-${index}`}
-              file={file}
-              onRemove={() => {
-                setStagedFiles((current) => current.filter((_, i) => i !== index));
-                textareaRef.current?.focus();
-              }}
-            />
-          ))}
-        </div>
-      ) : null}
-      {composerPriority ? (
-        <div>
-          <ComposerPriorityChip priority={composerPriority} onClear={() => onComposerPriorityChange?.(null)} />
-        </div>
-      ) : null}
-      {voiceActive ? (
+      {/* Seen in the header and as a bubble on the timeline; heard from here. */}
+      <p className="sr-only" aria-live="polite">
+        {typingLabel}
+      </p>
+      {disabled && readOnlyReason ? (
+        <ComposerReadOnlyBar
+          reason={readOnlyReason}
+          placeholder={placeholder}
+          textareaRef={textareaRef}
+          blockedByMe={blockedByMe}
+          onUnblock={onUnblock}
+          unblocking={unblocking}
+        />
+      ) : voiceActive ? (
         <ComposerVoiceBar
           state={voiceRecorder.state}
           error={voiceRecorder.error}
           elapsedMs={voiceRecorder.elapsedMs}
           recording={voiceRecorder.recording}
+          levels={voiceRecorder.levels}
           canSend={Boolean(onSendVoice)}
           onCancel={voiceRecorder.cancel}
           onStop={() => void voiceRecorder.stop()}
@@ -262,16 +323,82 @@ export function ChatComposer({
         />
       ) : (
         <form
+          className="mx-auto w-full max-w-183"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
           }}
         >
-          {/* The field's own ring is off, so the frame carries focus — the
-              same border and ring an Input takes when focused. */}
-          <div className="flex min-w-0 items-end gap-1 rounded-xl border border-input bg-surface px-1.5 py-1 transition-[border-color,box-shadow] duration-(--duration-fast) focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
-            <div className="flex shrink-0 items-center">
-              <div className="flex items-center justify-center pointer-coarse:min-h-11 pointer-coarse:min-w-11">
+          <div className="flex items-end gap-2">
+            {textOnly ? null : (
+              <ComposerAttachMenu
+                disabled={disabled || Boolean(editing)}
+                onAction={handleAttachAction}
+                align="start"
+                showCreatePoll={showCreatePoll}
+              />
+            )}
+            {/* The field's own ring is off, so the pill carries focus. */}
+            <div
+              className={cn(
+                "flex min-h-12 min-w-0 flex-1 flex-col rounded-3xl bg-chat-bubble-other px-1.5 py-0.5 shadow-chat-bubble transition-shadow duration-(--duration-fast)",
+                remaining < 0
+                  ? "ring-2 ring-destructive"
+                  : editing
+                    ? "ring-2 ring-brand/30"
+                    : "focus-within:ring-2 focus-within:ring-ring/30",
+              )}
+            >
+              {!editing && replyTo ? (
+                <ChatReplyComposerBar
+                  message={replyTo}
+                  senderLabel={replyToSenderLabel}
+                  onCancel={() => {
+                    onCancelReply?.();
+                    textareaRef.current?.focus();
+                  }}
+                />
+              ) : null}
+              {editing ? (
+                <ComposerEditBar
+                  preview={deserializeMessageBodyToComposerDraft(editing.message.body)}
+                  onCancel={() => {
+                    editing.onCancel();
+                    // The bar and its X go away; the caret stays in the field.
+                    textareaRef.current?.focus();
+                  }}
+                />
+              ) : null}
+              {!editing && (composerPriority || stagedFiles.length > 0) ? (
+                <>
+                  <div className="flex flex-col items-start gap-2 px-1.5 pt-2.5 pb-2">
+                    {composerPriority ? (
+                      <ComposerPriorityChip priority={composerPriority} onClear={() => onComposerPriorityChange?.(null)} />
+                    ) : null}
+                    {stagedFiles.length > 0 ? (
+                      <div role="group" aria-labelledby={stagedLabelId} className="flex w-full min-w-0 flex-col gap-2">
+                        <span id={stagedLabelId} className="text-caption font-semibold text-muted-foreground">
+                          {`${t("chat.composer_staged_files")} · ${stagedFiles.length}`}
+                        </span>
+                        <div className="flex gap-2 overflow-x-auto">
+                          {stagedFiles.map((file, index) => (
+                            <StagedFileChip
+                              key={`${file.name}-${file.size}-${index}`}
+                              file={file}
+                              onRemove={() => {
+                                setStagedFiles((current) => current.filter((_, i) => i !== index));
+                                textareaRef.current?.focus();
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="mx-1.5 h-px bg-border" />
+                </>
+              ) : null}
+              <div className="flex items-end gap-1">
                 <ChatExpressionPicker
                   workspaceId={workspaceId}
                   disabled={disabled}
@@ -279,116 +406,129 @@ export function ChatComposer({
                   onSelectEmoji={insertEmoji}
                   onSendMedia={handleSendMedia}
                 />
+                <div ref={mentionAnchorRef} className="relative min-w-0 flex-1">
+                  {mentions.open ? (
+                    <ChatMentionAutocomplete
+                      listId={mentionListId}
+                      query={mentions.query}
+                      candidates={mentions.visibleCandidates}
+                      selectedIndex={mentions.activeIndex}
+                      onSelect={mentions.insert}
+                      onHover={mentions.setSelectedIndex}
+                      anchorRef={mentionAnchorRef}
+                      memberAvatarByUserId={memberAvatarByUserId}
+                    />
+                  ) : null}
+                  <Textarea
+                    ref={textareaRef}
+                    value={value}
+                    maxLength={CHAT_MESSAGE_BODY_MAX_LENGTH}
+                    onChange={(e) => {
+                      const normalized = normalizeDraft(e.target.value);
+                      setValue(normalized);
+                      mentions.sync(normalized, e.target.selectionStart ?? normalized.length);
+                    }}
+                    onClick={(e) => {
+                      const el = e.currentTarget;
+                      mentions.sync(el.value, el.selectionStart ?? el.value.length);
+                    }}
+                    onKeyUp={mentions.onKeyUp}
+                    onPaste={(e) => {
+                      if (!onSendFile || disabled || editing) return;
+                      const files = Array.from(e.clipboardData?.files ?? []);
+                      if (files.length === 0) return;
+                      e.preventDefault();
+                      stageAcceptedFiles(files);
+                    }}
+                    placeholder={placeholder}
+                    aria-label={editing ? t("chat.edit_dialog_title") : placeholder}
+                    role={mentionEnabled ? "combobox" : undefined}
+                    aria-expanded={mentionEnabled ? mentions.open && mentions.visibleCandidates.length > 0 : undefined}
+                    aria-autocomplete={mentionEnabled ? "list" : undefined}
+                    aria-controls={mentions.open ? mentionListId : undefined}
+                    aria-activedescendant={
+                      mentions.open && mentions.visibleCandidates.length > 0
+                        ? mentionOptionId(mentionListId, mentions.activeIndex)
+                        : undefined
+                    }
+                    aria-describedby={showCounter ? counterId : undefined}
+                    disabled={disabled}
+                    rows={1}
+                    className="max-h-40 min-h-11 w-full resize-none rounded-none border-0 bg-transparent px-1 py-2.5 shadow-none focus-visible:ring-0 disabled:bg-transparent md:text-body-lg dark:bg-transparent dark:disabled:bg-transparent"
+                    onKeyDown={(e) => {
+                      // A Vietnamese IME commits the pending syllable on Enter and the
+                      // browser reports that commit as its own keydown, so acting on
+                      // both sends the message twice under two client_msg_ids. A held
+                      // key repeats for the same reason.
+                      if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;
+                      if (mentions.onKeyDown(e)) return;
+                      if (editing && e.key === "Escape") {
+                        e.preventDefault();
+                        editing.onCancel();
+                        return;
+                      }
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        submit();
+                      }
+                    }}
+                  />
+                </div>
+                {onSendFile ? (
+                  <ComposerToolbarButton
+                    label={t("chat.composer_attach_file")}
+                    disabled={disabled || Boolean(editing)}
+                    onClick={() => handleAttachAction("attach_file")}
+                  >
+                    <Paperclip aria-hidden />
+                  </ComposerToolbarButton>
+                ) : null}
               </div>
-              <ComposerAttachMenu
+            </div>
+            {canSend || editing || textOnly ? (
+              <Button
+                type="submit"
+                size="icon-lg"
+                className="size-12 rounded-full shadow-md shadow-primary/30 hover:bg-primary/90"
+                aria-label={editing ? saveLabel : sendLabel}
+                title={editing ? saveLabel : undefined}
+                disabled={!canSend}
+                // Tapping send must not take focus from the field: on a
+                // phone that would close the keyboard after every message.
+                onPointerDown={(event) => event.preventDefault()}
+              >
+                {!editing ? (
+                  <Send className="size-5" aria-hidden />
+                ) : editing.saving ? (
+                  <Spinner className="size-5" />
+                ) : (
+                  <Check className="size-5.5" aria-hidden />
+                )}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon-lg"
+                className="size-12 rounded-full shadow-md shadow-primary/30 hover:bg-primary/90"
+                aria-label={recordLabel}
+                title={recordLabel}
                 disabled={disabled}
-                onAction={handleAttachAction}
-                align="start"
-                showCreatePoll={showCreatePoll}
-              />
-            </div>
-
-            <div ref={mentionAnchorRef} className="relative min-w-0 flex-1">
-              {mentions.open ? (
-                <ChatMentionAutocomplete
-                  listId={mentionListId}
-                  candidates={mentions.visibleCandidates}
-                  selectedIndex={mentions.activeIndex}
-                  onSelect={mentions.insert}
-                  onHover={mentions.setSelectedIndex}
-                  anchorRef={mentionAnchorRef}
-                  memberAvatarByUserId={memberAvatarByUserId}
-                />
-              ) : null}
-              <Textarea
-                ref={textareaRef}
-                value={draft}
-                maxLength={CHAT_MESSAGE_BODY_MAX_LENGTH}
-                onChange={(e) => {
-                  const normalized = normalizeDraft(e.target.value);
-                  onDraftChange(normalized);
-                  mentions.sync(normalized, e.target.selectionStart ?? normalized.length);
+                onClick={() => {
+                  if (onRecordVoice) onRecordVoice();
+                  else void voiceRecorder.start();
                 }}
-                onClick={(e) => {
-                  const el = e.currentTarget;
-                  mentions.sync(el.value, el.selectionStart ?? el.value.length);
-                }}
-                onKeyUp={mentions.onKeyUp}
-                onPaste={(e) => {
-                  if (!onSendFile || disabled) return;
-                  const files = Array.from(e.clipboardData?.files ?? []);
-                  if (files.length === 0) return;
-                  e.preventDefault();
-                  stageAcceptedFiles(files);
-                }}
-                placeholder={placeholder}
-                aria-label={placeholder}
-                role={mentionEnabled ? "combobox" : undefined}
-                aria-expanded={mentionEnabled ? mentions.open && mentions.visibleCandidates.length > 0 : undefined}
-                aria-autocomplete={mentionEnabled ? "list" : undefined}
-                aria-controls={mentions.open ? mentionListId : undefined}
-                aria-activedescendant={
-                  mentions.open && mentions.visibleCandidates.length > 0
-                    ? mentionOptionId(mentionListId, mentions.activeIndex)
-                    : undefined
-                }
-                aria-describedby={showCounter ? counterId : undefined}
-                disabled={disabled}
-                rows={1}
-                className="max-h-40 min-h-9 w-full resize-none border-0 bg-transparent px-1 py-2 shadow-none focus-visible:ring-0 md:text-body dark:bg-transparent"
-                onKeyDown={(e) => {
-                  // A Vietnamese IME commits the pending syllable on Enter and the
-                  // browser reports that commit as its own keydown, so acting on
-                  // both sends the message twice under two client_msg_ids. A held
-                  // key repeats for the same reason.
-                  if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;
-                  if (mentions.onKeyDown(e)) return;
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    submit();
-                  }
-                }}
-              />
-            </div>
-
-            <div className="flex shrink-0 items-center pb-0.5">
-              {canSend ? (
-                <Button
-                  type="submit"
-                  variant="brand"
-                  size="icon-lg"
-                  className="shrink-0"
-                  aria-label={sendLabel}
-                  // Tapping send must not take focus from the field: on a
-                  // phone that would close the keyboard after every message.
-                  onPointerDown={(event) => event.preventDefault()}
-                >
-                  <Send className="size-4" aria-hidden />
-                </Button>
-              ) : (
-                <ComposerToolbarButton
-                  label={t("chat.composer_state.record")}
-                  disabled={disabled}
-                  onClick={() => { if (onRecordVoice) onRecordVoice(); else void voiceRecorder.start(); }}
-                >
-                  <Mic aria-hidden className="size-5" />
-                </ComposerToolbarButton>
-              )}
-            </div>
+              >
+                <Mic className="size-5.5" aria-hidden />
+              </Button>
+            )}
           </div>
-          {showCounter ? (
-            <p
-              id={counterId}
-              className={cn(
-                "mt-1 px-1 text-right text-micro tabular-nums",
-                remaining <= 0 ? "text-destructive" : "text-muted-foreground",
-              )}
-            >
-              {remaining < 0
-                ? t("chat.composer_state.chars_over", { count: -remaining })
-                : t("chat.composer_state.chars_left", { count: remaining })}
+          {editing?.error ? (
+            // Under the field, not the attach button beside it.
+            <p role="alert" className={cn("mt-1.5 mr-15 pl-4 text-caption text-destructive", !textOnly && "ml-14")}>
+              {editing.error}
             </p>
           ) : null}
+          {showCounter ? <ComposerCharCounter id={counterId} remaining={remaining} /> : null}
         </form>
       )}
     </div>

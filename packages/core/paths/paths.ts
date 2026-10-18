@@ -11,6 +11,8 @@ export const paths = {
   desktopAuthorize: () => "/auth/desktop/authorize",
   /** Consent page an external AI client (MCP connector) sends the browser to (UNI-1308). */
   connectAuthorize: () => "/auth/connect/authorize",
+  /** The UniChat desktop shell's start page; hands over to /login on the client. */
+  unichatStart: () => "/auth/unichat",
   forgotPassword: () => "/forgot-password",
   resetPassword: (token?: string) =>
     token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",
@@ -60,6 +62,8 @@ export const paths = {
   requestDemo: () => "/request-demo",
   /** Public page of the UniWork Office desktop app (landing menu "Office"). */
   office: () => "/office",
+  /** Public page of the UniChat apps: desktop installers and mobile store links. */
+  unichat: () => "/unichat",
   about: () => "/about",
   security: () => "/security",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
@@ -164,6 +168,7 @@ export const GLOBAL_PREFIXES = [
   "/enterprise",
   "/request-demo",
   "/office",
+  "/unichat",
   "/vi",
   "/about",
   "/security",

@@ -45,7 +45,6 @@ type expoMessage struct {
 type expoResponse struct {
 	Data []struct {
 		Status  string `json:"status"`
-		Message string `json:"message"`
 		Details struct {
 			Error string `json:"error"`
 		} `json:"details"`
@@ -58,7 +57,7 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 	payload, err := json.Marshal([]expoMessage{{
 		To: sub.Endpoint, Title: msg.Title, Body: msg.Body,
 		Data:  map[string]string{"url": msg.URL, "tag": msg.Tag},
-		Sound: "default", ChannelID: "chat", TTL: int(time.Hour / time.Second), Priority: "high",
+		Sound: "default", ChannelID: "chat", TTL: msg.ttl(), Priority: "high",
 	}})
 	if err != nil {
 		return err
@@ -121,7 +120,8 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 	case t.Details.Error == "DeviceNotRegistered":
 		return ErrSubscriptionGone
 	default:
-		return fmt.Errorf("expo push: %s: %s", t.Details.Error, t.Message)
+		// The code only: Expo's message quotes the device token.
+		return fmt.Errorf("expo push: ticket %s", t.Details.Error)
 	}
 }
 

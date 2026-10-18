@@ -10,7 +10,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/gate-level.sh"
 
-pnpm exec turbo lint "$@"
+# apps/chat-mobile verifies in .github/workflows/mobile-verify.yml (ADR 0011).
+pnpm exec turbo lint --filter=!@uniwork/chat-mobile "$@"
 rc=$?
 if [ "$rc" -ne 0 ] && [ "$GATE_LEVEL" = fast ]; then
   echo ""

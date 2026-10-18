@@ -91,7 +91,8 @@ func TestCatchUpEmptyAndUnreadRoom(t *testing.T) {
 		t.Fatalf("empty catch-up must not call the provider: %d", fake.Calls)
 	}
 
-	if _, err := s.chat.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: "Nhắc hạn F-09"}); err != nil {
+	sent, err := s.chat.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: "Nhắc hạn F-09"})
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -104,6 +105,11 @@ func TestCatchUpEmptyAndUnreadRoom(t *testing.T) {
 	}
 	if brief.Summary == "" {
 		t.Fatalf("summary empty: %+v", brief)
+	}
+	// The fake cites [S1] for its highlight; it reaches the client as the message id.
+	if len(brief.HighlightItems) != 1 || brief.HighlightItems[0].SourceMessageID != sent.ID ||
+		len(brief.Highlights) != 1 || brief.Highlights[0] != brief.HighlightItems[0].Text {
+		t.Fatalf("highlights: %+v / %q want source %s", brief.HighlightItems, brief.Highlights, sent.ID)
 	}
 	if fake.Calls != 1 {
 		t.Fatalf("provider calls: %d", fake.Calls)

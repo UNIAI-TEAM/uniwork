@@ -13,13 +13,17 @@ export function ChatPresenceAvatar({
   size = "sm",
   online = false,
   className,
+  avatarClassName,
 }: {
   name: string;
   initials: string;
   avatarUrl?: string | null;
-  size?: AvatarSize;
+  /** `fluid` leaves the diameter and type to `avatarClassName` (the list's 48px face). */
+  size?: AvatarSize | "fluid";
   online?: boolean;
   className?: string;
+  /** Classes for the circle itself: its size when fluid, the initials' fill. */
+  avatarClassName?: string;
 }) {
   const { t } = useTranslation();
   return (
@@ -29,6 +33,7 @@ export function ChatPresenceAvatar({
         initials={initials}
         avatarUrl={avatarUrl}
         size={size}
+        className={avatarClassName}
         status={online ? { tone: "success", label: t("chat.presence_online") } : undefined}
       />
     </span>

@@ -626,6 +626,8 @@ func channelSummaryFromMineRow(row db.ListChatChannelsMineRow) ChatRoomSummary {
 		sum.LastMessageKind = row.LastMessageKind
 		sum.LastMessageSenderID = row.LastMessageSenderID
 		sum.LastMessageSenderName = row.LastMessageSenderName
+		sum.LastMessageCallOutcome = row.LastMessageCallOutcome
+		sum.LastMessageDurationMS = int(row.LastMessageDurationMs)
 	}
 	return sum
 }

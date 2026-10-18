@@ -23,6 +23,19 @@ type PushMessage struct {
 	Body  string `json:"body,omitempty"`
 	URL   string `json:"url"`
 	Tag   string `json:"tag"`
+	// TTL is how long, in seconds, the push service may hold the message for
+	// an offline device; 0 means pushTTL. It travels as a header, not in the body.
+	TTL int `json:"-"`
+}
+
+// pushTTL is the default lifetime of a push: a reminder delivered tomorrow is noise.
+const pushTTL = int(time.Hour / time.Second)
+
+func (m PushMessage) ttl() int {
+	if m.TTL > 0 {
+		return m.TTL
+	}
+	return pushTTL
 }
 
 // ErrSubscriptionGone is returned when the push service says the browser is
@@ -42,8 +55,7 @@ type WebPushSender struct {
 	Subject    string // "mailto:" or an https origin, what the push service sees
 }
 
-// Send encrypts msg for sub and posts it. TTL is an hour: a reminder
-// delivered tomorrow is noise.
+// Send encrypts msg for sub and posts it, held at most msg's TTL.
 func (s WebPushSender) Send(ctx context.Context, sub db.PushSubscription, msg PushMessage) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
@@ -53,7 +65,7 @@ func (s WebPushSender) Send(ctx context.Context, sub db.PushSubscription, msg Pu
 		Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth},
 	}, &webpush.Options{
 		Subscriber: s.Subject, VAPIDPublicKey: s.PublicKey, VAPIDPrivateKey: s.PrivateKey,
-		TTL: int(time.Hour / time.Second), Urgency: webpush.UrgencyNormal,
+		TTL: msg.ttl(), Urgency: webpush.UrgencyNormal,
 	})
 	if err != nil {
 		return err

@@ -80,6 +80,15 @@ type Draft struct {
 	Claim *MentionClaim
 }
 
+// CallRingChecker says whether a chat call still rings for a user: live, and
+// not answered by them here or on another device. ChatService implements it
+// over its in-memory call sessions, so it answers for this node only: the
+// backend runs one replica (deploy/app/uniwork/values.yaml), the same
+// assumption the call's token mint makes. It is injected through SetCallRinging.
+type CallRingChecker interface {
+	VoiceCallRinging(roomID, callID, userID string) bool
+}
+
 // env is what a rule may touch: read queries, the membership gate and the
 // injected document-read resolver.
 type env struct {
@@ -88,6 +97,7 @@ type env struct {
 	orgs      OrgMemberChecker
 	docs      DocumentReadChecker
 	summaries SummaryChecker
+	calls     CallRingChecker
 }
 
 // rule turns one outbox row into drafts. Rules are pure apart from reads; the
@@ -117,6 +127,7 @@ var rules = map[string]rule{
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
 	"chat.thread.reply_received": chatMessageRule(KindChatThreadReplied),
+	"chat.voice.invite_received": ruleChatVoiceInviteReceived,
 }
 
 // snippetRunes bounds what of a comment body lands in params: enough to

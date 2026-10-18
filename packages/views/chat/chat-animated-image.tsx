@@ -23,6 +23,7 @@ export function ChatAnimatedImage({
   imgClassName,
   onLoad,
   onError,
+  gifBadge = false,
 }: {
   src: string;
   alt: string;
@@ -30,6 +31,8 @@ export function ChatAnimatedImage({
   imgClassName?: string;
   onLoad?: (img: HTMLImageElement) => void;
   onError?: () => void;
+  /** A small "GIF" tag in the corner, for a GIF (not an animated sticker). */
+  gifBadge?: boolean;
 }) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion() ?? false;
@@ -71,13 +74,21 @@ export function ChatAnimatedImage({
         aria-hidden
         className={cn("absolute inset-0 size-full object-contain", (playing || !frameReady) && "hidden")}
       />
+      {gifBadge ? (
+        <span
+          aria-hidden
+          className="absolute top-1.5 left-1.5 rounded-sm bg-chat-chip px-1.5 text-micro font-bold tracking-wide text-chat-chip-foreground"
+        >
+          {t("chat.media_gif")}
+        </span>
+      ) : null}
       <button
         type="button"
         aria-label={playing ? t("chat.message_list.gif_pause", { name: alt }) : t("chat.message_list.gif_play", { name: alt })}
-        className="absolute right-1.5 bottom-1.5 inline-flex size-8 items-center justify-center rounded-full bg-surface-raised text-foreground shadow-[var(--menu-shadow)] transition-opacity duration-(--duration-fast) hover:bg-surface-hover pointer-coarse:size-11"
+        className="absolute right-1.5 bottom-1.5 inline-flex size-8 items-center justify-center rounded-full bg-surface-raised text-foreground shadow-menu transition-opacity duration-(--duration-fast) hover:bg-surface-hover pointer-coarse:size-11"
         onClick={() => setChoice(!playing)}
       >
-        {playing ? <Pause className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
+        {playing ? <Pause className="size-3.5 fill-current" aria-hidden /> : <Play className="size-3.5 fill-current" aria-hidden />}
       </button>
     </span>
   );

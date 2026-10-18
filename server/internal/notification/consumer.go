@@ -60,6 +60,10 @@ func (c *Consumer) SetDocumentReaders(d DocumentReadChecker) { c.env.docs = d }
 // never sent.
 func (c *Consumer) SetMeetingSummaries(s SummaryChecker) { c.env.summaries = s }
 
+// SetCallRinging lets the call rule skip a person the call no longer rings.
+// Without it every ring inside its window is delivered.
+func (c *Consumer) SetCallRinging(r CallRingChecker) { c.env.calls = r }
+
 // Name identifies the consumer in dispatcher errors.
 func (*Consumer) Name() string { return "notification" }
 

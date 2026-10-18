@@ -178,6 +178,7 @@ var catalogue = []EventDef{
 	{Topic: "chat.message.mentioned", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.dm.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_received", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.voice.invite_received", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
@@ -188,6 +189,11 @@ var catalogue = []EventDef{
 	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
 	// else renders it, and every client that hears one reloads its sidebar.
 	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	// A member of a group or non-default channel moved their read pointer:
+	// sockets holding the room open refetch its member list to count who has
+	// seen a message. Losing one costs nobody anything; the next read or
+	// refetch corrects the count.
+	{Topic: "chat.room.member_read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	// Message and typing rows of the workspace's default channel go to the

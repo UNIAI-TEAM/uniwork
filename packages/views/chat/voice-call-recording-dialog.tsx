@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CircleAlert, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -17,9 +18,11 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
+import { VoiceCallRecordingPlayer } from "./voice-call-recording-player";
 
 export function VoiceCallRecordingDialog({
   open,
@@ -27,12 +30,15 @@ export function VoiceCallRecordingDialog({
   workspaceId,
   roomId,
   recordingId,
+  description,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceId: string;
   roomId: string;
   recordingId: string;
+  /** "Hôm qua, 16:30 · Ghi bởi Nguyễn Thu Hà · dài 32:10": which recording this is. */
+  description?: string;
 }) {
   const { t } = useTranslation();
   const playbackUrlRef = useRef<string | null>(null);
@@ -115,38 +121,43 @@ export function VoiceCallRecordingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl" closeLabel={t("common.close")}>
-        <DialogHeader>
-          <DialogTitle>{t("chat.voice_call_recording_title")}</DialogTitle>
+      <DialogContent className="gap-5 rounded-2xl p-6 sm:max-w-[720px]" closeLabel={t("common.close")}>
+        <DialogHeader className="gap-1 pr-10">
+          <DialogTitle className="font-display text-title-lg font-bold">{t("chat.voice_call_recording_title")}</DialogTitle>
+          {description ? (
+            <DialogDescription className="text-body text-muted-foreground tabular-nums">{description}</DialogDescription>
+          ) : null}
         </DialogHeader>
         {status === "loading" ? (
           <div aria-busy>
             <span className="sr-only">{t("chat.voice_call_recording_loading")}</span>
-            <Skeleton className="aspect-video w-full rounded-md" />
+            <Skeleton className="aspect-video w-full rounded-xl" />
           </div>
         ) : null}
         {status === "error" ? (
           <div
             role="alert"
-            className="flex flex-wrap items-center gap-3 rounded-md bg-destructive-soft px-3 py-2 text-body text-destructive-soft-foreground"
+            className="flex flex-col gap-2.5 rounded-lg bg-destructive-soft px-3.5 py-3 text-destructive-soft-foreground"
           >
-            <span className="min-w-0 flex-1">{t("chat.voice_call_recording_error")}</span>
-            <Button type="button" size="sm" variant="outline" onClick={retry}>
-              {t("common.retry")}
-            </Button>
+            <span className="flex items-center gap-2.5 text-body font-medium">
+              <CircleAlert aria-hidden className="size-4.5 shrink-0" />
+              {t("chat.voice_call_recording_error")}
+            </span>
+            <span className="pl-7">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8.5 rounded-full px-3.5 text-label font-semibold text-foreground"
+                onClick={retry}
+              >
+                <RefreshCw aria-hidden className="size-3.75" />
+                {t("common.retry")}
+              </Button>
+            </span>
           </div>
         ) : null}
         {status === "ready" && playbackUrlRef.current ? (
-          /* eslint-disable-next-line jsx-a11y/media-has-caption -- recorded call playback has no caption track */
-          <video
-            // The meeting stage's dark plate letterboxes the video in both themes.
-            className="max-h-[min(70vh,720px)] w-full rounded-md bg-meeting-bar-bg object-contain"
-            controls
-            playsInline
-            preload="metadata"
-            src={playbackUrlRef.current}
-            onError={handleVideoError}
-          />
+          <VoiceCallRecordingPlayer src={playbackUrlRef.current} onError={handleVideoError} />
         ) : null}
       </DialogContent>
     </Dialog>

@@ -81,11 +81,38 @@ type CatchUpActionItem struct {
 	SourceID string `json:"source_id,omitempty"`
 }
 
+// CatchUpHighlight is one key point of a brief. SourceID is optional and,
+// like an action item's, must match a pack source when present.
+type CatchUpHighlight struct {
+	Text     string `json:"text"`
+	SourceID string `json:"source_id,omitempty"`
+}
+
+// UnmarshalJSON takes the object chat_catchup@2 returns or the bare string
+// chat_catchup@1 and chat_call_summary@1 return.
+func (h *CatchUpHighlight) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &h.Text); err == nil {
+		return nil
+	}
+	type plain CatchUpHighlight
+	return json.Unmarshal(b, (*plain)(h))
+}
+
 // CatchUp is the structured catch-up brief for a room or thread.
 type CatchUp struct {
 	Summary     string              `json:"summary"`
-	Highlights  []string            `json:"highlights"`
+	Highlights  []CatchUpHighlight  `json:"highlights"`
 	ActionItems []CatchUpActionItem `json:"action_items"`
+}
+
+// HighlightTexts is the highlights as plain strings, the shape the call
+// summary stores and older catch-up clients read.
+func (c CatchUp) HighlightTexts() []string {
+	out := make([]string, len(c.Highlights))
+	for i, h := range c.Highlights {
+		out[i] = h.Text
+	}
+	return out
 }
 
 // ParseCatchUpJSON parses the chat_catchup model output and drops unknown source_ids.
@@ -102,7 +129,7 @@ func ParseCatchUpJSON(s string, pack []Source) (CatchUp, error) {
 		return CatchUp{}, ErrOutputInvalid.wrap(errors.New("empty summary"))
 	}
 	if out.Highlights == nil {
-		out.Highlights = []string{}
+		out.Highlights = []CatchUpHighlight{}
 	}
 	if out.ActionItems == nil {
 		out.ActionItems = []CatchUpActionItem{}
@@ -110,6 +137,11 @@ func ParseCatchUpJSON(s string, pack []Source) (CatchUp, error) {
 	known := map[string]bool{}
 	for _, src := range pack {
 		known[src.ID] = true
+	}
+	for i, h := range out.Highlights {
+		if h.SourceID != "" && !known[h.SourceID] {
+			out.Highlights[i].SourceID = ""
+		}
 	}
 	kept := make([]CatchUpActionItem, 0, len(out.ActionItems))
 	for _, item := range out.ActionItems {

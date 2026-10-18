@@ -57,11 +57,23 @@ func TestApplyLastMessagePreview(t *testing.T) {
 		t.Fatalf("%+v", summary)
 	}
 
-	if lastMessagePreviewFromListRow("b", "text", "u", "n", pgtype.Timestamptz{}) != nil {
+	if lastMessagePreviewFromListRow("b", "text", "u", "n", "", 0, pgtype.Timestamptz{}) != nil {
 		t.Fatal("invalid timestamptz")
 	}
-	p := lastMessagePreviewFromListRow("b", "note", "u", "n", pgtype.Timestamptz{Time: now, Valid: true})
+	p := lastMessagePreviewFromListRow("b", "note", "u", "n", "", 0, pgtype.Timestamptz{Time: now, Valid: true})
 	if p == nil || p.Kind != "note" || !p.CreatedAt.Equal(now) {
 		t.Fatalf("%+v", p)
+	}
+
+	// A call log's outcome and a voice note's length ride to the summary for the list line.
+	call := &ChatRoomSummary{}
+	applyLastMessagePreview(call, lastMessagePreviewFromListRow("", "voice_call_log", "u", "n", "unanswered", 0, pgtype.Timestamptz{Time: now, Valid: true}))
+	if call.LastMessageCallOutcome != "unanswered" || call.LastMessageBody != "" {
+		t.Fatalf("call %+v", call)
+	}
+	voice := &ChatRoomSummary{}
+	applyLastMessagePreview(voice, lastMessagePreviewFromListRow("", "voice", "u", "n", "", 42000, pgtype.Timestamptz{Time: now, Valid: true}))
+	if voice.LastMessageDurationMS != 42000 {
+		t.Fatalf("voice %+v", voice)
 	}
 }

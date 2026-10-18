@@ -83,10 +83,10 @@ test("chat-only shell hides the module nav and hands other routes to the browser
   await page.goto(chatPath);
   await expect(page.getByPlaceholder("Nhập tin nhắn…")).toBeVisible({ timeout: 30_000 });
 
-  // Switcher and account menu stay; the module nav between them is gone.
+  // The workspace rail replaces the sidebar: the current workspace's tile, no module nav.
   await expect(
-    page.getByRole("button", { name: new RegExp(`^${orgName}, ${wsName}: chuyển workspace`) }),
-  ).toBeVisible();
+    page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: wsName, exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("navigation").getByRole("link", { name: "Công việc", exact: true })).toHaveCount(0);
 
   // The dock badge mirrors the unread count: a fresh workspace reports 0.

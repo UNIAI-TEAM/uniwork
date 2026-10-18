@@ -3,21 +3,28 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
+import { useDeleteChatMessage, useToggleChatMessagePin, useToggleChatReaction } from "@uniwork/core/chat";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import {
-  useDeleteChatMessage,
-  useEditChatMessage,
-  useToggleChatMessagePin,
-  useToggleChatReaction,
-} from "@uniwork/core/chat";
-import { ConfirmDialog } from "../common/form-dialog";
-import { chatErrorMessage, toastChatError } from "./chat-error-message";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@uniwork/ui/components/ui/alert-dialog";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
+import { toastChatError } from "./chat-error-message";
+import { formatMessageTime } from "./chat-message-time";
+import { replyPreviewLabel } from "./chat-reply-quote";
 import { parseChatMediaMessageBody } from "./chat-expression-utils";
-import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { mentionCandidatesFromBody, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
-import { ChatMessageEditDialog } from "./chat-message-edit-dialog";
 import type { ChatMessage } from "./chat-messages";
 import { DEFAULT_QUICK_REACTION } from "./chat-reactions";
-import type { NameContextEntry } from "./native-chat-message-mapping";
 import type { NativeChatMessageActions } from "./native-chat-message-item";
 
 /** Focus a message's article (it carries tabIndex=-1), or report that it is not on screen. */
@@ -30,13 +37,13 @@ export function focusChatMessage(messageId: string): boolean {
 
 /**
  * Every action a message offers, wired to its mutation with a failure the
- * person can see: nothing here fails silently. Delete asks first; edit keeps
- * its dialog open with the error inside it.
+ * person can see: nothing here fails silently. Delete asks first; edit hands
+ * the message to the composer (`onEditMessage`), which saves it.
  */
 export function useNativeChatMessageActions({
   workspaceId,
   roomId,
-  nameContext,
+  currentUserId,
   messages,
   replyTo,
   onReplyToChange,
@@ -48,10 +55,12 @@ export function useNativeChatMessageActions({
   onFocusComposer,
   taskLinkActions,
   onFollowUp,
+  onEditMessage,
 }: {
   workspaceId: string;
   roomId: string;
-  nameContext: NameContextEntry[];
+  /** Names my message "Bạn" in the delete confirmation's quote. */
+  currentUserId?: string;
   messages: ChatMessage[];
   replyTo: ChatMessage | null;
   onReplyToChange: (message: ChatMessage | null) => void;
@@ -63,15 +72,14 @@ export function useNativeChatMessageActions({
   onFocusComposer?: () => void;
   taskLinkActions?: { onCreateTask?: (message: ChatMessage) => void; onLinkTask?: (message: ChatMessage) => void } | null;
   onFollowUp?: (message: ChatMessage) => void;
+  /** Puts the composer into edit mode for the message. */
+  onEditMessage: (message: ChatMessage) => void;
 }): { actions: NativeChatMessageActions; dialogs: ReactNode } {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // mutateAsync is stable across renders; the mutation objects are not.
   const toggleReactionAsync = useToggleChatReaction(workspaceId).mutateAsync;
-  const editMessage = useEditChatMessage(workspaceId);
   const deleteMessage = useDeleteChatMessage(workspaceId);
   const togglePinAsync = useToggleChatMessagePin(workspaceId).mutateAsync;
-  const [editing, setEditing] = useState<ChatMessage | null>(null);
-  const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
 
   // Handlers read the latest list and reply target through refs, so the
@@ -143,10 +151,7 @@ export function useNativeChatMessageActions({
       onToggleReaction: react,
       onJumpToMessage,
       onThread: threadsEnabled ? onThread : undefined,
-      onEdit: (message) => {
-        setEditError(null);
-        setEditing(message);
-      },
+      onEdit: onEditMessage,
       onPin,
       onCopy: (message) => void onCopy(message),
       onDelete: setDeleting,
@@ -154,28 +159,8 @@ export function useNativeChatMessageActions({
       onLinkTask: taskLinkActions?.onLinkTask,
       onFollowUp,
     }),
-    [onCopy, onFollowUp, onJumpToMessage, onPin, onReply, onThread, react, taskLinkActions, threadsEnabled],
+    [onCopy, onEditMessage, onFollowUp, onJumpToMessage, onPin, onReply, onThread, react, taskLinkActions, threadsEnabled],
   );
-
-  const saveEdit = async (body: string) => {
-    if (!editing) return;
-    const candidates: ChatMentionCandidate[] = [
-      ...mentionCandidatesFromBody(editing.body),
-      ...nameContext.map((entry) => ({
-        kind: "member" as const,
-        userId: entry.user_id,
-        label: entry.display_name,
-      })),
-    ];
-    const text = serializeComposerDraftToMessageBody(body, candidates, t("chat.mention_all"));
-    setEditError(null);
-    try {
-      await editMessage.mutateAsync({ roomId, messageId: editing.id, body: text });
-      setEditing(null);
-    } catch (err) {
-      setEditError(chatErrorMessage(err, t, t("chat.message_list.edit_failed")));
-    }
-  };
 
   const confirmDelete = async () => {
     const message = deleting;
@@ -199,33 +184,55 @@ export function useNativeChatMessageActions({
     }
   };
 
+  const pending = deleteMessage.isPending;
+  // The message being deleted, quoted under the question, so it is clear which one goes (canvas).
+  const quoteMeta = deleting
+    ? [deleting.sender === currentUserId ? t("chat.you") : null, formatMessageTime(deleting.ts, i18n.language)]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
   const dialogs = (
-    <>
-      <ChatMessageEditDialog
-        open={editing != null}
-        initialBody={editing?.body ?? ""}
-        saving={editMessage.isPending}
-        error={editError}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditing(null);
-            setEditError(null);
-          }
-        }}
-        onSave={(body) => void saveEdit(body)}
-      />
-      <ConfirmDialog
-        open={deleting != null}
-        onOpenChange={(open) => {
-          if (!open && !deleteMessage.isPending) setDeleting(null);
-        }}
-        title={t("chat.message_list.delete_confirm_title")}
-        description={t("chat.message_list.delete_confirm_description")}
-        confirmLabel={t("chat.action_delete")}
-        pending={deleteMessage.isPending}
-        onConfirm={() => void confirmDelete()}
-      />
-    </>
+    <AlertDialog
+      open={deleting != null}
+      onOpenChange={(open) => {
+        if (!open && !pending) setDeleting(null);
+      }}
+    >
+      <AlertDialogContent className={cn(CHAT_CONFIRM_CLASS, "sm:max-w-100")}>
+        <AlertDialogHeader>
+          <IconTile icon={Trash2} tone="destructive" className="mb-2.5" />
+          <AlertDialogTitle>{t("chat.message_list.delete_confirm_title")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("chat.message_list.delete_confirm_description")}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {deleting ? (
+          <blockquote className="min-w-0 rounded-[10px] border-l-3 border-brand/30 bg-muted px-3 py-2 text-body text-foreground">
+            <span className="block text-caption font-semibold text-brand tabular-nums">{quoteMeta}</span>
+            <span className="line-clamp-2 [overflow-wrap:anywhere]">
+              {replyPreviewLabel(deleting, {
+                voice: t("chat.voice_message"),
+                file: t("chat.file_untitled"),
+                media: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
+              })}
+            </span>
+          </blockquote>
+        ) : null}
+        <AlertDialogFooter>
+          {/* aria-disabled, not disabled: both stay in the tab order while it runs (ConfirmDialog's rule). */}
+          <AlertDialogCancel variant="secondary" aria-disabled={pending || undefined}>
+            {t("common.cancel")}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructiveSolid"
+            aria-disabled={pending || undefined}
+            aria-busy={pending || undefined}
+            onClick={() => void confirmDelete()}
+          >
+            {pending ? <Spinner data-icon="inline-start" /> : null}
+            {t("chat.action_delete")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 
   return { actions, dialogs };

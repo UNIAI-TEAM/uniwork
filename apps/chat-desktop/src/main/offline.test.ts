@@ -3,12 +3,16 @@ import { installOfflineFallback, OFFLINE_RETRY_MS, type OfflineWindow } from "./
 
 type FailListener = (event: unknown, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => void;
 
+type GoneListener = (event: unknown, details: { reason: string }) => void;
+
 function fakeWindow(overrides: Partial<Pick<OfflineWindow, "loadFile" | "loadURL">> = {}) {
   let listener: FailListener | undefined;
+  let goneListener: GoneListener | undefined;
   const win = {
     webContents: {
-      on: vi.fn((_event: "did-fail-load", l: FailListener): void => {
-        listener = l;
+      on: vi.fn((event: string, l: FailListener | GoneListener): void => {
+        if (event === "did-fail-load") listener = l as FailListener;
+        if (event === "render-process-gone") goneListener = l as GoneListener;
       }),
     },
     isDestroyed: vi.fn(() => false),
@@ -19,7 +23,8 @@ function fakeWindow(overrides: Partial<Pick<OfflineWindow, "loadFile" | "loadURL
   installOfflineFallback(win, { appUrl: "https://chat.example", offlinePath: "/res/offline.html" });
   const fail = (code = -106, url = "https://chat.example/", mainFrame = true) =>
     listener!({}, code, "ERR", url, mainFrame);
-  return { win, fail };
+  const gone = (reason: string) => goneListener!({}, { reason });
+  return { win, fail, gone };
 }
 
 beforeEach(() => vi.useFakeTimers());
@@ -57,6 +62,22 @@ describe("installOfflineFallback", () => {
     fail();
     win.isDestroyed.mockReturnValue(true);
     await vi.advanceTimersByTimeAsync(OFFLINE_RETRY_MS);
+    expect(win.loadURL).not.toHaveBeenCalled();
+  });
+
+  it("brings the app back after its renderer crashed or was killed, through the offline page", async () => {
+    const { win, gone } = fakeWindow();
+    gone("crashed");
+    expect(win.loadFile).toHaveBeenCalledWith("/res/offline.html", { query: { app: "https://chat.example" } });
+    await vi.advanceTimersByTimeAsync(OFFLINE_RETRY_MS);
+    expect(win.loadURL).toHaveBeenCalledWith("https://chat.example");
+  });
+
+  it("leaves a renderer that exited cleanly (window closing) alone", async () => {
+    const { win, gone } = fakeWindow();
+    gone("clean-exit");
+    await vi.advanceTimersByTimeAsync(OFFLINE_RETRY_MS);
+    expect(win.loadFile).not.toHaveBeenCalled();
     expect(win.loadURL).not.toHaveBeenCalled();
   });
 

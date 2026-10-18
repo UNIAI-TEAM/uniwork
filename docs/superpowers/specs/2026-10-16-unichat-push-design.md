@@ -1,6 +1,6 @@
 # UniChat — Push qua Expo, preview nội dung, bỏ push khi đang hoạt động (lát N2)
 
-> **Trạng thái:** shipped — Đã giao trên nhánh `feature/UNI-1828-unichat-n2-push-expopushsender-dang-ky-t`. Lát N2 của epic UNI-1826; issue UNI-1828. Addendum cho `2026-09-04-notifications-design.md`.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #333 (squash d4d5aaa31, gộp N1–N3 giai đoạn 1); sửa sau khảo sát usf qua PR #334 (df17638c0); plan `../plans/2026-10-16-unichat-push.md`. Lát N2 của epic UNI-1826; issue UNI-1828. Addendum cho `2026-09-04-notifications-design.md`.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §2 "Push", §3.4, §6 S3–S4 · **Vùng:** `server/internal/notification/`, `apps/web/public/sw.js`
 

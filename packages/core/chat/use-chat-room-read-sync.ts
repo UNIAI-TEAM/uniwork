@@ -47,6 +47,7 @@ export function useChatRoomReadSync(workspaceId: string, currentUserId: string):
         // The read also closed the room's inbox row server-side (UNI-1665).
         void qc.invalidateQueries({ queryKey: notificationKeys.unreadCount() });
         void qc.invalidateQueries({ queryKey: notificationKeys.lists() });
+        void qc.invalidateQueries({ queryKey: chatKeys.unreadSummary() });
         return;
       }
       qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) =>

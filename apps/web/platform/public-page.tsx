@@ -15,6 +15,7 @@ export async function publicPage(path: string, locale: SupportedLocale = "en") {
   let body: ReactNode;
   if (path === "/") { const { LandingPage } = await import("../features/landing/landing-page"); body = <LandingPage />; }
   else if (path === "/office") { const { OfficePage } = await import("../features/landing/office-page"); body = <OfficePage />; }
+  else if (path === "/unichat") { const { UniChatPage } = await import("../features/landing/unichat-page"); body = <UniChatPage />; }
   else if (path === "/features") { const { FeaturesPage } = await import("../features/landing/feature-page"); body = <FeaturesPage />; }
   else if (path.startsWith("/features/")) {
     const { FeaturePage } = await import("../features/landing/feature-page");

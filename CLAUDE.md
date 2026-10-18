@@ -38,6 +38,7 @@ Product intent and design principles live in `PRODUCT.md`.
   (`server/internal/office/` is its client): PDF, XLSX, legacy-format
   conversion and DOCX→PDF export jobs.
 - `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
+- `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,
@@ -61,10 +62,10 @@ Shared packages export raw `.ts` / `.tsx`, compiled by the consuming app.
 Dependency direction is `views -> core + ui`; `core` and `ui` stay independent.
 Web is the only host today. The adapters (`NavigationAdapter`,
 `StorageAdapter`, `CoreProvider`) keep views independent of the platform.
-Mobile is not a host of `views`: it will be a
-separate Expo / React Native app under apps/mobile that imports only types
+Mobile is not a host of `views`: it is a
+separate Expo / React Native app, `apps/chat-mobile`, that imports only types
 and pure functions from `packages/core/` (ADR 0011, mirrors the sibling
-`usf` repo); its rules land in its own CLAUDE.md when the app exists.
+`usf` repo); its rules are in `apps/chat-mobile/CLAUDE.md`.
 
 ## State Rules
 

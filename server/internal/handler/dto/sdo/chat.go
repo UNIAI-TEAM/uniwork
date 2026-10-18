@@ -42,6 +42,32 @@ type VoiceCallLogDTO struct {
 	RecordingURL    string                    `json:"recording_url,omitempty" description:"Playback URL when recording is complete" example:"https://s3.example/chat-voice/rec.mp4"`
 }
 
+// ChatCallLogDTO is one call of the UniChat calls tab: a voice call log
+// message with the room it was posted in. Recording fields stay on the
+// message (ChatMessageDTO.voice_call); this list does not carry them.
+type ChatCallLogDTO struct {
+	MessageID       string                    `json:"message_id" description:"Id tin call-log, để mở phòng tại đúng tin" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	RoomID          string                    `json:"room_id" description:"Phòng chứa cuộc gọi" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	RoomKind        string                    `json:"room_kind" description:"dm, group hoặc channel" example:"dm"`
+	RoomName        string                    `json:"room_name" description:"Tên phòng; với DM là tên hiển thị của người kia" example:"Trần Hoàng Long"`
+	PeerUserID      string                    `json:"peer_user_id,omitempty" description:"Người kia của DM; bỏ trống với phòng khác" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	CallID          string                    `json:"call_id" description:"Id cuộc gọi" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Outcome         string                    `json:"outcome" description:"completed, unanswered hoặc declined; rỗng khi metadata hỏng" example:"completed"`
+	Video           bool                      `json:"video" description:"true khi cuộc gọi bắt đầu với camera bật" example:"false"`
+	CallerID        string                    `json:"caller_id" description:"Người gọi" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	CallerName      string                    `json:"caller_name" description:"Tên hiển thị hiện tại của người gọi" example:"Nguyễn Văn An"`
+	DurationSeconds int                       `json:"duration_seconds" description:"Thời lượng nói chuyện, giây; 0 khi không ai nghe" example:"125"`
+	StartedAt       string                    `json:"started_at" description:"Lúc bắt đầu nói chuyện (RFC3339); cuộc không ai nghe thì bằng ended_at" example:"2026-10-17T08:58:00Z"`
+	EndedAt         string                    `json:"ended_at" description:"Lúc gác máy (RFC3339)" example:"2026-10-17T09:00:05Z"`
+	Participants    []VoiceCallParticipantDTO `json:"participants" description:"Những người có mặt trong cuộc gọi"`
+}
+
+// ChatCallLogListSDO is GET /workspaces/{workspaceID}/chat/call-logs.
+type ChatCallLogListSDO struct {
+	CallLogs   []ChatCallLogDTO `json:"call_logs" description:"Mới nhất trước"`
+	NextCursor *string          `json:"next_cursor" description:"Con trỏ trang kế; null ở trang cuối" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
 // ChatVoiceRecordingDTO is a LiveKit egress row for a chat voice call.
 type ChatVoiceRecordingDTO struct {
 	ID        string `json:"id" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
@@ -98,14 +124,15 @@ type ChatPollOptionDTO struct {
 	Votes int    `json:"votes" description:"Vote count" example:"3"`
 }
 
-// ChatPollSettingsDTO configures poll behavior.
+// ChatPollSettingsDTO configures poll behavior. The flags always go out:
+// the client defaults a missing allow_multiple to true.
 type ChatPollSettingsDTO struct {
 	DeadlineAt           *string `json:"deadline_at,omitempty" description:"RFC3339 deadline" example:"2026-09-05T12:00:00Z"`
-	PinToTop             bool    `json:"pin_to_top,omitempty" description:"Pin poll to top" example:"false"`
-	AllowMultiple        bool    `json:"allow_multiple,omitempty" description:"Allow multiple selections" example:"true"`
-	AllowAddOptions      bool    `json:"allow_add_options,omitempty" description:"Members may add options" example:"true"`
-	HideResultsUntilVote bool    `json:"hide_results_until_vote,omitempty" description:"Hide results until voted" example:"false"`
-	HideVoters           bool    `json:"hide_voters,omitempty" description:"Hide voters" example:"false"`
+	PinToTop             bool    `json:"pin_to_top" description:"Pin poll to top" example:"false"`
+	AllowMultiple        bool    `json:"allow_multiple" description:"Allow multiple selections" example:"true"`
+	AllowAddOptions      bool    `json:"allow_add_options" description:"Members may add options" example:"true"`
+	HideResultsUntilVote bool    `json:"hide_results_until_vote" description:"Hide results until voted" example:"false"`
+	HideVoters           bool    `json:"hide_voters" description:"Hide voters" example:"false"`
 }
 
 // ChatPollDTO is poll metadata attached to a poll message.
@@ -173,30 +200,33 @@ type ChatMessageDTO struct {
 
 // ChatRoomDTO is a dm, group, or channel chat room.
 type ChatRoomDTO struct {
-	ID                    string                        `json:"id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	Kind                  string                        `json:"kind" description:"dm, group, or channel" example:"channel"`
-	Name                  string                        `json:"name" description:"Room display name" example:"marketing"`
-	WorkspaceID           string                        `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	MemberUserIDs         []string                      `json:"member_user_ids" description:"Other member user ids (dm and group; empty for a channel)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
-	MemberCount           int                           `json:"member_count,omitempty" description:"Channel members, the caller included (channels only)" example:"42"`
-	MentionUnreadCount    int                           `json:"mention_unread_count" description:"Unread messages that mention the caller" example:"1"`
-	UnreadCount           int                           `json:"unread_count" description:"Unread messages for the caller" example:"3"`
-	PeerUserID            string                        `json:"peer_user_id,omitempty" description:"DM peer user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
-	PeerEmail             string                        `json:"peer_email,omitempty" description:"DM peer email" example:"peer@example.com"`
-	PeerDisplayName       string                        `json:"peer_display_name,omitempty" description:"DM peer display name" example:"Nguyen Van A"`
-	PeerLastReadAt        string                        `json:"peer_last_read_at,omitempty" description:"RFC3339 DM peer read cursor" example:"2026-03-26T10:00:00Z"`
-	LastReadAt            string                        `json:"last_read_at,omitempty" description:"RFC3339 (sub-second) read cursor of the caller; absent if never read" example:"2026-03-26T10:00:00.123456Z"`
-	LastMessageBody       string                        `json:"last_message_body,omitempty" description:"Plain-text preview of the latest message" example:"@Binh check this"`
-	LastMessageKind       string                        `json:"last_message_kind,omitempty" description:"Kind of the latest message" example:"text"`
-	LastMessageSenderID   string                        `json:"last_message_sender_id,omitempty" description:"Author of the latest message" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
-	LastMessageSenderName string                        `json:"last_message_sender_name,omitempty" description:"Display name of the latest message author" example:"Nguyen Van A"`
-	LastMessageAt         string                        `json:"last_message_at,omitempty" description:"RFC3339 timestamp of the latest message" example:"2026-03-26T10:00:00Z"`
-	MemberPermissions     *ChatRoomMemberPermissionsDTO `json:"member_permissions,omitempty" description:"Permissions for regular members in group/channel rooms"`
-	Visibility            string                        `json:"visibility,omitempty" description:"public or private (channels)" example:"public"`
-	ProjectID             string                        `json:"project_id,omitempty" description:"Linked project id when set"`
-	Topic                 string                        `json:"topic,omitempty" description:"Channel topic"`
-	IsDefault             bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
-	NotificationsMuted    bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
+	ID                     string                        `json:"id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	Kind                   string                        `json:"kind" description:"dm, group, or channel" example:"channel"`
+	Name                   string                        `json:"name" description:"Room display name" example:"marketing"`
+	WorkspaceID            string                        `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	MemberUserIDs          []string                      `json:"member_user_ids" description:"Other member user ids (dm and group; empty for a channel)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
+	MemberCount            int                           `json:"member_count,omitempty" description:"Channel members, the caller included (channels only)" example:"42"`
+	MentionUnreadCount     int                           `json:"mention_unread_count" description:"Unread messages that mention the caller" example:"1"`
+	UnreadCount            int                           `json:"unread_count" description:"Unread messages for the caller" example:"3"`
+	PeerUserID             string                        `json:"peer_user_id,omitempty" description:"DM peer user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	PeerEmail              string                        `json:"peer_email,omitempty" description:"DM peer email" example:"peer@example.com"`
+	PeerDisplayName        string                        `json:"peer_display_name,omitempty" description:"DM peer display name" example:"Nguyen Van A"`
+	PeerLastReadAt         string                        `json:"peer_last_read_at,omitempty" description:"RFC3339 DM peer read cursor" example:"2026-03-26T10:00:00Z"`
+	LastReadAt             string                        `json:"last_read_at,omitempty" description:"RFC3339 (sub-second) read cursor of the caller; absent if never read" example:"2026-03-26T10:00:00.123456Z"`
+	LastMessageBody        string                        `json:"last_message_body,omitempty" description:"Plain-text preview of the latest message" example:"@Binh check this"`
+	LastMessageKind        string                        `json:"last_message_kind,omitempty" description:"Kind of the latest message" example:"text"`
+	LastMessageSenderID    string                        `json:"last_message_sender_id,omitempty" description:"Author of the latest message" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	LastMessageSenderName  string                        `json:"last_message_sender_name,omitempty" description:"Display name of the latest message author" example:"Nguyen Van A"`
+	LastMessageCallOutcome string                        `json:"last_message_call_outcome,omitempty" description:"Outcome of the latest message when it is a call log: completed, declined or unanswered" example:"unanswered"`
+	LastMessageDurationMS  int                           `json:"last_message_duration_ms,omitempty" description:"Length in milliseconds of the latest message when it is a voice note" example:"42000"`
+	LastMessageAt          string                        `json:"last_message_at,omitempty" description:"RFC3339 timestamp of the latest message" example:"2026-03-26T10:00:00Z"`
+	MemberPermissions      *ChatRoomMemberPermissionsDTO `json:"member_permissions,omitempty" description:"Permissions for regular members in group/channel rooms"`
+	Visibility             string                        `json:"visibility,omitempty" description:"public or private (channels)" example:"public"`
+	ProjectID              string                        `json:"project_id,omitempty" description:"Linked project id when set"`
+	Topic                  string                        `json:"topic,omitempty" description:"Channel topic"`
+	IsDefault              bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
+	NotificationsMuted     bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
+	AvatarURL              string                        `json:"avatar_url,omitempty" description:"Signed URL of a group's uploaded avatar; absent when the group shows its members" example:"https://storage.example.com/chat/avatars/01J8X4FILE?sig=abc"`
 }
 
 // ChatChannelListSDO is GET .../chat/channels.
@@ -293,6 +323,7 @@ type ChatRoomMemberDTO struct {
 	Email          string `json:"email" description:"Account email" example:"member@example.com"`
 	DisplayName    string `json:"display_name" description:"Display name" example:"Nguyen Van A"`
 	IsCreator      bool   `json:"is_creator" description:"True for the member who created the room" example:"false"`
+	LastReadAt     string `json:"last_read_at,omitempty" description:"RFC3339 (sub-second) main-timeline read cursor of the member; absent if never read" example:"2026-03-26T10:00:00.123456Z"`
 }
 
 // ChatRoomMemberListSDO is GET .../rooms/{roomID}/members.
@@ -315,4 +346,71 @@ type ChatMessageLinkDTO struct {
 // GET .../chat/rooms/{roomID}/message-links.
 type ChatMessageLinkListSDO struct {
 	Links []ChatMessageLinkDTO `json:"links"`
+}
+
+// ChatRoomLinkedTaskDTO is one task a room's messages link to.
+type ChatRoomLinkedTaskDTO struct {
+	ID           string `json:"id" description:"Task id" example:"01J8X4TSK0N1P2Q3R4S5T6U7V8"`
+	WorkspaceID  string `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Number       int64  `json:"number" description:"Số thứ tự task trong workspace" example:"42"`
+	Title        string `json:"title" description:"Tiêu đề task" example:"Chốt bộ icon cho bản 2.0"`
+	Status       string `json:"status" description:"Trạng thái task" example:"in_progress"`
+	Priority     string `json:"priority" description:"Độ ưu tiên" example:"high"`
+	AssigneeID   string `json:"assignee_id,omitempty" description:"Người hoặc agent được giao" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	AssigneeKind string `json:"assignee_kind,omitempty" description:"human hoặc agent; có khi có người được giao" example:"human"`
+	AssigneeName string `json:"assignee_name,omitempty" description:"Tên hiển thị của người được giao" example:"Lan Phạm"`
+	DueDate      string `json:"due_date,omitempty" description:"Hạn chót YYYY-MM-DD" example:"2026-10-23"`
+	LinkedAt     string `json:"linked_at" description:"Lần gắn gần nhất từ phòng này (RFC3339)" example:"2026-10-18T09:30:00Z"`
+}
+
+// ChatRoomLinkedTaskListSDO is GET .../chat/rooms/{roomID}/linked-tasks.
+type ChatRoomLinkedTaskListSDO struct {
+	Tasks []ChatRoomLinkedTaskDTO `json:"tasks"`
+	Total int                     `json:"total" description:"Tổng số task được gắn từ phòng này" example:"7"`
+}
+
+// ChatRoomSharedCountsDTO is how many of each kind a room's timeline shares.
+type ChatRoomSharedCountsDTO struct {
+	Photo int `json:"photo" description:"Ảnh (tệp ảnh và ảnh chọn từ bộ chọn), không tính GIF" example:"48"`
+	GIF   int `json:"gif" description:"GIF (tệp image/gif và GIF từ bộ chọn)" example:"4"`
+	Video int `json:"video" description:"Video" example:"0"`
+	File  int `json:"file" description:"Tệp không phải ảnh, GIF hay video" example:"12"`
+	Link  int `json:"link" description:"Số URL http(s) trong các tin nhắn văn bản (mỗi URL một lần)" example:"9"`
+	Voice int `json:"voice" description:"Tin nhắn thoại" example:"6"`
+}
+
+// ChatSharedPhotoDTO is one of a room's newest photos.
+type ChatSharedPhotoDTO struct {
+	MessageID    string `json:"message_id" description:"Tin nhắn chứa ảnh" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	FileID       string `json:"file_id,omitempty" description:"Tệp đính kèm; trống với ảnh từ bộ chọn" example:"01J8X4FILE0N1P2Q3R4S5T6U7V"`
+	Title        string `json:"title" description:"Tên tệp hoặc mô tả ảnh" example:"banner-3.png"`
+	URL          string `json:"url,omitempty" description:"URL presign ngắn hạn (như khi tải tin nhắn); trống khi không ký được" example:"https://storage.example.com/uniwork/chat/files/01J8X4FILE?X-Amz-Signature=abc"`
+	ThumbURL     string `json:"thumb_url,omitempty" description:"URL presign ảnh thu nhỏ; bằng url khi chưa có bản thu nhỏ" example:"https://storage.example.com/uniwork/chat/files/01J8X4THUMB?X-Amz-Signature=abc"`
+	URLExpiresAt string `json:"url_expires_at,omitempty" description:"Thời điểm URL sớm nhất hết hạn (RFC3339)" example:"2026-10-18T22:00:00Z"`
+	CreatedAt    string `json:"created_at" description:"Thời điểm gửi (RFC3339)" example:"2026-10-17T17:05:00Z"`
+}
+
+// ChatRoomSharedSummarySDO is GET .../chat/rooms/{roomID}/shared-summary.
+type ChatRoomSharedSummarySDO struct {
+	Counts       ChatRoomSharedCountsDTO `json:"counts"`
+	RecentPhotos []ChatSharedPhotoDTO    `json:"recent_photos" description:"Tối đa 6 ảnh mới nhất, mới trước"`
+}
+
+// ChatUnreadTotalsDTO is what a set of rooms adds to a chat badge.
+type ChatUnreadTotalsDTO struct {
+	Unread   int `json:"unread" description:"Tin chưa đọc; phòng tắt thông báo chỉ góp số nhắc tên" example:"5"`
+	Mentions int `json:"mentions" description:"Tin chưa đọc nhắc tên người gọi (tên hoặc @all)" example:"1"`
+}
+
+// ChatWorkspaceUnreadDTO is one workspace's channels.
+type ChatWorkspaceUnreadDTO struct {
+	WorkspaceID string `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Unread      int    `json:"unread" description:"Tin chưa đọc trong các kênh của workspace; phòng tắt thông báo chỉ góp số nhắc tên" example:"3"`
+	Mentions    int    `json:"mentions" description:"Tin chưa đọc nhắc tên người gọi trong các kênh" example:"0"`
+}
+
+// ChatUnreadSummarySDO is GET /api/v1/me/chat/unread-summary.
+type ChatUnreadSummarySDO struct {
+	Direct     ChatUnreadTotalsDTO      `json:"direct" description:"DM và nhóm của tổ chức, đếm một lần (hiện ở mọi workspace)"`
+	Workspaces []ChatWorkspaceUnreadDTO `json:"workspaces" description:"Mỗi workspace người gọi mở được; workspace bị chặn ở cổng thành viên không có mặt"`
 }

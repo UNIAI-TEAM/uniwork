@@ -48,7 +48,9 @@ func encodeMemberPermissions(perms ChatRoomMemberPermissions) ([]byte, error) {
 }
 
 type UpdateChatRoomSettingsInput struct {
-	Name              *string
+	Name *string
+	// Topic is the room's description; "" clears it.
+	Topic             *string
 	MemberPermissions *ChatRoomMemberPermissions
 }
 
@@ -116,6 +118,20 @@ func (s *ChatService) UpdateChatRoomSettings(
 			changes["name"] = audit.Change{From: room.Name, To: name}
 		}
 	}
+	var topic string
+	if in.Topic != nil {
+		topic = strings.TrimSpace(*in.Topic)
+		if utf8.RuneCountInString(topic) > chatChannelTopicMaxRunes {
+			return ChatRoomMemberPermissions{}, Invalid("mô tả tối đa 280 ký tự")
+		}
+		// The description follows the rename rule.
+		if !isModerator && (room.Kind != chatRoomKindGroup || !current.AllowChangeProfile) {
+			return ChatRoomMemberPermissions{}, ErrForbidden
+		}
+		if topic != room.Topic {
+			changes["topic"] = audit.Change{From: room.Topic, To: topic}
+		}
+	}
 	if len(changes) == 0 {
 		return current, nil
 	}
@@ -142,6 +158,13 @@ func (s *ChatService) UpdateChatRoomSettings(
 	if _, ok := changes["name"]; ok {
 		if err := q.UpdateChatRoomName(ctx, db.UpdateChatRoomNameParams{
 			ID: roomID, Name: name,
+		}); err != nil {
+			return ChatRoomMemberPermissions{}, err
+		}
+	}
+	if _, ok := changes["topic"]; ok {
+		if err := q.UpdateChatRoomTopic(ctx, db.UpdateChatRoomTopicParams{
+			ID: roomID, Topic: topic,
 		}); err != nil {
 			return ChatRoomMemberPermissions{}, err
 		}

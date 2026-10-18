@@ -19,6 +19,12 @@ type ListChatThreadMessagesSDI struct {
 	Limit  int    `query:"limit" description:"Số câu trả lời mỗi trang (trang đầu thêm tin gốc)" example:"50"`
 }
 
+// ListChatCallLogsSDI documents GET .../chat/call-logs query params.
+type ListChatCallLogsSDI struct {
+	Cursor string `query:"cursor" description:"next_cursor của trang trước, gửi lại nguyên văn; bỏ trống để lấy trang mới nhất" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Limit  int    `query:"limit" description:"Số cuộc gọi mỗi trang (mặc định 30, tối đa 100)" example:"30"`
+}
+
 // SendChatMessageSDI is POST /workspaces/{workspaceID}/chat/messages.
 type SendChatMessageSDI struct {
 	Body             string                 `json:"body" description:"Message text" example:"Xin chào team!"`
@@ -141,7 +147,18 @@ type PatchChatRoomMemberSDI struct {
 // PatchChatRoomSDI is PATCH .../rooms/{roomID}.
 type PatchChatRoomSDI struct {
 	Name              *string                       `json:"name,omitempty" description:"Group or workspace room display name" example:"Team Alpha"`
+	Topic             *string                       `json:"topic,omitempty" description:"Room description, ≤280 chars; empty clears it" example:"Nơi team thiết kế trao đổi hằng ngày"`
 	MemberPermissions *ChatRoomMemberPermissionsSDI `json:"member_permissions,omitempty" description:"Permissions granted to regular members"`
+}
+
+// ListChatRoomLinkedTasksSDI is GET .../chat/rooms/{roomID}/linked-tasks.
+type ListChatRoomLinkedTasksSDI struct {
+	Limit int `query:"limit" description:"Số task tối đa (mặc định 20, tối đa 50)" example:"3"`
+}
+
+// UploadChatRoomAvatarSDI is POST .../chat/rooms/{roomID}/avatar (multipart).
+type UploadChatRoomAvatarSDI struct {
+	File []byte `formData:"file" description:"Ảnh PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB"`
 }
 
 // CreateChatChannelSDI is POST .../chat/channels.

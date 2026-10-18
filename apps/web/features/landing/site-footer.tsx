@@ -57,6 +57,11 @@ export function SiteFooter() {
                 {t("landing.nav.office")}
               </Link>
             </li>
+            <li>
+              <Link className={LINK} href={paths.unichat()}>
+                {t("landing.nav.unichat")}
+              </Link>
+            </li>
           </ul>
         </nav>
 

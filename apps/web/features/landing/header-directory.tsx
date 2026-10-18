@@ -4,6 +4,7 @@ import { MarketingLink as Link } from "../../platform/marketing-link";
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
+import { MODULE_ICONS } from "@uniwork/views/layout/module-icons";
 import { PRODUCT_FEATURES, PRODUCT_GROUPS } from "./showcase";
 import { ANCHORS, href } from "./anchors";
 import { OFFICE_BUSINESS_ANCHOR } from "./office-data";
@@ -14,6 +15,7 @@ export function HeaderDirectory({ kind, onNavigate }: { kind: HeaderDirectoryKey
   if (kind === "office") return <div className="header-editorial-links header-office-links">
     <Link href={`${paths.office()}#${OFFICE_BUSINESS_ANCHOR}`} onClick={onNavigate}><Image src="/brand/office-icon.png" alt="" width={32} height={32} unoptimized className="header-office-logo" /><span><strong>{t("landing.office.editions.business")}</strong><small>{t("landing.office.editions.businessDescription")}</small></span><ArrowRight aria-hidden /></Link>
     <div className="header-office-coming" data-office-personal><Image src="/brand/office-icon.png" alt="" width={32} height={32} unoptimized className="header-office-logo" /><span><strong>{t("landing.office.editions.personal")}</strong><small>{t("landing.office.editions.development")}</small></span></div>
+    <Link href={paths.unichat()} onClick={onNavigate}><MODULE_ICONS.chat aria-hidden /><span><strong>{t("landing.nav.unichat")}</strong><small>{t("landing.nav.unichatDescription")}</small></span><ArrowRight aria-hidden /></Link>
   </div>;
   if (kind === "products") return <>
     <div className="header-product-columns">{PRODUCT_GROUPS.map(group => <section key={group.key}><h2>{t(`landing.catalog.groups.${group.key}`)}</h2>{PRODUCT_FEATURES.filter(item => item.group === group.key).map(item => <Link key={item.key} href={paths.feature(item.key)} onClick={onNavigate}><item.icon aria-hidden /><span>{t(item.key === "agents" ? "landing.workforce.badge" : item.label)}</span></Link>)}</section>)}</div>

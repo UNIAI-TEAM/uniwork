@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Search, UserPlus } from "lucide-react";
+import { Archive, Folder, Hash, Lock, Search, TriangleAlert, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,12 +23,19 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChannelSettingsMembers } from "./channel-settings-members";
 import { ChannelSettingsReadonly } from "./channel-settings-readonly";
-import { ChatSettingsMenuRow, ChatSettingsTitleRow } from "./chat-settings-ui";
+import { ChatSettingsHeader, ChatSettingsMenuRow, ChatSettingsSection } from "./chat-settings-ui";
+import { CHAT_FIELD_CLASS, CHAT_FIELD_TEXTAREA_CLASS, CHAT_SELECT_TRIGGER_CLASS, CHAT_SHEET_CLASS } from "./chat-dialog-look";
+import { ChatRoomMark } from "./chat-room-mark";
+import { identityTint } from "../people/identity-tint";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import { toastChatError } from "./chat-error-message";
 import { canAdminChannel, isChatRoomModerator } from "./chat-room-moderation-utils";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
+
+/** Field labels as the canvas form draws them: 13px semibold, a shade under the values. */
+const FIELD_LABEL = "text-label font-semibold text-foreground/80";
 
 export function ChannelSettingsSheet({
   open,
@@ -183,22 +190,27 @@ export function ChannelSettingsSheet({
 
   return (
     <Sheet open={open} onOpenChange={requestOpenChange}>
-      <SheetContent
-        side="right"
-        showCloseButton={false}
-        closeLabel={t("common.close")}
-        className="flex w-full flex-col p-0 sm:max-w-md"
-      >
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className={CHAT_SHEET_CLASS}>
         <SheetHeader className="sr-only">
           <SheetTitle>{t("chat.channel.settings_title")}</SheetTitle>
           <SheetDescription>{t("chat.channel.settings_description")}</SheetDescription>
         </SheetHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <ChatSettingsTitleRow title={`#${channel.name}`} />
+        {/* The channel's mark and colour, as its row in the sidebar. */}
+        <ChatSettingsHeader
+          title={`#${channel.name}`}
+          leading={
+            <ChatRoomMark
+              icon={channel.visibility === "private" ? Lock : Hash}
+              size="header"
+              tint={identityTint(channel.id)}
+            />
+          }
+        />
 
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {onOpenSearch ? (
-            <section className="border-b border-border py-1">
+            <section className="py-0.5">
               <ChatSettingsMenuRow
                 icon={Search}
                 label={t("chat.search_messages")}
@@ -215,36 +227,37 @@ export function ChannelSettingsSheet({
           ) : (
             <form
               id="channel-settings-form"
-              className="space-y-4 border-b border-border px-4 py-4"
+              className="space-y-3 border-t-8 border-muted px-5 py-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 save();
               }}
             >
               <div className="space-y-1.5">
-                <Label htmlFor="channel-settings-name">{t("chat.channel.name_label")}</Label>
+                <Label htmlFor="channel-settings-name" className={FIELD_LABEL}>{t("chat.channel.name_label")}</Label>
                 <Input
                   id="channel-settings-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={80}
                   required
+                  className={CHAT_FIELD_CLASS}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="channel-settings-topic">{t("chat.channel.topic_label")}</Label>
+                <Label htmlFor="channel-settings-topic" className={FIELD_LABEL}>{t("chat.channel.topic_label")}</Label>
                 <Textarea
                   id="channel-settings-topic"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  className="min-h-16"
+                  className={`${CHAT_FIELD_TEXTAREA_CLASS} min-h-14 py-1.5`}
                   maxLength={280}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label id="channel-settings-visibility-label">{t("chat.channel.visibility_label")}</Label>
+                <Label id="channel-settings-visibility-label" className={FIELD_LABEL}>{t("chat.channel.visibility_label")}</Label>
                 <RadioGroup
                   aria-labelledby="channel-settings-visibility-label"
                   value={visibility}
@@ -256,7 +269,7 @@ export function ChannelSettingsSheet({
                   {(["public", "private"] as const).map((value) => (
                     <label
                       key={value}
-                      className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border px-3 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-hover has-[[data-checked]]:border-ring has-[[data-checked]]:bg-surface-selected"
+                      className="flex min-h-13 cursor-pointer items-start gap-3 rounded-lg border border-border px-3.5 py-1.5 transition-colors duration-(--duration-fast) hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle has-[[data-checked]]:ring-[0.5px] has-[[data-checked]]:ring-primary"
                     >
                       <RadioGroupItem
                         value={value}
@@ -265,8 +278,9 @@ export function ChannelSettingsSheet({
                         className="mt-0.5"
                       />
                       <span className="min-w-0">
-                        <span className="block text-body font-medium text-foreground">
+                        <span className="flex items-center gap-1.5 text-body font-semibold text-foreground">
                           {t(`chat.channel.visibility_${value}_title`)}
+                          {value === "private" ? <Lock className="size-3.5 text-muted-foreground" aria-hidden /> : null}
                         </span>
                         <span className="block text-caption text-muted-foreground">
                           {t(`chat.channel.visibility_${value}_hint`)}
@@ -281,7 +295,7 @@ export function ChannelSettingsSheet({
               </div>
 
               <div className="space-y-1.5">
-                <Label id="channel-settings-project-label">{t("chat.channel.project_label")}</Label>
+                <Label id="channel-settings-project-label" className={FIELD_LABEL}>{t("chat.channel.project_label")}</Label>
                 <Select
                   value={projectId || "__none__"}
                   onValueChange={(value) => setProjectId(!value || value === "__none__" ? "" : value)}
@@ -296,7 +310,11 @@ export function ChannelSettingsSheet({
                     })),
                   ]}
                 >
-                  <SelectTrigger className="w-full" aria-labelledby="channel-settings-project-label">
+                  <SelectTrigger
+                    className={`${CHAT_SELECT_TRIGGER_CLASS} pr-3 [&>svg:last-child]:size-4.5`}
+                    aria-labelledby="channel-settings-project-label"
+                  >
+                    <Folder className="size-4.5 text-muted-foreground" aria-hidden />
                     <SelectValue placeholder={t("chat.channel.project_none")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -313,13 +331,14 @@ export function ChannelSettingsSheet({
           )}
 
           {!isDefault && canInvite && onAddMembers ? (
-            <section className="border-b border-border py-1">
+            <ChatSettingsSection className="py-1">
               <ChatSettingsMenuRow
                 icon={UserPlus}
                 label={t("chat.channel.add_members")}
                 onClick={() => leaveTo(onAddMembers)}
+                action
               />
-            </section>
+            </ChatSettingsSection>
           ) : null}
 
           {!isDefault ? (
@@ -334,15 +353,18 @@ export function ChannelSettingsSheet({
             />
           ) : null}
 
-          {!isDefault ? (
-            <div className="space-y-4 px-4 py-4">
+          {!isDefault && (canAdmin || onLeave) ? (
+            <ChatSettingsSection className="mt-auto px-5 pt-3.5 pb-4.5">
               {canAdmin ? (
-                <section className="space-y-2">
-                  <h3 className="text-label font-semibold text-foreground">{t("chat.channel.archive_section")}</h3>
-                  <p className="text-caption text-pretty text-muted-foreground">{t("chat.channel.archive_hint")}</p>
+                <section className="space-y-2.5">
+                  <div className="space-y-1">
+                    <h3 className="text-body font-semibold text-foreground">{t("chat.channel.archive_section")}</h3>
+                    <p className="text-caption text-pretty text-muted-foreground">{t("chat.channel.archive_hint")}</p>
+                  </div>
                   <Button
                     type="button"
                     variant="outline"
+                    className="h-10 rounded-full px-4.5 font-semibold"
                     disabled={archiveChannel.isPending}
                     onClick={() => setArchiveConfirmOpen(true)}
                   >
@@ -352,23 +374,36 @@ export function ChannelSettingsSheet({
                 </section>
               ) : null}
               {onLeave ? (
-                <LeaveConversationSection
-                  variant="channel"
-                  disabled={leaveDisabled}
-                  leaving={leaving}
-                  onLeave={onLeave}
-                />
+                <div className={canAdmin ? "mt-3.5 border-t border-border pt-3.5" : undefined}>
+                  <LeaveConversationSection
+                    variant="channel"
+                    disabled={leaveDisabled}
+                    leaving={leaving}
+                    onLeave={onLeave}
+                  />
+                </div>
               ) : null}
-            </div>
+            </ChatSettingsSection>
           ) : null}
         </div>
 
         {dirty ? (
-          <div className="flex items-center justify-end gap-2 border-t border-border bg-surface px-4 py-3">
-            <Button type="button" variant="outline" disabled={saving} onClick={resetForm}>
+          <div className="flex items-center justify-end gap-2 border-t border-border bg-surface px-5 py-3">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-10 rounded-full px-4.5 font-semibold"
+              disabled={saving}
+              onClick={resetForm}
+            >
               {t("chat.channel.discard_changes")}
             </Button>
-            <Button type="submit" form="channel-settings-form" disabled={saving || !name.trim()}>
+            <Button
+              type="submit"
+              form="channel-settings-form"
+              className="h-10 rounded-full px-5 font-semibold"
+              disabled={saving || !name.trim()}
+            >
               {saving ? t("chat.channel.saving") : t("chat.channel.save")}
             </Button>
           </div>
@@ -383,6 +418,10 @@ export function ChannelSettingsSheet({
           description={t("chat.channel.archive_hint")}
           confirmLabel={t("chat.channel.archive")}
           pending={archiveChannel.isPending}
+          icon={Archive}
+          tone="warning"
+          cancelVariant="secondary"
+          className={CHAT_CONFIRM_CLASS}
           onConfirm={handleArchive}
         />
         <ConfirmDialog
@@ -391,6 +430,11 @@ export function ChannelSettingsSheet({
           title={t("chat.channel.discard_confirm_title")}
           description={t("chat.channel.discard_confirm_description")}
           confirmLabel={t("chat.channel.discard_changes")}
+          icon={TriangleAlert}
+          tone="warning"
+          solid
+          cancelVariant="secondary"
+          className={CHAT_CONFIRM_CLASS}
           onConfirm={() => {
             const next = afterDiscardRef.current;
             afterDiscardRef.current = null;

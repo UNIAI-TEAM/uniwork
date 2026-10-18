@@ -1,0 +1,51 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "pnpm": "10.28.2"
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "environment": "development",
+      "env": { "UNICHAT_ENV": "dev" }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "channel": "preview",
+      "environment": "preview",
+      "env": { "UNICHAT_ENV": "staging" },
+      "android": { "buildType": "apk" }
+    },
+    "internal": {
+      "extends": "base",
+      "distribution": "store",
+      "autoIncrement": true,
+      "channel": "internal",
+      "environment": "preview",
+      "env": { "UNICHAT_ENV": "staging" }
+    },
+    "production": {
+      "extends": "base",
+      "distribution": "store",
+      "autoIncrement": true,
+      "channel": "production",
+      "environment": "production",
+      "env": { "UNICHAT_ENV": "production" }
+    }
+  },
+  "submit": {
+    "internal": {
+      "android": { "track": "internal" }
+    },
+    "production": {
+      "android": { "track": "production", "releaseStatus": "draft" }
+    }
+  }
+}

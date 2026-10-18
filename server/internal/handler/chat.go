@@ -190,8 +190,9 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		PeerUserID: r.PeerUserID, PeerEmail: r.PeerEmail, PeerDisplayName: r.PeerDisplayName,
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
+		LastMessageCallOutcome: r.LastMessageCallOutcome, LastMessageDurationMS: r.LastMessageDurationMS,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
-		NotificationsMuted: r.NotificationsMuted,
+		NotificationsMuted: r.NotificationsMuted, AvatarURL: r.AvatarURL,
 	}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
@@ -344,6 +345,24 @@ func (h *handlers) listChatRooms(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{"rooms": out})
 }
 
+func (h *handlers) chatUnreadSummary(w http.ResponseWriter, r *http.Request) {
+	sum, err := h.Chat.UnreadSummary(r.Context(), middleware.UserID(r.Context()))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.ChatUnreadSummarySDO{
+		Direct:     sdo.ChatUnreadTotalsDTO{Unread: sum.Direct.Unread, Mentions: sum.Direct.Mentions},
+		Workspaces: make([]sdo.ChatWorkspaceUnreadDTO, 0, len(sum.Workspaces)),
+	}
+	for _, ws := range sum.Workspaces {
+		out.Workspaces = append(out.Workspaces, sdo.ChatWorkspaceUnreadDTO{
+			WorkspaceID: ws.WorkspaceID, Unread: ws.Unread, Mentions: ws.Mentions,
+		})
+	}
+	respondJSON(w, http.StatusOK, out)
+}
+
 func (h *handlers) resolveDM(w http.ResponseWriter, r *http.Request) {
 	var in sdi.ResolveDMSDI
 	if !decode(w, r, &in, maxJSONBody) {
@@ -456,10 +475,14 @@ func (h *handlers) listChatRoomMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.ChatRoomMemberDTO, 0, len(members))
 	for _, m := range members {
-		out = append(out, sdo.ChatRoomMemberDTO{
+		dto := sdo.ChatRoomMemberDTO{
 			UserID: m.UserID, Role: m.Role, SendRestricted: m.SendRestricted,
 			Email: m.Email, DisplayName: m.DisplayName, IsCreator: m.IsCreator,
-		})
+		}
+		if m.LastReadAt != nil {
+			dto.LastReadAt = m.LastReadAt.UTC().Format(time.RFC3339Nano)
+		}
+		out = append(out, dto)
 	}
 	respondJSON(w, http.StatusOK, sdo.ChatRoomMemberListSDO{Members: out})
 }
@@ -529,7 +552,7 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	perms, err := h.Chat.UpdateChatRoomSettings(
 		r.Context(), actorID, wsID, roomID,
-		service.UpdateChatRoomSettingsInput{Name: in.Name, MemberPermissions: merged},
+		service.UpdateChatRoomSettingsInput{Name: in.Name, Topic: in.Topic, MemberPermissions: merged},
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

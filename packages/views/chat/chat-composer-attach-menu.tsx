@@ -2,16 +2,17 @@
 
 import { useMemo } from "react";
 import {
+  AlarmClock,
   ChartColumn,
   Bell,
   CircleAlert,
-  Clock,
-  FileUp,
   Megaphone,
   Paperclip,
+  Plus,
   StickyNote,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -41,19 +42,23 @@ type ComposerAttachMenuItem =
       id: ComposerAttachAction;
       icon: typeof ChartColumn;
       labelKey: string;
+      /** The kind's tint, the same one its card wears in the timeline. */
+      tone: IconTileTone;
     }
   | { separator: true };
 
 const ATTACH_MENU_ITEMS: ComposerAttachMenuItem[] = [
-  { id: "attach_file", icon: FileUp, labelKey: "composer_attach_file" },
-  { id: "create_poll", icon: ChartColumn, labelKey: "composer_create_poll" },
-  { id: "create_reminder", icon: Clock, labelKey: "composer_create_reminder" },
-  { id: "create_note", icon: StickyNote, labelKey: "composer_create_note" },
-  { id: "create_post", icon: Megaphone, labelKey: "composer_create_post" },
+  { id: "attach_file", icon: Paperclip, labelKey: "composer_attach_file", tone: "gray" },
+  { id: "create_poll", icon: ChartColumn, labelKey: "composer_create_poll", tone: "blue" },
+  { id: "create_reminder", icon: AlarmClock, labelKey: "composer_create_reminder", tone: "teal" },
+  { id: "create_note", icon: StickyNote, labelKey: "composer_create_note", tone: "yellow" },
+  { id: "create_post", icon: Megaphone, labelKey: "composer_create_post", tone: "orange" },
   { separator: true },
-  { id: "mark_important", icon: CircleAlert, labelKey: "composer_mark_important" },
-  { id: "mark_urgent", icon: Bell, labelKey: "composer_mark_urgent" },
+  { id: "mark_important", icon: CircleAlert, labelKey: "composer_mark_important", tone: "warning" },
+  { id: "mark_urgent", icon: Bell, labelKey: "composer_mark_urgent", tone: "destructive" },
 ];
+
+const ATTACH_ITEM_CLASS = "h-11 gap-3 rounded-control px-2.5 text-foreground focus:bg-muted focus:text-foreground";
 
 export function ComposerToolbarButton({
   label,
@@ -70,7 +75,11 @@ export function ComposerToolbarButton({
       aria-label={label}
       title={label}
       disabled={disabled}
-      className={cn("shrink-0 text-muted-foreground hover:text-foreground", className)}
+      // An open popover keeps its trigger in the brand wash.
+      className={cn(
+        "size-11 shrink-0 rounded-full text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground [&_svg:not([class*='size-'])]:size-5.5",
+        className,
+      )}
       {...props}
     >
       {children}
@@ -117,29 +126,42 @@ export function ComposerAttachMenu({
       <DropdownMenuTrigger
         disabled={disabled}
         render={
-          <ComposerToolbarButton label={t("chat.composer_attach")} disabled={disabled}>
-            <Paperclip aria-hidden className="size-5" />
+          <ComposerToolbarButton
+            label={t("chat.composer_attach")}
+            disabled={disabled}
+            // Open, the + turns into an × on the brand wash (canvas).
+            className="size-12 bg-chat-bubble-other shadow-chat-bubble hover:bg-muted aria-expanded:text-brand aria-expanded:ring-2 aria-expanded:ring-primary aria-expanded:[&_svg]:rotate-45 [&_svg]:transition-transform [&_svg]:duration-(--duration-fast)"
+          >
+            <Plus aria-hidden />
           </ComposerToolbarButton>
         }
       />
-      <DropdownMenuContent align={align} side="top" className="w-60" aria-label={t("chat.composer_attach_menu")}>
+      <DropdownMenuContent
+        align={align}
+        side="top"
+        sideOffset={8}
+        className="w-67 rounded-xl p-1.5"
+        aria-label={t("chat.composer_attach_menu")}
+      >
         {createItems.map((item) => (
           <DropdownMenuItem
             key={item.id}
-            className="gap-2.5 py-1.5"
+            className={ATTACH_ITEM_CLASS}
             // Opens the file picker inside the click's user-gesture stack.
             onClick={() => onAction(item.id)}
           >
-            <item.icon aria-hidden className="size-4 text-muted-foreground" />
+            <IconTile icon={item.icon} size="sm" tone={item.tone} className="[&_svg]:size-4" />
             {t(`chat.${item.labelKey}`)}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator className="mx-1" />
         <DropdownMenuGroup>
-          <DropdownMenuLabel>{t("chat.composer_flag_group")}</DropdownMenuLabel>
+          <DropdownMenuLabel className="flex h-7.5 items-center px-2.5 font-semibold">
+            {t("chat.composer_flag_group")}
+          </DropdownMenuLabel>
           {flagItems.map((item) => (
-            <DropdownMenuItem key={item.id} className="gap-2.5 py-1.5" onClick={() => onAction(item.id)}>
-              <item.icon aria-hidden className="size-4 text-muted-foreground" />
+            <DropdownMenuItem key={item.id} className={ATTACH_ITEM_CLASS} onClick={() => onAction(item.id)}>
+              <IconTile icon={item.icon} size="sm" tone={item.tone} className="[&_svg]:size-4" />
               {t(`chat.${item.labelKey}`)}
             </DropdownMenuItem>
           ))}

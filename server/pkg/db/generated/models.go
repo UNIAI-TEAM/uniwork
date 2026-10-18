@@ -367,6 +367,7 @@ type ChatRoom struct {
 	CreatedByKind     string             `json:"created_by_kind"`
 	ArchivedAt        pgtype.Timestamptz `json:"archived_at"`
 	ArchivedBy        pgtype.Text        `json:"archived_by"`
+	AvatarFileID      pgtype.Text        `json:"avatar_file_id"`
 }
 
 type ChatRoomMember struct {
@@ -1918,6 +1919,7 @@ type PushSubscription struct {
 	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	SessionID  pgtype.Text        `json:"session_id"`
 }
 
 type RefreshToken struct {

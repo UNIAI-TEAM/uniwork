@@ -5,7 +5,7 @@ export const MARKETING_FEATURE_KEYS = ["dashboard", "tasks", "projects", "today"
 export const MARKETING_GUIDE_KEYS = ["start-with-tasks", "office-files-and-ai", "meetings-to-tasks"] as const;
 export type MarketingGuideKey = typeof MARKETING_GUIDE_KEYS[number];
 export const MARKETING_ROUTES = [
-  { path: "/", key: "home" }, { path: "/office", key: "office" },
+  { path: "/", key: "home" }, { path: "/office", key: "office" }, { path: "/unichat", key: "unichat" },
   { path: "/features", key: "features" },
   ...MARKETING_FEATURE_KEYS.map(key => ({ path: `/features/${key}`, key })),
   { path: "/solutions", key: "solutions" },

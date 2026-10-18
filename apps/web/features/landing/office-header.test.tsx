@@ -56,8 +56,9 @@ describe("the landing header's Office menu", () => {
     await act(async () => { toggle?.click(); });
     expect(toggle?.getAttribute("aria-expanded")).toBe("true");
     const directory = container.querySelector("#header-directory-office");
-    expect(directory?.querySelectorAll("a")).toHaveLength(1);
-    expect(directory?.querySelector("a")?.getAttribute("href")).toBe("/office#office-business");
+    // The desktop apps: Office, then UniChat (the bar has no room for one more link at 1240px).
+    expect([...directory!.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["/office#office-business", "/unichat"]);
+    expect(directory?.querySelector("a[href='/unichat'] strong")?.textContent).toBe("UniChat");
     expect(directory?.querySelector("a")?.textContent).toContain("Office for Enterprise");
     expect(directory?.querySelector("[data-office-personal]")?.textContent).toContain("Office for Personal");
     expect(directory?.querySelector("[data-office-personal]")?.textContent).toContain("Đang phát triển");

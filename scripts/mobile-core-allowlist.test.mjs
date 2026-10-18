@@ -15,20 +15,8 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const CORE = "packages/core";
 
-// Keep in step with the M1 spec §3.1 and the app's no-restricted-imports.
-const ALLOWLIST = [
-  "api/schema",
-  "api/endpoints/chat-schemas",
-  "permissions/rules",
-  "paths/paths",
-  "paths/marketing",
-  "types/events",
-  ...[
-    "read-receipt-utils", "poll-utils", "post-utils", "note-utils", "reminder-utils",
-    "room-permissions-utils", "client-msg-id", "pending-message-id", "lazy-chat-scopes",
-    "message-links", "typing-user-id", "composer-priority", "chat-room-helpers",
-  ].map((m) => `chat/${m}`),
-];
+// One source for the lint rule and this walk: apps/chat-mobile/core-allowlist.json.
+const ALLOWLIST = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/core-allowlist.json"), "utf8"));
 
 const BARE_ALLOWED = new Set(["zod"]);
 
@@ -123,4 +111,16 @@ test("no allowlisted module reaches a web-only or stateful dependency at runtime
     "pure part into its own file and allowlist that, or drop the entry:\n" +
     failures.join("\n"),
   );
+});
+
+// The lint rule allows these subpaths, so each must be reachable through the
+// package's `exports` map — a literal key, or a `/*` pattern it falls under —
+// or Metro cannot resolve what the lint lets through.
+test("every allowlisted module is reachable through packages/core exports", () => {
+  const { exports: map } = JSON.parse(fs.readFileSync(path.join(root, CORE, "package.json"), "utf8"));
+  const keys = Object.keys(map);
+  const missing = ALLOWLIST.map((e) => `./${e}`).filter(
+    (sub) => !keys.some((k) => k === sub || (k.endsWith("/*") && sub.startsWith(k.slice(0, -1)))),
+  );
+  assert.deepEqual(missing, [], `add these to ${CORE}/package.json exports: ${missing.join(", ")}`);
 });

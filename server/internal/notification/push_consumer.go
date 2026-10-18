@@ -24,6 +24,7 @@ type PushConsumer struct {
 	origin   string // FRONTEND_ORIGIN, the root of every deep link
 	metrics  Metrics
 	presence PresenceChecker
+	calls    CallRingChecker
 	now      func() time.Time
 }
 
@@ -46,6 +47,11 @@ func NewPushConsumer(q *db.Queries, sender PushSender, frontendOrigin string) *P
 // SetPresence lets chat pushes skip a recipient who is active right now.
 // Without it, or when it errors, every push goes out.
 func (c *PushConsumer) SetPresence(p PresenceChecker) { c.presence = p }
+
+// SetCallRinging lets a call's push go only while the call still rings: the
+// rule checked it, but the call may have been answered or ended between that
+// check and this lane. Without it, the ring window alone decides.
+func (c *PushConsumer) SetCallRinging(r CallRingChecker) { c.calls = r }
 
 // SetMetrics attaches counters.
 func (c *PushConsumer) SetMetrics(m Metrics) { c.metrics = m }
@@ -75,6 +81,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	}
 	if n.PushedAt.Valid || n.ReadAt.Valid {
 		return nil // already delivered, or read on another device before the push went out
+	}
+	// A ring the lane reaches after it stopped ringing is not worth a phone
+	// call, and its row is closed so the inbox does not keep "đang gọi".
+	if n.Kind == KindChatCallIncoming && !c.stillRinging(n) {
+		return c.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: n.UserID, GroupKeys: []string{n.GroupKey}})
 	}
 	subs, err := c.q.ListActivePushSubscriptions(ctx, n.UserID)
 	if err != nil {
@@ -131,8 +142,17 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	var params map[string]string
 	_ = json.Unmarshal([]byte(n.Params), &params)
 	msg := PushMessage{Title: PushTitle(user.Locale, n.Kind, params), Body: body, URL: link, Tag: n.GroupKey}
+	if n.Kind == KindChatCallIncoming {
+		// The push rings only as long as the call does (spec M3 §2).
+		msg.TTL = int(callRingWindow / time.Second)
+	}
 	var failed error
 	for _, sub := range subs {
+		// A call rings web and desktop in the page (realtime); its push is for
+		// the backgrounded phone only (spec M3 §2), never a browser banner on top.
+		if n.Kind == KindChatCallIncoming && !isExpoPushToken(sub.Endpoint) {
+			continue
+		}
 		err := c.sender.Send(ctx, sub, msg)
 		switch {
 		case err == nil:
@@ -151,6 +171,15 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		return failed
 	}
 	return c.q.MarkNotificationPushed(ctx, n.ID)
+}
+
+func (c *PushConsumer) stillRinging(n db.Notification) bool {
+	if c.now().Sub(n.CreatedAt.Time) > callRingWindow {
+		return false
+	}
+	var params map[string]string
+	_ = json.Unmarshal([]byte(n.Params), &params)
+	return c.calls == nil || c.calls.VoiceCallRinging(n.ResourceID, params["call_id"], n.UserID)
 }
 
 func (c *PushConsumer) count(result string) {
@@ -215,6 +244,15 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 			return "", err
 		}
 		return chatMessageURL(base, msg.RoomID, msg.ID), nil
+	case "chat_room":
+		// A ringing call opens its room; ?call= lets the app answer it if it still rings.
+		link := base + "/chat?room=" + url.QueryEscape(n.ResourceID)
+		var params map[string]string
+		_ = json.Unmarshal([]byte(n.Params), &params)
+		if callID := params["call_id"]; callID != "" {
+			link += "&call=" + url.QueryEscape(callID)
+		}
+		return link, nil
 	case "email_account":
 		return base + "/email", nil
 	default:

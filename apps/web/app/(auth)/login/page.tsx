@@ -36,7 +36,8 @@ export default function LoginPage() {
     if (isUniChat && status === "authed" && user) void goAfterLogin(user);
   }, [isUniChat, status, user, goAfterLogin]);
   // The shell's cookie-less session only starts through the system browser (PKCE), never this form.
-  if (isUniChat) return status === "authed" ? null : <UniChatLoginGate />;
+  // Blank until the session resolves, so a signed-in launch goes to the chat without flashing the gate.
+  if (isUniChat) return status === "anon" ? <UniChatLoginGate /> : null;
   return (
     <LoginView
       next={next}

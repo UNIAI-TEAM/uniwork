@@ -1,6 +1,6 @@
 # UniChat — Client PKCE native, scheme callback theo danh sách server, rate limit refresh theo thiết bị (lát N1)
 
-> **Trạng thái:** shipped — Đã cài trên nhánh `feature/UNI-1827-unichat-n1-client-pkce-native-uniwork-ch`. Lát N1 của epic UNI-1826; issue UNI-1827.
+> **Trạng thái:** shipped — merge vào develop 2026-10-17 qua PR #333 (squash d4d5aaa31, gộp N1–N3 giai đoạn 1); sửa sau khảo sát usf qua PR #334 (df17638c0); plan `../plans/2026-10-16-unichat-auth-clients.md`. Lát N1 của epic UNI-1826; issue UNI-1827.
 
 **Ngày:** 2026-10-16 · **Spec cha:** `2026-10-16-chat-native-apps-design.md` §2 "Đăng nhập native", §3.1, §6 S1–S2 · **Vùng:** `server/internal/{config,service,handler}`, `apps/web/app/(auth)/auth/desktop/authorize/`, `packages/views/auth/`
 

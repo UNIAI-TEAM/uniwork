@@ -1,6 +1,8 @@
 export const chatKeys = {
   room: (wsId: string) => ["chat", "room", wsId] as const,
   rooms: (wsId: string) => ["chat", "rooms", wsId] as const,
+  /** The caller's unread across every workspace: account-level, not workspace-scoped. */
+  unreadSummary: () => ["chat", "unread-summary"] as const,
   channels: (wsId: string, scope: string, projectId = "") =>
     ["chat", "channels", wsId, scope, projectId] as const,
   projectChannels: (wsId: string, projectId: string) =>
@@ -30,6 +32,14 @@ export const chatKeys = {
     ["chat", "room-message-links", wsId, roomId] as const,
   /** Prefix — any link change refreshes the batched room lookups. */
   roomMessageLinksRoot: (wsId: string) => ["chat", "room-message-links", wsId] as const,
+  /** Tasks linked from one room's messages (the info panel). */
+  roomLinkedTasks: (wsId: string, roomId: string) =>
+    ["chat", "room-linked-tasks", wsId, roomId] as const,
+  /** Prefix — a link or task change refreshes every room's linked tasks. */
+  roomLinkedTasksRoot: (wsId: string) => ["chat", "room-linked-tasks", wsId] as const,
+  /** Shared-media counts and newest photos of one room (the info panel). */
+  roomSharedSummary: (wsId: string, roomId: string) =>
+    ["chat", "room-shared-summary", wsId, roomId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>
