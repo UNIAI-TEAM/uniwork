@@ -1,0 +1,251 @@
+$ git checkout -q 713d0b047 -- web/docs/bridge/webapi.ts apps/docs/src/renderer/file-actions.ts apps/docs/src/shared/ipc.ts web/modules/shared/text-webapi.ts web/modules/sheets/bridge.ts; f=0; npx vitest run --root web/docs/bridge --environment jsdom webapi.test || f=$((f+1)); npx vitest run --root web/modules markdown/webapi.test.ts sheets/bridge.test.ts || f=$((f+1)); (cd apps/docs && npx vitest run tests/frame-rename-save.test.ts) || f=$((f+1)); git reset -q --hard HEAD; echo "RED_1909 failing=$f/3"; [ $f -eq 3 ] && echo RED_OK
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+Not implemented: Window's focus() method
+ ❯ webapi.test.ts (124 tests | 2 failed) 2386ms
+     × a host-declined save (api.save "cancelled") is silent, like a cancelled Save As 9ms
+     × a save result that carries a new name is a rename the renderer hears (S01B-V1) 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  webapi.test.ts > saveDocx > a host-declined save (api.save "cancelled") is silent, like a cancelled Save As
+AssertionError: expected { ok: false, …(1) } to not have property "error"
+
+- Expected:
+undefined
+
++ Received:
+"The document could not be saved. Try again."
+
+ ❯ webapi.test.ts:585:21
+    583|     const res = await api.saveDocx(doc.path, buf([5]))
+    584|     expect(res.ok).toBe(false)
+    585|     expect(res).not.toHaveProperty('error')
+       |                     ^
+    586|     // the same refuse also settles a host-initiated save as cancelled
+    587|     expect((await api.saveDocx(doc.path, buf([6]))).ok).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  webapi.test.ts > onRenamedDocx > a save result that carries a new name is a rename the renderer hears (S01B-V1)
+AssertionError: expected [] to deeply equal [ { …(2) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "newPath": "uniwork://files/f1/Kế hoạch Q4.docx",
+-     "oldPath": "uniwork://files/f1/Report.docx",
+-   },
+- ]
++ []
+
+ ❯ webapi.test.ts:859:18
+    857|     const res = await api.saveDocx(doc.path, buf([7]))
+    858|     expect(res).toEqual({ ok: true })
+    859|     expect(seen).toEqual([{ oldPath: doc.path, newPath: 'uniwork://fil…
+       |                  ^
+    860|     // and a later file.renamed carrying the same name still emits not…
+    861|     mock.rename('f1', 'Kế hoạch Q4.docx')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 122 passed (124)
+   Start at  12:15:35
+   Duration  4.54s (transform 1.32s, setup 0ms, import 1.61s, tests 2.39s, environment 437ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+ ❯ markdown/webapi.test.ts (60 tests | 4 failed) 1912ms
+     × a host-declined in-place save (api.save "cancelled") is a quiet cancel too 11ms
+     × Save As defaults to the opened file's extension: notes.txt stays .txt, never .txt.md 2ms
+     × a host saveAs that names *.txt keeps it; a bare name gets the .txt default 3ms
+     × on a .txt document a dotted name gets .txt whole; *.md / *.txt names pass through 2ms
+ ❯ sheets/bridge.test.ts (72 tests | 1 failed) 1135ms
+     × a host-declined in-place save (api.save "cancelled") ends as a cancel, not an error 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  markdown/webapi.test.ts > markdownApi: open and save > a host-declined in-place save (api.save "cancelled") is a quiet cancel too
+AssertionError: expected { ok: false, …(1) } to deeply equal { ok: true, canceled: true }
+
+- Expected
++ Received
+
+  {
+-   "canceled": true,
+-   "ok": true,
++   "error": "The document could not be saved. Try again.",
++   "ok": false,
+  }
+
+ ❯ markdown/webapi.test.ts:228:70
+    226|       error: { code: 'cancelled', message: 'cancelled', retryable: fal…
+    227|     }))
+    228|     expect(await api.save({ text, imageSources: [], mode: 'save' })).t…
+       |                                                                      ^
+    229|       ok: true,
+    230|       canceled: true,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  markdown/webapi.test.ts > markdownApi: a .txt opens in plain mode and stays .txt > Save As defaults to the opened file's extension: notes.txt stays .txt, never .txt.md
+AssertionError: expected 'uniwork://files/f2/notes.txt.md' to match /notes\.txt$/
+
+- Expected:
+/notes\.txt$/
+
++ Received:
+"uniwork://files/f2/notes.txt.md"
+
+ ❯ markdown/webapi.test.ts:298:49
+    296|     const { text } = await open(api)
+    297|     const res = await api.save({ text, imageSources: [], mode: 'saveAs…
+    298|     expect(res.ok && 'path' in res && res.path).toMatch(/notes\.txt$/)
+       |                                                 ^
+    299|     const call = mock.calls.find((c) => c.type === 'api.saveAs')!
+    300|     expect(call.payload).toMatchObject({ name: 'notes.txt' })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  markdown/webapi.test.ts > markdownApi: a .txt opens in plain mode and stays .txt > a host saveAs that names *.txt keeps it; a bare name gets the .txt default
+AssertionError: expected { ok: true, …(2) } to match object { ok: true, …(1) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "file": {
+-     "name": "ban-sao.txt",
++     "name": "ban-sao.txt.md",
+    },
+    "ok": true,
+  }
+
+ ❯ markdown/webapi.test.ts:308:19
+    306|     api.onSaveRequest((mode) => void api.save({ text, imageSources: []…
+    307|     const named = await mock.host.saveAs({ name: 'ban-sao.txt' })
+    308|     expect(named).toMatchObject({ ok: true, file: { name: 'ban-sao.txt…
+       |                   ^
+    309|     const bare = await mock.host.saveAs({ name: 'Copy' })
+    310|     expect(bare).toMatchObject({ ok: true, file: { name: 'Copy.txt' } …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  markdown/webapi.test.ts > markdownApi: a dotted save-as name is kept whole > on a .txt document a dotted name gets .txt whole; *.md / *.txt names pass through
+AssertionError: expected { ok: true, …(2) } to match object { ok: true, …(1) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "file": {
+-     "name": "Báo cáo 2026.10.18.txt",
++     "name": "Báo cáo 2026.10.18.md",
+    },
+    "ok": true,
+  }
+
+ ❯ markdown/webapi.test.ts:336:68
+    334|     const { text } = await open(api)
+    335|     api.onSaveRequest((mode) => void api.save({ text, imageSources: []…
+    336|     expect(await mock.host.saveAs({ name: 'Báo cáo 2026.10.18' })).toM…
+       |                                                                    ^
+    337|       ok: true,
+    338|       file: { name: 'Báo cáo 2026.10.18.txt' },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  sheets/bridge.test.ts > save > a host-declined in-place save (api.save "cancelled") ends as a cancel, not an error
+AssertionError: promise rejected "Error: Saving to UniWork failed. The docu…" instead of resolving
+ ❯ sheets/bridge.test.ts:437:5
+    435|     await expect(
+    436|       t.desktop.saveWorkbookEdits(saveRequest(wb.sessionId, [[0, 0, 5]…
+    437|     ).resolves.toEqual({ canceled: true })
+       |     ^
+    438|     expect(t.mock.dirty.at(-1)).toBe(true)
+    439|   })
+
+Caused by: Error: Saving to UniWork failed. The document could not be saved. Try again.
+ ❯ saveFailure sheets/bridge.ts:785:12
+ ❯ failSave sheets/bridge.ts:795:11
+ ❯ saveInPlace sheets/bridge.ts:775:12
+ ❯ Proxy.saveWorkbookEdits sheets/bridge.ts:971:13
+ ❯ sheets/bridge.test.ts:435:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  5 failed | 127 passed (132)
+   Start at  12:15:40
+   Duration  5.11s (transform 4.01s, setup 0ms, import 4.98s, tests 3.05s, environment 905ms)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ tests/frame-rename-save.test.ts (4 tests | 2 failed) 289ms
+     × file.renamed while the save runs: the write-back keeps the renamed path; Save As proposes it 199ms
+     × a save result carrying a new name is adopted even before file.renamed lands 41ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/frame-rename-save.test.ts > UNI-1909: a host rename during save keeps the renderer on the new name > file.renamed while the save runs: the write-back keeps the renamed path; Save As proposes it
+AssertionError: expected 'uniwork://files/f1/untitled.docx' to be 'uniwork://files/f1/Kế hoạch Q4.docx' // Object.is equality
+
+Expected: "uniwork://files/f1/Kế hoạch Q4.docx"
+Received: "uniwork://files/f1/untitled.docx"
+
+ ❯ tests/frame-rename-save.test.ts:243:32
+    241|     }
+    242|     expect(await save(makeCtx(), false)).toBe(true)
+    243|     expect(docState!.filePath).toBe(NEW_PATH)
+       |                                ^
+    244|     expect(docState!.fileName).toBe(NEW_NAME)
+    245|     // File → Save as proposes "<new name>", not the stale "untitled"
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/frame-rename-save.test.ts > UNI-1909: a host rename during save keeps the renderer on the new name > a save result carrying a new name is adopted even before file.renamed lands
+AssertionError: expected 'uniwork://files/f1/untitled.docx' to be 'uniwork://files/f1/Kế hoạch Q4.docx' // Object.is equality
+
+Expected: "uniwork://files/f1/Kế hoạch Q4.docx"
+Received: "uniwork://files/f1/untitled.docx"
+
+ ❯ tests/frame-rename-save.test.ts:264:32
+    262|     }
+    263|     expect(await save(makeCtx(), false)).toBe(true)
+    264|     expect(docState!.filePath).toBe(NEW_PATH)
+       |                                ^
+    265|     expect(docState!.fileName).toBe(NEW_NAME)
+    266|     // the file.renamed carrying the same name the bridge then swallow…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  12:15:45
+   Duration  4.49s (transform 2.85s, setup 0ms, import 3.75s, tests 289ms, environment 349ms)
+
+RED_1909 failing=3/3
+RED_OK

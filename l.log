@@ -1,0 +1,29 @@
+$ for i in 1 2 3; do WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e docs-rename-save || echo "RENAME_SPEC_FAIL run=$i"; done; echo RENAME_REPEAT_DONE
+
+Running 2 tests using 1 worker
+
+(node:8211) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › web/e2e/docs-rename-save.spec.ts:81:5 › a rename before the save is the name Save as proposes (856ms)
+  ✓  2 [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar (770ms)
+
+  2 passed (3.0s)
+
+Running 2 tests using 1 worker
+
+(node:8330) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › web/e2e/docs-rename-save.spec.ts:81:5 › a rename before the save is the name Save as proposes (878ms)
+  ✓  2 [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar (1.2s)
+
+  2 passed (3.5s)
+
+Running 2 tests using 1 worker
+
+(node:8455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › web/e2e/docs-rename-save.spec.ts:81:5 › a rename before the save is the name Save as proposes (869ms)
+  ✓  2 [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar (765ms)
+
+  2 passed (3.0s)
+RENAME_REPEAT_DONE
