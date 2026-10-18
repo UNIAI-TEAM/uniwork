@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+309631d488d0abf69ae36b30e7112047295b8e93
+a605e291f64f0b3bce6b2e24df44cdcac899ed82
+309631d48 Merge commit 'a605e291f' into feature/UNI-1813-markdown-create-txt
+a605e291f chore: merge AI-PLAN-UW billing spec v0.5.3 + boards g-j (UNI-1910, 7dc9ec3a4) into the G5-G7 root
+de68bbbff fix(documents): narrow the office_txt_open fix to text/plain engine versions
+4a55de90f chore: merge FU-SHARING P0 revoke fix (UNI-1914, 2d0b03889) into the G5-G7 root
+7dc9ec3a4 docs(ai): address BE review round 3 of the billing spec (UNI-1910)
+a7cfeb85c docs(ai): add the reviewed billing design boards g-j (UNI-1910)
