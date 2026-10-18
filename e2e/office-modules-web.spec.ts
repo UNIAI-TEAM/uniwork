@@ -207,7 +207,8 @@ for (const c of CASES) {
       test(`an edit in the ${c.module} frame is saved as a new version`, async ({ page, context, request }) => {
         // The frame follows the app's locale; the specs drive its English labels.
         await context.addCookies([{ name: "uniwork-locale", value: "en", url: baseUrl }]);
-        const marker = `${Date.now()}`.slice(-8);
+        // Never a leading 0: the sheets number cell drops it and hasEdit's <v> lookup misses.
+        const marker = `1${`${Date.now()}`.slice(-7)}`;
         const before = await listVersions(request, seeded.account.token, seeded.documentId);
         await signInAs(page, seeded.account.email);
         await openSeededDocument(page, seeded);
