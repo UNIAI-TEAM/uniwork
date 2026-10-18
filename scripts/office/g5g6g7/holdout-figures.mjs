@@ -9,6 +9,8 @@
 //   (d) the number of elements of a NAMED kind in ONE successful read result (slides, paragraphs, heading levels, rows,
 //       sheets, pages, lines), or a named count field of that same result (slideCount, paragraphCount, lineCount,
 //       pageCount), but only when the reply or report.items names that kind; never across reads, never an inferred kind.
+//       The kind is named by a CLOSED phrase right beside the figure (or by the item's own anchor), never by a word further on, and a
+//       modified kind ("changed paragraphs") names nothing. The level digit of a heading-level phrase is a LABEL, not a count (R21-1).
 // The values of APPLIED writes are a further source, listed in EXTRA_SOURCES so the lead can switch it off. The user's own
 // request is NOT a source (review-g712-20 G712-R20-2): a number copied from the question is never a figure. A PROSE figure that
 // merely echoes a question number (same value and same unit or marker, `echoesQuestion`) is exempt from the trace: it cannot fail
