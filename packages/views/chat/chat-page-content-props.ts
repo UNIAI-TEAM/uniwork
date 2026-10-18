@@ -50,6 +50,10 @@ export type ChatPageContentProps = {
   onSendMedia: (body: string) => void | Promise<void>;
   onSendVoice: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   onSendFile: (file: File) => Promise<void>;
+  /** Sends the side thread composer's draft (stored under `draftKey`) into the thread. */
+  onSendThreadReply: (draftKey: string, threadRootId: string) => void;
+  /** Sends a sticker or GIF from the side thread composer into the thread. */
+  onSendThreadMedia: (threadRootId: string, body: string) => void;
   groupSettingsOpen: boolean;
   onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   dmSettingsOpen: boolean;

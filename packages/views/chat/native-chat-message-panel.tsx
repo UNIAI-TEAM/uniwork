@@ -67,6 +67,12 @@ export function NativeChatMessagePanel({
   onFollowUp,
   onActiveThreadRootIdChange,
   onFocusComposer,
+  onEditMessage,
+  onOpenThread,
+  thread = null,
+  onCloseThread,
+  openThreadRootId = null,
+  threadSubtitle,
   intro,
 }: {
   workspaceId: string;
@@ -95,6 +101,17 @@ export function NativeChatMessagePanel({
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
   /** Puts the caret back in the composer (after reply, thread, cancel, delete). */
   onFocusComposer?: () => void;
+  /** "Sửa": puts this panel's composer into edit mode for the message. */
+  onEditMessage: (message: ChatMessage) => void;
+  /** Threads open beside this panel (lg and up) instead of in it. */
+  onOpenThread?: (message: ChatMessage) => void;
+  /** This panel is the side thread panel: it shows only this thread, and closing it calls `onCloseThread`. */
+  thread?: ChatMessage | null;
+  onCloseThread?: () => void;
+  /** The thread open beside this timeline: its root stays highlighted. */
+  openThreadRootId?: string | null;
+  /** Under the thread bar's title (the room's name, in the side panel). */
+  threadSubtitle?: string;
   /** Where the room begins: shown when empty, and above the first message once all history is loaded. */
   intro?: ReactNode;
 }) {
@@ -102,7 +119,9 @@ export function NativeChatMessagePanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const programmaticScrollRef = useRef(false);
-  const [threadRoot, setThreadRoot] = useState<ChatMessage | null>(null);
+  const [inPlaceThread, setThreadRoot] = useState<ChatMessage | null>(null);
+  const threadRoot = thread ?? inPlaceThread;
+  const sideThreadPanel = thread != null;
   const [anchorMessages, setAnchorMessages] = useState<ChatMessage[] | null>(null);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const [loadingAnchor, setLoadingAnchor] = useState(false);
@@ -181,17 +200,25 @@ export function NativeChatMessagePanel({
 
   const openThread = useCallback(
     (message: ChatMessage) => {
+      if (onOpenThread) {
+        onOpenThread(message);
+        return;
+      }
       setThreadRoot(message);
       onReplyToChange(message);
       onActiveThreadRootIdChange?.(message.id);
     },
-    [onActiveThreadRootIdChange, onReplyToChange],
+    [onActiveThreadRootIdChange, onOpenThread, onReplyToChange],
   );
   const closeThread = useCallback(() => {
+    if (thread) {
+      onCloseThread?.();
+      return;
+    }
     setThreadRoot(null);
     onReplyToChange(null);
     onActiveThreadRootIdChange?.(null);
-  }, [onActiveThreadRootIdChange, onReplyToChange]);
+  }, [onActiveThreadRootIdChange, onCloseThread, onReplyToChange, thread]);
 
   // A quoted reply scrolls to its original: through the virtual list when it
   // is loaded (rendered or not), and by opening its context otherwise.
@@ -210,7 +237,6 @@ export function NativeChatMessagePanel({
   const { actions, dialogs: actionDialogs } = useNativeChatMessageActions({
     workspaceId,
     roomId,
-    nameContext,
     messages,
     replyTo,
     onReplyToChange,
@@ -222,6 +248,7 @@ export function NativeChatMessagePanel({
     onFocusComposer,
     taskLinkActions,
     onFollowUp,
+    onEditMessage,
   });
 
   useEffect(() => {
@@ -258,9 +285,12 @@ export function NativeChatMessagePanel({
     setHighlightMessageId(null);
     setLocalAnchor(null);
     onActiveThreadRootIdChange?.(null);
-    // One voice player per room: leaving the room stops it.
-    return () => stopChatVoicePlayback();
-  }, [roomId, onReplyToChange, onActiveThreadRootIdChange]);
+    // One voice player per room: leaving the room stops it. Closing the side
+    // thread is not leaving the room; the timeline beside it may be playing.
+    return () => {
+      if (!sideThreadPanel) stopChatVoicePlayback();
+    };
+  }, [roomId, onReplyToChange, onActiveThreadRootIdChange, sideThreadPanel]);
 
   useEffect(() => {
     if (!activeAnchorId) {
@@ -368,11 +398,11 @@ export function NativeChatMessagePanel({
           message={message}
           layout={rowLayout}
           context={rowContext}
-          highlighted={message.id === highlightMessageId}
+          highlighted={message.id === highlightMessageId || message.id === openThreadRootId}
         />
       );
     },
-    [highlightMessageId, layout, messages, rowContext],
+    [highlightMessageId, layout, messages, openThreadRootId, rowContext],
   );
 
   const senderLabelOf = useCallback(
@@ -424,6 +454,7 @@ export function NativeChatMessagePanel({
         <ChatThreadBar
           workspaceId={workspaceId}
           threadRootId={threadRoot.id}
+          subtitle={threadSubtitle}
           following={threadQuery.data?.find((row) => row.id === threadRoot.id)?.thread_following ?? false}
           onClose={() => {
             closeThread();

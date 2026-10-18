@@ -383,6 +383,36 @@ describe("useChatPageActions", () => {
     ]);
   });
 
+  it("sends the side thread's own draft into its thread and leaves the main composer's reply and priority alone", async () => {
+    const sendThreadMessage = { mutateAsync: vi.fn().mockResolvedValue(undefined) };
+    const setComposerPriority = vi.fn();
+    const deps = buildDeps({
+      replyTo: { id: "m9" } as ChatMessage,
+      composerPriority: "urgent",
+      setComposerPriority,
+      sendThreadMessage,
+    });
+    let threadDraft = "trong chủ đề";
+    const write = vi.fn((value: string) => {
+      threadDraft = value;
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend(() => threadDraft, write, "root1");
+    });
+
+    expect(sendThreadMessage.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ threadRootId: "root1", body: "trong chủ đề", priority: undefined }),
+    );
+    expect(deps.sendRoomMessage.mutateAsync).not.toHaveBeenCalled();
+    expect(threadDraft).toBe("");
+    // The main composer's draft, reply and priority are untouched.
+    expect(deps.getDraft()).toBe("hello");
+    expect(deps.setReplyTo).not.toHaveBeenCalled();
+    expect(setComposerPriority).not.toHaveBeenCalled();
+  });
+
   it("tracks an optimistic pending row while sending online", async () => {
     let resolveSend: ((value: null) => void) | undefined;
     const deps = buildDeps({

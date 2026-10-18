@@ -107,8 +107,10 @@ export function useChatPageActions({
 
   // Sends one body (text, reply, sticker, GIF). It never touches the draft:
   // the composer path below owns that. True when sent or queued.
+  // `sideThreadRootId` is the thread open beside the timeline: its composer
+  // has no reply or priority, so the main composer's are neither sent nor cleared.
   const sendMessageBody = useCallback(
-    async (text: string): Promise<boolean> => {
+    async (text: string, sideThreadRootId?: string): Promise<boolean> => {
       const trimmed = text.trim();
       if (!trimmed) return false;
 
@@ -125,24 +127,28 @@ export function useChatPageActions({
 
       const threadsAllowed =
         target.kind === "channel" || target.kind === "group" || target.kind === "workspace";
-      const sendingInThread = Boolean(
-        threadsAllowed && activeThreadRootId && sendThreadMessage,
-      );
+      const threadRootId = sideThreadRootId ?? activeThreadRootId;
+      const sendingInThread = Boolean(threadsAllowed && threadRootId && sendThreadMessage);
+      const mainComposer = !sideThreadRootId;
+      const clearComposerExtras = () => {
+        if (!mainComposer) return;
+        setReplyTo(null);
+        setComposerPriority?.(null);
+      };
 
       const payload: ChatTextSendPayload = {
         roomId,
         body: trimmed,
         client_msg_id: newChatClientMsgId(),
-        ...(replyTo && !sendingInThread ? { reply_to_message_id: replyTo.id } : {}),
-        ...(composerPriority ? { priority: composerPriority } : {}),
-        ...(sendingInThread && activeThreadRootId ? { thread_root_id: activeThreadRootId } : {}),
+        ...(mainComposer && replyTo && !sendingInThread ? { reply_to_message_id: replyTo.id } : {}),
+        ...(mainComposer && composerPriority ? { priority: composerPriority } : {}),
+        ...(sendingInThread && threadRootId ? { thread_root_id: threadRootId } : {}),
       };
 
       const queueForLater = () => {
         usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
         useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, currentUserId, payload));
-        setReplyTo(null);
-        setComposerPriority?.(null);
+        clearComposerExtras();
         setConnectError(t("chat.send_queued_offline"));
       };
 
@@ -159,17 +165,15 @@ export function useChatPageActions({
         senderId: currentUserId,
         createdAt: Date.now(),
         reply_to_message_id: payload.reply_to_message_id,
-        ...(sendingInThread && activeThreadRootId
-          ? { thread_root_id: activeThreadRootId }
-          : {}),
+        thread_root_id: payload.thread_root_id,
         priority: payload.priority,
         status: "sending",
       });
 
       try {
-        if (sendingInThread && activeThreadRootId && sendThreadMessage) {
+        if (sendingInThread && threadRootId && sendThreadMessage) {
           await sendThreadMessage.mutateAsync({
-            threadRootId: activeThreadRootId,
+            threadRootId,
             body: payload.body,
             client_msg_id: payload.client_msg_id,
             priority: payload.priority,
@@ -177,8 +181,7 @@ export function useChatPageActions({
         } else {
           await sendRoomMessage.mutateAsync(payload);
         }
-        setReplyTo(null);
-        setComposerPriority?.(null);
+        clearComposerExtras();
         setConnectError(null);
         return true;
       } catch (err: unknown) {
@@ -218,24 +221,29 @@ export function useChatPageActions({
     ],
   );
 
-  const provisionAndSend = useCallback(async () => {
-    const raw = getDraft().trim();
-    const text = serializeComposerDraftToMessageBody(raw, mentionCandidates, mentionAllLabel);
-    if (!text) return;
-    // Clear at once: a second Enter finds nothing to send, and text typed
-    // while the server answers is not wiped when it does.
-    setDraft("");
-    let sent = false;
-    try {
-      sent = await sendMessageBody(text);
-    } finally {
-      // Not sent and not queued: give the words back, ahead of anything typed since.
-      if (!sent) {
-        const typed = getDraft();
-        setDraft(typed ? `${raw}\n${typed}` : raw);
+  // The main composer's draft by default; the side thread's composer passes
+  // its own draft and root.
+  const provisionAndSend = useCallback(
+    async (read: () => string = getDraft, write: (value: string) => void = setDraft, sideThreadRootId?: string) => {
+      const raw = read().trim();
+      const text = serializeComposerDraftToMessageBody(raw, mentionCandidates, mentionAllLabel);
+      if (!text) return;
+      // Clear at once: a second Enter finds nothing to send, and text typed
+      // while the server answers is not wiped when it does.
+      write("");
+      let sent = false;
+      try {
+        sent = await sendMessageBody(text, sideThreadRootId);
+      } finally {
+        // Not sent and not queued: give the words back, ahead of anything typed since.
+        if (!sent) {
+          const typed = read();
+          write(typed ? `${raw}\n${typed}` : raw);
+        }
       }
-    }
-  }, [getDraft, setDraft, mentionCandidates, mentionAllLabel, sendMessageBody]);
+    },
+    [getDraft, setDraft, mentionCandidates, mentionAllLabel, sendMessageBody],
+  );
 
   const handleCreateGroup = useCallback(
     (members: ChatContact[], name: string) => {

@@ -81,6 +81,52 @@ describe("useChatCatchUpUi", () => {
     );
   });
 
+  it("keeps how many messages were unread when the room opened", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(["chat", "rooms", "ws1"], [
+      { id: "room1", unread_count: 4, mention_unread_count: 1, last_read_at: "2026-09-05T00:00:00Z" },
+    ]);
+    const { result } = renderHook(() => useChatCatchUpUi("ws1", "room1"), {
+      wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    expect(result.current.unreadCount).toBe(4);
+  });
+
+  it("summarises the room, not the open thread, from the unread line", async () => {
+    mocks.catchUp.mockResolvedValue(brief);
+    const { result } = renderHook(() => useChatCatchUpUi("ws1", "room1", "t1"), {
+      wrapper: ({ children }) => wrap(<>{children}</>),
+    });
+    await act(async () => result.current.onCatchUpRoom?.());
+    expect(mocks.catchUp).toHaveBeenLastCalledWith(expect.objectContaining({ room_id: "room1", thread_root_id: undefined }));
+    // A retry asks for the same brief.
+    await act(async () => result.current.onRetry());
+    expect(mocks.catchUp).toHaveBeenLastCalledWith(expect.objectContaining({ thread_root_id: undefined }));
+  });
+
+  // The list's "Bắt kịp nhanh": the brief waits for the room to open and keep its pointer.
+  it("runs a requested room's brief once that room has opened, from its pre-open pointer", async () => {
+    mocks.catchUp.mockResolvedValue(brief);
+    const qc = new QueryClient();
+    qc.setQueryData(["chat", "rooms", "ws1"], [
+      { id: "room2", unread_count: 7, mention_unread_count: 0, last_read_at: "2026-09-04T00:00:00Z" },
+    ]);
+    const { result, rerender } = renderHook(({ room }) => useChatCatchUpUi("ws1", room), {
+      initialProps: { room: "room1" },
+      wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+
+    act(() => result.current.requestCatchUp("room2"));
+    expect(mocks.catchUp).not.toHaveBeenCalled();
+
+    await act(async () => rerender({ room: "room2" }));
+    expect(mocks.catchUp).toHaveBeenCalledTimes(1);
+    expect(mocks.catchUp).toHaveBeenCalledWith(
+      expect.objectContaining({ room_id: "room2", since: "2026-09-04T00:00:00Z" }),
+    );
+    expect(result.current.open).toBe(true);
+  });
+
   it("does not mark read again on close when the summary failed", async () => {
     mocks.catchUp.mockRejectedValue(new Error("ai down"));
     const { result } = setup();

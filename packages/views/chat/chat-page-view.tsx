@@ -295,10 +295,8 @@ export function ChatPageView({
   // re-renders the composer, not this page and its sidebar.
   const composerDraftKey = chatComposerDraftKey(workspaceId, target);
   const readComposerDraft = useCallback(() => readChatComposerDraft(composerDraftKey), [composerDraftKey]);
-  const writeComposerDraft = useCallback(
-    (value: string) => useChatComposerDraftStore.getState().setDraft(composerDraftKey, value),
-    [composerDraftKey],
-  );
+  const setDraft = useChatComposerDraftStore((state) => state.setDraft);
+  const writeComposerDraft = useCallback((value: string) => setDraft(composerDraftKey, value), [composerDraftKey, setDraft]);
 
   const { provisionAndSend, sendMessageBody, handleCreateGroup, handleAddGroupMembers, handleLeaveConversation } =
     useChatPageActions({
@@ -474,6 +472,10 @@ export function ChatPageView({
         onSendMedia={(body) => void sendMessageBody(body)}
         onSendVoice={handleSendVoice}
         onSendFile={handleSendFile}
+        onSendThreadReply={(draftKey, rootId) =>
+          void provisionAndSend(() => readChatComposerDraft(draftKey), (value) => setDraft(draftKey, value), rootId)
+        }
+        onSendThreadMedia={(rootId, body) => void sendMessageBody(body, rootId)}
         groupSettingsOpen={groupSettingsOpen}
         onGroupSettingsOpenChange={setGroupSettingsOpen}
         dmSettingsOpen={dmSettingsOpen}
