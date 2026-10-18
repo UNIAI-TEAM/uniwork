@@ -76,6 +76,19 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND archive_batch_id = sqlc.arg(archive_batch_id)
 ORDER BY id;
 
+-- The trash-notification rule's per-event batch read (TRASH-NOTIFY-01): one
+-- document.archived row lands per node, so a full-row batch read would
+-- re-materialize every document - content included - once per node. The
+-- election needs only the ACL columns; the elected top's title is fetched
+-- separately, once per owner.
+-- name: ListDocumentArchiveBatchAcl :many
+SELECT id, parent_id, acl_owner_id, archived_at, archived_by, purge_after
+FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND archive_batch_id = sqlc.arg(archive_batch_id)
+ORDER BY id;
+
 -- Every restore path bumps revision: a row that leaves the trash changes,
 -- and a client holding the pre-archive revision must conflict on write
 -- rather than silently keep a stale base.
