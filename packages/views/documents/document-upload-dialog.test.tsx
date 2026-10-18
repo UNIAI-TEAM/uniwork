@@ -58,4 +58,13 @@ describe("DocumentUploadDialog", () => {
     expect(bar).toHaveClass("*:data-[slot=progress-indicator]:transition-none");
   });
 
+  it("draws the progress track with a visible boundary (R2-F3)", () => {
+    renderDialog({
+      chunkedProgress: { phase: "uploading", sentBytes: 50, totalBytes: 100 },
+    });
+
+    const bar = screen.getByRole("progressbar");
+    expect(bar).toHaveClass("*:data-[slot=progress-track]:ring-1");
+    expect(bar).toHaveClass("*:data-[slot=progress-track]:ring-input");
+  });
 });
