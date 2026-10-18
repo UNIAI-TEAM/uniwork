@@ -1182,3 +1182,42 @@ describe("useDocsFrameSession: first-save naming (UNI-1847, SAVE-01)", () => {
   });
 });
 
+
+describe("useDocsFrameSession: a print across a re-handshake (UNI-1911, RHP-2)", () => {
+  it("a print of the retired endpoint that settles after the retry leaves the new print alone", async () => {
+    const frame = setup();
+    await frame.boot();
+    let first!: Promise<boolean>;
+    act(() => { first = frame.hook.result.current.print(); });
+    await act(async () => {});
+    expect(frame.sent("print")).toHaveLength(1);
+    expect(frame.hook.result.current.printing).toBe(true);
+
+    // Retry disposes endpoint A synchronously: the open print is already rejected, but its
+    // finally runs on the microtask queue — a print on the NEW host that starts before that
+    // microtask must keep its busy flag when the stale one lands.
+    act(() => { frame.hook.result.current.retry(); });
+    let second!: Promise<boolean>;
+    act(() => { second = frame.hook.result.current.print(); });
+    // This drain is the stale settle: the retired print's finally lands while the new one is open.
+    await act(async () => {});
+    await expect(first).resolves.toBe(false);
+    await frame.boot("i-2");
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(2));
+    expect(frame.hook.result.current.printing).toBe(true);
+
+    let third!: Promise<boolean>;
+    act(() => { third = frame.hook.result.current.print(); });
+    await act(async () => {});
+    expect(frame.sent("print")).toHaveLength(2);
+    await expect(third).resolves.toBe(false);
+
+    await frame.respond(frame.sent("print")[1]!, { printed: true });
+    await expect(second).resolves.toBe(true);
+    expect(frame.hook.result.current.printing).toBe(false);
+    act(() => { third = frame.hook.result.current.print(); });
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(3));
+    await frame.respond(frame.sent("print")[2]!, { printed: true });
+    await expect(third).resolves.toBe(true);
+  });
+});
