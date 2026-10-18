@@ -26,8 +26,8 @@ a.header-app:hover { background: var(--landing-stage-soft, var(--muted)); }
 a.header-app:hover > svg:last-child { color: var(--foreground); transform: translateX(2px); }
 .header-app strong { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--text-body-lg); font-weight: 700; }
 .header-app small { display: block; font-size: var(--text-body); color: var(--muted-foreground); }
-.header-app-platforms { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--faint-foreground); }
-.header-app.is-dim strong, .header-app.is-dim small { color: var(--faint-foreground); }
+.header-app-platforms { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
+.header-app.is-dim strong, .header-app.is-dim small { color: var(--muted-foreground); }
 .header-apps-all { display: flex; align-items: center; justify-content: space-between; min-height: 48px; margin-top: 8px; padding: 0 14px; border-top: 1px solid var(--border); font-size: var(--text-body); font-weight: 600; color: var(--brand); }
 .header-apps-all:hover { text-decoration: underline; text-underline-offset: 4px; }
 .header-apps-all svg, .header-quick-link svg { width: 16px; height: 16px; }

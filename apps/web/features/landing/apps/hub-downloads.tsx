@@ -69,13 +69,16 @@ function PilotNote({ stores }: { stores: Partial<Record<PhoneOS, StoreLink>> }) 
 /** Every app against every system, the visitor's column tinted; links come from the public config only. */
 export function DownloadMatrix({ own }: { own: DesktopOS | null }) {
   const { t } = useTranslation();
+  const caption = useId();
   const { status, retry, retrying } = useAppInstallers(INSTALLABLE[0]!.installers);
   const stores = useStoreLinks(true);
   if (status === "error") return <LoadError retry={retry} retrying={retrying} />;
   return <>
-    <div className="hub-table-box" aria-busy={status === "loading" || undefined}>
+    {/* A scrolling region below 980px: focusable so a keyboard can scroll it, named by the caption. */}
+    {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- WCAG 2.1.1: a keyboard must reach a scroll container. */}
+    <div className="hub-table-box" role="region" aria-labelledby={caption} tabIndex={0} aria-busy={status === "loading" || undefined}>
       <table className="hub-table">
-        <caption className="sr-only">{t("landing.apps.hub.matrix.caption")}</caption>
+        <caption id={caption} className="sr-only">{t("landing.apps.hub.matrix.caption")}</caption>
         <thead><tr>
           <th scope="col">{t("landing.apps.hub.matrix.app")}</th>
           {COLUMNS.map((os) => <th key={os} scope="col" className={cn(os === own && "is-own")}>{t(`landing.apps.platform.${os}`)}</th>)}

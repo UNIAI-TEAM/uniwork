@@ -73,12 +73,12 @@ export function AppsMenu({ onNavigate }: { onNavigate: () => void }) {
       </ul>
       <Link className="header-apps-all" href={paths.apps.root()} onClick={onNavigate}>{t("landing.apps.menu.all")}<ArrowRight aria-hidden /></Link>
     </div>
-    <aside className="header-quick" aria-label={t("landing.apps.download.device")}>
+    <div className="header-quick" role="group" aria-label={t("landing.apps.download.device")}>
       <p className="header-apps-title is-own">{os ? t("landing.apps.menu.device", { os: t(`landing.apps.platform.${os}`) }) : t("landing.apps.download.device")}</p>
       {!device.phone && APP_CATALOG.filter((app) => app.installers).map((app) => <QuickRow key={app.key} app={app} os={os} onNavigate={onNavigate} />)}
       <span className="header-quick-sep" />
       <Link className="header-quick-link" href={`${paths.apps.unichat()}#unichat-download`} onClick={onNavigate}><Smartphone aria-hidden />{t("landing.apps.menu.phones")}</Link>
       <Link className="header-quick-link" href={paths.login()} onClick={onNavigate}><Globe aria-hidden />{t("landing.apps.menu.web")}</Link>
-    </aside>
+    </div>
   </div>;
 }

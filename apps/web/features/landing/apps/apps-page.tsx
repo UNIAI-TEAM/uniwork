@@ -36,7 +36,7 @@ function AppCard({ app, device, pilot }: { app: AppEntry; device: VisitorDevice;
     <div className="hub-card-top"><AppIcon app={app.key} size={56} /><span className="hub-kicker">{k("kicker")}</span></div>
     <div className="hub-card-copy"><h3 id={`hub-${app.key}`}>{k("name")}</h3><p>{k("tagline")}</p></div>
     <ul className="hub-points">{["point1", "point2"].map((point) => <li key={point}><Check aria-hidden /><span>{k(point)}</span></li>)}</ul>
-    <ul className="hub-platforms" aria-label={t("landing.apps.download.others")}>{platforms.map((os) => <li key={os}>{t(`landing.apps.platform.${os}`)}</li>)}</ul>
+    <ul className="hub-platforms">{platforms.map((os) => <li key={os}>{t(`landing.apps.platform.${os}`)}</li>)}</ul>
     {app.key === "office" && <p className="hub-card-note"><em className="app-tag is-dev">{t("landing.apps.status.development")}</em>{t("landing.apps.catalog.personal.name")}</p>}
     {app.key === "unichat" && pilot && <p className="hub-card-note"><em className="app-tag is-pilot">{t("landing.apps.status.pilot")}</em>{k("pilot")}</p>}
     <div className="hub-card-actions">{actions}</div>
