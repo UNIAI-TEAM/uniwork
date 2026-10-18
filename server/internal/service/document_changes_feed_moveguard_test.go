@@ -121,20 +121,42 @@ var (
 // the statement's own WHERE ends the assignment region (BE-G6-1): bounding at
 // the first `where` token would stop before the workspace_id assignment and let
 // that spelling through.
+//
+// Single-quoted string contents are skipped, including doubled-quote escapes
+// (R2-D-1): a literal parenthesis is not SQL nesting (`SET title = '('`), and a
+// literal `where` is not the statement's WHERE.
 func topLevelWhereIndex(body string) int {
 	matches := whereClause.FindAllStringIndex(body, -1)
 	if len(matches) == 0 {
 		return -1
 	}
-	depth, next := 0, 0
+	depth, next, quoted := 0, 0, false
 	for i := range len(body) {
+		// Drop a match that started inside a string literal so it cannot stall
+		// the scan in front of the real WHERE.
+		for next < len(matches) && matches[next][0] < i {
+			next++
+		}
+		c := body[i]
+		if quoted {
+			if c == '\'' {
+				if i+1 < len(body) && body[i+1] == '\'' {
+					i++ // a doubled quote is an escape, not the closing quote
+				} else {
+					quoted = false
+				}
+			}
+			continue
+		}
 		if next < len(matches) && matches[next][0] == i {
 			if depth == 0 {
 				return i
 			}
 			next++
 		}
-		switch body[i] {
+		switch c {
+		case '\'':
+			quoted = true
 		case '(':
 			depth++
 		case ')':
@@ -567,6 +589,14 @@ SELECT id, title FROM documents WHERE workspace_id = sqlc.arg(workspace_id)`, []
 UPDATE documents
 SET title = (SELECT t.title FROM documents t WHERE t.id = sqlc.arg(source_id)), workspace_id = sqlc.arg(workspace_id)
 WHERE id = sqlc.arg(id)`, []string{"MoveDocumentWithSourceTitle"}},
+		{"a quoted parenthesis in a SET value is not nesting", `-- name: RenameDocumentWithParenTitle :one
+UPDATE documents
+SET title = '('
+WHERE workspace_id = sqlc.arg(workspace_id)`, nil},
+		{"a quoted closing parenthesis in a SET subquery does not hide the assignment", `-- name: MoveDocumentWithQuotedParen :one
+UPDATE documents
+SET title = (SELECT ')' FROM documents t WHERE t.id = sqlc.arg(source_id)), workspace_id = sqlc.arg(workspace_id)
+WHERE id = sqlc.arg(id)`, []string{"MoveDocumentWithQuotedParen"}},
 		{"a schema-qualified INSERT is flagged", `-- name: CopyDocumentQualified :one
 INSERT INTO public.documents (id, workspace_id, source_document_id)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(source_document_id))`, []string{"CopyDocumentQualified"}},
