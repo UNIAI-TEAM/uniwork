@@ -84,6 +84,16 @@ describe("documents-access-requests endpoints", () => {
     await expect(listDocumentAccessRequests("d1")).resolves.toEqual([]);
   });
 
+  it("listDocumentAccessRequests resolves null when the server has no such route (404)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: "not found" }, 404));
+    await expect(listDocumentAccessRequests("d1")).resolves.toBeNull();
+  });
+
+  it("listDocumentAccessRequests still rejects a server error", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: "boom" }, 500));
+    await expect(listDocumentAccessRequests("d1")).rejects.toMatchObject({ status: 500 });
+  });
+
   it("approveDocumentAccessRequest POSTs the granted level", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ id: "r1", status: "approved", share_id: "s1" }));
     const out = await approveDocumentAccessRequest("d1", "r1", { level: "view" });

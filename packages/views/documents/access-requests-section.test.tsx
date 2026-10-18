@@ -301,6 +301,16 @@ describe("AccessRequestsSection", () => {
     expect(heading).not.toHaveFocus();
   });
 
+  it("renders nothing when the server has no access-requests route", async () => {
+    requestMock.mockReset();
+    requestMock.mockImplementation(() => Promise.reject(new ApiError("not found", "not_found", 404)));
+    const { container } = renderSection();
+    await waitFor(() => expect(calls(LIST).length).toBeGreaterThan(0));
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: t("documents.share.retry") })).toBeNull();
+  });
+
   it("offers a retry when the list cannot be read", async () => {
     requestMock.mockReset();
     requestMock.mockImplementationOnce(() => Promise.reject(new ApiError("down", "internal", 500)));
