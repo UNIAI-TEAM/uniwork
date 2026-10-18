@@ -1137,7 +1137,7 @@
       "loading": "Đang tải…",
       "export": {
         "title": "Xuất dữ liệu",
-        "description": "Zip gồm organization.json, manifest.json và một tệp JSONL cho mỗi bảng. Không có nội dung tệp đính kèm; nhật ký hoạt động và hóa đơn không nằm trong bản xuất.",
+        "description": "Zip gồm organization.json, manifest.json và một tệp JSONL cho mỗi bảng. Không có nội dung tệp đính kèm; nhật ký hoạt động và hóa đơn không nằm trong bản xuất. Bản xuất bao gồm tài liệu trong Thư mục của tôi của mọi thành viên.",
         "submit": "Tạo bản xuất",
         "empty": "Chưa có bản xuất nào.",
         "download": "Tải về",

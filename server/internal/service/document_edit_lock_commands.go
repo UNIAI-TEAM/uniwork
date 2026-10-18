@@ -129,8 +129,9 @@ func (s *DocumentService) editLockMutation(
 
 // editLockMutationOnShelved is editLockMutation with the §3 stance for a lock
 // command allowed on a shelved document: releasing a tenure only frees the
-// document, so the release path stays open on a shelved item (the holder can
-// drop the tenure a shelve left live, S-4).
+// document, so the release path stays open on a shelved item (belt: the shelve
+// itself releases every stamped tenure, S-4; this path stays open so an
+// explicit release is never refused on a shelved item).
 func (s *DocumentService) editLockMutationOnShelved(
 	ctx context.Context, actor Actor, documentID string, required DocumentLevel,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess, now time.Time, ops *editLockOps) error,
@@ -537,16 +538,6 @@ func (s *DocumentService) HeartbeatDocumentEditLock(ctx context.Context, actor A
 		}
 		return DocumentEditHeartbeat{}, gateErr
 	}
-	// ARCHIVE-01 (UNI-1845 §3): a heartbeat renews the tenure, a write on
-	// the document, so a shelved item refuses it - after the access gate, so
-	// a caller who may not see the row still gets the gate's answer. The
-	// tenure is left live: shelving does not release locks (S-4 is an open
-	// TODO), so it ends by TTL/hold-cap or an explicit release, never here.
-	// This is the one lock command outside withDocumentMutation (the
-	// heartbeat takes no document row lock, §2), so the gate has to say it.
-	if err := requireNotShelved(doc); err != nil {
-		return DocumentEditHeartbeat{}, err
-	}
 	lock, err := s.q.GetDocumentEditLock(ctx, db.GetDocumentEditLockParams{
 		ID: lockID, OrganizationID: doc.OrganizationID, DocumentID: doc.ID,
 	})
@@ -560,6 +551,21 @@ func (s *DocumentService) HeartbeatDocumentEditLock(ctx context.Context, actor A
 		// Not the caller's tenure (contract §3 R3): lost, never 404, so a
 		// stale editor of another account learns the same as a stale holder.
 		return DocumentEditHeartbeat{}, s.foreignLostAnswer(ctx, actor, lock)
+	}
+	// S-4: a tenure already ended (shelve released it with document_shelved)
+	// answers edit_lock_lost with that reason. A still-live tenure on a
+	// shelved document would be a write, so requireNotShelved refuses it —
+	// the belt behind S-4. Access gate already ran, so a caller who may not
+	// see the row still gets that answer first.
+	now, err := editLockClock(ctx, s.q)
+	if err != nil {
+		return DocumentEditHeartbeat{}, err
+	}
+	if lock.EndedAt.Valid || !editLockLive(lock, now) {
+		return DocumentEditHeartbeat{}, s.lostAnswer(ctx, s.q, lock)
+	}
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentEditHeartbeat{}, err
 	}
 	beat, err := s.q.HeartbeatDocumentEditLock(ctx, db.HeartbeatDocumentEditLockParams{
 		TtlMs: s.EditLockConfig().TTL.Milliseconds(), ID: lock.ID, OrganizationID: lock.OrganizationID,

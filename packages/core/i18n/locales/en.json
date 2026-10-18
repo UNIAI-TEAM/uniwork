@@ -1138,7 +1138,7 @@
       "loading": "Loading…",
       "export": {
         "title": "Export data",
-        "description": "The zip holds organization.json, manifest.json and one JSONL file per table. Attachment bytes are not included, and the activity log and invoices are left out.",
+        "description": "The zip holds organization.json, manifest.json and one JSONL file per table. Attachment bytes are not included, and the activity log and invoices are left out. The export includes every member's My Folder documents.",
         "submit": "Create export",
         "empty": "No exports yet.",
         "download": "Download",

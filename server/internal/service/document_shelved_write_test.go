@@ -279,22 +279,14 @@ func TestShelvedWriteBlock(t *testing.T) {
 			})
 			return err
 		}},
-		// UNI-1645 phase 2 edit lock (ar merge1, UNI-1845 §3): every lock
-		// command that takes, renews, takes over, holds or requests a tenure
-		// is a write on the shelved document, so it refuses like the rest.
-		// Releasing a lock is the one exception and lives in the allowed
-		// table below.
+		// UNI-1645 phase 2 edit lock (ar merge1, UNI-1845 §3 + UNI-1903 S-4):
+		// acquire / take-over / hold / request stay writes and refuse
+		// document_shelved. Heartbeat of a tenure S-4 already ended is
+		// edit_lock_lost (TestShelveReleasesEditLock), not this table.
 		{"edit_lock_acquire", func(t *testing.T, env *docStorageEnv) error {
 			d := shelve(t, env, pageDoc(t, env).ID)
 			_, err := env.svc.AcquireDocumentEditLock(env.f.ctx, Human(env.tn.aclOwner.ID), d.ID,
 				AcquireDocumentEditLockInput{EditorID: "e-" + util.NewID()[20:], Client: DocumentEditClientWebPage, SessionID: "sid-" + util.NewID()[20:]})
-			return err
-		}},
-		{"edit_lock_heartbeat_renew", func(t *testing.T, env *docStorageEnv) error {
-			page := pageDoc(t, env)
-			held := takeEditLock(t, env, env.tn.aclOwner, page.ID, "e-renew", DocumentEditClientWebPage, "sid-renew")
-			shelve(t, env, page.ID)
-			_, err := env.svc.HeartbeatDocumentEditLock(env.f.ctx, Human(env.tn.aclOwner.ID), page.ID, held.Lock.ID)
 			return err
 		}},
 		{"edit_lock_take_over", func(t *testing.T, env *docStorageEnv) error {
@@ -595,28 +587,24 @@ func TestShelvedWriteBlockAllowed(t *testing.T) {
 	})
 
 	t.Run("releasing an edit lock stays allowed", func(t *testing.T) {
-		// UNI-1645 phase 2 (ar merge1): acquire/refuse is the write block's
-		// business, but releasing only frees the document, so a shelved item
-		// keeps the release path - the holder can drop the tenure the shelve
-		// left behind (S-4 is still an open TODO: a shelve does not release).
+		// S-4 ends the tenure in the shelve transaction (document_shelved).
+		// R4 stays allowed as an idempotent no-op so a client that still
+		// holds the id does not get document_shelved.
 		lockPage := pageDoc(t, env)
 		held := takeEditLock(t, env, env.tn.aclOwner, lockPage.ID, "e-release", DocumentEditClientWebPage, "sid-release")
 		shelve(t, env, lockPage.ID)
 		if err := env.svc.ReleaseDocumentEditLock(env.f.ctx, mgr, lockPage.ID, held.Lock.ID); err != nil {
 			t.Fatalf("release on a shelved page: %v", err)
 		}
-		// BE-AR-2: the row observes the effect, not just a nil answer - a
-		// release that silently acknowledged the lock without ending the
-		// tenure would leave the editor locked out and still pass otherwise.
 		tenure, err := env.f.q.GetDocumentEditLock(env.f.ctx, db.GetDocumentEditLockParams{
 			ID: held.Lock.ID, OrganizationID: lockPage.OrganizationID, DocumentID: lockPage.ID,
 		})
 		if err != nil {
 			t.Fatalf("reload the tenure after release: %v", err)
 		}
-		if !tenure.EndedAt.Valid || tenure.EndReason.String != DocumentEditEndReleased {
+		if !tenure.EndedAt.Valid || tenure.EndReason.String != DocumentEditEndDocumentShelved {
 			t.Fatalf("tenure after release on a shelved page = ended %v reason %q, want ended with %q",
-				tenure.EndedAt.Valid, tenure.EndReason.String, DocumentEditEndReleased)
+				tenure.EndedAt.Valid, tenure.EndReason.String, DocumentEditEndDocumentShelved)
 		}
 	})
 }
