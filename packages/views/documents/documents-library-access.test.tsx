@@ -17,6 +17,9 @@ afterAll(async () => {
   await setLocale("en");
 });
 
+const SCOPE_PRIVATE = { users: 0, home_workspace: false, workspaces: 0, organization: false, public_link: false };
+const SCOPE_HOME = { ...SCOPE_PRIVATE, home_workspace: true };
+
 function item(id: string, title: string, over: Partial<DocumentSummaryRow> = {}): DocumentSummaryRow {
   return {
     id,
@@ -70,14 +73,14 @@ function renderList(rows: LibraryRow[]) {
 describe("library table access column", () => {
   it("shows the visibility and the viewer's level per row, with — where the row carries nothing", () => {
     renderList([
-      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted" })),
-      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace" })),
+      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted", share_scope: SCOPE_PRIVATE })),
+      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace", share_scope: SCOPE_HOME })),
       documentRow(item("c", "C.docx", { my_level: undefined, visibility: "weird" as DocumentSummaryRow["visibility"] })),
     ]);
     expect(screen.getByRole("columnheader", { name: t("documents.home.columns.access") })).toBeTruthy();
     const rowA = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    // The label shows twice: "Hạn chế" in the column (wide list) and on the secondary line (narrower list).
-    expect(within(rowA).getAllByText("Hạn chế")).toHaveLength(2);
+    // The label shows twice: "Riêng tư" in the column (wide list) and on the secondary line (narrower list).
+    expect(within(rowA).getAllByText("Riêng tư")).toHaveLength(2);
     expect(within(rowA).getByText("Bạn: Quản lý")).toBeTruthy();
     const rowB = document.querySelector('[data-library-row="b"]') as HTMLElement;
     expect(within(rowB).getByText("Bạn: Chỉ xem")).toBeTruthy();
@@ -109,8 +112,8 @@ describe("library table access column", () => {
 
   it("carries the level and the restricted lock on the row's secondary line while the main area is narrow", () => {
     renderList([
-      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted" })),
-      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace" })),
+      documentRow(item("a", "A.docx", { my_level: "manage", visibility: "restricted", share_scope: SCOPE_PRIVATE })),
+      documentRow(item("b", "B.docx", { my_level: "view", visibility: "workspace", share_scope: SCOPE_HOME })),
       documentRow(item("c", "C.docx", { my_level: undefined, visibility: undefined })),
     ]);
     const line = (id: string) => {
@@ -119,14 +122,14 @@ describe("library table access column", () => {
     };
     const lineA = line("a")!;
     expect(lineA.textContent).toContain("Quản lý");
-    expect(lineA.textContent).toContain("Hạn chế");
+    expect(lineA.textContent).toContain("Riêng tư");
     expect(lineA.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     // A workspace row gets its level only, no lock and no "Workspace" noise.
     expect(line("b")!.textContent).toContain("Chỉ xem");
     expect(line("b")!.querySelector("svg")).toBeNull();
     expect(line("b")!.textContent).not.toContain("Workspace");
     // Unknown/missing level and visibility show nothing in the line.
-    expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Bình luận|Hạn chế/);
+    expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Bình luận|Riêng tư|Hạn chế/);
   });
 });
 
