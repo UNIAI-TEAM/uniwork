@@ -311,6 +311,7 @@ export function ShareAddSection({
       setSelected([]);
       setQuery("");
       setCustomMode(false);
+      previewClosedByButtons.current = true;
       setPendingPreview(null);
     } catch (err) {
       handleMutationError(err, items);
@@ -522,7 +523,7 @@ export function ShareAddSection({
             ))}
           </ul>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => { previewClosedByButtons.current = true; void executeCommit(pendingPreview.items); }}>
+            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => { void executeCommit(pendingPreview.items); }}>
               {t("documents.share.confirm_accept")}
             </Button>
             <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => { previewClosedByButtons.current = true; setPendingPreview(null); }}>

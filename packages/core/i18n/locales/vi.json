@@ -9078,7 +9078,7 @@
         "transfer_confirm": "Chuyển",
         "transferred": "Đã chuyển quyền sở hữu cho {{name}}",
         "target_not_member": "{{name}} chưa là thành viên của workspace này nên không thể làm chủ sở hữu.",
-        "self_transfer_error": "Quản trị viên không thể tự nhận quyền sở hữu tài liệu hạn chế. Hãy nhờ một quản trị viên khác chuyển, hoặc mở truy cập khẩn cấp để kiểm tra.",
+        "self_transfer_error": "Quản trị viên không thể tự nhận quyền sở hữu tài liệu riêng tư. Hãy nhờ một quản trị viên khác chuyển, hoặc mở truy cập khẩn cấp để kiểm tra.",
         "title_untitled": "Chuyển quyền sở hữu tài liệu",
         "search_placeholder": "Tìm thành viên của workspace",
         "no_candidates": "Không có thành viên nào khác nhận được tài liệu này.",

@@ -9083,7 +9083,7 @@
         "transfer_confirm": "Transfer",
         "transferred": "Ownership transferred to {{name}}",
         "target_not_member": "{{name}} isn't a member of this workspace, so they can't own this document.",
-        "self_transfer_error": "Admins can't take ownership of a restricted document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
+        "self_transfer_error": "Admins can't take ownership of a private document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
         "title_untitled": "Transfer document ownership",
         "search_placeholder": "Search workspace members",
         "no_candidates": "No other member can take this document.",

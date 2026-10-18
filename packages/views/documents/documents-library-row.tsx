@@ -159,7 +159,7 @@ export function LibraryRowView({
   // SW-V4: the narrow badge is not focusable inside the name button, so the
   // scope composition reaches the keyboard through the button's description
   // (the badge's hidden span via scopeDescId) and the ⋯ menu label.
-  const scopeInfo = scope ? shareScopeView(scope, t, resolvedWorkspaceName) : null;
+  const scopeInfo = showNarrowScope && scope ? shareScopeView(scope, t, resolvedWorkspaceName) : null;
   const starred = Boolean(doc && handlers.isStarred(doc.id));
   const metaTail = [updated, size].filter(Boolean).join(" · ");
 

@@ -7,6 +7,8 @@ import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row
 import { libraryLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
 import { favoriteRow } from "./starred-rows";
+import type { User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
 
 // TRASH-01 Area 2 (UNI-1841): the documents table takes the board's six columns
 // (Tên · Truy cập · Người sửa gần nhất · Cập nhật · Dung lượng · Thao tác) at
@@ -225,6 +227,33 @@ describe("shared by me scope line (SW-V2, SW-V4)", () => {
     await openMenu("a", "Kế hoạch Q4");
     const menu = await screen.findByRole("menu");
     expect(within(menu).queryByText(/người/)).toBeNull();
+  });
+
+  it("builds no scope composition for a plain home-workspace row off Shared by me, even with a resolved workspace name", async () => {
+    const workspace: Workspace = { id: "ws1", slug: "team", name: "Đội", organization_id: "org1", organization_slug: "acme", organization_name: "Acme" };
+    const sessionUser: User = {
+      id: "u1",
+      email: "an@acme.vn",
+      display_name: "An",
+      onboarded_at: "2026-08-25T00:00:00Z",
+      email_verified_at: "2026-08-25T00:00:00Z",
+      onboarding_questionnaire: {},
+      locale: "vi",
+    };
+    render(
+      <WorkspaceProvider workspace={workspace} user={sessionUser}>
+        <table>
+          <tbody>
+            <LibraryRowView row={documentRow(doc("a", "A.docx", { share_scope: SCOPE_HOME }))} handlers={handlers} ladder={libraryLadder()} />
+          </tbody>
+        </table>
+      </WorkspaceProvider>,
+    );
+    const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
+    expect(within(row).getAllByRole("button")[0]!.getAttribute("aria-describedby")).toBeNull();
+    await openMenu("a", "A.docx");
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByText(/Workspace|Đội/)).toBeNull();
   });
 });
 
