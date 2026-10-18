@@ -1,0 +1,29 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; gofmt -l internal; go vet ./internal/service ./internal/handler/... ./internal/featureflags && AI_PROVIDER=fake go test ./internal/service -run "OfficeCapability|OfficeFrame|DocumentSource|Commit|AIUniwork|Txt|Office" -count=1 -timeout 40m -v > /tmp/svc.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)" /tmp/svc.log | tail -20; grep -cE "^\s*--- PASS" /tmp/svc.log; grep -E "^\s*--- (PASS|FAIL): (TestDocumentOfficeCapabilityForTxtAndPlainText|TestOfficeFrameModuleIsDerivedFromTheStoredFormat|TestDocumentSourceTxtOpenGateAndPlainTextNarrowing)" /tmp/svc.log; echo; echo "TEST_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+    --- SKIP: TestDocumentOfficeQ7/minio (0.00s)
+    --- SKIP: TestDocumentOfficeEngineRollback/minio (0.00s)
+--- SKIP: TestDocumentOfficeUpgradeReplay (0.00s)
+    --- SKIP: TestDocumentOfficeJob/completes,_verifies_the_output_through_FileService,_and_commits_once (0.00s)
+    --- SKIP: TestDocumentOfficeJob/retry_of_the_same_key_reads_the_job_or_replays_its_output,_never_a_second_job (0.00s)
+    --- SKIP: TestDocumentOfficeJob/a_second_key_for_the_same_live_work_is_in_flight (0.00s)
+    --- SKIP: TestDocumentOfficeJob/process_kill:_a_worker_that_dies_settles_failed_engine_crashed (0.00s)
+    --- SKIP: TestDocumentOfficeJob/timeout:_the_engine_deadline_settles_timed_out (0.00s)
+    --- SKIP: TestDocumentOfficeJob/cancel_of_a_running_job_wins_and_forbids_a_late_commit (0.00s)
+    --- SKIP: TestDocumentOfficeJob/cancel/complete_race:_exactly_one_outcome,_and_commit_only_if_completed (0.00s)
+    --- SKIP: TestDocumentOfficeJob/late_response:_an_engine_answer_after_Go_settled_the_job_changes_nothing (0.00s)
+    --- SKIP: TestDocumentOfficeJob/Go-side_deadline:_a_job_the_engine_still_runs_is_cancelled_and_timed_out (0.00s)
+    --- SKIP: TestDocumentOfficeJob/grant_bindings_are_enforced_by_the_real_engine (0.00s)
+    --- SKIP: TestDocumentOfficeJob/authorization_and_base_checks_run_before_any_row_or_output_exists (0.00s)
+    --- SKIP: TestDocumentOfficeJob/restart:_a_job_the_engine_lost_mid-run_settles_failed_engine_lost_job (0.00s)
+    --- SKIP: TestDocumentOfficeJob/restart:_output_written_before_the_crash_reconciles_to_completed (0.00s)
+--- SKIP: TestDocumentOfficeJobRedispatchAfterEngineDown (0.00s)
+    --- SKIP: TestDocumentOfficeViewerOpen/minio (0.00s)
+--- SKIP: TestDocumentOfficeXlsxIntegration (0.00s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	52.201s
+715
+--- PASS: TestDocumentOfficeCapabilityForTxtAndPlainText (0.40s)
+--- PASS: TestDocumentSourceTxtOpenGateAndPlainTextNarrowing (0.34s)
+--- PASS: TestOfficeFrameModuleIsDerivedFromTheStoredFormat (0.00s)
+
+TEST_SVC_EXIT=0
