@@ -129,8 +129,9 @@ func (s *DocumentService) editLockMutation(
 
 // editLockMutationOnShelved is editLockMutation with the §3 stance for a lock
 // command allowed on a shelved document: releasing a tenure only frees the
-// document, so the release path stays open on a shelved item (the holder can
-// drop the tenure a shelve left live, S-4).
+// document, so the release path stays open on a shelved item (belt: the shelve
+// itself releases every stamped tenure, S-4; this path stays open so an
+// explicit release is never refused on a shelved item).
 func (s *DocumentService) editLockMutationOnShelved(
 	ctx context.Context, actor Actor, documentID string, required DocumentLevel,
 	fn func(q *db.Queries, doc db.Document, access DocumentAccess, now time.Time, ops *editLockOps) error,

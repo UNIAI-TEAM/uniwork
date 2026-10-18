@@ -383,6 +383,20 @@ func TestShelveReleasesEditLock(t *testing.T) {
 		}
 	})
 
+	t.Run("holder heartbeat on live tenure with shelved row hits requireNotShelved belt", func(t *testing.T) {
+		w := newLockWorld(t)
+		d := w.page(t)
+		held := w.acquire(t, w.tn.member, d.ID, "e")
+		w.exec(t, `UPDATE documents SET shelved_at = now(), shelved_by = $2, shelved_by_kind = 'human', shelve_batch_id = $3 WHERE id = $1`,
+			d.ID, w.tn.aclOwner.ID, util.NewID())
+		_, err := w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), d.ID, held.Lock.ID)
+		wantCode(t, err, "document_shelved")
+		w.wantLive(t, held.Lock.ID)
+		if got := w.lockRow(t, held.Lock.ID); !got.ExpiresAt.Time.Equal(held.Lock.ExpiresAt.Time) {
+			t.Fatalf("expires_at %v, want unchanged %v", got.ExpiresAt.Time, held.Lock.ExpiresAt.Time)
+		}
+	})
+
 	t.Run("unshelve does not restore the tenure", func(t *testing.T) {
 		w := newLockWorld(t)
 		d := w.page(t)
