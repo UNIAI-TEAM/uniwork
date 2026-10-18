@@ -88,15 +88,17 @@ export function useOfficeWebFlagEnabled(flag: string, organizationId: string | u
  * Whether a .txt opens in the genoffice Markdown frame in plain mode
  * (`office_txt_open`, UNI-1813). The opposite default from the module flags:
  * the server default is off, so an absent key in the organization's answer
- * reads off, and so do a pending and a failed read — the document keeps its
- * download card until a settled answer from its own organization says on.
- * This never reads "on": the capability is on only where the document's
- * organization turned it on.
+ * reads `off`. The state shape matches `useOfficeEnabled` so a caller can
+ * tell a pending read (`loading`, never yet "off") from a settled one: only a
+ * settled `on` opens, and only a settled `off` may be described as "turned
+ * off". `on` never comes from the host's global default: the capability is on
+ * only where the document's organization turned it on (a document with no
+ * organization reads the global flag, off by default).
  */
-export function useOfficeTxtOpenEnabled(organizationId: string | undefined): boolean {
+export function useOfficeTxtOpenEnabled(organizationId: string | undefined): OfficeEnabledState {
   const global = useFlag(OFFICE_TXT_OPEN_FLAG, false);
   const scoped = useOrganizationOfficeConfig(organizationId);
-  if (!organizationId) return global;
-  if (scoped.data) return scoped.data.flags[OFFICE_TXT_OPEN_FLAG] === true;
-  return false;
+  if (!organizationId) return global ? "on" : "off";
+  if (scoped.data) return scoped.data.flags[OFFICE_TXT_OPEN_FLAG] === true ? "on" : "off";
+  return scoped.isError ? "unknown" : "loading";
 }

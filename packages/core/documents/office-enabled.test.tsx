@@ -183,14 +183,14 @@ describe("useOfficeTxtOpenEnabled", () => {
     };
   }
 
-  it("reads false until the organization's answer arrives, then true only when it sets the key on", async () => {
+  it("reads loading until the organization's answer arrives, then on only when it sets the key on", async () => {
     const { wrapper } = setup();
     const pending = deferred<Response>();
     vi.mocked(fetch).mockReturnValueOnce(pending.promise);
     const { result } = renderHook(() => useOfficeTxtOpenEnabled("org1"), { wrapper });
-    expect(result.current).toBe(false);
+    expect(result.current).toBe("loading");
     pending.resolve(answer({ office_engine: true, office_txt_open: true }));
-    await waitFor(() => expect(result.current).toBe(true));
+    await waitFor(() => expect(result.current).toBe("on"));
   });
 
   it("reads the organization answer, not the global flag: global off + answer on opens, global on + answer off closes", async () => {
@@ -198,37 +198,37 @@ describe("useOfficeTxtOpenEnabled", () => {
     const { wrapper } = setup();
     vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true, office_txt_open: true }));
     const { result: on } = renderHook(() => useOfficeTxtOpenEnabled("org1"), { wrapper });
-    await waitFor(() => expect(on.current).toBe(true));
+    await waitFor(() => expect(on.current).toBe("on"));
 
     // Global on; the organization's answer says off and still wins.
     vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true, office_txt_open: false }));
     const { result: off } = renderHook(() => useOfficeTxtOpenEnabled("org2"), { wrapper: setupWithGlobalFlag(true) });
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-    expect(off.current).toBe(false);
+    await waitFor(() => expect(off.current).toBe("off"));
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("reads false when the settled answer lacks the key, and false while the read is failing", async () => {
+  it("reads off when the settled answer lacks the key, and unknown while the read is failing", async () => {
     const { wrapper } = setup();
     vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true }));
     const { result: absent } = renderHook(() => useOfficeTxtOpenEnabled("org1"), { wrapper });
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
-    expect(absent.current).toBe(false);
+    await waitFor(() => expect(absent.current).toBe("off"));
+    expect(fetch).toHaveBeenCalledTimes(1);
 
     const failing = setup();
     vi.mocked(fetch).mockImplementation(async () => json({ error: "boom" }, 500));
     const { result: failed } = renderHook(() => useOfficeTxtOpenEnabled("org2"), { wrapper: failing.wrapper });
-    await waitFor(() => expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThanOrEqual(2), SETTLE);
-    expect(failed.current).toBe(false);
+    await waitFor(() => expect(failed.current).toBe("unknown"), SETTLE);
+    expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it("reads the host's global flag (default off) for a document without an organization", () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useOfficeTxtOpenEnabled(undefined), { wrapper });
-    expect(result.current).toBe(false);
+    expect(result.current).toBe("off");
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
 
     const { result: on } = renderHook(() => useOfficeTxtOpenEnabled(""), { wrapper: setupWithGlobalFlag(true) });
-    expect(on.current).toBe(true);
+    expect(on.current).toBe("on");
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 });

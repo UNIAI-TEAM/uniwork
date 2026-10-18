@@ -315,6 +315,39 @@ describe("DocumentFileView", () => {
         expect(await screen.findByText(t("documents.file.office_off_title", { format: "PDF" }))).toBeInTheDocument();
         expect(screen.queryByTestId("office-host")).toBeNull();
       });
+
+      it("closes a live .txt editor through the leave guards when office_txt_open settles off (UNI-1813)", async () => {
+        const qc = testClient();
+        orgConfig({ office_engine: true, office_txt_open: true });
+        const txt = fileDocument({
+          organization_id: "org1",
+          file: { file_id: "f1", version_id: "v2", version: 2, filename: "ghi-chu.txt", mime_type: "text/plain", size_bytes: 128, checksum_sha256: "b".repeat(64) },
+        });
+        const officeHost = () => <div data-testid="office-host">Office host</div>;
+        render(
+          <QueryClientProvider client={qc}>
+            <LocaleAdapterProvider adapter={localeAdapter}>
+              <DocumentFileView wsId={WS} doc={txt} readonly={false} officeEditorHost={officeHost} />
+            </LocaleAdapterProvider>
+          </QueryClientProvider>,
+        );
+        expect(await screen.findByTestId("office-host")).toBeInTheDocument();
+
+        // A dirty editor refuses the first time (the reader cancels the leave dialog):
+        // the .txt editor stays mounted, it is not unmounted by the format answer itself.
+        const guard = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+        const release = registerLeaveGuard(guard);
+        orgConfig({ office_engine: true, office_txt_open: false });
+        await refetch(qc);
+        await waitFor(() => expect(guard).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId("office-host")).toBeInTheDocument();
+        release();
+
+        // With nothing left to protect, the next settled off answer closes it onto the card.
+        await refetch(qc);
+        expect(await screen.findByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+        expect(screen.queryByTestId("office-host")).toBeNull();
+      });
     });
   });
 
@@ -504,14 +537,16 @@ describe("DocumentFileView", () => {
       expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
     });
 
-    it("keeps the download card when the organization's answer turns the flag off, even with the global flag on", async () => {
+    it("goes straight to the card for a .txt that never opened: settled off means the no-web-editor notice", async () => {
       featureFlagMock.useFlag.mockReturnValue(true);
       orgConfig({ office_engine: true, office_txt_open: false });
       const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
       render(wrap(<DocumentFileView wsId={WS} doc={txtDocument()} readonly={false} officeEditorHost={officeHost} />));
 
       expect(await screen.findByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
-      expect(screen.getByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+      // findByText waits for the settled off answer: checking first, then the card.
+      expect(await screen.findByText(t("documents.file.no_web_editor_title"))).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.file.office_checking", { format: "Markdown" }))).toBeNull();
       expect(screen.queryByTestId("office-host")).toBeNull();
       expect(officeHost).not.toHaveBeenCalled();
     });

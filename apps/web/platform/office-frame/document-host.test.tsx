@@ -62,8 +62,8 @@ afterEach(async () => {
   container.remove();
 });
 
-const mount = (document: Document) => act(async () => {
-  root.render(createElement(QueryProvider, null, createElement(DocumentOfficeEditorHost, { document, wsId: "ws-1", readonly: true })));
+const mount = (document: Document, extra?: Record<string, unknown>) => act(async () => {
+  root.render(createElement(QueryProvider, null, createElement(DocumentOfficeEditorHost, { document, wsId: "ws-1", readonly: true, ...extra })));
 });
 
 describe("DocumentOfficeEditorHost", () => {
@@ -115,6 +115,16 @@ describe("DocumentOfficeEditorHost", () => {
     await mount(doc("ghi-chu.txt", "text/plain"));
     expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
     expect(mocks.hostProps).not.toHaveBeenCalled();
+  });
+
+  it("trusts the page's resolved officeFormat over its own flag read (UNI-1813)", async () => {
+    // While the leave guards hold a .txt editor open, office_txt_open can
+    // settle off; the gate's format keeps the markdown module instead of the
+    // typed unsupported state, which would unmount the frame and its draft.
+    answerConfig({ office_txt_open: false });
+    await mount(doc("ghi-chu.txt", "text/plain"), { officeFormat: "md" });
+    await settle();
+    expect(mocks.hostProps).toHaveBeenCalledWith(expect.objectContaining({ module: "markdown" }));
   });
 
   it.each(["notes.csv", "app.log", "no-extension"])("never gives %s a module, text/plain or not, flag on or off", async (filename) => {

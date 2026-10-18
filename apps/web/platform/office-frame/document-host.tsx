@@ -61,7 +61,10 @@ function UnsupportedHost({ format, title }: { format: string; title: string }) {
 
 export function DocumentOfficeEditorHost(props: OfficeEditorHostProps) {
   useOfficeTabTitle(props.document.title);
-  const format = detectDocumentFormat(props.document, useOfficeTxtOpenEnabled(props.document.organization_id));
+  // The page's gate passes its resolved format so a .txt editor held open by
+  // the leave guards keeps the markdown module even after office_txt_open has
+  // settled off; a host mounted without a gate detects from the live answer.
+  const format = props.officeFormat ?? detectDocumentFormat(props.document, useOfficeTxtOpenEnabled(props.document.organization_id) === "on");
   const officeModule = officeModuleForFormat(format);
   if (officeModule) return <OfficeModuleHost {...props} module={officeModule} />;
   return <UnsupportedHost format={format === "unknown" ? props.document.file?.filename ?? "unknown" : format} title={props.document.title} />;
