@@ -1,0 +1,11 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; gofmt -l internal pkg; go vet ./internal/service ./internal/handler/... && AI_PROVIDER=fake go test ./internal/service -run "Purge|BreakGlass|TenantExport|PrivacyExport|EditLock|AuditCoverage|Archive|Restore|Trash|Lifecycle|AccessReport|AdminScope" -count=1 -timeout 45m -v > /tmp/svc.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)" /tmp/svc.log | tail -20; grep -cE "^\s*--- PASS" /tmp/svc.log; grep -E "^\s*--- (PASS|FAIL): TestDocumentManualPurge/PG-5" /tmp/svc.log; echo; echo "TEST_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- SKIP: TestAccessReportExplain1000Docs (0.00s)
+--- SKIP: TestFD04ArchiveImpactEvidence (0.00s)
+    --- SKIP: TestDocumentCopyPristineArchive/minio (0.00s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	36.910s
+296
+    --- PASS: TestDocumentManualPurge/PG-5:_purge_deletes_the_document's_break-glass_grants_and_they_leave_the_tenant_export (0.03s)
+
+TEST_SVC_EXIT=0

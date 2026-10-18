@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+fc691eb1cd46a2eb5528ae025dac7f0088369c79
+95ad7e118b415cee5e437df9abc02e6431f43d78
+fc691eb1c chore: merge the G5-G7 root (95ad7e118) into RETENTION-01
+aa4a33ed8 docs(documents): close the purge-retention classification and mark w1 (UNI-1904)
+c92ab75f2 fix(documents): purge deletes the document's break-glass grants (UNI-1904)
+0f5a39ff7 docs(documents): classify the rows a purge leaves behind (UNI-1904)
+95ad7e118 docs(office): say the frame rewrite ids are matched case-insensitively (UNI-1912)
+96516dfc4 chore: merge RFAO-1 (UNI-1912 follow-up, 42b38521b) into the G5-G7 root
