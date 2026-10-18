@@ -7493,6 +7493,24 @@
           "label": "Nhật ký hoạt động",
           "description": "Theo dõi người thực hiện, thay đổi và mã truy vết.",
           "availability": "Đã có nhật ký audit chỉ ghi thêm và truy vết sự kiện. Quyền xem phụ thuộc phạm vi truy cập."
+        },
+        "dashboard": {
+          "label": "Bảng điều khiển"
+        },
+        "tasks": {
+          "label": "Công việc"
+        },
+        "today": {
+          "label": "Hôm nay"
+        },
+        "meetings": {
+          "label": "Họp trực tuyến"
+        },
+        "chat": {
+          "label": "Trao đổi"
+        },
+        "email": {
+          "label": "Email Hub"
         }
       }
     },

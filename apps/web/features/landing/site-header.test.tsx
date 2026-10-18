@@ -2,6 +2,10 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
+import { getI18n } from "react-i18next";
+import viMessages from "@uniwork/core/i18n/locales/vi.json";
+import enMessages from "@uniwork/core/i18n/locales/en.json";
+import { loadMarketingDictionary } from "../../platform/marketing-dictionary";
 import { QueryProvider } from "@uniwork/core/provider";
 
 // The transport is the only mock: the header reads the session, the workspace list and the public config through it.
@@ -128,6 +132,25 @@ describe("the landing header's Apps menu", () => {
     document.addEventListener("click", (event) => event.preventDefault(), { once: true });
     await act(async () => { apps?.querySelector<HTMLAnchorElement>("a[href='/apps/office']")?.click(); });
     expect(container.querySelector("#landing-mobile-menu")).toBeNull();
+  });
+
+  // A lean page ships only part of the dictionary, in both languages, so a missing key shows raw.
+  it.each(["/security", "/apps/unichat"])("labels every directory link on the lean page %s", async (path) => {
+    const i18n = getI18n();
+    const swap = (vi: object, en: object) => {
+      for (const [lng, dict] of [["vi", vi], ["en", en]] as const) { i18n.removeResourceBundle(lng, "translation"); i18n.addResourceBundle(lng, "translation", dict); }
+    };
+    swap(await loadMarketingDictionary("vi", path), await loadMarketingDictionary("en", path));
+    try {
+      await render();
+      for (const index of [0, 1, 2, 3]) {
+        await act(async () => { toggleButtons()[index]?.click(); });
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+        expect(container.querySelector(".header-directory")?.textContent).not.toMatch(/landing\.|changelog\.|marketingSeo\./);
+      }
+    } finally {
+      swap(viMessages, enMessages);
+    }
   });
 
   it("is labelled Apps in English", async () => {
