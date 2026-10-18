@@ -162,6 +162,23 @@ export function evaluateRowObserved(rowOrEntry, raw) {
   return { ...formatVerdict, verdicts: { versionAndSave: versionVerdict, capabilitySurface: capVerdict, format: formatVerdict } };
 }
 
+// Index of the top-level Markdown block (blank-line separated, a fenced code block is one block)
+// that holds `text`, or -1. The pinned apply_ops addresses blocks, not source lines.
+function markdownBlockIndexContaining(bytes, text) {
+  let index = -1;
+  let inBlock = false;
+  let fence = false;
+  for (const line of Buffer.from(bytes).toString('utf8').split('\n')) {
+    if (line.startsWith('```')) fence = !fence;
+    if (line.trim() === '' && !fence) { inBlock = false; continue; }
+    if (!inBlock) { index += 1; inBlock = true; }
+    if (line.includes(text)) return index;
+  }
+  return -1;
+}
+
+const toolCall = (rowId, name, args) => ({ toolCalls: [{ id: `call_${rowId}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
+
 /** Scripted model for `--dry-run` via `startStubFacade`: derives replies/edits from fixture truth. */
 export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
   const rowId = rowOrEntry?.rowId ?? rowOrEntry?.id;
@@ -177,6 +194,19 @@ export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
       if (rowId === 'D-E1') {
         const html = '<p>Báo cáo quý 1 ghi nhận tổng doanh thu 22.060.000 đồng, dẫn đầu là khu vực Bắc (9.060.000 đồng).</p>';
         return { toolCalls: [{ id: 'call_de1', type: 'function', function: { name: 'replace_blocks', arguments: JSON.stringify({ startBlockIndex: 2, endBlockIndex: 2, html }) } }] };
+      }
+      // w2l: the pinned executors reject empty arguments (markdown "ops must be a non-empty array", html
+      // apply_ops requires ops, pdf edit_text requires page/old_text/new_text), so these edit rows get a real payload.
+      if (rowId === 'M-E1') {
+        const find = 'Tổng doanh thu quý 1 là 22.060.000 đồng, tính cả các dòng bị ẩn.';
+        const start = markdownBlockIndexContaining(fixtureBytes, find);
+        if (start >= 0) return toolCall(rowId, 'apply_ops', { ops: [{ op: 'replaceText', target: { start }, find, replace: 'Tổng doanh thu quý 1 đạt 22.060.000 đồng (đã gồm đơn hàng ẩn).' }] });
+      }
+      if (rowId === 'H-E1') {
+        return toolCall(rowId, 'apply_ops', { ops: [{ op: 'str_replace', old: 'Dữ liệu mẫu để kiểm thử. Tổng đã gồm các đơn hàng bị ẩn trong bảng tính.', new: 'Dữ liệu mẫu kiểm thử đã xác nhận, bao gồm các đơn hàng ẩn.' }] });
+      }
+      if (rowId === 'F-E1' && rowOrEntry?.target) {
+        return toolCall(rowId, 'edit_text', { page: rowOrEntry.target.page, old_text: rowOrEntry.target.targetText, new_text: rowOrEntry.target.expectedPatchText });
       }
       const primary = rowOrEntry?.primaryTools?.[0] ?? rowOrEntry?.expectedTools?.[0];
       if (primary) return { toolCalls: [{ id: `call_${rowId}`, type: 'function', function: { name: primary, arguments: '{}' } }] };
