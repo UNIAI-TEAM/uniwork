@@ -233,7 +233,7 @@ export interface DocsFrameSession {
  * each cloud tool needs `ai` or `uniworkAi` plus its own grant. The frame then calls
  * the frame-token AI routes itself; a viewer keeps AI (it never saves).
  */
-export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false): Capabilities {
+export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false, copyRefused = readonly || !download): Capabilities {
   const spec = officeModuleSpec(module);
   const { saveCopy: _saveCopy, ...grant } = spec.grant;
   const on = (key: keyof Capabilities) => spec.grant[key] === true;
@@ -242,7 +242,7 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
   const uniworkAi = spec.ai === true && aiGrant?.uniwork_ai === true;
   // The cloud tools serve either AI, so an organization with only UniWork AI still gets the ones it is granted.
   const cloud = ai || uniworkAi;
-  const saveCopy = module === "docs" && on("saveCopy") && !readonly && download && Boolean(api.saveCopy);
+  const saveCopy = module === "docs" && on("saveCopy") && !copyRefused && download && Boolean(api.saveCopy);
   return {
     ...grant,
     save: on("save") && !readonly, saveAs: on("saveAs") && !readonly && Boolean(api.saveAs), recents: on("recents") && Boolean(api.recents), print: on("print"),
@@ -458,22 +458,21 @@ export function lockAwareSave<F extends (...args: never[]) => Promise<unknown>>(
 }
 
 /**
- * The frame's `api.saveCopy` (UNI-1872): a copy stays on the document it opened, so the minted
- * token's `can_edit` answers for it. The grant's own gate is `officeModuleCapabilities` — Docs
- * only, `readonly` false, `download` held — and the proxy still refuses `viewOnly` callers first,
- * so a source session can never reach this (view-only, SRC-02b).
+ * The frame's `api.saveCopy` (UNI-1872, UNI-1892): a copy stays on the document it opened, so the
+ * minted token's `can_edit` answers for it; refused only for source sessions (SRC-02b),
+ * `options.readonly`, or a viewer (`can_edit === false`), never merely because `lockedOut` is set.
  */
 export function saveCopyHandler(deps: {
   remote: FrameRemoteVersion;
-  latest: RefObject<{ options: DocsFrameSessionOptions; scopeId: string }>;
+  latest: RefObject<{ options: DocsFrameSessionOptions; scopeId: string; copyRefused: boolean }>;
   queryClient: QueryClient;
   run: NonNullable<ApiHandlers["api.saveCopy"]>;
 }): ApiHandlers["api.saveCopy"] {
   return async (payload, ctx) => {
     if (deps.remote.blocked) throw frameBlockError(deps.remote.blocked);
-    const { options: current, scopeId: doc } = deps.latest.current;
+    const { options: current, scopeId: doc, copyRefused } = deps.latest.current;
     const minted = deps.queryClient.getQueryData<OfficeFrameToken | null>(officeFrameKeys.token(current.wsId, doc));
-    if (minted?.can_edit === false) throw readOnly("api.saveCopy");
+    if (copyRefused || minted?.can_edit === false) throw readOnly("api.saveCopy");
     const result = await deps.run(payload, ctx);
     void deps.queryClient.invalidateQueries({ queryKey: documentKeys.listRoot(current.wsId) });
     return result;

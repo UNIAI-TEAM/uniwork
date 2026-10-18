@@ -59,6 +59,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const { shelved, shelvedRef, setShelved } = useShelvedFlag(scopeId);
   const lockedOut = editLock != null && !editLock.held;
   const viewOnly = isSource || options.readonly || tokenQuery.data?.can_edit === false || shelved || lockedOut;
+  const copyRefused = isSource || options.readonly || tokenQuery.data?.can_edit === false;
   const editLockId = editLock?.held ? editLock.lockId : undefined;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
   const [slow, setSlow] = useState(false);
@@ -75,8 +76,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const documentLimits = useDocumentLimits();
 
   // Latest values for callbacks that live as long as the endpoint.
-  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, documentLimits, isSource });
-  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, syncFeed, editLock, editLockId, documentLimits, isSource };
+  const latest = useRef({ options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource });
+  latest.current = { options, scopeId, token, refetch: tokenQuery.refetch, displayName, userId, viewOnly, copyRefused, syncFeed, editLock, editLockId, documentLimits, isSource };
   // Once the document is known to be shelved its refusals are already told (onShelved): no second toast.
   const reportError = useCallback((error: ProtocolErrorShape, fatal = false) => {
     if (shelvedRef.current && (error.code === "forbidden" || error.code === "conflict")) return;
@@ -171,14 +172,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     };
     const proxy = <K extends keyof ApiHandlers>(type: K, write: boolean, pick: (api: DocsFrameApi) => ((payload: never, call: never) => Promise<unknown>) | undefined) =>
       async (payload: FrameRequests[K]["payload"], { signal }: { signal: AbortSignal }) => {
-        const { options: current, scopeId: doc, viewOnly: refused, isSource: source, editLockId: lockId, documentLimits: limits } = latest.current;
-        if ((write || (source && type === "api.export")) && refused) { if (source) current.onSourceWriteRefused?.(type === "api.export" ? "export" : "write"); throw readOnly(type); }
+        const { options: current, scopeId: doc, viewOnly: refused, copyRefused: noCopy, isSource: source, editLockId: lockId, documentLimits: limits } = latest.current;
+        if ((write || (source && type === "api.export")) && (type === "api.saveCopy" ? noCopy : refused)) { if (source) current.onSourceWriteRefused?.(type === "api.export" ? "export" : "write"); throw readOnly(type); }
         const run = pick(current.api);
         if (!run) throw new DocsProtocolError({ code: "unsupported", message: `${type} is not available on the web yet` });
         const { token: frameToken } = await currentToken();
         const threshold = chunkedUploadThreshold(limits);
         try {
-          return (await run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal, ...(lockId ? { editLockId: lockId } : {}), ...(threshold !== null ? { chunkedUploadThresholdBytes: threshold } : {}) } as never)) as FrameRequests[K]["result"];
+          return (await run.call(current.api, payload as never, { workspaceId: current.wsId, documentId: doc, token: frameToken, signal, ...(lockId && type !== "api.saveCopy" ? { editLockId: lockId } : {}), ...(threshold !== null ? { chunkedUploadThresholdBytes: threshold } : {}) } as never)) as FrameRequests[K]["result"];
         } catch (error) {
           throw error instanceof DocsProtocolError ? error : docsFrameError(error);
         }
@@ -582,9 +583,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       });
   }, [frameOrigin, iframeRef]);
 
-  const tokenFailure = !token && (tokenQuery.isError || (tokenQuery.isSuccess && tokenQuery.data === null))
-    ? shapeOf(tokenQuery.error ?? unauthorized())
-    : null;
+  const tokenFailure = !token && (tokenQuery.isError || (tokenQuery.isSuccess && tokenQuery.data === null)) ? shapeOf(tokenQuery.error ?? unauthorized()) : null;
   const failure = fatal ?? tokenFailure;
   const refetchToken = tokenQuery.refetch;
   const retry = useCallback(() => {

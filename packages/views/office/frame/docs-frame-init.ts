@@ -37,10 +37,11 @@ export async function composeFrameInit(args: {
       details: { tokenModule: minted.module, expectedModule: module },
     });
   }
-  // Same rule as the hook's viewOnly, read from the token this init carries. A shelved document's
-  // token says can_edit=false for every module, Docs included.
+  // Same rule as the hook's viewOnly / copyRefused, read from the token this init carries. A shelved
+  // document's token says can_edit=false for every module, Docs included.
   const lockedOut = editLock != null && !editLock.held;
   const viewOnly = source || current.readonly || minted?.can_edit === false || args.shelved || lockedOut;
+  const copyRefused = source || current.readonly || minted?.can_edit !== true;
   // Draft recovery (CONTRACT C18): the session's key, again on every init so a reloaded
   // frame reads the drafts it wrote. A viewer has nothing unsaved to recover.
   const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
@@ -48,7 +49,7 @@ export async function composeFrameInit(args: {
     : null;
   const capabilities = source
     ? officeSourceCapabilities(module, current.api)
-    : officeModuleCapabilities(module, viewOnly, current.api, minted && "ai" in minted ? minted.ai : undefined, Boolean(current.onAppOpen), minted?.can_edit === true);
+    : officeModuleCapabilities(module, viewOnly, current.api, minted && "ai" in minted ? minted.ai : undefined, Boolean(current.onAppOpen), minted?.can_edit === true, copyRefused);
   const limits = toFrameLimits(args.limits);
   const downloadMaxBytes = frameDownloadMaxBytes(limits.max_bytes);
   const init: Omit<InitPayload, "protocolVersion"> = {

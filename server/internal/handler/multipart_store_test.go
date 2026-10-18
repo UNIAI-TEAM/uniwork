@@ -208,6 +208,20 @@ func (s *multipartTestStore) hasUpload(uploadID string) bool {
 	return ok && !up.done && !up.aborted
 }
 
+// openUploadCount reports how many multipart uploads the store still holds
+// open, so a test can prove a refused create never reached the storage.
+func (s *multipartTestStore) openUploadCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, up := range s.uploads {
+		if !up.done && !up.aborted {
+			n++
+		}
+	}
+	return n
+}
+
 func normalizePartETag(etag string) string {
 	return string(bytes.Trim([]byte(etag), `"`))
 }
