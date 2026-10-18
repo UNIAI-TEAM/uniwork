@@ -44,46 +44,101 @@ export const readHostState = (page, hostSelector) =>
   page.$eval(hostSelector, (el) => ({ dirty: el.hasAttribute('data-dirty'), saveState: el.getAttribute('data-save-state') }))
     .catch(() => ({ dirty: null, saveState: null }));
 
+// w2l: the module's own undo / redo ribbon controls. Every pinned module renders them as a
+// `qa-btn` named by its locale (docs/sheets `appUndo`, slides `ribbonUndo`, html/markdown/pdf
+// `undo`; pdf appends the shortcut, hence the prefix match). vi is the driver's locale, en the
+// frame default. The AI panel's version rollback (`ai-version-rollback`) restores a snapshot - it is
+// not the editor history - and is never driven here.
+export const NATIVE_UNDO_SELECTOR = 'button.qa-btn[aria-label^="Hoàn tác"], button.qa-btn[aria-label^="Undo"]';
+export const NATIVE_REDO_SELECTOR = 'button.qa-btn[aria-label^="Làm lại"], button.qa-btn[aria-label^="Redo"]';
+const NATIVE_SELECTORS = Object.freeze({ undo: NATIVE_UNDO_SELECTOR, redo: NATIVE_REDO_SELECTOR });
+// A canvas module walks its history until the control disables; the bound only stops a stuck control.
+const MAX_HISTORY_STEPS = 25;
+
+const nativeIo = Object.freeze({
+  readEditorText, readHostDirty, focusEditor, sleep,
+  async control(frame, which) {
+    const handle = await frame.$(NATIVE_SELECTORS[which]);
+    if (!handle) return { present: false, enabled: null };
+    return { present: true, enabled: await handle.isEnabled().catch(() => null) };
+  },
+  async click(frame, which) {
+    const handle = await frame.$(NATIVE_SELECTORS[which]);
+    await handle?.click({ timeout: 5_000 });
+  },
+  async shortcut(page, which) {
+    await page.keyboard.press(which === 'undo' ? 'Control+z' : 'Control+Shift+z');
+  },
+});
+
 /**
- * R2-5: undo the AI change, then redo it, through the frame. Undo clicks the AI panel's undo
- * control when it is there, else presses the editor's own shortcut; redo is the editor shortcut
- * (docs frame: the "redo" command, shift+mod+z / mod+y). What is returned is what the page then
- * showed, never what was clicked.
+ * R2-5 + w2l: undo the AI change with the editor's own undo, then redo it with the editor's own
+ * redo, and report each half on its own (`undoReverted`, `redoRestored`) so a FAIL names the one
+ * that failed. A control is the module's ribbon button when the frame shows one, else the editor
+ * shortcut on a text surface; a module with neither is the only case that is "missing". Text
+ * surfaces (docs / markdown / html) compare the editor text; canvas modules (sheets, slides, pdf)
+ * have none, so they walk their own history - undo until the control disables, redo the same count
+ * - and judge it by the controls' enabled state, with the host dirty flag kept as evidence. What is
+ * returned is what the page then showed, never what was clicked.
  */
-export async function driveUndoRedo({ page, frame, hostSelector, undoSelector, textBeforeTurn }) {
-  const textAfterEdit = await readEditorText(frame);
-  const dirtyAfterEdit = await readHostDirty(page, hostSelector);
-  const undoBtn = await frame.$(undoSelector);
+export async function driveUndoRedo({ page, frame, hostSelector, textBeforeTurn }, io = nativeIo) {
+  const textAfterEdit = await io.readEditorText(frame);
+  const dirtyAfterEdit = await io.readHostDirty(page, hostSelector);
   const editorFound = textAfterEdit !== null;
-  const undoControl = Boolean(undoBtn) || editorFound;
-  const redoControl = editorFound;
+  const ribbon = { undo: await io.control(frame, 'undo'), redo: await io.control(frame, 'redo') };
+  const via = (which) => (ribbon[which].present ? 'ribbon' : editorFound ? 'editor-shortcut' : null);
+  const undoVia = via('undo');
+  const redoVia = via('redo');
+  const nativeUndoEnabledAfterEdit = ribbon.undo.present ? ribbon.undo.enabled === true : null;
+  const undoControl = undoVia !== null;
+  const redoControl = redoVia !== null;
   if (!undoControl || !redoControl) {
-    return { ...buildUndoRedoObserved({ undoControl, redoControl }), dirtyAfterEdit };
+    return { ...buildUndoRedoObserved({ undoControl, redoControl }), dirtyAfterEdit, nativeUndoEnabledAfterEdit, undoVia, redoVia };
   }
 
-  if (undoBtn) await undoBtn.click();
-  else { await focusEditor(frame); await page.keyboard.press('Control+z'); }
-  await sleep(UNDO_SETTLE_MS);
-  const textAfterUndo = await readEditorText(frame);
-  const dirtyAfterUndo = await readHostDirty(page, hostSelector);
+  const step = async (which) => {
+    if (ribbon[which].present) {
+      const state = await io.control(frame, which);
+      if (state.enabled !== true) return false;
+      await io.click(frame, which);
+    } else {
+      await io.focusEditor(frame);
+      await io.shortcut(page, which);
+    }
+    await io.sleep(UNDO_SETTLE_MS);
+    return true;
+  };
+  const enabledNow = async (which) => (await io.control(frame, which)).enabled === true;
 
-  await focusEditor(frame);
-  await page.keyboard.press('Control+Shift+z');
-  await sleep(UNDO_SETTLE_MS);
-  const textAfterRedo = await readEditorText(frame);
-  const dirtyAfterRedo = await readHostDirty(page, hostSelector);
+  let undoSteps = 0;
+  let redoSteps = 0;
+  const limit = editorFound ? 1 : MAX_HISTORY_STEPS;
+  while (undoSteps < limit && await step('undo')) undoSteps += 1;
+  const textAfterUndo = await io.readEditorText(frame);
+  const dirtyAfterUndo = await io.readHostDirty(page, hostSelector);
+  const redoEnabledAfterUndo = ribbon.redo.present ? await enabledNow('redo') : null;
+  const undoEnabledAfterUndo = ribbon.undo.present ? await enabledNow('undo') : null;
+  while (redoSteps < undoSteps && await step('redo')) redoSteps += 1;
+  const textAfterRedo = await io.readEditorText(frame);
+  const dirtyAfterRedo = await io.readHostDirty(page, hostSelector);
+  const undoEnabledAfterRedo = ribbon.undo.present ? await enabledNow('undo') : null;
+  const redoEnabledAfterRedo = ribbon.redo.present ? await enabledNow('redo') : null;
 
+  const undoReverted = editorFound
+    ? undoSteps > 0 && textAfterUndo === textBeforeTurn
+    : undoSteps > 0 && undoEnabledAfterUndo === false && redoEnabledAfterUndo === true;
+  const redoRestored = editorFound
+    ? redoSteps > 0 && textAfterRedo === textAfterEdit
+    : undoSteps > 0 && redoSteps === undoSteps && redoEnabledAfterRedo === false && undoEnabledAfterRedo === true;
   return {
     ...buildUndoRedoObserved({
       contentChanged: editorFound ? textBeforeTurn !== null && textAfterEdit !== textBeforeTurn : null,
-      dirtyAfterEdit: dirtyAfterEdit === true,
-      undoReverted: editorFound ? textAfterUndo === textBeforeTurn : dirtyAfterUndo === false,
-      redoRestored: editorFound ? textAfterRedo === textAfterEdit : dirtyAfterRedo === true,
-      undoControl,
-      redoControl,
+      // A canvas AI turn is visible when it left the host dirty or an entry in the module's own history.
+      dirtyAfterEdit: dirtyAfterEdit === true || (!editorFound && nativeUndoEnabledAfterEdit === true),
+      undoReverted, redoRestored, undoControl, redoControl,
     }),
-    dirtyAfterEdit,
-    undoVia: undoBtn ? 'ai-panel-control' : 'editor-shortcut',
+    undoReverted, redoRestored, undoSteps, redoSteps, undoVia, redoVia,
+    dirtyAfterEdit, dirtyAfterUndo, dirtyAfterRedo, nativeUndoEnabledAfterEdit,
   };
 }
 
@@ -107,14 +162,18 @@ export async function runEditStage(ctx, io = realIo) {
   const api = { apiOrigin, fetchImpl, documentId, token };
 
   const undoRedo = await io.driveUndoRedo({
-    page, frame, hostSelector: sel.host, undoSelector: ctx.undoSelector, textBeforeTurn: ctx.textBeforeTurn,
+    page, frame, hostSelector: sel.host, textBeforeTurn: ctx.textBeforeTurn,
   });
   if (undoRedo.missingControl) {
-    return { stop: { missingSelector: undoRedo.missingControl === 'undo' ? ctx.undoSelector : 'redo control (editor surface for the redo shortcut)' } };
+    return { stop: { missingSelector: undoRedo.missingControl === 'undo' ? NATIVE_UNDO_SELECTOR : NATIVE_REDO_SELECTOR } };
+  }
+  if (!undoRedo.aiChangeVisibleBeforeSave) {
+    // The AI turn left no edit to undo: that is the turn's result, not a broken undo.
+    return { stop: failVerdict('ai_change_not_visible_before_save', { undoRedo }) };
   }
   if (!undoRedo.aiChangeUndoableBeforeSave) {
     // The change did not survive undo then redo; saving now would write the wrong document.
-    return { stop: failVerdict('ai_change_not_undoable_before_save', { undoRedo }) };
+    return { stop: failVerdict('ai_change_not_undoable_before_save', { failed: undoRedo.undoReverted === true ? 'redo' : 'undo', undoRedo }) };
   }
 
   const first = await io.webSave(page, { kind: row.module, timeoutMs });
@@ -166,7 +225,11 @@ export async function runEditStage(ctx, io = realIo) {
         bytesIdenticalAcrossSaves: headAfterFirst.sha256 === headAfterSave.sha256,
       },
       versionsAfterFirstSave: afterFirst.count,
-      undoRedo: { via: undoRedo.undoVia ?? null, visible: undoRedo.aiChangeVisibleBeforeSave, undoable: undoRedo.aiChangeUndoableBeforeSave },
+      undoRedo: {
+        via: undoRedo.undoVia ?? null, redoVia: undoRedo.redoVia ?? null,
+        visible: undoRedo.aiChangeVisibleBeforeSave, undoable: undoRedo.aiChangeUndoableBeforeSave,
+        undoReverted: undoRedo.undoReverted ?? null, redoRestored: undoRedo.redoRestored ?? null,
+      },
       oldVersion: old.version,
     },
   };

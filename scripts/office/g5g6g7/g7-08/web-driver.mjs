@@ -52,7 +52,6 @@ export const FRAME_AI_SELECTORS = Object.freeze({
   assistantAnswer: '.ai-msg-assistant .ai-msg-answer',
   stepTitle: '.ai-step-title',
   footprint: '.ai-result-chip, .ai-result-meta, .ai-work-group-summary, .ai-auto-applied-text, .ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions',
-  undoBtn: 'button.ai-rollback-btn, button.ai-undo-btn, button.ai-version-rollback',
   htmlPreviewFrame: 'iframe[sandbox], iframe.preview-frame',
 });
 
@@ -439,7 +438,7 @@ export async function runWebMatrixRow(runEntry, {
       }
 
       editStage = await runEditStage({
-        row, page: web.page, frame, sel, undoSelector: FRAME_AI_SELECTORS.undoBtn, apiOrigin, fetchImpl, documentId, token,
+        row, page: web.page, frame, sel, apiOrigin, fetchImpl, documentId, token,
         timeoutMs, textBeforeTurn, headAfterAiTurn, versionsAfterAiTurn, commitBases,
       });
       if (editStage.stop?.missingSelector) {
