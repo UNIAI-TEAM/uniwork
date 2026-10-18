@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1645c-el1b-desktop; git log --oneline -3
+091037a53933d88e5a30bc2f5583b35b29b84ee7
+091037a53933d88e5a30bc2f5583b35b29b84ee7
+091037a5 fix(shell): write last-account.json synchronously on session owner change
+0f82dcc8 test(shell): pin synchronous last-account.json write on account switch
+a3e60994 test(shell): exclude the EL-1(b) edit-lock acquire from open call counts

@@ -1,0 +1,1 @@
+$ npm run build:all >/tmp/build-all.log 2>&1; rc=$?; tail -15 /tmp/build-all.log; echo; echo "BUILD_ALL_EXIT=$rc"; exit $rc
