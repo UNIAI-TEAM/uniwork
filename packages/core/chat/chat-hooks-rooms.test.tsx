@@ -132,6 +132,16 @@ describe("room mute", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(muted()).toBe(false);
   });
+
+  it("useSetChatRoomMuted refreshes the switcher's unread summary once the server agrees", async () => {
+    const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    vi.spyOn(chatApi, "setChatRoomMuted").mockResolvedValue(true);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useSetChatRoomMuted("ws1"), { wrapper: wrapper(qc) });
+
+    await act(() => result.current.mutateAsync({ roomId: "a", muted: true }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.unreadSummary() });
+  });
 });
 
 describe("group avatar", () => {

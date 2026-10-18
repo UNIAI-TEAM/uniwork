@@ -121,6 +121,10 @@ export function useSetChatRoomMuted(workspaceId: string) {
     onError: (_err, _input, context) => {
       if (context?.previous) qc.setQueryData(key, context.previous);
     },
+    // The switcher's per-workspace pill leaves muted rooms out of its count.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.unreadSummary() });
+    },
   });
 }
 
