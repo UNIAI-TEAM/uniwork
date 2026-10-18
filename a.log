@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+6ee9e9e1c291df06d7a721fef35f881a2c44ab0a
+1c7760c5fb3110b1b99de831df3d2b472b74e058
+6ee9e9e1c fix(documents): keep the office_txt_open hook unconditional in the document host
+7416c56e7 fix(documents): say "checking" for a .txt while the organization answer is pending
+5574f691f fix(documents): close a live .txt editor through the leave guards when office_txt_open turns off
+348fdec9e fix(documents): read office_txt_open with the organization's answer (UNI-1813)
+aa82bc68f chore(merge): e6-server UN-02 9fe38389e (root 1c7760c5f) into UN-02 web
+9fe38389e Merge commit '1c7760c5f' into feature/UNI-1813-markdown-create-txt
+1828fecf4 test(documents): pin .txt recovery across restores and mixed history (UNI-1813)
+1c7760c5f chore: merge UX-FLOOR-LOCKBAR (UNI-1917, a06398dc6) into the G5-G7 root
+423932179 test(office): re-bless the G7-06 goldens at frame pin 0.1.0-5932073 (UNI-1813)
+fcd1c309d Merge commit 'cbc4d36d1' into feature/UNI-1813-markdown-create-txt
