@@ -132,6 +132,32 @@ describe('G7-08 W2 web-driver pure observation builders and preflight guards', (
     assert.match(fe1Blocked.reason, /ẩn công cụ sửa text khi pdfium không có/);
   });
 
+  it('w2l: the dry-run stub sends the edit rows with a fixture-valid payload, not apply_ops({})', () => {
+    const callOf = (rowId, bytes) => {
+      const call = buildDryRunStubModel(getRowById(rowId), bytes)({ state: { step: 0 } }).toolCalls[0].function;
+      return { name: call.name, args: JSON.parse(call.arguments) };
+    };
+    // M-E1: replaceText on the top-level block that holds the target sentence (the pinned executor
+    // rejects an empty ops array, MD "ops must be a non-empty array").
+    const md = callOf('M-E1', mdBytes);
+    assert.equal(md.name, 'apply_ops');
+    assert.equal(md.args.ops.length, 1);
+    const [mdOp] = md.args.ops;
+    assert.equal(mdOp.op, 'replaceText');
+    assert.equal(mdOp.replace, 'Tổng doanh thu quý 1 đạt 22.060.000 đồng (đã gồm đơn hàng ẩn).');
+    const mdBlocks = Buffer.from(mdBytes).toString('utf8').split('\n\n');
+    assert.ok(mdBlocks[mdOp.target.start].includes(mdOp.find), 'target.start is the block that holds the sentence');
+    assert.equal(mdBlocks[mdOp.target.start - 1], '## Tóm tắt', 'and it sits right under the heading');
+    // H-E1 and F-E1 had the same empty-arguments stub: str_replace of the note paragraph, edit_text of the invoice line.
+    const html = callOf('H-E1', htmlBytes);
+    assert.equal(html.name, 'apply_ops');
+    assert.equal(html.args.ops[0].op, 'str_replace');
+    assert.equal(Buffer.from(htmlBytes).toString('utf8').split(html.args.ops[0].old).length, 2, 'old matches exactly once');
+    assert.equal(html.args.ops[0].new, 'Dữ liệu mẫu kiểm thử đã xác nhận, bao gồm các đơn hàng ẩn.');
+    const pdf = callOf('F-E1', pdfBytes);
+    assert.deepEqual(pdf, { name: 'edit_text', args: { page: 1, old_text: 'Số hóa đơn: HD-2026-0001', new_text: 'Số hóa đơn: HD-2026-0001-AI' } });
+  });
+
   it('builds scripted dry-run replies and tool calls from fixture truth for all row families', async () => {
     for (const [rowId, bytes] of [
       ['X-R1', xlsxBytes],
