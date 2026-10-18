@@ -1,10 +1,12 @@
 // A thread (spec §2.3): its root, then the replies (listChatThreadMessages),
 // older pages chained from the oldest reply; replies go out with
 // sendChatThreadMessage, and opening it marks the thread read.
+import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { Conversation } from "@/components/chat/conversation";
@@ -14,10 +16,13 @@ import { useRoomContext } from "@/components/chat/use-room-context";
 import { markThreadRead } from "@/data/chat-actions";
 import { threadTimelineOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
+import { THEME } from "@/lib/theme";
 import { buildThreadViewMessages } from "@/lib/timeline-display";
+import { useColorScheme } from "@/lib/use-color-scheme";
 
 function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roomId: string; rootId: string }) {
   const { t } = useTranslation();
+  const { colorScheme } = useColorScheme();
   const room = useRoomContext(chat, roomId);
   const thread = useInfiniteQuery(threadTimelineOptions(chat.wsId, roomId, rootId));
   const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId)));
@@ -42,7 +47,17 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
       roomId={roomId}
       threadRootId={rootId}
       room={room}
-      header={<ChatHeader title={t("chat.thread_title")} subtitle={room.title} />}
+      header={
+        <ChatHeader
+          title={t("chat.thread_title")}
+          subtitle={room.title}
+          avatar={
+            <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-tint-blue">
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color={THEME[colorScheme].tintBlueForeground} />
+            </View>
+          }
+        />
+      }
       messages={messages}
       loading={thread.isPending}
       loadingOlder={thread.isFetchingNextPage}
