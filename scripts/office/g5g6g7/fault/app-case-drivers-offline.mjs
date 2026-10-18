@@ -37,6 +37,8 @@ const envMs = (name, fallback) => {
 export const OFFLINE_DOWNLOAD_TIMEOUT_MS = envMs("UNIWORK_FL_DOWNLOAD_TIMEOUT_MS", 180_000);
 /** How long a row may take to leave a faulted state (ms). */
 export const OFFLINE_STATE_TIMEOUT_MS = envMs("UNIWORK_FL_STATE_TIMEOUT_MS", 120_000);
+/** How long the sync center pane / its offline tab may take to show after the settings event (ms). */
+export const OFFLINE_PANE_TIMEOUT_MS = envMs("UNIWORK_FL_PANE_TIMEOUT_MS", 30_000);
 /** Poll interval of the snapshot reads (ms). */
 export const OFFLINE_POLL_MS = envMs("UNIWORK_FL_POLL_MS", 500);
 
@@ -481,24 +483,45 @@ export function tamperLibraryBlobs(dir, { documentIds = [], flip = 0x01 } = {}) 
 // ---- screenshots (S3 / S11) ------------------------------------------------------
 
 /**
+ * Sends the open-settings event until `shown(sliceMs)` stops throwing, or `timeoutMs` ran out
+ * (CL3-6). The event is a window CustomEvent and Home - the only listener (renderer Home.tsx
+ * `uniwork:open-settings`) - mounts only once WorkbenchAccountGate has loaded the account's
+ * workbench data, and mounts again after every account/bucket change: an event sent while Home
+ * is not there is lost, so a freshly launched app (FL-08's deployment B) never opened the pane
+ * from a single dispatch. Returns whether `shown` passed.
+ */
+async function openSettingsUntil(session, shown, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    await session.shell
+      .evaluate(
+        ([settingsEvent, section]) => {
+          window.dispatchEvent(new CustomEvent(settingsEvent, { detail: { section } }));
+        },
+        [OPEN_SETTINGS_EVENT, SYNC_SETTINGS_SECTION],
+      )
+      .catch(() => undefined);
+    try {
+      await shown(Math.max(1, Math.min(2_000, deadline - Date.now())));
+      return true;
+    } catch {
+      if (Date.now() >= deadline) return false;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+}
+
+/**
  * Opens S3 the way `openSyncCenter('offline')` does and leaves the OFFLINE tab
  * selected (review r1 R1-10): the settings event first, the pane mounts and
  * takes its default tab, then the runner clicks the offline tab and waits for
  * `aria-selected=true` with its panel visible. Returns the selected panel's
  * selector, or null when the tab never came up.
  */
-export async function openOfflineTab(session, { timeoutMs = 30_000 } = {}) {
-  await session.shell
-    .evaluate(
-      ([settingsEvent, section]) => {
-        window.dispatchEvent(new CustomEvent(settingsEvent, { detail: { section } }));
-      },
-      [OPEN_SETTINGS_EVENT, SYNC_SETTINGS_SECTION],
-    )
-    .catch(() => undefined);
+export async function openOfflineTab(session, { timeoutMs = OFFLINE_PANE_TIMEOUT_MS } = {}) {
   const tab = session.shell.locator(S3_TAB_SELECTOR).first();
+  if (!(await openSettingsUntil(session, (ms) => tab.waitFor({ state: "visible", timeout: ms }), timeoutMs))) return null;
   try {
-    await tab.waitFor({ state: "visible", timeout: timeoutMs });
     // an already-selected tab is not re-clicked: clicking it is a no-op and the
     // wait below is what proves the selection
     if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click({ timeout: timeoutMs });
@@ -723,16 +746,13 @@ export async function captureRowShots(ctx, session, { s3 = false, s11 = false, s
  * of `names` the pane text holds (a count, never the name).
  */
 async function signedOutPaneReading(session, names) {
-  await session.shell
-    .evaluate(
-      ([settingsEvent, section]) => {
-        window.dispatchEvent(new CustomEvent(settingsEvent, { detail: { section } }));
-      },
-      [OPEN_SETTINGS_EVENT, SYNC_SETTINGS_SECTION],
-    )
-    .catch(() => undefined);
+  const showing = await openSettingsUntil(
+    session,
+    (ms) => session.shell.waitForFunction((selector) => document.querySelector(selector) !== null, SYNC_STATUS_SELECTOR, { timeout: ms }),
+    OFFLINE_PANE_TIMEOUT_MS,
+  );
+  if (!showing) return { pane: false, offlineTabs: null, namedHits: null };
   try {
-    await session.shell.waitForFunction((selector) => document.querySelector(selector) !== null, SYNC_STATUS_SELECTOR, { timeout: 30_000 });
     return await session.shell.evaluate(
       ([paneSelector, tabSelector, needles]) => {
         const text = document.querySelector(paneSelector)?.textContent ?? "";

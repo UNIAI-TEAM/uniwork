@@ -165,3 +165,59 @@ test("CL3-1: the wrapper starts the stub in control mode only, stops it with the
   assert.equal(/unlock|password/i.test(code), false, "the code (docstring left out) never names an unlock or a password");
 });
 
+
+// ---- CL3-6: the settings event is lost while Home is not mounted yet (FL-08's freshly launched deployment B) ----
+
+/** A shell whose Home mounts only after `lost` settings events went nowhere. */
+function lateHomeShell(lost) {
+  const state = { dispatches: 0, selected: false };
+  const mounted = () => state.dispatches > lost;
+  const shell = {
+    evaluate: async (_fn, arg) => {
+      if (Array.isArray(arg) && arg[0] === "uniwork:open-settings") {
+        state.dispatches += 1;
+        return undefined;
+      }
+      return { pane: true, offlineTabs: 0, namedHits: 0 };
+    },
+    waitForFunction: async (fn) => {
+      if (!mounted()) throw new Error("the pane is not there");
+      state.selected = true;
+      return fn;
+    },
+    waitForSelector: async () => {},
+    screenshot: async () => Buffer.from("png"),
+    locator: () => ({
+      first: () => ({
+        waitFor: async () => { if (!mounted()) throw new Error("no tab yet"); },
+        getAttribute: async () => (state.selected ? "true" : "false"),
+        click: async () => { state.selected = true; },
+        isVisible: async () => state.selected,
+      }),
+    }),
+  };
+  return { session: { shell }, state };
+}
+
+test("CL3-6: the signed-out sync center pane is read although the first settings events were lost (Home mounts late)", async () => {
+  const { session, state } = lateHomeShell(2);
+  const shots = await captureRowShots(ctxOf(), session, { s3Hidden: { name: "s3_tab_hidden_on_deployment_b", names: [] } });
+  assert.deepEqual(shots.filter((shot) => !shot.ok).map((shot) => shot.name), []);
+  assert.equal(shots[0].actual, "pane=showing offlineTabs=0");
+  assert.equal(state.dispatches, 3, "the event was sent again until Home was there");
+});
+
+test("CL3-6: the offline tab is opened although the first settings events were lost", async () => {
+  const { session, state } = lateHomeShell(2);
+  const shots = await captureRowShots(ctxOf(), session, { s3: true });
+  assert.deepEqual(shots.filter((shot) => !shot.ok).map((shot) => shot.name), []);
+  assert.equal(state.dispatches, 3);
+});
+
+test("CL3-6: a pane that never shows is still read as 'not showing' once the wait ran out (the fault stays a FAIL)", async () => {
+  const { session, state } = lateHomeShell(10_000);
+  const shots = await captureRowShots(ctxOf(), session, { s3Hidden: { name: "s3_tab_hidden_on_deployment_b", names: [] } });
+  assert.equal(shots[0].ok, false);
+  assert.equal(shots[0].actual, "pane=not showing");
+  assert.ok(state.dispatches >= 1);
+});

@@ -4,3 +4,4 @@
 process.env.UNIWORK_FL_STATE_TIMEOUT_MS = "40";
 process.env.UNIWORK_FL_DOWNLOAD_TIMEOUT_MS = "40";
 process.env.UNIWORK_FL_POLL_MS = "2";
+process.env.UNIWORK_FL_PANE_TIMEOUT_MS = "40";
