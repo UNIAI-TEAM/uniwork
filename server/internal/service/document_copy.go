@@ -176,7 +176,7 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 	}
 
 	var res DocumentFileResult
-	err = s.withDocumentMutation(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
+	err = s.withDocumentMutationOnShelved(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
 		}

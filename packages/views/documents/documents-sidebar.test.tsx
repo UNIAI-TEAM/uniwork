@@ -37,7 +37,7 @@ const navLabels = () =>
     .filter((text) => text !== "");
 
 describe("DocumentsSidebar sub-nav", () => {
-  it("lists the collections in board order, Thùng rác last, then the folders and the other modules", () => {
+  it("lists the collections in board order, Lưu trữ before Thùng rác, then the folders and the other modules", () => {
     renderSidebar();
     const labels = navLabels();
     const order = [
@@ -47,6 +47,7 @@ describe("DocumentsSidebar sub-nav", () => {
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
       t("documents.home.sidebar.shared_by_me"),
+      t("documents.home.sidebar.shelved"),
       t("documents.home.sidebar.trash"),
     ];
     expect(labels.slice(0, order.length)).toEqual(order);
@@ -78,18 +79,31 @@ describe("DocumentsSidebar sub-nav", () => {
     expect(screen.getByRole("button", { name: t("documents.home.sidebar.home") })).not.toHaveAttribute("aria-current");
   });
 
-  it("keeps the same entries on the trash view, with no Lưu trữ entry", () => {
+  it("keeps the same entries on the trash view", () => {
     renderSidebar({ view: { kind: "archived" } });
-    expect(navLabels().slice(0, 7)).toEqual([
+    expect(navLabels().slice(0, 8)).toEqual([
       t("documents.home.sidebar.home"),
       t("documents.home.my_folder.label"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
       t("documents.home.sidebar.shared_by_me"),
+      t("documents.home.sidebar.shelved"),
       t("documents.home.sidebar.trash"),
     ]);
-    expect(screen.queryByText("Lưu trữ")).toBeNull();
+  });
+
+  // ARCHIVE-01 (UNI-1845): the shelf is its own sub-nav entry (Main.dc / Archive.dc).
+  it("opens the Lưu trữ view from its entry and marks it current there", () => {
+    const { onView } = renderSidebar();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.sidebar.shelved") }));
+    expect(onView).toHaveBeenCalledWith({ kind: "shelved" });
+  });
+
+  it("marks Lưu trữ as the current page on the shelved view, not Thùng rác", () => {
+    renderSidebar({ view: { kind: "shelved" } });
+    expect(screen.getByRole("button", { name: t("documents.home.sidebar.shelved") })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: t("documents.home.sidebar.trash") })).not.toHaveAttribute("aria-current");
   });
 });
 
@@ -125,6 +139,7 @@ describe("DocumentsSidebar icons", () => {
       ["documents.home.sidebar.starred", "starred"],
       ["documents.home.sidebar.shared", "shared"],
       ["documents.home.sidebar.shared_by_me", "sharedByMe"],
+      ["documents.home.sidebar.shelved", "shelved"],
       ["documents.home.sidebar.trash", "trash"],
     ] as const;
     for (const [key, icon] of rows) {
@@ -148,9 +163,14 @@ describe("DOCUMENTS_NAV_ICONS", () => {
     ["shared", Users],
     ["sharedByMe", Share2],
     ["archive", Archive],
+    ["shelved", Archive],
     ["trash", Trash],
     ["folder", Folder],
   ] as const)("maps %s to its board glyph", (key, Expected) => {
     expect(glyphOf(DOCUMENTS_NAV_ICONS[key])).toBe(glyphOf(Expected));
+  });
+
+  it("covers every entry of the map", () => {
+    expect(Object.keys(DOCUMENTS_NAV_ICONS)).toHaveLength(10);
   });
 });

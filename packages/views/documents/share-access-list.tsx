@@ -13,7 +13,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { foldSearchText } from "./share-candidate-picker";
 import { shareErrorMessage } from "./share-dialog-break-glass";
 import type { ShareDialogTarget } from "./share-dialog-target";
-import { AclOwnerRow, HomeWorkspaceRow, ShareRow, type ShareAccessHomeRow, type ShareAccessRowContext } from "./share-access-rows";
+import { AclOwnerRow, HomeWorkspaceRow, ShareRow, levelRank, type ShareAccessHomeRow, type ShareAccessRowContext } from "./share-access-rows";
 import { revokeSentence, warningSentence, type PreviewSentence } from "./share-preview-sentences";
 
 export interface ShareAccessListProps {
@@ -34,6 +34,12 @@ export interface ShareAccessListProps {
   organization?: { id: string; name: string } | null;
   orgMembers?: readonly OrgMember[];
   locale?: string;
+  /** The document is shelved (ARCHIVE-01 U-9): access can only be taken away —
+   *  revoke and a level LOWERING stay enabled; a raise, an owner transfer and
+   *  turning the home row on are off. */
+  shelved?: boolean;
+  /** The explanation line the locked controls point at. */
+  shelvedNoteId?: string;
 }
 
 interface PendingRowConfirm {
@@ -51,6 +57,7 @@ export function ShareAccessList({
   wsId, docId, docWorkspaceId, doc, access, canManage,
   adminScope = false, canTransfer = false, ownedByWorkProduct = false, onOpenTransfer,
   memberName, memberLabels, workspaceName, workspaceNames, organization, orgMembers,
+  shelved = false, shelvedNoteId,
 }: ShareAccessListProps) {
   const { t } = useTranslation();
   const updateAccess = useUpdateDocumentAccess(wsId, docId);
@@ -262,6 +269,9 @@ export function ShareAccessList({
     rowKey: string, principalType: DocumentPrincipalType, principalId: string,
     name: string, beforeLevel: DocumentAccessLevel | null, nextLevel: DocumentAccessLevel | null,
   ) => {
+    // ARCHIVE-01 U-9: a shelved document only lets access be taken away —
+    // revoke (null) and a lowering pass; a raise or a first grant is blocked.
+    if (shelved && nextLevel !== null && levelRank(nextLevel) > levelRank(beforeLevel)) return;
     if (updateAccess.isPending || inFlight.current) return;
     inFlight.current = true;
     setActionError(null);
@@ -289,7 +299,7 @@ export function ShareAccessList({
 
   const ctx: ShareAccessRowContext = {
     wsId, doc, canManage, canTransfer, ownedByWorkProduct,
-    updatePending: updateAccess.isPending, onOpenTransfer, orgMembers,
+    updatePending: updateAccess.isPending, onOpenTransfer, orgMembers, shelved, shelvedNoteId,
     t, levelLabel, viaLabel, resolveMemberName, formatSourceOrigin, setOpenerEl,
     requestRowChange,
   };

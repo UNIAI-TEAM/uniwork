@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
-import { Paperclip } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { FilePlus, Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChunkedUploadProgress } from "@uniwork/core/documents/chunked-upload";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@uniwork/core/documents/limits";
@@ -14,11 +14,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
-import { Label } from "@uniwork/ui/components/ui/label";
 import { Progress, ProgressLabel } from "@uniwork/ui/components/ui/progress";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { CreateShareOptions } from "./documents-create";
 
 export interface DocumentUploadDialogProps {
@@ -75,6 +74,8 @@ export function DocumentUploadDialog({
   const [inputKey, setInputKey] = useState(0);
   const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
   const shareHintId = useId();
+  const selectedNameId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const effectiveShare = parentShared || shareWithWorkspace;
   const sendShare = showShareToggle && effectiveShare && !parentShared;
   const shareHintText = !showShareToggle
@@ -100,6 +101,14 @@ export function DocumentUploadDialog({
         : 0
       : 0;
   const showResumeHint = Boolean(file && !isChunkedActive && hasResumable?.(file));
+
+  const submitRef = useRef<HTMLButtonElement | null>(null);
+  // A chunked refusal lands after the progress block unmounts and the submit
+  // button remounts: the node that had focus is gone, so put it back on
+  // Upload — the same place a refusal found up front leaves the user (L-2).
+  useEffect(() => {
+    if (open && error && !isBusy) submitRef.current?.focus();
+  }, [open, error, isBusy]);
 
   useEffect(() => {
     setShareWithWorkspace(false);
@@ -149,12 +158,15 @@ export function DocumentUploadDialog({
           }}
         >
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="document-upload-file">{t("documents.upload.pick")}</Label>
-            <Input
+            <input
               key={inputKey}
-              id="document-upload-file"
+              ref={inputRef}
               type="file"
               accept={accept}
+              aria-label={t("documents.upload.pick")}
+              className="sr-only"
+              aria-hidden="true"
+              tabIndex={-1}
               disabled={isBusy}
               onChange={(event) => {
                 const picked = event.target.files?.[0] ?? null;
@@ -162,11 +174,26 @@ export function DocumentUploadDialog({
                 onPickFile?.(picked);
               }}
             />
-            {file ? (
-              <p className="text-caption text-muted-foreground" data-testid="document-upload-selected">
-                {t("documents.upload.selected", { name: file.name })}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isBusy}
+                aria-describedby={selectedNameId}
+                onClick={() => inputRef.current?.click()}
+              >
+                <FilePlus aria-hidden className="size-3.5" />
+                {t("documents.upload.pick")}
+              </Button>
+              <p
+                id={selectedNameId}
+                className="truncate text-caption text-muted-foreground"
+                data-testid="document-upload-selected"
+              >
+                {file ? t("documents.upload.selected", { name: file.name }) : t("documents.upload.no_file")}
               </p>
-            ) : hint ? (
+            </div>
+            {hint ? (
               <p className="text-caption text-muted-foreground">{hint}</p>
             ) : null}
             {showResumeHint ? (
@@ -204,7 +231,10 @@ export function DocumentUploadDialog({
             <div className="flex flex-col gap-1.5" data-testid="document-upload-progress">
               <Progress
                 value={percentage}
-                className="*:data-[slot=progress-track]:bg-border"
+                className={cn(
+                  "*:data-[slot=progress-track]:bg-border *:data-[slot=progress-track]:ring-1 *:data-[slot=progress-track]:ring-input",
+                  percentage >= 100 && "**:data-[slot=progress-indicator]:transition-none",
+                )}
                 aria-label={t("documents.upload.progress_status", { name: file?.name ?? "" })}
               >
                 <ProgressLabel className="truncate text-caption">{file?.name}</ProgressLabel>
@@ -254,7 +284,12 @@ export function DocumentUploadDialog({
                 {t("documents.upload.checking")}
               </Button>
             ) : (
-              <Button type="submit" disabled={!file || pending} aria-busy={pending || undefined}>
+              <Button
+                ref={submitRef}
+                type="submit"
+                disabled={!file || pending}
+                aria-busy={pending || undefined}
+              >
                 {pending ? (
                   <>
                     <Spinner aria-hidden role="presentation" />

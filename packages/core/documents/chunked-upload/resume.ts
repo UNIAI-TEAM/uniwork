@@ -6,12 +6,15 @@ export interface ResumableUpload {
   session_id: string;
   expires_at: string;
   idempotency_key: string;
+  /** Parts the server confirmed before the page left (R2-F2); absent on records written before the field existed. */
+  completed_parts?: number;
 }
 
 const ResumableUploadSchema = z.object({
   session_id: z.string().min(1),
   expires_at: z.string().min(1),
   idempotency_key: z.string().min(1),
+  completed_parts: z.number().int().nonnegative().optional(),
 });
 
 /** Key of a local file for resume matching: `${name}:${size}:${lastModified}`. */

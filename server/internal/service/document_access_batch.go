@@ -185,7 +185,7 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 			Warnings: make([]DocumentAccessWarning, 0),
 		},
 	}
-	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteAllowed, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
@@ -204,6 +204,13 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 		})
 		if err != nil {
 			return err
+		}
+		// Q-AR2: the outer gate is shelveWriteAllowed so a revoke can run;
+		// a new grant, a raise, or turning the home row on is still refused
+		// (including dry_run). Decided on the live sharesBefore / doc before
+		// any write.
+		if doc.ShelvedAt.Valid && accessBatchWouldRaiseOnShelved(doc, sharesBefore, items) {
+			return requireNotShelved(doc)
 		}
 		docAfter, sharesAfter := simulateAccessBatchState(doc, sharesBefore, items)
 		preview, err := s.buildAccessBatchPreview(ctx, q, doc, sharesBefore, docAfter, sharesAfter, items)
@@ -315,6 +322,46 @@ func shareLevelInSlice(shares []db.DocumentShare, principalType, principalID str
 		}
 	}
 	return DocumentLevelNone, false
+}
+
+// accessBatchWouldRaiseOnShelved is the Q-AR2 inner check for
+// UpdateDocumentAccess: true when any item would grant a principal that
+// has no live grant, raise an existing grant, or turn the home row from
+// restricted to workspace-visible. "Raise" is DocumentLevel.rank of the
+// requested level vs the live grant (or the home row's currentHomeWorkspaceLevel).
+// Revoke (Level == nil), OnExisting=keep of a live grant, and a lower or
+// same-level write of a live grant return false.
+func accessBatchWouldRaiseOnShelved(doc db.Document, shares []db.DocumentShare, items []DocumentAccessBatchItem) bool {
+	for _, it := range items {
+		if it.Level == nil {
+			continue
+		}
+		isHome := it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == doc.WorkspaceID
+		if isHome {
+			cur, hasLive := currentHomeWorkspaceLevel(doc, filterHomeWorkspaceShares(shares, doc.WorkspaceID))
+			if !hasLive {
+				return true
+			}
+			if it.OnExisting == DocumentAccessOnExistingKeep {
+				continue
+			}
+			if it.Level.rank() > cur.rank() {
+				return true
+			}
+			continue
+		}
+		prev, hasLive := shareLevelInSlice(shares, it.PrincipalType, it.PrincipalID)
+		if !hasLive {
+			return true
+		}
+		if it.OnExisting == DocumentAccessOnExistingKeep {
+			continue
+		}
+		if it.Level.rank() > prev.rank() {
+			return true
+		}
+	}
+	return false
 }
 
 func simulateAccessBatchState(

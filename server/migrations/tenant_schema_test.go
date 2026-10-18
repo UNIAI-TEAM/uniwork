@@ -121,6 +121,32 @@ func TestTenantBackfillCopiesTheParentOrganization(t *testing.T) {
 	if err := Up(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	// Two members' root My Folders plus a user root folder named "My Folder"
+	// are legal after 0003 (idx_documents_folder_name_user_uidx scopes folder
+	// name uniqueness to system_kind IS NULL), and EnsureMyFolder tests leave
+	// that exact shape in the shared DB. Seed it here so a standalone run
+	// rehearses rolling back past 0004's legacy index rebuild too.
+	cleanupMyFolders := func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM documents WHERE id LIKE 'tb-mf-%'`)
+	}
+	cleanupMyFolders()
+	t.Cleanup(cleanupMyFolders)
+	for _, row := range []struct {
+		id, systemKind, aclOwner string
+	}{
+		{"tb-mf-u1", "'my_folder'", "tb-user-1"},
+		{"tb-mf-u2", "'my_folder'", "tb-user-2"},
+		{"tb-mf-user", "NULL", "tb-user-1"},
+	} {
+		if _, err := pool.Exec(ctx, fmt.Sprintf(`
+			INSERT INTO documents (id, organization_id, workspace_id, kind, system_kind, title, visibility,
+			  acl_owner_id, created_by, created_by_kind, updated_by, updated_by_kind)
+			VALUES ($1, 'tb-org-a', 'tb-ws-a', 'folder', %s, 'My Folder', 'restricted',
+			  $2, $2, 'human', $2, 'human')
+			ON CONFLICT (id) DO NOTHING`, row.systemKind), row.id, row.aclOwner); err != nil {
+			t.Fatal(err)
+		}
+	}
 	const backfill = "9991790915600001_tenant_backfill_organization_id"
 	rollBackThrough(t, pool, backfill)
 	// Whatever Up is left with, later tests need the schema whole.
@@ -283,6 +309,7 @@ func truncateTenantBackfillTables(t *testing.T, pool *pgxpool.Pool) {
 // rollBackThrough runs Down until version is no longer applied.
 func rollBackThrough(t *testing.T, pool *pgxpool.Pool, version string) {
 	t.Helper()
+	clearRowsDownGuardsRefuse(t, pool)
 	ctx := context.Background()
 	for {
 		var applied bool

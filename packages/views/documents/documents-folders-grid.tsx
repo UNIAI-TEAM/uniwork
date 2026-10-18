@@ -1,9 +1,9 @@
 "use client";
 
-import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, Star, StarOff } from "lucide-react";
+import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
-import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
+import { isMyFolder, isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -32,7 +32,7 @@ export interface DocumentsFoldersGridProps {
   /** The table row handlers; a handler absent for the viewer hides its menu item too. */
   handlers: Pick<
     LibraryRowHandlers,
-    "onNewSubfolder" | "onRename" | "onMove" | "onArchive" | "onToggleStar" | "isStarred" | "personName"
+    "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName"
   >;
   onOpenFolder: (folderId: string) => void;
 }
@@ -138,7 +138,7 @@ interface FolderMenuItem {
 /** The commands a folder already offers (the table row's vocabulary), gated by the same levels. */
 export function folderMenuItems(
   doc: DocumentSummaryRow,
-  handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onArchive">,
+  handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive">,
   t: (key: string) => string,
 ): FolderMenuItem[] {
   if (doc.archived_at) return [];
@@ -154,9 +154,15 @@ export function folderMenuItems(
   if (!myFolder && handlers.onMove && canMoveRow(level)) {
     items.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
   }
+  if (!myFolder && handlers.onShelve && canArchiveRow(level) && !isShelved(doc)) {
+    // ARCHIVE-01 U-4: Lưu trữ sits beside the trash command, manage-only and
+    // never on the My Folder root, as on the table row.
+    items.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
+  }
   if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
-    // A folder's dialog says Delete, so the card says it too (FD-D6).
-    items.push({ id: "archive", label: t("documents.tree.menu.delete"), icon: Archive, run: () => handlers.onArchive?.(doc) });
+    // A folder's dialog says Delete, so the card says it too (FD-D6), with
+    // the row's Trash2 glyph: Archive now belongs to Lưu trữ beside it.
+    items.push({ id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) });
   }
   return items;
 }

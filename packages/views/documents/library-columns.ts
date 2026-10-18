@@ -42,7 +42,16 @@
  * who can reach their documents — the scope matters more than who edited.
  */
 
-export type LibraryColumnId = "name" | "access" | "editor" | "updated" | "size" | "actions";
+export type LibraryColumnId =
+  | "name"
+  | "access"
+  | "editor"
+  | "updated"
+  | "size"
+  | "actions"
+  // Shelved-only columns (ARCHIVE-01 U-2): who archived it and when.
+  | "shelved_by"
+  | "shelved_at";
 
 interface LibraryColumn {
   id: LibraryColumnId;
@@ -118,6 +127,41 @@ const LADDER_SHARED_BY_ME: LibraryLadder = {
 
 export function libraryLadder(opts: { sharedByMe?: boolean } = {}): LibraryLadder {
   return opts.sharedByMe ? LADDER_SHARED_BY_ME : LADDER;
+}
+
+// Shelved ladder (Archive.dc, ARCHIVE-01 U-2): Name (with the folder path as
+// its secondary line) / Truy cập / Lưu trữ bởi / Lưu trữ lúc / Actions. Below
+// 46rem only Name and the actions exist; the member name lands last because
+// its 160px are the widest single addition.
+//
+// | container | shelved                          |
+// | --------- | -------------------------------- |
+// | < 46rem   | Name, actions                    |
+// | 46rem     | + Truy cập, Lưu trữ lúc          |
+// | 56rem     | + Lưu trữ bởi                    |
+const SHELVED: LibraryLadder = {
+  columns: [
+    NAME,
+    { id: "access", col: "hidden w-24 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
+    { id: "shelved_by", col: "hidden w-40 @min-[56rem]/library:table-column", cell: "hidden @min-[56rem]/library:table-cell" },
+    { id: "shelved_at", col: "hidden w-28 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
+    // Two labelled commands (restore from Lưu trữ, move to trash) plus the ⋯ menu.
+    { id: "actions", col: "w-24 pointer-coarse:w-28 @min-[46rem]/library:w-48", cell: "" },
+  ],
+  head: "hidden bg-muted/50 @min-[46rem]/library:table-header-group",
+  quick: "",
+  metaHides: "@min-[46rem]/library:hidden",
+  metaTailHides: "@min-[46rem]/library:hidden",
+  accessLineHides: "@min-[56rem]/library:hidden",
+  // The shelved row draws its own secondary line (documents-shelved-row.tsx);
+  // these two only serve the library row, so they mirror the rungs above.
+  accessGroupHides: "@min-[56rem]/library:hidden",
+  metaDotHides: "@min-[46rem]/library:hidden",
+};
+
+/** The Lưu trữ table's ladder: the access column plus the shelved pair. */
+export function shelvedLadder(): LibraryLadder {
+  return SHELVED;
 }
 
 /** The visibility class of one column's cells, or null when this ladder has no such column. */

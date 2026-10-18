@@ -271,14 +271,14 @@ func TestDocumentChangesRevisionWireIsDecimalString(t *testing.T) {
 }
 
 // feedRowKeys asserts the raw JSON row carries EXACTLY the keys of the feed SDO
-// (T-1): the removal and the upsert row both ship the same eight fields, so a
+// (T-1): the removal and the upsert row both ship the same nine fields, so a
 // new field on the SDO - a name, a path, metadata - cannot be added without this
 // test noticing. Values are checked separately by the caller.
 func feedRowKeys(t *testing.T, label string, row map[string]any) {
 	t.Helper()
 	want := []string{
 		"document_id", "change_kind", "kind", "revision",
-		"current_version", "version_id", "archived", "removal",
+		"current_version", "version_id", "archived", "shelved", "removal",
 	}
 	got := make([]string, 0, len(row))
 	for k := range row {
@@ -362,7 +362,7 @@ func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 		row["kind"] != "" || row["revision"] != strconv.FormatInt(revision, 10) || row["removal"] != "permission_revoked" {
 		t.Fatalf("removal row = %v", row)
 	}
-	if row["current_version"] != float64(0) || row["version_id"] != nil || row["archived"] != false {
+	if row["current_version"] != float64(0) || row["version_id"] != nil || row["archived"] != false || row["shelved"] != false {
 		t.Fatalf("removal row carries a document field: %v", row)
 	}
 
@@ -395,7 +395,7 @@ func TestDocumentChangesHTTPFeedRows(t *testing.T) {
 		upsert["kind"] != "page" || upsert["revision"] != strconv.FormatInt(upsertRevision, 10) {
 		t.Fatalf("upsert row = %v", upsert)
 	}
-	if upsert["removal"] != "" || upsert["version_id"] != nil || upsert["archived"] != false {
+	if upsert["removal"] != "" || upsert["version_id"] != nil || upsert["archived"] != false || upsert["shelved"] != false {
 		t.Fatalf("upsert row carries a removal field: %v", upsert)
 	}
 }

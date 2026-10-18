@@ -67,7 +67,7 @@ export type ListDocumentsOpts = ListDocumentsBaseOpts &
     | { sharedByMe: true; parentId?: never }
   );
 
-function listQuery(opts?: ListDocumentsOpts): string {
+function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean }): string {
   if (!opts) return "";
   const p = new URLSearchParams();
   if (opts.parentId !== undefined) p.set("parent_id", opts.parentId);
@@ -78,6 +78,7 @@ function listQuery(opts?: ListDocumentsOpts): string {
   if (opts.access) p.set("access", opts.access);
   if (opts.match) p.set("match", opts.match);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
+  if (opts.shelved === true) p.set("shelved", "true");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);
   if (opts.updatedFrom) p.set("updated_from", opts.updatedFrom);
   if (opts.updatedTo) p.set("updated_to", opts.updatedTo);
@@ -171,6 +172,37 @@ export async function listSharedByMe(
   return parsed;
 }
 
+/**
+ * GET /api/v1/workspaces/{workspaceID}/documents?shelved=true — the "Lưu trữ"
+ * list (ARCHIVE-01 §4): a flat keyset-paged view of what the caller may see,
+ * ordered shelved_at DESC. Combines with the LISTFILTER `format`/`access`
+ * chips; never sends `parent_id` or `archived` (shelved+archived answers 400).
+ * Uses the same list schema and cursor contract as the flat list; an
+ * untrusted answer throws rather than render an empty shelf.
+ */
+export async function listShelvedDocuments(
+  wsId: string,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/documents${listQuery({
+      shelved: true,
+      cursor: opts?.cursor,
+      limit: opts?.limit,
+      format: opts?.format,
+      access: opts?.access,
+    })}`,
+    { signal },
+  );
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents?shelved=true",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
+
 /** GET /api/v1/workspaces/{workspaceID}/documents/tree — the sidebar forest
  *  to TREE_MAX_LEVEL levels; root narrows to one branch, foldersOnly drops
  *  pages and files. Metadata only. */
@@ -252,6 +284,42 @@ export async function restoreDocument(
     endpoint: "POST /api/v1/documents/{id}/restore",
   });
 }
+
+/** POST /api/v1/documents/{documentID}/shelve — archives the subtree into the
+ *  read-only "Lưu trữ" state in one batch (ARCHIVE-01, addendum §2 S-1).
+ *  Same envelope and Idempotency-Key semantics as archive; null means the
+ *  shelve cannot be proven. */
+export async function shelveDocument(
+  documentId: string,
+  opts?: DocumentRequestOpts,
+): Promise<DocumentArchive | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/shelve`, {
+    method: "POST",
+    headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentArchive | null>(raw, DocumentArchiveSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/shelve",
+  });
+}
+
+/** POST /api/v1/documents/{documentID}/unshelve — brings back the target
+ *  shelved item and the shelved descendants of the same batch the caller
+ *  manages (ARCHIVE-01 §2 S-2). Null means the unshelve cannot be proven. */
+export async function unshelveDocument(
+  documentId: string,
+  opts?: DocumentRequestOpts,
+): Promise<DocumentArchive | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/unshelve`, {
+    method: "POST",
+    headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentArchive | null>(raw, DocumentArchiveSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/unshelve",
+  });
+}
+
 
 /** POST /api/v1/documents/{documentID}/purge — permanently delete a trashed
  *  item and the trashed descendants in its batch that the caller manages

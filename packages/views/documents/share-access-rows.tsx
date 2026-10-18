@@ -3,7 +3,7 @@
 import { FolderKanban, ShieldCheck } from "lucide-react";
 import type { useTranslation } from "react-i18next";
 import type { DocumentAccessUpdateItemInput, DocumentPrincipalType } from "@uniwork/core/api/endpoints/documents-sharing";
-import type { DocumentAccess, DocumentAccessLevel, DocumentAccessSource, DocumentAccessVia, DocumentShare } from "@uniwork/core/types/document";
+import { DOCUMENT_ACCESS_LEVELS, type DocumentAccess, type DocumentAccessLevel, type DocumentAccessSource, type DocumentAccessVia, type DocumentShare } from "@uniwork/core/types/document";
 import type { OrgMember } from "@uniwork/core/types/people";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -24,6 +24,10 @@ export interface ShareAccessRowContext {
   canTransfer: boolean;
   ownedByWorkProduct: boolean;
   updatePending: boolean;
+  /** ARCHIVE-01 U-9: the document is shelved, so a level raise and an owner transfer are off. */
+  shelved: boolean;
+  /** The explanation line the locked controls point at. */
+  shelvedNoteId?: string;
   onOpenTransfer?: () => void;
   orgMembers?: readonly OrgMember[];
   t: TFunction;
@@ -45,20 +49,25 @@ export interface ShareAccessHomeRow {
   level: DocumentAccessLevel | null;
 }
 
+/** Position of a level on the view→manage ladder; an unknown level ranks
+ *  lowest so on a shelved document any named level above it counts as a raise. */
+export const levelRank = (level: DocumentAccessLevel | string | null): number =>
+  level === null ? -1 : DOCUMENT_ACCESS_LEVELS.indexOf(level as DocumentAccessLevel);
+
 export function NameOrSkeleton({ name }: { name: string | null }) {
   return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="min-w-0 truncate" title={name}>{name}</span>;
 }
 
 export function AclOwnerRow({ owner, ctx }: { owner: NonNullable<DocumentAccess["acl_owner"]>; ctx: ShareAccessRowContext }) {
-  const { t, resolveMemberName, doc, orgMembers, canTransfer, ownedByWorkProduct, onOpenTransfer, wsId } = ctx;
+  const { t, resolveMemberName, doc, orgMembers, canTransfer, ownedByWorkProduct, onOpenTransfer, wsId, shelved, shelvedNoteId } = ctx;
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2">
-      <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
+      <span className="flex min-w-0 flex-1 basis-full items-center gap-2 text-body text-foreground sm:basis-40">
         <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
         <NameOrSkeleton name={resolveMemberName(owner.user_id)} />
         <span className="shrink-0 text-caption text-muted-foreground">{t("documents.share.acl_owner")}</span>
       </span>
-      <span className="flex shrink-0 items-center gap-2 text-caption text-muted-foreground">
+      <span className="flex min-w-0 max-w-full shrink-0 items-center gap-2 text-caption text-muted-foreground">
         {doc && orgMembers ? (
           <OwnerTransferAction
             wsId={wsId}
@@ -66,6 +75,7 @@ export function AclOwnerRow({ owner, ctx }: { owner: NonNullable<DocumentAccess[
             ownerId={owner.user_id}
             ownerName={resolveMemberName(owner.user_id) ?? t("documents.share.person_unknown")}
             orgMembers={orgMembers}
+            lockedBy={shelved ? shelvedNoteId : undefined}
           />
         ) : canTransfer ? (
           <Button
@@ -92,7 +102,7 @@ export function HomeWorkspaceRow({
   ctx: ShareAccessRowContext;
   confirmPanel: React.ReactNode;
 }) {
-  const { t, levelLabel, canManage, setOpenerEl, requestRowChange, updatePending } = ctx;
+  const { t, levelLabel, canManage, setOpenerEl, requestRowChange, updatePending, shelved } = ctx;
   return (
     <li className="flex flex-col gap-1.5 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
@@ -120,7 +130,7 @@ export function HomeWorkspaceRow({
                   </SelectTrigger>
                   <SelectContent>
                     {allowedLevelsForPrincipal("workspace", true).map((lvl) => (
-                      <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
+                      <SelectItem key={lvl} value={lvl} disabled={shelved && levelRank(lvl) > levelRank(homeRow.level)}>{levelLabel(lvl)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -158,7 +168,7 @@ export function ShareRow({
   onToggleSources: () => void;
   confirmPanel: React.ReactNode;
 }) {
-  const { t, levelLabel, viaLabel, formatSourceOrigin, canManage, setOpenerEl, requestRowChange, updatePending } = ctx;
+  const { t, levelLabel, viaLabel, formatSourceOrigin, canManage, setOpenerEl, requestRowChange, updatePending, shelved } = ctx;
   const allowedLevels = allowedLevelsForPrincipal(share.principal_type, false);
   const sources = share.sources ?? [];
 
@@ -223,7 +233,7 @@ export function ShareRow({
                   </SelectTrigger>
                   <SelectContent>
                     {allowedLevels.map((lvl) => (
-                      <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
+                      <SelectItem key={lvl} value={lvl} disabled={shelved && levelRank(lvl) > levelRank(share.level)}>{levelLabel(lvl)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
