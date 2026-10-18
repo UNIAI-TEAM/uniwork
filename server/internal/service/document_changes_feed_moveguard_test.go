@@ -99,18 +99,52 @@ var (
 	// updateDocuments finds the start of an UPDATE of the documents table.
 	updateDocuments = regexp.MustCompile(`(?i)\bupdate\s+documents\b`)
 	// setClause and whereClause bound the assignments: workspace_id must be
-	// assigned before WHERE (a WHERE workspace_id = ... is a tenant filter, not
-	// a write).
+	// assigned before the statement's top-level WHERE (a WHERE workspace_id =
+	// ... is a tenant filter, not a write; a WHERE inside a SET subquery does
+	// not end the region - BE-G6-1, topLevelWhereIndex).
 	setClause   = regexp.MustCompile(`(?i)\bset\b`)
 	whereClause = regexp.MustCompile(`(?i)\bwhere\b`)
 	// workspaceAssignment is the write itself.
 	workspaceAssignment = regexp.MustCompile(`(?i)\bworkspace_id\s*=`)
 	// insertDocuments finds an INSERT INTO documents statement (unanchored, as
-	// the r4 regex was, so a leading CTE does not hide it).
-	insertDocuments = regexp.MustCompile(`(?i)\binsert\s+into\s+documents\b`)
+	// the r4 regex was, so a leading CTE does not hide it). The schema
+	// qualifier is optional: `insert into public.documents` is the same write
+	// (BE-G6-2).
+	insertDocuments = regexp.MustCompile(`(?i)\binsert\s+into\s+(?:\w+\.)?documents\b`)
 	// workspaceColumn is the workspace_id column named anywhere in a statement.
 	workspaceColumn = regexp.MustCompile(`(?i)\bworkspace_id\b`)
 )
+
+// topLevelWhereIndex returns the offset of the first `where` keyword at
+// parenthesis depth 0, or -1. A SET assignment may carry its own subquery with
+// a WHERE (`SET title = (SELECT ... WHERE ...), workspace_id = ...`), and only
+// the statement's own WHERE ends the assignment region (BE-G6-1): bounding at
+// the first `where` token would stop before the workspace_id assignment and let
+// that spelling through.
+func topLevelWhereIndex(body string) int {
+	matches := whereClause.FindAllStringIndex(body, -1)
+	if len(matches) == 0 {
+		return -1
+	}
+	depth, next := 0, 0
+	for i := range len(body) {
+		if next < len(matches) && matches[next][0] == i {
+			if depth == 0 {
+				return i
+			}
+			next++
+		}
+		switch body[i] {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	return -1
+}
 
 // writesDocumentWorkspace answers whether one normalized SQL statement writes a
 // document's workspace_id.
@@ -119,8 +153,8 @@ func writesDocumentWorkspace(stmt string) bool {
 		rest := stmt[loc[1]:]
 		if set := setClause.FindStringIndex(rest); set != nil {
 			body := rest[set[1]:]
-			if w := whereClause.FindStringIndex(body); w != nil {
-				body = body[:w[0]]
+			if w := topLevelWhereIndex(body); w >= 0 {
+				body = body[:w]
 			}
 			if workspaceAssignment.MatchString(body) {
 				return true
@@ -529,6 +563,13 @@ ON CONFLICT (id) DO UPDATE SET workspace_id = sqlc.arg(workspace_id)`, []string{
 		{"INSERT ... SELECT naming workspace_id outside its column list is flagged", `-- name: CopyDocumentsInto :one
 INSERT INTO documents (id, title)
 SELECT id, title FROM documents WHERE workspace_id = sqlc.arg(workspace_id)`, []string{"CopyDocumentsInto"}},
+		{"a SET subquery's WHERE does not end the assignment region", `-- name: MoveDocumentWithSourceTitle :one
+UPDATE documents
+SET title = (SELECT t.title FROM documents t WHERE t.id = sqlc.arg(source_id)), workspace_id = sqlc.arg(workspace_id)
+WHERE id = sqlc.arg(id)`, []string{"MoveDocumentWithSourceTitle"}},
+		{"a schema-qualified INSERT is flagged", `-- name: CopyDocumentQualified :one
+INSERT INTO public.documents (id, workspace_id, source_document_id)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(source_document_id))`, []string{"CopyDocumentQualified"}},
 		{"an UPDATE that only filters on workspace_id is not flagged", `-- name: RenameDocument :one
 UPDATE documents
 SET title = sqlc.arg(title)
