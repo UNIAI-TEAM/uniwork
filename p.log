@@ -1,0 +1,153 @@
+$ node --test scripts/changelog-draft.test.mjs scripts/changelog-automation.test.mjs scripts/changelog-review-notify.test.mjs scripts/changelog-workflow.test.mjs scripts/changelog-review-pr.test.mjs; rc=$?; echo; echo "CHECK_CHANGELOG_EXIT=$rc"
+TAP version 13
+# Subtest: aggregates all authors' commits, suggests a version, and retains ambiguous changes
+ok 1 - aggregates all authors' commits, suggests a version, and retains ambiguous changes
+  ---
+  duration_ms: 1.605058
+  ...
+# Subtest: builds catalog and bilingual content from reviewed notes, preserving unrelated content
+ok 2 - builds catalog and bilingual content from reviewed notes, preserving unrelated content
+  ---
+  duration_ms: 0.976391
+  ...
+# Subtest: rejects unfinished translations, unresolved commits, unapproved notes and invalid tags
+ok 3 - rejects unfinished translations, unresolved commits, unapproved notes and invalid tags
+  ---
+  duration_ms: 0.674295
+  ...
+# Subtest: reruns are idempotent and published versions cannot be rewritten
+ok 4 - reruns are idempotent and published versions cannot be rewritten
+  ---
+  duration_ms: 2.03938
+  ...
+# Subtest: Git integration: drafts collect history; only reviewed tag snapshots can update files
+ok 5 - Git integration: drafts collect history; only reviewed tag snapshots can update files
+  ---
+  duration_ms: 144.165983
+  ...
+# Subtest: Git integration: stale notes and tags outside develop fail before any write
+ok 6 - Git integration: stale notes and tags outside develop fail before any write
+  ---
+  duration_ms: 127.033884
+  ...
+# Subtest: rejects output paths outside the repository before writing
+ok 7 - rejects output paths outside the repository before writing
+  ---
+  duration_ms: 29843.509561
+  ...
+# Subtest: classifies Conventional Commits and keeps nonconforming work for review
+ok 8 - classifies Conventional Commits and keeps nonconforming work for review
+  ---
+  duration_ms: 0.982018
+  ...
+# Subtest: drafts require editorial review and escape commit markup
+ok 9 - drafts require editorial review and escape commit markup
+  ---
+  duration_ms: 0.550685
+  ...
+# Subtest: missing integration or unchanged develop does not dispatch a review
+ok 10 - missing integration or unchanged develop does not dispatch a review
+  ---
+  duration_ms: 0.82364
+  ...
+# Subtest: only the approved UniAI endpoint receives fixed develop metadata
+ok 11 - only the approved UniAI endpoint receives fixed develop metadata
+  ---
+  duration_ms: 0.808536
+  ...
+# Subtest: invalid endpoint or event fails before sending anything
+ok 12 - invalid endpoint or event fails before sending anything
+  ---
+  duration_ms: 1.445637
+  ...
+# Subtest: HTTP and transport errors never expose the webhook URL or response body
+ok 13 - HTTP and transport errors never expose the webhook URL or response body
+  ---
+  duration_ms: 0.450489
+  ...
+# Subtest: one PR contains real bilingual prose, the catalog and a readable preview without creating a tag
+ok 14 - one PR contains real bilingual prose, the catalog and a readable preview without creating a tag
+  ---
+  duration_ms: 142.916353
+  ...
+# Subtest: incomplete translations fail before modifying the catalog
+ok 15 - incomplete translations fail before modifying the catalog
+  ---
+  duration_ms: 74.801424
+  ...
+# Subtest: a newer develop snapshot invalidates publication before writing
+ok 16 - a newer develop snapshot invalidates publication before writing
+  ---
+  duration_ms: 29869.51471
+  ...
+# Subtest: publication rejects unrelated code, unrelated locale edits and rewriting older releases
+ok 17 - publication rejects unrelated code, unrelated locale edits and rewriting older releases
+  ---
+  duration_ms: 29992.757189
+  ...
+# Subtest: every source commit is required and Markdown must match the approved JSON
+ok 18 - every source commit is required and Markdown must match the approved JSON
+  ---
+  duration_ms: 254.782557
+  ...
+# Subtest: rerunning preparation preserves edits outside Changelog and is idempotent
+ok 19 - rerunning preparation preserves edits outside Changelog and is idempotent
+  ---
+  duration_ms: 153.832438
+  ...
+# Subtest: ordinary PRs and the existing notes-only workflow remain supported
+ok 20 - ordinary PRs and the existing notes-only workflow remain supported
+  ---
+  duration_ms: 136.115782
+  ...
+# Subtest: an ordinary PR behind a published release is not mistaken for a catalog deletion
+ok 21 - an ordinary PR behind a published release is not mistaken for a catalog deletion
+  ---
+  duration_ms: 29613.427506
+  ...
+# Subtest: a stale publication still fails when its target branch has advanced
+ok 22 - a stale publication still fails when its target branch has advanced
+  ---
+  duration_ms: 190.482905
+  ...
+# Subtest: a tag may be added after a reviewed publication without rewriting the published metadata
+ok 23 - a tag may be added after a reviewed publication without rewriting the published metadata
+  ---
+  duration_ms: 173.163543
+  ...
+# Subtest: preparation refuses mismatched manifest paths and outputs outside the checkout
+ok 24 - preparation refuses mismatched manifest paths and outputs outside the checkout
+  ---
+  duration_ms: 91.758677
+  ...
+# Subtest: untrusted source refs and evidence URLs are rejected before shared files are modified
+ok 25 - untrusted source refs and evidence URLs are rejected before shared files are modified
+  ---
+  duration_ms: 29620.951311
+  ...
+# Subtest: legacy tag-generated catalog PRs still pass the content guard
+ok 26 - legacy tag-generated catalog PRs still pass the content guard
+  ---
+  duration_ms: 231.41162
+  ...
+# Subtest: workflow uses stable release validation and scoped credentials without bypassing checks
+ok 27 - workflow uses stable release validation and scoped credentials without bypassing checks
+  ---
+  duration_ms: 11.3095
+  ...
+# Subtest: CI validates the full Changelog PR diff with immutable base and head inputs
+ok 28 - CI validates the full Changelog PR diff with immutable base and head inputs
+  ---
+  duration_ms: 13.635847
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 120650.365658
+
+CHECK_CHANGELOG_EXIT=0
