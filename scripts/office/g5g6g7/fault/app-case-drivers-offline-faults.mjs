@@ -476,9 +476,9 @@ async function waitRenewalDue(ctx, leaseUntil, ttlMs) {
 //   - a live 403 `offline_lease_revoked` on that renewal re-grants ONCE in the same call (lease/manager.ts:653-674),
 //     which is BY DESIGN (D office_lease.go:294-355: the CLI bumps the org epoch and ends old-epoch leases, it does not
 //     ban new grants): window A asserts 403, then 200 under the NEW epoch, in that order, and a usable row again;
-//   - the refused copy (`revoked`, S11 `permission_revoked`) therefore exists only where the re-grant cannot succeed:
-//     window B refuses it at the proxy (`refuse-regrant`, the 2nd lease PUT of the window answers 403 again - the
-//     shape of a person whose access is gone), so grant() runs and is refused, and the row is revoked.
+//   - the refused copy (`revoked`, S11 `permission_revoked`) therefore exists only where the re-grant is refused:
+//     window B is an INJECTED refusal, not D's behaviour - the proxy rule `refuse-regrant` answers the 2nd lease PUT of the
+//     window with 403 again (the shape of a person whose access is gone), so grant() runs and is refused, and the row is revoked.
 async function fl06(ctx) {
   const faulted = ctx.expect.offline("faultedStates");
   const shortLeaseStates = ctx.expect.offline("shortLeaseStates");
@@ -550,6 +550,7 @@ async function fl06(ctx) {
   // ---- window B: the same cause again, with the re-grant refused -> the revoked copy (S3 revoked, S11)
   await ctx.setRules(ctx.caseRules(["cut-network"]));
   const revokeB = await ctx.revokeOfflineLeases();
+  if (revokeB.failure && !assertionsA.every((entry) => entry.ok)) return { documentId: doc.id, assertions: assertionsA };
   if (revokeB.failure) return blocked(revokeB.failure);
   const regrantedReading = await rowReading(session, doc.id);
   await waitRenewalDue(ctx, regrantedReading.leaseUntil, ttlMs);
@@ -571,10 +572,11 @@ async function fl06(ctx) {
     documentId: doc.id,
     assertions: [
       ...assertionsA,
-      // window B: the same renewal is refused again and the re-grant is refused too (proxy `refuse-regrant`): grant() cannot run
+      // window B: the same renewal is refused again and the re-grant is refused too by the INJECTED proxy rule `refuse-regrant`
+      // (grant() runs and gets the 403; D itself never refuses a by-design re-grant)
       assertion(
         "s11_window_renew_refused",
-        `first PUT answered ${refusedStatus} ${refusedCode}, then the re-grant refused (rule refuse-regrant), no 200`,
+        `first PUT answered ${refusedStatus} ${refusedCode}, then the re-grant refused by the INJECTED rule refuse-regrant, no 200`,
         putsB.map(putLine).join(", ") || "(no renew seen)",
         putsB[0]?.status === refusedStatus && putsB[0]?.errorCode === refusedCode && putsB[1]?.status === "synthetic" && putsB[1]?.ruleId === "refuse-regrant" && !putsB.some((entry) => entry.status === 200),
       ),

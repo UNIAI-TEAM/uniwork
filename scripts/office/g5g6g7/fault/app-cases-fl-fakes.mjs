@@ -173,10 +173,13 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       world.log.push({ method: "PUT", path, status: "reset", ruleId: rule.id });
       return "cut";
     }
-    // a `status` rule answers for D (FL-06 window B: the re-grant is refused too), the logged shape of the proxy's synthetic answer
-    if (rule?.action.type === "status") {
+    // a `status` rule answers for D (FL-06 window B: the re-grant is refused too), the logged shape of the proxy's synthetic answer.
+    // Only 403 + offline_lease_revoked is the revoke the fork acts on (lease/manager.ts:677-685 revokes on revoked/access_denied
+    // only; lease/client.ts:256-260 maps any other answer to server_error): that is "refused". Another non-200 answer is
+    // a failed call that leaves the copy as it was, and a 200 answer is a grant like any other.
+    if (rule?.action.type === "status" && rule.action.code !== 200) {
       world.log.push({ method: "PUT", path, status: "synthetic", ruleId: rule.id });
-      return "refused";
+      return rule.action.code === 403 && rule.action.body?.error?.code === "offline_lease_revoked" ? "refused" : "failed";
     }
     // a renewal of a lease from an older policy epoch is refused; a fresh grant (the manager's grant(), no lease token) is a new row under the new epoch
     const oldEpoch = (world.leases.get(documentId)?.epoch ?? 1) < world.policyEpoch;
@@ -219,7 +222,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       if (world.revokedSeen.has(documentId) || !world.rows.has(documentId) || !leaseDue(documentId)) continue;
       if (leasePut(documentId) !== "revoked") continue;
       const regrantable = (world.revokeErrorCode ?? "offline_lease_revoked") === "offline_lease_revoked";
-      if (regrantable && leasePut(documentId, true) === "granted") continue;
+      const regrant = regrantable ? leasePut(documentId, true) : "revoked";
+      if (regrant === "granted" || regrant === "failed") continue;
       world.revokedSeen.add(documentId);
     }
   };
