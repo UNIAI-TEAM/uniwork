@@ -1,0 +1,171 @@
+// What the W2 FL rows need from the Linux runner VM (G7-03b, UNI-1382): a small
+// tmpfs for FL-02, libfaketime for FL-05, and a keyring the runner can lock and
+// unlock for FL-09. Each probe answers `{ok, ...}` or the EXACT runner line the
+// row reports as BLOCKED, never a PASS: a VM without the tool is a precondition,
+// not a product claim. Every system call goes through an injected `run`
+// (child_process.spawnSync shaped) so the logic is unit-tested without a VM.
+
+import { spawnSync } from "node:child_process";
+import { closeSync, existsSync, ftruncateSync, mkdirSync, openSync, rmSync, statfsSync, writeSync } from "node:fs";
+import { join } from "node:path";
+
+const sh = (run, command, args, options = {}) => {
+  const res = run(command, args, { encoding: "utf8", timeout: 30_000, ...options });
+  return { status: res.status, stdout: String(res.stdout ?? ""), stderr: String(res.stderr ?? ""), error: res.error ?? null };
+};
+
+// ---- FL-02: a small tmpfs as the app's userData -----------------------------------
+
+/**
+ * Whether this runner can mount a tmpfs: a non-interactive `sudo` that may run
+ * `mount`. Returns `{ok:true}` or `{ok:false, line}` with the runner's own line.
+ */
+export function probeTmpfsMount({ run = spawnSync, platform = process.platform } = {}) {
+  if (platform !== "linux") return { ok: false, line: `tmpfs mount needs Linux (platform ${platform})` };
+  const sudo = sh(run, "sudo", ["-n", "true"]);
+  if (sudo.error?.code === "ENOENT") return { ok: false, line: "sudo is not installed on the runner VM (needed for `mount -t tmpfs`)" };
+  if (sudo.status !== 0) return { ok: false, line: `sudo -n true exited ${sudo.status}: ${firstLine(sudo.stderr) || "a password is required"}` };
+  return { ok: true };
+}
+
+const firstLine = (text) => String(text).trim().split("\n")[0] ?? "";
+
+/**
+ * Mounts a `sizeMb` MiB tmpfs owned by the runner's user at `dir` (created if
+ * missing). Returns `{ok:true}` or `{ok:false, line}`.
+ */
+export function mountTmpfs(dir, sizeMb, { run = spawnSync, uid = process.getuid?.() ?? 0, gid = process.getgid?.() ?? 0 } = {}) {
+  mkdirSync(dir, { recursive: true });
+  const res = sh(run, "sudo", ["-n", "mount", "-t", "tmpfs", "-o", `size=${sizeMb}m,uid=${uid},gid=${gid},mode=0700`, "tmpfs", dir]);
+  if (res.status !== 0) return { ok: false, line: `mount -t tmpfs -o size=${sizeMb}m ${dir} exited ${res.status}: ${firstLine(res.stderr) || firstLine(res.stdout)}` };
+  return { ok: true };
+}
+
+/** Unmounts what `mountTmpfs` mounted (lazy: a closing app may still hold a file). */
+export function unmountTmpfs(dir, { run = spawnSync } = {}) {
+  const res = sh(run, "sudo", ["-n", "umount", "-l", dir]);
+  return res.status === 0 ? { ok: true } : { ok: false, line: `umount -l ${dir} exited ${res.status}: ${firstLine(res.stderr)}` };
+}
+
+/** Free bytes a non-root user can still write on the filesystem of `dir`. */
+export const freeBytes = (dir, { stat = statfsSync } = {}) => {
+  const s = stat(dir);
+  return Number(s.bavail) * Number(s.bsize);
+};
+
+/**
+ * Fills `dir`'s filesystem until `leaveBytes` are free, with one real file
+ * (`.fl02-filler`): the tmpfs is then really full for the app's next write, which
+ * is the ENOSPC the row needs. Returns `{path, freeBefore, freeAfter}`.
+ */
+export function fillToLeave(dir, leaveBytes, { stat = statfsSync } = {}) {
+  const path = join(dir, ".fl02-filler");
+  const freeBefore = freeBytes(dir, { stat });
+  const toWrite = Math.max(0, freeBefore - leaveBytes);
+  const fd = openSync(path, "w");
+  try {
+    const chunk = Buffer.alloc(1024 * 1024, 0x2e);
+    let left = toWrite;
+    while (left > 0) {
+      const n = Math.min(left, chunk.length);
+      writeSync(fd, chunk, 0, n);
+      left -= n;
+    }
+  } finally {
+    closeSync(fd);
+  }
+  return { path, freeBefore, freeAfter: freeBytes(dir, { stat }) };
+}
+
+/** Frees what `fillToLeave` took (the row's "free space, then retry"). */
+export const releaseFill = (path) => rmSync(path, { force: true });
+
+/**
+ * The fallback when the VM cannot mount: a SPARSE file in the library's scope
+ * directory so the fork's own layer budget (store/layer.ts: encrypted bytes
+ * across the account scope, files by size) is crossed and the next record write
+ * answers `store_full` - the contract's fallback. No root, no real disk used.
+ * `scopeDir` is `<userData>/uniwork-sync/library/store/<deployment>/<account>`.
+ */
+export function sparseFill(scopeDir, budgetBytes, leaveBytes) {
+  mkdirSync(scopeDir, { recursive: true });
+  const path = join(scopeDir, ".fl02-sparse-filler");
+  const fd = openSync(path, "w");
+  try {
+    ftruncateSync(fd, Math.max(0, budgetBytes - leaveBytes));
+  } finally {
+    closeSync(fd);
+  }
+  return { path, apparentBytes: Math.max(0, budgetBytes - leaveBytes) };
+}
+
+// ---- FL-05: libfaketime around Electron ---------------------------------------------
+
+export const FAKETIME_CANDIDATES = Object.freeze([
+  "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1",
+  "/usr/lib/aarch64-linux-gnu/faketime/libfaketime.so.1",
+  "/usr/lib/faketime/libfaketime.so.1",
+  "/usr/local/lib/faketime/libfaketime.so.1",
+]);
+
+/** The libfaketime shared object, or `{line}` naming where it looked (BLOCKED, with the install line). */
+export function findFaketime({ exists = existsSync, platform = process.platform } = {}) {
+  if (platform !== "linux") return { line: `libfaketime needs Linux (platform ${platform})` };
+  const path = FAKETIME_CANDIDATES.find((candidate) => exists(candidate));
+  if (path) return { path };
+  return { line: `libfaketime is not installed on the runner VM (apt-get install -y libfaketime); looked in ${FAKETIME_CANDIDATES.join(", ")}` };
+}
+
+/**
+ * The env that puts one Electron process `minutes` behind the real wall clock.
+ * The monotonic clock is left alone (`FAKETIME_DONT_FAKE_MONOTONIC`): the lease
+ * check compares the WALL clock with the latest wall clock it saw, and a skewed
+ * monotonic clock would only add a second, unrelated fault.
+ */
+export const faketimeEnv = (libraryPath, minutes) => ({
+  LD_PRELOAD: libraryPath,
+  FAKETIME: `-${minutes}m`,
+  FAKETIME_DONT_FAKE_MONOTONIC: "1",
+  FAKETIME_NO_CACHE: "1",
+});
+
+// ---- FL-09: the keyring control channel of app-keyring.sh ---------------------------
+
+/**
+ * Asks the keyring wrapper (`APP_KEYRING_CONTROL=1 … app-keyring.sh`, which owns
+ * the daemon and its password) to `lock` or `unlock` it. `APP_KEYRING_CTL` is the
+ * control path the wrapper exports; without it the VM was not started in control
+ * mode and the row is BLOCKED with the exact line. Returns `{ok:true}` or
+ * `{ok:false, line}`.
+ */
+export function keyringControl(action, { env = process.env, run = spawnSync } = {}) {
+  if (action !== "lock" && action !== "unlock") throw new Error(`unknown keyring action "${action}"`);
+  const ctl = env.APP_KEYRING_CTL;
+  if (!ctl) return { ok: false, line: "APP_KEYRING_CTL is not set: run the runner as `APP_KEYRING_CONTROL=1 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node …/app-cases.mjs`" };
+  // the wrapper reads one command per line from <ctl>.in and answers one line on <ctl>.out
+  const res = sh(run, "bash", ["-c", 'printf "%s\\n" "$1" > "$0.in" && read -r -t 30 reply < "$0.out" && printf "%s" "$reply"', ctl, action], { timeout: 45_000 });
+  if (res.status !== 0) return { ok: false, line: `the keyring control channel did not answer ${action} (exit ${res.status}): ${firstLine(res.stderr)}` };
+  const reply = res.stdout.trim();
+  return reply === "ok" ? { ok: true } : { ok: false, line: `the keyring wrapper answered ${action} with: ${reply || "(nothing)"}` };
+}
+
+/**
+ * The runner VM as the W2 drivers see it (`ctx.vm`): the real probes and helpers
+ * above. A test passes fakes with the same names, so no driver shells out itself.
+ */
+export const REAL_VM = Object.freeze({
+  probeTmpfsMount,
+  mountTmpfs,
+  unmountTmpfs,
+  fillToLeave,
+  releaseFill,
+  sparseFill,
+  findFaketime,
+  faketimeEnv,
+  keyring: Object.freeze({
+    /** null while the wrapper's control channel is there, else the BLOCKED line */
+    available: () => (process.env.APP_KEYRING_CTL ? null : keyringControl("lock", { run: () => ({ status: 1 }) }).line),
+    lock: () => keyringControl("lock"),
+    unlock: () => keyringControl("unlock"),
+  }),
+});

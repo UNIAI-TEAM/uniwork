@@ -45,16 +45,17 @@ export async function waitFor(probe, timeoutMs, intervalMs = 250) {
  * Launches the fork app. `ports` is the harness run's ports.env (Electron
  * binary, app dir, display); `options.extra` adds env to the fault env.
  * `deploymentId` (FL-08) switches the deployment the app reads its stores for
- * on the SAME userData; leaving it out keeps the harness deployment.
+ * on the SAME userData; leaving it out keeps the harness deployment. `extraEnv`
+ * (FL-05's libfaketime) adds env to THIS launch only and wins over the fault env.
  */
-export async function launchApp({ playwright, ports, proxyOrigin, userDataDir, traceFile, stuckAfterMs, recheckMs, deploymentId = null, logFile, harnessPidFile = null }) {
+export async function launchApp({ playwright, ports, proxyOrigin, userDataDir, traceFile, stuckAfterMs, recheckMs, deploymentId = null, extraEnv = {}, logFile, harnessPidFile = null }) {
   mkdirSync(userDataDir, { recursive: true });
   const settings = join(userDataDir, "app-settings.json");
   if (!existsSync(settings)) writeFileSync(settings, JSON.stringify({ onboardingSeen: true }));
   const env = appEnv({
     apiOrigin: proxyOrigin,
     userDataDir,
-    extra: faultAppExtraEnv({ traceFile, stuckAfterMs, recheckMs, deploymentId: deploymentId ?? "", display: ports.DISPLAY, xauthority: ports.XAUTHORITY }),
+    extra: { ...faultAppExtraEnv({ traceFile, stuckAfterMs, recheckMs, deploymentId: deploymentId ?? "", display: ports.DISPLAY, xauthority: ports.XAUTHORITY }), ...extraEnv },
   });
   const app = await playwright._electron.launch({
     executablePath: ports.ELECTRON_BIN,

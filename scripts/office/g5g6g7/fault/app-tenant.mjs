@@ -386,6 +386,27 @@ export function grantPlatformAdmin({ repoRoot, databaseUrl, email }) {
   return null;
 }
 
+/**
+ * FL-06's revoke on D: every live offline lease of the run's organization ends
+ * (`uniwork-admin revoke-offline-leases`, server/cmd/uniwork-admin: bumps the
+ * organization's policy epoch and revokes the live leases, one `office_lease.revoked`
+ * outbox event each). The next renew of a lease the app holds answers 403
+ * `offline_lease_revoked`. Returns null on success or the reason it could not
+ * (a missing tool is a precondition: BLOCKED).
+ */
+export function revokeOrgOfflineLeases({ repoRoot, databaseUrl, orgId }, { run = spawnSync } = {}) {
+  if (!databaseUrl) return "no DATABASE_URL in the run's server.env (needed by uniwork-admin)";
+  const res = run("go", ["run", "./cmd/uniwork-admin", "revoke-offline-leases", "--org-id", orgId, "--reason", ADMIN_REASON], {
+    cwd: `${repoRoot}/server`,
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    encoding: "utf8",
+    timeout: 300_000,
+  });
+  if (res.error?.code === "ENOENT") return "go is not on PATH (uniwork-admin revokes the offline leases)";
+  if (res.status !== 0) return `uniwork-admin revoke-offline-leases exited ${res.status}: ${redactUrls(String(res.stderr ?? "").trim().split("\n")[0] ?? "")}`;
+  return null;
+}
+
 export const suspendOrg = (tenant) =>
   must("suspend organization", tenant.apiOrigin, `/api/v1/admin/organizations/${tenant.orgId}/suspend`,
     { method: "POST", as: tenant.owner, json: { reason: ADMIN_REASON } }, undefined, "/api/v1/admin/organizations/{orgID}/suspend");
