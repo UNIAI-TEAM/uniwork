@@ -108,6 +108,11 @@ export function documentErrorMessage(
     return t("documents.errors.unsupported_media_type");
   }
   if (code === "document_locked" || (error instanceof ApiError && error.status === 423)) {
+    // The same person's hold in another window (pre-check or 423 body) gets
+    // its own sentence; any other holder keeps the shared one (L-1).
+    if (errorFields(error)?.held_by_me === true) {
+      return t("documents.upload.document_locked_by_me");
+    }
     return t("documents.upload.document_locked");
   }
   if (code && CODED.has(code)) return t(`documents.errors.${code}`, { max: TREE_MAX_LEVEL });

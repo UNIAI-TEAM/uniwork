@@ -1236,7 +1236,7 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
     try {
       await openDialogAndSubmit(bigFile);
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent(t("documents.upload.document_locked"));
+      expect(alert).toHaveTextContent(t("documents.upload.document_locked_by_me"));
       expect(calls).toContain(`GET /api/v1/documents/${DOC_ID}/edit-lock`);
       expect(calls).not.toContain(`POST /api/v1/documents/${DOC_ID}/upload-sessions`);
       expect(calls).not.toContain("GET /api/v1/upload-sessions/sess-prior-2");
