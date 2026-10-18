@@ -432,6 +432,12 @@ func (s *DocumentService) OpenVersionUploadSession(ctx context.Context, actor Ac
 	if err := decideFileSave(doc, access); err != nil {
 		return UploadSessionView{}, err
 	}
+	// A shelved document is read-only (addendum §3): the session may only be
+	// opened after the access gate, like every other write path, and the
+	// commit's own gate below answers the same for a raced shelve.
+	if err := requireNotShelved(doc); err != nil {
+		return UploadSessionView{}, err
+	}
 	return s.openUploadSession(ctx, actor, openSessionTarget{
 		openedVia:   "version",
 		orgID:       doc.OrganizationID,
@@ -456,6 +462,11 @@ func (s *DocumentService) OpenFrameUploadSession(ctx context.Context, claims Off
 		return UploadSessionView{}, ErrNotFound
 	}
 	if err := decideFileSave(doc, access); err != nil {
+		return UploadSessionView{}, err
+	}
+	// Same gate as the version route (addendum §3), after the frame scope
+	// check so a foreign token still answers not_found.
+	if err := requireNotShelved(doc); err != nil {
 		return UploadSessionView{}, err
 	}
 	return s.openUploadSession(ctx, actor, openSessionTarget{
@@ -1329,6 +1340,34 @@ func (s *DocumentService) completeVersionOrFrameUploadSessionInTx(
 		if errors.Is(err, pgx.ErrNoRows) {
 			return UploadSessionCompleteResult{}, errUploadSessionBusy()
 		}
+		return UploadSessionCompleteResult{}, err
+	}
+
+	// The document is re-read under its own row lock inside the commit
+	// transaction (addendum §3): a shelve that landed between open and
+	// complete must refuse the commit, and the lock is the same one every
+	// other document write takes, so a shelve waits for this transaction
+	// instead of interleaving with it. Access is decided again on that locked
+	// row, the answer the open and the version commit both give: the caller
+	// was authorized before storage assembly, so a caller who lost access
+	// while the parts were assembled must get the gate's refusal (not_found),
+	// never 409 document_shelved, which would leak the fresh state of a row
+	// they may no longer see (BE-AR-3).
+	doc, err := q.LockDocumentByID(ctx, sess.DocumentID.String)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UploadSessionCompleteResult{}, ErrNotFound
+	}
+	if err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
+	access, err := s.effectiveLevel(ctx, q, actor, doc)
+	if err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
+	if err := decideFileSave(doc, access); err != nil {
+		return UploadSessionCompleteResult{}, err
+	}
+	if err := requireNotShelved(doc); err != nil {
 		return UploadSessionCompleteResult{}, err
 	}
 
