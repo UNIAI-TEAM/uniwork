@@ -110,9 +110,9 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     expect(screen.getByText("Chỉ xem qua chia sẻ trực tiếp")).toBeInTheDocument();
     expect(screen.getByText("Chỉnh sửa qua Workspace Kinh doanh")).toBeInTheDocument();
 
-    // TV1-01: the trigger shows the level word only (its aria-label still
-    // carries "Mức quyền <name>") and rows wrap so controls never overlap.
-    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền Kinh doanh" });
+    // TV1-01: the trigger shows the level word only; R4-01 names it
+    // "Mức quyền <name>: <level>" so screen readers hear the current level.
+    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền Kinh doanh: Chỉnh sửa" });
     expect(levelTrigger).not.toHaveTextContent("Mức quyền:");
     expect(levelTrigger).toHaveTextContent("Chỉnh sửa");
     const homeLi = levelTrigger.closest("li")!;
@@ -285,6 +285,88 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     );
   });
 
+  it("R5-01: a manager who drops their own Manage lands focus on the non-manager heading after refetch", async () => {
+    // The real interleave: Accept's commit is still in flight when the
+    // refetched access flips the view to the non-manager branch; only then
+    // does the close effect look up headingRef — it must be that branch's h3.
+    const commit = Promise.withResolvers<unknown>();
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: { dry_run?: boolean } }) => {
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        if (opts.body?.dry_run) {
+          return Promise.resolve({
+            batch_id: "",
+            dry_run: true,
+            results: [{ index: 0, status: "revoked" }],
+            preview: {
+              users: [{ user_id: "u2", before: { level: "edit", via: "share" }, after: { level: "", via: "" } }],
+              groups: [],
+              warnings: [],
+            },
+          });
+        }
+        return commit.promise;
+      }
+      return Promise.resolve({});
+    });
+
+    const user = userEvent.setup();
+    const { rerender } = renderAccessList({
+      my_level: "manage",
+      via: "member",
+      shares: [
+        {
+          id: "s1",
+          principal_type: "user",
+          principal_id: "u2",
+          level: "edit",
+          active: true,
+          granted_by: "u1",
+          granted_by_kind: "human",
+          created_at: "2026-10-15T09:00:00Z",
+        },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Thu hồi Nguyễn An (an@acme.vn)" }));
+    const confirmBox = await screen.findByTestId("share-access-confirm");
+    await user.click(within(confirmBox).getByRole("button", { name: "Xác nhận" }));
+
+    // The refetch answers mid-commit: the manager view is gone, the panel
+    // unmounts with it, and the close effect has only the heading left.
+    rerender(
+      wrap(
+        <ShareAccessList
+          wsId="w1"
+          docId="d1"
+          docWorkspaceId="w1"
+          access={{
+            my_level: "edit",
+            via: "share",
+            my_sources: [{ via: "share", principal_type: "user", principal_id: "u1", level: "edit" }],
+            shares: [],
+          }}
+          canManage={false}
+          adminScope={false}
+          memberLabels={memberLabels}
+          workspaceNames={workspaceNames}
+          organization={{ id: "o1", name: "Acme" }}
+          locale="vi"
+        />,
+      ),
+    );
+
+    commit.resolve({
+      batch_id: "01JREV2",
+      dry_run: false,
+      results: [{ index: 0, status: "revoked" }],
+      preview: { users: [], groups: [], warnings: [] },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Quyền của bạn: Chỉnh sửa" })).toHaveFocus(),
+    );
+  });
+
   it("R4-02: cancelling a level-change confirm hands focus back to the row's level combobox", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string; body: { dry_run?: boolean; items?: Array<{ level?: string | null }> } }) => {
       if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
@@ -322,7 +404,7 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
       ],
     });
 
-    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền Nguyễn An (an@acme.vn)" });
+    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền Nguyễn An (an@acme.vn): Chỉnh sửa" });
     await user.click(levelTrigger);
     await user.click(await screen.findByRole("option", { name: "Chỉ xem" }));
     const confirmBox = await screen.findByTestId("share-access-confirm");

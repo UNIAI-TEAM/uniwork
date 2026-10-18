@@ -112,6 +112,21 @@ export function ShareAddSection({
   // `updateAccess.isPending` is false between the dry_run resolving and the
   // real call, so a fast second click would run both again; the ref closes it.
   const inFlight = useRef(false);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const prevPreviewRef = useRef<typeof pendingPreview>(null);
+  // Whether the preview panel unmounted from a Cancel/Accept inside it, so the
+  // close effect can tell a real close from other paths that clear the state.
+  const previewClosedByButtons = useRef(false);
+  // TV2-05 (same R4-02 pattern as the per-row panels): when the panel closes,
+  // focus returns to the Chia sẻ button that opened it, not the dialog root.
+  useEffect(() => {
+    const prev = prevPreviewRef.current;
+    prevPreviewRef.current = pendingPreview;
+    if (!prev || pendingPreview) return;
+    if (!previewClosedByButtons.current) return;
+    previewClosedByButtons.current = false;
+    submitRef.current?.focus();
+  }, [pendingPreview]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -417,6 +432,7 @@ export function ShareAddSection({
 
         <Button
           type="button"
+          ref={submitRef}
           aria-disabled={!selected.length || updateAccess.isPending || undefined}
           aria-busy={updateAccess.isPending || undefined}
           onClick={() => void handleSubmit()}
@@ -477,7 +493,7 @@ export function ShareAddSection({
                       items={allowed.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
                       onValueChange={(v) => updateSelected(item.key, { customLevel: v as DocumentAccessLevel })}
                     >
-                      <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${item.candidate.name}`}>
+                      <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${item.candidate.name}: ${levelLabel(currentLvl)}`}>
                         <SelectValue className="min-w-0">{levelLabel(currentLvl)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
@@ -506,10 +522,10 @@ export function ShareAddSection({
             ))}
           </ul>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => void executeCommit(pendingPreview.items)}>
+            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => { previewClosedByButtons.current = true; void executeCommit(pendingPreview.items); }}>
               {t("documents.share.confirm_accept")}
             </Button>
-            <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => setPendingPreview(null)}>
+            <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => { previewClosedByButtons.current = true; setPendingPreview(null); }}>
               {t("documents.share.confirm_cancel")}
             </Button>
           </div>

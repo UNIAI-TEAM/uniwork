@@ -94,10 +94,13 @@ export function HomeWorkspaceRow({
   return (
     <li className="flex flex-col gap-1.5 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
-          <FolderKanban aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 truncate" title={homeDisplayLabel}>{homeDisplayLabel}</span>
-          <Badge className="shrink-0" variant="secondary">{t("documents.share.home_badge")}</Badge>
+        <span className="flex min-w-0 flex-1 basis-40 flex-col gap-0.5 text-body text-foreground">
+          <span className="flex min-w-0 items-center gap-2">
+            <FolderKanban aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 truncate" title={homeDisplayLabel}>{homeDisplayLabel}</span>
+          </span>
+          {/* TV2-01: the badge sits under the name like a person's source line, so English "Home workspace" cannot squeeze the workspace name. */}
+          <span className="pl-6"><Badge variant="secondary">{t("documents.share.home_badge")}</Badge></span>
         </span>
         {canManage ? (
           <div className="flex shrink-0 items-center gap-1.5">
@@ -110,7 +113,7 @@ export function HomeWorkspaceRow({
                     void requestRowChange(homeRowKey, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, v as DocumentAccessLevel)
                   }
                 >
-                  <SelectTrigger ref={(el) => setOpenerEl("level", homeRowKey, el)} className="w-full" aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}`}>
+                  <SelectTrigger ref={(el) => setOpenerEl("level", homeRowKey, el)} className="w-full" aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}: ${levelLabel(homeRow.level)}`}>
                     <SelectValue className="min-w-0">{levelLabel(homeRow.level)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -180,9 +183,6 @@ export function ShareRow({
           <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
             <SharePrincipalIcon principalType={share.principal_type} />
             <NameOrSkeleton name={label} />
-            {!share.active ? (
-              <span className="shrink-0 text-caption text-muted-foreground">{t("documents.share.inactive")}</span>
-            ) : null}
           </span>
           <span className="block pl-5.5 text-caption text-muted-foreground">
             {levelLabel(share.level)}
@@ -190,6 +190,8 @@ export function ShareRow({
               ? ` · ${t("documents.share.effective", { level: levelLabel(share.effective_level) })}`
               : ""}
             {share.effective_via ? ` · ${viaLabel(share.effective_via)}` : ""}
+            {/* TV2-02: the inactive label joins the level line; beside the name it truncated a long name. */}
+            {!share.active ? ` · ${t("documents.share.inactive")}` : ""}
           </span>
           {sources.length > 0 ? (
             <button
@@ -214,7 +216,7 @@ export function ShareRow({
                     void requestRowChange(rowKey, share.principal_type as DocumentPrincipalType, share.principal_id, displayLabel, share.level, v as DocumentAccessLevel)
                   }
                 >
-                  <SelectTrigger ref={(el) => setOpenerEl("level", rowKey, el)} className="w-full" aria-label={`${t("documents.share.level_label")} ${displayLabel}`}>
+                  <SelectTrigger ref={(el) => setOpenerEl("level", rowKey, el)} className="w-full" aria-label={`${t("documents.share.level_label")} ${displayLabel}: ${levelLabel(share.level)}`}>
                     <SelectValue className="min-w-0">{levelLabel(share.level)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>

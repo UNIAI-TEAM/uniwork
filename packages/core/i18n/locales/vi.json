@@ -9515,8 +9515,8 @@
       "comment": "Bình luận"
     },
     "breakGlass": {
-      "lockedTitle": "Tài liệu này ở chế độ hạn chế",
-      "lockedBody": "Quản trị viên quản lý được tài liệu nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
+      "lockedTitle": "Tài liệu này là riêng tư",
+      "lockedBody": "Quản trị viên quản lý được tài liệu riêng tư này nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
       "openButton": "Mở truy cập khẩn cấp (24 giờ)",
       "reasonLabel": "Lý do truy cập khẩn cấp",
       "reasonHint": "Chủ tài liệu sẽ được thông báo và hành động này được ghi vào nhật ký kiểm toán. Quyền Xem hết hạn sau 24 giờ.",
@@ -9533,7 +9533,7 @@
       "viaBreakGlass": "Truy cập khẩn cấp",
       "selfShareError": "Quản trị viên không thể tự cấp quyền qua mục Chia sẻ. Hãy dùng Truy cập khẩn cấp (24 giờ, có ghi nhật ký).",
       "memberTitle": "Bạn cần quyền truy cập tài liệu này",
-      "memberBody": "Tài liệu này đang ở chế độ hạn chế. Hãy liên hệ chủ sở hữu hoặc người quản lý tài liệu để được cấp quyền.",
+      "memberBody": "Tài liệu này là riêng tư. Hãy liên hệ chủ sở hữu hoặc người quản lý tài liệu để được cấp quyền.",
       "ownerLabel": "Chủ sở hữu: {{owner}}",
       "updatedLabel": "Cập nhật {{time}}",
       "submitFailed": "Không mở được truy cập khẩn cấp. Thử lại.",
