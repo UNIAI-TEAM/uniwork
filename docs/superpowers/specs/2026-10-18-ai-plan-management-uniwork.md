@@ -1,6 +1,6 @@
 # Quản lý gói AI và hạn mức trên UniWork (qua UniAI Hub v0.2.0)
 
-> **Trạng thái:** draft — v0.1 viết 2026-10-18 (UNI-1910, lane ai-plan-uw), chưa có dòng code nào; chờ người dùng duyệt §13 (Q-AIP) và các board thiết kế (§11).
+> **Trạng thái:** draft — v0.2 (2026-10-18, UNI-1910, lane ai-plan-uw; v0.1 + sửa theo review BE/FE vòng 1), chưa có dòng code nào; chờ người dùng duyệt §13 (Q-AIP-1…10, D-1…D-7) và các board thiết kế (§11).
 
 **Quan hệ:** [ADR 0010](../../adr/0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) (mọi call qua `ai.Gateway`), [0029](../../adr/0029-ai-cua-office-tren-web-qua-ai-gateway.md) + [0034](../../adr/0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) (BYOK), [0008](../../adr/0008-cach-ly-tenant-o-tang-service.md), [0009](../../adr/0009-audit-va-outbox-cung-transaction.md), [0012](../../adr/0012-audit-bat-bien-bang-quyen-db-va-trigger.md), [0015](../../adr/0015-va-cache-tu-frame-realtime-theo-catalogue.md), [0031](../../adr/0031-uniwork-la-oauth-server-cho-client-ai-ben-ngoai.md), [0033](../../adr/0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md).
 **Nguồn phía Hub** (repo `llm-system`, đọc ở working tree 2026-10-18; trích dẫn dạng `hub:<đường dẫn>:<dòng>`): `docs/SPEC.md` (final, cập nhật S-P2), `docs/connect.md`, `docs/plans/2026-10-17-p2-plan.md` mục "Phía UniWork" (dòng 198–211), mã `internal/admin`, `internal/usage`, `internal/surface`, `internal/webhook`, `internal/admission`, `internal/auth`, `internal/httpx`.
@@ -22,12 +22,29 @@
 | Chọn model | Hằng số trong mã theo capability (`policies`), override bằng env `AI_MODEL_<CAPABILITY>` phải nằm trong allowlist (+`AI_MODEL_ALLOW`). **Không có bộ chọn model** cho AI do UniWork phục vụ; chỉ có nhãn đọc-chỉ `uniwork_model` ở trạng thái cloud. Chip chọn model của desktop là cho khóa BYOK | `server/internal/ai/policy.go:51-65`, `:116-153`; `ai/cloud.go:118-130`; `docs/office/g5g6g7/contracts/g6-05k-org-keys-api.md:177` |
 | Provider | `FromEnv` chọn anthropic/openai/ollama/fake; adapter `openai` nói wire chat-completions và chỉ đổi `OPENAI_BASE_URL` là đổi nhà cung cấp, nhưng không gắn header tùy ý. Công cụ cloud (ảnh, phiên âm, tìm kiếm) là adapter riêng qua `CloudFromEnv`, cấp **tổ chức**, không có workspace | `ai/config.go:27-65`, `ai/provider/openai.go:24-31`, `ai/cloud.go:53-100`, `:131-136`, `:181-249` |
 | Sổ chi phí riêng | `ai_usage_events` (giá từ `ai_model_rates` của UniWork), đối soát usage không rõ bằng `usage_reconcile.go` | `server/migrations/092_ai_gateway.up.sql:24`, `ai/usage_reconcile.go:1-60` |
-| Màn hình hiện có | Cài đặt → AI (nhóm workspace, chỉ owner/admin workspace): hạn mức token tổ chức + usage workspace; Billing (nhóm tổ chức); AI ngoài (MCP). `?tab=` là khóa liên kết, không đổi | `packages/views/settings/components/settings-page.tsx:94-125`, `ai-tab.tsx`, `billing-tab.tsx`, `quota-meter.tsx` |
+| Màn hình hiện có | Cài đặt → AI (`?tab=ai`, nhóm workspace, `gate: "workspace_admin"`): hàng "Hạn mức của tổ chức" (meter **Token AI** cấp **tổ chức**), khối "30 ngày qua" và bảng "Theo tính năng" (usage của **workspace**) — chi tiết ở §1.1a; Billing (nhóm tổ chức, có hàng `ai_tokens`); "Truy cập AI" (`?tab=ai-access`, MCP, không liên quan hạn mức). `?tab=` là khóa liên kết, không đổi | `packages/views/settings/components/settings-page.tsx:91-128` (`ai-access` ở `:114`, `ai` ở `:125`), `ai-tab.tsx`, `ai/ai-usage-section.tsx`, `billing-tab.tsx`, `quota-meter.tsx` |
 | API usage hiện có | `GET /workspaces/{workspaceID}/ai/capabilities`, `…/ai/usage` (admin ws), `GET /orgs/{orgID}/ai/usage` (admin org), `GET /orgs/{orgID}/ai/cloud` | `server/internal/handler/router/ai.go:20-76`, `ai_cloud.go:23`, `service/askuni.go:126-147`, `:377-402` |
 | BYOK | Khóa cá nhân lưu mã hóa theo `(organization_id, user_id, provider)`; proxy pass-through qua `ai.Gateway`; ghi `credits=0`; chỉ bị cổng entitlement `office.ai_byok` / `office.ai_cloud`, không bị meter `ai.tokens` | ADR 0029 QĐ2–QĐ5; `service/ai_credentials.go:44-45`, `ai_byok.go:56`, `ai_cloud.go:98` |
 | Cờ tính năng | Danh mục `featureflags/keys.go`, override user > org > global; cờ chỉ **ẩn** capability, không cấp quyền; mỗi cờ có `ReviewAt` (`TestFlagsAreReviewed`). Tiền lệ cờ + công tắc theo tổ chức: `mcp_connector` + `McpAuthService.SetPolicy` | `server/internal/featureflags/keys.go:33-75`, `service/mcp_grants.go:162-205` |
 | `/admin` và cài đặt tổ chức | `/admin` (F-11) là console của **nhân viên nền tảng** (`users.platform_role`), chỉ đọc metadata đa tenant, không bao giờ vào nội dung; trang `plans.tsx`, `quota.tsx` ở đó sửa **catalog gói của UniWork**, không phải hạn mức của từng tổ chức. Việc "org admin chia hạn mức" là màn **cài đặt tổ chức/workspace** | CLAUDE.md § Platform Admin; `packages/views/admin/plans.tsx`, `quota.tsx` |
 | Hub trong UniWork | **Chưa có.** Tìm `X-Hub`, `llm-system`, `UNI_HUB` chỉ ra các tệp *Email Hub* (sản phẩm khác, không liên quan). P1 của Hub phía UniWork (tạo account, gọi AI qua Hub, grant khi mua gói, cutover `Quota`) **chưa làm** | `grep` toàn repo 2026-10-18; Hub `SPEC.md:608-642` nói rõ cần một ADR phía UniWork |
+
+#### 1.1a Tab "AI" của workspace hôm nay (đã kiểm) và Gói AI mở rộng nó thế nào
+
+Tab đã chạy, không phải màn mới. Dữ liệu đi qua hai endpoint đã có:
+
+| Khối trên màn | Nguồn dữ liệu | Phạm vi | Nguồn |
+|---|---|---|---|
+| "Hạn mức của tổ chức" — meter **Token AI** (`used_tokens` / `limit_tokens`, 80% vàng, 100% đỏ) | `GET /workspaces/{workspaceID}/ai/capabilities` → `quota` = entitlement `ai.tokens` của **tổ chức** (`AskUNIService.Capabilities` đọc `FeatureAITokens` từ `Snapshot`) | **tổ chức** (workspace chỉ *thấy* meter chung) | `ai-tab.tsx:94-102`, `server/internal/service/askuni.go:126-147` |
+| "30 ngày qua" (số tổng + đường theo ngày) và "Theo tính năng" (bảng theo capability) | `GET /workspaces/{workspaceID}/ai/usage?from&to` → `AIUsageSummary` (`WorkspaceUsage`, owner/admin workspace) từ `ai_usage_events` (token, `cost_micros` giá của UniWork) | **workspace** | `ai-usage-section.tsx:110`, `:186`, `packages/core/api/endpoints/ai.ts:97-102`, `askuni.go:377-390` |
+| Trạng thái "tắt" / "không đủ quyền" | `capabilities.enabled` (gateway có provider); `useMyMembership` vai trò owner/admin | — | `ai-tab.tsx:57-90` |
+
+**Gói AI mở rộng, không dựng song song** (Q-AIP-2 quyết đơn vị):
+
+- Với tổ chức **chưa** bật `ai_hub_routing`, tab giữ nguyên (token, `ai.tokens`).
+- Với tổ chức đã bật: hàng "Hạn mức của tổ chức" **đổi nguồn** — thay meter token `ai.tokens` (không còn bị kiểm, §5.9) bằng "đã dùng / hạn mức" theo US$ của policy cấp tổ chức (`spent_micro` / `limit_micro`, C4); `capabilities.quota` thêm khối `plan` (§9) trong khi giữ trường `quota` cũ cho client chưa cập nhật. Thêm một hàng chỉ đọc "Hạn mức của workspace" (policy `workspace`, nếu có) và một dòng "Liên hệ quản trị viên tổ chức để đổi" — owner/admin **workspace** không sửa (§2).
+- "30 ngày qua" và "Theo tính năng" **giữ nguyên nguồn** (`ai_usage_events`, token); chỉ đổi đơn vị số tiền sang US$ từ `cost_micros` lấy từ `X-Hub-Cost` (§5.9). Không thêm khối usage thứ hai; usage theo người dùng của workspace là bảng "Dùng trong workspace" thêm vào tab, lấy từ `GET /workspaces/{workspaceID}/ai/quota` (§9, C5 `labels.workspace`).
+- Tab tổ chức **Gói AI** (`?tab=ai-plan`) là chỗ **sửa**; tab AI workspace là chỗ **xem**. Hai tab không trùng meter nào ngoài hàng hạn mức chung.
 
 ### 1.2 Hub (đã kiểm trong mã)
 
@@ -114,7 +131,7 @@ ai_hub_webhook_events(
 
 Ghi chú thiết kế:
 
-- **Một bộ đếm phiên bản.** `revision` của UniWork được gửi làm `version` của Hub. Mỗi lần lưu tăng 1 trong cùng transaction với audit/outbox. Hub chỉ nhận version lớn hơn bản đang giữ (`hub:internal/admin/policies.go:242-273`), nên consumer chạy chậm hay chạy lại không ghi đè cấu hình mới hơn.
+- **Một bộ đếm phiên bản.** `revision` của UniWork được gửi làm `version` của Hub. Mỗi lần lưu tăng 1 trong cùng transaction với audit/outbox (tạo lần đầu gửi `revision=0`; xóa giữ dòng và tăng `revision`; tạo lại dùng lại dòng cũ — quy tắc đầy đủ ở §8.2). Hub chỉ nhận version lớn hơn bản đang giữ (`hub:internal/admin/policies.go:242-273`), nên consumer chạy chậm hay chạy lại không ghi đè cấu hình mới hơn.
 - **Policy cấp tổ chức** dùng `subject_kind=organization`, `label_key=""` (policy cấp account, không nhãn: `policies.go:124-135`, `requireDeclaredLabel` cho phép nhãn rỗng `:90-93`). Policy `workspace` với `label_value=""` áp cho call không có nhãn `workspace` (call cấp tổ chức: ảnh, phiên âm; `hub:docs/SPEC.md:181-183`); UniWork **không** dùng công dụng này ở v1.
 - **"Xóa" không xóa dòng** (cần `revision` tiếp tục tăng); đặt `removed_at`, đẩy `limit_micro=null, models=[]` (cách duy nhất Hub cho tới khi có DELETE, `SPEC.md:787`).
 - **Không bảng ví/usage/plan.** Plan hiển thị (tên gói, giá) lấy từ catalog gói của chính UniWork (`GET /api/v1/plans`, `service/entitlement.go` `Snapshot`), vì `GET /admin/v1/plans*` và `GET /admin/v1/accounts/{id}/plan` chỉ cho `hub_admin` (app → 403: `hub:internal/admin/plans.go:137-160`, `:502-509`, `perm.go:22-27`).
@@ -135,11 +152,11 @@ Mọi lệnh ghi gửi thêm `X-Hub-Reason: <đã audit id UniWork>` — Hub ghi
 
 | | |
 |---|---|
-| Route | `POST /admin/v1/accounts` (`hub:internal/admin/accounts.go:23`, handler `:140-212`) |
-| Principal | `app`; `external_id` bắt buộc với app (`accounts.go:64-72`) |
-| Gửi | `name`, `external_id`, `timezone` (`accountWrite`, `:34-41`). UniWork gửi `name="uniwork:<organization_id>"`, `external_id=<organization_id>`, `timezone="Asia/Ho_Chi_Minh"` (mặc định của Hub cũng là giá trị này: `:20`; ví dụ `"UTC"` trong `connect.md:625` lệch mã — lấy mã làm chuẩn và vẫn gửi tường minh vì kỳ policy reset theo múi giờ account: `policies.go:106-112`, `:314`) |
+| Route | `POST /admin/v1/accounts` (`hub:internal/admin/accounts.go:23`, handler `:116-178`) |
+| Principal | `app`; `external_id` bắt buộc với app (`accounts.go:59-61`) |
+| Gửi | `name`, `external_id`, `timezone` (`accountWrite`, `:31-38`). UniWork gửi `name="uniwork:<organization_id>"`, `external_id=<organization_id>`, `timezone="Asia/Ho_Chi_Minh"` (mặc định của Hub cũng là giá trị này: `:17`; ví dụ `"UTC"` trong `connect.md:625` lệch mã — lấy mã làm chuẩn và vẫn gửi tường minh vì kỳ policy reset theo múi giờ account: `policies.go:106-112`, `:314`) |
 | Nhận | `201` `{id, name, kind, timezone, models, status, created_at, updated_at}` (`hub:internal/store/db/models.go:12-21`); `id` là `hub_account_id`, lưu vào `ai_hub_accounts` |
-| Idempotency | Không có khóa. Link `(app, external_id)` đã tồn tại → `409 conflict` "link already exists", và cả transaction (kể cả account) bị hủy (`accounts.go` khối `InsertAccountLink`) — không có account mồ côi. **Phục hồi** khi UniWork mất `id` (sập giữa Hub trả lời và lưu): `GET /admin/v1/accounts?limit=200&after=<id>` (app chỉ thấy account đã link: `accounts.go:193-212`) và khớp `name == "uniwork:<organization_id>"`. Đề nghị Hub thêm lọc `external_id` (H-2) |
+| Idempotency | Không có khóa. Link `(app, external_id)` đã tồn tại → `409 conflict` "link already exists", và cả transaction (kể cả account) bị hủy (`accounts.go` khối `InsertAccountLink`) — không có account mồ côi. **Phục hồi** khi UniWork mất `id` (sập giữa Hub trả lời và lưu): `GET /admin/v1/accounts?limit=200&after=<id>` (app chỉ thấy account đã link: `accounts.go:180-201`; `maxListLimit` = 200, `:19`) và khớp `name == "uniwork:<organization_id>"`. **Lặp** với `after=<id cuối của trang trước>` cho tới khi trang rỗng (không dừng ở 200 account đầu); không có account nào khớp (ví dụ tên bị đổi trong Console) → lỗi vận hành `ai_hub_account_unrecoverable` + metric, không tạo account thứ hai. Đề nghị Hub thêm lọc `external_id` (H-2) |
 | Lỗi | 409 → phục hồi như trên; 400 `invalid_request`; 401/403 → cấu hình sai (cảnh báo vận hành, không lộ cho người dùng) |
 
 Account mới **chưa có plan** và gọi AI nhận `402 insufficient_credit` (`hub:docs/connect.md:627`). Việc đặt plan và nạp credit thuộc `AIP-BILL`; ở pilot hub_admin nạp tay.
@@ -179,7 +196,7 @@ Account mới **chưa có plan** và gọi AI nhận `402 insufficient_credit` (
 
 | | |
 |---|---|
-| Route | `GET /usage/v1/summary?account=<hub id>&group_by=workspace,user,model,day&from=&to=&labels.workspace=&labels.user=` (`hub:internal/usage/usage.go:39-43`, `summary.go:14-19`, `scope.go:34-59`) |
+| Route | `GET /usage/v1/summary?account=<hub id>&group_by=workspace,user,model,day&from=&to=&labels.workspace=&labels.user=` (`hub:internal/usage/usage.go:41`, `summary.go:14-19`, `scope.go:34-59`) |
 | Principal | `app`: tự lọc theo channel và account đã link; `account=` không link → `404` |
 | Gửi | `from`, `to` RFC3339 (`scope.go:parseTime`); `group_by` ⊂ `{workspace,user,model,day}` (khóa lạ hoặc trùng → `400`); `labels.<key>=<value>` |
 | Nhận | `{groups:[{<khóa group_by>, count, input_tokens, output_tokens, cached_input_tokens, cache_write_tokens, cost_micro, charge_micro}]}` (`summary.go:46`, `:87-93`) |
@@ -224,11 +241,24 @@ người dùng → handler → service (membership gate, quyền tính năng)
 
 `TestProviderSDKOnlyInAIProvider` và `TestAIPackageOnlyCallsAiQueries` (`server/internal/arch_test.go`) giữ nguyên: provider `hub` nằm trong `server/internal/ai/provider/`; gói gọi **admin/usage** của Hub (không phải host mô hình) nằm ở `server/internal/aihub/` và chỉ `internal/service` import nó (thêm một test arch cùng khuôn).
 
+**`internal/ai` không import `internal/aihub` hay `internal/service`, và chỉ gọi query `Ai*`** (`server/internal/arch_test.go:282-284` cấm import, `:289-309` cấm query khác; `ai_hub_accounts` không phải bảng `Ai*`). Mọi thứ Gateway cần từ phía Hub đi qua **giao diện hẹp định nghĩa trong `internal/ai`**, đặt cạnh `Quota` trong `ai.Options` (`gateway.go:25-31`), và `internal/service` hiện thực chúng bằng `internal/aihub` + `ai_hub_accounts`:
+
+| Giao diện (trong `internal/ai`) | Việc | Hiện thực (trong `internal/service`) |
+|---|---|---|
+| `HubAccounts.Resolve(ctx, organizationID) (externalAccount string, linked bool)` + `EnsureAsync(ctx, organizationID)` | cho Gateway biết account của tổ chức; kích tạo account khi `404` (§8.1) | `ai_hub_account.go` (`AIP-03`) |
+| `HubCatalog.Models(ctx, CallMeta) ([]string, error)` | `/v1/models` của người gọi (C6), cache + `singleflight` (§5.5) | `ai_plan_read.go` (`AIP-07`) |
+| `PolicyInspector.Exhausted(ctx, CallMeta) (subject, resetsAt, ok)` | suy ra chủ thể khi `429 policy_exceeded` (C4, §8.1) | `ai_plan_read.go` |
+| `RoutingFlag.Enabled(ctx, organizationID) bool` | cờ `ai_hub_routing` theo tổ chức (§5.9) | `service` đọc `featureflags` |
+
+Test arch `TestAIPackageHasNoHubOrServiceImport` (cùng khuôn `TestAIPackageOnlyCallsAiQueries`) giữ ranh giới này.
+
 ### 5.2 Thay đổi ở tầng provider
 
-- `provider.CompletionRequest` thêm một trường dữ liệu thuần `Meta CallMeta{ExternalAccount, User, Workspace, Feature, RequestID}`; `ai.Gateway` điền sau cổng quota từ `ai.Request` (`OrganizationID`, `WorkspaceID`, `Actor`, `Capability`). Adapter vẫn "không biết gì về policy hay giá". Các adapter hiện có bỏ qua `Meta`.
+- **`CallMeta` đi theo mọi loại lệnh gọi**, không chỉ chat: một kiểu dữ liệu thuần `CallMeta{ExternalAccount, User, Workspace, Feature, RequestID}` thêm vào `provider.CompletionRequest` (`provider.go:124-136`), `provider.EmbedRequest` (`:150-153`) **và** request của `ImageGenerator`, `Transcriber` (`provider/`; `CloudTools` ở `ai/cloud.go:44-48`). `ai.Gateway` điền sau cổng quota từ `ai.Request` (`OrganizationID`, `WorkspaceID`, `Actor`, `Capability`). Adapter vẫn "không biết gì về policy hay giá"; các adapter hiện có bỏ qua `Meta`.
+- **Chi phí trả về**: `provider.CompletionResponse` (`provider.go:137-148`) thêm `CostMicros *int64` và `UsageSource string` (và tương tự cho Embed/ảnh/phiên âm). `X-Hub-Cost` là chuỗi **credit 6 chữ số thập phân** (`formatCredits`, `hub:internal/surface/surface.go:180-182`, ví dụ `"0.003200"`) còn `ai_usage_events.cost_micros` là `BIGINT` micro-USD (`092_ai_gateway.up.sql:37`; 1 credit = US$1): provider `hub` đổi bằng `round(credit × 1e6)` thành `int64`, không dùng số thực trôi nổi ở tầng dưới.
 - Provider mới `hub` (`ai/provider/hub.go`): chat-completions bọc lại phần wire của adapter `openai` (`openai.go:62-160`), thêm header ở C6/C7, đọc `X-Hub-Cost`/`X-Hub-Usage-Source`, đọc mã lỗi Hub (§8). Công cụ cloud (ảnh, phiên âm) thêm biến thể `hub` cùng khuôn (`ai/cloud.go:53-100`) với nhãn không có `workspace`.
-- **Chọn model**: `ResolveModel` hôm nay trả mặc định theo `(capability, provider)` (`policy.go:127-153`). Với `hub`, id model là **tên công khai của Hub** do hub_admin đặt, không đặt cứng trong mã. Env `AI_HUB_MODELS_<CAPABILITY>` = danh sách ưu tiên, phân tách bằng dấu phẩy (`AI_HUB_MODELS_DEFAULT` làm dự phòng). Gateway chọn **model đầu tiên của danh sách có trong `/v1/models` của người gọi** (C6). Không khớp model nào → lỗi `ai_model_not_allowed` (§8), không bao giờ rơi về model ngoài danh sách. Nhờ vậy hạn chế model theo workspace/người dùng (policy `models`) tác động ngay: workspace bị giới hạn chỉ-model-rẻ tự dùng model rẻ.
+- **Gateway giữ hai provider và chọn theo lệnh gọi.** Hôm nay `ai.Gateway` giữ **một** `provider.Provider` và một `CloudTools` cho cả tiến trình (`gateway.go:121-143`, `FromEnv` ở `ai/config.go:27-65`); như vậy một cờ theo tổ chức không có chỗ tác dụng. Thay đổi: `Gateway` giữ **cả** provider cũ **và** provider `hub` (và `CloudTools` có hai bộ), và mỗi lệnh gọi chọn bằng `RoutingFlag.Enabled(ctx, req.OrganizationID)` (§5.9). Provider `hub` chỉ dựng khi `AI_HUB_URL` có giá trị; thiếu thì cờ bật cho tổ chức nào cũng trả `ai_hub_unavailable` chứ không rơi về provider cũ (đúng Q-AIP-8 a).
+- **Chọn model**: `ResolveModel` hôm nay trả mặc định theo `(capability, provider)` (`policy.go:127-153`). Với `hub`, id model là **tên công khai của Hub** do hub_admin đặt, không đặt cứng trong mã. Env `AI_HUB_MODELS_<CAPABILITY>` = danh sách ưu tiên, phân tách bằng dấu phẩy (`AI_HUB_MODELS_DEFAULT` làm dự phòng). Gateway chọn **model đầu tiên của danh sách có trong `/v1/models` của người gọi** (C6). **Danh sách rỗng giao nhau** (Hub trả `200` nhưng không model nào trong danh sách ưu tiên) → `ai_model_not_allowed` (§8), không bao giờ rơi về model ngoài danh sách. **Gọi `/v1/models` lỗi** (mạng, timeout, 5xx) mà chưa có giá trị cache → `ai_hub_unavailable` (503), **không** phải `ai_model_not_allowed` (403): hai nguyên nhân khác nhau, người dùng thử lại khác nhau. Nhờ vậy hạn chế model theo workspace/người dùng (policy `models`) tác động ngay: workspace bị giới hạn chỉ-model-rẻ tự dùng model rẻ.
 - Danh sách `allowedModels` (`policy.go:116-124`) áp cho provider cũ; với `hub` danh sách tin cậy là `/v1/models`.
 
 ### 5.3 Nhãn gửi cho Hub
@@ -262,7 +292,9 @@ Hub trả `409 duplicate_request` nếu `(channel, account, request_id)` đã d�
 
 ### 5.5 Dùng `/v1/models` ở UniWork
 
-(i) chọn model mỗi lượt (§5.2); (ii) hiển thị "Mô hình đang dùng" và trạng thái "bị giới hạn bởi gói/hạn mức" ở end-user (board d); (iii) form sửa hạn mức (C6, `user=_catalog`). Cache RAM 60 giây có `singleflight`; `ai_quota.updated` và các webhook làm mất hiệu lực khóa của tổ chức đó trên mọi instance qua frame realtime.
+(i) chọn model mỗi lượt (§5.2); (ii) hiển thị "Mô hình đang dùng" và trạng thái "bị giới hạn bởi gói/hạn mức" ở end-user (board d); (iii) form sửa hạn mức (C6, `user=_catalog`). Cache RAM 60 giây có `singleflight`, **khóa `(organization_id, workspace, user, feature)`** — `feature` nằm trong khóa vì `X-Hub-Label-feature` là nhãn bắt buộc của C6 và một policy cũng có thể khớp theo nhãn đó.
+
+**Làm mất hiệu lực trên mọi instance**: frame realtime đi tới trình duyệt, không tới các node server, nên không dùng được cho việc này. Đăng ký một **consumer outbox trong tiến trình trên mọi node** nghe `ai_quota.updated`, `ai_quota.threshold_reached`, `ai_credit.ran_low`, `ai_credit.depleted` và xóa mọi khóa của `organization_id` trong payload — đúng khuôn `featureflags.Invalidator` (`server/internal/featureflags/db_provider.go:123-134`, đăng ký ở `server/cmd/server/main.go:525`). Giữa hai lần xóa, TTL 60 giây vẫn là chặn trên của độ cũ.
 
 ### 5.6 Đường nào đi Hub
 
@@ -277,7 +309,7 @@ Theo bảng chuyển đổi P1 của Hub (`hub:docs/SPEC.md:624-631`, `connect.m
 | Đường nào thắng? | **Lựa chọn tường minh của người dùng** (chip nguồn model: `AiModelSource.origin`, `g6-05k-org-keys-api.md:177`). UniWork **không** tự chuyển từ gói sang BYOK hay ngược lại, kể cả khi bị `ai_policy_exceeded` |
 | Khi hết hạn mức gói | Trạng thái chặn (board d) nói rõ "hạn mức gói của workspace/bạn đã hết" và, nếu người dùng đã lưu khóa và gói cho phép `office.ai_byok`, gợi ý "Dùng khóa của bạn" — người dùng bấm mới đổi nguồn. Mọi lệnh gọi BYOK sau đó **không** tính vào hạn mức |
 | Giải thích | Board f: hai bảng "gói UniWork (tính vào hạn mức, admin quản lý)" và "khóa của bạn (không tính vào hạn mức, bạn tự trả)" ở Cài đặt → AI và chip model |
-| Công tắc "bắt buộc dùng gói" cho tổ chức | **Không ở v1** (Q-AIP-6) |
+| Công tắc "bắt buộc dùng gói" cho tổ chức | **Không ở v1** (Q-AIP-5) |
 
 ### 5.8 Cổng quyền tính năng giữ nguyên
 
@@ -285,7 +317,9 @@ Theo bảng chuyển đổi P1 của Hub (`hub:docs/SPEC.md:624-631`, `connect.m
 
 ### 5.9 `Quota` sau khi Hub nắm hạn mức
 
-(Điểm ADR phải chốt, `hub:docs/SPEC.md:633-642`; khuyến nghị:) với tổ chức đã bật `ai_hub_routing`: `Quota.Check` **bỏ qua meter `ai.tokens`** (không còn kiểm token), `Quota.Record` thành no-op; dòng `ai_usage_events` vẫn ghi (ai/gì/model, không nội dung) với `cost_micros` lấy từ `X-Hub-Cost` để báo cáo UniWork và Hub khớp; `usage_reconcile.go` chỉ còn phục vụ tổ chức chưa bật. Tổ chức chưa bật chạy đường cũ nguyên vẹn (§10). Không có dòng nào tính hai lần: mỗi tổ chức ở đúng một đường tại một thời điểm, quyết bởi cờ theo tổ chức.
+(Điểm ADR phải chốt, `hub:docs/SPEC.md:633-642`; khuyến nghị:) với tổ chức đã bật `ai_hub_routing` (**đánh giá cờ chỉ theo tổ chức**: `featureflag.WithEvalContext(ctx, EvalContext{OrganizationID: req.OrganizationID})` **không** có `UserID`, vì `DBProvider.Lookup` xếp override `user` trước `organization` (`db_provider.go:86-120`) và một override theo người sẽ tách một tổ chức sang hai đường, vi phạm "mỗi tổ chức đúng một đường" ở cuối mục này; override `user` của `ai_hub_routing` vì thế không có tác dụng và bị bỏ qua ở đường AI): `Quota.Check` **bỏ qua meter `ai.tokens`** (không còn kiểm token), `Quota.Record` thành no-op; dòng `ai_usage_events` vẫn ghi (ai/gì/model, không nội dung) với `cost_micros` lấy từ `X-Hub-Cost` để báo cáo UniWork và Hub khớp; `usage_reconcile.go` chỉ còn phục vụ tổ chức chưa bật. Tổ chức chưa bật chạy đường cũ nguyên vẹn (§10). Không có dòng nào tính hai lần: mỗi tổ chức ở đúng một đường tại một thời điểm, quyết bởi cờ theo tổ chức.
+
+**Hoàn tác giữa kỳ (đã chấp nhận ở pilot R2/R3, quyết định cấp lane):** tắt `ai_hub_routing` khi kỳ đang chạy đưa tổ chức về meter `ai.tokens`, mà meter này **chỉ giữ số đã ghi trước lúc chuyển** (trong lúc đi đường Hub `Quota.Record` là no-op); tổ chức đó vì thế có thể dùng tiếp phần hạn mức token còn lại của cả tháng bên cạnh credit đã chi ở Hub. Sai lệch này nhỏ so với rủi ro của pilot (vài tổ chức nội bộ/thân thiết) nên không dựng cơ chế đối soát; trước R4 (mặc định bật) phải xem lại, hoặc bắt quản trị kiểm hạn mức khi hoàn tác.
 
 ---
 
@@ -293,19 +327,19 @@ Theo bảng chuyển đổi P1 của Hub (`hub:docs/SPEC.md:624-631`, `connect.m
 
 Tên `<thực thể>.<động từ quá khứ>`, payload chỉ id (CLAUDE.md "Audit and Events"; `docs/events/CATALOGUE.md:11-20`). Mỗi lệnh ghi audit + outbox trong **cùng transaction** qua `audit.Recorder.Record(ctx, q, Entry, emit…)`; không gọi `EventPublisher.Publish`.
 
-### 6.1 Topic mới (thêm đủ ba nơi + `scripts/events-catalogue.test.mjs`)
+### 6.1 Topic mới (catalogue + `scripts/events-catalogue.test.mjs`)
 
-Ba nơi: `docs/events/CATALOGUE.md` (bảng dòng 197 là chỗ `quota.threshold`), `server/internal/outbox/catalogue.go` (cạnh `:316`), `packages/core/types/events.ts` (cạnh `:132`).
+Ba nơi: `docs/events/CATALOGUE.md` (bảng dòng 197 là chỗ `quota.threshold`), `server/internal/outbox/catalogue.go` (cạnh `:316`), `packages/core/types/events.ts` (cạnh `:132`). **Bốn topic có khán giả realtime** (`ai_quota.updated`, `ai_quota.threshold_reached`, `ai_credit.ran_low`, `ai_credit.depleted`) vào cả ba nơi. **`ai_quota.sync_requested` có phạm vi `-` (hạ tầng, không client nào nghe) chỉ vào `CATALOGUE.md` và `catalogue.go`, KHÔNG vào `events.ts`**: `scripts/events-catalogue.test.mjs:109-122` đòi danh sách client bằng đúng các dòng có `scope !== "-"`, nên thêm nó vào `events.ts` làm test đỏ (cùng lý do `provider.*` và `webhook.deliver` không có ở client). Các dòng hạ tầng được miễn quy tắc "payload chỉ là id" (`:150`) nhưng spec này vẫn chỉ gửi id.
 
 | Topic | v | Payload | Phạm vi | Giao | Phát bởi | Nghe bởi |
 |---|---|---|---|---|---|---|
 | `ai_quota.updated` | 1 | `organization_id`, `policy_id` | organization | outbox | `AIQuotaService` Save/Clear (cùng tx với audit) | realtime → làm mới `aiPlanKeys` |
 | `ai_quota.sync_requested` | 1 | `organization_id`, `policy_id` | `-` | outbox | cùng tx | `HubPolicySyncConsumer` (**LaneSlow**) |
-| `ai_quota.threshold_reached` | 1 | `organization_id`, `policy_id` | organization | outbox | bộ nhận webhook (§7) | quy tắc thông báo (lane notify) + realtime làm mới |
-| `ai_credit.ran_low` | 1 | `organization_id` | organization | outbox | bộ nhận webhook | quy tắc thông báo |
-| `ai_credit.depleted` | 1 | `organization_id` | organization | outbox | bộ nhận webhook | quy tắc thông báo (+ email, Q-AIP-8) |
+| `ai_quota.threshold_reached` | 1 | `organization_id`, `policy_id`, `webhook_event_id` | organization | outbox | bộ nhận webhook (§7) | quy tắc thông báo (lane notify) + realtime làm mới |
+| `ai_credit.ran_low` | 1 | `organization_id`, `webhook_event_id` | organization | outbox | bộ nhận webhook | quy tắc thông báo |
+| `ai_credit.depleted` | 1 | `organization_id`, `webhook_event_id` | organization | outbox | bộ nhận webhook | quy tắc thông báo (+ email, Q-AIP-7) |
 
-Con số (ngưỡng, đã chi, hạn mức, số dư) **không** nằm trong payload: client và consumer đọc lại qua API (cùng khuôn `quota.threshold`, `entitlement.go:513-515`). `ai_quota.updated` tách riêng khỏi `ai_quota.sync_requested` vì một topic chạy trên lane **chậm nhất** của các consumer (`CLAUDE.md`, `server/internal/outbox/lane.go:21-24`): nếu gộp, khung realtime của giao diện bị xếp sau việc gọi Hub (LaneSlow, batch 2). Tiền lệ consumer gọi bên thứ ba ở LaneSlow: `outbox.WebhookConsumer` (`server/cmd/server/main.go:443`). Lane `provider` hiện chỉ dành cho LiveKit (`lane.go:31-32`), nên không dùng.
+Con số (ngưỡng, đã chi, hạn mức, số dư) **không** nằm trong payload: client đọc lại qua API; consumer thông báo đọc **dòng `ai_hub_webhook_events` bất biến** theo `webhook_event_id` (có `threshold`, `spent_micro`…; §3 bảng 3) nên biết đúng ngưỡng đã cắt mà payload vẫn chỉ có id (cùng khuôn `quota.threshold`, `entitlement.go:513-515`). `ai_quota.updated` tách riêng khỏi `ai_quota.sync_requested` vì một topic chạy trên lane **chậm nhất** của các consumer (`CLAUDE.md`, `server/internal/outbox/lane.go:21-24`): nếu gộp, khung realtime của giao diện bị xếp sau việc gọi Hub (LaneSlow, batch 2). Tiền lệ consumer gọi bên thứ ba ở LaneSlow: `outbox.WebhookConsumer` (`server/cmd/server/main.go:443`). Lane `provider` hiện chỉ dành cho LiveKit (`lane.go:31-32`), nên không dùng.
 
 ### 6.2 Audit (cập nhật `server/internal/audit/actions.go` + `service/audit_coverage_test.go`)
 
@@ -323,8 +357,12 @@ Bằng chứng audit không bao giờ chứa token Hub hay secret webhook (`scri
 
 `HubPolicySyncConsumer` (LaneSlow, khuôn `outbox.WebhookConsumer`): đọc dòng `ai_quota_policies` theo `policy_id`, bỏ qua nếu `revision == synced_revision`, `PUT /admin/v1/policies` (C3) với `version=revision`:
 
-- `200` → lưu `hub_policy_id`, `synced_revision=revision`, `sync_state=synced`.
-- `409 conflict` → (a) `GET /admin/v1/policies?account=` (C4) tìm policy cùng chủ thể; (b) nếu `hub.version ≥ revision` thì ai đó (hub_admin qua Console) đã sửa bên Hub: **UniWork thắng** — đặt `revision = hub.version + 1` (lưu lại trong tx, thêm audit `ai.quota.sync_overrode_hub`) rồi PUT lại; (c) nếu Hub đã đúng nội dung (retry của cùng body) thì coi là `synced`.
+**Hai chốt chống đua** (một người lưu tiếp khi lệnh PUT đang bay): `revision` là bộ đếm của UniWork, nên mọi ghi lại dòng đều có điều kiện theo đúng `revision` đã gửi (`sent`).
+
+- `200` → `UPDATE … SET hub_policy_id=$, synced_revision=$sent, sync_state='synced' WHERE id=$ AND revision=$sent`. Nếu dòng đã sang `revision > sent` (có lần lưu mới trong lúc bay) thì **không** đánh dấu `synced`: để `sync_state='pending'` — `ai_quota.sync_requested` của lần lưu mới đã nằm trong outbox và sẽ đẩy bản mới.
+- `409 conflict` → (a) đọc lại dòng `FOR UPDATE`; nếu `row.revision != sent` thì **bỏ** (lần lưu mới có consumer riêng) — không ghi `revision` lùi hay đè cấu hình mới hơn; (b) `GET /admin/v1/policies?account=` (C4) tìm policy cùng chủ thể; nếu `hub.version ≥ sent` thì ai đó (hub_admin qua Console) đã sửa bên Hub: **UniWork thắng** — đặt `revision = hub.version + 1` trong cùng tx với audit `ai.quota.sync_overrode_hub`, rồi PUT lại bằng snapshot đọc `FOR UPDATE` đó; (c) nếu Hub đã đúng nội dung (retry của cùng body) thì coi là `synced` theo cùng điều kiện `revision = sent`.
+- `401`/`403` (credential app sai, thu hồi, hoặc nhãn/app không được phép) → `sync_state='failed'` ngay + cảnh báo vận hành (`ai_hub_misconfigured`, §8.1), **không** thử lại (lặp lại chỉ chờ tới dead-letter).
+- `429` → thử lại, tôn trọng `Retry-After` (`hub:internal/httpx/httpx.go:69-73`) qua lịch thử lại của dispatcher; không tính là `failed`.
 - Mạng/5xx → để dispatcher thử lại và chuyển dead-letter theo luật outbox (`docs/ops/RUNBOOK_OUTBOX.md`); dead-letter → `sync_state=failed` + chỉ báo trên màn hình Gói AI ("Chưa đồng bộ — đang thử lại") + metric.
 - `404` (account chưa link) → chạy `EnsureAccount` (C1) rồi thử lại.
 - `400` (nhãn chưa khai báo / model lạ) → `failed` với `sync_error_code`, không thử lại vô ích; cảnh báo vận hành (cấu hình app/catalog Hub chưa khớp).
@@ -338,10 +376,12 @@ Mỗi kind mới là một quy tắc trong `server/internal/notification/rules.g
 | Kind | Người nhận | Kênh mặc định |
 |---|---|---|
 | `ai_quota_threshold` (policy workspace) | owner/admin workspace đó + owner/admin tổ chức | trong app; push tắt; có trong digest ngày |
-| `ai_quota_threshold` (policy user) | chính người đó (cả 80 và 100); owner/admin tổ chức chỉ ở mức 100 | như trên |
+| `ai_quota_threshold` (policy user) | chính người đó (mọi ngưỡng); owner/admin tổ chức chỉ khi `threshold ≥ 100` | như trên |
 | `ai_quota_threshold` (policy tổ chức) | owner/admin tổ chức | như trên |
 | `ai_credit_low` | owner/admin tổ chức | trong app + digest |
-| `ai_credit_depleted` | owner/admin tổ chức | trong app + **email** (Q-AIP-8) |
+| `ai_credit_depleted` | owner/admin tổ chức | trong app + **email** (Q-AIP-7) |
+
+**Cách biết ngưỡng:** consumer thông báo nhận `webhook_event_id` từ `ai_quota.threshold_reached` (§6.1) và đọc `threshold` bất biến từ `ai_hub_webhook_events`; "mức 100" nghĩa là `threshold ≥ 100` và "dưới 100" là còn lại, nên ngưỡng tùy chỉnh (`{50,90}`, §3) vẫn có quy tắc người nhận rõ ràng; email chỉ khi `threshold ≥ 100` và policy là cấp tổ chức.
 
 Email: thư giao dịch mới `ai_quota_alert` (`server/internal/mail/mail.go:13-23` là danh sách kind; `Enqueuer.Enqueue(ctx, q, msg)` cùng transaction, `mail/outbox.go:21-24`) chỉ cho `ai_credit_depleted` và ngưỡng 100% của policy tổ chức; nội dung chỉ có tên tổ chức, tên workspace, liên kết tới "Gói AI", không có số tiền chi tiết của người khác.
 
@@ -356,8 +396,8 @@ Email: thư giao dịch mới `ai_quota_alert` (`server/internal/mail/mail.go:13
 1. **Giới hạn thân**: đọc **byte thô** qua `http.MaxBytesReader(w, r.Body, 64<<10)` (khuôn `handler/document_sources.go:170`). Không dùng `decode()` vì HMAC phải tính trên đúng byte nhận (`decode` giải mã rồi mới ra struct, `handler/json.go:36-49`). Quá cỡ → `413`.
 2. **Xác minh chữ ký**: `X-Hub-Signature: t=<unix giây>,v1=<hex>`; tính `hex(HMAC-SHA256(secret, "<t>.<thân thô>"))` (`hub:internal/webhook/sign.go:10-22`), so bằng `hmac.Equal` (thời gian không đổi) với **từng** secret trong `AI_HUB_WEBHOOK_SECRETS` (phân tách dấu phẩy; cho phép chồng hai secret khi xoay vì Hub chưa có API xoay secret: tạo endpoint mới rồi tắt endpoint cũ). Thiếu header hoặc sai → `401`.
 3. **Chống phát lại**: `t` lệch quá ±5 phút → `401`. An toàn vì Hub ký lại mỗi lần gửi với giờ hiện tại (`hub:internal/webhook/deliver.go:361-374`), kể cả khi thử lại.
-4. **Giải mã** thân đã xác thực: `{id, account_id, occurred_at, hub_request_id?, policy_id?, period_id?, threshold?, spent_micro?, limit_micro?, balance_micro?, credit_limit_micro?}` (`hub:internal/webhook/enqueue.go:116-147`). **Loại event nằm ở header `X-Hub-Event`, không có trong thân** — đọc từ header, giá trị ngoài `{policy.threshold, credit.low, credit.depleted}` → bỏ qua `200`. Trường lạ được chấp nhận (tương thích tiến).
-5. **Một transaction**: tra tổ chức qua `ai_hub_accounts.hub_account_id = account_id`; chèn `ai_hub_webhook_events` với `hub_delivery_id = X-Hub-Delivery` `ON CONFLICT DO NOTHING` — không chèn được (đã nhận) → commit rỗng, trả `200`. Chèn được → tìm `ai_quota_policies` theo `hub_policy_id`; ghi audit (§6.2) + emit topic (§6.1); commit.
+4. **Giải mã** thân đã xác thực: `{id, account_id, occurred_at, hub_request_id?, policy_id?, period_id?, threshold?, spent_micro?, limit_micro?, balance_micro?, credit_limit_micro?}` (`hub:internal/webhook/enqueue.go:116-147`). **Loại event nằm ở header `X-Hub-Event`, không có trong thân** — đọc từ header, giá trị ngoài `{policy.threshold, credit.low, credit.depleted}` → bỏ qua `200`. **`X-Hub-Event` và `X-Hub-Delivery` là header nằm NGOÀI chuỗi được ký** (`<t>.<thân thô>`, `sign.go:10-22`), nên không tin chúng trước khi đối chiếu với thân đã ký: bắt buộc `X-Hub-Delivery != ""` **và** `X-Hub-Delivery == payload.id`, nếu không → `401` (chặn kẻ phát lại một thân đã ký trong ±5 phút với `X-Hub-Delivery` đổi để vượt dedup); và `X-Hub-Event` phải khớp trường của thân (`policy.threshold` đòi `policy_id` và `threshold`; `credit.*` chỉ cần `id`, `account_id`; các trường số còn lại là con trỏ tùy chọn: `enqueue.go:116-147`), nếu không → `400` + metric. Trường lạ được chấp nhận (tương thích tiến).
+5. **Một transaction**: tra tổ chức qua `ai_hub_accounts.hub_account_id = account_id`; chèn `ai_hub_webhook_events` với `hub_delivery_id = X-Hub-Delivery` `ON CONFLICT DO NOTHING` — không chèn được (đã nhận) → commit rỗng, trả `200`. Chèn được → với `policy.threshold`, tìm `ai_quota_policies` theo `hub_policy_id` **trong tổ chức vừa tra**: **không khớp dòng nào** (policy tạo tay trong Console) → ghi biên nhận (`policy_id` NULL) như "bỏ qua", đếm `ai_hub_webhook_ignored_total{reason="unknown_policy"}`, **không** emit `ai_quota.threshold_reached`, không thông báo; khớp → ghi audit (§6.2) + emit topic kèm `webhook_event_id` của biên nhận (§6.1); commit.
 6. **Trả `200 {}`** cho mọi trường hợp đã xử lý, trùng, hoặc **vĩnh viễn không xử lý được** (account/policy không thuộc UniWork, ví dụ policy tạo thủ công trong Console): Hub thử lại 1ph/5ph/30ph/2h/6h/12h rồi `failed` (`deliver.go:75-80`), nên `2xx` là cách duy nhất dừng thử lại vô ích; đếm bằng metric `ai_hub_webhook_ignored_total{reason}`. Lỗi DB tạm thời → `5xx` để Hub gửi lại (giao nhận ít nhất một lần, `deliver.go:294-297`; dedup ở bước 5 làm chúng vô hại).
 
 **Hub không theo redirect** (`deliver.go:176-181`): URL đăng ký phải trả thẳng `2xx`. **Hạn ngạch gửi**: mỗi lần gửi ≤ 10 giây (`deliver.go:45-46`), nên bộ nhận chỉ ghi DB rồi trả lời; việc nặng (thông báo, email) đi qua outbox.
@@ -377,7 +417,7 @@ Mã lỗi UniWork là `ai.Error{Code, Status, Msg}` (`ai/errors.go:11-45`); web 
 | Hub (HTTP, mã) | Nghĩa | UniWork `code` (HTTP) | Thử lại | Lời nhắn vi (khóa `ai.errors.*`) |
 |---|---|---|---|---|
 | 402 `insufficient_credit` | số dư + giới hạn nợ ≤ 0, hoặc chưa có plan, hoặc ước tính vượt (`hub:docs/SPEC.md:530`) | `ai_quota_exceeded` (402, **giữ mã cũ** để client không đổi) | không | "Tổ chức đã hết credit AI. Liên hệ quản trị viên tổ chức để nạp thêm." |
-| 429 `policy_exceeded` | policy `hard` đã `spent ≥ limit` (`admission.go:301`) | `ai_policy_exceeded` (429, **không** `Retry-After`) | **không** | "Hạn mức AI của {workspace \| bạn \| tổ chức} đã hết cho kỳ này, đặt lại vào {ngày giờ}." |
+| 429 `policy_exceeded` | policy `hard` đã `spent ≥ limit` (`admission.go:301`) | `ai_policy_exceeded` (429, **không** `Retry-After`) | **không** | Có kỳ (`day`/`month`): "Hạn mức AI của {workspace \| bạn \| tổ chức} đã hết cho kỳ này, đặt lại vào {ngày giờ}." — kỳ `none` (`period_id = "all"`, không bao giờ đặt lại: `hub:internal/admission/admission.go:315`) hoặc không suy ra được kỳ: "Hạn mức AI của {workspace \| bạn \| tổ chức} đã hết." (khóa `ai.errors.ai_policy_exceeded_no_reset`, không có ngày giờ) |
 | 429 `concurrency_limit` | hết luồng, `Retry-After: 1` (`admission.go:170-174`) | Gateway tự thử lại tối đa 2 lần, 1–2 giây (đúng id, §5.4), hết lượt thì `ai_busy` (429, có `Retry-After`) | có | "AI đang bận, thử lại sau ít giây." |
 | 429 `rate_limited` | quá rate limit | `ai_rate_limited` (429, giữ nguyên `Retry-After` đã kẹp 30–300 giây: `errors.go:80-89`) | sau chờ | mã cũ |
 | 403 `model_not_allowed` | model ngoài danh sách hoặc không có route định giá | `ai_model_not_allowed` (403); xóa cache `/v1/models` của người gọi | không | "Gói hoặc hạn mức hiện tại không cho dùng mô hình này." |
@@ -394,18 +434,19 @@ Mã lỗi UniWork là `ai.Error{Code, Status, Msg}` (`ai/errors.go:11-45`); web 
 
 - **Chặn mềm (`soft`)** không chặn; chỉ phát cảnh báo ngưỡng. UI gọi rõ "Cảnh báo" so với "Chặn".
 - **Vượt nhẹ** do nhiều lệnh đồng thời cùng lọt kiểm tra (`hub:docs/SPEC.md:193-194`): hạn mức hiển thị có thể thấy `spent > limit` vài phần trăm; UI kẹp thanh ở 100% và ghi "đã vượt nhẹ".
-- **Tổng hạn mức con được lớn hơn ví/pool** (oversubscription `SPEC.md:195`): UI không báo lỗi; hiển thị tổng đã phân bổ so với ví như thông tin.
+- **Tổng hạn mức con được lớn hơn ví/pool** (oversubscription `SPEC.md:195`): UI không báo lỗi và không có hàng "tổng đã phân bổ" (quy tắc rút gọn §11); hạn mức tổ chức/ví vẫn chặn đúng ở Hub.
 - **Credit hết** (`credit.depleted`) chặn *mọi* người dùng của tổ chức, kể cả khi hạn mức ws/user còn: thông báo và lời nhắn khác nhau (`ai_quota_exceeded` so với `ai_policy_exceeded`).
 - **Kỳ**: `day`/`month` reset theo múi giờ account (UTC+7); `none` không reset. Màn hình hiển thị `period_id` đã chuyển thành "tháng 10/2026" hoặc ngày.
 - **Hub sập**: `ai_hub_unavailable`; các màn hình Gói AI hiện "Không lấy được số liệu từ máy chủ AI" với dữ liệu cache cuối (ghi giờ) thay vì rỗng; cấu hình hạn mức vẫn lưu được (UniWork là nguồn cấu hình), trạng thái đồng bộ `pending` cho tới khi Hub lên lại. Mạch ngắt nhẹ (5 lỗi liên tiếp → mở 15 giây) để không treo luồng.
 - **Cache cũ**: ví 30 giây, `/v1/models` 60 giây, C4 5 giây; mỗi payload thêm `as_of`. Sau khi người quản trị lưu, màn hình tự làm mới (`ai_quota.updated`).
-- **Người dùng bị vô hiệu hóa/xóa khỏi tổ chức**: policy `user` của họ ở lại (không làm gì có hại); UI lọc theo thành viên hiện tại, và cho "xóa" policy mồ côi.
+- **Người dùng bị vô hiệu hóa/xóa khỏi tổ chức**: policy `user` của họ ở lại (không làm gì có hại); UI lọc theo thành viên hiện tại, và cho "xóa" policy mồ côi. Để việc xóa làm được, `DELETE …/quotas/users/{userID}` chỉ đòi `OrganizationService.RequireMember(org, actor)` + `adminLikeRole` và tìm dòng theo `(organization_id=org, subject_kind='user', subject_id=userID)`; **không** gọi `RequireMember(org, target)` ở đường xóa (cổng đó trả `403 member_deactivated`/`forbidden` cho người đã bị vô hiệu hóa hay đã rời: `organization.go:141-165`). `PUT` (tạo/sửa) vẫn đòi `RequireMember(org, target)`: không đặt hạn mức mới cho người không còn hoạt động.
 - **Xung đột hai admin** cùng sửa một hạn mức: UniWork dùng `revision` lạc quan (body `revision`); lệch → `409 quota_conflict` kèm bản hiện tại, UI báo "Người khác vừa sửa — tải lại" (board b). Đây **không** phải 409 của Hub (xem §6.3).
-- **Hub trả `credit_limit_micro`** trong ví: `Còn dùng được = balance + credit_limit`; UI hiển thị "Số dư" và "Hạn mức nợ cho phép" riêng, không gộp.
+- **Tạo lần đầu và tạo lại sau khi xóa (`PUT` là upsert theo `(organization_id, subject_kind, subject_id)`):** tạo lần đầu gửi `revision = 0`; hai admin cùng tạo một chủ thể, người đến sau vi phạm `uidx(organization_id, subject_kind, subject_id)` — service bắt lỗi ràng buộc và trả `409 quota_conflict` (không để lọt `500`), UI tải lại như trên. `DELETE` **giữ dòng**: đặt `removed_at`, tăng `revision`, đẩy `limit_micro=null, models=[]` (§3). Tạo lại sau `DELETE` (hoặc sửa) **cùng một dòng**: gửi `revision` hiện có của dòng (đọc từ `GET …/quotas`, kể cả dòng đã gỡ), service xóa `removed_at` và tăng `revision` thêm 1; gửi `revision = 0` cho chủ thể đã có dòng (kể cả dòng đã gỡ) cũng là `409 quota_conflict`.
+- **Hub trả `credit_limit_micro`** trong ví: `Còn dùng được = balance + credit_limit` (admission chặn khi ≤ 0, C2). **UI v1 không hiện** "hạn mức nợ cho phép" cũng như "còn dùng được" tính sẵn (người quản trị không hành động trên chúng, §11): chỉ một con số "Còn" cho thước tổng. Nếu sau này cần thì đó là một thay đổi riêng.
 
 ### 8.3 Phía client
 
-Mọi endpoint mới của `packages/core/api/endpoints/` trả `unknown` và định hình bằng `parseWithFallback(raw, schema, fallback, { endpoint })`, schema khoan dung (enum của server là `z.string()`), kiểu export thu hẹp, mọi `switch` có `default`, UI dùng optional chaining (CLAUDE.md "API Compatibility"). **Mỗi endpoint có một ca "malformed response" trong `api/endpoints/ai-plan.test.ts`** chứng minh nó rơi về fallback chứ không ném. Các mã lỗi mới (`ai_policy_exceeded`, `ai_busy`, `ai_hub_unavailable`, `ai_model_not_allowed`, `ai_hub_account_missing`, `quota_conflict`) vào `packages/views/api-error-copy.ts` và `locales/vi.json` + `en.json`, và trong `ask-uni-panel.tsx` / `use-chat-catch-up-ui.ts` (danh sách mã hiểu được).
+Mọi endpoint mới của `packages/core/api/endpoints/` trả `unknown` và định hình bằng `parseWithFallback(raw, schema, fallback, { endpoint })`, schema khoan dung (enum của server là `z.string()`), kiểu export thu hẹp, mọi `switch` có `default`, UI dùng optional chaining (CLAUDE.md "API Compatibility"). **Mỗi endpoint có một ca "malformed response" trong `api/endpoints/ai-plan.test.ts`** chứng minh nó rơi về fallback chứ không ném. Các mã lỗi mới (`ai_policy_exceeded` kèm biến thể `ai_policy_exceeded_no_reset` cho kỳ `none`, `ai_busy`, `ai_hub_unavailable`, `ai_model_not_allowed`, `ai_hub_account_missing`, `quota_conflict`) vào `packages/views/api-error-copy.ts` và `locales/vi.json` + `en.json`, và trong `ask-uni-panel.tsx` / `use-chat-catch-up-ui.ts` (danh sách mã hiểu được).
 
 ### 8.4 Bộ nhớ đệm
 
@@ -415,30 +456,44 @@ Cache RAM theo tiến trình (không Redis, không bảng), khóa luôn có `org
 
 ## 9. Cô lập tenant
 
-Quy tắc (CLAUDE.md "Database and Migration Rules", ADR 0008): mọi truy vấn sqlc chạm bảng tenant ràng buộc `organization_id = $n` hoặc `workspace_id = $n` lấy từ `RequireMember`, hoặc có dòng `-- tenant:` (`TestEveryQueryNamesItsTenant`); mọi bảng mới có `organization_id NOT NULL` (`TestNewTablesCarryOrganizationID`, `TestEveryBusinessTableCarriesOrganizationID`, `TestTenantColumnIsNotNull`). Truy vấn của webhook tra tổ chức theo `hub_account_id` là `-- tenant: by-id`; truy vấn `ai_hub_webhook_events` theo `hub_delivery_id` là `-- tenant: token`.
+Quy tắc (CLAUDE.md "Database and Migration Rules", ADR 0008): mọi truy vấn sqlc chạm bảng tenant ràng buộc `organization_id = $n` hoặc `workspace_id = $n` lấy từ `RequireMember`, hoặc có dòng `-- tenant:` thuộc tập đóng `by-id | parent <cột> | self | token | system | platform` (`TestEveryQueryNamesItsTenant`); ngược lại, một dòng `-- tenant:` đặt lên truy vấn đã nêu tenant hay không chạm bảng tenant bị từ chối (`TestTenantReasonsSitOnTenantQueries`, `server/migrations/query_scope_test.go:67-82`). Mọi bảng mới có `organization_id NOT NULL` (`TestNewTablesCarryOrganizationID`, `TestEveryBusinessTableCarriesOrganizationID`, `TestTenantColumnIsNotNull`).
 
-**Route mới** (đều nằm trong `api` wrapper, SDI/SDO có `description`+`example`; `{orgID}`, `{workspaceID}` đã có `pathParamSDI`, kiểm `{userID}`; thiếu thì thêm case ở `router/openapi.go`):
+**Dấu `-- tenant:` của từng truy vấn mới** (`server/pkg/db/queries/ai_hub.sql`):
+
+| Truy vấn | Dấu | Vì sao |
+|---|---|---|
+| mọi `SELECT`/`UPDATE` theo `organization_id = $n` (list, get theo chủ thể, ghi `revision`, đặt `removed_at`) | không cần | tự nêu tenant |
+| `GetQuotaPolicyByID` (consumer đồng bộ đọc theo `policy_id` của dòng outbox) | `-- tenant: by-id` | tải theo id; consumer đã có `organization_id` từ payload và đối chiếu với dòng đọc được trước khi gọi Hub |
+| `GetHubAccountByHubID` (webhook tra tổ chức theo `account_id` của thân đã ký) | `-- tenant: by-id` | kết quả *chính là* nguồn tenant; thân đã qua HMAC (§7) |
+| `GetQuotaPolicyByHubPolicyID` | không cần: nhận **cả** `organization_id = $1` (đã tra từ account) và `hub_policy_id = $2` | policy của tổ chức khác không bao giờ khớp |
+| `InsertAiHubWebhookEvent ... ON CONFLICT DO NOTHING` | **không có dấu** | `INSERT` thường (không phải upsert với khóa chứa tenant) không cần lý do, và thêm dòng `-- tenant: token` làm `TestTenantReasonsSitOnTenantQueries` đỏ |
+| `GetAiHubWebhookEventByID` (consumer thông báo đọc theo `webhook_event_id` trong payload) | `-- tenant: by-id` | tải theo id; so `organization_id` với payload |
+
+**Route mới** (đều nằm trong `api` wrapper, SDI/SDO có `description`+`example`). Mọi route AI cấp tổ chức hiện có dùng `{orgID}` (ULID): `/orgs/{orgID}/ai/usage`, `…/ai/credentials`, `…/ai/cloud` (`handler/router/ai*.go`), nên route mới **dùng lại case `orgID`** của `pathParamSDI` (`router/openapi.go:288`) và `workspaceID`; case `org,userID` (`:212`) là biến thể `{org}` (slug), **không** dùng lại được cho `{orgID}`. **Chỉ hai case thật sự mới**: `orgID,workspaceID` và `orgID,userID` — thêm vào `pathParamSDI` ngay cạnh `orgID,eventID`, mỗi case có `description`+`example` (thiếu case thì `mountSwagger` hỏng lúc khởi động).
 
 | Route | Gate | Ghi chú isolation |
 |---|---|---|
 | `GET /orgs/{orgID}/ai/plan` | org admin | ví + tóm tắt kỳ + bảng ws/user |
-| `GET /orgs/{orgID}/ai/quotas` | org admin | danh sách `ai_quota_policies` + `spent_micro` |
+| `GET /orgs/{orgID}/ai/quotas` | org admin | danh sách `ai_quota_policies` (kể cả dòng đã gỡ, để biết `revision`) + `spent_micro` |
 | `PUT /orgs/{orgID}/ai/quotas/organization` | org admin | thân: `period, kind, limit_micro, thresholds, models, revision` — **không có trường `_id`** |
-| `PUT /orgs/{orgID}/ai/quotas/workspaces/{workspaceID}` | org admin | workspace phải thuộc `orgID` (`WorkspaceService.RequireMember`) |
-| `PUT /orgs/{orgID}/ai/quotas/users/{userID}` | org admin | `userID` phải là thành viên đang hoạt động của `orgID` (`OrganizationService.RequireMember(org, target)`) |
-| `DELETE …/quotas/{organization\|workspaces/{id}\|users/{id}}` | org admin | đặt `removed_at`, giữ `revision` |
-| `GET /workspaces/{workspaceID}/ai/quota` | ws admin | hạn mức của workspace + top người dùng của workspace đó |
+| `PUT /orgs/{orgID}/ai/quotas/workspaces/{workspaceID}` | org admin | `WorkspaceService.RequireMember(ws, actor)`: workspace phải thuộc `orgID` |
+| `PUT /orgs/{orgID}/ai/quotas/users/{userID}` | org admin | `userID` phải là thành viên **đang hoạt động** của `orgID`: `OrganizationService.RequireMember(org, target)` |
+| `DELETE /orgs/{orgID}/ai/quotas/organization`, `…/workspaces/{workspaceID}`, `…/users/{userID}` | org admin | đặt `removed_at`, tăng `revision`; đường `users` **chỉ** đòi `RequireMember(org, actor)` và tìm dòng theo `(organization_id, 'user', userID)` để dọn được policy của người đã rời (§8.2) |
+| `GET /workspaces/{workspaceID}/ai/quota` | ws admin | hạn mức của workspace + bảng "Dùng trong workspace" |
 | `GET /orgs/{orgID}/ai/models` | org admin | `_catalog` (C6) |
 | `GET /workspaces/{workspaceID}/ai/capabilities` (mở rộng) | member | khối `plan{state,scope,resets_at,model}` |
 | `POST /integrations/uniai-hub/webhook` | — | `isoPublic`, lý do `reasonProvider` |
 
 **Ca test phải thêm:**
 
-- `TestIsolationMatrix` (`handler/isolation_matrix_test.go`): owner của B gọi mọi route trên với id của A, với `orgID` của B nhưng `workspaceID`/`userID` của A, và không phiên; mong 403/404 (401 khi không phiên), không chữ nào/ id nào của A trong thân, hash mọi dòng `organization_id` của A không đổi, không dòng B trỏ sang A; **mỗi lời từ chối có đối chứng** (owner A đọc/ghi cùng route thành công). Route có đường dẫn trỏ dòng tenant được phủ ngay khi đăng ký; `{userID}` không phải dòng tenant nên **phải** được phân loại trong `isoRoutes` kèm lý do ("chủ thể phải là thành viên của `orgID`"), nếu không `TestEveryRouteIsClassified` đỏ.
+- `TestIsolationMatrix` (`handler/isolation_matrix_test.go`): owner của B gọi mọi route trên với id của A, với `orgID` của B nhưng `workspaceID`/`userID` của A, và không phiên; mong 403/404 (401 khi không phiên), không chữ nào/ id nào của A trong thân, hash mọi dòng `organization_id` của A không đổi, không dòng B trỏ sang A; **mỗi lời từ chối có đối chứng** (owner A đọc/ghi cùng route thành công). Cụ thể cần sửa ba chỗ của bộ test, nếu không CI đỏ:
+  1. **Gieo dữ liệu**: `isolation_world_test.go` gieo một dòng `ai_hub_accounts` và một dòng `ai_quota_policies` cho A (`emptyTenantTables`, `isolation_matrix_test.go:50` đòi mọi bảng tenant có dòng của A); `ai_hub_webhook_events` vào `isoUnseeded` (`:1182`) với lý do "chỉ route webhook công khai ghi nó, thế giới isolation không gửi gì".
+  2. **`isoRoutes`** (`isolation_routes_test.go`): `PUT …/quotas/*` có `body: isoJSON(...)` (thân hợp lệ đủ để đối chứng *ghi* thành công của owner A); `{userID}` không phải dòng tenant nên **phải** phân loại kèm lý do ("chủ thể phải là thành viên của `orgID`"), nếu không `TestIsolationMatrix` đỏ (CLAUDE.md: route có `{param}` không phải dòng tenant thất bại cho tới khi `isoRoutes` phân loại nó kèm lý do); route webhook là `isoPublic` + `reasonProvider` (cạnh LiveKit/VNPay, `:243-245`); `skipControl` chỉ khi có lý do thật (không dùng cho các route này vì Hub giả trả lời được).
+  3. **`newIsolationServer`** (`isolation_world_test.go:118`) nối một Hub giả (`httptest`, §14 `AIP-01`) để các đường đọc ví/policy trả lời được cho đối chứng của owner A.
 - `TestEveryBodyIDFieldHasAReferenceCase`: các thân không có trường `*_id`/`*_ids` (chủ thể đi bằng đường dẫn) nên không cần `isoReferences`; nếu sau này thêm trường id thì thêm ca (`isoReferences` ở `isolation_references_test.go:115`).
 - **Hub không bao giờ trộn tenant:** `TestAIHubClientAlwaysScopesToLinkedAccount`: client `aihub` mọi hàm nhận `organization_id`, tra `hub_account_id` từ **chính** dòng của tổ chức đó, không nhận `hub_account_id` từ ngoài; test với hai tổ chức và Hub giả: lệnh gọi của A chỉ mang account của A; `labels.workspace` do A chỉ định thuộc A.
-- **Webhook:** `TestAIHubWebhookRoutesToTheLinkedOrganizationOnly` (event của account A chỉ phát topic `organization_id=A`; account lạ → `200` + không dòng nào), `TestAIHubWebhookDedupByDeliveryID`, `TestAIHubWebhookRejectsBadSignatureAndStaleTimestamp`.
-- **Realtime:** `TestIsolationRealtime` thêm `ai_quota.updated` và `ai_quota.threshold_reached`: socket của B không nhận khung của A (phạm vi `organization`, `server/internal/realtime/hub_*_test.go`).
+- **Webhook:** `TestAIHubWebhookRoutesToTheLinkedOrganizationOnly` (event của account A chỉ phát topic `organization_id=A`; account lạ → `200` + không dòng nào), `TestAIHubWebhookDedupByDeliveryID`, `TestAIHubWebhookRejectsBadSignatureAndStaleTimestamp`, `TestAIHubWebhookRejectsDeliveryIDThatDiffersFromBodyID`, `TestAIHubWebhookUnknownPolicyEmitsNothing` (§7).
+- **Realtime:** `TestIsolationRealtime` thêm `ai_quota.updated`, `ai_quota.threshold_reached`, `ai_credit.ran_low`, `ai_credit.depleted`: socket của B không nhận khung của A (phạm vi `organization`, `server/internal/realtime/hub_*_test.go`).
 - **Phía Hub:** channel `uniwork` chỉ thấy account của mình (`hub:docs/SPEC.md:601`) — kiểm trong `scripts/e2e` của Hub, tham chiếu không lặp lại.
 
 ---
@@ -450,9 +505,9 @@ Quy tắc (CLAUDE.md "Database and Migration Rules", ADR 0008): mọi truy vấn
 | Key | Mặc định | Public | Owner | `ReviewAt` | Tác dụng |
 |---|---|---|---|---|---|
 | `ai_hub_routing` | `false` | không | `ai` | 2027-03-31 | tổ chức này gọi AI qua provider `hub` (cổng quota cũ tắt, §5.9); nơi tạo account Hub |
-| `ai_plan_ui` | `false` | có | `ai` | 2027-03-31 | hiện tab "Gói AI", trình sửa hạn mức, trạng thái hạn mức ở end-user; cần `ai_hub_routing` bật cùng tổ chức |
+| `ai_plan_ui` | `false` | có | `ai` | 2027-03-31 | hiện tab "Gói AI", trình sửa hạn mức, trạng thái hạn mức ở end-user; chỉ có hiệu lực khi `ai_hub_routing && ai_plan_ui` (hai cờ cùng đánh giá **theo tổ chức**, không `UserID`; xem §5.9) |
 
-Cờ **không** cấp quyền: quyền vẫn do cổng ở §2. `GET /api/v1/config` đã công bố các cờ public (`keys.go:96-106`).
+**Hoàn tác** = tắt `ai_hub_routing` cho tổ chức; giữa kỳ, meter `ai.tokens` bắt đầu lại từ số đã ghi trước lúc chuyển (§5.9, chấp nhận ở pilot R2/R3). Cờ **không** cấp quyền: quyền vẫn do cổng ở §2. `GET /api/v1/config` đã công bố các cờ public (`keys.go:96-106`).
 
 **Giai đoạn:**
 
@@ -471,16 +526,18 @@ Cờ **không** cấp quyền: quyền vẫn do cổng ở §2. `GET /api/v1/con
 
 ## 11. Màn hình
 
-Mọi màn hình dùng primitive của `packages/ui/components/ui/` và token ngữ nghĩa (`tokens.css`, cỡ chữ `--text-*`); không màu cứng; mọi text trong `packages/views/` qua `t()` (`i18next/no-literal-string`); biểu tượng theo `docs/conventions.md` › Icons, module qua `MODULE_ICONS`, đang tải là `<Spinner />`; văn phong theo hướng dẫn giọng Việt trong `docs/conventions.md` và bộ tài liệu thiết kế Documents đã duyệt. Giữ "workspace" nguyên tiếng Anh (glossary, `docs/conventions.md:169`, `:228-230`). Mỗi board có sáng/tối, desktop 1280 + mobile 390, tại `reports/ai-plan-uw/design/<board>.html` (chỉ mục `index.html`).
+**Kiểu** (người dùng chốt 2026-10-18 17:35 và 17:50): mọi màn nhìn như **app UniWork đang chạy** — vỏ ứng dụng thật, trang Cài đặt thật (`SettingsTab/Section/Card/Row`, `QuotaMeterRow`), Inter + token ngữ nghĩa của `tokens.css` (cỡ chữ `--text-*`, không màu cứng), Ngăn Hỏi UNI; không dựng một ngôn ngữ thị giác mới và không theo canvas Documents. Mọi text trong `packages/views/` qua `t()` (`i18next/no-literal-string`); biểu tượng theo `docs/conventions.md` › Icons, module qua `MODULE_ICONS`, đang tải là `<Spinner />`. Giữ "workspace" nguyên tiếng Anh (glossary, `docs/conventions.md:169`, `:228-230`).
 
-| Board | Màn hình | Route / path builder | View package |
+**Quy tắc rút gọn** (người dùng chốt, bắt buộc): một dòng chỉ ở lại nếu người dùng **làm gì đó trên nó hoặc cần nó để quyết**; một con số cho một ý; không dòng giải thích cho thứ người quản trị không đổi được. Vì vậy các hàng dưới đây **không** có: hạn mức nợ cho phép của ví, "còn dùng được" tính sẵn, số lượt chạy cùng lúc tối đa, "cảnh báo gần đây", "xem trước ảnh hưởng" của hạn mức, "người dùng nhiều nhất" và model đang dùng trên màn workspace, xuất CSV, số lượt/token của khóa riêng (UniWork không đo). Các số tương ứng vẫn nằm ở Hub/API (§4: `credit_limit_micro` ở C2…) nhưng **không có màn nào hiện chúng ở v1**; DTO không cần mang chúng. Mỗi board có sáng/tối, máy tính 1280 + di động 390, ở `reports/ai-plan-uw/design/<board>.html` (chỉ mục `index.html`, ghi chú `NOTES.md`; đã qua hai vòng sửa).
+
+| Board | Màn hình (trạng thái đã vẽ) | Route / path builder | View package |
 |---|---|---|---|
-| `a-org-plan.html` | **Gói AI** (tab tổ chức, owner/admin): thẻ ví (số dư, hạn mức nợ, còn dùng được), tên gói từ catalog UniWork, kỳ hiện tại, tổng đã dùng; bảng workspace và bảng người dùng với "đã dùng / hạn mức" + trạng thái đồng bộ; khối cảnh báo (credit sắp hết/đã hết, "chưa đồng bộ") | `paths.workspace(org, ws).settings()` + `?tab=ai-plan` (nhóm tổ chức, `gate: "org_admin"` ở `settings-page.tsx:108-116`); `?tab=` không đổi | `packages/views/settings/components/ai-plan-tab.tsx` (+ tệp con theo giới hạn 500 dòng) |
-| `b-quota-editor.html` | **Trình sửa hạn mức** (hộp thoại): chủ thể (tổ chức/workspace/người dùng), kỳ, `cứng`/`mềm`, hạn mức bằng credit, ngưỡng, model được phép (danh mục `_catalog`), xem trước ảnh hưởng; trạng thái **xung đột 409** ("Người khác vừa sửa") và `pending/failed` đồng bộ | mở từ bảng ở (a) | `ai-quota-dialog.tsx` |
-| `c-workspace-quota.html` | **Hạn mức workspace của tôi** (owner/admin workspace, chỉ đọc): đã dùng / hạn mức, người dùng nhiều nhất, model, ngày đặt lại, "Liên hệ admin tổ chức để đổi" | `?tab=ai` (nhóm workspace, `gate: "workspace_admin"`, mở rộng `ai-tab.tsx`) | `ai-tab.tsx` + `ai-workspace-quota.tsx` |
-| `d-end-user-states.html` | **Trạng thái người dùng cuối**: cảnh báo ≥ 80% (nhẹ, không chặn), **hết hạn mức** (chặn, giải thích chủ thể + ngày đặt lại + gợi ý khóa BYOK nếu có), "AI đang bận" (thử lại), "AI tạm thời không dùng được", nhãn "Mô hình đang dùng" + trạng thái "bị giới hạn bởi gói" | Ask UNI (`packages/views/ai/ask-uni-panel.tsx`), Office AI qua mã lỗi API ở lớp host (`apps/web/platform/office-frame/`); frame genoffice ở fork hiển thị lỗi theo `code`, cần map mã mới ở thẻ fork ngoài worktree này (rủi ro §14) | `ai-limit-notice.tsx` dùng chung |
-| `e-notifications.html` | **Thông báo + email**: dòng inbox `ai_quota_threshold`, `ai_credit_low`, `ai_credit_depleted`; toast; thư `ai_quota_alert`; hàng mới trong ma trận tùy chọn thông báo | Hộp thư thông báo (`packages/views/notifications`), `notifications-matrix.tsx` | + mẫu thư `server/internal/mail/templates` |
-| `f-byok-vs-plan.html` | **BYOK so với gói**: hai thẻ giải thích "tính vào hạn mức" / "khóa của bạn, không tính vào hạn mức"; chip nguồn model; trạng thái hết hạn mức gợi ý BYOK | Cài đặt → AI (`ai-tab.tsx`), nơi lưu khóa BYOK, chip Office | `ai-source-explainer.tsx` |
+| `a-org-plan.html` | **Gói AI** (tab tổ chức, owner/admin; a1–a6): thẻ "Kỳ này" = **một dòng** "đã dùng / hạn mức" kèm số còn lại, tên gói từ catalog UniWork, kỳ; nhóm "Chia hạn mức" hai tab **Workspace** / **Người dùng** (đã dùng / hạn mức, "chờ đồng bộ"), nút sửa và nút **"Đặt hạn mức"** cho workspace/người chưa có hạn mức riêng (a1b, FE-22); một dòng "Cảnh báo" gọn (ngưỡng; người nhận). Trạng thái: đang tải, máy chủ AI không phản hồi (số liệu cuối kèm "Số liệu cũ · giờ", a3), chưa chia hạn mức (a4), cờ tắt (a5), thành viên mở thẳng `?tab=ai-plan` bị từ chối (a6). *Mẫu số của dòng tổng chưa chốt trong Hub (policy cấp tổ chức, C4, hoặc ví, C2); đề nghị: policy tổ chức nếu có, không thì chỉ "Còn US$ x" từ ví; chốt ở `AIP-07`* | `paths.workspace(org, ws).settings()` + `?tab=ai-plan` (nhóm tổ chức, `gate: "org_admin"`, trước "Truy cập AI"; icon `Gauge`); `?tab=` hiện có không đổi | `packages/views/settings/components/ai-plan-tab.tsx` (+ tệp con theo giới hạn 500 dòng) |
+| `b-quota-editor.html` | **Trình sửa hạn mức** (b1–b8): **ngăn bên phải (`Sheet`)** trên máy tính như Hỏi UNI, toàn màn hình trên di động (FE-15; không phải hộp thoại); chủ thể (tổ chức/workspace/người), "Khi hết" (**Chặn**/**Chỉ cảnh báo**), hạn mức, kỳ, ngưỡng, model được phép từ `_catalog` (model ngoài gói hiện mờ kèm lý do, D-4). Lỗi nhập, đang lưu, hạn mức thấp hơn mức đã dùng (cảnh báo vàng, vẫn lưu được), **xung đột `409 quota_conflict`** ("Có người vừa sửa hạn mức này", So sánh trong `Dialog` / Tải bản mới), "Đang áp dụng…" (`pending`) và "Chưa áp dụng được" (`failed`); thêm người (b2b). Chỉ những trường v1 lưu | mở từ bảng ở (a); không có route riêng | `ai-quota-sheet.tsx`, `ai-quota-compare-dialog.tsx` |
+| `c-workspace-quota.html` | **Tab AI của workspace, mở rộng** (c1–c5): giữ nguyên cấu trúc đã có (§1.1a) — "Hạn mức của tổ chức", "30 ngày qua", "Theo tính năng" — đổi đơn vị sang US$; thêm hàng chỉ đọc **"Hạn mức của workspace"** (đã dùng / hạn mức, "đặt lại 01/11"), dòng "Cần đổi hạn mức? Chỉ quản trị viên tổ chức đổi được" kèm tên người, và bảng **"Dùng trong workspace"** (một cột số). Workspace đã hết hạn mức (c2, cảnh báo đỏ + ngày đặt lại), chưa có hạn mức riêng (c3), thành viên thường bị từ chối (c5). Nút "Xin tăng hạn mức" chỉ ở c4, **phương án b chưa chọn** (Q-AIP-6). Thanh điều hướng chỉ liệt kê tab mà vai trò đó thấy (FE-20) | `?tab=ai` (nhóm workspace, `gate: "workspace_admin"`, mở rộng `ai-tab.tsx`) | `ai-tab.tsx` + `ai-workspace-quota.tsx` |
+| `d-end-user-states.html` | **Trạng thái người dùng cuối** (d1–d6): dải vàng ≥ 80% trên ô nhập — thành viên chỉ thấy **trạng thái + ngày đặt lại**, số tiền chỉ cho hạn mức **cá nhân** của chính họ (d1, d1b); **hết hạn mức** nêu chủ thể (workspace/bạn/tổ chức) + ngày đặt lại + tên người liên hệ, không nút thử lại (d2–d2c); tổ chức hết credit 402 (d2d); Office AI cùng nội dung (d3); "AI đang bận" tự thử rồi nút Thử lại (d4, d4b); "AI tạm thời không dùng được" (d4c); nhãn chỉ đọc "Mô hình đang dùng" + "Bị giới hạn bởi gói" (d5a); bộ chọn model chỉ là **phương án b chưa chọn** (d5, Q-AIP-4); bảng câu chữ d6 = §8.1 nguyên văn | Ask UNI (`packages/views/ai/ask-uni-panel.tsx`), Office AI qua mã lỗi ở lớp host (`apps/web/platform/office-frame/`); frame genoffice ở fork cần map mã mới (`AIP-F`, rủi ro §14); **khung Office (d3, f1–f5) là sơ đồ dựng tay, không phải ảnh app thật** (FE-23, chưa có ảnh nguồn) | `ai-limit-notice.tsx` dùng chung |
+| `e-notifications.html` | **Thông báo + email** (e1–e6): dòng Hộp việc cho `ai_quota_threshold`, `ai_credit_low`, `ai_credit_depleted` (board vẽ thêm một dòng "đã hết" như kind riêng `ai_quota_exhausted`; spec chưa tách: mức 100% là `threshold ≥ 100` của `ai_quota_threshold`, §6.4; `AIP-08` chốt có tách kind không) (dựng lại theo Hộp việc thật, có hàng chip loại); toast; nhóm **"Gói AI"** trong ma trận Thông báo — ma trận thật hai cột **Hộp việc | Email** bằng `Switch`, công tắc email chỉ ở hai loại có thể gửi thư (FE-19); **hai** thư `ai_quota_alert` (tổ chức đạt 100%, tổ chức hết credit; chỉ tên + liên kết, không số tiền); bảng tham chiếu người nhận (§6.4) | Hộp thư thông báo (`packages/views/notifications`), `notifications-matrix.tsx` | + mẫu thư `server/internal/mail/templates` |
+| `f-byok-vs-plan.html` | **BYOK so với gói** (f1–f6): chọn nguồn gói/khóa riêng (mặc định gói, D-5), chỉ có gói (f2), chỉ có khóa riêng khi tổ chức chưa mở Gói AI (f3), hết hạn mức gói nhưng có khóa riêng — gợi ý chuyển, người dùng tự bấm (f4, D-6), nhãn nguồn dưới câu trả lời (f5), quản trị thấy gì (f6: không có số của khóa riêng) | Cài đặt → AI (`ai-tab.tsx`), nơi lưu khóa BYOK, chip Office | `ai-source-explainer.tsx` |
 
 ---
 
@@ -546,7 +603,7 @@ Lý do: (b) tính tiền hai nơi và làm hạn mức mất ý nghĩa. Tổ ch�
 **Q-AIP-9 — Cách cutover.**
 (a) **Theo tổ chức bằng cờ `ai_hub_routing`** (mỗi tổ chức đúng một đường). *(khuyến nghị)*
 (b) Đồng loạt một ngày.
-Lý do: (a) không tính trùng, hoàn tác bằng cách tắt cờ, tương thích tiền lệ `mcp_connector`/`office_ai_uniwork`.
+Lý do: (a) không tính trùng, hoàn tác bằng cách tắt cờ, tương thích tiền lệ `mcp_connector`/`office_ai_uniwork`. Lưu ý hoàn tác giữa kỳ (§5.9): meter `ai.tokens` cũ chỉ giữ số đã ghi trước lúc chuyển, nên tổ chức hoàn tác có thể dùng thêm phần token còn lại của kỳ; đã chấp nhận cho pilot R2/R3 (quyết định cấp lane), xem lại trước R4.
 
 **Q-AIP-10 — Phụ thuộc Hub: chờ hay làm vòng.**
 (a) **Ra mắt bằng cách làm vòng** (§13.2); xin Hub bổ sung H-1…H-6 như cải tiến sau. *(khuyến nghị)*
@@ -568,6 +625,21 @@ Lý do: mọi mục đều có cách làm vòng nhỏ, và chủ Hub đã nói p
 
 (1) `user=_catalog` trả đúng danh mục gói (H-6) và `label_key=""` cho policy cấp tổ chức; (2) trạng thái dòng request của lượt `provider_unavailable` (id có tái dùng được không, §5.4); (3) `PUT` lặp cùng version và cùng body trả cùng `id` (đã thấy trong mã `policies.go:246-249`; kiểm thêm bằng e2e); (4) thứ tự chữ ký khi retry (đã thấy trong mã `deliver.go:361-374`).
 
+### 13.4 Câu hỏi design D-1…D-6 (từ `reports/ai-plan-uw/design/index.html`)
+
+Mười câu Q-AIP ở trên là quyết định về **hành vi và phạm vi**; sáu câu D-n là quyết định về **bản vẽ** mà index đã liệt kê. Cả sáu đều cần người dùng chọn (không câu nào tự quyết được từ mã), trừ ghi chú ở D-3. Khuyến nghị theo index; bản vẽ hiện vẽ theo khuyến nghị trừ khi ghi khác.
+
+| # | Câu hỏi | Khuyến nghị (index) | Ai quyết | Ghi chú đối chiếu spec |
+|---|---|---|---|---|
+| D-1 | Hạn mức theo người áp ở **mọi** workspace (Hub chưa có cặp workspace+người) — chấp nhận ở bản đầu? | Chấp nhận; ghi rõ trong ngăn sửa (b2) | **người dùng** | khớp §2 "Ràng buộc do Hub quyết định" và Q-AIP-3; không có cách làm vòng ở UniWork |
+| D-2 | Hạn mức mới mặc định là "Chặn" hay "Chỉ cảnh báo"? | "Chỉ cảnh báo" lần đầu | **người dùng** | **bản vẽ b1/b2b đang chọn sẵn "Chặn"** (lệch khuyến nghị); `kind` mặc định của Hub là `hard` (C3) nên "Chỉ cảnh báo" là UniWork gửi `kind=soft` tường minh |
+| D-3 | Chỉ owner/admin **tổ chức** sửa; admin workspace chỉ xem? | Đúng | **người dùng** xác nhận | đã là quy tắc trong §2 (Hub: policy `user` áp ở mọi workspace, nên admin workspace sửa là vượt quyền); đổi quyết định này kéo theo đổi §2/§9 |
+| D-4 | Model ngoài gói: hiện mờ kèm lý do hay ẩn hẳn (ngăn sửa; cả bộ chọn nếu Q-AIP-4 b)? | Hiện mờ kèm lý do | **người dùng** | danh mục từ `_catalog` (C6, giả định H-6) |
+| D-5 | Khi có cả gói và khóa riêng, mặc định dùng nguồn nào? | Gói (mức dùng nằm trong hạn mức) | **người dùng** | §5.7 "Đường nào thắng" (lựa chọn tường minh của người dùng) |
+| D-6 | Cho chuyển sang khóa riêng một chạm khi gói hết (đi vòng qua hạn mức admin)? | Cho, chỉ khi tổ chức bật BYOK, nói rõ nhà cung cấp tính phí theo khóa của họ | **người dùng** | §5.7 "Khi hết hạn mức gói"; quan hệ Q-AIP-5 (không có công tắc cấm BYOK ở v1) |
+
+**Chưa có trong index, nên thêm (FE-24):** *D-7 — tab AI của workspace có giữ "30 ngày qua" và "Theo tính năng" (đang chạy ở app) hay rút gọn theo quy tắc của §11?* Khuyến nghị: giữ, vì là tính năng đã có và gỡ nó ngoài phạm vi epic (§1.1a); người dùng quyết.
+
 ---
 
 ## 14. D4 — Chia thẻ triển khai
@@ -577,25 +649,25 @@ Kích thước S ≤ nửa ngày, M ≈ 1–2 ngày, L ≈ 3–5 ngày. Cột "H
 | ID | Tiêu đề | Phạm vi đường dẫn | Cỡ | Phụ thuộc | Hub |
 |---|---|---|---|---|---|
 | **AIP-00** | ADR "AI qua Hub: cutover `Quota`, nhãn tenant, topic outbox, Hub sập" (viết trước khi đổi luật; xem `docs/adr/README.md`, `scripts/governance.test.mjs`) | `docs/adr/0035-*.md` | S | Q-AIP-1, 8, 9 | — |
-| **AIP-01** | Gói client Hub: `server/internal/aihub` (account, ví, policy GET/PUT, usage summary, models; kiểu lỗi; mạch ngắt; hết thời gian 2s đọc/5s ghi); Hub giả `httptest` dùng chung; test arch "chỉ `internal/service` import" | `server/internal/aihub/**`, `server/internal/arch_test.go` | M | AIP-00 | v0.2.0 |
+| **AIP-01** | Gói client Hub: `server/internal/aihub` (account, ví, policy GET/PUT, usage summary, models; kiểu lỗi; mạch ngắt; hết thời gian 2s đọc/5s ghi; liệt kê account có phân trang cho phục hồi, C1); Hub giả `httptest` dùng chung; test arch "chỉ `internal/service` import `aihub`" | `server/internal/aihub/**`, `server/internal/arch_test.go` | M | AIP-00 | v0.2.0 |
 | **AIP-02** | Migration + sqlc ba bảng (index `CONCURRENTLY` riêng), query có `-- tenant:`, lint | `server/migrations/999*_ai_hub_*`, `server/pkg/db/queries/ai_hub.sql` | S | AIP-00 | — |
-| **AIP-03** | `EnsureAccount`: tạo/phục hồi account Hub, ghi `ai_hub_accounts` + audit `ai.hub.account_linked`; lệnh vận hành `cmd/ai-hub-link --org` | `server/internal/service/ai_hub_account.go`, `server/cmd/ai-hub-link/` | M | AIP-01, 02 | C1 |
-| **AIP-04** | **Provider `hub` + định tuyến Gateway**: `CallMeta`, nhãn (§5.3), chọn model ∩ `/v1/models` (§5.2), id yêu cầu (§5.4), ánh xạ lỗi (§8.1), `Quota` rút gọn theo cờ tổ chức (§5.9), biến thể cloud ảnh/phiên âm; test với Hub giả + kiểm giả định (2) | `server/internal/ai/provider/hub.go`, `ai/gateway.go`, `ai/cloud*.go`, `ai/errors.go`, `ai/policy.go`, `service/ai_quota.go` | **L** | AIP-01, 03 | C6, C7 |
-| **AIP-05** | `AIQuotaService`: list/get/save/clear (org/ws/user), cổng §2, `revision` lạc quan, audit + `ai_quota.updated` + `ai_quota.sync_requested` cùng transaction; route SDI/SDO | `server/internal/service/ai_quota_policy.go`, `handler/ai_quota.go`, `handler/dto/{sdi,sdo}/`, `handler/router/ai_quota.go` | M | AIP-02 | — |
-| **AIP-06** | `HubPolicySyncConsumer` (LaneSlow): PUT, 409 theo §6.3, dead-letter, metric | `server/internal/service/ai_hub_sync.go`, `server/cmd/server/main.go` | M | AIP-01, 05 | C3, C4 |
-| **AIP-07** | API đọc: tóm tắt Gói AI (ví + kỳ + bảng), usage ws/user/cá nhân (bỏ `cost_micro`), `capabilities.plan`, danh mục model, cache RAM `singleflight` | `server/internal/service/ai_plan_read.go`, `handler/ai_plan.go`, router | M | AIP-01, 05 | C2, C4, C5, C6 |
-| **AIP-08** | Bộ nhận webhook: HMAC, chống phát lại, dedup, giới hạn tốc độ riêng + `ExceptPaths`, audit, emit; quy tắc thông báo + kind + tiêu đề + ma trận; thư `ai_quota_alert` | `server/internal/handler/ai_hub_webhook.go`, `router/ai_hub_webhook.go`, `server/internal/notification/{kinds,rules,titles}.go`, `server/internal/mail/**` | L | AIP-02, 03 | C8 (đăng ký bởi vận hành) |
+| **AIP-03** | `EnsureAccount`: tạo/phục hồi account Hub (lặp trang), ghi `ai_hub_accounts`; hiện thực giao diện `HubAccounts` (§5.1) cho Gateway; lệnh vận hành `cmd/ai-hub-link --org`. Audit `ai.hub.account_linked` đã đăng ký ở `AIP-10` | `server/internal/service/ai_hub_account.go`, `server/cmd/ai-hub-link/` | M | AIP-01, 02, 10 | C1 |
+| **AIP-04** | **Provider `hub` + định tuyến Gateway**: giao diện hẹp trong `internal/ai` (`HubAccounts`, `HubCatalog`, `PolicyInspector`, `RoutingFlag`, §5.1) + test arch `TestAIPackageHasNoHubOrServiceImport`; `CallMeta` trên Completion/Embed/ảnh/phiên âm, `CostMicros`/`UsageSource` trên response (§5.2); Gateway giữ hai provider, chọn theo cờ **chỉ theo tổ chức** (§5.9); nhãn (§5.3), chọn model ∩ `/v1/models` (§5.2), id yêu cầu (§5.4), ánh xạ lỗi (§8.1); **sở hữu** `service/ai_quota.go` (cổng cờ cho `Quota`) và ghi `cost_micros` từ `X-Hub-Cost`; biến thể cloud ảnh/phiên âm; test với Hub giả + kiểm giả định (2) | `server/internal/ai/provider/hub.go`, `ai/gateway.go`, `ai/hub_ports.go`, `ai/cloud*.go`, `ai/errors.go`, `ai/policy.go`, `service/ai_quota.go`, `server/internal/arch_test.go` | **L** | AIP-01, 03, 09 | C6, C7 |
+| **AIP-05** | `AIQuotaService`: list/get/save/clear (org/ws/user), cổng §2 (xóa `users/{userID}` chỉ cần `RequireMember(org, actor)`), `revision` lạc quan + upsert/tạo lại (§8.2), audit + `ai_quota.updated` + `ai_quota.sync_requested` cùng transaction (topic/hằng audit đã ở `AIP-10`); route SDI/SDO; hai case `pathParamSDI` mới `orgID,workspaceID` và `orgID,userID` (§9); **cùng thẻ** sửa `isolation_world_test.go` (gieo `ai_hub_accounts`, `ai_quota_policies`; `ai_hub_webhook_events` vào `isoUnseeded`), `isoRoutes` + thân cho route mới, Hub giả trong `newIsolationServer` — ngay khi route đăng ký `TestIsolationMatrix` đòi những thứ này | `server/internal/service/ai_quota_policy.go`, `handler/ai_quota.go`, `handler/dto/{sdi,sdo}/`, `handler/router/ai_quota.go`, `router/openapi.go`, `handler/isolation_*_test.go` | M | AIP-02, 10 | — |
+| **AIP-06** | `HubPolicySyncConsumer` (LaneSlow): PUT, ghi có điều kiện `revision = sent`, 409 theo §6.3 (đọc lại `FOR UPDATE`), phân loại 401/403/429, dead-letter, metric | `server/internal/service/ai_hub_sync.go`, `server/cmd/server/main.go` | M | AIP-01, 05 | C3, C4 |
+| **AIP-07** | API đọc: tóm tắt Gói AI (ví + kỳ + bảng), usage ws/user/cá nhân (bỏ `cost_micro`), `capabilities.plan`, danh mục model; hiện thực `HubCatalog`/`PolicyInspector` (§5.1); cache RAM `singleflight` khóa `(org, workspace, user, feature)` + **consumer outbox trong tiến trình** làm mất hiệu lực trên mọi node (§5.5, khuôn `featureflags.Invalidator`); isolation: `isoRoutes` + thân cho route đọc mới | `server/internal/service/ai_plan_read.go`, `handler/ai_plan.go`, router, `server/cmd/server/main.go`, `handler/isolation_*_test.go` | M | AIP-01, 05 | C2, C4, C5, C6 |
+| **AIP-08** | Bộ nhận webhook: HMAC, `X-Hub-Delivery == payload.id`, chống phát lại, dedup, policy lạ không emit, giới hạn tốc độ riêng + `ExceptPaths`, audit, emit (topic/hằng audit đã ở `AIP-10`); quy tắc thông báo (đọc `threshold` từ `ai_hub_webhook_events`) + kind + tiêu đề + ma trận; thư `ai_quota_alert`; `isoRoutes` cho route webhook (`isoPublic`) | `server/internal/handler/ai_hub_webhook.go`, `router/ai_hub_webhook.go`, `server/internal/notification/{kinds,rules,titles}.go`, `server/internal/mail/**`, `handler/isolation_routes_test.go` | L | AIP-02, 03, 10 | C8 (đăng ký bởi vận hành) |
 | **AIP-09** | Cờ `ai_hub_routing`, `ai_plan_ui` (+ `ReviewAt`), env + `.env.example`, metric Prometheus, runbook + cảnh báo (mỗi cảnh báo một runbook 4 mục: `scripts/alerts-runbooks.test.mjs`) | `featureflags/keys.go`, `.env.example`, `deploy/alerts.yml`, `docs/runbooks/` | S | AIP-00 | — |
-| **AIP-10** | Sự kiện + audit + cô lập: ba nơi catalogue, `audit/actions.go`, `audit_coverage_test.go`, `isoRoutes`/ca isolation, `TestIsolationRealtime` | `docs/events/CATALOGUE.md`, `outbox/catalogue.go`, `packages/core/types/events.ts`, `handler/isolation_*_test.go`, `realtime/` | M | AIP-05, 08 | — |
+| **AIP-10** | **Sự kiện + audit (đi trước mọi thẻ phát chúng)**: bốn topic có khán giả vào đủ ba nơi catalogue, `ai_quota.sync_requested` (phạm vi `-`) chỉ vào `CATALOGUE.md` + `catalogue.go` (§6.1), hằng `audit/actions.go` + mục `auditCommands`/`actionsWithoutCommands` trong `audit_coverage_test.go`; `TestIsolationRealtime` cho bốn topic. Đứng trước `AIP-03`, `05`, `08` để các thẻ ấy không làm `events-catalogue.test.mjs` / `audit_coverage_test.go` đỏ | `docs/events/CATALOGUE.md`, `outbox/catalogue.go`, `packages/core/types/events.ts`, `audit/actions.go`, `service/audit_coverage_test.go`, `realtime/` | S | AIP-00 | — |
 | **AIP-11** | `packages/core`: endpoints + schema khoan dung + ca malformed, khóa truy vấn `aiPlanKeys` (có `wsId`), hook, làm mới realtime, quy tắc quyền §2, `paths` | `packages/core/api/endpoints/ai-plan.ts(+test)`, `core/ai/`, `core/permissions/`, `core/realtime/use-realtime-sync.ts` | M | AIP-05, 07 | — |
-| **AIP-12** | Màn hình tổ chức/workspace: tab **Gói AI** (a), trình sửa hạn mức (b) gồm 409, hạn mức workspace (c); i18n vi/en; test view | `packages/views/settings/components/ai-plan-*.tsx`, `ai-tab.tsx`, `settings-page.tsx` | **L** | AIP-11; board a,b,c | — |
+| **AIP-12** | Màn hình tổ chức/workspace: tab **Gói AI** (a), ngăn sửa hạn mức `ai-quota-sheet.tsx` (b) gồm hộp thoại so sánh 409, hạn mức workspace (c); i18n vi/en; test view. **Cũng sửa `docs/conventions.md`**: › Icons thêm hàng `Ban` (chặn do hạn mức), `Gauge` (gói/hạn mức), `KeyRound` (khóa riêng) (FE-14); §2 glossary thêm `credit`, `hạn mức`, `gói AI`, `hạn mức cá nhân` (FE-17) | `packages/views/settings/components/ai-plan-*.tsx`, `ai-quota-sheet.tsx`, `ai-tab.tsx`, `settings-page.tsx`, `docs/conventions.md` | **L** | AIP-11; board a,b,c | — |
 | **AIP-13** | Người dùng cuối: `ai-limit-notice` (d), Ask UNI/catch-up map mã mới, giải thích BYOK (f), thông báo/mẫu (e) | `packages/views/ai/**`, `packages/views/chat/use-chat-catch-up-ui.ts`, `notifications*`, `locales/*.json` | M | AIP-11; board d,e,f | — |
 | **AIP-14** | E2E Playwright + Hub giả: admin đặt hạn mức → người dùng bị chặn với đúng chủ thể; cảnh báo 80% tới đúng người; hai admin xung đột; Hub sập | `e2e/ai-plan.spec.ts` | M | AIP-12, 13 | v0.2.0 thật ở bước R2 |
-| **AIP-15** | Cutover `Quota`: ẩn hàng `ai.tokens` ở Billing cho tổ chức đã bật; `ai_usage_events.cost_micros` từ `X-Hub-Cost`; chốt đường cũ cho tổ chức chưa bật | `service/ai_quota.go`, `ai/usage_reconcile.go`, `packages/views/settings/components/{billing-tab,quota-meter}.tsx` | M | AIP-04 | — |
+| **AIP-15** | Hoàn tất cutover: ẩn hàng `ai.tokens` ở Billing cho tổ chức đã bật; `usage_reconcile.go` chỉ còn phục vụ tổ chức chưa bật; chốt đường cũ. **Không** đụng `service/ai_quota.go` và ghi `cost_micros` (của `AIP-04`) | `ai/usage_reconcile.go`, `packages/views/settings/components/{billing-tab,quota-meter}.tsx` | M | AIP-04 | — |
 | **AIP-F** | (ngoài worktree) map mã lỗi mới trong frame genoffice | repo office | S | AIP-04 | — |
 | **AIP-BILL** | (epic riêng, Q-AIP-1) grant khi thanh toán, revoke khi hoàn tiền, đặt plan | `service/billing_*.go` | L | AIP-03 | grants/plan |
 
-**Thứ tự:** `AIP-00` → (`AIP-01` ∥ `AIP-02` ∥ `AIP-09`) → `AIP-03` → (`AIP-05` ∥ `AIP-04`) → (`AIP-06` ∥ `AIP-07` ∥ `AIP-08`) → `AIP-10` → `AIP-11` → (`AIP-12` ∥ `AIP-13`) → `AIP-14` → `AIP-15`; `AIP-BILL` song song từ sau `AIP-03`, trước R4.
+**Thứ tự:** `AIP-00` → (`AIP-01` ∥ `AIP-02` ∥ `AIP-09` ∥ `AIP-10`) → `AIP-03` → (`AIP-05` ∥ `AIP-04`) → (`AIP-06` ∥ `AIP-07` ∥ `AIP-08`) → `AIP-11` → (`AIP-12` ∥ `AIP-13`) → `AIP-14` → `AIP-15`; `AIP-BILL` song song từ sau `AIP-03`, trước R4.
 
 **Rủi ro chính:** (1) `AIP-04` chạm lõi Gateway và mọi capability — chia nhỏ theo capability, giữ đường cũ bằng cờ tổ chức; (2) frame genoffice ở fork hiển thị lỗi theo `code`, không sửa được từ worktree này (`AIP-F`); (3) `Retry-After`/id yêu cầu — kiểm giả định (2); (4) lệch múi giờ giữa nhóm `day` của usage (UTC) và kỳ policy (UTC+7) — chỉ dùng `spent_micro` cho thước hạn mức (C5); (5) Hub chưa tag v0.2.0 — mọi thẻ code kiểm lại hợp đồng ở §4 khi có tag.
 
