@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+aa706ec7d4b40fb4a06e05830d81592665aec6ff
+aa706ec7d fix(office): select and strip extension in first-save dialog, rename uploaded file (UNI-1847)
+0b88df064 fix(office): one save after the first-save name, reset per document (UNI-1847)
+5dceb26bc fix(office): type the first-save test mocks and drop an unused export (UNI-1847)
+a70871f35 test(e2e): cover the first-save naming of a blank Office document (UNI-1847)
+00745a1be feat(office): name a never-saved blank Office document on its first save (UNI-1847)
+b5388f37d chore: merge ROW390 library row meta line wraps below 34rem (UNI-1902, d0ba9fbcb) into the G5-G7 root
+d0ba9fbcb fix(documents): keep the row's editor on its own line until 34rem (UNI-1902)
+24135c07a fix(documents): keep the library row date and editor readable at 390 (UNI-1902)

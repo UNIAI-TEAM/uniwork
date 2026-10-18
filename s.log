@@ -1,0 +1,12 @@
+$ grep -E 'panic|ERROR|messages/around' /tmp/s01b-server.log | tail -n 120; tail -n 30 /tmp/s01b-web.log; for p in 18551 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18551/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18551 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+08:21:47.317 INF http request method=OPTIONS path=/api/v1/workspaces/01M571MFFP8S6K7SB4MATQ8X3W/chat/rooms/01M571MFJS63JK1K3SNV99M1QN/messages/around/01M571MFKA3EPDMG8V30F9HTH4 status=200 duration=8µs request_id=cursor/owFzJbzre2-006584 correlation_id=d2f7c3adf746e62813164d648735e97c trace_id=d2f7c3adf746e62813164d648735e97c span_id=f29ee5f2b8064a3c
+08:21:47.327 INF http request method=GET path=/api/v1/workspaces/01M571MFFP8S6K7SB4MATQ8X3W/chat/rooms/01M571MFJS63JK1K3SNV99M1QN/messages/around/01M571MFKA3EPDMG8V30F9HTH4 status=200 duration=9.579ms request_id=cursor/owFzJbzre2-006585 correlation_id=3f6df3b851a75f6e02fc38ac3a57c179 trace_id=3f6df3b851a75f6e02fc38ac3a57c179 span_id=995b015bcb97e4b7 organization_id=01M571MFFF9KX02XQ8EHZ9265N workspace_id=01M571MFFP8S6K7SB4MATQ8X3W actor_id=01M571MFHRCX2RB59TZWKR3Y5R actor_kind=human
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.3.8
+- Local:         http://localhost:3000
+- Network:       http://172.30.0.2:3000
+✓ Ready in 92ms
+✓ Running next.config.mjs took 108ms
