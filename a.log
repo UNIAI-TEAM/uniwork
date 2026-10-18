@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+907e4b7d4a559f0ae203333b36182d3e51ba04df
+907e4b7d4a559f0ae203333b36182d3e51ba04df
+907e4b7d fix(shell): DH1 fix9 — VDH-1..8 layout fixes + NET-OFF-01 row menu on DocumentsHome
+27db4ae1 test(shell): pin DH1 fix9 regressions (VDH-1..8 + offline row menu on DocumentsHome)
+87fad181 merge: fork main 059f63f06 (EL-1(a) edit_locked) into DH-1
