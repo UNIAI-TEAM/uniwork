@@ -319,3 +319,17 @@ Chạy lại: `node _build/{g,h,i,k,index}.mjs`, `node _build/shots-r3.mjs`, `no
 **Dữ liệu mẫu mới:** Công ty Thái Bình (gia hạn sớm như g6c): hóa đơn kỳ 01/10 `UW-2026-1M7D4X8K` và kỳ tiếp theo 01/11 `UW-2026-8F3L6T1R`, cả hai chưa dùng. An Phát đang có 12 thành viên / 4 workspace (Starter: 5 / 2).
 
 **Còn mở cho lead/spec:** (1) k2 bỏ thành viên/workspace khỏi hộp tạo: xác nhận; (2) các khung d2… khác còn nhãn "Quản trị viên tổ chức" cho danh sách liên hệ; (3) i4b/i8f chỉ vẽ kết quả phía chủ sở hữu cho kỳ đang chạy; kết quả của kỳ tiếp theo bị bỏ chưa có khung riêng (cùng ngăn i4b, chỉ khác dòng "Kỳ Business 01/11 – 01/12: Đã bỏ").
+
+
+### Fix 3 (2026-10-19, W2 fix3, theo `contract-R3-W2-fix3.md`)
+Chạy lại: `node _build/{i,k,index}.mjs`, `node _build/shots-r3.mjs`, `node _build/contrast-r3.mjs` (324 khung, 0 lỗi; không tràn ngang). Không thêm khung: vẫn **81 trạng thái** ở các board đổi.
+
+**Khung đổi:** k2, k5 (K); i1, i2…i6b (nền danh sách đổi theo hàng mới), i7 (I).
+
+| Mục | Cách xử lý |
+|---|---|
+| 1 | k2: bỏ công tắc "Ẩn khỏi khách hàng" và mô tả hộp; còn **một dòng chú thích** "Gói mới luôn ẩn. Hiện gói ở bảng sau khi kiểm tra." k1 vẫn có nhãn "Ẩn" và lưu dòng kèm lý do để bỏ ẩn. |
+| 2 | i1: thêm hàng loại **"Thanh toán chưa áp dụng"** (`UW-2026-4W6H2R9Y`, 15/10/2026, 499.000 ₫, đã thanh toán, nhãn "Hỗ trợ sẽ liên hệ hoàn tiền"). Danh sách 7 hóa đơn, tổng 5.367.000 ₫. i7 (/admin): hàng đó có Credit "Chưa áp dụng" và nút "Hoàn tiền" **sáng, hoàn được bất cứ lúc nào**. |
+| 3 | Ba mục thấp của `review-r3-fe-r3.md`: **N-1** làm (i7: hàng Thái Bình đang chạy ghi "Chưa dùng · có kỳ tiếp theo đã trả"); **N-2** làm (k5: toast 284 px, một dòng, cách tab "Hệ thống" ~15 px); **N-3** để lại (cần khung mới, không phải một dòng; vẫn ở "Còn mở" của fix 2). |
+
+**Còn mở cho lead/spec:** hàng "Thanh toán chưa áp dụng" chưa có ngăn chi tiết riêng (i2…i6 không vẽ nó); nếu cần, dùng cùng ngăn i2 với dòng "Hỗ trợ sẽ liên hệ hoàn tiền".
