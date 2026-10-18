@@ -374,7 +374,7 @@ describe('item 3 (Q2b): the extended derivations hold only over operands the rep
 
   it('credits the percent change of two shown operands in percent units, and not the same value from hidden operands', () => {
     assert.equal(verdict(mk(40), ask('Change 40% from 50 to 70.', 40, { A1: 50, B1: 70 })), 'pass');
-    assert.equal(verdict(mk(40), ask('Change 40 from 50 to 70.', 40, { A1: 50, B1: 70 })), 'pass');
+    assert.equal(verdict(mk(40), ask('Change 40 from 50 to 70.', 40, { A1: 50, B1: 70 })), 'fail', 'a bare amount is not a percent change (R20-3)');
     assert.equal(verdict(mk(40), ask('Change 40% since last year.', 40, { A1: 50, B1: 70 })), 'fail', 'operands not shown');
     assert.equal(verdict(mk(40.1, '2dp'), ask('Change 40.1% from 50 to 70.', 40.1, { A1: 50, B1: 70 })), 'fail', 'one rounding step beyond the shown precision');
     assert.equal(verdict(mk(0.4), ask('Change 0.4 from 50 to 70.', 0.4, { A1: 50, B1: 70 })), 'fail', 'the ratio form is not percent units');
@@ -536,6 +536,8 @@ describe('item 5 (R20-1): trace (d), the number of elements of a named kind in O
     assert.equal(verdict(lookup, marked), 'fail', 'the same 4 as a marked count is not a text leaf');
     const docx = countCaseOf({ id: 'HO-DOCX-993', format: 'docx', anchor: 'heading_level_1', value: 2, numericName: 'heading1Count', tool: 'get_document_context', op: 'read_document' });
     const three = { paragraphCount: 4, blocks: [{ index: 0, style: 'Heading1', preview: '2 Scope' }, { index: 1, style: 'Heading1', preview: 'Plan' }, { index: 2, style: 'Heading1', preview: 'Risks' }, { index: 3, style: 'Normal', preview: 'body' }] };
+    const listed = sAsk('The room is 4.', { numbers: [4], items: [{ kind: 'count', anchor: 'list_items', value: 4 }] }, withDigit);
+    assert.equal(verdict(lookup, listed), 'pass', 'a count of a kind the table does not know leaves its integer to the ordinary trace');
     assert.equal(verdict(docx, readAsk('get_document_context', 'docs', three, 'There are 2 headings.', { numbers: [2], items: [{ kind: 'count', anchor: 'heading_level_1', value: 2 }] })), 'fail', 'a heading that begins with 2 does not make the count 2');
   });
 });

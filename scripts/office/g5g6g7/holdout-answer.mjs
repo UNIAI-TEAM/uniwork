@@ -36,11 +36,12 @@
 
 import { anchorMatches, countTopicKey, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
-import { EXTRA_SOURCES, argumentLeaves, currenciesIn, derivesFrom, figureQuantity, operandsOf, quantitiesOf, readLeaves, tracedFigure } from './holdout-figures.mjs';
+import { EXTRA_SOURCES, argumentLeaves, countsOf, currenciesIn, derivesFrom, figureQuantity, kindsNear, kindsOfName, operandsOf, quantitiesOf, quantityOfNumber, readLeaves, tracedByCount, tracedFigure, withProsePercent } from './holdout-figures.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
 const VALUE_KINDS = new Set(['cell', 'formula', 'heading', 'table_cell', 'count']);
+const COUNT_UNITS = new Set(['count', 'sheets']);
 
 export function reportingFooter() {
   return [
@@ -238,6 +239,9 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     const ops = opsOfTool(ask.modules, c.name) ?? [];
     return ops.some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification' && !ORIENTATION_OPS.has(op));
   };
+  // Trace (d) counts the elements of a read result, so the orientation tools count too (the sheet list holds the sheets);
+  // they are still never value leaves above.
+  const isCountSource = (c) => (opsOfTool(ask.modules, c.name) ?? []).some((op) => !WRITE_OPERATIONS.has(op) && op !== 'ask_clarification');
   const isComputeCall = (name) => (opsOfTool(ask.modules, name) ?? []).includes('compute');
   const deniedCountsByName = new Map();
   for (const d of ask.denied ?? []) {
@@ -249,11 +253,12 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     seenByName.set(c.name, idx + 1);
     const hasExplicit = Object.prototype.hasOwnProperty.call(c, 'denied');
     const denied = hasExplicit ? Boolean(c.denied) : idx < (deniedCountsByName.get(c.name) ?? 0);
-    return { name: c.name, isRead: isDataRead(c), denied };
+    return { name: c.name, isRead: isDataRead(c), isCountSource: isCountSource(c), denied };
   });
   const successfulReads = callStates.filter((c) => c.isRead && !c.denied);
   const attributed = Array.isArray(ask.toolResults) ? ask.toolResults : null;
   const reads = [];
+  const counts = [];
   const sourceCurrencies = currenciesIn(sourceText);
   const pushLeaves = (text, compute) => {
     for (const q of readLeaves(text)) reads.push({ q, compute });
@@ -267,11 +272,16 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       resultIdxByName.set(name, occ + 1);
       const matchingCalls = callStates.filter((c) => c.name === name);
       const pairedCall = matchingCalls[occ] ?? matchingCalls.at(-1);
-      if (pairedCall && pairedCall.isRead && !pairedCall.denied && !r?.denied) pushLeaves(String(r.text ?? ''), isComputeCall(name));
+      if (!pairedCall || pairedCall.denied || r?.denied) continue;
+      if (pairedCall.isRead) pushLeaves(String(r.text ?? ''), isComputeCall(name));
+      if (pairedCall.isCountSource) counts.push(...countsOf(String(r.text ?? '')));
     }
   } else if (successfulReads.length > 0) {
     const anyCompute = successfulReads.some((c) => isComputeCall(c.name));
-    for (const chunk of String(ask.toolResultsText ?? '').split('\n').filter(Boolean)) pushLeaves(chunk, anyCompute);
+    for (const chunk of String(ask.toolResultsText ?? '').split('\n').filter(Boolean)) {
+      pushLeaves(chunk, anyCompute);
+      counts.push(...countsOf(chunk));
+    }
   }
   const queryText = [caseDoc.query?.vi, caseDoc.query?.en].filter((s) => typeof s === 'string').join('\n');
   const extra = [];
@@ -279,9 +289,20 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   if (EXTRA_SOURCES.appliedWrites) for (const w of applied) for (const q of argumentLeaves(w.args)) extra.push({ q, tag: 'write' });
   const proseQs = quantitiesOf(parsed.text, { prose: true });
   const itemQs = items.flatMap((it) => quantitiesOf(String(it.value ?? '')));
-  const reportQs = figures.map(figureQuantity);
+  const reportQs = figures.map((f) => withProsePercent(figureQuantity(f), proseQs));
   const operands = operandsOf(reads.map((r) => r.q), [proseQs, itemQs, reportQs.filter(Boolean)]);
-  const ctx = { reads, extra, operands, sourceCurrencies };
+  // Trace (d): a count of a kind the reply names. report.items names a kind by its anchor; the prose names one beside a
+  // figure ("3 slides"). A figure that report.items marks as a count traces only through this (see traceClaim).
+  const countItems = items.filter((it) => it.kind === 'count');
+  const namedKinds = new Set(countItems.flatMap((it) => kindsOfName(it.anchor)));
+  const proseKinds = new Map();
+  for (const q of proseQs) {
+    for (const r of q.readings) proseKinds.set(r.n, new Set([...(proseKinds.get(r.n) ?? []), ...kindsNear(parsed.text, q)]));
+  }
+  // Only a count item whose anchor is a kind of the table marks its figure: a count of something trace (d) does not know
+  // (list items, changed paragraphs) is measured or self-reported and leaves its integer to the ordinary trace.
+  const countMarked = new Set(countItems.filter((it) => kindsOfName(it.anchor).length > 0).map((it) => toNumber(it.value)).filter((n) => n !== null));
+  const ctx = { reads, extra, operands, sourceCurrencies, counts, namedKinds, proseKinds, countMarked };
   const tracedReport = reportQs.map((q) => (q ? tracedFigure(q, ctx) : null));
   const tracedProse = proseQs.map((q) => ({ q, ...tracedFigure(q, ctx) }));
   // A4/R19-1: compute credit needs a figure of the report that equals a result of a SUCCESSFUL compute call, or a permitted
@@ -296,6 +317,18 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
     used.add('compute');
   }
   const { numeric, extras, extraIdx } = matchNumbers(caseDoc.expected.numeric, figures);
+  // A correct items-only structure answer: when trace (d) backs a count item, the same integer is not required a second
+  // time in report.numbers. An expected COUNT numeric (unit count or sheets) that no figure of the line matched takes the
+  // value of the count item that (d) backs; nothing else fills a numeric slot.
+  for (const item of caseDoc.expected.numeric) {
+    if (!COUNT_UNITS.has(item.unit)) continue;
+    const got = figureNumber(numeric[item.name]);
+    if (got !== null && Math.abs(roundTo(got, item.rounding) - item.value) <= item.tolerance + 1e-9) continue;
+    const backed = countItems.map((it) => toNumber(it.value)).find((n) => n !== null
+      && Math.abs(roundTo(n, item.rounding) - item.value) <= item.tolerance + 1e-9
+      && tracedByCount(quantityOfNumber(n), ctx));
+    if (backed !== undefined) numeric[item.name] = backed;
+  }
   const allExpectedNumericMatched = caseDoc.expected.numeric.every((item) => {
     const actual = figureNumber(numeric[item.name]);
     return actual !== null && Math.abs(roundTo(actual, item.rounding) - item.value) <= item.tolerance + 1e-9;

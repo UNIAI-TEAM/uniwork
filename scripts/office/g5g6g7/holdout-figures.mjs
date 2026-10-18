@@ -6,8 +6,11 @@
 //   (b) the result of a successful compute/aggregate call (its leaves are leaves of (a));
 //   (c) a permitted derivation of operands that BOTH a read returned AND the reply shows: the sum or difference of two,
 //       the ratio or percent of two, or the sum of all of them; never a product, never one value used twice.
-// Two further sources are the user's own request and the values of APPLIED writes; both are listed in
-// EXTRA_SOURCES so the lead can switch either off (the reference scan and the rescore state which one mattered).
+//   (d) the number of elements of a NAMED kind in ONE successful read result (slides, paragraphs, heading levels, rows,
+//       sheets, pages, lines), or a named count field of that same result (slideCount, paragraphCount, lineCount,
+//       pageCount), but only when the reply or report.items names that kind; never across reads, never an inferred kind.
+// The values of APPLIED writes are a further source, listed in EXTRA_SOURCES so the lead can switch it off. The user's own
+// request is NOT a source (review-g712-20 G712-R20-2): a number copied from the question is never a figure.
 //
 // A quantity keeps its unit: a figure with a unit or magnitude marker (k, m, bn, tr, triệu, tỷ, nghìn, ngàn, %, a
 // currency) matches only a source value with the same marker, or a percent derivation for %. A bare number never
@@ -19,7 +22,7 @@
 
 import { UNIT_TOKENS } from './holdout-score.mjs';
 
-export const EXTRA_SOURCES = { request: true, appliedWrites: true };
+export const EXTRA_SOURCES = { request: false, appliedWrites: true };
 // Currency (lead answer Q1, 2026-10-18): a currency word or sign is PRESENTATION on an amount, not a unit. With
 // `currencyIsMarker: false` (the default) it is dropped from the unit, so "1.234.000 đồng" matches a bare cell 1234000, and
 // it is kept on the quantity as `currency`. `currencyMustNotContradict` then fails a figure whose currency is not one the
@@ -309,6 +312,148 @@ export function argumentLeaves(args) {
   return out;
 }
 
+// ---------- trace (d): the number of elements of a named kind in ONE successful read ----------
+
+// ONE table of kind names (vi and en). A name is matched as a whole phrase, so a modified kind ("changed paragraphs",
+// "table rows") has no kind here and earns nothing. "dòng" is a row or a line: either reading may trace.
+const COUNT_LEAD = '(?:(?:the |a )?(?:total |tong )?(?:number of|count of|no of|so luong|so)\\s+|(?:total|tong so|tong)\\s+)?';
+const COUNT_TAIL = '(?:\\s+(?:count|total|number))?';
+const KIND_WORDS = [
+  ['slides', 'slides?|trang chieu'],
+  ['paragraphs', 'paragraphs?|doan van|doan'],
+  ['rows', 'rows?|hang|dong'],
+  ['sheets', 'sheets?|sheet names?|trang tinh|bang tinh'],
+  ['pages', 'pages?|trang'],
+  ['lines', 'lines?|dong'],
+].map(([kind, words]) => ({ kind, re: new RegExp(`^${COUNT_LEAD}(?:${words})${COUNT_TAIL}$`) }));
+const HEADING_WORDS = 'headings?|tieu de';
+const HEADING_RES = [
+  new RegExp(`^${COUNT_LEAD}(?:${HEADING_WORDS})(?: level| lvl| cap)? ([1-6])${COUNT_TAIL}$`),
+  new RegExp(`^${COUNT_LEAD}(?:level|lvl|cap) ([1-6]) (?:${HEADING_WORDS})${COUNT_TAIL}$`),
+  new RegExp(`^${COUNT_LEAD}h ([1-6]) (?:${HEADING_WORDS})${COUNT_TAIL}$`),
+];
+
+const countPhrase = (name) => foldAscii(
+  String(name ?? '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2').replace(/(\d)([A-Za-z])/g, '$1 $2'),
+).replace(/[_\-./:,]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** The kinds a name stands for: ['slides'], ['heading_level_2'], ['rows', 'lines'] for "dòng", [] for no kind. */
+export function kindsOfName(name) {
+  const phrase = countPhrase(name);
+  if (phrase === '') return [];
+  const kinds = KIND_WORDS.filter(({ re }) => re.test(phrase)).map(({ kind }) => kind);
+  for (const re of HEADING_RES) {
+    const level = re.exec(phrase)?.[1];
+    if (level) kinds.push(`heading_level_${level}`);
+  }
+  return kinds;
+}
+
+const isCount = (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+const HEADING_STYLE_RE = /^(?:heading|tieu de)([1-6])$/;
+const HTML_HEADING_RE = /<h([1-6])[\s>]/i;
+const MD_HEADING_RE = /^ {0,3}(#{1,6})[ \t]+\S/;
+
+/** The heading level of one line of a markdown or html read, or 0. Lines inside a fenced code block are not headings. */
+function headingLevelsOfLines(lines) {
+  const levels = new Array(7).fill(0);
+  let fenced = false;
+  for (const line of lines) {
+    if (typeof line !== 'string') continue;
+    if (/^ {0,3}(?:```|~~~)/.test(line)) { fenced = !fenced; continue; }
+    if (fenced) continue;
+    const level = MD_HEADING_RE.exec(line)?.[1].length ?? Number(HTML_HEADING_RE.exec(line)?.[1] ?? 0);
+    if (level > 0) levels[level] += 1;
+  }
+  return levels;
+}
+
+/**
+ * The traceable counts of ONE tool result: [{ kind, n }], from the length of an element array and from a named count
+ * field of the same result. A failed result gives none. Counts are never added across results.
+ */
+export function countsOf(text) {
+  let root;
+  try {
+    root = JSON.parse(String(text));
+  } catch {
+    return [];
+  }
+  if (!root || typeof root !== 'object' || Array.isArray(root) || isFailedResultPayload(root)) return [];
+  const out = [];
+  const add = (kind, n) => { if (isCount(n)) out.push({ kind, n }); };
+  const arrays = (kind, key) => { if (Array.isArray(root[key])) add(kind, root[key].length); };
+  add('slides', root.slideCount);
+  arrays('slides', 'slides');
+  add('paragraphs', root.paragraphCount);
+  arrays('paragraphs', 'blocks');
+  arrays('rows', 'rows');
+  add('sheets', root.sheetCount);
+  arrays('sheets', 'sheets');
+  arrays('sheets', 'sheetNames');
+  add('pages', root.pageCount);
+  arrays('pages', 'pages');
+  add('lines', root.lineCount);
+  arrays('lines', 'lines');
+  if (Array.isArray(root.blocks)) {
+    const levels = new Array(7).fill(0);
+    for (const b of root.blocks) {
+      const level = b && typeof b === 'object' ? Number(HEADING_STYLE_RE.exec(foldAscii(b.style ?? '').replace(/[\s_-]+/g, ''))?.[1] ?? 0) : 0;
+      if (level > 0) levels[level] += 1;
+    }
+    levels.forEach((n, level) => { if (level > 0) add(`heading_level_${level}`, n); });
+  }
+  if (Array.isArray(root.lines)) headingLevelsOfLines(root.lines).forEach((n, level) => { if (level > 0) add(`heading_level_${level}`, n); });
+  return out;
+}
+
+const SENTENCE_END_RE = /[.!?;\n]/;
+const CONNECTORS = new Set(['is', 'are', 'was', 'were', 'be', 'la', 'co', 'gom', 'bang', 'of', 'only', 'total', 'in']);
+const wordsOf = (text) => foldAscii(text).match(/[\p{L}\d]+/gu) ?? [];
+
+/** The kinds a reply names right beside one of its figures: "3 slides", "4 level 2 headings", "slides: 3", "number of sheets is 3". */
+export function kindsNear(text, q) {
+  const source = String(text ?? '');
+  const tail = source.slice(q.end, q.end + 80);
+  const after = wordsOf(tail.slice(0, (SENTENCE_END_RE.exec(tail) ?? { index: tail.length }).index));
+  for (let skip = 0; skip <= 2; skip += 1) {
+    for (let len = 1; len <= 4; len += 1) {
+      const kinds = kindsOfName(after.slice(skip, skip + len).join(' '));
+      if (kinds.length > 0) return kinds;
+    }
+  }
+  const head = source.slice(Math.max(0, q.start - 80), q.start);
+  const before = wordsOf(head.split(/[.!?;\n]/).at(-1));
+  while (before.length > 0 && CONNECTORS.has(before.at(-1))) before.pop();
+  for (let len = 1; len <= 4; len += 1) {
+    const kinds = kindsOfName(before.slice(-len).join(' '));
+    if (kinds.length > 0) return kinds;
+  }
+  return [];
+}
+
+const headingLevelOf = (kind) => Number(/^heading_level_(\d)$/.exec(kind)?.[1] ?? 0);
+
+/**
+ * Does the figure equal the count of a kind in ONE successful read that the reply (items or prose) names? The level digit
+ * of a named heading-level kind ("level 2 headings") is that kind's own label: it traces when the read holds the kind.
+ */
+export function tracedByCount(claim, ctx) {
+  if (claim.unit !== null && claim.unit !== undefined) return false;
+  if (claim.currency || !Array.isArray(ctx.counts)) return false;
+  const named = (kind, n) => ctx.namedKinds?.has(kind) || ctx.proseKinds?.get(n)?.has(kind);
+  return ctx.counts.some((c) => claim.readings.some((r) => r.dp === 0
+    && ((nearEq(r.n, c.n) && named(c.kind, c.n)) || (headingLevelOf(c.kind) === r.n && ctx.namedKinds?.has(c.kind)))));
+}
+
+/** A figure of report.numbers that the prose writes in percent units is a percent figure (`pctFromProse`), not a bare one. */
+export function withProsePercent(q, proseQs) {
+  if (!q || q.unit !== null || q.readings.length === 0 || q.currency) return q;
+  const same = (p) => p.readings.some((rp) => q.readings.some((rq) => nearEq(rp.n, rq.n)));
+  const inPercent = proseQs.some((p) => p.unit === '%' && same(p));
+  return inPercent && !proseQs.some((p) => p.unit === null && !p.currency && same(p)) ? { ...q, pctFromProse: true } : q;
+}
+
 // ---------- matching ----------
 
 const sameUnit = (a, b) => (a ?? null) === (b ?? null);
@@ -386,9 +531,10 @@ function derivationCandidates(operands) {
         out.push({ n: a + b, unit: u, kind: 'sum' }, { n: a - b, unit: u, kind: 'sum' }, { n: b - a, unit: u, kind: 'sum' });
         if (b !== 0) out.push({ n: a / b, unit: null, kind: 'ratio' }, { n: (a / b) * 100, unit: null, kind: 'percent' });
         if (a !== 0) out.push({ n: b / a, unit: null, kind: 'ratio' }, { n: (b / a) * 100, unit: null, kind: 'percent' });
-        // Percent change, in percent units only: ((b - a) / a) * 100 of two shown operands, either order.
-        if (a !== 0) out.push({ n: ((b - a) / a) * 100, unit: null, kind: 'percent' });
-        if (b !== 0) out.push({ n: ((a - b) / b) * 100, unit: null, kind: 'percent' });
+        // Percent change, in percent units only: ((b - a) / a) * 100 of two shown operands, either order. A claim must
+        // be written in percent units to match it (R20-3); derivesFrom enforces that through kind 'pchange'.
+        if (a !== 0) out.push({ n: ((b - a) / a) * 100, unit: null, kind: 'pchange' });
+        if (b !== 0) out.push({ n: ((a - b) / b) * 100, unit: null, kind: 'pchange' });
       }
     }
   }
@@ -408,17 +554,29 @@ function derivationCandidates(operands) {
 export function derivesFrom(claim, operands, { ignoreUnit = false } = {}) {
   if (claim.readings.length === 0) return false;
   return derivationCandidates(operands).some((cand) => {
-    const unitFits = ignoreUnit || (claim.unit === '%' ? cand.kind === 'percent' || cand.unit === '%' : cand.unit === (claim.unit ?? null));
+    // A percent change is a percent figure: a bare claim never matches it, unless it is the plain number of report.numbers
+    // for a figure the prose writes in percent units (`pctFromProse`, set by withProsePercent).
+    const inPercent = claim.unit === '%' || claim.pctFromProse === true;
+    const unitFits = ignoreUnit
+      ? true
+      : claim.unit === '%'
+        ? cand.kind === 'percent' || cand.kind === 'pchange' || cand.unit === '%'
+        : cand.kind === 'pchange' ? inPercent : cand.unit === (claim.unit ?? null);
     return unitFits && readingMatches(claim, cand.n);
   });
 }
 
 /**
- * Traces one claim { unit, readings }. ctx = { reads: [{ q, compute }], extra: [{ q, tag }], operands }.
- * Returns { by: 'read' | 'compute' | 'derived' | 'request' | 'write' | null, unitOnly }: `unitOnly` marks an
+ * Traces one claim { unit, readings }. ctx = { reads: [{ q, compute }], extra: [{ q, tag }], operands, counts, namedKinds, proseKinds, countMarked }.
+ * Returns { by: 'read' | 'compute' | 'derived' | 'count' | 'request' | 'write' | null, unitOnly }: `unitOnly` marks an
  * untraceable figure that would trace if its unit were ignored (reported, never credited).
  */
 export function traceClaim(claim, ctx, { ignoreUnit = false } = {}) {
+  // A figure that report.items marks as a count traces ONLY as a count of a named kind in one successful read, never as a
+  // text leaf that happens to hold the same integer (review-g712-20 L1G).
+  if (claim.readings.length > 0 && ctx.countMarked instanceof Set && claim.readings.some((r) => ctx.countMarked.has(r.n))) {
+    return tracedByCount(claim, ctx) ? { by: 'count' } : { by: null };
+  }
   if (claim.readings.length === 0) {
     const raw = claim.raw.trim();
     const hit = ctx.reads.find((r) => r.q.raw.trim() === raw && (ignoreUnit || sameUnit(r.q.unit, claim.unit)));
@@ -429,7 +587,8 @@ export function traceClaim(claim, ctx, { ignoreUnit = false } = {}) {
   if (reads.length > 0) return { by: reads.some((r) => r.compute) ? 'compute' : 'read' };
   const extra = ctx.extra.find((e) => unitOk(e.q.unit) && e.q.readings.some((rv) => readingMatches(claim, rv.n)));
   if (extra) return { by: extra.tag };
-  return derivesFrom(claim, ctx.operands, { ignoreUnit }) ? { by: 'derived' } : { by: null };
+  if (derivesFrom(claim, ctx.operands, { ignoreUnit })) return { by: 'derived' };
+  return tracedByCount(claim, ctx) ? { by: 'count' } : { by: null };
 }
 
 /** Traceable-or-not with the loss reason: { by, unitOnly }. */
