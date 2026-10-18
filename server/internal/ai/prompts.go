@@ -10,7 +10,7 @@ import (
 const (
 	PromptMeetingSummary     = "meeting_summary@3"
 	PromptCopilotAnswer      = "copilot_answer@1"
-	PromptChatCatchUp        = "chat_catchup@1"
+	PromptChatCatchUp        = "chat_catchup@2"
 	PromptChatCallSummary    = "chat_call_summary@1"
 	PromptEmailThreadSummary = "email_thread_summary@2"
 	PromptMediaAnalysis      = "media_analysis@1"
@@ -235,27 +235,16 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 
 	register(Prompt{
 		ID: "chat_catchup", Version: 1,
-		System: `You catch a teammate up on unread chat in a Vietnamese work OS.
-Respond with a single JSON object and nothing else, shaped exactly as:
-{"summary": string, "highlights": string[], "action_items": [{"title": string, "owner": string, "due": string, "source_id": string}]}
-- "summary": 2-5 sentences covering what happened since they last read.
-- "highlights": short bullet facts (decisions, blockers, @mentions); empty array if none.
-- "action_items": concrete follow-ups implied by the messages; "title" is imperative; "owner" is a display name from the sources or ""; "due" as spoken or ""; "source_id" is the [S#] of the message that motivated the item when known, else "".
-- Write every string in the language named by the caller. Do not invent messages absent from the sources.
-- Tone: a helpful colleague, no mascot voice, no emojis.
-` + UntrustedFooter,
+		System:       chatCatchUpRulesV1 + UntrustedFooter,
 		OutputSchema: json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"highlights":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"source_id":{"type":"string"}},"required":["title","owner","due","source_id"],"additionalProperties":false}}},"required":["summary","highlights","action_items"],"additionalProperties":false}`),
-		Render: func(vars map[string]any) string {
-			var b strings.Builder
-			fmt.Fprintf(&b, "Output language: %s\nToday: %s\nScope: %s\nMessages since: %s\n\n",
-				language(str(vars, "locale")), str(vars, "today"), EscapeUntrustedLine(str(vars, "scope")), str(vars, "since"))
-			if src := str(vars, "sources"); src != "" {
-				fmt.Fprintf(&b, "Sources:\n%s\n", src)
-			} else {
-				b.WriteString("Sources: (none)\n")
-			}
-			return b.String()
-		},
+		Render:       renderChatCatchUp,
+	})
+	// @2 cites the message behind each highlight, as action items already do.
+	register(Prompt{
+		ID: "chat_catchup", Version: 2,
+		System:       chatCatchUpRulesV2 + UntrustedFooter,
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"highlights":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"source_id":{"type":"string"}},"required":["text","source_id"],"additionalProperties":false}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"source_id":{"type":"string"}},"required":["title","owner","due","source_id"],"additionalProperties":false}}},"required":["summary","highlights","action_items"],"additionalProperties":false}`),
+		Render:       renderChatCatchUp,
 	})
 
 	register(Prompt{
@@ -315,6 +304,38 @@ Respond with a single JSON object and nothing else, shaped exactly as: {"text": 
 			return b.String()
 		},
 	})
+}
+
+const chatCatchUpRulesV1 = `You catch a teammate up on unread chat in a Vietnamese work OS.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"summary": string, "highlights": string[], "action_items": [{"title": string, "owner": string, "due": string, "source_id": string}]}
+- "summary": 2-5 sentences covering what happened since they last read.
+- "highlights": short bullet facts (decisions, blockers, @mentions); empty array if none.
+- "action_items": concrete follow-ups implied by the messages; "title" is imperative; "owner" is a display name from the sources or ""; "due" as spoken or ""; "source_id" is the [S#] of the message that motivated the item when known, else "".
+- Write every string in the language named by the caller. Do not invent messages absent from the sources.
+- Tone: a helpful colleague, no mascot voice, no emojis.
+`
+
+const chatCatchUpRulesV2 = `You catch a teammate up on unread chat in a Vietnamese work OS.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"summary": string, "highlights": [{"text": string, "source_id": string}], "action_items": [{"title": string, "owner": string, "due": string, "source_id": string}]}
+- "summary": 2-5 sentences covering what happened since they last read.
+- "highlights": short bullet facts (decisions, blockers, @mentions); "text" is the fact; "source_id" is the [S#] of the message it comes from when known, else ""; empty array if none.
+- "action_items": concrete follow-ups implied by the messages; "title" is imperative; "owner" is a display name from the sources or ""; "due" as spoken or ""; "source_id" is the [S#] of the message that motivated the item when known, else "".
+- Write every string in the language named by the caller. Do not invent messages absent from the sources.
+- Tone: a helpful colleague, no mascot voice, no emojis.
+`
+
+func renderChatCatchUp(vars map[string]any) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Output language: %s\nToday: %s\nScope: %s\nMessages since: %s\n\n",
+		language(str(vars, "locale")), str(vars, "today"), EscapeUntrustedLine(str(vars, "scope")), str(vars, "since"))
+	if src := str(vars, "sources"); src != "" {
+		fmt.Fprintf(&b, "Sources:\n%s\n", src)
+	} else {
+		b.WriteString("Sources: (none)\n")
+	}
+	return b.String()
 }
 
 const emailThreadSummaryRules = `You summarize one email thread for a Vietnamese work team.

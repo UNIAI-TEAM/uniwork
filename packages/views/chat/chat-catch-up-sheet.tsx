@@ -3,7 +3,7 @@
 import { useId, useState } from "react";
 import { CircleAlert, CircleCheck, RotateCcwClock, ListChecks, MessageSquareText, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { ChatCatchUpActionItem, ChatCatchUpResponse } from "@uniwork/core/types";
+import type { ChatCatchUpActionItem, ChatCatchUpHighlight, ChatCatchUpResponse } from "@uniwork/core/types";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
@@ -20,6 +20,12 @@ import {
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
 import { CreateTaskFromMessageDialog } from "./create-task-from-message-dialog";
 import { catchUpGeneratedAt } from "./use-chat-catch-up-ui";
+
+/** Highlights with their source message; a server that predates highlight_items sends only the strings. */
+function briefHighlights(result: ChatCatchUpResponse): ChatCatchUpHighlight[] {
+  if (result.highlight_items.length > 0) return result.highlight_items;
+  return result.highlights.map((text) => ({ text, source_message_id: "" }));
+}
 
 function isEmptyBrief(result: ChatCatchUpResponse): boolean {
   return (
@@ -110,6 +116,7 @@ export function ChatCatchUpSheet({
   const errorDetail = error && error !== failedTitle ? error : null;
   const stamp = generatedAt ?? catchUpGeneratedAt(result);
   const since = result ? parseTs(result.since) : null;
+  const highlights = result ? briefHighlights(result) : [];
 
   const jumpTo = (messageId: string) => {
     onOpenChange(false);
@@ -205,16 +212,38 @@ export function ChatCatchUpSheet({
                   </div>
                 </section>
 
-                {result.highlights.length > 0 ? (
+                {highlights.length > 0 ? (
                   <section className="flex flex-col gap-2">
                     <SectionLabel>{t("chat.ai.highlights")}</SectionLabel>
                     <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
-                      {result.highlights.map((h) => (
-                        <li key={h} className="flex gap-2.5 px-3.5 py-2.5 text-body text-foreground">
-                          <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
-                          <span className="min-w-0">{h}</span>
-                        </li>
-                      ))}
+                      {highlights.map((h, index) => {
+                        const sourceId = h.source_message_id;
+                        const textId = `${idBase}-highlight-${index}`;
+                        return (
+                          <li
+                            key={`${h.text}-${sourceId}-${index}`}
+                            className="flex gap-2.5 px-3.5 py-2.5 text-body text-foreground"
+                          >
+                            <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
+                            <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+                              <span id={textId}>{h.text}</span>
+                              {sourceId && onJumpToMessage ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className={CHAT_PILL_SM_CLASS}
+                                  aria-describedby={textId}
+                                  onClick={() => jumpTo(sourceId)}
+                                >
+                                  <MessageSquareText aria-hidden />
+                                  {t("chat.ai.catch_up_view_source")}
+                                </Button>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </section>
                 ) : null}
