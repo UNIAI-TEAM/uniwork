@@ -9,10 +9,10 @@ test("stripQuery removes query strings and fragments and normalizes full URLs", 
   assert.equal(stripQuery(""), "/");
 });
 
-test("validateRule and validateRules accept all six action types and reject malformed rules", () => {
+test("validateRule and validateRules accept all seven action types and reject malformed rules", () => {
   assert.deepEqual(
     [...ACTION_TYPES],
-    ["delay", "drop_request", "drop_response_after_forward", "status", "reset", "hold"],
+    ["delay", "drop_request", "drop_response_after_forward", "status", "reset", "hold", "rewrite_json"],
   );
 
   const valid = validateRules([
@@ -22,8 +22,13 @@ test("validateRule and validateRules accept all six action types and reject malf
     { id: "r-status", match: { path: "/status$" }, action: { type: "status", code: 503, body: { error: "unavailable" } } },
     { id: "r-reset", match: { path: "/reset$" }, action: { type: "reset" } },
     { id: "r-hold", match: { path: "/hold$" }, action: { type: "hold", until: "release" } },
+    {
+      id: "r-rewrite",
+      match: { method: "PUT", path: "^/api/v1/documents/[^/]+/office/offline-lease$" },
+      action: { type: "rewrite_json", patch: { expires_at: { now_plus_ms: 120000 }, lease_state: "active" } },
+    },
   ]);
-  assert.equal(valid.length, 6);
+  assert.equal(valid.length, 7);
   assert.equal(valid[0].match.method, "POST");
   assert.equal(valid[1].once, true);
   assert.equal(valid[2].match.nth, 2);
@@ -35,6 +40,23 @@ test("validateRule and validateRules accept all six action types and reject malf
   assert.throws(() => validateRule({ id: "bad-delay", match: { path: "/a" }, action: { type: "delay", ms: -1 } }), /non-negative ms/);
   assert.throws(() => validateRule({ id: "bad-status", match: { path: "/a" }, action: { type: "status", code: 99 } }), /integer HTTP code/);
   assert.throws(() => validateRule({ id: "bad-hold", match: { path: "/a" }, action: { type: "hold", until: "forever" } }), /until="release"/);
+  assert.throws(() => validateRule({ id: "bad-rewrite", match: { path: "/a" }, action: { type: "rewrite_json" } }), /requires a patch object/);
+  assert.throws(() => validateRule({ id: "bad-rewrite", match: { path: "/a" }, action: { type: "rewrite_json", patch: {} } }), /requires a non-empty patch object/);
+  assert.throws(() => validateRule({ id: "bad-rewrite", match: { path: "/a" }, action: { type: "rewrite_json", patch: [1, 2] } }), /requires a patch object/);
+  assert.throws(() => validateRule({ id: "bad-rewrite", match: { path: "/a" }, action: { type: "rewrite_json", patch: "expires_at" } }), /requires a patch object/);
+  assert.throws(() => validateRule({ id: "bad-rewrite", match: { path: "/a" }, action: { type: "rewrite_json", patch: { "": 1 } } }), /patch keys must be non-empty strings/);
+  assert.throws(
+    () => validateRule({ id: "bad-rewrite", match: { path: "/a" }, action: { type: "rewrite_json", patch: { expires_at: { now_plus_ms: -1 } } } }),
+    /now_plus_ms must be a non-negative integer/,
+  );
+  assert.throws(
+    () => validateRule({ id: "bad-rewrite", match: { path: "/a" }, action: { type: "rewrite_json", patch: { expires_at: { now_plus_ms: 1.5 } } } }),
+    /now_plus_ms must be a non-negative integer/,
+  );
+  assert.throws(
+    () => validateRule({ id: "bad-rewrite", match: { path: "/a" }, action: { type: "rewrite_json", patch: { expires_at: { now_plus_ms: "soon" } } } }),
+    /now_plus_ms must be a non-negative integer/,
+  );
   assert.throws(
     () =>
       validateRules([
@@ -43,6 +65,62 @@ test("validateRule and validateRules accept all six action types and reject malf
       ]),
     /duplicate rule id "dup"/,
   );
+});
+
+test("rewrite_json normalizes its patch, deep-copies it, and leaves other action types untouched", () => {
+  const rule = validateRule({
+    id: "lease-rewrite",
+    match: { method: "PUT", path: "^/api/v1/documents/[^/]+/office/offline-lease$" },
+    action: {
+      type: "rewrite_json",
+      patch: {
+        expires_at: { now_plus_ms: 120000 },
+        lease_state: "active",
+        nested: { keep: [1, { deep: true }] },
+      },
+    },
+  });
+  assert.equal(rule.action.type, "rewrite_json");
+  assert.deepEqual(rule.action.patch, {
+    expires_at: { now_plus_ms: 120000 },
+    lease_state: "active",
+    nested: { keep: [1, { deep: true }] },
+  });
+
+  // The patch is deep-copied: mutating the source never leaks into the normalized rule.
+  const sourcePatch = { expires_at: { now_plus_ms: 1000 }, nested: { keep: [1, 2] } };
+  const copied = validateRule({
+    id: "copied-rewrite",
+    match: { path: "/lease$" },
+    action: { type: "rewrite_json", patch: sourcePatch },
+  });
+  sourcePatch.expires_at.now_plus_ms = 999999;
+  sourcePatch.nested.keep.push(3);
+  assert.deepEqual(copied.action.patch, { expires_at: { now_plus_ms: 1000 }, nested: { keep: [1, 2] } });
+
+  // now_plus_ms = 0 is a valid non-negative integer.
+  const zero = validateRule({
+    id: "zero-rewrite",
+    match: { path: "/lease$" },
+    action: { type: "rewrite_json", patch: { expires_at: { now_plus_ms: 0 } } },
+  });
+  assert.deepEqual(zero.action.patch, { expires_at: { now_plus_ms: 0 } });
+
+  // An object with now_plus_ms plus another key is applied literally, not resolved.
+  const literal = validateRule({
+    id: "literal-rewrite",
+    match: { path: "/lease$" },
+    action: { type: "rewrite_json", patch: { expires_at: { now_plus_ms: 5, unit: "ms" } } },
+  });
+  assert.deepEqual(literal.action.patch, { expires_at: { now_plus_ms: 5, unit: "ms" } });
+
+  // Other action types keep their normalized shape (no patch key added).
+  const delayRule = validateRule({ id: "plain-delay", match: { path: "/a" }, action: { type: "delay", ms: 5 } });
+  assert.deepEqual(delayRule.action, { type: "delay", ms: 5 });
+  const holdRule = validateRule({ id: "plain-hold", match: { path: "/a" }, action: { type: "hold" } });
+  assert.deepEqual(holdRule.action, { type: "hold", until: "release" });
+  const resetRule = validateRule({ id: "plain-reset", match: { path: "/a" }, action: { type: "reset" } });
+  assert.deepEqual(resetRule.action, { type: "reset" });
 });
 
 test("first matching rule wins and once rules disarm after the first hit", () => {

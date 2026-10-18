@@ -295,6 +295,19 @@ export async function createFileDocument(tenant, fixture, title) {
   return { id: doc.id, revision: String(doc.revision ?? "") };
 }
 
+/**
+ * A file document the app's account can open (G7-03b fix4 CL1-1). SH-S1 (UNI-1780)
+ * creates a root document PRIVATE by default (server/internal/service/document_permissions.go:453-471),
+ * so the plain-member app account sees it as 404 until it is shared: the owner
+ * creates it, then shares it with the app at edit level. `createFileDocument`
+ * itself stays as is (the server cases create and share their own).
+ */
+export async function createAppDocument(tenant, fixture, title, { create = createFileDocument, share = shareDocumentLevel } = {}) {
+  const doc = await create(tenant, fixture, title);
+  await share(tenant, doc.id, "edit");
+  return doc;
+}
+
 export async function headRevision(tenant, documentId) {
   const res = await must("read document", tenant.apiOrigin, `/api/v1/documents/${documentId}`, { as: tenant.owner },
     undefined, "/api/v1/documents/{documentID}");
@@ -386,6 +399,33 @@ export function grantPlatformAdmin({ repoRoot, databaseUrl, email }) {
   return null;
 }
 
+/**
+ * FL-06's revoke on D: every live offline lease of the run's organization ends
+ * (`uniwork-admin revoke-offline-leases`, server/cmd/uniwork-admin: bumps the
+ * organization's policy epoch and revokes the live leases, one `office_lease.revoked`
+ * outbox event each). The next renew of a lease the app holds answers 403
+ * `offline_lease_revoked`. Returns `{failure, evidence}`: `failure` is null on
+ * success or the reason it could not (a missing tool is a precondition: BLOCKED);
+ * `evidence` is the CLI's own stdout line parsed (`<org> offline policy epoch now N,
+ * K live lease(s) revoked`), kept so the row can prove the revoke hit THIS run's
+ * organization and revoked something (review r2 R2-9).
+ */
+export function revokeOrgOfflineLeases({ repoRoot, databaseUrl, orgId }, { run = spawnSync } = {}) {
+  const fail = (failure) => ({ failure, evidence: null });
+  if (!databaseUrl) return fail("no DATABASE_URL in the run's server.env (needed by uniwork-admin)");
+  const res = run("go", ["run", "./cmd/uniwork-admin", "revoke-offline-leases", "--org-id", orgId, "--reason", ADMIN_REASON], {
+    cwd: `${repoRoot}/server`,
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    encoding: "utf8",
+    timeout: 300_000,
+  });
+  if (res.error?.code === "ENOENT") return fail("go is not on PATH (uniwork-admin revokes the offline leases)");
+  if (res.status !== 0) return fail(`uniwork-admin revoke-offline-leases exited ${res.status}: ${redactUrls(String(res.stderr ?? "").trim().split("\n")[0] ?? "")}`);
+  const line = redactUrls(String(res.stdout ?? "").trim().split("\n").filter(Boolean).at(-1) ?? "");
+  const match = /^(\S+) offline policy epoch now (\d+), (\d+) live lease\(s\) revoked$/.exec(line);
+  return { failure: null, evidence: { line, orgId: match?.[1] ?? null, epoch: match ? Number(match[2]) : null, revoked: match ? Number(match[3]) : null } };
+}
+
 export const suspendOrg = (tenant) =>
   must("suspend organization", tenant.apiOrigin, `/api/v1/admin/organizations/${tenant.orgId}/suspend`,
     { method: "POST", as: tenant.owner, json: { reason: ADMIN_REASON } }, undefined, "/api/v1/admin/organizations/{orgID}/suspend");
@@ -402,6 +442,50 @@ export const clearSyncWrite = (tenant) =>
     method: "DELETE", as: tenant.owner,
     json: { scope_type: "organization", scope_id: tenant.orgId, reason: ADMIN_REASON },
   }, [200, 204, 404], "/api/v1/admin/flags/{key}/overrides");
+
+/**
+ * G7-03b: the org capability `office_offline_library` (default OFF,
+ * server/internal/featureflags/keys.go:60) is switched on for the FL rows only,
+ * through the SAME organization-scoped admin override route the harness already
+ * uses for `office_sync_write` (its own precedent). The alternative the contract
+ * names - `FF_OFFICE_OFFLINE_LIBRARY=true` in the runner's ENV_FILE - also works
+ * without touching the harness: start.sh copies the VM's .env into the server's
+ * own cwd minus the keys the run owns (harness/lib.mjs `serverDotEnv`), and the
+ * server's flag service reads `FF_<KEY>` (pkg/featureflag env_provider.go:41-46).
+ * The override is chosen here because it is scoped to the run's own tenant and
+ * can be lifted per row, so a non-FL row never runs with the capability on.
+ */
+export const setOfflineLibrary = (tenant, enabled = true) =>
+  must("office_offline_library override", tenant.apiOrigin, "/api/v1/admin/flags/office_offline_library/overrides", {
+    method: "PUT", as: tenant.owner,
+    json: { scope_type: "organization", scope_id: tenant.orgId, enabled, reason: ADMIN_REASON },
+  }, undefined, "/api/v1/admin/flags/{key}/overrides");
+export const clearOfflineLibrary = (tenant) =>
+  must("office_offline_library override delete", tenant.apiOrigin, "/api/v1/admin/flags/office_offline_library/overrides", {
+    method: "DELETE", as: tenant.owner,
+    json: { scope_type: "organization", scope_id: tenant.orgId, reason: ADMIN_REASON },
+  }, [200, 204, 404], "/api/v1/admin/flags/{key}/overrides");
+
+/**
+ * The organization-scoped `office_offline_library` override of this run's
+ * tenant, read back from the server (GET `/api/v1/admin/flags/{key}/overrides`,
+ * admin_flags.go `adminListFlagOverrides` -> `AdminFlagOverrideDTO`): the row
+ * itself, or null when the tenant carries none (review r1 R1-9).
+ *
+ * The read is how the runner proves a lift actually took effect instead of
+ * assuming the DELETE did; an unreachable server or a refused read is reported
+ * as `{error}` so the caller decides (a lift it cannot verify is a failure, not
+ * a silent success).
+ */
+export async function readOfflineLibraryOverride(tenant) {
+  const res = await authedRequest(tenant.apiOrigin, "/api/v1/admin/flags/office_offline_library/overrides", { method: "GET", as: tenant.owner });
+  if (res.status !== 200) {
+    const code = res.body?.error?.code ?? res.body?.code ?? "";
+    return { error: `GET /api/v1/admin/flags/{key}/overrides -> ${res.status}${code ? ` ${code}` : ""}` };
+  }
+  const rows = Array.isArray(res.body?.overrides) ? res.body.overrides : [];
+  return { override: rows.find((row) => row?.scope_type === "organization" && row?.scope_id === tenant.orgId) ?? null };
+}
 
 /**
  * FQ-24's test setup (OQ-F3, agreed by the lead): expires the upload claims the

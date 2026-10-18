@@ -22,8 +22,10 @@ const TRACE_KEYS = new Set(["ts", "intentId", "documentId", "from", "to", "httpS
 
 /**
  * Splits the app rows of cases.json into the ones this runner drives (`ready`)
- * and the ones it only reports (`pending <dep>` -> BLOCKED with the dependency).
- * With `caseId`, exactly that app row (ready or pending); an unknown id throws.
+ * and the ones it only reports. A `pending <dep>` row is BLOCKED with its
+ * dependency; a G7-03b row may instead be `SUPERSEDED` (with the reason that
+ * retired it) or `BLOCKED(<owner>)` (with the owner) - both are reported, never
+ * run, and never counted as a PASS. An unknown status keeps its own words.
  */
 export function selectAppCases(casesDoc, { caseId } = {}) {
   const rows = (Array.isArray(casesDoc?.cases) ? casesDoc.cases : []).filter((row) => row.layer === "app");
@@ -31,10 +33,18 @@ export function selectAppCases(casesDoc, { caseId } = {}) {
   if (caseId && pick.length === 0) throw new Error(`unknown app fault case "${caseId}"`);
   return {
     runnable: pick.filter((row) => row.status === "ready"),
-    blocked: pick
-      .filter((row) => row.status !== "ready")
-      .map((row) => ({ row, reason: row.status.startsWith("pending") ? row.status : `not ready: ${row.status}` })),
+    blocked: pick.filter((row) => row.status !== "ready").map((row) => ({ row, reason: blockedReasonOf(row) })),
   };
+}
+
+/** The BLOCKED line of a row that never runs: its own status, plus the reason or owner it carries. */
+export function blockedReasonOf(row) {
+  const status = String(row?.status ?? "");
+  if (status.startsWith("pending")) return status;
+  if (status === "SUPERSEDED") return `SUPERSEDED: ${row.supersededReason ?? "no reason recorded"}`;
+  const blocked = /^BLOCKED\((.+)\)$/.exec(status);
+  if (blocked) return `BLOCKED(${blocked[1]}): ${row.blockedReason ?? "no reason recorded"}`;
+  return `not ready: ${status}`;
 }
 
 /**
@@ -447,7 +457,7 @@ export const SYNC_STORE_BUDGET_BYTES = 1024 * 1024 * 1024;
  * The extra environment of an app launch for a fault case: the proxy as the
  * API origin is the caller's; these are the fork's test hooks and switches.
  */
-export function faultAppExtraEnv({ traceFile, stuckAfterMs = null, recheckMs = null, display = "", xauthority = "" }) {
+export function faultAppExtraEnv({ traceFile, stuckAfterMs = null, recheckMs = null, display = "", xauthority = "", deploymentId = "" }) {
   return {
     UNIWORK_OFFICE_CHANNEL: "dev",
     UNIWORK_AUTH_E2E_NO_BROWSER: "1",
@@ -458,6 +468,9 @@ export function faultAppExtraEnv({ traceFile, stuckAfterMs = null, recheckMs = n
     ...(recheckMs ? { UNIWORK_SYNC_TEST_RECHECK_MS: String(recheckMs) } : {}),
     ...(display ? { DISPLAY: display } : {}),
     ...(xauthority ? { XAUTHORITY: xauthority } : {}),
+    // FL-08 switches the deployment of one userData (fork deployment.ts:165 reads
+    // this env; unset means 'default', the harness's own deployment)
+    ...(deploymentId ? { UNIWORK_DEPLOYMENT_ID: String(deploymentId) } : {}),
   };
 }
 

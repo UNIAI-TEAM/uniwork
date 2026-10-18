@@ -14,6 +14,8 @@ import test from "node:test";
 import { appEnv } from "../harness/lib.mjs";
 import { QUEUE_DRIVERS } from "./app-case-drivers.mjs";
 import { BLOCKED_DRIVERS, EXTRA_EXITS, reasonOf } from "./app-case-drivers-blocked.mjs";
+import { OFFLINE_DRIVERS } from "./app-case-drivers-offline.mjs";
+import { OFFLINE_FAULT_DRIVERS } from "./app-case-drivers-offline-faults.mjs";
 import { parseAppCasesArgs } from "./app-cases.mjs";
 import {
   BLOCKED_EXIT_CODE, INTENT_LOG_KEYS, appTraceArtifacts, assertEntersWithCode, buildAppIntentLog, commitKeyTag, assertNeverState, assertStatePath, attemptIdFromAuthorizationUrl,
@@ -44,21 +46,26 @@ const TRACE = [
   line("2026-10-15T01:00:06.000Z", "i1", DOC, "committing", "committed", { httpStatus: 200 }),
 ].join("\n");
 
-test("selectAppCases runs the ready app rows and reports pending ones with their dependency", () => {
+test("selectAppCases runs the ready app rows and reports the rest with their reason", () => {
   const doc = loadFaultCases();
   const { runnable, blocked } = selectAppCases(doc);
   assert.ok(runnable.length > 0 && runnable.every((r) => r.layer === "app" && r.status === "ready"));
-  assert.ok(blocked.every(({ row, reason }) => row.layer === "app" && reason === row.status && reason.startsWith("pending ")));
+  assert.ok(blocked.every(({ row }) => row.layer === "app" && row.status !== "ready"));
   assert.equal(runnable.length + blocked.length, doc.cases.filter((r) => r.layer === "app").length);
   assert.ok(!blocked.some(({ row }) => /F-trace|F-clock/.test(row.status)), "F-trace / F-clock rows are ready now");
   assert.deepEqual(selectAppCases(doc, { caseId: "FQ-23" }).runnable, []);
   assert.equal(selectAppCases(doc, { caseId: "FQ-23" }).blocked[0].reason, "pending G5-10");
+  // the W2 rows are ready now; a retired FL row reports its own reason, never a PASS
+  assert.deepEqual(selectAppCases(doc, { caseId: "FL-02" }).blocked, []);
+  assert.equal(selectAppCases(doc, { caseId: "FL-02" }).runnable[0].id, "FL-02");
+  assert.match(selectAppCases(doc, { caseId: "FL-04b" }).blocked[0].reason, /^SUPERSEDED: D1 /);
+  assert.match(selectAppCases(doc, { caseId: "FL-04c" }).blocked[0].reason, /^BLOCKED\(G5-08d\): /);
   assert.throws(() => selectAppCases(doc, { caseId: "FQ-01" }), /unknown app fault case/);
 });
 
 test("every ready app row has a driver and every driver serves a ready row", () => {
   const ready = selectAppCases(loadFaultCases()).runnable.map((r) => r.id).sort();
-  assert.deepEqual(Object.keys({ ...QUEUE_DRIVERS, ...BLOCKED_DRIVERS }).sort(), ready);
+  assert.deepEqual(Object.keys({ ...QUEUE_DRIVERS, ...BLOCKED_DRIVERS, ...OFFLINE_DRIVERS, ...OFFLINE_FAULT_DRIVERS }).sort(), ready);
 });
 
 test("the client assertions of every app row read the trace hook", () => {

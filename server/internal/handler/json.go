@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -28,6 +31,22 @@ func respondErrorFields(w http.ResponseWriter, status int, code, msg string, fie
 	body := sdo.NewErrorSDO(code, msg)
 	body.Error.Fields = fields
 	respondJSON(w, status, body)
+}
+
+// emptyBodyAsObject makes a zero-length request body read as "{}", for a route
+// whose contract allows no body at all (the desktop's offline-lease grant). It
+// only rewrites what decode would read next, so decode still caps the body and
+// answers 413/400 itself; a body that is present is passed through untouched.
+func emptyBodyAsObject(r *http.Request) {
+	br := bufio.NewReader(r.Body)
+	if _, err := br.Peek(1); errors.Is(err, io.EOF) {
+		r.Body = io.NopCloser(strings.NewReader("{}"))
+		return
+	}
+	r.Body = struct {
+		io.Reader
+		io.Closer
+	}{br, r.Body}
 }
 
 // decode reads a JSON body into dst, bounded by limit bytes. On failure it
