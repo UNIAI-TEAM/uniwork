@@ -292,6 +292,109 @@ func TestDocumentOfficeCommit(t *testing.T) {
 			if opened.Module != OfficeFrameModuleMarkdown || opened.File.MimeType != "text/plain" || opened.File.Filename != "ghi-chu.txt" {
 				t.Fatalf("opened frame after .txt commit = %+v", opened)
 			}
+
+			// BE-UN02-13: a second consecutive .txt engine commit and its
+			// idempotent replay keep ghi-chu.txt + text/plain and match a fresh GET.
+			row2, err := jobs.StartOfficeJobForDocument(context.Background(), member, created.Document.ID, OfficeJobRequest{
+				Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "start second .txt job")
+			eng.finish(t, row2.ID, []byte("dong 1\ndong 2 engine v3\n"), "text/plain")
+			done2, err := jobs.GetOfficeJob(context.Background(), member, created.Document.OrganizationID, created.Document.WorkspaceID, row2.ID)
+			mustf(t, err, "refresh second .txt job")
+			secondKey := util.NewID()
+			res2, err := env.commit(member, created.Document.ID, done2.OutputFileID.String, done2.BaseRevision, secondKey)
+			mustf(t, err, "commit second .txt job output")
+			if res2.Version.Version != 3 || res2.File.MimeType != "text/plain" || res2.File.Filename != "ghi-chu.txt" {
+				t.Fatalf("second committed .txt file = %+v (version %d)", res2.File, res2.Version.Version)
+			}
+			replay2, err := env.commit(member, created.Document.ID, done2.OutputFileID.String, done2.BaseRevision, secondKey)
+			mustf(t, err, "replay second .txt job commit")
+			if replay2.Version.ID != res2.Version.ID || replay2.File.MimeType != "text/plain" || replay2.File.Filename != "ghi-chu.txt" {
+				t.Fatalf("replayed second .txt file = %+v", replay2.File)
+			}
+			view2, err := env.svc.GetDocument(context.Background(), member, created.Document.ID)
+			mustf(t, err, "read .txt document after second commit")
+			if view2.File == nil || view2.File.Filename != res2.File.Filename || view2.File.MimeType != res2.File.MimeType {
+				t.Fatalf("fresh GET after second .txt commit = %+v, want %+v", view2.File, res2.File)
+			}
+
+			// BE-UN02-15: markdown Recents include the engine-committed .txt
+			// while the flag is on and exclude it once the flag is turned off.
+			recentsOn, err := frame.Recents(context.Background(), tok.Claims, 20)
+			mustf(t, err, "recents with flag on")
+			foundOn := false
+			for _, d := range recentsOn {
+				if d.ID == created.Document.ID {
+					foundOn = true
+					break
+				}
+			}
+			if !foundOn {
+				t.Fatalf("markdown Recents with flag on missing %s: %+v", created.Document.ID, recentsOn)
+			}
+			env.svc.SetFlags(staticDocFlags{"office_txt_open": false})
+			recentsOff, err := frame.Recents(context.Background(), tok.Claims, 20)
+			mustf(t, err, "recents with flag off")
+			for _, d := range recentsOff {
+				if d.ID == created.Document.ID {
+					t.Fatalf("markdown Recents with flag off still includes %s", created.Document.ID)
+				}
+			}
+		})
+
+		t.Run("a restored .txt engine version recovers its .txt identity across intervening plain uploads", func(t *testing.T) {
+			env.svc.SetFlags(staticDocFlags{"office_txt_open": true})
+			t.Cleanup(func() { env.svc.SetFlags(nil) })
+			created := env.createFile(t, member, "notes.txt", []byte("notes v1\n"))
+			eng := newScriptedEngine()
+			eng.fake = env.fake
+			jobs := NewDocumentOfficeService(DocumentOfficeOptions{
+				Pool: env.f.pool, Queries: env.f.q, Files: env.fs, Engine: eng, Documents: env.svc,
+				MaxDeadline: time.Minute,
+			})
+			row, err := jobs.StartOfficeJobForDocument(context.Background(), member, created.Document.ID, OfficeJobRequest{
+				Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "start notes.txt job")
+			eng.finish(t, row.ID, []byte("notes v2 engine\n"), "text/plain")
+			done, err := jobs.GetOfficeJob(context.Background(), member, created.Document.OrganizationID, created.Document.WorkspaceID, row.ID)
+			mustf(t, err, "refresh notes.txt job")
+			v2, err := env.commit(member, created.Document.ID, done.OutputFileID.String, done.BaseRevision, util.NewID())
+			mustf(t, err, "commit notes.txt engine v2")
+
+			up3 := env.upload(t, member, created.Document.ID, "server.log", []byte("2026-10-18 plain log\n"))
+			v3, err := env.commit(member, created.Document.ID, up3.UploadID, v2.Document.Revision, util.NewID())
+			mustf(t, err, "commit server.log v3")
+			if v3.Version.Version != 3 || v3.File.Filename != "server.log" || v3.File.MimeType != "text/plain" {
+				t.Fatalf("v3 = %+v / %+v", v3.Version, v3.File)
+			}
+
+			v4, err := env.svc.RestoreFileVersion(context.Background(), member, created.Document.ID, RestoreFileVersionInput{
+				Version: 2, BaseRevision: v3.Document.Revision, IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "restore v2 as v4")
+			if v4.Version.Version != 4 || v4.Version.RestoredFrom.Int32 != 2 {
+				t.Fatalf("v4 = %+v", v4.Version)
+			}
+			view, err := env.svc.GetDocument(context.Background(), member, created.Document.ID)
+			mustf(t, err, "get document at v4")
+			if view.File == nil || view.File.Filename != "notes.txt" || view.File.MimeType != "text/plain" {
+				t.Fatalf("restored v4 document file = %+v, want notes.txt + text/plain", view.File)
+			}
+			caps, err := jobs.Capability(context.Background(), member, created.Document.ID)
+			mustf(t, err, "capability at restored v4")
+			if caps.Format != office.FormatMD {
+				t.Fatalf("capability format at restored v4 = %q, want %q", caps.Format, office.FormatMD)
+			}
+			frame := NewOfficeFrameService(env.svc, "office-frame-test-secret-0123456789abcdef")
+			tok, err := frame.Mint(context.Background(), member, created.Document.ID)
+			mustf(t, err, "mint frame at restored v4")
+			opened, err := frame.Open(context.Background(), tok.Claims)
+			mustf(t, err, "open frame at restored v4")
+			if opened.Module != OfficeFrameModuleMarkdown || opened.File.Filename != "notes.txt" || opened.File.MimeType != "text/plain" {
+				t.Fatalf("opened frame at restored v4 = %+v", opened)
+			}
 		})
 
 		// A non-txt engine output resolves by its version mime, so nothing
@@ -321,6 +424,37 @@ func TestDocumentOfficeCommit(t *testing.T) {
 			mustf(t, err, "read md document")
 			if view.File == nil || view.File.Filename != "file" {
 				t.Fatalf("md document file = %+v, want the placeholder name", view.File)
+			}
+
+			// BE-UN02-12: flag off, notes.markdown sniffs as text/plain; its
+			// engine output keeps the placeholder "file" on commit and GET, and
+			// capability answers format_not_supported as at c86c3565d.
+			env.svc.SetFlags(nil)
+			mdPlain := env.createFile(t, member, "notes.markdown", []byte("# Notes\n"))
+			if mdPlain.File.MimeType != "text/plain" {
+				t.Fatalf("notes.markdown initial mime = %q, want text/plain", mdPlain.File.MimeType)
+			}
+			mdRow, err := jobs.StartOfficeJobForDocument(context.Background(), member, mdPlain.Document.ID, OfficeJobRequest{
+				Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "start notes.markdown job")
+			eng.finish(t, mdRow.ID, []byte("# Notes engine\n"), "text/plain")
+			mdDone, err := jobs.GetOfficeJob(context.Background(), member, mdPlain.Document.OrganizationID, mdPlain.Document.WorkspaceID, mdRow.ID)
+			mustf(t, err, "refresh notes.markdown job")
+			mdRes, err := env.commit(member, mdPlain.Document.ID, mdDone.OutputFileID.String, mdDone.BaseRevision, util.NewID())
+			mustf(t, err, "commit notes.markdown job output")
+			if mdRes.File.MimeType != "text/plain" || mdRes.File.Filename != "file" {
+				t.Fatalf("committed notes.markdown file = %+v, want file + text/plain", mdRes.File)
+			}
+			mdView, err := env.svc.GetDocument(context.Background(), member, mdPlain.Document.ID)
+			mustf(t, err, "read notes.markdown document")
+			if mdView.File == nil || mdView.File.Filename != "file" || mdView.File.MimeType != "text/plain" {
+				t.Fatalf("notes.markdown document file = %+v, want file + text/plain", mdView.File)
+			}
+			if _, err := jobs.Capability(context.Background(), member, mdPlain.Document.ID); err == nil {
+				t.Fatal("notes.markdown engine output answered a capability instead of matching c86c3565d")
+			} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
+				t.Fatalf("notes.markdown engine output refusal = %+v", ee)
 			}
 		})
 	})
