@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+4fdfe09a2f27e4fe864bb578176c87ff13085dd1
+4fdfe09a2 fix(documents): match the level selects' new accessible names in the shelved share test (UNI-1914)
+e43c4413c chore(merge): G5-G7 root 4a55de90f into UNI-1914 sharing polish
+4a55de90f chore: merge FU-SHARING P0 revoke fix (UNI-1914, 2d0b03889) into the G5-G7 root
+2d0b03889 test(documents): narrow the access-requests list before asserting rows (UNI-1914)
+f67c9a867 fix(documents): open the people list on click, not on focus (UNI-1914)
+11c6a963f chore: merge FRAME-SAVE-HYGIENE (UNI-1907, d8be4bb72) into the G5-G7 root
+a73d09fab fix(documents): keep the locked share hint readable under the disabled dimming (UNI-1914)
+9911dcd70 fix(documents): scope composition only where the narrow badge shows, Accept focus flag, private wording (UNI-1914)
