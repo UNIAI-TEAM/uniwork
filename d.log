@@ -1,0 +1,27 @@
+$ xvfb-run --auto-servernum -- npm run test:e2e -- e2e/mcp-open-documents.spec.ts --repeat-each=3 --workers=1; rc=$?; echo; echo "MCP_OPEN_DOCS_EXIT=$rc"
+
+> genoffice@0.1.0 test:e2e
+> playwright test --config e2e/playwright.config.ts e2e/mcp-open-documents.spec.ts --repeat-each=3 --workers=1
+
+
+Running 9 tests using 1 worker
+
+(node:7054) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/mcp-open-documents.spec.ts:107:7 › MCP open documents › lists, reads and closes a document the app opened (1.6s)
+  ✓  2 e2e/mcp-open-documents.spec.ts:205:7 › MCP open documents › reads a Word document the app opened, through the docs bridge (3.8s)
+  ✓  3 e2e/mcp-open-documents.spec.ts:292:7 › MCP open documents › saves unsaved edits before closing when asked to close a dirty document (1.4s)
+(node:7322) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 e2e/mcp-open-documents.spec.ts:107:7 › MCP open documents › lists, reads and closes a document the app opened (1.2s)
+  ✓  5 e2e/mcp-open-documents.spec.ts:205:7 › MCP open documents › reads a Word document the app opened, through the docs bridge (3.7s)
+  ✓  6 e2e/mcp-open-documents.spec.ts:292:7 › MCP open documents › saves unsaved edits before closing when asked to close a dirty document (2.1s)
+(node:7586) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  7 e2e/mcp-open-documents.spec.ts:107:7 › MCP open documents › lists, reads and closes a document the app opened (1.2s)
+  ✓  8 e2e/mcp-open-documents.spec.ts:205:7 › MCP open documents › reads a Word document the app opened, through the docs bridge (3.7s)
+  ✓  9 e2e/mcp-open-documents.spec.ts:292:7 › MCP open documents › saves unsaved edits before closing when asked to close a dirty document (2.1s)
+
+  9 passed (22.1s)
+
+MCP_OPEN_DOCS_EXIT=0

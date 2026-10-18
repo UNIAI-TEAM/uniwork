@@ -1,0 +1,21 @@
+$ xvfb-run --auto-servernum -- npm run test:e2e -- e2e/mcp-headless.spec.ts --repeat-each=3 --workers=1; rc=$?; echo; echo "MCP_HEADLESS_EXIT=$rc"
+
+> genoffice@0.1.0 test:e2e
+> playwright test --config e2e/playwright.config.ts e2e/mcp-headless.spec.ts --repeat-each=3 --workers=1
+
+
+Running 3 tests using 1 worker
+
+(node:7911) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/mcp-headless.spec.ts:60:7 › MCP headless generation › spawns the bundled CLI to create docx/pptx/xlsx (3.0s)
+(node:8049) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 e2e/mcp-headless.spec.ts:60:7 › MCP headless generation › spawns the bundled CLI to create docx/pptx/xlsx (3.0s)
+(node:8190) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 e2e/mcp-headless.spec.ts:60:7 › MCP headless generation › spawns the bundled CLI to create docx/pptx/xlsx (2.9s)
+
+  3 passed (13.6s)
+
+MCP_HEADLESS_EXIT=0
