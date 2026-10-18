@@ -9144,8 +9144,6 @@
       "members_error_limit": "Danh sách quá dài nên chỉ hiển thị một phần thành viên.",
       "people_already_shared": "Đã có quyền",
       "people_chosen": "Người đã chọn",
-      "people_selected_one": "Đã chọn {{count}} người",
-      "people_selected_other": "Đã chọn {{count}} người",
       "people_limit": "Tối đa {{max}} người mỗi lần chia sẻ. Bỏ bớt để thêm người khác.",
       "people_remove": "Bỏ chọn {{name}}",
       "people_removed": "Đã bỏ chọn {{name}}",

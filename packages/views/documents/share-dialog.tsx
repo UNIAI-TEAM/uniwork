@@ -125,10 +125,10 @@ export function ShareDialog({
       <DialogContent
         aria-describedby={describedBy}
         closeLabel={t("common.close")}
-        className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+        className="max-h-[85vh] overflow-y-auto sm:max-w-lg [&>*]:min-w-0"
       >
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="break-words pr-8">
             {docTitle
               ? t("documents.share.title_named", { title: docTitle })
               : t("documents.share.title")}
@@ -149,17 +149,18 @@ export function ShareDialog({
         </DialogHeader>
 
         {access.isLoading ? (
-          <div className="flex items-center gap-2 py-4 text-body text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-2 py-4 text-body text-muted-foreground">
             <Spinner />
             {t("documents.share.loading")}
           </div>
         ) : access.isError || !access.data ? (
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-            <p className="text-body text-destructive">{t("documents.share.error")}</p>
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+            <p className="min-w-0 break-words text-body text-destructive">{t("documents.share.error")}</p>
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="shrink-0"
               onClick={() => void access.refetch()}
             >
               {t("documents.share.retry")}
@@ -178,7 +179,7 @@ export function ShareDialog({
             workspaceName={workspaceName}
           />
         ) : (
-          <div className="flex flex-col gap-5">
+          <div className="flex min-w-0 flex-col gap-5">
             {members.error ? (
               <ShareMembersErrorLine
                 error={members.error}

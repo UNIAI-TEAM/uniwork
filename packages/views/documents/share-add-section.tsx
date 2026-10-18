@@ -39,6 +39,7 @@ import {
   buildLocalShareCandidates,
   filterShareCandidates,
   ShareCandidatePicker,
+  SharePrincipalIcon,
   type ShareMembersDirectory,
 } from "./share-candidate-picker";
 import { shareErrorMessage } from "./share-dialog-break-glass";
@@ -345,7 +346,7 @@ export function ShareAddSection({
   };
 
   return (
-    <section aria-labelledby="share-add-title" className="flex flex-col gap-2.5 rounded-lg border border-border p-3">
+    <section aria-labelledby="share-add-title" className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-border p-3">
       <div className="flex items-center justify-between gap-2">
         <h3 id="share-add-title" className="text-label font-medium text-foreground">
           {t("documents.share.add_title")}
@@ -376,15 +377,15 @@ export function ShareAddSection({
         effectiveItemLevel={effectiveItemLevel} levelLabel={levelLabel} rejectedReasonLabel={rejectedReasonLabel}
       />
 
-      <p className="text-caption text-muted-foreground">
-        {atLimit
-          ? t("documents.share.people_limit", { max: SHARE_PEOPLE_MAX })
-          : t("documents.share.people_selected", { count: selected.length })}
-      </p>
+      {atLimit ? (
+        <p className="text-caption text-muted-foreground">
+          {t("documents.share.people_limit", { max: SHARE_PEOPLE_MAX })}
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="flex flex-wrap items-end gap-2">
-          <div className="flex w-40 flex-col gap-1.5">
+          <div className="flex w-40 min-w-0 flex-col gap-1.5">
             <Label htmlFor={levelId}>{t("documents.share.level_label")}</Label>
             <Select
               value={commonLevel}
@@ -395,7 +396,7 @@ export function ShareAddSection({
                 else { setCommonLevel(next); setPendingPreview(null); }
               }}
             >
-              <SelectTrigger id={levelId}><SelectValue>{levelLabel(commonLevel)}</SelectValue></SelectTrigger>
+              <SelectTrigger id={levelId} className="w-full"><SelectValue className="min-w-0">{levelLabel(commonLevel)}</SelectValue></SelectTrigger>
               <SelectContent>
                 {(selected.length > 0 &&
                 selected.every((s) => s.candidate.principal_type === "organization" || s.candidate.is_home_workspace)
@@ -406,9 +407,6 @@ export function ShareAddSection({
                 ))}
               </SelectContent>
             </Select>
-            {commonLevel === "manage" && selected.some((s) => !allowedLevelsForPrincipal(s.candidate.principal_type, s.candidate.is_home_workspace).includes("manage")) ? (
-              <p role="status" className="text-caption text-muted-foreground">{t("documents.share.level_manage_capped_hint")}</p>
-            ) : null}
           </div>
           {selected.length > 1 ? (
             <Button type="button" variant="outline" size="sm" aria-expanded={customMode} onClick={() => setCustomMode((p) => !p)}>
@@ -427,14 +425,18 @@ export function ShareAddSection({
         </Button>
       </div>
 
+      {commonLevel === "manage" && selected.some((s) => !allowedLevelsForPrincipal(s.candidate.principal_type, s.candidate.is_home_workspace).includes("manage")) ? (
+        <p role="status" className="w-full text-caption text-muted-foreground">{t("documents.share.level_manage_capped_hint")}</p>
+      ) : null}
+
       {pendingApplyAllLevel ? (
         <div
           role="region"
           aria-label={t("documents.share.apply_all_button")}
           className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 p-2.5 text-caption"
         >
-          <span>{t("documents.share.apply_all_confirm", { count: selected.length, level: levelLabel(pendingApplyAllLevel) })}</span>
-          <div className="flex items-center gap-1.5">
+          <span className="min-w-0 break-words">{t("documents.share.apply_all_confirm", { count: selected.length, level: levelLabel(pendingApplyAllLevel) })}</span>
+          <div className="flex shrink-0 items-center gap-1.5">
             <Button type="button" size="sm" onClick={() => confirmApplyAll(pendingApplyAllLevel)}>{t("documents.share.apply_all_accept")}</Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setPendingApplyAllLevel(null)}>{t("documents.share.apply_all_cancel")}</Button>
           </div>
@@ -461,16 +463,22 @@ export function ShareAddSection({
               const allowed = allowedLevelsForPrincipal(item.candidate.principal_type, item.candidate.is_home_workspace);
               const currentLvl = effectiveItemLevel(item);
               return (
-                <li key={item.key} className="flex items-center justify-between gap-2 py-1.5 text-body">
-                  <span className="truncate text-foreground">{item.candidate.name}</span>
-                  <div className="w-36 shrink-0">
+                <li key={item.key} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-body">
+                  <span className="flex min-w-0 flex-1 basis-40 items-center gap-2">
+                    <SharePrincipalIcon principalType={item.candidate.principal_type} />
+                    <span className="min-w-0 truncate text-foreground" title={item.candidate.name}>{item.candidate.name}</span>
+                  </span>
+                  <span className="w-24 shrink-0 truncate text-caption text-muted-foreground">
+                    {t(`documents.share.principal_${item.candidate.principal_type}`)}
+                  </span>
+                  <div className="w-32 shrink-0">
                     <Select
                       value={currentLvl}
                       items={allowed.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
                       onValueChange={(v) => updateSelected(item.key, { customLevel: v as DocumentAccessLevel })}
                     >
-                      <SelectTrigger aria-label={`${t("documents.share.level_label")} ${item.candidate.name}`}>
-                        <SelectValue>{levelLabel(currentLvl)}</SelectValue>
+                      <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${item.candidate.name}`}>
+                        <SelectValue className="min-w-0">{levelLabel(currentLvl)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {allowed.map((lvl) => (
@@ -490,14 +498,14 @@ export function ShareAddSection({
         <div
           role="region"
           data-testid="share-add-confirm"
-          className="flex flex-col gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-caption text-foreground"
+          className="flex flex-col gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-caption break-words text-foreground"
         >
           <ul className="flex flex-col gap-1">
             {pendingPreview.preview.warnings.map((w, idx) => (
-              <li key={`${w.code}-${w.index}-${idx}`}>{renderWarningSentence(w)}</li>
+              <li key={`${w.code}-${w.index}-${idx}`} className="break-words">{renderWarningSentence(w)}</li>
             ))}
           </ul>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => void executeCommit(pendingPreview.items)}>
               {t("documents.share.confirm_accept")}
             </Button>
@@ -508,7 +516,7 @@ export function ShareAddSection({
         </div>
       ) : null}
 
-      {submitError ? <p role="alert" className="text-caption text-destructive">{submitError}</p> : null}
+      {submitError ? <p role="alert" className="text-caption break-words text-destructive">{submitError}</p> : null}
     </section>
   );
 }

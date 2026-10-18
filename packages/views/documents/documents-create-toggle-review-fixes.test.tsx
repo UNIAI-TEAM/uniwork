@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
@@ -105,6 +106,33 @@ describe("create toggle hint markup (F-W2-09)", () => {
     fireEvent.click(screen.getByRole("switch", { name: toggleLabel() }));
     expect(screen.getByRole("status")).toBe(status);
     expect(status).toHaveTextContent(hintText());
+  });
+
+  it("one shared shareToggle keeps the strip switch and the menu check in sync (TV1-15)", async () => {
+    function Harness() {
+      const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
+      const shareToggle = { shareWithWorkspace, setShareWithWorkspace };
+      return (
+        <>
+          <QuickCreateRow pending={false} unavailable={new Set()} shareToggle={shareToggle} onCreate={vi.fn()} />
+          <CreateMenu pending={false} unavailable={new Set()} shareToggle={shareToggle} onCreate={vi.fn()} onUpload={vi.fn()} />
+        </>
+      );
+    }
+    render(wrap(<Harness />));
+
+    // Turning the strip switch on shows the menu item checked too.
+    fireEvent.click(screen.getByRole("switch", { name: toggleLabel() }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: toggleLabel() })).toHaveAttribute("aria-checked", "true");
+
+    // Unchecking from the menu flips the strip switch back off, even after the
+    // menu closes and reopens — the label never shows two different states.
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: toggleLabel() }));
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.getByRole("switch", { name: toggleLabel() })).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: toggleLabel() })).toHaveAttribute("aria-checked", "false");
   });
 
   it("CreateMenu puts the hint inside the checkbox item, where aria-describedby points, as a status", async () => {

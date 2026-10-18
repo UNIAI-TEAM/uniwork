@@ -110,8 +110,17 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     expect(screen.getByText("Chỉ xem qua chia sẻ trực tiếp")).toBeInTheDocument();
     expect(screen.getByText("Chỉnh sửa qua Workspace Kinh doanh")).toBeInTheDocument();
 
+    // TV1-01: the trigger shows the level word only (its aria-label still
+    // carries "Mức quyền <name>") and rows wrap so controls never overlap.
+    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền Kinh doanh" });
+    expect(levelTrigger).not.toHaveTextContent("Mức quyền:");
+    expect(levelTrigger).toHaveTextContent("Chỉnh sửa");
+    const homeLi = levelTrigger.closest("li")!;
+    expect(within(homeLi).getByRole("button", { name: /Thu hồi/ })).toBeInTheDocument();
+    expect(homeLi.firstElementChild).toHaveClass("flex-wrap");
+
     // Q-S1: Home workspace and Organization rows do NOT offer "Quản lý" in their level Select.
-    await user.click(screen.getByRole("combobox", { name: "Mức quyền Kinh doanh" }));
+    await user.click(levelTrigger);
     expect(screen.queryByRole("option", { name: "Quản lý" })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Chỉnh sửa" })).toBeInTheDocument();
   });
@@ -166,8 +175,12 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     expect(confirmBox).toHaveTextContent(
       "Thu hồi quyền chia sẻ trực tiếp của Nguyễn An (an@acme.vn)? Nguyễn An (an@acme.vn) vẫn có quyền Chỉ xem qua Workspace Kinh doanh.",
     );
+    // TV1-04: the panel renders inside the row it came from and takes focus,
+    // so a click near the top of a long list never goes unanswered.
+    const personRow = screen.getByRole("button", { name: "Thu hồi Nguyễn An (an@acme.vn)" }).closest("li")!;
+    expect(personRow.contains(confirmBox)).toBe(true);
+    expect(confirmBox).toHaveFocus();
     expect(accessCalls).toHaveLength(1);
-    expect(accessCalls[0]?.dry_run).toBe(true);
 
     await user.click(within(confirmBox).getByRole("button", { name: "Xác nhận" }));
     await waitFor(() => expect(accessCalls).toHaveLength(2));

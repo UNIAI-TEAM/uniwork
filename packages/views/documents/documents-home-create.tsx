@@ -23,11 +23,24 @@ import {
   type CreateType,
 } from "./documents-create";
 
+export interface CreateShareToggleState {
+  shareWithWorkspace: boolean;
+  setShareWithWorkspace: (next: boolean) => void;
+}
+
 export interface CreateChoicesProps {
   pending: boolean;
   unavailable: ReadonlySet<CreateType>;
-  /** True when the open folder already shares with the home workspace. */
+  /** True when the open folder already shares with its home workspace. */
   parentShared?: boolean;
+  /**
+   * One shared toggle state for the strip and the menu (TV1-15). When the
+   * caller renders both controls it passes the same pair, so the "Chia sẻ
+   * với workspace" label never shows two different states at once; a caller
+   * that renders a lone control leaves it undefined and the control keeps
+   * its own default-off state.
+   */
+  shareToggle?: CreateShareToggleState;
   /** Always called with the share options the toggle resolved, so a wrapped or bound handler still gets them. */
   onCreate: (type: CreateType, options: CreateShareOptions) => void;
   onUpload: () => void;
@@ -44,10 +57,13 @@ export function QuickCreateRow({
   pending,
   unavailable,
   parentShared = false,
+  shareToggle,
   onCreate,
-}: Pick<CreateChoicesProps, "pending" | "unavailable" | "parentShared" | "onCreate">) {
+}: Pick<CreateChoicesProps, "pending" | "unavailable" | "parentShared" | "shareToggle" | "onCreate">) {
   const { t } = useTranslation();
-  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
+  const [localShare, setLocalShare] = useState(false);
+  const shareWithWorkspace = shareToggle?.shareWithWorkspace ?? localShare;
+  const setShareWithWorkspace = shareToggle?.setShareWithWorkspace ?? setLocalShare;
   const hintId = useId();
   const effectiveShare = parentShared || shareWithWorkspace;
   const sendShare = effectiveShare && !parentShared;
@@ -113,13 +129,16 @@ export function CreateMenu({
   pending,
   unavailable,
   parentShared = false,
+  shareToggle,
   onCreate,
   onUpload,
   onNewFolder,
 }: CreateChoicesProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
+  const [localShare, setLocalShare] = useState(false);
+  const shareWithWorkspace = shareToggle?.shareWithWorkspace ?? localShare;
+  const setShareWithWorkspace = shareToggle?.setShareWithWorkspace ?? setLocalShare;
   const hintId = useId();
   const effectiveShare = parentShared || shareWithWorkspace;
   const sendShare = effectiveShare && !parentShared;
@@ -141,7 +160,8 @@ export function CreateMenu({
         open={menuOpen}
         onOpenChange={(next) => {
           setMenuOpen(next);
-          if (next) setShareWithWorkspace(false);
+          // A lone menu (no shared state) keeps the default-off-per-open rule.
+          if (next && !shareToggle) setShareWithWorkspace(false);
         }}
       >
         <DropdownMenuTrigger

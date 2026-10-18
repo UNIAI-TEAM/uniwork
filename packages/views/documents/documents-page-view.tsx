@@ -119,6 +119,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
   const [navOpen, setNavOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // One state for the strip switch and the "Tạo mới" menu check item (TV1-15):
+  // the two controls always agree because they read and write the same value.
+  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
@@ -306,6 +309,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome }: Doc
     pending: creator.pending,
     unavailable: creator.unavailable,
     parentShared,
+    shareToggle: { shareWithWorkspace, setShareWithWorkspace },
     onCreate: (type: Parameters<typeof creator.create>[0], options: CreateShareOptions) => void creator.create(type, parentForCreate, options),
     onUpload: () => setUploadOpen(true),
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
