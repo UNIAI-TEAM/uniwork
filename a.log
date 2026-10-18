@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+e792be2a2d9b39c3e4b5e700d5be016cd134d9c1
+e792be2a2 docs(documents): close the size-cap addendum as shipped (UNI-1858)
+1c7760c5f chore: merge UX-FLOOR-LOCKBAR (UNI-1917, a06398dc6) into the G5-G7 root
+cbc4d36d1 chore: merge FU-SHARING-POLISH r2 (UNI-1914, e469b8055) into the G5-G7 root
