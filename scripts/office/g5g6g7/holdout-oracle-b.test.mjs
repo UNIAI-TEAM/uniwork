@@ -406,3 +406,188 @@ describe('item 3 (Q2b): the extended derivations hold only over operands the rep
     assert.equal(verdict(mk(3600), ask('Area 3600 from 60% and 60%.', 3600, { A1: '60%', B1: '60%' })), 'fail', 'two marked operands never multiply');
   });
 });
+
+// ---------- round g (review-g712-20): R20-1 trace (d), R20-2 request off, R20-3 percent units ----------
+
+const countCaseOf = ({ id, format, anchor, value, numericName, unit = 'count', tool, op }) => mkCase({
+  id,
+  format,
+  category: 'structure',
+  tools: { allowed: [op], required: [op] },
+  expected: {
+    numeric: [{ name: numericName, value, tolerance: 0, rounding: 'none', unit }],
+    structural: [{ kind: 'count', anchor, value }],
+    writes: 0,
+    mustNotContain: [],
+  },
+  referenceAnswer: { numeric: { [numericName]: value }, structural: [{ kind: 'count', anchor, value }], writes: 0, text: 'Synthetic.' },
+});
+const readAsk = (tool, module, result, text, report, over = {}) => ({
+  reply: `${text}\n${line(report)}`,
+  calls: [{ name: tool }],
+  writes: 0,
+  writeLog: [],
+  dropped: [],
+  modules: [module],
+  sheetNames: [],
+  sourceText: '',
+  toolResults: [{ name: tool, text: JSON.stringify(result) }],
+  ...over,
+});
+
+describe('item 5 (R20-1): trace (d), the number of elements of a named kind in ONE successful read', () => {
+  const slides = { slideCount: 3, slides: [{ index: 1, texts: ['Title alpha'] }, { index: 2, texts: ['Title beta'] }, { index: 3, texts: ['Title gamma'] }] };
+  const slideCase = countCaseOf({ id: 'HO-PPTX-990', format: 'pptx', anchor: 'slides', value: 3, numericName: 'slideCount', tool: 'read_slide', op: 'read_slide' });
+  const sAsk = (text, report, result = slides, over = {}) => readAsk('read_slide', 'slides', result, text, report, over);
+  const slideItem = (value) => ({ kind: 'count', anchor: 'slides', value });
+
+  it('credits a correct count of the named kind, in the numeric slot and in the item', () => {
+    assert.equal(verdict(slideCase, sAsk('There are 3 slides.', { numbers: [3], items: [slideItem(3)] })), 'pass');
+  });
+
+  it('needs the integer once: an items-only structure answer that (d) backs fills the numeric slot', () => {
+    assert.equal(verdict(slideCase, sAsk('Counted.', { items: [slideItem(3)] })), 'pass');
+    assert.equal(verdict(slideCase, sAsk('Counted.', { items: [slideItem(4)] })), 'fail', 'the item is not backed by the read');
+  });
+
+  it('credits a named count field of the same successful result (slideCount on a one-slide read)', () => {
+    const one = { slideCount: 3, slides: [slides.slides[0]] };
+    assert.equal(verdict(slideCase, sAsk('There are 3 slides.', { numbers: [3], items: [slideItem(3)] }, one)), 'pass');
+  });
+
+  it('fails an off-by-one count', () => {
+    assert.equal(verdict(slideCase, sAsk('There are 4 slides.', { numbers: [4], items: [slideItem(4)] })), 'fail');
+    const four = countCaseOf({ id: 'HO-PPTX-991', format: 'pptx', anchor: 'slides', value: 4, numericName: 'slideCount', tool: 'read_slide', op: 'read_slide' });
+    assert.equal(verdict(four, sAsk('There are 4 slides.', { numbers: [4], items: [slideItem(4)] })), 'fail', 'the case expects 4 but the read shows 3');
+  });
+
+  it('fails a count of a kind the read does not hold, and a kind the reply never names', () => {
+    const headings = countCaseOf({ id: 'HO-PPTX-992', format: 'pptx', anchor: 'headings', value: 3, numericName: 'headingCount', tool: 'read_slide', op: 'read_slide' });
+    assert.equal(verdict(headings, sAsk('There are 3 headings.', { numbers: [3], items: [{ kind: 'count', anchor: 'headings', value: 3 }] })), 'fail');
+    const unnamed = sAsk('There are 3 of them.', { numbers: [3], items: [] });
+    assert.equal(verdict(slideCase, unnamed), 'fail', 'nothing names the kind');
+  });
+
+  it('fails when the read that holds the elements was denied or failed', () => {
+    const denied = sAsk('There are 3 slides.', { numbers: [3], items: [slideItem(3)] }, slides, {
+      calls: [{ name: 'read_slide', denied: true }],
+      toolResults: [{ name: 'read_slide', text: JSON.stringify({ error: 'permission_denied', ...slides }), denied: true }],
+    });
+    assert.equal(verdict(slideCase, denied), 'fail');
+    assert.equal(verdict(slideCase, sAsk('There are 3 slides.', { numbers: [3], items: [slideItem(3)] }, { ok: false, ...slides })), 'fail', 'ok:false');
+  });
+
+  it('never adds two reads: a count spanning two results fails, each result counts alone', () => {
+    const half = { slideCount: undefined, slides: slides.slides.slice(0, 2) };
+    const other = { slides: slides.slides.slice(2) };
+    const two = sAsk('There are 3 slides.', { numbers: [3], items: [slideItem(3)] }, half, {
+      calls: [{ name: 'read_slide' }, { name: 'read_slide' }],
+      toolResults: [{ name: 'read_slide', text: JSON.stringify(half) }, { name: 'read_slide', text: JSON.stringify(other) }],
+    });
+    assert.equal(verdict(slideCase, two), 'fail');
+  });
+
+  it('counts the headings of ONE level and nothing else', () => {
+    const blocks = {
+      paragraphCount: 6,
+      blocks: [
+        { index: 0, style: 'Heading2', preview: 'Alpha' }, { index: 1, style: 'Normal', preview: 'body' },
+        { index: 2, style: 'Heading2', preview: 'Beta' }, { index: 3, style: 'Normal', preview: 'body' },
+        { index: 4, style: 'Heading2', preview: 'Gamma' }, { index: 5, style: 'Heading2', preview: 'Delta' },
+      ],
+    };
+    const h2 = countCaseOf({ id: 'HO-DOCX-990', format: 'docx', anchor: 'heading_level_2', value: 4, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
+    const dAsk = (text, report, result = blocks) => readAsk('get_document_context', 'docs', result, text, report);
+    assert.equal(verdict(h2, dAsk('There are 4 level-2 headings.', { numbers: [4], items: [{ kind: 'count', anchor: 'heading_level_2', value: 4 }] })), 'pass');
+    assert.equal(verdict(h2, dAsk('There are 4 level-2 headings.', { numbers: [4], items: [{ kind: 'count', anchor: 'heading level 3', value: 4 }] })), 'fail', 'items name another level');
+    const normal = countCaseOf({ id: 'HO-DOCX-991', format: 'docx', anchor: 'normal', value: 2, numericName: 'normalCount', tool: 'get_document_context', op: 'read_document' });
+    assert.equal(verdict(normal, dAsk('There are 2 normal blocks.', { numbers: [2], items: [{ kind: 'count', anchor: 'normal', value: 2 }] })), 'fail', 'a style that is not in the kind table has no kind');
+    const para = countCaseOf({ id: 'HO-DOCX-992', format: 'docx', anchor: 'paragraphs', value: 6, numericName: 'paragraphCount', tool: 'get_document_context', op: 'read_document' });
+    assert.equal(verdict(para, dAsk('There are 6 paragraphs.', { numbers: [6], items: [{ kind: 'count', anchor: 'paragraphs', value: 6 }] })), 'pass', 'paragraphCount is the same figure');
+  });
+
+  it('counts the sheets of a successful sheet-list result when the kind is sheets', () => {
+    const list = { activeSheetName: 'A', sheets: [{ id: 'sheet-1', name: 'A' }, { id: 'sheet-2', name: 'B' }, { id: 'sheet-3', name: 'C' }] };
+    const sheets = countCaseOf({ id: 'HO-XLSX-990', format: 'xlsx', anchor: 'sheetNames', value: 3, numericName: 'sheet_count', unit: 'sheets', tool: 'get_workbook_context', op: 'read_sheet_list' });
+    const lAsk = (text, report, over = {}) => readAsk('get_workbook_context', 'sheets', list, text, report, over);
+    assert.equal(verdict(sheets, lAsk('The workbook has 3 sheets.', { numbers: [3], items: [{ kind: 'count', anchor: 'sheetNames', value: 3 }] })), 'pass');
+    const denied = lAsk('The workbook has 3 sheets.', { numbers: [3], items: [{ kind: 'count', anchor: 'sheetNames', value: 3 }] }, { calls: [{ name: 'get_workbook_context', denied: true }] });
+    assert.equal(verdict(sheets, denied), 'fail');
+  });
+
+  it('keeps the sheet list out of the value leaves: a cell figure never traces to it', () => {
+    const list = { sheets: [{ id: 'sheet-1', name: 'A' }, { id: 'sheet-2', name: 'B' }] };
+    const c = mkCase({ tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_sheet_list'] } });
+    assert.equal(verdict(c, readAsk('get_workbook_context', 'sheets', list, 'There are 2 sheets.', { numbers: [143] })), 'fail');
+  });
+
+  it('closes the wrong-reason residual: a figure that report.items marks as a count traces only via (d)', () => {
+    const lookup = mkCase({
+      id: 'HO-PPTX-993',
+      format: 'pptx',
+      tools: { allowed: ['read_slide'], required: ['read_slide'] },
+      expected: { numeric: [{ name: 'v', value: 4, tolerance: 0, rounding: 'none', unit: 'count' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { v: 4 }, structural: [], writes: 0, text: 'x' },
+    });
+    const withDigit = { slideCount: 3, slides: [{ index: 1, texts: ['Room 4'] }, { index: 2, texts: ['beta'] }, { index: 3, texts: ['gamma'] }] };
+    const bare = sAsk('The room is 4.', { numbers: [4] }, withDigit);
+    assert.equal(verdict(lookup, bare), 'pass', 'the control: a text leaf is a figure when no count item claims it');
+    const marked = sAsk('The room is 4.', { numbers: [4], items: [slideItem(4)] }, withDigit);
+    assert.equal(verdict(lookup, marked), 'fail', 'the same 4 as a marked count is not a text leaf');
+    const docx = countCaseOf({ id: 'HO-DOCX-993', format: 'docx', anchor: 'heading_level_1', value: 2, numericName: 'heading1Count', tool: 'get_document_context', op: 'read_document' });
+    const three = { paragraphCount: 4, blocks: [{ index: 0, style: 'Heading1', preview: '2 Scope' }, { index: 1, style: 'Heading1', preview: 'Plan' }, { index: 2, style: 'Heading1', preview: 'Risks' }, { index: 3, style: 'Normal', preview: 'body' }] };
+    assert.equal(verdict(docx, readAsk('get_document_context', 'docs', three, 'There are 2 headings.', { numbers: [2], items: [{ kind: 'count', anchor: 'heading_level_1', value: 2 }] })), 'fail', 'a heading that begins with 2 does not make the count 2');
+  });
+});
+
+describe('item 6 (R20-2): the request is never a figure source; applied-write values stay on', () => {
+  const asked = mkCase({
+    query: { vi: 'Synthetic 999', en: 'What about 999?' },
+    tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
+    expected: { numeric: [{ name: 'v', value: 999, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: 999 }, structural: [], writes: 0, text: 'x' },
+  });
+  it('fails a number copied from the question when no successful read returned it (X1)', () => {
+    assert.equal(verdict(asked, mkAsk('The value is 999.', { numbers: [999] }, { toolResults: [{ name: 'read_range', text: JSON.stringify({ rows: [] }) }] })), 'fail');
+    assert.equal(verdict(asked, mkAsk('The value is 999.', { numbers: [999] }, { toolResults: [{ name: 'read_range', text: readResult({ A1: 999 }) }] })), 'pass', 'the control: the read returns it');
+  });
+  it('keeps the value an applied write carries as a source', () => {
+    const edit = mkCase({
+      category: 'edit',
+      tools: { allowed: ['read_sheet_list', 'read_range', 'write_range'], required: ['write_range'] },
+      expected: { numeric: [{ name: 'v', value: 888, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [{ kind: 'cell', anchor: 'SheetZ!A1', value: '888' }], writes: 1, mustNotContain: [] },
+      referenceAnswer: { numeric: { v: 888 }, structural: [{ kind: 'cell', anchor: 'SheetZ!A1', value: '888' }], writes: 1, text: 'x' },
+    });
+    const wrote = mkAsk('Wrote 888.', { numbers: [888], items: [{ kind: 'cell', anchor: 'SheetZ!A1', value: '888' }] }, {
+      calls: [{ name: 'propose_operations' }],
+      writes: 1,
+      writeLog: [{ name: 'propose_operations', applied: true, args: { operations: [{ range: 'SheetZ!A1', value: 888 }] } }],
+      toolResults: [],
+    });
+    assert.equal(verdict(edit, wrote), 'pass');
+  });
+});
+
+describe('item 7 (R20-3): a percent change matches only a claim in percent units', () => {
+  const pct = (value) => mkCase({
+    expected: { numeric: [{ name: 'v', value, tolerance: 0, rounding: 'none', unit: '%' }], structural: [], writes: 0, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: value }, structural: [], writes: 0, text: 'x' },
+  });
+  const cells = { toolResults: [{ name: 'read_range', text: readResult({ A1: 50, B1: 70 }) }] };
+  it('fails a bare amount equal to the percent change of two shown operands (X5)', () => {
+    assert.equal(verdict(pct(40), mkAsk('Change 40 from 50 to 70.', { numbers: [40] }, cells)), 'fail');
+  });
+  it('keeps a figure written in percent units (X6), with or without the percent sign in report.numbers', () => {
+    assert.equal(verdict(pct(40), mkAsk('Change 40% from 50 to 70.', { numbers: [40] }, cells)), 'pass');
+    assert.equal(verdict(pct(40), mkAsk('Change 40% from 50 to 70.', { numbers: ['40%'] }, cells)), 'pass');
+    assert.equal(verdict(pct(40), mkAsk('Change 40% since last year.', { numbers: [40] }, cells)), 'fail', 'operands not shown');
+  });
+  it('still reads a bare ratio-times-100 share as before', () => {
+    const share = mkCase({
+      id: 'HO-XLSX-997',
+      expected: { numeric: [{ name: 'share', value: 138.33, tolerance: 0, rounding: '2dp', unit: '%' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { share: 138.33 }, structural: [], writes: 0, text: 'x' },
+    });
+    assert.equal(verdict(share, mkAsk('Share 138.33 from 83 and 60.', { numbers: [138.33] })), 'pass');
+  });
+});
