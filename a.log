@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+212c49fb0bb47a879a2ff54f8af99dec528c6aaf
+63fdd77b5b1d1af1fb457c7e9578f97fd4ef2dbe
+212c49fb0 chore(merge): G5-G7 root 63fdd77b5 into ARCHIVE-01 web
+f798f992e fix(frame): typecheck fallout of the W12 merge (UNI-1845)
+63fdd77b5 chore: merge FRAME-RO-HOST read-only profile + close_requested + Slides Export PDF (UNI-1901, 69bcd4dea) into the G5-G7 root
+8ff349ad2 fix(merge): shelved rules on the SHARING share-dialog structure (ARCHIVE-01 U-9)
+d72e64f58 chore(merge): G5-G7 root d0c2084c8 into ARCHIVE-01 web
+e3768cf22 chore(merge): e6-server ARCHIVE f3ace6594 (root a12399af1 SHARING) into ARCHIVE-01 web
+69bcd4dea test(office): ignore close_requested Esc during the first-save naming wait (UNI-1901)
+c9ac5b1f9 chore: merge G5-G7 root d0c2084c8 into FRAME-RO-HOST (UNI-1901)
+d0c2084c8 chore: merge SAVE-01 part 2 first save asks for a name (UNI-1847, b19e97b3e) into the G5-G7 root
+b19e97b3e Merge commit '1774448e0' into feature/UNI-1847-documents-first-save-name
