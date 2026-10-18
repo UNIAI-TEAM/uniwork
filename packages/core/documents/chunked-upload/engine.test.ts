@@ -1305,6 +1305,87 @@ describe("chunked upload engine", () => {
       totalBytes: 25,
     });
   });
+
+  it("keeps the bar moving from the first byte of a restarted part after pause and resume (R2-F1)", async () => {
+    const file = makeFile(25);
+    const storage = createFakeStorage();
+    const target = { kind: "workspace" as const, workspaceId: "ws-1" };
+    const progressEvents: ChunkedUploadProgress[] = [];
+    const xhrs: FakeUploadXhr[] = [];
+    vi.stubGlobal("XMLHttpRequest", FakeUploadXhr.install(xhrs));
+
+    const fakeFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "POST" && url.endsWith("/upload-sessions")) {
+        return json(makeSessionBody("sess-r2f1", 3), 201);
+      }
+      if (method === "GET" && url === `${API}/api/v1/upload-sessions/sess-r2f1`) {
+        return json({
+          ...makeSessionBody(
+            "sess-r2f1",
+            3,
+            makePartUrls([2, 3], 2),
+            [{ part_number: 1, etag: '"etag-1"', size: 10 }],
+          ),
+          status: "open",
+        });
+      }
+      if (method === "POST" && url.endsWith("/complete")) {
+        return json({ document: createdDoc }, 200);
+      }
+      throw new Error(`unexpected ${method} ${url}`);
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const upload = startChunkedUpload({
+      file,
+      filename: file.name,
+      target,
+      idempotencyKey: "idem-r2f1",
+      storage,
+      concurrency: 3,
+      onProgress: (p) => progressEvents.push({ ...p }),
+    });
+
+    for (let i = 0; i < 50 && xhrs.length < 3; i += 1) await Promise.resolve();
+    expect(xhrs.length).toBe(3);
+
+    // Part 1 completes; part 2 is 4 bytes in when the pause aborts it.
+    xhrs[0]!.respond(200, { ETag: '"etag-1"' });
+    await Promise.resolve();
+    await Promise.resolve();
+    xhrs[1]!.progress(4);
+
+    upload.pause();
+    expect(progressEvents.at(-1)).toMatchObject({ phase: "paused", sentBytes: 14 });
+    // Let the aborted parts settle their catches before resuming.
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    upload.resume();
+    for (let i = 0; i < 50 && xhrs.length < 5; i += 1) await Promise.resolve();
+    const restartedPart2 = xhrs.findLast((xhr) => xhr.url.includes("part-2"));
+    expect(restartedPart2).toBeDefined();
+
+    // The first byte of the restarted send already reads as progress: the
+    // paused peak plus the new byte, never a rewind and never a hold (R2-F1).
+    restartedPart2!.progress(1);
+    expect(progressEvents.at(-1)).toMatchObject({ phase: "uploading", sentBytes: 15 });
+
+    restartedPart2!.respond(200, { ETag: '"etag-2"' });
+    for (const xhr of xhrs.filter((x) => x.url.includes("part-3"))) {
+      xhr.respond(200, { ETag: '"etag-3"' });
+    }
+    const res = await upload.result;
+    expect(res).toEqual({ kind: "document", document: createdDoc });
+
+    for (let i = 1; i < progressEvents.length; i += 1) {
+      expect(progressEvents[i]!.sentBytes).toBeGreaterThanOrEqual(progressEvents[i - 1]!.sentBytes);
+    }
+    expect(progressEvents.at(-1)).toMatchObject({ phase: "done", sentBytes: 25 });
+  });
 });
 
 
