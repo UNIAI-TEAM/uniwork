@@ -64,6 +64,9 @@ export function patchRoomSidebarFromMessage(
       last_message_kind: message.kind ?? "text",
       last_message_sender_id: message.sender_id,
       last_message_sender_name: message.sender_display_name,
+      // The list line's call outcome and voice length, as the room list sends them.
+      last_message_call_outcome: message.kind === "voice_call_log" ? message.voice_call?.outcome : undefined,
+      last_message_duration_ms: message.kind === "voice" ? message.voice?.duration_ms : undefined,
       last_message_at: message.created_at,
       unread_count:
         options?.incrementUnread === true

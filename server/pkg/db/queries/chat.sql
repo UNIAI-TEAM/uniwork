@@ -210,7 +210,10 @@ SELECT
   m.kind,
   m.sender_id,
   m.created_at,
-  u.display_name AS sender_display_name
+  u.display_name AS sender_display_name,
+  COALESCE(CASE WHEN m.kind = 'voice_call_log' THEN m.metadata ->> 'outcome' END, '')::text AS call_outcome,
+  COALESCE(CASE WHEN m.kind = 'voice' AND jsonb_typeof(m.metadata -> 'duration_ms') = 'number'
+    THEN (m.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS duration_ms
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
 WHERE m.room_id = $1
@@ -279,6 +282,11 @@ SELECT
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
   COALESCE(last_msg.sender_display_name, '') AS last_message_sender_name,
+  -- What the list line needs beyond the body: a call log's outcome (a missed
+  -- call reads red) and a voice note's length ("· 0:42"); both live in metadata.
+  COALESCE(CASE WHEN last_msg.kind = 'voice_call_log' THEN last_msg.metadata ->> 'outcome' END, '')::text AS last_message_call_outcome,
+  COALESCE(CASE WHEN last_msg.kind = 'voice' AND jsonb_typeof(last_msg.metadata -> 'duration_ms') = 'number'
+    THEN (last_msg.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS last_message_duration_ms,
   last_msg.created_at AS last_message_at
 FROM chat_rooms r
 INNER JOIN chat_room_members mem
@@ -289,6 +297,7 @@ LEFT JOIN LATERAL (
     m.kind,
     m.sender_id,
     m.created_at,
+    m.metadata,
     u.display_name AS sender_display_name
   FROM chat_messages m
   INNER JOIN users u ON u.id = m.sender_id
@@ -517,6 +526,11 @@ SELECT
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
   COALESCE(last_msg.sender_display_name, '') AS last_message_sender_name,
+  -- What the list line needs beyond the body: a call log's outcome (a missed
+  -- call reads red) and a voice note's length ("· 0:42"); both live in metadata.
+  COALESCE(CASE WHEN last_msg.kind = 'voice_call_log' THEN last_msg.metadata ->> 'outcome' END, '')::text AS last_message_call_outcome,
+  COALESCE(CASE WHEN last_msg.kind = 'voice' AND jsonb_typeof(last_msg.metadata -> 'duration_ms') = 'number'
+    THEN (last_msg.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS last_message_duration_ms,
   last_msg.created_at AS last_message_at
 FROM chat_rooms r
 INNER JOIN chat_room_members mem
@@ -527,6 +541,7 @@ LEFT JOIN LATERAL (
     m.kind,
     m.sender_id,
     m.created_at,
+    m.metadata,
     u.display_name AS sender_display_name
   FROM chat_messages m
   INNER JOIN users u ON u.id = m.sender_id
@@ -560,6 +575,8 @@ SELECT
   ''::text AS last_message_kind,
   ''::text AS last_message_sender_id,
   ''::text AS last_message_sender_name,
+  ''::text AS last_message_call_outcome,
+  0::int AS last_message_duration_ms,
   CAST(NULL AS timestamptz) AS last_message_at
 FROM chat_rooms r
 WHERE r.workspace_id = sqlc.arg(workspace_id)
@@ -592,6 +609,8 @@ SELECT
   ''::text AS last_message_kind,
   ''::text AS last_message_sender_id,
   ''::text AS last_message_sender_name,
+  ''::text AS last_message_call_outcome,
+  0::int AS last_message_duration_ms,
   CAST(NULL AS timestamptz) AS last_message_at
 FROM chat_rooms r
 WHERE r.workspace_id = sqlc.arg(workspace_id)

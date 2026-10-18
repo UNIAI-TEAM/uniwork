@@ -129,6 +129,20 @@ describe("patchRoomSidebarFromMessage", () => {
     expect(next[0]?.id).toBe("room-a");
     expect(next[0]?.last_message_body).toBe(message.body);
     expect(next[0]?.unread_count).toBe(1);
+
+    // A call log carries its outcome, a voice note its length, as the room list does.
+    const call = patchRoomSidebarFromMessage(rooms, "room-a", {
+      ...message,
+      kind: "voice_call_log",
+      voice_call: { outcome: "unanswered", caller_id: "u2" },
+    });
+    expect(call[0]?.last_message_call_outcome).toBe("unanswered");
+    const voice = patchRoomSidebarFromMessage(call, "room-a", {
+      ...message,
+      kind: "voice",
+      voice: { duration_ms: 42000, content_type: "", size_bytes: 0, url: "", url_expires_at: "" },
+    } as typeof message);
+    expect([voice[0]?.last_message_call_outcome, voice[0]?.last_message_duration_ms]).toEqual([undefined, 42000]);
   });
 });
 

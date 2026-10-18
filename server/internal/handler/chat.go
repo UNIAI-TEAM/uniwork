@@ -190,6 +190,7 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		PeerUserID: r.PeerUserID, PeerEmail: r.PeerEmail, PeerDisplayName: r.PeerDisplayName,
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
+		LastMessageCallOutcome: r.LastMessageCallOutcome, LastMessageDurationMS: r.LastMessageDurationMS,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
 		NotificationsMuted: r.NotificationsMuted, AvatarURL: r.AvatarURL,
 	}

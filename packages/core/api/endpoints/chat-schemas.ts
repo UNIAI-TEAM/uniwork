@@ -226,6 +226,10 @@ export const ChatRoomSchema = z.object({
   last_message_kind: z.string().optional(),
   last_message_sender_id: z.string().optional(),
   last_message_sender_name: z.string().optional(),
+  /** A call log's outcome (completed, declined, unanswered): an unanswered call from someone else is missed. */
+  last_message_call_outcome: z.string().optional().catch(undefined),
+  /** A voice note's length, for the list line's "· 0:42". */
+  last_message_duration_ms: z.number().optional().catch(undefined),
   last_message_at: z.string().optional(),
   member_permissions: ChatRoomMemberPermissionsSchema.optional(),
   visibility: z.string().optional(),

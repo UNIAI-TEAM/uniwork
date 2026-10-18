@@ -50,6 +50,12 @@ type ChatRoomSummary struct {
 	LastMessageKind       string
 	LastMessageSenderID   string
 	LastMessageSenderName string
+	// LastMessageCallOutcome is a call log's outcome (completed, declined,
+	// unanswered; empty for any other kind): an unanswered call from someone
+	// else reads as missed in the room list.
+	LastMessageCallOutcome string
+	// LastMessageDurationMS is a voice note's length (0 for any other kind).
+	LastMessageDurationMS int
 	LastMessageAt         *time.Time
 	MemberPermissions     ChatRoomMemberPermissions
 	Visibility            string
@@ -164,7 +170,7 @@ func (s *ChatService) directRooms(ctx context.Context, userID, orgID, workspaceI
 		}
 		applyLastMessagePreview(&summary, lastMessagePreviewFromListRow(
 			row.LastMessageBody, row.LastMessageKind, row.LastMessageSenderID,
-			row.LastMessageSenderName, row.LastMessageAt,
+			row.LastMessageSenderName, row.LastMessageCallOutcome, int(row.LastMessageDurationMs), row.LastMessageAt,
 		))
 		summary.LastReadAt = timePtr(row.MyLastReadAt)
 		if row.Kind == chatRoomKindGroup {
@@ -723,7 +729,8 @@ func (s *ChatService) attachLastMessagePreview(
 	}
 	applyLastMessagePreview(summary, &chatLastMessagePreview{
 		Body: preview.Body, Kind: preview.Kind, SenderID: preview.SenderID,
-		SenderDisplayName: preview.SenderDisplayName, CreatedAt: preview.CreatedAt.Time,
+		SenderDisplayName: preview.SenderDisplayName, CallOutcome: preview.CallOutcome,
+		DurationMS: int(preview.DurationMs), CreatedAt: preview.CreatedAt.Time,
 	})
 	return nil
 }

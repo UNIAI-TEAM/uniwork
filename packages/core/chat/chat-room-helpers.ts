@@ -81,6 +81,10 @@ export type ChatRoomPreview = {
   senderId: string;
   senderName: string;
   createdAt: string;
+  /** A call log's outcome; an unanswered call from someone else reads as missed. */
+  callOutcome?: string;
+  /** A voice note's length in milliseconds. */
+  durationMs?: number;
 };
 
 export function roomPreviewMapFromRooms(rooms: ChatRoomRecord[]): Record<string, ChatRoomPreview> {
@@ -94,6 +98,8 @@ export function roomPreviewMapFromRooms(rooms: ChatRoomRecord[]): Record<string,
       senderId: room.last_message_sender_id ?? "",
       senderName: room.last_message_sender_name ?? "",
       createdAt,
+      callOutcome: room.last_message_call_outcome,
+      durationMs: room.last_message_duration_ms,
     };
   }
   return out;

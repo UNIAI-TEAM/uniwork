@@ -200,31 +200,33 @@ type ChatMessageDTO struct {
 
 // ChatRoomDTO is a dm, group, or channel chat room.
 type ChatRoomDTO struct {
-	ID                    string                        `json:"id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	Kind                  string                        `json:"kind" description:"dm, group, or channel" example:"channel"`
-	Name                  string                        `json:"name" description:"Room display name" example:"marketing"`
-	WorkspaceID           string                        `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	MemberUserIDs         []string                      `json:"member_user_ids" description:"Other member user ids (dm and group; empty for a channel)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
-	MemberCount           int                           `json:"member_count,omitempty" description:"Channel members, the caller included (channels only)" example:"42"`
-	MentionUnreadCount    int                           `json:"mention_unread_count" description:"Unread messages that mention the caller" example:"1"`
-	UnreadCount           int                           `json:"unread_count" description:"Unread messages for the caller" example:"3"`
-	PeerUserID            string                        `json:"peer_user_id,omitempty" description:"DM peer user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
-	PeerEmail             string                        `json:"peer_email,omitempty" description:"DM peer email" example:"peer@example.com"`
-	PeerDisplayName       string                        `json:"peer_display_name,omitempty" description:"DM peer display name" example:"Nguyen Van A"`
-	PeerLastReadAt        string                        `json:"peer_last_read_at,omitempty" description:"RFC3339 DM peer read cursor" example:"2026-03-26T10:00:00Z"`
-	LastReadAt            string                        `json:"last_read_at,omitempty" description:"RFC3339 (sub-second) read cursor of the caller; absent if never read" example:"2026-03-26T10:00:00.123456Z"`
-	LastMessageBody       string                        `json:"last_message_body,omitempty" description:"Plain-text preview of the latest message" example:"@Binh check this"`
-	LastMessageKind       string                        `json:"last_message_kind,omitempty" description:"Kind of the latest message" example:"text"`
-	LastMessageSenderID   string                        `json:"last_message_sender_id,omitempty" description:"Author of the latest message" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
-	LastMessageSenderName string                        `json:"last_message_sender_name,omitempty" description:"Display name of the latest message author" example:"Nguyen Van A"`
-	LastMessageAt         string                        `json:"last_message_at,omitempty" description:"RFC3339 timestamp of the latest message" example:"2026-03-26T10:00:00Z"`
-	MemberPermissions     *ChatRoomMemberPermissionsDTO `json:"member_permissions,omitempty" description:"Permissions for regular members in group/channel rooms"`
-	Visibility            string                        `json:"visibility,omitempty" description:"public or private (channels)" example:"public"`
-	ProjectID             string                        `json:"project_id,omitempty" description:"Linked project id when set"`
-	Topic                 string                        `json:"topic,omitempty" description:"Channel topic"`
-	IsDefault             bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
-	NotificationsMuted    bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
-	AvatarURL             string                        `json:"avatar_url,omitempty" description:"Signed URL of a group's uploaded avatar; absent when the group shows its members" example:"https://storage.example.com/chat/avatars/01J8X4FILE?sig=abc"`
+	ID                     string                        `json:"id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	Kind                   string                        `json:"kind" description:"dm, group, or channel" example:"channel"`
+	Name                   string                        `json:"name" description:"Room display name" example:"marketing"`
+	WorkspaceID            string                        `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	MemberUserIDs          []string                      `json:"member_user_ids" description:"Other member user ids (dm and group; empty for a channel)" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
+	MemberCount            int                           `json:"member_count,omitempty" description:"Channel members, the caller included (channels only)" example:"42"`
+	MentionUnreadCount     int                           `json:"mention_unread_count" description:"Unread messages that mention the caller" example:"1"`
+	UnreadCount            int                           `json:"unread_count" description:"Unread messages for the caller" example:"3"`
+	PeerUserID             string                        `json:"peer_user_id,omitempty" description:"DM peer user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	PeerEmail              string                        `json:"peer_email,omitempty" description:"DM peer email" example:"peer@example.com"`
+	PeerDisplayName        string                        `json:"peer_display_name,omitempty" description:"DM peer display name" example:"Nguyen Van A"`
+	PeerLastReadAt         string                        `json:"peer_last_read_at,omitempty" description:"RFC3339 DM peer read cursor" example:"2026-03-26T10:00:00Z"`
+	LastReadAt             string                        `json:"last_read_at,omitempty" description:"RFC3339 (sub-second) read cursor of the caller; absent if never read" example:"2026-03-26T10:00:00.123456Z"`
+	LastMessageBody        string                        `json:"last_message_body,omitempty" description:"Plain-text preview of the latest message" example:"@Binh check this"`
+	LastMessageKind        string                        `json:"last_message_kind,omitempty" description:"Kind of the latest message" example:"text"`
+	LastMessageSenderID    string                        `json:"last_message_sender_id,omitempty" description:"Author of the latest message" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	LastMessageSenderName  string                        `json:"last_message_sender_name,omitempty" description:"Display name of the latest message author" example:"Nguyen Van A"`
+	LastMessageCallOutcome string                        `json:"last_message_call_outcome,omitempty" description:"Outcome of the latest message when it is a call log: completed, declined or unanswered" example:"unanswered"`
+	LastMessageDurationMS  int                           `json:"last_message_duration_ms,omitempty" description:"Length in milliseconds of the latest message when it is a voice note" example:"42000"`
+	LastMessageAt          string                        `json:"last_message_at,omitempty" description:"RFC3339 timestamp of the latest message" example:"2026-03-26T10:00:00Z"`
+	MemberPermissions      *ChatRoomMemberPermissionsDTO `json:"member_permissions,omitempty" description:"Permissions for regular members in group/channel rooms"`
+	Visibility             string                        `json:"visibility,omitempty" description:"public or private (channels)" example:"public"`
+	ProjectID              string                        `json:"project_id,omitempty" description:"Linked project id when set"`
+	Topic                  string                        `json:"topic,omitempty" description:"Channel topic"`
+	IsDefault              bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
+	NotificationsMuted     bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
+	AvatarURL              string                        `json:"avatar_url,omitempty" description:"Signed URL of a group's uploaded avatar; absent when the group shows its members" example:"https://storage.example.com/chat/avatars/01J8X4FILE?sig=abc"`
 }
 
 // ChatChannelListSDO is GET .../chat/channels.

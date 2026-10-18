@@ -267,6 +267,25 @@ describe("chat endpoints", () => {
     expect(rooms[0]?.id).toBe("room-dm");
   });
 
+  it("listChatRooms reads a call's outcome and a voice note's length, and drops drifted ones", async () => {
+    const room = { kind: "group", name: "G", workspace_id: "ws1", member_user_ids: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...room, id: "r1", last_message_kind: "voice_call_log", last_message_call_outcome: "unanswered" },
+          { ...room, id: "r2", last_message_kind: "voice", last_message_duration_ms: 42000 },
+          { ...room, id: "r3", last_message_call_outcome: 7, last_message_duration_ms: "long" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((r) => [r.id, r.last_message_call_outcome, r.last_message_duration_ms])).toEqual([
+      ["r1", "unanswered", undefined],
+      ["r2", undefined, 42000],
+      ["r3", undefined, undefined],
+    ]);
+  });
+
   it("listChatRooms reads the caller's read pointer and degrades a drifted one", async () => {
     const room = { kind: "dm", name: "Peer", workspace_id: "ws1", member_user_ids: [] };
     vi.mocked(fetch).mockResolvedValueOnce(
