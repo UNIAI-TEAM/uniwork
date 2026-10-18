@@ -125,6 +125,13 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
             const dialogs = document.querySelectorAll('[role="dialog"]').length;
             const path = e.composedPath().slice(0, 4).map((n) => desc(n as Element)).join(" > ");
             if (type === "pointerdown") (btn as HTMLElement | null)?.setAttribute("data-diag-id", String(performance.now()));
+            const dlg = document.querySelector('[role="dialog"]') as HTMLElement | null;
+            const dr = dlg?.getBoundingClientRect();
+            const br = btn?.getBoundingClientRect();
+            const anims = dlg?.getAnimations().map((a) => `${(a as CSSTransition).transitionProperty ?? (a as CSSAnimation).animationName}:${a.playState}`).join(",");
+            d(
+              `rect dlg=${dr?.top.toFixed(1)}..${dr?.bottom.toFixed(1)} h=${dr?.height.toFixed(1)} scrollTop=${dlg?.scrollTop} scrollH=${dlg?.scrollHeight} btn=${br?.top.toFixed(1)}..${br?.bottom.toFixed(1)} anims=[${anims}] tf=${dlg ? getComputedStyle(dlg).transform : ""}`,
+            );
             d(
               `${phase ? "cap" : "bub"} ${type} xy=${me.clientX},${me.clientY} target=${desc(e.target as Element)} top=${desc(top)} btnConnected=${btn?.isConnected} btnDisabled=${(btn as HTMLButtonElement | null)?.disabled} btnId=${btn?.getAttribute("data-diag-id")} dialogs=${dialogs} prevented=${e.defaultPrevented} path=${path}`,
             );
@@ -133,6 +140,19 @@ test("share, public link, anonymous read, access log and revoke", async ({ page,
         );
       }
     }
+    let frames = 0;
+    let last = "";
+    const sample = () => {
+      const dlg = document.querySelector('[role="dialog"]') as HTMLElement | null;
+      const btn = document.querySelector('[role="dialog"] section[aria-labelledby="share-links-title"] ul button');
+      const dr = dlg?.getBoundingClientRect();
+      const br = btn?.getBoundingClientRect();
+      const cur = `raf dlg=${dr?.top.toFixed(1)}..${dr?.bottom.toFixed(1)} scrollTop=${dlg?.scrollTop} scrollH=${dlg?.scrollHeight} btn=${br?.top.toFixed(1)}..${br?.bottom.toFixed(1)}`;
+      if (frames++ < 600 && cur !== last) d(cur);
+      last = cur;
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
     new MutationObserver((muts) => {
       for (const m of muts) {
         for (const n of Array.from(m.removedNodes)) {
