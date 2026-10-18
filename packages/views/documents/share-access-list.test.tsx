@@ -117,7 +117,8 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     expect(levelTrigger).toHaveTextContent("Chỉnh sửa");
     const homeLi = levelTrigger.closest("li")!;
     expect(within(homeLi).getByRole("button", { name: /Thu hồi/ })).toBeInTheDocument();
-    expect(homeLi.firstElementChild).toHaveClass("flex-wrap");
+    const rowLine = homeLi.querySelector(":scope > div.flex.items-center.justify-between")!;
+    expect(rowLine).toHaveClass("flex", "flex-wrap", "items-center", "justify-between");
 
     // Q-S1: Home workspace and Organization rows do NOT offer "Quản lý" in their level Select.
     await user.click(levelTrigger);
@@ -192,6 +193,141 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     expect(toast.success).toHaveBeenCalledWith(
       "Đã thu hồi quyền chia sẻ trực tiếp của Nguyễn An (an@acme.vn). Nguyễn An (an@acme.vn) vẫn có quyền Chỉ xem qua Workspace Kinh doanh.",
     );
+  });
+
+  it("R4-02: cancelling the in-row confirm hands focus back to the row's Revoke button", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body: { dry_run?: boolean; items?: Array<{ level?: string | null }> } }) => {
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        return Promise.resolve({
+          batch_id: "",
+          dry_run: Boolean(opts.body.dry_run),
+          results: [{ index: 0, status: "revoked" }],
+          preview: {
+            users: [{ user_id: "u2", before: { level: "edit", via: "share" }, after: { level: "view", via: "member" } }],
+            groups: [],
+            warnings: [],
+          },
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const user = userEvent.setup();
+    renderAccessList({
+      my_level: "manage",
+      via: "member",
+      home_workspace: { workspace_id: "w1", workspace_name: "Kinh doanh", level: "view" },
+      shares: [
+        {
+          id: "s1",
+          principal_type: "user",
+          principal_id: "u2",
+          level: "edit",
+          active: true,
+          granted_by: "u1",
+          granted_by_kind: "human",
+          created_at: "2026-10-15T09:00:00Z",
+        },
+      ],
+    });
+
+    const revokeButton = screen.getByRole("button", { name: "Thu hồi Nguyễn An (an@acme.vn)" });
+    await user.click(revokeButton);
+    const confirmBox = await screen.findByTestId("share-access-confirm");
+    expect(confirmBox).toHaveFocus();
+
+    await user.click(within(confirmBox).getByRole("button", { name: "Huỷ" }));
+    await waitFor(() => expect(revokeButton).toHaveFocus());
+  });
+
+  it("R4-02: accepting a revoke drops its row, so focus lands on the list heading", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body: { dry_run?: boolean } }) => {
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        return Promise.resolve({
+          batch_id: opts.body.dry_run ? "" : "01JREV1",
+          dry_run: Boolean(opts.body.dry_run),
+          results: [{ index: 0, status: "revoked" }],
+          preview: {
+            users: [{ user_id: "u2", before: { level: "edit", via: "share" }, after: { level: "view", via: "member" } }],
+            groups: [],
+            warnings: [],
+          },
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const user = userEvent.setup();
+    renderAccessList({
+      my_level: "manage",
+      via: "member",
+      home_workspace: { workspace_id: "w1", workspace_name: "Kinh doanh", level: "view" },
+      shares: [
+        {
+          id: "s1",
+          principal_type: "user",
+          principal_id: "u2",
+          level: "edit",
+          active: true,
+          granted_by: "u1",
+          granted_by_kind: "human",
+          created_at: "2026-10-15T09:00:00Z",
+        },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Thu hồi Nguyễn An (an@acme.vn)" }));
+    const confirmBox = await screen.findByTestId("share-access-confirm");
+    await user.click(within(confirmBox).getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Người và nhóm có quyền" })).toHaveFocus(),
+    );
+  });
+
+  it("R4-02: cancelling a level-change confirm hands focus back to the row's level combobox", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body: { dry_run?: boolean; items?: Array<{ level?: string | null }> } }) => {
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        const level = opts.body.items?.[0]?.level ?? null;
+        return Promise.resolve({
+          batch_id: "",
+          dry_run: Boolean(opts.body.dry_run),
+          results: [{ index: 0, status: "updated" }],
+          preview: {
+            users: [{ user_id: "u2", before: { level: "edit", via: "share" }, after: { level, via: "share" } }],
+            groups: [],
+            warnings: level === null ? [] : [{ code: "downgrade", index: 0 }],
+          },
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const user = userEvent.setup();
+    renderAccessList({
+      my_level: "manage",
+      via: "member",
+      home_workspace: { workspace_id: "w1", workspace_name: "Kinh doanh", level: "view" },
+      shares: [
+        {
+          id: "s1",
+          principal_type: "user",
+          principal_id: "u2",
+          level: "edit",
+          active: true,
+          granted_by: "u1",
+          granted_by_kind: "human",
+          created_at: "2026-10-15T09:00:00Z",
+        },
+      ],
+    });
+
+    const levelTrigger = screen.getByRole("combobox", { name: "Mức quyền Nguyễn An (an@acme.vn)" });
+    await user.click(levelTrigger);
+    await user.click(await screen.findByRole("option", { name: "Chỉ xem" }));
+    const confirmBox = await screen.findByTestId("share-access-confirm");
+
+    await user.click(within(confirmBox).getByRole("button", { name: "Huỷ" }));
+    await waitFor(() => expect(levelTrigger).toHaveFocus());
   });
 
   it("U-SH4: non-manager view shows only caller's own access and my_sources without other people's rows", () => {

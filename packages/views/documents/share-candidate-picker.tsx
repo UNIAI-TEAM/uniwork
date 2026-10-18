@@ -428,7 +428,7 @@ export function ShareCandidatePicker({
             {hasMore || loadingMore || loadMoreError ? (
               <div role="presentation" className="flex items-center justify-center gap-2 py-1">
                 {loadMoreError && !loadingMore ? (
-                  <span className="text-caption text-destructive">{t("documents.share.candidates_error")}</span>
+                  <span role="status" className="text-caption text-destructive">{t("documents.share.candidates_error")}</span>
                 ) : null}
                 <Button
                   type="button"

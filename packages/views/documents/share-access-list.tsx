@@ -46,6 +46,8 @@ interface PendingRowConfirm {
   name: string;
   item: DocumentAccessUpdateItemInput;
   sentence: PreviewSentence;
+  /** The control that opened the panel takes its focus back when it closes (R4-02). */
+  opener: "revoke" | "level";
 }
 
 const FILTER_THRESHOLD = 20;
@@ -76,14 +78,36 @@ export function ShareAccessList({
   const rawShares = useMemo(() => access?.shares ?? [], [access?.shares]);
   const confirmRef = useRef<HTMLDivElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // `${opener}:${rowKey}` → the control that opened the confirm panel, so
+  // closing it returns focus there (R4-02); callback refs keep it fresh.
+  const openerEls = useRef(new Map<string, HTMLElement>());
+  const prevConfirmRef = useRef<PendingRowConfirm | null>(null);
+  // Cancel/Accept both close the panel; the close effect reads which it was.
+  const confirmOutcome = useRef<"accept" | "cancel" | null>(null);
 
   // A revoke/downgrade click on a row near the top must not leave its confirm
   // panel off-screen at the list's end (TV1-04): the panel renders inside the
   // row it belongs to, scrolls into view and takes focus.
   useEffect(() => {
-    if (!pendingConfirm || !confirmRef.current) return;
-    confirmRef.current.scrollIntoView?.({ block: "nearest" });
-    confirmRef.current.focus();
+    const prev = prevConfirmRef.current;
+    prevConfirmRef.current = pendingConfirm;
+    if (pendingConfirm) {
+      confirmRef.current?.scrollIntoView?.({ block: "nearest" });
+      confirmRef.current?.focus();
+      return;
+    }
+    // R4-02: closing the panel unmounts the element focus was in; a keyboard
+    // user who did not land on the heading gets the control back that opened
+    // it — an accepted revoke removes that row, so it lands on the heading.
+    if (!prev || document.activeElement === headingRef.current) return;
+    const outcome = confirmOutcome.current ?? "cancel";
+    confirmOutcome.current = null;
+    const target =
+      outcome === "accept" && prev.item.level === null
+        ? null
+        : openerEls.current.get(`${prev.opener}:${prev.rowKey}`) ?? null;
+    ((target?.isConnected ? target : null) ?? headingRef.current)?.focus();
   }, [pendingConfirm]);
 
   useEffect(() => {
@@ -219,12 +243,19 @@ export function ShareAccessList({
     });
   };
 
+  const setOpenerEl = (opener: "revoke" | "level", rowKey: string, el: HTMLElement | null) => {
+    const key = `${opener}:${rowKey}`;
+    if (el) openerEls.current.set(key, el);
+    else openerEls.current.delete(key);
+  };
+
   const commitRowChange = async (item: DocumentAccessUpdateItemInput, done: string) => {
     if (inFlight.current) return;
     inFlight.current = true;
     setActionError(null);
     try {
       await updateAccess.mutateAsync({ items: [item], dry_run: false });
+      confirmOutcome.current = "accept";
       setPendingConfirm(null);
       toast.success(done);
     } catch (err) {
@@ -256,7 +287,8 @@ export function ShareAccessList({
     }
     inFlight.current = false;
     if (sentence) {
-      setPendingConfirm({ rowKey, name, item, sentence });
+      confirmOutcome.current = "cancel";
+      setPendingConfirm({ rowKey, name, item, sentence, opener: nextLevel === null ? "revoke" : "level" });
       return;
     }
     await commitRowChange(item, t("documents.share.updated_toast", { name, level: levelLabel(item.level ?? "view") }));
@@ -312,7 +344,7 @@ export function ShareAccessList({
           {updateAccess.isPending ? <Spinner aria-hidden role="presentation" /> : null}
           {t("documents.share.confirm_accept")}
         </Button>
-        <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => setPendingConfirm(null)}>
+        <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => { confirmOutcome.current = "cancel"; setPendingConfirm(null); }}>
           {t("documents.share.confirm_cancel")}
         </Button>
       </div>
@@ -322,7 +354,7 @@ export function ShareAccessList({
   return (
     <section aria-labelledby="share-access-title" className="flex min-w-0 flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <h3 id="share-access-title" className="text-label font-medium text-foreground">{t("documents.share.access_title")}</h3>
+        <h3 id="share-access-title" ref={headingRef} tabIndex={-1} className="text-label font-medium text-foreground outline-none focus-visible:underline">{t("documents.share.access_title")}</h3>
         {myLevel ? <span className="text-caption text-muted-foreground">{t("documents.share.my_level", { level: levelLabel(myLevel) })}</span> : null}
       </div>
 
@@ -386,7 +418,7 @@ export function ShareAccessList({
                           void requestRowChange(homeRowKey, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, v as DocumentAccessLevel)
                         }
                       >
-                        <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}`}>
+                        <SelectTrigger ref={(el) => setOpenerEl("level", homeRowKey, el)} className="w-full" aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}`}>
                           <SelectValue className="min-w-0">{levelLabel(homeRow.level)}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
@@ -400,6 +432,7 @@ export function ShareAccessList({
                     <Badge variant="outline">{levelLabel(homeRow.level)}</Badge>
                   )}
                   <Button
+                    ref={(el) => setOpenerEl("revoke", homeRowKey, el)}
                     type="button" variant="ghost" size="sm" disabled={updateAccess.isPending}
                     aria-label={`${t("documents.share.revoke")} ${homeDisplayLabel}`}
                     onClick={() => void requestRowChange(homeRowKey, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, null)}
@@ -463,7 +496,7 @@ export function ShareAccessList({
                             void requestRowChange(rowKey, share.principal_type as DocumentPrincipalType, share.principal_id, displayLabel, share.level, v as DocumentAccessLevel)
                           }
                         >
-                          <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${displayLabel}`}>
+                          <SelectTrigger ref={(el) => setOpenerEl("level", rowKey, el)} className="w-full" aria-label={`${t("documents.share.level_label")} ${displayLabel}`}>
                             <SelectValue className="min-w-0">{levelLabel(share.level)}</SelectValue>
                           </SelectTrigger>
                           <SelectContent>
@@ -477,6 +510,7 @@ export function ShareAccessList({
                       <Badge variant="outline">{levelLabel(share.level)}</Badge>
                     )}
                     <Button
+                      ref={(el) => setOpenerEl("revoke", rowKey, el)}
                       type="button" variant="ghost" size="sm" disabled={updateAccess.isPending}
                       aria-label={`${t("documents.share.revoke")} ${label ?? ""}`.trim()}
                       onClick={() =>
