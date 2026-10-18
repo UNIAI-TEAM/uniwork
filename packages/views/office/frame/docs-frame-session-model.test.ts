@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
 import { composeFrameInit } from "./docs-frame-init";
+import { frameCommentsLevel } from "./frame-comments-events";
+import type { FrameCommentsBinding } from "./use-frame-comments";
 // Every shipped module has AI panels, so the `spec.ai === false` row needs a module spec of its own.
 vi.mock("@uniwork/core/office/office-modules", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/office/office-modules")>();
@@ -170,6 +172,60 @@ describe("composeFrameInit readOnly profile (UNI-1876, UNI-1901)", () => {
       expect(fromReadonly.init.profile).toBe("readOnly");
       expect(fromReadonly.init.capabilities).toMatchObject({ save: false, saveAs: false });
       expect("saveCopy" in fromReadonly.init.capabilities).toBe(false);
+    }
+  });
+});
+
+describe("composeFrameInit readOnly profile and the comment level (RFH-1)", () => {
+  const fullApi = { saveAs: vi.fn(), saveCopy: vi.fn(), export: vi.fn(), addAttachments: vi.fn(), uploadImage: vi.fn() } as unknown as DocsFrameApi;
+  const frameToken = { token: "tok-1", tokenExpiresAt: Date.now() + 60_000 };
+  const limits = { upload_max_bytes: 50 * 1024 * 1024, save_warn_ratio: 0.9 };
+  const mintedFor = (module: "docs" | "sheets", canEdit: boolean) => ({
+    token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 60_000).toISOString(), expires_in: 60,
+    document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: canEdit, module,
+  });
+  const baseOptions: DocsFrameSessionOptions = {
+    iframeRef: { current: null }, frameOrigin: "https://uniwork.test", api: fullApi, wsId: "ws-1",
+    fileRef: { kind: "document", id: "doc-1" }, readonly: false, locale: "vi", theme: "light", onError: vi.fn(),
+  };
+  // Mirrors the real binding (use-frame-comments.ts): commentsLevel comes from the same
+  // `my_level` the session options carry, and its readonly flag is the init's readOnlyProfile.
+  const commentsBinding = (myLevel: string | null | undefined): FrameCommentsBinding => ({
+    augmentInit: (init, { canEdit, readonly }) => ({
+      ...init,
+      capabilities: { ...init.capabilities, comments: true },
+      commentsLevel: frameCommentsLevel({ myLevel, readonly, canEdit }),
+    }),
+    api: {} as FrameCommentsBinding["api"],
+    attach: vi.fn(),
+    detach: vi.fn(),
+  });
+  const optionsWithLevel = (myLevel: string | null | undefined) =>
+    Object.assign({}, baseOptions, { myLevel, comments: commentsBinding(myLevel) });
+
+  it("keeps comments for a comment-level user (can_edit: false): no profile, commentsLevel 'comment', save/saveAs/saveCopy withheld, Docs and not", async () => {
+    for (const mod of ["docs", "sheets"] as const) {
+      const { init } = await composeFrameInit({
+        module: mod, frameToken, current: optionsWithLevel("comment"), doc: "doc-1", name: "An", uid: "u-1",
+        minted: mintedFor(mod, false), source: false, editLock: null, limits,
+      });
+      expect("profile" in init).toBe(false);
+      expect(init.commentsLevel).toBe("comment");
+      expect(init.capabilities).toMatchObject({ comments: true, save: false, saveAs: false });
+      expect("saveCopy" in init.capabilities).toBe(false);
+    }
+  });
+
+  it("stays a viewer with can_edit: false for a view level, a level the client does not know, or none", async () => {
+    for (const myLevel of ["view", "owner", "", null, undefined]) {
+      const { init } = await composeFrameInit({
+        module: "docs", frameToken, current: optionsWithLevel(myLevel), doc: "doc-1", name: "An", uid: "u-1",
+        minted: mintedFor("docs", false), source: false, editLock: null, limits,
+      });
+      expect(init.profile).toBe("readOnly");
+      expect(init.commentsLevel).toBe("view");
+      expect(init.capabilities).toMatchObject({ save: false, saveAs: false });
+      expect("saveCopy" in init.capabilities).toBe(false);
     }
   });
 });
