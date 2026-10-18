@@ -6,6 +6,7 @@ import {
 } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
+import JSZip from "jszip";
 import { e2eApiUrl } from "./api-url";
 import { VERIFICATION_CODE } from "./auth-nav";
 import {
@@ -913,6 +914,12 @@ export async function seedDocumentArtifacts(
     // server/internal/service/document_versions.go:67-69 & server/internal/handler/documents.go:259-320:
     // file documents create version 1 on upload and subsequent versions via /uploads + /versions/commit.
     const meta = FIXTURE_FILES["fx-docx-report-vi"];
+    // Different bytes from the uploaded v1: an identical file makes no new version
+    // (VERSION-DEDUP, UNI-1900). A zip comment keeps the DOCX itself unchanged.
+    const v2Bytes = await (await JSZip.loadAsync(readFileSync(meta.path))).generateAsync({
+      type: "nodebuffer",
+      comment: `e2e version 2 ${Date.now()}`,
+    });
     const upKey = `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const upRes = await requestWithRetry429(() =>
       page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/uploads`, {
@@ -921,7 +928,7 @@ export async function seedDocumentArtifacts(
           file: {
             name: meta.name,
             mimeType: meta.mimeType,
-            buffer: readFileSync(meta.path),
+            buffer: v2Bytes,
           },
         },
       }),

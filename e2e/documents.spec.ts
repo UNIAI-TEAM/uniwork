@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { verifyEmail } from "./auth-nav";
 import { workspaceSeed, type WorkspaceSeed } from "./onboard";
@@ -149,7 +149,12 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   // A new version: uploads + versions/commit, then the history grows.
   await page.getByRole("button", { name: "Tải phiên bản mới" }).click();
   const versionDialog = page.getByRole("dialog", { name: "Tải phiên bản mới" });
-  await versionDialog.getByLabel("Chọn tệp").setInputFiles(FIXTURE);
+  // Different bytes: an identical file makes no new version (VERSION-DEDUP, UNI-1900).
+  await versionDialog.getByLabel("Chọn tệp").setInputFiles({
+    name: "parity-upload.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.concat([readFileSync(FIXTURE), Buffer.from("\nversion 2\n")]),
+  });
   await versionDialog.getByRole("button", { name: "Tải lên", exact: true }).click();
   await expect(page.getByText("Phiên bản 2")).toBeVisible({ timeout: 90_000 });
 
