@@ -1,0 +1,11 @@
+$ pnpm install --frozen-lockfile > /tmp/pnpm.log 2>&1; (pnpm --filter @uniwork/core exec vitest run i18n/parity.test.ts i18n/uninote-copy.test.ts documents/edit-lock-session.test.ts api/endpoints/documents-edit-lock.test.ts office/docs-frame-host.test.ts > /tmp/core.log 2>&1); rc=$?; tail -8 /tmp/core.log; echo; echo "TEST_CORE_EXIT=$rc"
+ RUN  v4.1.11 /workspace/packages/core
+
+
+ Test Files  5 passed (5)
+      Tests  125 passed (125)
+   Start at  09:52:50
+   Duration  1.72s (transform 829ms, setup 881ms, import 1.25s, tests 148ms, environment 1.60s)
+
+
+TEST_CORE_EXIT=0

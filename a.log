@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+88dff0fd05db2ca4a379b6ce3f843c59819cbce3
+1774448e0c3873c1d0ac0e2b65edbab7f9ce617c
+88dff0fd0 chore: merge ARCHIVE-01 server head (f3ace6594) into S-4
+f3ace6594 chore: merge the G5-G7 root (1774448e0) into ARCHIVE-01
+aec8f7ab9 fix(documents): refuse SHARING access grants and raises on a shelved document
+1774448e0 test(documents): wait for the level popup before checking its options (UNI-1784)
+49c44680f chore: merge VERSION-DEDUP identical save makes no new file version (UNI-1900, bdf3b1441) into the G5-G7 root
+7bfb57b9a chore: merge the G5-G7 root (a12399af1) into ARCHIVE-01
