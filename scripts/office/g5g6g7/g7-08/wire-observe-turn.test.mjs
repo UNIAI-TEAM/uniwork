@@ -53,10 +53,13 @@ async function frameCall(page, { text, upstreamMs = 0, cancelsAtDone = true }) {
   const routed = page.routes.find((r) => r.glob.includes('/ai/uniwork/chat/completions'));
   if (routed) {
     const frameSaw = {};
-    await routed.handler({
+    // Playwright does not await the handler: the frame has its answer once the route is fulfilled or aborted.
+    let answered;
+    const frameAnswered = new Promise((resolve) => { answered = resolve; });
+    routed.handler({
       request: () => request,
       continue: async () => { frameSaw.continued = true; },
-      abort: async () => { frameSaw.aborted = true; },
+      abort: async () => { frameSaw.aborted = true; answered(); },
       fetch: async ({ timeout } = {}) => {
         if (upstreamMs > (timeout ?? Infinity)) {
           await sleep(Math.min(upstreamMs, timeout ?? upstreamMs));
@@ -70,8 +73,9 @@ async function frameCall(page, { text, upstreamMs = 0, cancelsAtDone = true }) {
           text: async () => text,
         };
       },
-      fulfill: async (opts) => { frameSaw.fulfilled = opts; },
+      fulfill: async (opts) => { frameSaw.fulfilled = opts; answered(); },
     });
+    await frameAnswered;
     return frameSaw;
   }
   await sleep(upstreamMs);

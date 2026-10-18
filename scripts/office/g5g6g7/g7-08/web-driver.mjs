@@ -284,9 +284,14 @@ export async function runWebMatrixRow(runEntry, {
       else if (p.endsWith('/versions/commit')) commitBases.push(parseCommitBaseRevision(req.postData()));
     });
 
-    const settleWire = observeModelWire(web.page, {
+    // w2k: the real run routes the model calls on the app origin so each answer is read to completion
+    // (the frame cancels a stream at [DONE]); the dry-run stub reads its own answers in its own routes.
+    const observer = observeModelWire(web.page, {
       requests: wireRequests, responses: wireResponses, aiPaths, recordResponses: !(dryRun && stub),
-    }).settle;
+      frameAiOrigin: webOrigin,
+    });
+    const settleWire = observer.settle;
+    await observer.ready;
     if (dryRun && stub) {
       await bindDryRunStubRoutes({
         page: web.page, frameAiOrigin: webOrigin, fetchImpl, stub, documentId, rowId: row.id, wireResponses,

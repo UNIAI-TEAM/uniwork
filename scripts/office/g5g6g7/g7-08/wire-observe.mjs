@@ -1,10 +1,11 @@
 // G7-08 (UNI-1385) w2f/w2g: the AI-turn wire observation of the web driver -
 // the frame's registered model-CALL routes, the per-shape usage readers, the
-// passive real-run observer and the fail-closed reading of a whole turn
+// real-run observer (routes the model calls to read each answer to completion, w2k)
+// and the fail-closed reading of a whole turn
 // (review r3 findings G708-R2-7, R3-1, R3-3; review r4 findings G708-R4-1,
 // R4-3; review r5 finding G708-R5-1). Pure by contract: no filesystem, no
 // Playwright import - the driver
-// hands the observer an injected page it only listens on, so every scored field
+// hands the observer an injected page, so every scored field
 // is either measured or BLOCKED, never defaulted (contract w1b). The Save /
 // version side of the same driver lives in `save-observe.mjs`.
 
@@ -365,21 +366,52 @@ export function evaluateWireObservation({
 }
 
 /**
- * R3-1: a passive observer of the frame's model route for a REAL run. It only
- * listens: `page.on('request')` records what the frame offered, and
- * `page.on('response')` reads the finished body. Nothing is routed, buffered or
- * delayed, so the stream the frame sees is untouched - unlike the dry-run stub,
- * which does `route.fetch` + fulfill on its own route.
- *
- * `requests` and `responses` are the same arrays the row builds its observation
- * from; a listener failure must never take the turn down, so every read is
- * guarded.
+ * The frame's own proxy timeout (`proxyTimeout: 65000` of the app's rewrite to the API): a model call
+ * that has not completed by then is not going to, so it is the bound of every body read below.
  */
-export function observeModelWire(page, { requests, responses, aiPaths = [], onError, recordResponses = true } = {}) {
+export const MODEL_RESPONSE_TIMEOUT_MS = 65_000;
+
+// Headers that describe the wire framing of the body route.fetch decoded, not the body handed back.
+const REPLAY_DROPPED_HEADERS = new Set(['content-encoding', 'content-length', 'transfer-encoding', 'connection']);
+
+function replayHeaders(headers = {}) {
+  return Object.fromEntries(Object.entries(headers).filter(([name]) => !REPLAY_DROPPED_HEADERS.has(name.toLowerCase())));
+}
+
+/**
+ * R3-1 + w2k: the observer of the frame's model route for a REAL run.
+ *
+ * `page.on('request')` records what the frame offered. The answer is read in one of two ways:
+ * - with `frameAiOrigin` and a page that can `route` (the real run), the four model routes are routed
+ *   on that origin: the handler reads the WHOLE answer through `route.fetch` (bounded by
+ *   `responseTimeoutMs`), records its usage, and only then fulfils the frame with the same bytes.
+ *   A passive `page.on('response')` + `res.text()` cannot do this: the frame stops reading a stream at
+ *   `data: [DONE]` (`break` in its `for await`), which cancels the body reader, and Playwright then
+ *   cannot read the cancelled body - the real3 smoke counted two of three calls (w2k). A call whose
+ *   body cannot be read to completion records no response, so the row is BLOCKED, never a zero;
+ * - otherwise (an injected page with no `route`) the finished body is read from `page.on('response')`.
+ *
+ * `requests` and `responses` are the same arrays the row builds its observation from; a listener
+ * failure must never take the turn down, so every read is guarded. `ready` resolves once the routes
+ * are registered (await it before navigating); `settle` waits, bounded, for every model call seen on
+ * the frame origin to be read to completion before the caller evaluates the turn.
+ */
+export function observeModelWire(page, {
+  requests, responses, aiPaths = [], onError, recordResponses = true,
+  frameAiOrigin = null, responseTimeoutMs = MODEL_RESPONSE_TIMEOUT_MS,
+} = {}) {
   const pending = new Set();
-  const settle = async ({ timeoutMs = 5_000 } = {}) => {
+  const routeOrigin = normalizeHttpOrigin(frameAiOrigin);
+  const routed = recordResponses && Array.isArray(responses) && routeOrigin !== ''
+    && typeof page?.route === 'function';
+  let seenOnFrameOrigin = 0;
+  let routeHandled = 0;
+  let ready = Promise.resolve();
+  const settle = async ({ timeoutMs = responseTimeoutMs + 5_000 } = {}) => {
+    await ready;
     const deadline = Date.now() + timeoutMs;
-    while (pending.size > 0 && Date.now() < deadline) {
+    // A routed call is waited for from the moment its request is seen, not only once its handler runs.
+    while ((pending.size > 0 || (routed && routeHandled < seenOnFrameOrigin)) && Date.now() < deadline) {
       await Promise.race([
         Promise.all([...pending]),
         new Promise((resolve) => { setTimeout(resolve, 50).unref?.(); }),
@@ -387,7 +419,7 @@ export function observeModelWire(page, { requests, responses, aiPaths = [], onEr
     }
     return pending.size;
   };
-  if (!page || typeof page.on !== 'function') return { settle: async () => 0 };
+  if (!page || typeof page.on !== 'function') return { settle: async () => 0, ready };
   const fail = (err) => {
     if (typeof onError === 'function') onError(err);
   };
@@ -399,6 +431,7 @@ export function observeModelWire(page, { requests, responses, aiPaths = [], onEr
       if (isFrameAiPath(pathname)) aiPaths.push({ origin, path: pathname });
       const shape = modelRouteShape(pathname);
       if (!shape || !Array.isArray(requests)) return;
+      if (origin === routeOrigin) seenOnFrameOrigin += 1;
       let body = null;
       try { body = JSON.parse(req.postData() || '{}'); } catch { body = null; }
       requests.push({ origin, path: pathname, shape, body });
@@ -406,10 +439,53 @@ export function observeModelWire(page, { requests, responses, aiPaths = [], onEr
       fail(err);
     }
   });
-  if (!recordResponses || !Array.isArray(responses)) return { settle };
+  if (!recordResponses || !Array.isArray(responses)) return { settle, ready };
+  const record = (origin, status, shape, text) => responses.push({
+    origin,
+    status,
+    shape,
+    // R4-1: the usage is read in the route's own response shape, so an Anthropic
+    // `/messages` stream and a Gemini `/generate` body are counted, not dropped.
+    usage: usageFromSseText(text, shape),
+    toolCallNames: toolCallNamesFromSseText(text, shape),
+  });
+  const track = (task) => {
+    pending.add(task);
+    task.catch(fail).finally(() => pending.delete(task));
+  };
+  if (routed) {
+    const handle = (route) => {
+      routeHandled += 1;
+      track((async () => {
+        const req = route.request();
+        if (req.method() !== 'POST') {
+          await route.continue();
+          return;
+        }
+        const { origin, pathname } = new URL(req.url());
+        const shape = modelRouteShape(pathname);
+        let fetched;
+        let body;
+        try {
+          fetched = await route.fetch({ timeout: responseTimeoutMs });
+          body = await fetched.body();
+        } catch (err) {
+          // Never completed: no response is recorded, so the row is BLOCKED, and the frame is not left hanging.
+          fail(err);
+          await route.abort('failed').catch(() => {});
+          return;
+        }
+        record(origin, fetched.status(), shape, body.toString('utf8'));
+        await route.fulfill({ status: fetched.status(), headers: replayHeaders(fetched.headers()), body });
+      })());
+    };
+    ready = Promise.all(modelCallRouteGlobs(routeOrigin).map((glob) => page.route(glob, handle)));
+    ready.catch(fail);
+    return { settle, ready };
+  }
   page.on('response', (res) => {
     // body still in flight is not mistaken for a response that never arrived.
-    const task = (async () => {
+    track((async () => {
       const req = res.request();
       if (req?.method() !== 'POST') return;
       const { origin, pathname } = new URL(res.url());
@@ -417,20 +493,10 @@ export function observeModelWire(page, { requests, responses, aiPaths = [], onEr
       if (!shape) return;
       let text = '';
       try { text = await res.text(); } catch { text = ''; }
-      responses.push({
-        origin,
-        status: res.status(),
-        shape,
-        // R4-1: the usage is read in the route's own response shape, so an Anthropic
-        // `/messages` stream and a Gemini `/generate` body are counted, not dropped.
-        usage: usageFromSseText(text, shape),
-        toolCallNames: toolCallNamesFromSseText(text, shape),
-      });
-    })();
-    pending.add(task);
-    task.catch(fail).finally(() => pending.delete(task));
+      record(origin, res.status(), shape, text);
+    })());
   });
-  return { settle };
+  return { settle, ready };
 }
 
 /**
