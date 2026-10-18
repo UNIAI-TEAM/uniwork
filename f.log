@@ -1,0 +1,18 @@
+$ cd apps/docs && npx vitest run tests/frame-rename-save.test.ts --reporter=verbose
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ tests/frame-rename-save.test.ts > UNI-1909: a host rename during save keeps the renderer on the new name > file.renamed while the save runs: the write-back keeps the renamed path; Save As proposes it 155ms
+ ✓ tests/frame-rename-save.test.ts > UNI-1909: a host rename during save keeps the renderer on the new name > a save result carrying a new name is adopted even before file.renamed lands 31ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ tests/frame-rename-save.test.ts > UNI-1909: a host rename during save keeps the renderer on the new name > a plain rename before the save still lands (regression guard) 27ms
+ ✓ tests/frame-rename-save.test.ts > UNI-1909: a host-declined save is silent > saveDocx "cancelled": no failure status, no toast, the document stays dirty 17ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  10:23:15
+   Duration  3.90s (transform 2.43s, setup 0ms, import 3.21s, tests 231ms, environment 361ms)
+

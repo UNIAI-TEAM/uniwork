@@ -1,0 +1,4 @@
+$ npx eslint web/docs/bridge/webapi.ts web/docs/bridge/webapi.test.ts apps/docs/src/renderer/file-actions.ts apps/docs/src/shared/ipc.ts apps/docs/tests/frame-rename-save.test.ts web/modules/shared/text-webapi.ts web/modules/markdown/webapi.test.ts web/modules/sheets/bridge.ts web/modules/sheets/bridge.test.ts web/server/test-host/host.js web/e2e/docs-rename-save.spec.ts && npx prettier --check web/docs/bridge/webapi.ts web/docs/bridge/webapi.test.ts apps/docs/src/renderer/file-actions.ts apps/docs/src/shared/ipc.ts apps/docs/tests/frame-rename-save.test.ts web/modules/shared/text-webapi.ts web/modules/markdown/webapi.test.ts web/modules/sheets/bridge.ts web/modules/sheets/bridge.test.ts web/server/test-host/host.js web/e2e/docs-rename-save.spec.ts .github/workflows/ci.yml && echo LINT_FMT_OK
+Checking formatting...
+All matched files use Prettier code style!
+LINT_FMT_OK

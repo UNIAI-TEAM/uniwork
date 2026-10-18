@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK
+d2e49cd503a3336b03f8fdf9688d1d7f3ce97daa
+713d0b047df9327795e7ced811c9d7442adaa26c
+d2e49cd5 test(web): detect the docs web build like the other web specs in docs-rename-save (UNI-1909)
+33a8c092 test(web): call the test host per evaluate and drop the sleep in docs-rename-save (UNI-1909)
+6e724e44 fix(web): follow host renames through in-flight saves and silence declined saves (UNI-1909)
+SYNCED_OK

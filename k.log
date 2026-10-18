@@ -1,0 +1,135 @@
+$ WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e html-preview-security draft-recovery slides-presenter ai-web modules-smoke docs-web docs-rename-save conflict-dialog-layout docs-conflict-diff ui-forced-colors-picker size-gate open-refused sheets-too-large; e=$?; echo "WEB_E2E_EXIT=$e"; [ $e -eq 0 ]
+
+Running 96 tests using 1 worker
+
+(node:6782) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/ai-web.spec.ts:109:9 › docs: web AI › grant off: no AI UI anywhere and no AI request (2.0s)
+  ✓   2 [chromium] › web/e2e/ai-web.spec.ts:133:9 › docs: web AI › grant on: panel visible, reply streams through the proxy with the frame token (836ms)
+  ✓   3 [chromium] › web/e2e/ai-web.spec.ts:159:11 › docs: web AI › grant on: HTTP 402 renders the credits_exhausted state (643ms)
+  ✓   4 [chromium] › web/e2e/ai-web.spec.ts:159:11 › docs: web AI › grant on: HTTP 403 renders the entitlement_required state (610ms)
+  ✓   5 [chromium] › web/e2e/ai-web.spec.ts:159:11 › docs: web AI › grant on: HTTP 404 renders the credential_missing state (655ms)
+  ✓   6 [chromium] › web/e2e/ai-web.spec.ts:159:11 › docs: web AI › grant on: HTTP 424 renders the provider_auth_failed state (660ms)
+  ✓   7 [chromium] › web/e2e/ai-web.spec.ts:159:11 › docs: web AI › grant on: HTTP 429 renders the rate_limited state (640ms)
+  ✓   8 [chromium] › web/e2e/ai-web.spec.ts:159:11 › docs: web AI › grant on: HTTP 502 renders the provider_unreachable state (630ms)
+  ✓   9 [chromium] › web/e2e/ai-web.spec.ts:190:9 › docs: web AI › grant on: 503 cloud_unavailable from a cloud tool, 401 -> token refresh (809ms)
+  ✓  10 [chromium] › web/e2e/ai-web.spec.ts:231:9 › docs: web AI › AI settings = UniWork credentials: add a key from the missing-key state, reply, remove it (1.5s)
+  ✓  11 [chromium] › web/e2e/ai-web.spec.ts:109:9 › markdown: web AI › grant off: no AI UI anywhere and no AI request (1.9s)
+  ✓  12 [chromium] › web/e2e/ai-web.spec.ts:133:9 › markdown: web AI › grant on: panel visible, reply streams through the proxy with the frame token (621ms)
+  ✓  13 [chromium] › web/e2e/ai-web.spec.ts:159:11 › markdown: web AI › grant on: HTTP 402 renders the credits_exhausted state (463ms)
+  ✓  14 [chromium] › web/e2e/ai-web.spec.ts:159:11 › markdown: web AI › grant on: HTTP 403 renders the entitlement_required state (439ms)
+  ✓  15 [chromium] › web/e2e/ai-web.spec.ts:159:11 › markdown: web AI › grant on: HTTP 404 renders the credential_missing state (443ms)
+  ✓  16 [chromium] › web/e2e/ai-web.spec.ts:159:11 › markdown: web AI › grant on: HTTP 424 renders the provider_auth_failed state (461ms)
+  ✓  17 [chromium] › web/e2e/ai-web.spec.ts:159:11 › markdown: web AI › grant on: HTTP 429 renders the rate_limited state (452ms)
+  ✓  18 [chromium] › web/e2e/ai-web.spec.ts:159:11 › markdown: web AI › grant on: HTTP 502 renders the provider_unreachable state (455ms)
+  ✓  19 [chromium] › web/e2e/ai-web.spec.ts:190:9 › markdown: web AI › grant on: 503 cloud_unavailable from a cloud tool, 401 -> token refresh (622ms)
+  ✓  20 [chromium] › web/e2e/ai-web.spec.ts:231:9 › markdown: web AI › AI settings = UniWork credentials: add a key from the missing-key state, reply, remove it (1.2s)
+  ✓  21 [chromium] › web/e2e/ai-web.spec.ts:296:9 › docs: view-only AI › no save grant: the composer carries the view-only notice and the model gets no edit tool (780ms)
+  ✓  22 [chromium] › web/e2e/ai-web.spec.ts:324:9 › docs: view-only AI › with the save grant there is no view-only notice (536ms)
+  ✓  23 [chromium] › web/e2e/ai-web.spec.ts:296:9 › markdown: view-only AI › no save grant: the composer carries the view-only notice and the model gets no edit tool (606ms)
+  ✓  24 [chromium] › web/e2e/ai-web.spec.ts:324:9 › markdown: view-only AI › with the save grant there is no view-only notice (417ms)
+  ✓  25 [chromium] › web/e2e/ai-web.spec.ts:296:9 › html: view-only AI › no save grant: the composer carries the view-only notice and the model gets no edit tool (518ms)
+  ✓  26 [chromium] › web/e2e/ai-web.spec.ts:324:9 › html: view-only AI › with the save grant there is no view-only notice (295ms)
+  ✓  27 [chromium] › web/e2e/ai-web.spec.ts:337:9 › docs: AI screenshots light en (852ms)
+  ✓  28 [chromium] › web/e2e/ai-web.spec.ts:337:9 › docs: AI screenshots light vi (856ms)
+  ✓  29 [chromium] › web/e2e/ai-web.spec.ts:337:9 › docs: AI screenshots dark en (857ms)
+  ✓  30 [chromium] › web/e2e/ai-web.spec.ts:337:9 › docs: AI screenshots dark vi (851ms)
+  ✓  31 [chromium] › web/e2e/conflict-dialog-layout.spec.ts:57:7 › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked (652ms)
+  ✓  32 [chromium] › web/e2e/conflict-dialog-layout.spec.ts:57:7 › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked (552ms)
+  ✓  33 [chromium] › web/e2e/conflict-dialog-layout.spec.ts:92:5 › 390x390 frame: the S5 card is taller than the frame, the overlay scrolls to every button (713ms)
+  ✓  34 [chromium] › web/e2e/conflict-dialog-layout.spec.ts:131:5 › wide frame keeps the 448px card (602ms)
+  ✓  35 [chromium] › web/e2e/conflict-dialog-layout.spec.ts:139:5 › S5 aria-disabled buttons use GrayText text and border in forced colors (620ms)
+  ✓  36 [chromium] › web/e2e/docs-conflict-diff.spec.ts:57:7 › docs conflict dialog (vi): "Xem khác biệt" before Reload opens the comparison with the head (1.5s)
+  ✓  37 [chromium] › web/e2e/docs-conflict-diff.spec.ts:57:7 › docs conflict dialog (en): "View differences" before Reload opens the comparison with the head (1.5s)
+  ✓  38 [chromium] › web/e2e/docs-conflict-diff.spec.ts:95:7 › coarse pointer › the "View differences" link has a 44px target like the dialog buttons (840ms)
+  ✓  39 [chromium] › web/e2e/docs-rename-save.spec.ts:81:5 › a rename before the save is the name Save as proposes (1.2s)
+  ✘  40 [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar (15.8s)
+(node:7271) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  41 [chromium] › web/e2e/docs-web.spec.ts:214:7 › docs-web: simple (5.8s)
+  ✓  42 [chromium] › web/e2e/docs-web.spec.ts:214:7 › docs-web: kitchen-sink (6.9s)
+  ✓  43 [chromium] › web/e2e/docs-web.spec.ts:214:7 › docs-web: long (7.7s)
+  ✓  44 [chromium] › web/e2e/draft-recovery.spec.ts:382:9 › docs › docs: edit -> 30 s -> reload -> Restore -> dirty -> save clears the draft (3.2s)
+  ✓  45 [chromium] › web/e2e/draft-recovery.spec.ts:425:9 › docs › docs: Discard opens the server version and deletes the draft (4.2s)
+  ✓  46 [chromium] › web/e2e/draft-recovery.spec.ts:453:9 › docs › docs: a draft under another key is skipped, never deleted, no prompt (3.8s)
+  ✓  47 [chromium] › web/e2e/draft-recovery.spec.ts:483:9 › docs › docs: a reload of the whole host page restores with the persisted key (2.9s)
+  ✓  48 [chromium] › web/e2e/draft-recovery.spec.ts:512:9 › docs › docs: a second tab neither deletes nor overwrites the first tab's draft (6.2s)
+  ✓  49 [chromium] › web/e2e/draft-recovery.spec.ts:565:9 › docs › docs: sign-out deletes the database with every draft (2.3s)
+  ✓  50 [chromium] › web/e2e/draft-recovery.spec.ts:382:9 › markdown › markdown: edit -> 30 s -> reload -> Restore -> dirty -> save clears the draft (2.5s)
+  ✓  51 [chromium] › web/e2e/draft-recovery.spec.ts:425:9 › markdown › markdown: Discard opens the server version and deletes the draft (3.3s)
+  ✓  52 [chromium] › web/e2e/draft-recovery.spec.ts:453:9 › markdown › markdown: a draft under another key is skipped, never deleted, no prompt (3.2s)
+  ✓  53 [chromium] › web/e2e/draft-recovery.spec.ts:483:9 › markdown › markdown: a reload of the whole host page restores with the persisted key (2.4s)
+  ✓  54 [chromium] › web/e2e/draft-recovery.spec.ts:512:9 › markdown › markdown: a second tab neither deletes nor overwrites the first tab's draft (5.6s)
+  ✓  55 [chromium] › web/e2e/draft-recovery.spec.ts:565:9 › markdown › markdown: sign-out deletes the database with every draft (2.0s)
+  ✓  56 [chromium] › web/e2e/draft-recovery.spec.ts:382:9 › sheets › sheets: edit -> 30 s -> reload -> Restore -> dirty -> save clears the draft (5.4s)
+  ✓  57 [chromium] › web/e2e/draft-recovery.spec.ts:425:9 › sheets › sheets: Discard opens the server version and deletes the draft (6.0s)
+  ✓  58 [chromium] › web/e2e/draft-recovery.spec.ts:453:9 › sheets › sheets: a draft under another key is skipped, never deleted, no prompt (5.9s)
+  ✓  59 [chromium] › web/e2e/draft-recovery.spec.ts:483:9 › sheets › sheets: a reload of the whole host page restores with the persisted key (5.3s)
+  ✓  60 [chromium] › web/e2e/draft-recovery.spec.ts:512:9 › sheets › sheets: a second tab neither deletes nor overwrites the first tab's draft (9.8s)
+  ✓  61 [chromium] › web/e2e/draft-recovery.spec.ts:565:9 › sheets › sheets: sign-out deletes the database with every draft (4.2s)
+  ✓  62 [chromium] › web/e2e/draft-recovery.spec.ts:382:9 › slides › slides: edit -> 30 s -> reload -> Restore -> dirty -> save clears the draft (3.1s)
+  ✓  63 [chromium] › web/e2e/draft-recovery.spec.ts:425:9 › slides › slides: Discard opens the server version and deletes the draft (3.6s)
+  ✓  64 [chromium] › web/e2e/draft-recovery.spec.ts:453:9 › slides › slides: a draft under another key is skipped, never deleted, no prompt (3.4s)
+  ✓  65 [chromium] › web/e2e/draft-recovery.spec.ts:483:9 › slides › slides: a reload of the whole host page restores with the persisted key (2.6s)
+  ✓  66 [chromium] › web/e2e/draft-recovery.spec.ts:512:9 › slides › slides: a second tab neither deletes nor overwrites the first tab's draft (5.8s)
+  ✓  67 [chromium] › web/e2e/draft-recovery.spec.ts:565:9 › slides › slides: sign-out deletes the database with every draft (2.1s)
+  ✓  68 [chromium] › web/e2e/draft-recovery.spec.ts:601:7 › html: style edits in progress › a visual style edit that is not committed to the source yet is in the draft copy (799ms)
+  ✓  69 [chromium] › web/e2e/draft-recovery.spec.ts:647:7 › sheets: edits made after a Restore are drafted again (A6) › edit -> 30 s -> reload -> Restore -> edit again -> 30 s -> reload -> Restore brings both back (8.4s)
+  ✓  70 [chromium] › web/e2e/html-preview-security.spec.ts:170:5 › html preview: a hostile document with scripts reaches neither frame, host nor API (4.1s)
+  ✓  71 [chromium] › web/e2e/html-preview-security.spec.ts:319:5 › html preview: a page that reloads itself still gets its copy and port (442ms)
+  ✓  72 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › pdf: bundle boots in the test host, handshake completes, no console errors (2.3s)
+  ✓  73 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › markdown: bundle boots in the test host, handshake completes, no console errors (2.4s)
+  ✓  74 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › html: bundle boots in the test host, handshake completes, no console errors (2.3s)
+  ✓  75 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › slides: bundle boots in the test host, handshake completes, no console errors (2.5s)
+  ✓  76 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › sheets: bundle boots in the test host, handshake completes, no console errors (2.9s)
+  ✓  77 [chromium] › web/e2e/modules-smoke.spec.ts:114:5 › the host refuses a frame of another module (docs frame for a pdf document) (313ms)
+  ✓  78 [chromium] › web/e2e/open-refused.spec.ts:49:5 › docs frame emits open_refused for an over-tier document, mounts no blank Untitled.docx, and sends no save request (2.7s)
+  ✓  79 [chromium] › web/e2e/open-refused.spec.ts:130:5 › docs frame opens a Read Mode tier document without open_refused and keeps the editor mounted (2.6s)
+  ✓  80 [chromium] › web/e2e/open-refused.spec.ts:161:5 › slides frame emits open_refused for a 10 001-part pptx with localized fatal copy and blocks saves (d2-5, d2-9) (667ms)
+  ✓  81 [chromium] › web/e2e/pdf-draft-recovery.spec.ts:193:7 › pdf draft recovery: an open comment box › type (no OK) -> unsaved -> 30 s -> reload -> Restore brings it back -> save writes it (3.2s)
+  ✓  82 [chromium] › web/e2e/pdf-draft-recovery.spec.ts:248:7 › pdf draft recovery: an open comment box › an open text-edit box (Edit text, typed, not committed) is in the draft too (2.9s)
+  ✓  83 [chromium] › web/e2e/pdf-draft-recovery.spec.ts:276:7 › pdf draft recovery: an open comment box › Discard opens the server version without the comment and deletes the draft (3.8s)
+  ✓  84 [chromium] › web/e2e/pdf-draft-recovery.spec.ts:303:7 › pdf draft recovery: an open comment box › an empty box is not a change: no unsaved state, no draft record (2.5s)
+  ✓  85 [chromium] › web/e2e/sheets-too-large.spec.ts:115:7 › too_large: the host gets a fatal too_large, the frame shows its state (en, light) (1.1s)
+  ✓  86 [chromium] › web/e2e/sheets-too-large.spec.ts:115:7 › too_large: the host gets a fatal too_large, the frame shows its state (vi, dark) (1.0s)
+  ✓  87 [chromium] › web/e2e/size-gate.spec.ts:44:5 › fallback size gate (vi): warns near limit, blocks over max_bytes without api.save, and downloads copy (8.2s)
+  ✓  88 [chromium] › web/e2e/size-gate.spec.ts:99:5 › fallback size gate (en) and sizeUi:true suppression (1.6s)
+  ✓  89 [chromium] › web/e2e/size-gate.spec.ts:204:7 › docs: size-blocked save shows only the fallback dialog without sizeUi and shows nothing in-frame with sizeUi=1 (SIZE-v1-1) (1.1s)
+  ✓  90 [chromium] › web/e2e/size-gate.spec.ts:204:7 › sheets: size-blocked save shows only the fallback dialog without sizeUi and shows nothing in-frame with sizeUi=1 (SIZE-v1-1) (2.8s)
+  ✓  91 [chromium] › web/e2e/size-gate.spec.ts:204:7 › slides: size-blocked save shows only the fallback dialog without sizeUi and shows nothing in-frame with sizeUi=1 (SIZE-v1-1) (1.1s)
+  ✓  92 [chromium] › web/e2e/size-gate.spec.ts:204:7 › pdf: size-blocked save shows only the fallback dialog without sizeUi and shows nothing in-frame with sizeUi=1 (SIZE-v1-1) (978ms)
+  ✓  93 [chromium] › web/e2e/slides-presenter.spec.ts:200:7 › slides presenter view + audience window › granted: audience on the second screen, in sync both ways, closes cleanly (7.5s)
+  ✓  94 [chromium] › web/e2e/slides-presenter.spec.ts:303:7 › slides presenter view + audience window › denied: default-size window the user drags, still in sync (3.5s)
+  ✓  95 [chromium] › web/e2e/slides-presenter.spec.ts:333:7 › slides presenter view + audience window › screenshots: presenter + audience, light + dark, vi + en (9.9s)
+  ✓  96 [chromium] › web/e2e/ui-forced-colors-picker.spec.ts:12:5 › S7 the selected picker option has a 2px Highlight border, not only a fill (72ms)
+
+
+  1) [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('.status-msg')
+    Expected substring: not "Lưu thất bại"
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "not toContainText" with timeout 15000ms
+      - waiting for locator('.status-msg')
+
+
+      123 |   // silent: no "Lưu thất bại" status line, no error toast (doc stays dirty)
+      124 |   await expect(ed.locator('.status-bar')).not.toContainText('Lưu thất bại')
+    > 125 |   await expect(ed.locator('.status-msg')).not.toContainText('Lưu thất bại')
+          |                                               ^
+      126 |   await expect(ed.locator('.toast, [role="alert"]').filter({ hasText: 'Lưu' })).toHaveCount(0)
+      127 | })
+      128 |
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-rename-save.spec.ts:125:47
+
+    Error Context: web/e2e/.results/docs-rename-save-a-host-de-a1f31-o-failure-in-the-status-bar-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar 
+  95 passed (4.3m)
+WEB_E2E_EXIT=1

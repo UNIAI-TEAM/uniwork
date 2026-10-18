@@ -1,0 +1,116 @@
+$ for i in 1 2 3; do WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e docs-rename-save || echo "RENAME_SPEC_FAIL run=$i"; done; echo RENAME_REPEAT_DONE
+
+Running 2 tests using 1 worker
+
+(node:8122) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › web/e2e/docs-rename-save.spec.ts:81:5 › a rename before the save is the name Save as proposes (949ms)
+  ✘  2 [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar (15.8s)
+
+
+  1) [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('.status-msg')
+    Expected substring: not "Lưu thất bại"
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "not toContainText" with timeout 15000ms
+      - waiting for locator('.status-msg')
+
+
+      123 |   // silent: no "Lưu thất bại" status line, no error toast (doc stays dirty)
+      124 |   await expect(ed.locator('.status-bar')).not.toContainText('Lưu thất bại')
+    > 125 |   await expect(ed.locator('.status-msg')).not.toContainText('Lưu thất bại')
+          |                                               ^
+      126 |   await expect(ed.locator('.toast, [role="alert"]').filter({ hasText: 'Lưu' })).toHaveCount(0)
+      127 | })
+      128 |
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-rename-save.spec.ts:125:47
+
+    Error Context: web/e2e/.results/docs-rename-save-a-host-de-a1f31-o-failure-in-the-status-bar-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar 
+  1 passed (18.1s)
+RENAME_SPEC_FAIL run=1
+
+Running 2 tests using 1 worker
+
+(node:8243) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › web/e2e/docs-rename-save.spec.ts:81:5 › a rename before the save is the name Save as proposes (936ms)
+  ✘  2 [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar (15.8s)
+
+
+  1) [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('.status-msg')
+    Expected substring: not "Lưu thất bại"
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "not toContainText" with timeout 15000ms
+      - waiting for locator('.status-msg')
+
+
+      123 |   // silent: no "Lưu thất bại" status line, no error toast (doc stays dirty)
+      124 |   await expect(ed.locator('.status-bar')).not.toContainText('Lưu thất bại')
+    > 125 |   await expect(ed.locator('.status-msg')).not.toContainText('Lưu thất bại')
+          |                                               ^
+      126 |   await expect(ed.locator('.toast, [role="alert"]').filter({ hasText: 'Lưu' })).toHaveCount(0)
+      127 | })
+      128 |
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-rename-save.spec.ts:125:47
+
+    Error Context: web/e2e/.results/docs-rename-save-a-host-de-a1f31-o-failure-in-the-status-bar-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar 
+  1 passed (18.1s)
+RENAME_SPEC_FAIL run=2
+
+Running 2 tests using 1 worker
+
+(node:8365) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › web/e2e/docs-rename-save.spec.ts:81:5 › a rename before the save is the name Save as proposes (985ms)
+  ✘  2 [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar (16.3s)
+
+
+  1) [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar 
+
+    Error: expect(locator).not.toContainText(expected) failed
+
+    Locator: locator('.status-msg')
+    Expected substring: not "Lưu thất bại"
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "not toContainText" with timeout 15000ms
+      - waiting for locator('.status-msg')
+
+
+      123 |   // silent: no "Lưu thất bại" status line, no error toast (doc stays dirty)
+      124 |   await expect(ed.locator('.status-bar')).not.toContainText('Lưu thất bại')
+    > 125 |   await expect(ed.locator('.status-msg')).not.toContainText('Lưu thất bại')
+          |                                               ^
+      126 |   await expect(ed.locator('.toast, [role="alert"]').filter({ hasText: 'Lưu' })).toHaveCount(0)
+      127 | })
+      128 |
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-rename-save.spec.ts:125:47
+
+    Error Context: web/e2e/.results/docs-rename-save-a-host-de-a1f31-o-failure-in-the-status-bar-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/docs-rename-save.spec.ts:107:5 › a host-declined save (api.save "cancelled") shows no failure in the status bar 
+  1 passed (18.7s)
+RENAME_SPEC_FAIL run=3
+RENAME_REPEAT_DONE
