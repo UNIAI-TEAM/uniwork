@@ -131,7 +131,7 @@ func topLevelWhereIndex(body string) int {
 		return -1
 	}
 	depth, next, quoted := 0, 0, false
-	for i := range len(body) {
+	for i := 0; i < len(body); i++ {
 		// Drop a match that started inside a string literal so it cannot stall
 		// the scan in front of the real WHERE.
 		for next < len(matches) && matches[next][0] < i {
@@ -597,6 +597,8 @@ WHERE workspace_id = sqlc.arg(workspace_id)`, nil},
 UPDATE documents
 SET title = (SELECT ')' FROM documents t WHERE t.id = sqlc.arg(source_id)), workspace_id = sqlc.arg(workspace_id)
 WHERE id = sqlc.arg(id)`, []string{"MoveDocumentWithQuotedParen"}},
+		{"a doubled-quote escape in a SET value does not hide the statement's WHERE", `-- name: RenameDocumentWithApostrophe :one
+UPDATE documents SET title = 'it''s (' WHERE workspace_id = sqlc.arg(workspace_id)`, nil},
 		{"a schema-qualified INSERT is flagged", `-- name: CopyDocumentQualified :one
 INSERT INTO public.documents (id, workspace_id, source_document_id)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(source_document_id))`, []string{"CopyDocumentQualified"}},
