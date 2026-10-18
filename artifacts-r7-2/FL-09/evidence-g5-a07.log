@@ -1,0 +1,232 @@
+$ /exec-daemon/node /workspace/scripts/office/g5g6g7/fault/app-cases.mjs --case FL-09 --run-dir /workspace/.harness-run-r7-2 --verify-result
+
+{
+  "case": "FL-09",
+  "ac": [
+    "G5-A07"
+  ],
+  "fixture": "fx-docx-report-vi",
+  "layer": "app",
+  "result": "PASS",
+  "exits": [
+    {
+      "n": 0,
+      "label": "keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling)",
+      "result": "PASS",
+      "assertions": [
+        {
+          "name": "pin_accepted",
+          "expected": "ok",
+          "actual": "ok",
+          "ok": true
+        },
+        {
+          "name": "first_launch_ready",
+          "expected": "ready",
+          "actual": "ready",
+          "ok": true
+        },
+        {
+          "name": "pre_store_has_the_pinned_copy",
+          "expected": "the pin row and >= 1 ciphertext blob",
+          "actual": "1/1 pin row(s), 1 blob(s)",
+          "ok": true
+        },
+        {
+          "name": "keystore_really_locked",
+          "expected": "the wrapper locked the collection",
+          "actual": "locked",
+          "ok": true
+        },
+        {
+          "name": "open_refused_keystore_locked",
+          "expected": "keystore_locked|keyring_unavailable / keystore_locked",
+          "actual": "keystore_locked / keystore_locked",
+          "ok": true
+        },
+        {
+          "name": "row_names_the_lock_reason_when_listed",
+          "expected": "keystore_locked",
+          "actual": "(no row listed: the library could not be read)",
+          "ok": true
+        },
+        {
+          "name": "nothing_decrypted",
+          "expected": true,
+          "actual": true,
+          "ok": true
+        },
+        {
+          "name": "unlock_accepted",
+          "expected": "ok",
+          "actual": "ok",
+          "ok": true
+        },
+        {
+          "name": "retry_accepted",
+          "expected": "ok",
+          "actual": "ok",
+          "ok": true
+        },
+        {
+          "name": "row_recovered_after_unlock",
+          "expected": "ready (after relaunch)",
+          "actual": "ready",
+          "ok": true
+        },
+        {
+          "name": "s11_shot",
+          "expected": "s11-lock-panel.png",
+          "actual": "/workspace/.harness-run-r7-2/fault/FL-09/s11-lock-panel.png",
+          "ok": true
+        },
+        {
+          "name": "s3_tab_hidden_keystore_locked",
+          "expected": "the sync center pane is showing and holds no offline tab",
+          "actual": "pane=showing offlineTabs=0",
+          "ok": true
+        },
+        {
+          "name": "s3_pane_names_no_document",
+          "expected": "0 document names in the pane",
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "s3_shot",
+          "expected": "s3-keystore-locked-pane.png",
+          "actual": "/workspace/.harness-run-r7-2/fault/FL-09/s3-keystore-locked-pane.png",
+          "ok": true
+        },
+        {
+          "name": "no_commit_outside_policy",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "no_upload_outside_policy",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "version_delta",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        }
+      ],
+      "evidence": {
+        "documentId": "01M58F9ME80E4M2D6D1MD8CEH9",
+        "trace": [],
+        "requests": []
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "pin_accepted",
+      "expected": "ok",
+      "actual": "ok",
+      "ok": true
+    },
+    {
+      "name": "first_launch_ready",
+      "expected": "ready",
+      "actual": "ready",
+      "ok": true
+    },
+    {
+      "name": "pre_store_has_the_pinned_copy",
+      "expected": "the pin row and >= 1 ciphertext blob",
+      "actual": "1/1 pin row(s), 1 blob(s)",
+      "ok": true
+    },
+    {
+      "name": "keystore_really_locked",
+      "expected": "the wrapper locked the collection",
+      "actual": "locked",
+      "ok": true
+    },
+    {
+      "name": "open_refused_keystore_locked",
+      "expected": "keystore_locked|keyring_unavailable / keystore_locked",
+      "actual": "keystore_locked / keystore_locked",
+      "ok": true
+    },
+    {
+      "name": "row_names_the_lock_reason_when_listed",
+      "expected": "keystore_locked",
+      "actual": "(no row listed: the library could not be read)",
+      "ok": true
+    },
+    {
+      "name": "nothing_decrypted",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "name": "unlock_accepted",
+      "expected": "ok",
+      "actual": "ok",
+      "ok": true
+    },
+    {
+      "name": "retry_accepted",
+      "expected": "ok",
+      "actual": "ok",
+      "ok": true
+    },
+    {
+      "name": "row_recovered_after_unlock",
+      "expected": "ready (after relaunch)",
+      "actual": "ready",
+      "ok": true
+    },
+    {
+      "name": "s11_shot",
+      "expected": "s11-lock-panel.png",
+      "actual": "/workspace/.harness-run-r7-2/fault/FL-09/s11-lock-panel.png",
+      "ok": true
+    },
+    {
+      "name": "s3_tab_hidden_keystore_locked",
+      "expected": "the sync center pane is showing and holds no offline tab",
+      "actual": "pane=showing offlineTabs=0",
+      "ok": true
+    },
+    {
+      "name": "s3_pane_names_no_document",
+      "expected": "0 document names in the pane",
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "s3_shot",
+      "expected": "s3-keystore-locked-pane.png",
+      "actual": "/workspace/.harness-run-r7-2/fault/FL-09/s3-keystore-locked-pane.png",
+      "ok": true
+    },
+    {
+      "name": "no_commit_outside_policy",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "no_upload_outside_policy",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "version_delta",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    }
+  ]
+}
+/workspace/.harness-run-r7-2/fault/FL-09

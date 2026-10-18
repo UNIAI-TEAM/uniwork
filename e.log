@@ -1,0 +1,33 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-r7-2" OFFICE_FORK_SHA=8d1b933ed timeout -k 15 600 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case FL-05 --run-dir .harness-run-r7-2; rc=$?; f=.harness-run-r7-2/fault/FL-05/result.json; [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.blocker||"");for(const a of r.assertions||[])console.log((a.ok?"ok  ":"FAIL")+" "+a.name+(a.ok?"":" expected="+JSON.stringify(a.expected)+" actual="+JSON.stringify(a.actual)))' "$PWD/$f"; echo; echo "APP_CASE_FL_05_EXIT=$rc"
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:38799 app_api=http://127.0.0.1:40343 proxy_upstream=http://127.0.0.1:38799
+FL-05: running
+dbus-daemon[106447]: [session uid=1000 pid=106447] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=106524 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[106447]: [session uid=1000 pid=106447] Successfully activated service 'org.a11y.Bus'
+FL-05: PASS
+FL-05 (G5-A07): PASS
+/workspace/.harness-run-r7-2/fault
+APP_CASES_EXIT=0
+FL-05 PASS 
+ok   pin_accepted
+ok   first_launch_ready
+ok   pre_store_has_the_pinned_copy
+ok   lease_expiry_read_before
+ok   wall_clock_moved_back
+ok   relaunch_signed_in
+ok   open_refused_clock_rollback
+ok   row_locked
+ok   row_names_the_lock_reason
+ok   content_not_served
+ok   no_plaintext_copy_materialized
+ok   never_extends_lease
+ok   retry_accepted
+ok   row_recovered_after_real_clock
+ok   s11_shot
+ok   s3_tab_selected
+ok   s3_shot
+ok   no_commit_outside_policy
+ok   no_upload_outside_policy
+ok   version_delta
+
+APP_CASE_FL_05_EXIT=0

@@ -1,0 +1,268 @@
+$ /exec-daemon/node /workspace/scripts/office/g5g6g7/fault/app-cases.mjs --case FL-05 --run-dir /workspace/.harness-run-r7-2 --verify-result
+
+{
+  "case": "FL-05",
+  "ac": [
+    "G5-A07"
+  ],
+  "fixture": "fx-docx-report-vi",
+  "layer": "app",
+  "result": "PASS",
+  "exits": [
+    {
+      "n": 0,
+      "label": "lùi đồng hồ: không kéo dài quyền offline",
+      "result": "PASS",
+      "assertions": [
+        {
+          "name": "pin_accepted",
+          "expected": "ok",
+          "actual": "ok",
+          "ok": true
+        },
+        {
+          "name": "first_launch_ready",
+          "expected": "ready",
+          "actual": "ready",
+          "ok": true
+        },
+        {
+          "name": "pre_store_has_the_pinned_copy",
+          "expected": "the pin row and >= 1 ciphertext blob",
+          "actual": "1/1 pin row(s), 1 blob(s)",
+          "ok": true
+        },
+        {
+          "name": "lease_expiry_read_before",
+          "expected": "the ready row reports leaseUntil",
+          "actual": "2026-10-19T21:41:31Z",
+          "ok": true
+        },
+        {
+          "name": "wall_clock_moved_back",
+          "expected": ">= 10 min behind (libfaketime, tolerance 1 min)",
+          "actual": "10.0 min",
+          "ok": true
+        },
+        {
+          "name": "relaunch_signed_in",
+          "expected": "signed in",
+          "actual": "signed in",
+          "ok": true
+        },
+        {
+          "name": "open_refused_clock_rollback",
+          "expected": "lease_unusable / clock_rollback",
+          "actual": "lease_unusable / clock_rollback",
+          "ok": true
+        },
+        {
+          "name": "row_locked",
+          "expected": "lease-expired|locked",
+          "actual": "lease-expired",
+          "ok": true
+        },
+        {
+          "name": "row_names_the_lock_reason",
+          "expected": "clock_rollback",
+          "actual": "clock_rollback",
+          "ok": true
+        },
+        {
+          "name": "content_not_served",
+          "expected": true,
+          "actual": true,
+          "ok": true
+        },
+        {
+          "name": "no_plaintext_copy_materialized",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "never_extends_lease",
+          "expected": true,
+          "actual": true,
+          "ok": true
+        },
+        {
+          "name": "retry_accepted",
+          "expected": "ok",
+          "actual": "ok",
+          "ok": true
+        },
+        {
+          "name": "row_recovered_after_real_clock",
+          "expected": "ready",
+          "actual": "ready",
+          "ok": true
+        },
+        {
+          "name": "s11_shot",
+          "expected": "s11-lock-panel.png",
+          "actual": "/workspace/.harness-run-r7-2/fault/FL-05/s11-lock-panel.png",
+          "ok": true
+        },
+        {
+          "name": "s3_tab_selected",
+          "expected": "aria-selected=true and the panel visible",
+          "actual": "selected and visible",
+          "ok": true
+        },
+        {
+          "name": "s3_shot",
+          "expected": "s3-offline-tab.png",
+          "actual": "/workspace/.harness-run-r7-2/fault/FL-05/s3-offline-tab.png",
+          "ok": true
+        },
+        {
+          "name": "no_commit_outside_policy",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "no_upload_outside_policy",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "version_delta",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        }
+      ],
+      "evidence": {
+        "documentId": "01M58FBTGZSJTK0JGT007BYW3Z",
+        "trace": [],
+        "requests": []
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "pin_accepted",
+      "expected": "ok",
+      "actual": "ok",
+      "ok": true
+    },
+    {
+      "name": "first_launch_ready",
+      "expected": "ready",
+      "actual": "ready",
+      "ok": true
+    },
+    {
+      "name": "pre_store_has_the_pinned_copy",
+      "expected": "the pin row and >= 1 ciphertext blob",
+      "actual": "1/1 pin row(s), 1 blob(s)",
+      "ok": true
+    },
+    {
+      "name": "lease_expiry_read_before",
+      "expected": "the ready row reports leaseUntil",
+      "actual": "2026-10-19T21:41:31Z",
+      "ok": true
+    },
+    {
+      "name": "wall_clock_moved_back",
+      "expected": ">= 10 min behind (libfaketime, tolerance 1 min)",
+      "actual": "10.0 min",
+      "ok": true
+    },
+    {
+      "name": "relaunch_signed_in",
+      "expected": "signed in",
+      "actual": "signed in",
+      "ok": true
+    },
+    {
+      "name": "open_refused_clock_rollback",
+      "expected": "lease_unusable / clock_rollback",
+      "actual": "lease_unusable / clock_rollback",
+      "ok": true
+    },
+    {
+      "name": "row_locked",
+      "expected": "lease-expired|locked",
+      "actual": "lease-expired",
+      "ok": true
+    },
+    {
+      "name": "row_names_the_lock_reason",
+      "expected": "clock_rollback",
+      "actual": "clock_rollback",
+      "ok": true
+    },
+    {
+      "name": "content_not_served",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "name": "no_plaintext_copy_materialized",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "never_extends_lease",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "name": "retry_accepted",
+      "expected": "ok",
+      "actual": "ok",
+      "ok": true
+    },
+    {
+      "name": "row_recovered_after_real_clock",
+      "expected": "ready",
+      "actual": "ready",
+      "ok": true
+    },
+    {
+      "name": "s11_shot",
+      "expected": "s11-lock-panel.png",
+      "actual": "/workspace/.harness-run-r7-2/fault/FL-05/s11-lock-panel.png",
+      "ok": true
+    },
+    {
+      "name": "s3_tab_selected",
+      "expected": "aria-selected=true and the panel visible",
+      "actual": "selected and visible",
+      "ok": true
+    },
+    {
+      "name": "s3_shot",
+      "expected": "s3-offline-tab.png",
+      "actual": "/workspace/.harness-run-r7-2/fault/FL-05/s3-offline-tab.png",
+      "ok": true
+    },
+    {
+      "name": "no_commit_outside_policy",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "no_upload_outside_policy",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "version_delta",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    }
+  ]
+}
+/workspace/.harness-run-r7-2/fault/FL-05

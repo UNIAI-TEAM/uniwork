@@ -1,0 +1,7 @@
+{
+  "injected": true,
+  "by": "app-keyring-prompter.py (harness-owned org.gnome.keyring.SystemPrompter)",
+  "answer": "cancel",
+  "promptsAnsweredBeforeSecondLaunch": 0,
+  "promptsAnsweredAfterSecondLaunch": 3
+}

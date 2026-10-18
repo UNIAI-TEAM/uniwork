@@ -1,0 +1,70 @@
+{
+  "deploymentId": "default",
+  "accountId": "01M58FBT1JMBNSKZVHV25XMZQ1",
+  "library": [
+    {
+      "name": "1bc04b5291c26a46d918139138b992d2de976d6851d0893b0476b85bfbdfc6e6.rec",
+      "sizeBytes": 118,
+      "sha256": "a069ef8cd56870f29f6ca27b48071798b3c6cc8f659cee8b9353601cc7385241"
+    },
+    {
+      "name": "844132f8278cb73cea1215b123558eef616bd524366bd8d4ce5be18983e66b18.rec",
+      "sizeBytes": 1050,
+      "sha256": "bcee75135616dc372f24ca1ed70ebf3a35eeae702addba8e0af1071e4773325d"
+    },
+    {
+      "name": "b4bcdcc345295749a427d06db40db696b08e82f99c464f6206120fad68248396.rec",
+      "sizeBytes": 11253,
+      "sha256": "71974966220533f22081318e7b103e90698b8df868243fed581a38bc5c4dc678"
+    }
+  ],
+  "leases": [
+    {
+      "name": "c7f168f598832c1e2a67a78d5e72c37386b0b71eedfc8d40a235749d5da64dc4.rec",
+      "sizeBytes": 1535,
+      "sha256": "06927acca8804a89924b925401d4b114ac2a7846460eb66015ab64580df6f78e"
+    }
+  ],
+  "records": [
+    {
+      "store": "library",
+      "name": "1bc04b5291c26a46d918139138b992d2de976d6851d0893b0476b85bfbdfc6e6.rec",
+      "sizeBytes": 118,
+      "sha256": "a069ef8cd56870f29f6ca27b48071798b3c6cc8f659cee8b9353601cc7385241"
+    },
+    {
+      "store": "library",
+      "name": "844132f8278cb73cea1215b123558eef616bd524366bd8d4ce5be18983e66b18.rec",
+      "sizeBytes": 1050,
+      "sha256": "bcee75135616dc372f24ca1ed70ebf3a35eeae702addba8e0af1071e4773325d"
+    },
+    {
+      "store": "library",
+      "name": "b4bcdcc345295749a427d06db40db696b08e82f99c464f6206120fad68248396.rec",
+      "sizeBytes": 11253,
+      "sha256": "71974966220533f22081318e7b103e90698b8df868243fed581a38bc5c4dc678"
+    },
+    {
+      "store": "feed-cursors",
+      "name": "3e25d8e706da6bc21e3cdd0b24353ef785e4e8dbd59178b6600ab7817c545ff3.rec",
+      "sizeBytes": 409,
+      "sha256": "065d306791db7ddd353110768aba346e0c77b57cf478b46e2aa30af21d2095cc"
+    },
+    {
+      "store": "doc-index",
+      "name": "adfb44a5098d7bf37247aa54327ebbb9ff1718d8a0be370de6a25c730ffbb776.rec",
+      "sizeBytes": 277,
+      "sha256": "c0a688be6ecc5567e1d4658a40a036cdb43aa95345548b346a434a71d04c9ab4"
+    },
+    {
+      "store": "offline-leases",
+      "name": "c7f168f598832c1e2a67a78d5e72c37386b0b71eedfc8d40a235749d5da64dc4.rec",
+      "sizeBytes": 1535,
+      "sha256": "06927acca8804a89924b925401d4b114ac2a7846460eb66015ab64580df6f78e"
+    }
+  ],
+  "pinRecords": [
+    "844132f8278cb73cea1215b123558eef616bd524366bd8d4ce5be18983e66b18.rec"
+  ],
+  "copies": []
+}

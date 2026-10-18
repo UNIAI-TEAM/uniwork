@@ -1,0 +1,2 @@
+$ bash scripts/office/g5g6g7/harness/stop.sh || true; for r in fl1 fl2 fl3 r2-1 r2-2 r2-3 r2-4 r2-5 r2-6 r3-1 r3-2 r3-3 r3-4 r3-5 r3-6 r4-1 r4-2 r4-3 r4-4 r4-5 r4-6 r5-1 r5-2 r5-3 r5-4 r5-5 r5-6 r6-1 r6-2 r6-3 r7-1 r7-2; do [ -d ".harness-run-$r" ] && HARNESS_RUN_DIR="$PWD/.harness-run-$r" bash scripts/office/g5g6g7/harness/stop.sh; done; true
+harness: no pid file at /workspace/.harness-run/pids; nothing to stop
