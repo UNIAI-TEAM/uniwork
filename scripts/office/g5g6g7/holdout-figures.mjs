@@ -11,10 +11,12 @@
 //       pageCount), but only when the reply or report.items names that kind; never across reads, never an inferred kind.
 //       The kind is named by a CLOSED phrase right beside the figure (or by the item's own anchor), never by a word further on, and a
 //       modified kind ("changed paragraphs") names nothing. The level digit of a heading-level phrase is a LABEL, not a count (R21-1).
+//       The level wording is ONE closed table, a level word optionally led by one adjacent preposition ("headings at level 2", vi "tiêu đề ở cấp 2").
 // The values of APPLIED writes are a further source, listed in EXTRA_SOURCES so the lead can switch it off. The user's own
 // request is NOT a source (review-g712-20 G712-R20-2): a number copied from the question is never a figure. A PROSE figure that
 // merely echoes a question number (same value and same unit or marker, `echoesQuestion`) is exempt from the trace: it cannot fail
 // an answer, and it credits nothing (it is no source, no operand, no count and fills no numeric slot).
+// The echo is counted by occurrence: the question's own mentions are taken out of the shown operands (`echoOccurrences`, round k, R22-1).
 //
 // A quantity keeps its unit: a figure with a unit or magnitude marker (k, m, bn, tr, triệu, tỷ, nghìn, ngàn, %, a
 // currency) matches only a source value with the same marker, or a percent derivation for %. A bare number never
@@ -340,10 +342,15 @@ const KIND_WORDS = [
 // heading level only beside an explicit level word ("level 2 sections", "mục cấp 2"), never a bare "section 2" or "mục 2".
 const HEADING_WORDS = 'headings?|tieu de';
 const SECTION_WORDS = 'sections?|muc';
+// ONE closed table of level wording: the level word, optionally led by ONE preposition ("headings at level 2", "tiêu đề ở cấp 2").
+// The preposition is adjacent to the level word and the digit, so no window reaches a later or earlier content word.
+const LEVEL_WORDS = 'level|lvl|cap';
+const LEVEL_PREPS = 'at|of|on|o';
+const LEVEL_PHRASE = `(?:(?:${LEVEL_PREPS}) )?(?:${LEVEL_WORDS})`;
 const HEADING_RES = [
-  new RegExp(`^${COUNT_LEAD}(?:${HEADING_WORDS})(?: level| lvl| cap)? ([1-6])${COUNT_TAIL}$`),
-  new RegExp(`^${COUNT_LEAD}(?:level|lvl|cap) ([1-6]) (?:${HEADING_WORDS}|${SECTION_WORDS})${COUNT_TAIL}$`),
-  new RegExp(`^${COUNT_LEAD}(?:${SECTION_WORDS}) (?:level|lvl|cap) ([1-6])${COUNT_TAIL}$`),
+  new RegExp(`^${COUNT_LEAD}(?:${HEADING_WORDS})(?: ${LEVEL_PHRASE})? ([1-6])${COUNT_TAIL}$`),
+  new RegExp(`^${COUNT_LEAD}(?:${LEVEL_WORDS}) ([1-6]) (?:${HEADING_WORDS}|${SECTION_WORDS})${COUNT_TAIL}$`),
+  new RegExp(`^${COUNT_LEAD}(?:${SECTION_WORDS}) ${LEVEL_PHRASE} ([1-6])${COUNT_TAIL}$`),
   new RegExp(`^${COUNT_LEAD}h ([1-6]) (?:${HEADING_WORDS})${COUNT_TAIL}$`),
 ];
 
@@ -498,6 +505,8 @@ const CONNECTORS = new Set(['is', 'are', 'was', 'were', 'be', 'la', 'co', 'gom',
 // Words that may stand right before a kind phrase without modifying it ("the slides", "number of sheets"); any other word
 // before it makes a modified kind ("changed paragraphs"), which names nothing.
 const KIND_LEAD_OK = new Set([...CONNECTORS, 'the', 'a', 'an', 'there', 'this', 'that', 'these', 'those', 'number', 'count', 'so', 'luong', 'tong', 'and', 'va', 'with', 'has', 'have']);
+// The longest closed kind phrase in words ("tieu de o cap 2"), the one bound of every phrase scan below.
+const KIND_MAX_WORDS = 5;
 const wordsOf = (text) => foldAscii(text).match(/[\p{L}\d]+/gu) ?? [];
 
 /**
@@ -509,14 +518,14 @@ export function kindsNear(text, q) {
   const source = String(text ?? '');
   const tail = source.slice(q.end, q.end + 80);
   const after = wordsOf(tail.slice(0, (SENTENCE_END_RE.exec(tail) ?? { index: tail.length }).index));
-  for (let len = 1; len <= 4; len += 1) {
+  for (let len = 1; len <= KIND_MAX_WORDS; len += 1) {
     const kinds = kindsOfName(after.slice(0, len).join(' '));
     if (kinds.length > 0) return kinds;
   }
   const head = source.slice(Math.max(0, q.start - 80), q.start);
   const before = wordsOf(head.split(/[.!?;\n]/).at(-1));
   while (before.length > 0 && CONNECTORS.has(before.at(-1))) before.pop();
-  for (let len = 1; len <= 4; len += 1) {
+  for (let len = 1; len <= KIND_MAX_WORDS; len += 1) {
     const kinds = kindsOfName(before.slice(-len).join(' '));
     const lead = before.at(-len - 1);
     if (kinds.length > 0 && (lead === undefined || KIND_LEAD_OK.has(lead))) return kinds;
@@ -539,7 +548,7 @@ export function labelKindOf(text, q, namedKinds = null) {
   const before = wordsOf(sentence(String(text ?? '').slice(Math.max(0, q.start - 80), q.start)));
   const after = wordsOf(String(text ?? '').slice(q.end, q.end + 80).split(/[.!?;\n]/)[0]);
   const digit = String(level);
-  for (let b = 0; b <= 3; b += 1) {
+  for (let b = 0; b <= KIND_MAX_WORDS - 1; b += 1) {
     for (let a = 0; a <= 3; a += 1) {
       const phrase = [...before.slice(before.length - b), digit, ...after.slice(0, a)].join(' ');
       if (kindsOfName(phrase).includes(`heading_level_${level}`)) return `heading_level_${level}`;

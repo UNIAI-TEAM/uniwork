@@ -324,6 +324,12 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
      đếm; ô số đếm chỉ lấy từ mục đếm có loại (anchor) riêng khớp đúng số đếm trong một lần đọc. Dấu đánh dấu số đếm gắn theo từng
      mục (giá trị → các loại của mục đó) và một số có đơn vị hay tiền tệ (ví dụ `3%`) không bao giờ đi đường chỉ-số-đếm. Hàng rào
      code chỉ đóng bằng cùng ký tự với độ dài không ngắn hơn; chú thích HTML và mã nội dòng không chứa tiêu đề.
+     Vòng k (R22-2): tên loại tiêu đề theo cấp là **một bảng đóng**, giới từ (nếu có) đứng ngay trước chữ cấp và chữ số, không có
+     cửa sổ sang từ khác. Tập cụm được nhận (đã gấp dấu và chữ hoa): en `headings level 2`, `headings at level 2`, `headings of level 2`,
+     `headings on level 2`, `level 2 headings` / `level-2 headings`, `h2 headings`, `sections level 2`, `sections at level 2`; vi
+     `tiêu đề cấp 2`, `tiêu đề ở cấp 2`, `heading cấp 2`, `mục cấp 2`, `mục ở cấp 2` (cả `heading 2` và `tiêu đề 2` không chữ cấp). "mục"/
+     "section" vẫn cần chữ cấp rõ ràng; một giới từ phải đi kèm chữ cấp (`headings at 2` không đạt). Một từ khác chen giữa danh từ đếm và
+     cấp (`headings only at level 2`, `tiêu đề thường ở cấp 2`) không đạt: chữ số cấp thành một số bịa.
 3. **Mọi con số trong lời văn và mọi giá trị của `report.numbers`** phải truy về một trong ba nguồn: (a) lá của một lần đọc
    thành công, tính theo từng lần gọi và theo số lần xuất hiện; (b) kết quả của một lần `compute` thành công; (c) một phép suy
    ra được phép (tổng, hiệu, tỷ lệ hoặc phần trăm của hai toán hạng đã hiện trong câu trả lời, hoặc tổng của mọi toán hạng cùng
@@ -354,6 +360,10 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
      Nó không bao giờ cộng điểm: không là nguồn, không là toán hạng, không là số đếm và không điền ô `expected.numeric`.
      `report.numbers` không có ngoại lệ này (dòng báo cáo chứa số của chính câu trả lời nên vẫn phải truy được). Một số của câu hỏi
      viết với đơn vị khác (`10` so với `10k`) không phải nhắc lại và chịu luật chặt.
+     Vòng k (R22-1): lần nhắc lại cũng **không bao giờ là toán hạng hiện ra** của một phép suy ra. Số lần xuất hiện mà câu hỏi nêu
+     (mỗi giá trị và đơn vị, lấy số lần lớn nhất giữa bản vi và bản en để không đếm đôi) được trừ khỏi các toán hạng lời văn hiện ra;
+     một lần nhắc thêm của cùng giá trị là của chính câu trả lời và vẫn là toán hạng. Phần dư đã biết: nếu câu trả lời bỏ cụm của câu
+     hỏi và chỉ nêu giá trị một lần thì lần đó bị tính là nhắc lại (chặt hơn, không bao giờ rộng hơn).
    - **Số thứ tự vị trí** (quyết định của lead, vòng j, J-1): một **số nguyên trong lời văn** đứng ngay sau một danh từ vị trí số ít
      (`slide`, `page`, `sheet`, `trang`, `trang chiếu`; giữa danh từ và số chỉ được có `#`, `no.` hoặc `số`) là một **vị trí**
      ("(slide 3)", "trang 2"), không phải số liệu, và được miễn truy vết **chỉ khi** một lần đọc thành công của lượt này giữ vị trí
