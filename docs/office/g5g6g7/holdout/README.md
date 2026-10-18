@@ -327,6 +327,10 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
    - Kiểu vi và en (`1.234,5` / `1,234.5`) đều được nhận; token mơ hồ khớp nếu một trong hai cách đọc truy được.
    - Phần trăm và bậc độ lớn được giữ nguyên là đơn vị, không quy đổi: `%`, `k`, `m`, `bn`, `tr`, `triệu`, `tỷ`, `nghìn`, `ngàn`.
      Số trần không khớp nguồn có đơn vị và ngược lại (`60k` không phải `60000`).
+     **Ngoại lệ duy nhất, chỉ cho `report.numbers`** (vòng h, H-1): số của `report.numbers` là số trần theo giao thức của footer
+     (phần trăm viết bằng đơn vị phần trăm), nên một số trần ở đó truy được tới lá hoặc kết quả compute có đúng đơn vị `%` cùng giá
+     trị (`25` khớp ô `25%`). Mọi bậc độ lớn khác (`k`, `m`, `bn`, `tr`, `triệu`, `tỷ`, `nghìn`, `ngàn`) và tiền tệ mâu thuẫn vẫn
+     chặt trong `report.numbers`; lời văn giữ nguyên chặt (`25` trong lời văn không khớp ô `25%`, `25%` không khớp ô trần `25`).
    - **Tiền tệ là cách trình bày, không phải đơn vị** (trả lời của lead, Q1): nhãn tiền tệ trên một số trần của nguồn thì đạt
      (`1.234.000 đồng`, `1.234.000 VND` với ô `1234000`). Nhãn tiền tệ **mâu thuẫn** với tiền tệ mà chính nguồn cho thấy
      (định dạng số của ô, tiêu đề, văn bản đọc được hoặc văn bản tài liệu) thì trượt, lý do `currency` (ví dụ `USD60` khi tài
