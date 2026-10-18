@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
-import { createDocsFrameApi, createOfficeFrameSourceApi, docsFrameApiBase, docsFrameSrc, docsFrameToken, type DocsFrameCall } from "./docs-frame-api";
+import { createDocsFrameApi, createOfficeFrameApi, createOfficeFrameSourceApi, docsFrameApiBase, docsFrameSrc, docsFrameToken, type DocsFrameCall } from "./docs-frame-api";
 
 // The transport here is the frame client's fetch: injected, never the network.
 
@@ -471,6 +471,65 @@ describe("createDocsFrameApi saveAs", () => {
       status: 413,
       details: { apiCode: "file_too_large", max_bytes: 104857600 },
     });
+  });
+
+  it("preserves .txt extension and text/plain mime on save and saveAs in the markdown module while keeping .md defaults (UNI-1813)", async () => {
+    const TXT_DOC = {
+      ...DOC,
+      title: "ghi-chu.txt",
+      module: "markdown",
+      file: { ...DOC.file, filename: "ghi-chu.txt", mime_type: "text/plain" },
+    };
+    const TXT_COMMITTED = {
+      ...TXT_DOC,
+      revision: "8",
+      file: { ...TXT_DOC.file, version_id: "v-4", version: 4 },
+    };
+    const TXT_COPY = { ...COPY, title: "ban-sao" };
+    const TXT_OPENED = {
+      ...TXT_DOC,
+      document_id: "doc-2",
+      title: "ban-sao",
+      revision: "1",
+      file: { ...TXT_DOC.file, filename: "ban-sao.txt", version_id: "v-c1" },
+    };
+    configureRuntime({ apiUrl: API });
+    setAccessToken("session-tok");
+    const fake = fakeFetch({
+      "GET /api/v1/office-frame/documents/doc-1": () => json(TXT_DOC),
+      "POST /api/v1/office-frame/documents/doc-1/uploads": () =>
+        json({ upload_id: "up-1", checksum_sha256: "x", size_bytes: 4, claim_expires_at: "2026-10-08T11:00:00Z" }),
+      "POST /api/v1/office-frame/documents/doc-1/versions/commit": () => json(TXT_COMMITTED),
+      "GET /api/v1/documents/doc-1": () =>
+        json({ document: { id: "doc-1", workspace_id: "ws-1", kind: "file", title: "ghi-chu.txt", revision: "7", parent_id: "folder-src" } }),
+      "POST /api/v1/workspaces/ws-1/documents/files": () => json({ document: TXT_COPY }),
+      "POST /api/v1/documents/doc-2/office/frame-token": () => json({ ...COPY_TOKEN, module: "markdown" }),
+      "GET /api/v1/office-frame/documents/doc-2": () => json(TXT_OPENED),
+    });
+    vi.stubGlobal("fetch", fake.fetch);
+    const mdApi = createOfficeFrameApi("markdown", { apiUrl: API, fetch: fake.fetch });
+
+    await mdApi.save({ fileId: "doc-1", data: new TextEncoder().encode("plain\n").buffer, etag: "7" }, call());
+    const saveUpload = fake.calls.find((c) => c.path.endsWith("/uploads"))!;
+    const savedPart = (saveUpload.init.body as FormData).get("file") as File;
+    expect(savedPart.name).toBe("ghi-chu.txt");
+    expect(savedPart.type).toBe("text/plain");
+
+    await mdApi.saveAs!({ name: "ban-sao.txt", data: new TextEncoder().encode("plain copy\n").buffer }, call());
+    const txtCreate = fake.calls.filter((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")[0]!;
+    const txtForm = txtCreate.init.body as FormData;
+    const txtFile = txtForm.get("file") as File;
+    expect(txtFile.name).toBe("ban-sao.txt");
+    expect(txtFile.type).toBe("text/plain");
+    expect(txtForm.get("title")).toBe("ban-sao");
+
+    await mdApi.saveAs!({ name: "ghi-chu-md", data: new TextEncoder().encode("# md\n").buffer }, call());
+    const mdCreate = fake.calls.filter((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")[1]!;
+    const mdForm = mdCreate.init.body as FormData;
+    const mdFile = mdForm.get("file") as File;
+    expect(mdFile.name).toBe("ghi-chu-md.md");
+    expect(mdFile.type).toBe("text/markdown");
+    expect(mdForm.get("title")).toBe("ghi-chu-md");
   });
 });
 

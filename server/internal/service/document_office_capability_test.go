@@ -130,6 +130,57 @@ func TestDocumentOfficeCapability(t *testing.T) {
 	}
 }
 
+func TestDocumentOfficeCapabilityForTxtAndPlainText(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, "# Ghi chu\n")
+	svc := f.service(newScriptedEngine())
+
+	// Flag off (default): .txt is not openable and answers format_not_supported.
+	f.reseed(t, "ghi-chu.txt", []byte("dong 1\ndong 2\n"))
+	if _, err := svc.Capability(ctx, f.actor, f.doc); err == nil {
+		t.Fatal("flag-off .txt document answered a capability")
+	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
+		t.Fatalf("flag-off .txt refusal = %+v", ee)
+	}
+
+	// Flag on: .txt (and .TXT) resolves to FormatMD, while .csv and .log
+	// (even when sniffed as text/plain) never open in the frame.
+	f.docs.SetFlags(staticDocFlags{"office_txt_open": true})
+	caps, err := svc.Capability(ctx, f.actor, f.doc)
+	if err != nil {
+		t.Fatalf("flag-on .txt capability: %v", err)
+	}
+	if caps.Format != office.FormatMD {
+		t.Fatalf("flag-on .txt format = %q, want %q", caps.Format, office.FormatMD)
+	}
+	f.reseed(t, "README.TXT", []byte("PLAIN TEXT\n"))
+	if caps, err := svc.Capability(ctx, f.actor, f.doc); err != nil || caps.Format != office.FormatMD {
+		t.Fatalf("flag-on .TXT capability = %+v, %v", caps, err)
+	}
+	f.reseed(t, "server.log", []byte("a,b\n1,2\n"))
+	if _, err := svc.Capability(ctx, f.actor, f.doc); err == nil {
+		t.Fatal("server.log answered a capability")
+	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
+		t.Fatalf("server.log refusal = %+v", ee)
+	}
+	for _, c := range []struct {
+		mime, name string
+		want       office.Format
+	}{
+		{"text/plain", "ghi-chu.txt", office.FormatMD},
+		{"application/octet-stream", "README.TXT", office.FormatMD},
+		{"text/csv", "bang.csv", ""},
+		{"text/plain", "bang.csv", ""},
+		{"text/plain; charset=utf-8", "server.log", ""},
+		{"text/plain", "khong-duoi", ""},
+	} {
+		got, ok := officeFormatForFile(files.File{Filename: c.name, ContentType: c.mime})
+		if got != c.want || ok != (c.want != "") {
+			t.Fatalf("officeFormatForFile(%q, %q) = %q, %v; want %q", c.mime, c.name, got, ok, c.want)
+		}
+	}
+}
+
 func TestDocumentOfficeNegotiationGates(t *testing.T) {
 	ctx := context.Background()
 	f := newOfficeFixture(t, "# Ghi chu\n")

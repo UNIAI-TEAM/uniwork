@@ -183,6 +183,9 @@ func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Doc
 			return format, nil
 		}
 	}
+	if isTxtFilename(f.Filename) && !s.documents.txtOpenEnabled(ctx, "", doc.WorkspaceID, doc.OrganizationID) {
+		return "", officeErr("unsupported_operation", "format_not_supported")
+	}
 	format, ok := officeFormatForFile(f)
 	if !ok {
 		return "", officeErr("unsupported_operation", "format_not_supported")
@@ -203,7 +206,7 @@ func officeFormatForFile(f files.File) (office.Format, bool) {
 		return office.FormatPPTX, true
 	case ".pdf":
 		return office.FormatPDF, true
-	case ".md", ".markdown":
+	case ".md", ".markdown", ".txt":
 		return office.FormatMD, true
 	case ".html", ".htm":
 		return office.FormatHTML, true
@@ -213,6 +216,10 @@ func officeFormatForFile(f files.File) (office.Format, bool) {
 		return office.FormatODT, true
 	}
 	return officeFormatFromMime(f.ContentType)
+}
+
+func isTxtFilename(filename string) bool {
+	return strings.EqualFold(path.Ext(filename), ".txt")
 }
 
 // officeFormatFromMime maps a verified content type to an engine format. Only

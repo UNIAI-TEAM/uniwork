@@ -201,6 +201,9 @@ func New(d Deps) http.Handler {
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
 	}
+	if d.Documents != nil && d.FeatureFlags != nil && d.Documents.IntentWiringForTest().Flags == nil {
+		d.Documents.SetFlags(d.FeatureFlags)
+	}
 	if d.DocumentSources == nil && d.Documents != nil {
 		d.DocumentSources = service.NewDocumentSourceService(service.DocumentSourceDeps{
 			Documents: d.Documents, Chat: d.Chat, Tasks: d.Tasks, Meetings: d.Meetings, EmailHub: d.EmailHub,

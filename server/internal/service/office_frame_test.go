@@ -182,7 +182,12 @@ func TestOfficeFrameModuleIsDerivedFromTheStoredFormat(t *testing.T) {
 		{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "", "sheets"},
 		{"application/vnd.ms-excel", "old.xls", ""},
 		{"application/vnd.oasis.opendocument.text", "a.odt", ""},
-		{"text/plain", "a.txt", ""},
+		{"text/plain", "a.txt", "markdown"},
+		{"application/octet-stream", "README.TXT", "markdown"},
+		{"text/csv", "a.csv", ""},
+		{"text/plain", "a.csv", ""},
+		{"text/plain", "a.log", ""},
+		{"text/plain", "noext", ""},
 		{"image/png", "a.png", ""},
 	} {
 		got, ok := officeFrameModuleOf(c.mime, c.name)

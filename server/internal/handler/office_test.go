@@ -124,6 +124,9 @@ func newOfficeWorldTweaked(t *testing.T, enableFlag bool, engine func(*filesfake
 	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
 	docs.SetFiles(fake)
+	if d.FeatureFlags != nil {
+		docs.SetFlags(d.FeatureFlags)
+	}
 	d.Documents = docs
 	d.Office = service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: fake, Engine: engine(fake), Documents: docs,
