@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+81d39fb5a6ebe476b8532e477fce6d72776d9cab
+81d39fb5a fix(documents): type the share rows t and drop Promise.withResolvers in the test (UNI-1914)
+233987dea test(i18n): re-pin breakGlass.lockedTitle/memberBody to the private wording (UNI-1914)
+6421ee7d5 feat(documents): Shared-by-me scope ladder + accessible scope composition (UNI-1914)
+fd59b01e4 fix(documents): share popup polish — layout, focus, a11y names, private wording (UNI-1914)
+eb379d63a refactor(documents): split share-access-list into rows + list modules (UNI-1914)
+fb4587ca5 test(e2e): read the voice duration at the start of its line (UNI-1908)
+a7b1cccda test(e2e): confirm the organization revoke in its row (UNI-1784)
+57a6ce311 test(web): the guide's formats table lists Slides with export PDF (UNI-1901)
