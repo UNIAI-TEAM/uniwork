@@ -10,7 +10,7 @@ import { officeFrameKeys, useOfficeFrameSourceToken, useOfficeFrameToken } from 
 import type { OfficeFrameSourceToken, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameToken, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
-import { DocsProtocolError, type FileMeta, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
+import type { FileMeta, ProtocolErrorShape, TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
 import {
   armWatchdog,
   attachFrameBundleProbe,
@@ -41,6 +41,7 @@ import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwar
 import { createFrameApiProxy } from "./frame-api-proxy";
 import { createFirstSaveGate } from "./first-save-gate";
 import { useFrameRemote } from "./use-frame-remote-source";
+import { onCloseRequestedEvent, runHostSave } from "./frame-close-requested";
 
 /**
  * The host half of one Docs frame on the vendored protocol host: the token
@@ -66,13 +67,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const sourceTokenQuery = useOfficeFrameSourceToken(wsId, scopeId, { enabled: isSource });
   const tokenQuery = isSource ? sourceTokenQuery : docTokenQuery;
   const token = tokenQuery.data ? docsFrameToken(tokenQuery.data) : null;
-  // A module other than Docs also honours the minted token's can_edit, so a view-only user is
-  // treated as readonly even when the page did not say so (Docs keeps the page's readonly).
-  // Not holding the page's edit lock (acquiring, someone else, lost) is view-only too (UNI-1645).
-  // A source has no lock to hold: it is view-only already and never reads one.
+  // Every module honours the minted token's can_edit, so a view-only user is treated as
+  // readonly even when the page did not say so. Not holding the page's edit lock (acquiring,
+  // someone else, lost) is view-only too (UNI-1645). A source has no lock to hold.
   const editLock = isSource ? null : options.editLock;
   const lockedOut = editLock != null && !editLock.held;
-  const viewOnly = isSource || options.readonly || (module !== "docs" && tokenQuery.data?.can_edit === false) || lockedOut;
+  const viewOnly = isSource || options.readonly || tokenQuery.data?.can_edit === false || lockedOut;
   const copyRefused = isSource || options.readonly || tokenQuery.data?.can_edit === false;
   const editLockId = editLock?.held ? editLock.lockId : undefined;
   const [status, setStatus] = useState<DocsFrameStatus>("booting");
@@ -138,6 +138,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     firstSaveGate.current.reset();
     const life: FrameLife = { state: "live" };
     frameLife.current = life;
+    const saveWatchRef = hostSave;
+    // Saves this endpoint has in flight, counted per session: a save of the disposed session
+    // that settles after a retry must not decrement the new session's count and let Esc leave
+    // while the new session's own save is still open.
+    const saves = { n: 0 };
     // `endpoint` is assigned below, before any frame can open anything to announce.
     const remote = createFrameRemoteVersion({
       // A source is not a documents row: there is no remote feed for it.
@@ -189,7 +194,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     const proxy = createFrameApiProxy(latest, currentToken);
 
     const saveAs = proxy("api.saveAs", true, (api) => api.saveAs);
-    const saveCopy = proxy("api.saveCopy", true, (api) => api.saveCopy);
+    const rawSaveCopy = proxy("api.saveCopy", true, (api) => api.saveCopy);
+    const saveCopy: typeof rawSaveCopy = async (payload, context) => {
+      saves.n += 1;
+      try { return await rawSaveCopy(payload, context); } finally { saves.n = Math.max(0, saves.n - 1); }
+    };
     const open = proxy("api.open", false, (api) => api.open);
     const upload = proxy("api.save", true, (api) => api.save);
     // A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
@@ -201,10 +210,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // Once retry or unmount retired this endpoint, a late answer belongs to nobody: the session
     // that replaced it keeps its own state.
     const tracked = <T,>(run: () => Promise<T>, settled: (result: T) => DocsFrameSaveState) => {
+      saves.n += 1;
       setSaveState("saving");
       return run().then(
-        (result) => { if (life.state !== "disposed") setSaveState(settled(result)); return result; },
+        (result) => { saves.n = Math.max(0, saves.n - 1); if (life.state !== "disposed") setSaveState(settled(result)); return result; },
         (error: unknown) => {
+          saves.n = Math.max(0, saves.n - 1);
           if (life.state === "disposed") throw error;
           const blockedMax = saveBlockedMaxBytes(error, latest.current.documentLimits.upload_max_bytes);
           if (blockedMax !== null && life.state === "live") {
@@ -448,6 +459,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (error.code === "too_large" && !isFatal && saveBlockedOpen.current) return;
       latest.current.options.onError(error, { fatal: isFatal });
     });
+    onCloseRequestedEvent(endpoint, {
+      isLiveAndReady: () => life.state === "live" && booted && !frameDocGone,
+      isSaving: () => saves.n > 0 || hostSave.current !== null || firstSaveGate.current.asking() > 0,
+      isModalOrBlocked: () => modalOpen.current || saveBlockedOpen.current,
+      onCloseRequested: () => { latest.current.options.onCloseRequested?.(); },
+    });
     const detachProbe = attachFrameBundleProbe({
       iframe,
       frameSrc: latest.current.options.frameSrc,
@@ -468,7 +485,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       // this endpoint may arm a timer or write state after this line.
       life.state = "disposed";
       latest.current.options.comments?.detach();
-      const watch = hostSave.current;
+      const watch = saveWatchRef.current;
       if (watch?.life === life && watch.timer !== null) { clearTimeout(watch.timer); watch.timer = null; }
       endpoint.dispose();
       if (remoteRef.current === remote) remoteRef.current = null;
@@ -498,67 +515,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   useEffect(() => { host?.setTheme(theme); }, [host, theme]);
   useEffect(() => { host?.setLanguage(locale); }, [host, locale]);
 
-  const save = useCallback(async (reason: "user" | "navigate"): Promise<DocsFrameSaveOutcome> => {
-    // One Save at a time: a second one (the page is inert while the frame's dialog is open) is refused, unsent.
-    const life = frameLife.current;
-    if (!host || hostSave.current || life.state !== "live") return "failed";
-    // UNI-1847 (SAVE-01, D2): a never-saved blank is named before its first upload. Cancel
-    // answers "cancelled" (the edits stay, the header stays unsaved); the name written, the
-    // same Save carries on - and every later one, the dialog never opens twice.
-    const naming = firstSaveGate.current.pendingName();
-    if (naming) {
-      if (!(await firstSaveGate.current.pageAsk(naming))) return "cancelled";
-      // The dialog may stay open a long time: a frame Save that joined it re-issued this Save
-      // already, and the frame may have been retried or gone meanwhile.
-      if (!host || hostSave.current || frameLife.current !== life || life.state !== "live") return "failed";
-    }
-    const watch: HostSaveWatch = { life, abort: new AbortController(), cause: null, settled: false, busy: 0, modal: modalOpen.current, stored: false, timer: null };
-    hostSave.current = watch;
-    armWatchdog(watch);
-    setSaveState("saving");
-    const fail = (error: ProtocolErrorShape): DocsFrameSaveOutcome => {
-      const blockedMax = saveBlockedMaxBytes(error, latest.current.documentLimits.upload_max_bytes);
-      // The size dialog already explains a blocked save: the header says unsaved, not "could not be confirmed".
-      setSaveState(blockedMax !== null ? "dirty" : "error");
-      if (blockedMax !== null) {
-        saveBlockedOpen.current = true;
-        setSaveBlocked({ maxBytes: blockedMax });
-        return "failed";
-      }
-      if (error.code === "too_large" && saveBlockedOpen.current) return "failed";
-      latest.current.options.onError(error, { fatal: false });
-      return "failed";
-    };
-    try {
-      // No request timeout: the frame's conflict dialog may stay open as long as the user reads it.
-      const result = await host.save({ reason }, { timeoutMs: 0, signal: watch.abort.signal });
-      if (result.ok) {
-        // A new version (Overwrite, or a plain save) reads "saved"; Reload latest stores nothing and reads "ready".
-        const stored = Boolean(result.versionId) || watch.stored;
-        if (stored) savedOnce.current = true;
-        setSaveState(stored ? "saved" : "ready");
-        return stored ? "saved" : "reloaded";
-      }
-      // Only the frame's own Cancel is silent: the edits stay, unsaved.
-      if (result.error.code === "cancelled") { setSaveState("dirty"); return "cancelled"; }
-      return fail(result.error);
-    } catch (error) {
-      // The frame failed for good: its failure is already on screen (and reported once), and this Save ends with it.
-      if (watch.cause === "fatal") { setSaveState("error"); return "failed"; }
-      const caused = hostSaveCauseError(watch.cause);
-      if (caused) return fail(caused);
-      const shape = shapeOf(error);
-      // The session itself went away (retry, unmount): nobody is left to tell, and the session
-      // that replaced it keeps its own header.
-      if (shape.code === "cancelled") { if (watch.life.state !== "disposed") setSaveState("dirty"); return "cancelled"; }
-      return fail(shape);
-    } finally {
-      watch.settled = true;
-      if (watch.timer !== null) clearTimeout(watch.timer);
-      watch.timer = null;
-      if (hostSave.current === watch) hostSave.current = null;
-    }
-  }, [host]);
+  const save = useCallback(
+    (reason: "user" | "navigate"): Promise<DocsFrameSaveOutcome> =>
+      runHostSave({ reason, host, frameLife, hostSave, firstSaveGate, modalOpen, savedOnce, saveBlockedOpen, latest, setSaveState, setSaveBlocked }),
+    [host],
+  );
   pageSave.current = save;
 
   const print = useCallback(async () => {

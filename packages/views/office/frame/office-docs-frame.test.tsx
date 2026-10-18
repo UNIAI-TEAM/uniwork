@@ -125,7 +125,7 @@ async function boot(frame: ReturnType<typeof fakeFrame>) {
   await waitFor(() => expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull());
 }
 
-afterEach(() => { toastError.mockReset(); toastSuccess.mockReset(); requestMock.mockReset(); });
+afterEach(() => { toastError.mockReset(); toastSuccess.mockReset(); requestMock.mockReset(); vi.mocked(navigation.push).mockReset(); vi.mocked(navigation.replace).mockReset(); vi.mocked(navigation.back).mockReset(); });
 
 describe("OfficeDocsFrame", () => {
   it("serves the pinned build same-origin and hands the token over in init once the frame is ready", async () => {
@@ -999,6 +999,96 @@ describe("OfficeDocsFrame", () => {
       // The leave dialog remains open so the user can stay on the page.
       fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
       await expect(leaving).resolves.toBe(false);
+    });
+  });
+
+  describe("close_requested from the frame (UNI-1876, UNI-1901)", () => {
+    it("leaves a clean document view (editor or read-only viewer) on close_requested and leaves again when the first push kept it mounted", async () => {
+      mount({ libraryHref: "/acme/ops/documents", readonly: true });
+      const frame = fakeFrame();
+      await boot(frame);
+
+      await frame.event("close_requested", { reason: "escape" });
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(1));
+      expect(navigation.push).toHaveBeenCalledWith("/acme/ops/documents");
+
+      // A push that did not unmount the frame (same href, an adapter that refused): the next
+      // Esc is not swallowed, it leaves again.
+      await frame.event("close_requested", { reason: "escape" });
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(2));
+    });
+
+    it("runs the existing leave guard (showing the leave dialog) when dirty, ignores a second event while the leave dialog is open, and allows another close after Stay", async () => {
+      mount({ libraryHref: "/acme/ops/documents" });
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      spyFrameFocus();
+
+      await frame.event("close_requested", { reason: "escape" });
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      expect(navigation.push).not.toHaveBeenCalled();
+
+      // While the leave dialog sits on top, another close_requested is ignored (does not reset or dismiss the pending leave).
+      await frame.event("close_requested", { reason: "escape" });
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(navigation.push).not.toHaveBeenCalled();
+
+      // Choosing Stay closes the dialog without navigating; a subsequent close_requested opens it again, and Discard navigates.
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(navigation.push).not.toHaveBeenCalled();
+
+      await frame.event("close_requested", { reason: "escape" });
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Bỏ thay đổi" }));
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(1));
+      expect(navigation.push).toHaveBeenCalledWith("/acme/ops/documents");
+
+      // A push that left the frame mounted does not latch the leave: another close_requested
+      // runs the guard again, so the still-dirty document shows the leave dialog once more.
+      await frame.event("close_requested", { reason: "escape" });
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(navigation.push).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores close_requested while a save is in flight, while the frame modal is open, or while another host dialog sits on top", async () => {
+      let finishSave!: (v: { ok: true; file: typeof FILE; versionId: string }) => void;
+      const save = vi.fn(() => ({ then: (onFulfilled: (v: { ok: true; file: typeof FILE; versionId: string }) => void) => { finishSave = onFulfilled; } } as unknown as Promise<{ ok: true; file: typeof FILE; versionId: string }>));
+      mount({ libraryHref: "/acme/ops/documents" }, fakeApi({ save }));
+      const frame = fakeFrame();
+      await boot(frame);
+
+      // Mid-save: ignored.
+      const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "e1" });
+      await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-save-state", "saving"));
+      await frame.event("close_requested", { reason: "escape" });
+      expect(navigation.push).not.toHaveBeenCalled();
+      await act(async () => { finishSave({ ok: true, file: FILE, versionId: "v2" }); });
+      await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
+
+      // Frame modal open: ignored.
+      await frame.event("modal", { open: true });
+      await frame.event("close_requested", { reason: "escape" });
+      expect(navigation.push).not.toHaveBeenCalled();
+      await frame.event("modal", { open: false });
+
+      // Host dialog open (e.g. save_blocked or another dialog in the page): ignored.
+      const hostDialog = document.createElement("div");
+      hostDialog.setAttribute("role", "dialog");
+      document.body.append(hostDialog);
+      try {
+        await frame.event("close_requested", { reason: "escape" });
+        expect(navigation.push).not.toHaveBeenCalled();
+      } finally {
+        hostDialog.remove();
+      }
+
+      // With no dialog and no save in flight, close_requested leaves.
+      await frame.event("close_requested", { reason: "escape" });
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(1));
     });
   });
 });

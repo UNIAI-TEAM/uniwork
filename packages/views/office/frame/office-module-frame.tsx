@@ -14,6 +14,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
+import { useOptionalNavigation } from "../../navigation";
 import { registerLeaveGuard } from "../../navigation/leave-guard";
 import type { DesktopOpenOutcome } from "../desktop-open-action";
 import { LeaveDialog } from "../leave-dialog";
@@ -31,6 +32,7 @@ import { useDocsFrameSession } from "./use-docs-frame-session";
 import type { OfficeFrameFileRef } from "./docs-frame-session-model";
 import { useFrameEditLock } from "./frame-edit-lock";
 import { useFrameComments } from "./use-frame-comments";
+import { hasHostDialogAbove, requestDocumentFrameLeave } from "./frame-close-requested";
 import { useFirstSaveNaming } from "./first-save-naming";
 
 export interface OfficeModuleFrameControls {
@@ -74,6 +76,8 @@ export interface OfficeModuleFrameProps {
   onFrameCommentsChange?: (framePanel: boolean) => void;
   /** The session failed for good (mint refused, bundle missing, handshake timeout): the host may close the frame's host surface. */
   onSessionFailure?: (failure: ProtocolErrorShape) => void;
+  /** Called when the frame sends `close_requested {reason: 'escape'}`; defaults on a document route to leaving to `libraryHref` through the leave guard. */
+  onCloseRequested?: () => void;
   /** Stored document size in bytes, for the size-based lag banner fallback when the browser lacks a lag PerformanceObserver. */
   fileSizeBytes?: number | null;
   /** The open document row (UNI-1847): an unnamed blank's first save asks for its name. */
@@ -120,7 +124,7 @@ function useFrameTheme(): Theme {
 export function OfficeModuleFrame({
   module, wsId, fileRef, title, frameVersion, api, readonly = false, fitContent = false,
   onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId,
-  onFrameCommentsChange, onSessionFailure, fileSizeBytes, documentDetail, hasLagObserver, lagStorage, className,
+  onFrameCommentsChange, onSessionFailure, onCloseRequested, fileSizeBytes, documentDetail, hasLagObserver, lagStorage, className,
 }: OfficeModuleFrameProps) {
   const isSource = fileRef.kind === "source";
   const frameApi = api ?? defaultFrameApi(module, isSource);
@@ -141,6 +145,8 @@ export function OfficeModuleFrame({
   // The header action's flow, which the frame's `app.open` ("use the app" message) runs too.
   const appOpenRef = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
 
+  const navigation = useOptionalNavigation();
+  const leavingByEscRef = useRef(false);
   const lag = useFrameLagBanner({
     iframeRef, frameOrigin, module, documentId: fileRef.id,
     fileSizeBytes, hasLagObserver, lagStorage,
@@ -169,6 +175,9 @@ export function OfficeModuleFrame({
     readonly: readonly || isSource,
     // Only a stored document has the comments the binding serves.
     comments: isSource ? undefined : frameComments.binding,
+    // The same my_level the binding reads: a `comment` level keeps a can_edit === false
+    // token out of the readOnly profile, so the commenter still comments (RFH-1).
+    myLevel,
     locale: i18n.language, theme,
     onTitle: (next) => { setFrameTitle(next); onTitleChange?.(next); },
     onSaved,
@@ -197,6 +206,13 @@ export function OfficeModuleFrame({
       if (error.code === "cancelled" || (fatal && onSessionFailureRef.current)) return;
       const key = KNOWN_ERRORS.has(error.code) ? error.code : "internal";
       toast.error(tRef.current(`errors.${key}`));
+    },
+    onCloseRequested: () => {
+      if (onCloseRequested) {
+        if (!hasHostDialogAbove(containerRef.current)) onCloseRequested();
+        return;
+      }
+      requestDocumentFrameLeave({ container: containerRef.current, libraryHref, navigation, leaveOpen, leavingRef: leavingByEscRef });
     },
   });
   notifyRenamedRef.current = session.notifyRenamed;
