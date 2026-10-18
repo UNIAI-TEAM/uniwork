@@ -133,11 +133,19 @@ export function createBudgetTracker({
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let missingUsageCalls = 0;
+  let missingObservationCalls = 0;
   const perRun = [];
 
   return {
     canStartNextRun() {
-      // G708-R2-7: a model call that reported no usage left the running total unknown - fail closed.
+      // G708-R2-7 / G708-R3-1: a turn whose model call was not observed, or whose response
+      // reported no usage, left the running total unknown - fail closed.
+      if (missingObservationCalls > 0) {
+        return {
+          allowed: false,
+          verdict: blockedVerdict('missing_model_call_observation', { missingObservationCalls }),
+        };
+      }
       if (missingUsageCalls > 0) {
         return {
           allowed: false,
@@ -163,8 +171,10 @@ export function createBudgetTracker({
         inputTokens: Number(usage?.inputTokens ?? 0) || 0,
         outputTokens: Number(usage?.outputTokens ?? 0) || 0,
         missingUsageCalls: Number(usage?.missingUsageCalls ?? 0) || 0,
+        missingObservationCalls: Number(usage?.missingObservationCalls ?? 0) || 0,
       };
       missingUsageCalls += entry.missingUsageCalls;
+      missingObservationCalls += entry.missingObservationCalls;
       totalModelCalls += entry.modelCalls;
       totalInputTokens += entry.inputTokens;
       totalOutputTokens += entry.outputTokens;
@@ -177,6 +187,7 @@ export function createBudgetTracker({
         inputTokens: totalInputTokens,
         outputTokens: totalOutputTokens,
         missingUsageCalls,
+        missingObservationCalls,
         maxOutputTokens,
         guardOutputTokens,
         perRun: [...perRun],
@@ -295,6 +306,7 @@ export async function runG708Matrix(
           inputTokens: totals.inputTokens,
           outputTokens: totals.outputTokens,
           missingUsageCalls: totals.missingUsageCalls,
+          missingObservationCalls: totals.missingObservationCalls,
         },
       };
     } else {

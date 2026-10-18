@@ -92,6 +92,7 @@ export class InterruptedAiTurnError extends Error {
       inputTokens: Number(usage?.inputTokens ?? 0) || 0,
       outputTokens: Number(usage?.outputTokens ?? 0) || 0,
       missingUsageCalls: Math.max(1, Number(usage?.missingUsageCalls ?? 0) || 0),
+      missingObservationCalls: Number(usage?.missingObservationCalls ?? 0) || 0,
     };
   }
 }
@@ -201,6 +202,7 @@ export function evaluateWireObservation({ requests = [], responses = [], sawTurn
     return {
       ...usage,
       unobserved: true,
+      missingObservationCalls: 0,
       reason: 'missing_usage_on_model_call',
       detail: { requests: requests.length, responses: responses.length, missingUsageCalls: usage.missingUsageCalls },
     };
@@ -209,11 +211,12 @@ export function evaluateWireObservation({ requests = [], responses = [], sawTurn
     return {
       ...usage,
       unobserved: true,
+      missingObservationCalls: 1,
       reason: 'missing_model_call_observation',
       detail: { requests: 0, responses: responses.length, sawTurnEffects },
     };
   }
-  return { ...usage, unobserved: false, reason: null, detail: null };
+  return { ...usage, unobserved: false, missingObservationCalls: 0, reason: null, detail: null };
 }
 
 /**

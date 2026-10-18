@@ -272,6 +272,7 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     assert.equal(empty.unobserved, true);
     assert.equal(empty.reason, 'missing_model_call_observation');
     assert.equal(empty.modelCalls, 0);
+    assert.equal(empty.missingObservationCalls, 1, 'the budget must fail closed on it too');
 
     // A request with no response at all.
     const noResponse = evaluateWireObservation({ requests: [{ body: {} }], responses: [], sawTurnEffects: true });
@@ -301,7 +302,7 @@ describe('G7-08 w2e save-observe pure helpers', () => {
     });
     assert.deepEqual(counted, {
       modelCalls: 1, inputTokens: 100, outputTokens: 20, missingUsageCalls: 0,
-      unobserved: false, reason: null, detail: null,
+      unobserved: false, missingObservationCalls: 0, reason: null, detail: null,
     });
   });
 
