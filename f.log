@@ -1,0 +1,42 @@
+$ git rev-parse HEAD; xvfb-run --auto-servernum -- npm run test:e2e -- e2e/html-tab.spec.ts --repeat-each 3 2>&1 | tail -60; echo HTML_TAB_REPEAT_EXIT=${PIPESTATUS[0]}
+e4685d12c5c68a752a3e1cb55623a50d635375d3
+
+> genoffice@0.1.0 test:e2e
+> playwright test --config e2e/playwright.config.ts e2e/html-tab.spec.ts --repeat-each 3
+
+
+Running 24 tests using 1 worker
+
+(node:7684) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/html-tab.spec.ts:8:7 › html editor › AI HTML quick card opens an html editor tab in preview view with a ribbon (1.6s)
+  ✓   2 e2e/html-tab.spec.ts:42:7 › html editor › opens an .html file from argv, renders it in the preview, edits and saves it back (1.4s)
+  ✓   3 e2e/html-tab.spec.ts:98:7 › html editor › relative stylesheets and images next to the file load in the preview (2.5s)
+  ✓   4 e2e/html-tab.spec.ts:162:7 › html editor › saving without edits keeps BOM, CRLF and the missing trailing newline byte-identical (1.0s)
+  ✓   5 e2e/html-tab.spec.ts:187:7 › html editor › AI panel toggles from the toolbar and accepts an instruction (1.8s)
+  ✓   6 e2e/html-tab.spec.ts:272:7 › html editor › preview inspector: click selects, double-click edits text, toolbar deletes, Ask AI drafts (4.2s)
+  ✓   7 e2e/html-tab.spec.ts:444:7 › html editor › Ctrl+Z inside the preview undoes the last edit; pinch over the frame zooms the stage (2.0s)
+  ✓   8 e2e/html-tab.spec.ts:498:7 › html editor › Ctrl+F searches the source pane and Replace All saves the rewritten markup (1.7s)
+(node:8420) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   9 e2e/html-tab.spec.ts:8:7 › html editor › AI HTML quick card opens an html editor tab in preview view with a ribbon (1.6s)
+  ✓  10 e2e/html-tab.spec.ts:42:7 › html editor › opens an .html file from argv, renders it in the preview, edits and saves it back (1.5s)
+  ✓  11 e2e/html-tab.spec.ts:98:7 › html editor › relative stylesheets and images next to the file load in the preview (2.7s)
+  ✓  12 e2e/html-tab.spec.ts:162:7 › html editor › saving without edits keeps BOM, CRLF and the missing trailing newline byte-identical (1.1s)
+  ✓  13 e2e/html-tab.spec.ts:187:7 › html editor › AI panel toggles from the toolbar and accepts an instruction (1.9s)
+  ✓  14 e2e/html-tab.spec.ts:272:7 › html editor › preview inspector: click selects, double-click edits text, toolbar deletes, Ask AI drafts (4.2s)
+  ✓  15 e2e/html-tab.spec.ts:444:7 › html editor › Ctrl+Z inside the preview undoes the last edit; pinch over the frame zooms the stage (2.0s)
+  ✓  16 e2e/html-tab.spec.ts:498:7 › html editor › Ctrl+F searches the source pane and Replace All saves the rewritten markup (1.6s)
+(node:9158) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  17 e2e/html-tab.spec.ts:8:7 › html editor › AI HTML quick card opens an html editor tab in preview view with a ribbon (2.2s)
+  ✓  18 e2e/html-tab.spec.ts:42:7 › html editor › opens an .html file from argv, renders it in the preview, edits and saves it back (1.4s)
+  ✓  19 e2e/html-tab.spec.ts:98:7 › html editor › relative stylesheets and images next to the file load in the preview (2.6s)
+  ✓  20 e2e/html-tab.spec.ts:162:7 › html editor › saving without edits keeps BOM, CRLF and the missing trailing newline byte-identical (1.0s)
+  ✓  21 e2e/html-tab.spec.ts:187:7 › html editor › AI panel toggles from the toolbar and accepts an instruction (2.0s)
+  ✓  22 e2e/html-tab.spec.ts:272:7 › html editor › preview inspector: click selects, double-click edits text, toolbar deletes, Ask AI drafts (4.3s)
+  ✓  23 e2e/html-tab.spec.ts:444:7 › html editor › Ctrl+Z inside the preview undoes the last edit; pinch over the frame zooms the stage (2.0s)
+  ✓  24 e2e/html-tab.spec.ts:498:7 › html editor › Ctrl+F searches the source pane and Replace All saves the rewritten markup (1.7s)
+
+  24 passed (51.3s)
+HTML_TAB_REPEAT_EXIT=0
