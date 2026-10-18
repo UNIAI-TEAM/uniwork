@@ -33,7 +33,7 @@ export function sourceOpenAction(source: Pick<DocumentSourceFile, "name" | "mime
   return "download";
 }
 
-const FORMAT_BY_EXTENSION: Record<string, string> = { docx: "docx", xlsx: "xlsx", pptx: "pptx", pdf: "pdf", md: "md", markdown: "md", html: "html", htm: "html" };
+const FORMAT_BY_EXTENSION: Record<string, string> = { docx: "docx", xlsx: "xlsx", pptx: "pptx", pdf: "pdf", md: "md", markdown: "md", html: "html", htm: "html", txt: "md" };
 
 /** The `officeModuleForFormat` id of a source file: its extension first, then its mime type (the document host's rule). */
 function sourceFormat(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension">): string {

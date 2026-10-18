@@ -370,7 +370,11 @@ func (f *Fake) RegisterProviderOutput(_ context.Context, in files.ProviderOutput
 
 	id := files.FileID(f.newID())
 	f.entries[id] = &entry{
-		file:        files.File{ID: id, OrganizationID: in.Scope.OrganizationID, Status: files.StatusPending},
+		file: files.File{
+			ID: id, OrganizationID: in.Scope.OrganizationID,
+			Filename: files.SanitizeFilename("") + spec.Policy.ObjectKeySuffix,
+			Status:   files.StatusPending,
+		},
 		spec:        spec,
 		scope:       in.Scope,
 		actor:       in.Actor,

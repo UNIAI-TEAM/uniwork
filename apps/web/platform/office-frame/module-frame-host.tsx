@@ -19,6 +19,10 @@ export interface OfficeEditorHostProps {
   wsId: string;
   readonly: boolean;
   className?: string;
+  /** The document page's resolved Office format when it has one; the host
+   * trusts it instead of re-reading the flags, so a format whose gate the
+   * leave guards still hold stays routed to its module. */
+  officeFormat?: string | null;
 }
 
 type ModuleHostProps = OfficeEditorHostProps & { module: OfficeModule };
