@@ -1,0 +1,11 @@
+$ (. scripts/local-env.sh && cd server && go test -race ./internal/service -run "^(TestLinkRevokeAfterAccessConfirmDoesNotBlock|TestDocument.*Access.*|TestDocument.*Link.*|TestDocument.*Share.*)$" -count=1 -v -timeout 30m > /tmp/p0e-go.log 2>&1); rc=$?; echo; echo "GO_SVC_EXIT=$rc"; grep -cE "^\s*--- PASS" /tmp/p0e-go.log; grep -E "^\s*--- FAIL|DATA RACE|panic:|no tests to run" /tmp/p0e-go.log | head -30; grep -E "TestLinkRevokeAfterAccessConfirmDoesNotBlock" /tmp/p0e-go.log | head -5; tail -3 /tmp/p0e-go.log
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+
+GO_SVC_EXIT=0
+78
+=== RUN   TestLinkRevokeAfterAccessConfirmDoesNotBlock
+--- PASS: TestLinkRevokeAfterAccessConfirmDoesNotBlock (0.42s)
+--- PASS: TestDocumentWorkspaceAccessChangedAuditAndOutbox (0.45s)
+PASS
+ok  	github.com/unicomhub/uniwork/server/internal/service	16.830s

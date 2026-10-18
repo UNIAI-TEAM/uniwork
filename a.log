@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+2d0b03889c4f43656307cf4ee306eb9deff28692
+2d0b03889 test(documents): narrow the access-requests list before asserting rows (UNI-1914)
+f67c9a867 fix(documents): open the people list on click, not on focus (UNI-1914)
+02a59d4d9 fix(documents): hide access requests when the server has no route (UNI-1914)
+5e6bb7ad2 test(documents): pin that a link revoke after an access confirm completes (UNI-1914)
+7b5ea5e23 chore: merge UPLOAD-DIALOG-POLISH (UNI-1906, 8271bbce7) into the G5-G7 root
+fb4587ca5 test(e2e): read the voice duration at the start of its line (UNI-1908)
+a7b1cccda test(e2e): confirm the organization revoke in its row (UNI-1784)
+57a6ce311 test(web): the guide's formats table lists Slides with export PDF (UNI-1901)
