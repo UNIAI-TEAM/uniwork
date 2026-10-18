@@ -12,7 +12,8 @@ import { ApiError } from "@uniwork/core/api/http";
 import { requestMock, wrap } from "../../test/api-mock";
 import { DocsFrameRefusalContext, useDocsFrameRefusal } from "./docs-frame-refusal";
 import type { FrameDesktopOpenProps } from "./frame-desktop-open";
-import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
+import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
+import { HeaderActionsMenuItems, HeaderActionsSlot, HeaderActionsSlotProvider } from "../../layout/header-actions-slot";
 import { leaveGuardAllows } from "../../navigation/leave-guard";
 import { OfficeModuleFrame } from "./office-module-frame";
 import { OfficeModuleOpenSwitch } from "./office-module-open-switch";
@@ -20,6 +21,20 @@ import { OfficeTooLargeProvider } from "../too-large-notice";
 
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
+
+// Modules whose grant lacks `print` (RHP-3): every module in the table grants it today, so the
+// host's narrowing is exercised by patching the grant for the modules this set names.
+const printlessModules = vi.hoisted(() => new Set<string>());
+vi.mock("@uniwork/core/office/office-modules", async (orig) => {
+  const original = await orig<typeof import("@uniwork/core/office/office-modules")>();
+  return {
+    ...original,
+    officeModuleSpec: (module: OfficeModule) => {
+      const spec = original.officeModuleSpec(module);
+      return printlessModules.has(module) ? { ...spec, grant: { ...spec.grant, print: false } } : spec;
+    },
+  };
+});
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
 const SOURCE_MINT_PATH = `/api/v1/workspaces/ws-1/documents/sources/${encodeURIComponent("chat:s-1")}/office/frame-token`;
@@ -41,7 +56,7 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, onSessionFailure, ackComments = false, ackCapabilities, fileRef, myLevel, documentDetail, extraRoutes }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; onSessionFailure?: (failure: unknown) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string }; myLevel?: string | null; documentDetail?: Document; extraRoutes?: (path: string, init?: { method?: string; body?: unknown }) => Promise<unknown> | undefined } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, menu = false, fileActions = false, onFrameCommentsChange, onSessionFailure, ackComments = false, ackCapabilities, fileRef, myLevel, documentDetail, extraRoutes }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; onSessionFailure?: (failure: unknown) => void; ackComments?: boolean; inHeader?: boolean; /** Render the header's overflow menu so the frame's contributed items can be clicked. */ menu?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string }; myLevel?: string | null; documentDetail?: Document; extraRoutes?: (path: string, init?: { method?: string; body?: unknown }) => Promise<unknown> | undefined } = {}) {
   const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
   requestMock.mockImplementation((path: string, init?: { method?: string; body?: unknown }) => {
     const routed = extraRoutes?.(path, init);
@@ -58,7 +73,13 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
         <DocsFrameRefusalContext.Provider value={refuse ?? null}>
-          {inHeader ? <HeaderActionsSlotProvider><HeaderActionsSlot />{framed}</HeaderActionsSlotProvider> : framed}
+          {inHeader ? (
+            <HeaderActionsSlotProvider>
+              {menu ? <DropdownMenu open><DropdownMenuContent><HeaderActionsMenuItems /></DropdownMenuContent></DropdownMenu> : null}
+              <HeaderActionsSlot />
+              {framed}
+            </HeaderActionsSlotProvider>
+          ) : framed}
         </DocsFrameRefusalContext.Provider>
       </ThemeProvider>
     </QueryClientProvider>,
@@ -96,7 +117,7 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
   };
 }
 
-afterEach(async () => { requestMock.mockReset(); toast.error.mockReset(); toast.success.mockReset(); toast.dismiss.mockReset(); resetAuthStoreForTests(); await endOfficeDraftSession(); });
+afterEach(async () => { printlessModules.clear(); requestMock.mockReset(); toast.error.mockReset(); toast.success.mockReset(); toast.dismiss.mockReset(); resetAuthStoreForTests(); await endOfficeDraftSession(); });
 
 describe("OfficeModuleFrame", () => {
   it("serves the module's build and grants it only what its frame implements", async () => {
@@ -183,6 +204,99 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(onSessionFailure).toHaveBeenCalledTimes(1));
     expect(toast.error).not.toHaveBeenCalled();
   });
+
+  it("adds Print to the page menu only once a print-capable frame is ready, for a viewer too", async () => {
+    const frame = mountFrame("markdown", { inHeader: true, menu: true });
+    expect(screen.queryByRole("menuitem", { name: "In" })).toBeNull();
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(await screen.findByRole("menuitem", { name: "In" })).toBeInTheDocument();
+    cleanup();
+
+    // A view-only reader still may print (the readOnly grant keeps `print`).
+    const viewer = mountFrame("markdown", { canEdit: false, inHeader: true, menu: true });
+    await viewer.ready({ module: "markdown" });
+    await waitFor(() => expect(viewer.inits()).toHaveLength(1));
+    expect(await screen.findByRole("menuitem", { name: "In" })).toBeInTheDocument();
+  });
+
+  it("prints once per menu click, staying disabled while that print is open", async () => {
+    const frame = mountFrame("sheets", { inHeader: true, menu: true });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await screen.findByRole("menuitem", { name: "In" });
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "In" }));
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(1));
+    expect(frame.sent("print")[0]?.payload).toMatchObject({ mode: "dialog" });
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "In" })).toHaveAttribute("aria-disabled", "true"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "In" }));
+    await new Promise<void>((resolve) => { setTimeout(resolve, 50); });
+    expect(frame.sent("print")).toHaveLength(1);
+
+    await frame.respond(frame.sent("print")[0]!, { printed: true });
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "In" })).not.toHaveAttribute("aria-disabled", "true"));
+  });
+
+  it("sends the frame one print for repeated Ctrl+P while the first is still open", async () => {
+    const frame = mountFrame("markdown");
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true });
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(1));
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true });
+    // Let a second request post if one is coming: the dedupe must hold past a macrotask.
+    await new Promise<void>((resolve) => { setTimeout(resolve, 50); });
+    expect(frame.sent("print")).toHaveLength(1);
+
+    // A next press after the answer prints again: the dedupe is only for the open print.
+    await frame.respond(frame.sent("print")[0]!, { printed: true });
+    fireEvent.keyDown(window, { key: "p", ctrlKey: true });
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(2));
+  });
+
+  it("shows no Print entry for a read-only source viewer", async () => {
+    const frame = mountFrame("markdown", { fileRef: { kind: "source", id: "chat:s-1" }, inHeader: true, menu: true });
+    await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === SOURCE_MINT_PATH)).toBe(true));
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+    expect(screen.queryByRole("menuitem", { name: "In" })).toBeNull();
+  });
+
+  it("offers no Print for a module whose grant drops `print`, and Ctrl+P stays the browser's (RHP-3)", async () => {
+    printlessModules.add("markdown");
+    const frame = mountFrame("markdown", { inHeader: true, menu: true });
+    await frame.ready({ module: "markdown" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { print: false } });
+    await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+
+    expect(screen.queryByRole("menuitem", { name: "In" })).toBeNull();
+    const press = new KeyboardEvent("keydown", { key: "p", ctrlKey: true, cancelable: true });
+    act(() => { window.dispatchEvent(press); });
+    expect(press.defaultPrevented).toBe(false);
+    expect(frame.sent("print")).toHaveLength(0);
+  });
+
+  it("re-enables Print after the frame refuses it, and the next click prints again (RHP-3)", async () => {
+    const frame = mountFrame("sheets", { inHeader: true, menu: true });
+    await frame.ready({ module: "sheets" });
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await screen.findByRole("menuitem", { name: "In" });
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "In" }));
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(1));
+    await frame.respondError(frame.sent("print")[0]!, { code: "cancelled", message: "user closed the dialog" });
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "In" })).not.toHaveAttribute("aria-disabled", "true"));
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "In" }));
+    await waitFor(() => expect(frame.sent("print")).toHaveLength(2));
+    await frame.respond(frame.sent("print")[1]!, { printed: true });
+  });
+
 
   it("takes back its comments claim when the frame unmounts, so the page's own panel returns", async () => {
     const onFrameCommentsChange = vi.fn();
