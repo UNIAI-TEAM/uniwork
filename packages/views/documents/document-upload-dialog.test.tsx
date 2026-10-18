@@ -27,6 +27,13 @@ describe("DocumentUploadDialog", () => {
     // button is the control.
     const input = screen.getByLabelText(t("documents.upload.pick")) as HTMLInputElement;
     expect(input).toHaveClass("sr-only");
+    // Hidden from assistive tech so browse mode lists one control, and the
+    // button announces the chosen file through aria-describedby.
+    expect(input).toHaveAttribute("aria-hidden", "true");
+    const pickButton = screen.getByRole("button", { name: t("documents.upload.pick") });
+    const describedBy = pickButton.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toBe(screen.getByTestId("document-upload-selected"));
     expect(input).toHaveAttribute("tabindex", "-1");
     expect(screen.getByTestId("document-upload-selected")).toHaveTextContent(
       t("documents.upload.no_file"),
@@ -40,6 +47,7 @@ describe("DocumentUploadDialog", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     expect(onPickFile).toHaveBeenCalledWith(file);
+    expect(document.getElementById(describedBy!)).toHaveTextContent("báo-cáo.pdf");
     expect(screen.getByTestId("document-upload-selected")).toHaveTextContent("báo-cáo.pdf");
     clickSpy.mockRestore();
   });

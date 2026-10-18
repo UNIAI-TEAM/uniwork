@@ -74,6 +74,7 @@ export function DocumentUploadDialog({
   const [inputKey, setInputKey] = useState(0);
   const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
   const shareHintId = useId();
+  const selectedNameId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const effectiveShare = parentShared || shareWithWorkspace;
   const sendShare = showShareToggle && effectiveShare && !parentShared;
@@ -164,6 +165,7 @@ export function DocumentUploadDialog({
               accept={accept}
               aria-label={t("documents.upload.pick")}
               className="sr-only"
+              aria-hidden="true"
               tabIndex={-1}
               disabled={isBusy}
               onChange={(event) => {
@@ -177,12 +179,14 @@ export function DocumentUploadDialog({
                 type="button"
                 variant="outline"
                 disabled={isBusy}
+                aria-describedby={selectedNameId}
                 onClick={() => inputRef.current?.click()}
               >
                 <FilePlus aria-hidden className="size-3.5" />
                 {t("documents.upload.pick")}
               </Button>
               <p
+                id={selectedNameId}
                 className="truncate text-caption text-muted-foreground"
                 data-testid="document-upload-selected"
               >
