@@ -43,6 +43,7 @@ import {
   listChatNicknames,
   setChatNickname,
   searchChatGifs,
+  getChatRoomSharedSummary,
   listTrendingChatGifs,
   searchChatStickers,
   listTrendingChatStickers,
@@ -777,5 +778,28 @@ describe("chat endpoints", () => {
   it("getChatMediaStatus degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await getChatMediaStatus("ws1")).toEqual({ tenorEnabled: false });
+  });
+
+  it("getChatRoomSharedSummary degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ counts: "lots", recent_photos: [{ id: 1 }] }));
+    expect(await getChatRoomSharedSummary("ws1", "r1")).toEqual({
+      counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 },
+      recent_photos: [],
+    });
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("/chat/rooms/r1/shared-summary");
+  });
+
+  it("getChatRoomSharedSummary keeps a count and a photo whose optional fields drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        counts: { photo: 48, gif: "4", file: 12, link: 9, voice: 6 },
+        recent_photos: [{ message_id: "m1", title: "banner.png", url: "https://s/1", thumb_url: 3, created_at: "2026-10-17T10:00:00Z" }],
+      }),
+    );
+    const out = await getChatRoomSharedSummary("ws1", "r1");
+    expect(out.counts).toEqual({ photo: 48, gif: 0, video: 0, file: 12, link: 9, voice: 6 });
+    expect(out.recent_photos).toEqual([
+      { message_id: "m1", title: "banner.png", url: "https://s/1", thumb_url: undefined, created_at: "2026-10-17T10:00:00Z" },
+    ]);
   });
 });

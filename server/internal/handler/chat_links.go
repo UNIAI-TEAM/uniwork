@@ -127,6 +127,33 @@ func (h *handlers) listChatRoomLinkedTasks(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusOK, sdo.ChatRoomLinkedTaskListSDO{Tasks: out, Total: total})
 }
 
+func (h *handlers) getChatRoomSharedSummary(w http.ResponseWriter, r *http.Request) {
+	summary, err := h.Chat.RoomSharedSummary(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	photos := make([]sdo.ChatSharedPhotoDTO, 0, len(summary.RecentPhotos))
+	for _, p := range summary.RecentPhotos {
+		photos = append(photos, sdo.ChatSharedPhotoDTO{
+			MessageID: p.MessageID, FileID: p.FileID, Title: p.Title, URL: p.URL, ThumbURL: p.ThumbURL,
+			URLExpiresAt: formatURLExpiry(p.URLExpiresAt), CreatedAt: p.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	respondJSON(w, http.StatusOK, sdo.ChatRoomSharedSummarySDO{
+		Counts: sdo.ChatRoomSharedCountsDTO{
+			Photo: summary.Photos, GIF: summary.GIFs, Video: summary.Videos,
+			File: summary.Files, Link: summary.Links, Voice: summary.Voices,
+		},
+		RecentPhotos: photos,
+	})
+}
+
 func (h *handlers) deleteChatMessageLink(w http.ResponseWriter, r *http.Request) {
 	if err := h.Chat.UnlinkChatMessage(
 		r.Context(),

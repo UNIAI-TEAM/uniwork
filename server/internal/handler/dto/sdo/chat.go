@@ -369,6 +369,33 @@ type ChatRoomLinkedTaskListSDO struct {
 	Total int                     `json:"total" description:"Tổng số task được gắn từ phòng này" example:"7"`
 }
 
+// ChatRoomSharedCountsDTO is how many of each kind a room's timeline shares.
+type ChatRoomSharedCountsDTO struct {
+	Photo int `json:"photo" description:"Ảnh (tệp ảnh và ảnh chọn từ bộ chọn), không tính GIF" example:"48"`
+	GIF   int `json:"gif" description:"GIF (tệp image/gif và GIF từ bộ chọn)" example:"4"`
+	Video int `json:"video" description:"Video" example:"0"`
+	File  int `json:"file" description:"Tệp không phải ảnh, GIF hay video" example:"12"`
+	Link  int `json:"link" description:"Số URL http(s) trong các tin nhắn văn bản (mỗi URL một lần)" example:"9"`
+	Voice int `json:"voice" description:"Tin nhắn thoại" example:"6"`
+}
+
+// ChatSharedPhotoDTO is one of a room's newest photos.
+type ChatSharedPhotoDTO struct {
+	MessageID    string `json:"message_id" description:"Tin nhắn chứa ảnh" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	FileID       string `json:"file_id,omitempty" description:"Tệp đính kèm; trống với ảnh từ bộ chọn" example:"01J8X4FILE0N1P2Q3R4S5T6U7V"`
+	Title        string `json:"title" description:"Tên tệp hoặc mô tả ảnh" example:"banner-3.png"`
+	URL          string `json:"url,omitempty" description:"URL presign ngắn hạn (như khi tải tin nhắn); trống khi không ký được" example:"https://storage.example.com/uniwork/chat/files/01J8X4FILE?X-Amz-Signature=abc"`
+	ThumbURL     string `json:"thumb_url,omitempty" description:"URL presign ảnh thu nhỏ; bằng url khi chưa có bản thu nhỏ" example:"https://storage.example.com/uniwork/chat/files/01J8X4THUMB?X-Amz-Signature=abc"`
+	URLExpiresAt string `json:"url_expires_at,omitempty" description:"Thời điểm URL sớm nhất hết hạn (RFC3339)" example:"2026-10-18T22:00:00Z"`
+	CreatedAt    string `json:"created_at" description:"Thời điểm gửi (RFC3339)" example:"2026-10-17T17:05:00Z"`
+}
+
+// ChatRoomSharedSummarySDO is GET .../chat/rooms/{roomID}/shared-summary.
+type ChatRoomSharedSummarySDO struct {
+	Counts       ChatRoomSharedCountsDTO `json:"counts"`
+	RecentPhotos []ChatSharedPhotoDTO    `json:"recent_photos" description:"Tối đa 6 ảnh mới nhất, mới trước"`
+}
+
 // ChatUnreadTotalsDTO is what a set of rooms adds to a chat badge.
 type ChatUnreadTotalsDTO struct {
 	Unread   int `json:"unread" description:"Tin chưa đọc; phòng tắt thông báo chỉ góp số nhắc tên" example:"5"`

@@ -48,6 +48,13 @@ func registerChatLinks(r api, h Routes, chatWriteLimit func(http.Handler) http.H
 			sdo:         sdo.ChatRoomLinkedTaskListSDO{},
 			auth:        true,
 		})
+		lk.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/shared-summary", h.GetChatRoomSharedSummary, apiOp{
+			summary:     "Summarize media shared in a chat room",
+			description: "Số ảnh, GIF, video, tệp, liên kết, tin thoại trên dòng tin chính của phòng và tối đa 6 ảnh mới nhất (URL đã ký), không cần tải lịch sử.",
+			tags:        []string{"chat"},
+			sdo:         sdo.ChatRoomSharedSummarySDO{},
+			auth:        true,
+		})
 		lk.With(chatWriteLimit).Delete("/workspaces/{workspaceID}/chat/messages/{messageID}/links/{linkID}", h.DeleteChatMessageLink, apiOp{
 			summary:     "Unlink chat message",
 			description: "Gỡ một liên kết khỏi tin nhắn.",

@@ -142,6 +142,12 @@ export function insertCreatedRoomMessage(
   message: ChatMessageRecord,
 ): void {
   patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => insertCreatedTimelineMessage(existing, message));
+  invalidateRoomSharedSummary(qc, wsId, roomId);
+}
+
+/** A message created or deleted on the main timeline can change the info panel's media counts. */
+function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: string): void {
+  void qc.invalidateQueries({ queryKey: chatKeys.roomSharedSummary(wsId, roomId) });
 }
 
 function patchWorkspaceMessageListIfLoaded(
@@ -341,6 +347,7 @@ export async function fetchAndPatchChatMessage(
     // GET fills the preview. The frame names the sender: one's own message
     // (another tab or device) is not unread.
     if (created && !viewing && senderId !== currentUserId()) bumpUnreadLocally(qc, wsId, roomId);
+    if (created) invalidateRoomSharedSummary(qc, wsId, roomId);
     if (created) await refreshUnshownDefaultChannelPreview(qc, wsId, roomId, messageId);
     return;
   }
@@ -375,6 +382,7 @@ export function patchChatMessageDeleted(
   roomId: string,
   messageId: string,
 ): void {
+  invalidateRoomSharedSummary(qc, wsId, roomId);
   patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) =>
     roomTimelineHas(existing, messageId)
       ? mapRoomTimeline(existing, (page) => removeMessageFromList(page, messageId))

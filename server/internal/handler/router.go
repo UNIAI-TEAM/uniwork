@@ -661,6 +661,7 @@ func New(d Deps) http.Handler {
 		ListChatMessageLinks:             h.listChatMessageLinks,
 		ListChatRoomMessageLinks:         h.listChatRoomMessageLinks,
 		ListChatRoomLinkedTasks:          h.listChatRoomLinkedTasks,
+		GetChatRoomSharedSummary:         h.getChatRoomSharedSummary,
 		DeleteChatMessageLink:            h.deleteChatMessageLink,
 		SyncChatThreadTask:               h.syncChatThreadTask,
 		UnsyncChatThreadTask:             h.unsyncChatThreadTask,

@@ -37,6 +37,9 @@ export const chatKeys = {
     ["chat", "room-linked-tasks", wsId, roomId] as const,
   /** Prefix — a link or task change refreshes every room's linked tasks. */
   roomLinkedTasksRoot: (wsId: string) => ["chat", "room-linked-tasks", wsId] as const,
+  /** Shared-media counts and newest photos of one room (the info panel). */
+  roomSharedSummary: (wsId: string, roomId: string) =>
+    ["chat", "room-shared-summary", wsId, roomId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>

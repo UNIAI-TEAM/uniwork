@@ -477,6 +477,27 @@ describe("patchChatMessageDeleted", () => {
   });
 });
 
+describe("room shared summary", () => {
+  it("goes stale when a message is created or deleted, not when one is edited", async () => {
+    const qc = new QueryClient();
+    const key = chatKeys.roomSharedSummary("ws1", "room1");
+    const stale = () => qc.getQueryState(key)?.isInvalidated;
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([sampleMessage("m1", "2026-01-01T10:00:00Z")]));
+    qc.setQueryData(key, { counts: {}, recent_photos: [] });
+
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({ ...sampleMessage("m1", "2026-01-01T10:00:00Z"), body: "edited" });
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", false);
+    expect(stale()).toBe(false);
+
+    insertCreatedRoomMessage(qc, "ws1", "room1", sampleMessage("m2", "2026-01-01T10:01:00Z"));
+    expect(stale()).toBe(true);
+
+    qc.setQueryData(key, { counts: {}, recent_photos: [] });
+    patchChatMessageDeleted(qc, "ws1", "room1", "m2");
+    expect(stale()).toBe(true);
+  });
+});
+
 // UNI-1077: an infinite query writes back the pages it started from when a
 // fetch ends, so a patch applied meanwhile was lost.
 describe("patches while the room timeline fetches", () => {

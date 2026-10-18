@@ -446,6 +446,7 @@ type Routes struct {
 	ListChatMessageLinks             http.HandlerFunc
 	ListChatRoomMessageLinks         http.HandlerFunc
 	ListChatRoomLinkedTasks          http.HandlerFunc
+	GetChatRoomSharedSummary         http.HandlerFunc
 	DeleteChatMessageLink            http.HandlerFunc
 	SyncChatThreadTask               http.HandlerFunc
 	UnsyncChatThreadTask             http.HandlerFunc

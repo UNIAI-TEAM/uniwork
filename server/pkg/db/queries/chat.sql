@@ -913,3 +913,63 @@ SELECT
   now(), now(), now()
 ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING;
 
+
+-- name: GetChatRoomSharedSummary :many
+-- The info panel's shared media in one scan of a room's main timeline (the
+-- rows ListChatMessagesByRoom pages): how many photos, GIFs, videos, files,
+-- links and voice messages it holds, and its newest photos. Sorted the way
+-- the client sorts a loaded timeline (packages/views/chat/chat-person-shared.ts):
+-- an attachment by its content type, a picker body (![alt](https://allowed
+-- host/…)) by its alt prefix (stickers do not count), and every http(s) URL
+-- in a text body as one link. One row per recent photo, each carrying the
+-- counts; a single row with a NULL id when the room has no photo.
+WITH timeline AS (
+  SELECT
+    m.id, m.kind, m.body, m.metadata, m.created_at,
+    CASE WHEN m.kind = 'file' THEN COALESCE(m.metadata->>'content_type', '') END AS content_type,
+    substring(m.body FROM '^\s*!\[[^]]*\]\((https://(?:media\.tenor\.com|media\.giphy\.com|cdn\.jsdelivr\.net)(?::[0-9]+)?(?:[/?#][^)\s]*)?)\)\s*$')::text AS media_url,
+    btrim(COALESCE(substring(m.body FROM '^\s*!\[([^]]*)\]'), '')) AS media_alt
+  FROM chat_messages m
+  WHERE m.room_id = sqlc.arg(room_id)
+    AND m.workspace_id = sqlc.arg(workspace_id)
+    AND m.deleted_at IS NULL
+    AND m.thread_root_id IS NULL
+), classified AS (
+  SELECT
+    t.id, t.kind, t.body, t.metadata, t.created_at, t.media_url, t.media_alt,
+    CASE
+      WHEN t.kind = 'file' THEN CASE
+        WHEN t.content_type = 'image/gif' THEN 'gif'
+        WHEN t.content_type LIKE 'video/%' THEN 'video'
+        WHEN t.content_type LIKE 'image/%' THEN 'photo'
+        WHEN btrim(COALESCE(t.metadata->>'filename', '') || t.body) <> '' THEN 'file'
+      END
+      WHEN t.media_url IS NULL THEN NULL
+      WHEN split_part(t.media_alt, ':', 1) = 'sticker' THEN NULL
+      WHEN split_part(t.media_alt, ':', 1) = 'video' THEN 'video'
+      WHEN split_part(t.media_alt, ':', 1) = 'gif' OR lower(split_part(t.media_url, '?', 1)) LIKE '%.gif' THEN 'gif'
+      ELSE 'photo'
+    END AS bucket
+  FROM timeline t
+), counts AS (
+  SELECT
+    (count(*) FILTER (WHERE c.bucket = 'photo'))::int AS photo_count,
+    (count(*) FILTER (WHERE c.bucket = 'gif'))::int AS gif_count,
+    (count(*) FILTER (WHERE c.bucket = 'video'))::int AS video_count,
+    (count(*) FILTER (WHERE c.bucket = 'file'))::int AS file_count,
+    (COALESCE(sum(regexp_count(c.body, 'https?://[^]\s<>)]+', 1, 'i')) FILTER (WHERE c.kind = 'text' AND c.media_url IS NULL), 0))::int AS link_count,
+    (count(*) FILTER (WHERE c.kind = 'voice'))::int AS voice_count
+  FROM classified c
+), recent AS (
+  SELECT c.id, c.kind, c.metadata, c.created_at, c.media_url, c.media_alt
+  FROM classified c
+  WHERE c.bucket = 'photo'
+  ORDER BY c.created_at DESC, c.id DESC
+  LIMIT 6
+)
+SELECT
+  n.photo_count, n.gif_count, n.video_count, n.file_count, n.link_count, n.voice_count,
+  r.id, r.kind, r.metadata, r.created_at, r.media_url, r.media_alt
+FROM counts n
+LEFT JOIN recent r ON true
+ORDER BY r.created_at DESC, r.id DESC;
