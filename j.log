@@ -1,0 +1,64 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/office-markdown-web.spec.ts e2e/office-modules-web.spec.ts e2e/office-docs-web.spec.ts e2e/documents-home.spec.ts e2e/documents.spec.ts e2e/documents-source-chat.spec.ts e2e/documents-versions.spec.ts > /tmp/unone-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/unone-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/unone-E2E.log; grep -E "✘|\[failed\]" /tmp/unone-E2E.log | head -40; echo; echo "E2E_TARGETED_EXIT=$rc"
+
+Running 49 tests using 1 worker
+
+(node:18128) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18128) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 documents-home.spec.ts:49:1 › quick create, folder, move and the other-modules section on the owner's home (9.7s)
+  ✓   2 documents-home.spec.ts:124:1 › My Folder sub-nav row, personal folder view, localized tree label, Home create into My Folder, and system folder guards (3.9s)
+  ✓   3 documents-home.spec.ts:173:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.7s)
+  ✓   4 documents-home.spec.ts:285:3 › a view-only member › sees create controls at the root, none inside a folder shared at view level (2.7s)
+  ✓   5 documents-home.spec.ts:306:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level (2.5s)
+  ✓   6 documents-home.spec.ts:320:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ (5.4s)
+  ✓   7 documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message (3.2s)
+  ✓   8 documents-versions.spec.ts:27:1 › version checkpoint restores the working copy and a second session sees it (17.5s)
+  ✓   9 documents.spec.ts:84:1 › a page is created, typed into, and survives a reload (7.0s)
+  ✓  10 documents.spec.ts:132:1 › a file document takes a new version and downloads it (4.0s)
+  ✓  11 documents.spec.ts:169:1 › the library lists pages across its views and the tree opens one (5.8s)
+  ✓  12 documents.spec.ts:246:1 › the library and the page editor never call the Office service (2.5s)
+  -  13 office-docs-web.spec.ts:52:3 › frame serving › index.html carries the pinned CSP, same-origin framing and revalidation
+  -  14 office-docs-web.spec.ts:65:3 › frame serving › hashed assets and fonts are immutable and match the manifest digest
+  -  15 office-docs-web.spec.ts:78:3 › frame serving › an unpinned version is a 404 that still carries the locked-down policy
+  -  16 office-docs-web.spec.ts:84:3 › frame serving › the frame boots under its own CSP without a single violation
+  -  17 office-docs-web.spec.ts:121:3 › open, edit, save › a DOCX opens in the frame, an edit is saved as a new version and survives a reopen
+  -  18 office-docs-web.spec.ts:159:3 › open, edit, save › Save as makes a copy, the page follows it and the frame keeps editing the copy
+  -  19 office-docs-web.spec.ts:202:3 › open, edit, save › the first save of a never-saved blank names it before it uploads (UNI-1847, SAVE-01)
+  -  20 office-docs-web.spec.ts:249:3 › open, edit, save › an inserted image passes the frame CSP and is stored in the docx
+  -  21 office-docs-web.spec.ts:277:3 › open, edit, save › PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback
+  -  22 office-docs-web.spec.ts:304:3 › open, edit, save › a token mint the server refuses with feature_disabled shows the unavailable notice
+  -  23 office-docs-web.spec.ts:315:3 › open, edit, save › an organization override turning the flag off shows the unavailable notice and no frame mounts
+  -  24 office-docs-web.spec.ts:329:3 › bundle not installed › a flag-on organization sees the not-set-up notice and no iframe is mounted
+  -  25 office-markdown-web.spec.ts:30:3 › bundle installed › index.html is served with the module's pinned CSP and same-origin framing
+  -  26 office-markdown-web.spec.ts:64:5 › bundle installed › open, edit, save › a .md opens in the markdown frame and the handshake completes
+  -  27 office-markdown-web.spec.ts:80:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, light)
+  -  28 office-markdown-web.spec.ts:80:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (vi, dark)
+  -  29 office-markdown-web.spec.ts:80:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, light)
+  -  30 office-markdown-web.spec.ts:80:9 › bundle installed › open, edit, save › Open in desktop app sits in the frame header and opens the installer menu (en, dark)
+  -  31 office-markdown-web.spec.ts:94:5 › bundle installed › open, edit, save › an edit is saved as a new version and survives a reopen
+  -  32 office-markdown-web.spec.ts:115:5 › bundle installed › open, edit, save › with the flag off the unavailable notice shows and no frame mounts
+  -  33 office-markdown-web.spec.ts:130:3 › bundle not installed › a flag-on organization sees the not-set-up notice and no iframe is mounted
+  -  34 office-modules-web.spec.ts:115:5 › served headers › pdf: index.html is served with the pinned policy
+  -  35 office-modules-web.spec.ts:115:5 › served headers › html: index.html is served with the pinned policy
+  -  36 office-modules-web.spec.ts:115:5 › served headers › slides: index.html is served with the pinned policy
+  -  37 office-modules-web.spec.ts:115:5 › served headers › sheets: index.html is served with the pinned policy
+  -  38 office-modules-web.spec.ts:126:3 › served headers › html: preview.html is served with its own sandboxed policy, not the frame's
+  -  39 office-modules-web.spec.ts:167:5 › pdf module › a text.pdf opens in the pdf frame and the handshake completes
+  -  40 office-modules-web.spec.ts:180:5 › pdf module › a pdf frame bundle that answers 404 shows the load failure, not an endless skeleton
+  -  41 office-modules-web.spec.ts:191:7 › pdf module › a frame whose script is blocked shows the load failure at once and says why
+  -  42 office-modules-web.spec.ts:167:5 › html module › a page.html opens in the html frame and the handshake completes
+  -  43 office-modules-web.spec.ts:180:5 › html module › a html frame bundle that answers 404 shows the load failure, not an endless skeleton
+  -  44 office-modules-web.spec.ts:207:7 › html module › an edit in the html frame is saved as a new version
+  -  45 office-modules-web.spec.ts:167:5 › slides module › a deck.pptx opens in the slides frame and the handshake completes
+  -  46 office-modules-web.spec.ts:180:5 › slides module › a slides frame bundle that answers 404 shows the load failure, not an endless skeleton
+  -  47 office-modules-web.spec.ts:167:5 › sheets module › a book.xlsx opens in the sheets frame and the handshake completes
+  -  48 office-modules-web.spec.ts:180:5 › sheets module › a sheets frame bundle that answers 404 shows the load failure, not an endless skeleton
+  -  49 office-modules-web.spec.ts:207:7 › sheets module › an edit in the sheets frame is saved as a new version
+
+  37 skipped
+  12 passed (1.7m)
+  37 skipped
+  12 passed (1.7m)
+
+E2E_TARGETED_EXIT=0
