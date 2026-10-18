@@ -226,10 +226,13 @@ export function useUpdateChatRoomSettings(workspaceId: string) {
     mutationFn: (input: {
       roomId: string;
       name?: string;
+      /** The room's description; "" clears it. */
+      topic?: string;
       member_permissions?: Partial<chat.ChatRoomMemberPermissions>;
     }) =>
       chat.patchChatRoom(workspaceId, input.roomId, {
         name: input.name,
+        topic: input.topic,
         member_permissions: input.member_permissions,
       }),
     // Settings change no message (the server writes none): the timeline stays.

@@ -662,6 +662,9 @@ describe("message / thread link cache patches", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: chatKeys.messageLinks("ws1", "m1"),
     });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: chatKeys.roomLinkedTasksRoot("ws1"),
+    });
     expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toEqual(messages);
   });
 

@@ -228,6 +228,7 @@ SELECT
   r.member_set_key,
   r.member_permissions,
   r.avatar_file_id,
+  r.topic,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
   mem.notifications_muted,
@@ -405,6 +406,10 @@ UPDATE chat_rooms SET updated_at = now() WHERE id = $1;
 -- name: UpdateChatRoomName :exec
 -- tenant: by-id
 UPDATE chat_rooms SET name = $2, updated_at = now() WHERE id = $1;
+
+-- name: UpdateChatRoomTopic :exec
+-- tenant: by-id
+UPDATE chat_rooms SET topic = $2, updated_at = now() WHERE id = $1;
 
 -- name: SetChatRoomAvatar :exec
 -- NULL drops the group avatar; the caller holds the row FOR UPDATE.

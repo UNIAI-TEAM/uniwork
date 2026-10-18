@@ -422,6 +422,8 @@ export function invalidateChatMessageLinks(
 ): void {
   if (!messageId) return;
   void qc.invalidateQueries({ queryKey: chatKeys.messageLinks(wsId, messageId) });
+  // The message id does not name its room: refresh every open linked-task list.
+  void qc.invalidateQueries({ queryKey: chatKeys.roomLinkedTasksRoot(wsId) });
   // The room cache only fetches ids it lacks: forget this one so the open
   // timeline asks for its links, and nothing else, again.
   qc.setQueriesData<Map<string, unknown[]>>(

@@ -551,7 +551,7 @@ func (h *handlers) patchChatRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	perms, err := h.Chat.UpdateChatRoomSettings(
 		r.Context(), actorID, wsID, roomID,
-		service.UpdateChatRoomSettingsInput{Name: in.Name, MemberPermissions: merged},
+		service.UpdateChatRoomSettingsInput{Name: in.Name, Topic: in.Topic, MemberPermissions: merged},
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

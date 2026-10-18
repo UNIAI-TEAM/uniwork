@@ -480,6 +480,13 @@ func TestChatPollReminderNote(t *testing.T) {
 	}
 	pollMsg := out["message"].(map[string]any)
 	optionID := pollMsg["poll"].(map[string]any)["options"].([]any)[0].(map[string]any)["id"].(string)
+	// A false flag is sent, not dropped: the client reads a missing one as true.
+	settings := pollMsg["poll"].(map[string]any)["settings"].(map[string]any)
+	for _, k := range []string{"allow_multiple", "allow_add_options", "pin_to_top", "hide_results_until_vote", "hide_voters"} {
+		if v, ok := settings[k]; !ok || v != false {
+			t.Fatalf("poll settings %s=%v (present=%v), want an explicit false", k, v, ok)
+		}
+	}
 	pollID := pollMsg["id"].(string)
 
 	res, out = doJSON(t, srv, "POST", base+"/"+pollID+"/poll/vote", f.tokens["b"], map[string]string{"option_id": optionID})

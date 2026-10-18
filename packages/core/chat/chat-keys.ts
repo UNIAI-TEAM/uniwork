@@ -32,6 +32,11 @@ export const chatKeys = {
     ["chat", "room-message-links", wsId, roomId] as const,
   /** Prefix — any link change refreshes the batched room lookups. */
   roomMessageLinksRoot: (wsId: string) => ["chat", "room-message-links", wsId] as const,
+  /** Tasks linked from one room's messages (the info panel). */
+  roomLinkedTasks: (wsId: string, roomId: string) =>
+    ["chat", "room-linked-tasks", wsId, roomId] as const,
+  /** Prefix — a link or task change refreshes every room's linked tasks. */
+  roomLinkedTasksRoot: (wsId: string) => ["chat", "room-linked-tasks", wsId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>

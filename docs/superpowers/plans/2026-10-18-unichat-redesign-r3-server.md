@@ -25,6 +25,14 @@
   `highlight_items: [{text, source_message_id}]` cạnh `highlights`.
 - [x] **S5 — Giao diện** (sau R2): ✓✓ đã xem và "N người đã xem" trong menu tin, ảnh nhóm trong danh sách /
   header / sheet, "Xem tin gốc" cho từng điểm nổi bật.
+- [x] **S6 — Bảng thông tin: mô tả nhóm và việc từ cuộc trò chuyện** (UNI-1881, canvas `Main`). Mô tả dùng lại
+  cột `chat_rooms.topic` (không migration): `PATCH .../chat/rooms/{roomID}` nhận `topic` (≤280 ký tự, rỗng là
+  xoá), quyền như đổi tên, cùng audit `chat.room.settings_updated` và sự kiện `chat.room.updated`; danh sách
+  phòng và phòng vừa tạo trả `topic` cho nhóm. `GET .../chat/rooms/{roomID}/linked-tasks?limit=` →
+  `{tasks, total}` từ `chat_message_links`, mỗi task một lần, gắn gần nhất trước (mặc định 20, tối đa 50); cổng
+  `authorizeRoomRead`, chỉ task của workspace trên URL (task gắn từ workspace khác của DM/nhóm cấp tổ chức bị
+  bỏ). Client: `useChatRoomLinkedTasks`, `topic` trong `useUpdateChatRoomSettings`; làm mới khi liên kết hoặc
+  task đổi.
 
 ## Hoãn — cần quyết định của chủ sản phẩm
 

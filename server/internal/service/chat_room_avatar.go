@@ -183,6 +183,7 @@ func (s *ChatService) roomSummaryWithAvatar(ctx context.Context, userID string, 
 		return ChatRoomSummary{}, err
 	}
 	sum.AvatarURL = s.roomAvatarURL(ctx, room.ID, chatFileScope(room), room.AvatarFileID)
+	sum.Topic = room.Topic
 	return sum, nil
 }
 

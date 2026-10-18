@@ -153,6 +153,7 @@ func (s *ChatService) directRooms(ctx context.Context, userID, orgID, workspaceI
 			MemberPermissions:  memberPermissionsFromRaw(row.MemberPermissions),
 			PeerUserID:         row.PeerUserID, PeerEmail: row.PeerEmail, PeerDisplayName: row.PeerDisplayName,
 			LastReadAt: timePtr(row.MyLastReadAt), NotificationsMuted: row.NotificationsMuted,
+			Topic: row.Topic,
 		}
 		if row.Kind == chatRoomKindDM && strings.TrimSpace(summary.Name) == "" {
 			summary.Name = row.PeerDisplayName

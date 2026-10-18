@@ -1830,6 +1830,7 @@ SELECT
   r.member_set_key,
   r.member_permissions,
   r.avatar_file_id,
+  r.topic,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
   mem.notifications_muted,
@@ -1939,6 +1940,7 @@ type ListChatRoomsForMemberRow struct {
 	MemberSetKey          pgtype.Text        `json:"member_set_key"`
 	MemberPermissions     []byte             `json:"member_permissions"`
 	AvatarFileID          pgtype.Text        `json:"avatar_file_id"`
+	Topic                 string             `json:"topic"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
 	NotificationsMuted    bool               `json:"notifications_muted"`
@@ -1973,6 +1975,7 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.MemberSetKey,
 			&i.MemberPermissions,
 			&i.AvatarFileID,
+			&i.Topic,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
 			&i.NotificationsMuted,
@@ -2905,6 +2908,21 @@ type UpdateChatRoomNameParams struct {
 // tenant: by-id
 func (q *Queries) UpdateChatRoomName(ctx context.Context, arg UpdateChatRoomNameParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomName, arg.ID, arg.Name)
+	return err
+}
+
+const updateChatRoomTopic = `-- name: UpdateChatRoomTopic :exec
+UPDATE chat_rooms SET topic = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateChatRoomTopicParams struct {
+	ID    string `json:"id"`
+	Topic string `json:"topic"`
+}
+
+// tenant: by-id
+func (q *Queries) UpdateChatRoomTopic(ctx context.Context, arg UpdateChatRoomTopicParams) error {
+	_, err := q.db.Exec(ctx, updateChatRoomTopic, arg.ID, arg.Topic)
 	return err
 }
 

@@ -124,14 +124,15 @@ type ChatPollOptionDTO struct {
 	Votes int    `json:"votes" description:"Vote count" example:"3"`
 }
 
-// ChatPollSettingsDTO configures poll behavior.
+// ChatPollSettingsDTO configures poll behavior. The flags always go out:
+// the client defaults a missing allow_multiple to true.
 type ChatPollSettingsDTO struct {
 	DeadlineAt           *string `json:"deadline_at,omitempty" description:"RFC3339 deadline" example:"2026-09-05T12:00:00Z"`
-	PinToTop             bool    `json:"pin_to_top,omitempty" description:"Pin poll to top" example:"false"`
-	AllowMultiple        bool    `json:"allow_multiple,omitempty" description:"Allow multiple selections" example:"true"`
-	AllowAddOptions      bool    `json:"allow_add_options,omitempty" description:"Members may add options" example:"true"`
-	HideResultsUntilVote bool    `json:"hide_results_until_vote,omitempty" description:"Hide results until voted" example:"false"`
-	HideVoters           bool    `json:"hide_voters,omitempty" description:"Hide voters" example:"false"`
+	PinToTop             bool    `json:"pin_to_top" description:"Pin poll to top" example:"false"`
+	AllowMultiple        bool    `json:"allow_multiple" description:"Allow multiple selections" example:"true"`
+	AllowAddOptions      bool    `json:"allow_add_options" description:"Members may add options" example:"true"`
+	HideResultsUntilVote bool    `json:"hide_results_until_vote" description:"Hide results until voted" example:"false"`
+	HideVoters           bool    `json:"hide_voters" description:"Hide voters" example:"false"`
 }
 
 // ChatPollDTO is poll metadata attached to a poll message.
@@ -343,6 +344,27 @@ type ChatMessageLinkDTO struct {
 // GET .../chat/rooms/{roomID}/message-links.
 type ChatMessageLinkListSDO struct {
 	Links []ChatMessageLinkDTO `json:"links"`
+}
+
+// ChatRoomLinkedTaskDTO is one task a room's messages link to.
+type ChatRoomLinkedTaskDTO struct {
+	ID           string `json:"id" description:"Task id" example:"01J8X4TSK0N1P2Q3R4S5T6U7V8"`
+	WorkspaceID  string `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Number       int64  `json:"number" description:"Số thứ tự task trong workspace" example:"42"`
+	Title        string `json:"title" description:"Tiêu đề task" example:"Chốt bộ icon cho bản 2.0"`
+	Status       string `json:"status" description:"Trạng thái task" example:"in_progress"`
+	Priority     string `json:"priority" description:"Độ ưu tiên" example:"high"`
+	AssigneeID   string `json:"assignee_id,omitempty" description:"Người hoặc agent được giao" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	AssigneeKind string `json:"assignee_kind,omitempty" description:"human hoặc agent; có khi có người được giao" example:"human"`
+	AssigneeName string `json:"assignee_name,omitempty" description:"Tên hiển thị của người được giao" example:"Lan Phạm"`
+	DueDate      string `json:"due_date,omitempty" description:"Hạn chót YYYY-MM-DD" example:"2026-10-23"`
+	LinkedAt     string `json:"linked_at" description:"Lần gắn gần nhất từ phòng này (RFC3339)" example:"2026-10-18T09:30:00Z"`
+}
+
+// ChatRoomLinkedTaskListSDO is GET .../chat/rooms/{roomID}/linked-tasks.
+type ChatRoomLinkedTaskListSDO struct {
+	Tasks []ChatRoomLinkedTaskDTO `json:"tasks"`
+	Total int                     `json:"total" description:"Tổng số task được gắn từ phòng này" example:"7"`
 }
 
 // ChatUnreadTotalsDTO is what a set of rooms adds to a chat badge.

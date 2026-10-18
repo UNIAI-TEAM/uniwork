@@ -225,6 +225,8 @@ export async function patchChatRoom(
   roomId: string,
   body: {
     name?: string;
+    /** The room's description; "" clears it. */
+    topic?: string;
     member_permissions?: Partial<ChatRoomMemberPermissions>;
   },
 ): Promise<ChatRoomMemberPermissions> {
