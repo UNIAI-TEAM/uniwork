@@ -1,0 +1,49 @@
+$ for d in .harness-run-r9-5/fault/F*/; do echo "=== $d"; ls -la "$d"; head -n 30 "$d/proxy-log.jsonl" 2>/dev/null; done; mkdir -p /tmp/test-results/artifacts-r9-5 && cp -r .harness-run-r9-5/fault/F* /tmp/test-results/artifacts-r9-5/ 2>/dev/null; du -sh /tmp/test-results/artifacts-r9-5; true
+=== .harness-run-r9-5/fault/FL-06/
+total 204
+drwxr-xr-x 2 ubuntu ubuntu   4096 Oct 18 23:49 .
+drwxr-xr-x 4 ubuntu ubuntu   4096 Oct 18 23:44 ..
+-rw-r--r-- 1 ubuntu ubuntu      0 Oct 18 23:49 app-trace.jsonl
+-rw-r--r-- 1 ubuntu ubuntu   7363 Oct 18 23:49 case-result.json
+-rw-r--r-- 1 ubuntu ubuntu   7546 Oct 18 23:49 evidence-g5-a07.log
+-rw-r--r-- 1 ubuntu ubuntu      0 Oct 18 23:49 intent-log.jsonl
+-rw-r--r-- 1 ubuntu ubuntu   2041 Oct 18 23:49 offline-store-after.json
+-rw-r--r-- 1 ubuntu ubuntu   2485 Oct 18 23:49 offline-store-before.json
+-rw-r--r-- 1 ubuntu ubuntu   2041 Oct 18 23:49 offline-store-faulted.json
+-rw-r--r-- 1 ubuntu ubuntu   8543 Oct 18 23:49 proxy-log.jsonl
+-rw-r--r-- 1 ubuntu ubuntu   7363 Oct 18 23:49 result.json
+-rw-r--r-- 1 ubuntu ubuntu  27462 Oct 18 23:49 s11-lock-panel.png
+-rw-r--r-- 1 ubuntu ubuntu 111921 Oct 18 23:49 s3-offline-tab.png
+-rw-r--r-- 1 ubuntu ubuntu    867 Oct 18 23:49 server-versions.before.json
+-rw-r--r-- 1 ubuntu ubuntu    867 Oct 18 23:49 server-versions.json
+{"ts":"2026-10-18T23:45:14.478Z","method":"GET","path":"/api/v1/auth/desktop/start","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.192Z","method":"POST","path":"/api/v1/auth/desktop/exchange","status":200,"ms":12,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.202Z","method":"GET","path":"/api/v1/me","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.207Z","method":"GET","path":"/api/v1/orgs","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.213Z","method":"GET","path":"/api/v1/orgs/o-fault-mveh30m4-ded7/members/me","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.224Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/billing","status":200,"ms":8,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.235Z","method":"GET","path":"/api/v1/config","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.245Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/ai/cloud","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.249Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/workspaces","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.251Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/office/capabilities","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.253Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/me","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.255Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/workspaces","status":200,"ms":2,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.268Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/documents/changes","status":200,"ms":11,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.274Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/workspaces","status":200,"ms":3,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.274Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/ai/credentials","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.279Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/ai/cloud","status":200,"ms":14,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.280Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/me","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.294Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/documents/tree","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.296Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/documents","status":200,"ms":9,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.303Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/members","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.786Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/documents/tree","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:15.788Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/documents","status":200,"ms":7,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:19.225Z","method":"GET","path":"/api/v1/documents/01M58PEG32XWWN46M3BCD4QC11","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:45:19.239Z","method":"PUT","path":"/api/v1/documents/01M58PEG32XWWN46M3BCD4QC11/office/offline-lease","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":"short-lease","policyEpoch":0,"expiresAt":"2026-10-18T23:47:19.239Z"}
+{"ts":"2026-10-18T23:45:19.253Z","method":"GET","path":"/api/v1/documents/01M58PEG32XWWN46M3BCD4QC11/download","status":200,"ms":4,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:46:15.237Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/workspaces","status":"reset","ms":0,"idempotencyKey":false,"keyTag":null,"ruleId":"cut-network"}
+{"ts":"2026-10-18T23:47:15.242Z","method":"GET","path":"/api/v1/orgs/01M58PEFPZKBBARVA0ZB7F9JAB/workspaces","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:47:15.250Z","method":"GET","path":"/api/v1/workspaces/01M58PEFQ7NSVY7EP729CDGT40/documents/changes","status":200,"ms":6,"idempotencyKey":false,"keyTag":null,"ruleId":null}
+{"ts":"2026-10-18T23:47:15.262Z","method":"PUT","path":"/api/v1/documents/01M58PEG32XWWN46M3BCD4QC11/office/offline-lease","status":403,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":"short-lease","errorCode":"offline_lease_revoked"}
+{"ts":"2026-10-18T23:47:15.268Z","method":"PUT","path":"/api/v1/documents/01M58PEG32XWWN46M3BCD4QC11/office/offline-lease","status":200,"ms":5,"idempotencyKey":false,"keyTag":null,"ruleId":"short-lease","policyEpoch":1,"expiresAt":"2026-10-18T23:49:15.268Z"}
+204K	/tmp/test-results/artifacts-r9-5
