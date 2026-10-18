@@ -3,7 +3,7 @@
 // modules): locate, verify and copy a fork build into public/. Used by
 // scripts/office-frame-sync.mjs.
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { URL } from "node:url";
 import { assertMatchesPin, assertModule, assertSafeVersion, parseCspDocuments, parseCspManifest, parseManifest, PROTOCOL_SHA256_KEYS, sha256Hex } from "./frame-bundle.mjs";
@@ -44,12 +44,12 @@ function manifestModule(dir) {
  * or a version directory itself. In the last two the manifest's module decides.
  * A source packed inside one wrapping directory (the web-0.1.0-5932073 release
  * tarball's `dist-web/`) resolves to that directory and searches it the same
- * way; two or more candidates are never guessed between.
+ * way — exactly once: a module hidden under a second wrapper is not found.
+ * Two or more candidates are never guessed between.
  */
 export function locateModuleBundle(source, module) {
   assertModule(module);
   let root = source;
-  const seen = new Set([realpathSync(root)]);
   for (;;) {
     if (existsSync(join(root, "manifest.json"))) return manifestModule(root) === module ? root : null;
     const own = join(root, module);
@@ -57,11 +57,8 @@ export function locateModuleBundle(source, module) {
     const children = readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory());
     const versions = children.filter((e) => existsSync(join(root, e.name, "manifest.json"))).map((e) => join(root, e.name));
     if (versions.length === 0) {
-      if (children.length !== 1) return null;
-      const next = join(root, children[0].name);
-      if (seen.has(realpathSync(next))) return null;
-      seen.add(realpathSync(next));
-      root = next;
+      if (children.length !== 1 || root !== source) return null;
+      root = join(root, children[0].name);
       continue;
     }
     const matching = versions.filter((dir) => manifestModule(dir) === module);

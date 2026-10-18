@@ -218,6 +218,14 @@ describe("locateModuleBundle", () => {
     expect(existsSync(join(target, "manifest.json"))).toBe(true);
   });
 
+  it("finds nothing when the module sits under a second wrapper directory", () => {
+    // Only one unwrap: root -> a, then a's single child b is never entered.
+    const root = scratch();
+    mkdirSync(join(root, "a"));
+    renameSync(distWeb(["docs"]), join(root, "a", "b"));
+    expect(locateModuleBundle(root, "docs")).toBeNull();
+  });
+
   it("does not guess when the root holds two directories and nothing else", async () => {
     const root = scratch();
     renameSync(distWeb(["docs"]), join(root, "dist-web"));
