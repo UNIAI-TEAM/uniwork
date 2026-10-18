@@ -1,0 +1,10 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8
+d8be4bb722c5cbc40320571b1ae5e7e632a27e97
+d8be4bb72 fix(office): a frame save after a lock-refused one is refused locally until the lock is held again
+4c277b5f9 feat(office): a lock-refused frame save no longer draws the lost-access bar (UNI-1907 F3)
+32ba766b6 feat(office): your own new version names you in the frame bar (UNI-1907 F4)
+93f046640 feat(office): a cancelled frame save runs no further leg (UNI-1907 F2)
+69eef5a43 refactor(office): split the save-leg helpers out of docs-frame-api (UNI-1907 F1)
+7b5ea5e23 chore: merge UPLOAD-DIALOG-POLISH (UNI-1906, 8271bbce7) into the G5-G7 root
+fb4587ca5 test(e2e): read the voice duration at the start of its line (UNI-1908)
+a7b1cccda test(e2e): confirm the organization revoke in its row (UNI-1784)
