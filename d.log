@@ -1,0 +1,5 @@
+$ npx prettier --check $(git diff --name-only --diff-filter=AM 4259dace1 HEAD | grep -E '\.(ts|tsx|mjs|css)$' | tr '\n' ' '); rc=$?; echo; echo "PRETTIER_EXIT=$rc"
+Checking formatting...
+All matched files use Prettier code style!
+
+PRETTIER_EXIT=0
