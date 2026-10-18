@@ -154,6 +154,12 @@ func TestEditLockReleaseWritersWriteTheirOwnRows(t *testing.T) {
 			}
 			return "document_archived"
 		},
+		"ShelveDocument": func(t *testing.T, w *lockWorld, d db.Document, _ db.DocumentEditLock) string {
+			if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), d.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			return DocumentEditEndDocumentShelved
+		},
 	}
 	for command, run := range cases {
 		t.Run(command, func(t *testing.T) {
@@ -272,6 +278,174 @@ func TestEditLockReleasedOnAccessLoss(t *testing.T) {
 		w.exec(t, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, w.tn.wsA, w.tn.member.ID)
 		w.handle(t, "member.removed", w.tn.orgID, `{"user_id":"`+w.tn.member.ID+`","workspace_id":"`+w.tn.wsA+`"}`)
 		w.wantLive(t, held.Lock.ID)
+	})
+}
+
+func TestShelveReleasesEditLock(t *testing.T) {
+	t.Run("root and descendant end with document_shelved", func(t *testing.T) {
+		w := newLockWorld(t)
+		m := &recordingDocMetrics{}
+		w.svc.SetMetrics(m)
+		folder := listablePage(t, w, treeDocSpec{kind: DocumentKindFolder, title: "Thư mục lưu trữ"})
+		child := listablePage(t, w, treeDocSpec{parent: folder.ID, title: "Trang con"})
+		outside := w.page(t)
+		rootHeld := w.acquire(t, w.tn.member, folder.ID, "e-root")
+		childHeld := w.acquire(t, w.tn.member, child.ID, "e-child")
+		outsideHeld := w.acquire(t, w.tn.member, outside.ID, "e-out")
+		if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), folder.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		w.wantEnded(t, rootHeld.Lock.ID, DocumentEditEndDocumentShelved)
+		w.wantEnded(t, childHeld.Lock.ID, DocumentEditEndDocumentShelved)
+		w.wantLive(t, outsideHeld.Lock.ID)
+		if got := w.lockRow(t, rootHeld.Lock.ID); got.EndedBy.String != w.tn.aclOwner.ID {
+			t.Fatalf("root ended_by %q, want the shelve actor %q", got.EndedBy.String, w.tn.aclOwner.ID)
+		}
+		if got := w.lockRow(t, childHeld.Lock.ID); got.EndedBy.String != w.tn.aclOwner.ID {
+			t.Fatalf("child ended_by %q, want the shelve actor %q", got.EndedBy.String, w.tn.aclOwner.ID)
+		}
+		if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, folder.ID); n != 1 {
+			t.Fatalf("folder released rows %d, want 1", n)
+		}
+		if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, child.ID); n != 1 {
+			t.Fatalf("child released rows %d, want 1", n)
+		}
+		if meta := w.auditMeta(t, audit.ActionDocumentEditLockReleased, child.ID); meta["reason"] != DocumentEditEndDocumentShelved || meta["lock_id"] != childHeld.Lock.ID {
+			t.Fatalf("child release audit %v", meta)
+		}
+		if n := w.countOutbox(t, topicDocumentLockChanged, child.ID); n != 2 {
+			t.Fatalf("child lock_changed rows %d, want 2 (acquire + shelve release)", n)
+		}
+		if n := w.countOutbox(t, topicDocumentLockChanged, outside.ID); n != 1 {
+			t.Fatalf("outside lock_changed rows %d, want 1 (acquire only)", n)
+		}
+		// acquire × 3 + release × 2 (root + child)
+		if len(m.ops) != 5 || m.ops[3] != "release" || m.ops[4] != "release" {
+			t.Fatalf("ops %v, want three acquire then two release", m.ops)
+		}
+	})
+
+	t.Run("already-shelved child keeps its tenure", func(t *testing.T) {
+		w := newLockWorld(t)
+		folder := listablePage(t, w, treeDocSpec{kind: DocumentKindFolder, title: "Cha"})
+		child := listablePage(t, w, treeDocSpec{parent: folder.ID, title: "Con đã lưu trữ"})
+		childHeld := w.acquire(t, w.tn.member, child.ID, "e-pre")
+		if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), child.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		w.wantEnded(t, childHeld.Lock.ID, DocumentEditEndDocumentShelved)
+		if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, child.ID); n != 1 {
+			t.Fatalf("child released rows after first shelve %d, want 1", n)
+		}
+		folderHeld := w.acquire(t, w.tn.member, folder.ID, "e-folder")
+		if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), folder.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		w.wantEnded(t, folderHeld.Lock.ID, DocumentEditEndDocumentShelved)
+		w.wantEnded(t, childHeld.Lock.ID, DocumentEditEndDocumentShelved)
+		if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, child.ID); n != 1 {
+			t.Fatalf("child released rows after parent shelve %d, want 1 (walk skipped the child)", n)
+		}
+	})
+
+	t.Run("trashed child keeps document_archived", func(t *testing.T) {
+		w := newLockWorld(t)
+		folder := listablePage(t, w, treeDocSpec{kind: DocumentKindFolder, title: "Cha thùng"})
+		child := listablePage(t, w, treeDocSpec{parent: folder.ID, title: "Con thùng"})
+		childHeld := w.acquire(t, w.tn.member, child.ID, "e-trash")
+		if _, err := w.svc.ArchiveDocument(w.ctx, human(w.tn.aclOwner), child.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		w.wantEnded(t, childHeld.Lock.ID, DocumentEditEndDocumentArchived)
+		folderHeld := w.acquire(t, w.tn.member, folder.ID, "e-folder")
+		if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), folder.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		w.wantEnded(t, folderHeld.Lock.ID, DocumentEditEndDocumentShelved)
+		w.wantEnded(t, childHeld.Lock.ID, DocumentEditEndDocumentArchived)
+		if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, child.ID); n != 1 {
+			t.Fatalf("trashed child released rows %d, want 1 (walk skipped it)", n)
+		}
+	})
+
+	t.Run("holder heartbeat is edit_lock_lost document_shelved", func(t *testing.T) {
+		w := newLockWorld(t)
+		d := w.page(t)
+		held := w.acquire(t, w.tn.member, d.ID, "e")
+		if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), d.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		w.wantEnded(t, held.Lock.ID, DocumentEditEndDocumentShelved)
+		_, err := w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), d.ID, held.Lock.ID)
+		ce := wantCode(t, err, "edit_lock_lost")
+		if ce.Fields["reason"] != DocumentEditEndDocumentShelved {
+			t.Fatalf("lost fields %v, want reason %q", ce.Fields, DocumentEditEndDocumentShelved)
+		}
+	})
+
+	t.Run("unshelve does not restore the tenure", func(t *testing.T) {
+		w := newLockWorld(t)
+		d := w.page(t)
+		held := w.acquire(t, w.tn.member, d.ID, "e")
+		if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), d.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.svc.UnshelveDocument(w.ctx, human(w.tn.aclOwner), d.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		w.wantEnded(t, held.Lock.ID, DocumentEditEndDocumentShelved)
+		_, err := w.svc.HeartbeatDocumentEditLock(w.ctx, human(w.tn.member), d.ID, held.Lock.ID)
+		ce := wantCode(t, err, "edit_lock_lost")
+		if ce.Fields["reason"] != DocumentEditEndDocumentShelved {
+			t.Fatalf("after unshelve lost fields %v", ce.Fields)
+		}
+	})
+
+	t.Run("second shelve ends nothing", func(t *testing.T) {
+		w := newLockWorld(t)
+		d := w.page(t)
+		held := w.acquire(t, w.tn.member, d.ID, "e")
+		if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), d.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		w.wantEnded(t, held.Lock.ID, DocumentEditEndDocumentShelved)
+		first := w.countAudit(t, audit.ActionDocumentEditLockReleased, d.ID)
+		if _, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), d.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, d.ID); n != first {
+			t.Fatalf("released rows after no-op shelve %d, want %d", n, first)
+		}
+		w.wantEnded(t, held.Lock.ID, DocumentEditEndDocumentShelved)
+	})
+
+	t.Run("manage refusal leaves the lock live", func(t *testing.T) {
+		w := newLockWorld(t)
+		d := w.page(t)
+		held := w.acquire(t, w.tn.member, d.ID, "e")
+		_, err := w.svc.ShelveDocument(w.ctx, human(w.tn.member), d.ID, ArchiveDocumentInput{})
+		wantCodeOrForbidden(t, err)
+		w.wantLive(t, held.Lock.ID)
+		if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, d.ID); n != 0 {
+			t.Fatalf("released rows after refused shelve %d, want 0", n)
+		}
+	})
+
+	t.Run("folder_too_large leaves the lock live", func(t *testing.T) {
+		w := newLockWorld(t)
+		w.svc.archiveMaxNodes = 1
+		defer func() { w.svc.archiveMaxNodes = 0 }()
+		folder := listablePage(t, w, treeDocSpec{kind: DocumentKindFolder, title: "Thư mục lớn"})
+		child := listablePage(t, w, treeDocSpec{parent: folder.ID, title: "Con"})
+		folderHeld := w.acquire(t, w.tn.member, folder.ID, "e-f")
+		childHeld := w.acquire(t, w.tn.member, child.ID, "e-c")
+		_, err := w.svc.ShelveDocument(w.ctx, human(w.tn.aclOwner), folder.ID, ArchiveDocumentInput{})
+		wantCode(t, err, "folder_too_large")
+		w.wantLive(t, folderHeld.Lock.ID)
+		w.wantLive(t, childHeld.Lock.ID)
+		if n := w.countAudit(t, audit.ActionDocumentEditLockReleased, folder.ID); n != 0 {
+			t.Fatalf("released rows after folder_too_large %d, want 0", n)
+		}
 	})
 }
 

@@ -119,6 +119,7 @@ const (
 	DocumentEditEndOrganizationSuspended = "organization_suspended"
 	DocumentEditEndDocumentArchived      = "document_archived"
 	DocumentEditEndDocumentDeleted       = "document_deleted"
+	DocumentEditEndDocumentShelved       = "document_shelved"
 )
 
 // Request statuses (§1.3).
@@ -170,6 +171,7 @@ func (s *DocumentService) countEditLockRefused(route string, err error) {
 // editLockOpForEnd maps an end reason onto the closed op vocabulary of
 // uniwork_document_edit_lock_ops_total. Take-over, handover and move here are
 // counted by the command that replaced the tenure, never here.
+// document_archived and document_shelved fall through to "release".
 func editLockOpForEnd(reason string) string {
 	switch reason {
 	case DocumentEditEndExpired:
@@ -488,6 +490,13 @@ func (s *DocumentService) checkVersionUploadLock(ctx context.Context, actor Acto
 // releaseEditLocksOnArchive ends the live tenures of every archived document
 // in the archive's own transaction (end_reason document_archived, §2).
 func (s *DocumentService) releaseEditLocksOnArchive(ctx context.Context, q *db.Queries, actor Actor, root db.Document, ids []string) (*editLockOps, error) {
+	return s.releaseLiveEditLocks(ctx, q, actor, root, ids, DocumentEditEndDocumentArchived)
+}
+
+// releaseLiveEditLocks ends the live tenures of every named document in the
+// caller's transaction. document_shelved maps to op "release" the same way
+// document_archived does (editLockOpForEnd default).
+func (s *DocumentService) releaseLiveEditLocks(ctx context.Context, q *db.Queries, actor Actor, root db.Document, ids []string, reason string) (*editLockOps, error) {
 	ops := &editLockOps{}
 	if len(ids) == 0 {
 		return ops, nil
@@ -513,7 +522,7 @@ func (s *DocumentService) releaseEditLocksOnArchive(ctx context.Context, q *db.Q
 			// id differs, which is all the audit row and frame name.
 			doc.ID = l.DocumentID
 		}
-		if _, err := s.releaseTenure(ctx, q, doc, l, DocumentEditEndDocumentArchived, by, now, ops); err != nil {
+		if _, err := s.releaseTenure(ctx, q, doc, l, reason, by, now, ops); err != nil {
 			return ops, err
 		}
 	}

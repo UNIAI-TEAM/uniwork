@@ -85,7 +85,8 @@ func errShelveFolderTooLarge() error {
 // archive bound (folder_too_large). Idempotent: a call on an already-shelved
 // item is a no-op answer, and Idempotency-Key replays the stored result.
 func (s *DocumentService) ShelveDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
-	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentShelve, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
+	var lockOps *editLockOps
+	res, err := s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentShelve, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if doc.ShelvedAt.Valid {
 			// Already shelved: a no-op the caller can read back, same answer
 			// as a fresh shelve (S-3).
@@ -150,6 +151,13 @@ func (s *DocumentService) ShelveDocument(ctx context.Context, actor Actor, docum
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
 			return DocumentArchiveResult{}, err
 		}
+		// Shelve releases the edit lock of every node it stamped, in this
+		// transaction (UNI-1903 S-4); the counters move after commit.
+		ops, err := s.releaseLiveEditLocks(ctx, q, actor, doc, stamped, DocumentEditEndDocumentShelved)
+		if err != nil {
+			return DocumentArchiveResult{}, err
+		}
+		lockOps = ops
 		doc.ShelveBatchID = pgtype.Text{String: batch, Valid: true}
 		doc.ShelvedAt = pgtype.Timestamptz{Time: s.now(), Valid: true}
 		doc.ShelvedBy = nullText(actor.ID)
@@ -160,6 +168,10 @@ func (s *DocumentService) ShelveDocument(ctx context.Context, actor Actor, docum
 		}
 		return DocumentArchiveResult{View: view, BatchID: batch, Affected: stamped}, nil
 	})
+	if err == nil && lockOps != nil {
+		s.flushEditLockOps(lockOps)
+	}
+	return res, err
 }
 
 // UnshelveDocument clears the shelved state of the item and the same-batch,
