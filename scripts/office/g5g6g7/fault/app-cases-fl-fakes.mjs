@@ -301,7 +301,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       getSnapshot: async () => {
         if (!world.snapshotWorks) throw new Error("getSnapshot rejected");
         return {
-          offline: { capabilityOn: true, rows: world.product.rowsFor(currentDeployment) },
+          // a test may replace the whole slice (malformed shapes) - R2-2
+          offline: world.offlineSlice ? world.offlineSlice(currentDeployment) : { capabilityOn: true, rows: world.product.rowsFor(currentDeployment) },
           header: { status: world.signedInAs ? "signed_in" : "signed_out" },
           signedOut: { lockedCount: 0 },
         };
@@ -370,11 +371,13 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
           if (!world.alive) throw new Error("Target closed");
           return inPage(fn, arg);
         },
-        locator: () => ({
+        locator: (selector) => ({
           first() { return this; },
           waitFor: async () => { if (world.tabAvailable === false || !world.alive) throw new Error("tab never visible"); },
           getAttribute: async () => (world.tabSelected ? "true" : "false"),
-          click: async () => { world.tabSelected = true; world.visible.add(S3_PANEL_SELECTOR); },
+          // a tab whose selection never takes (world.selectionFails) leaves a stale panel behind - R2-3
+          click: async () => { if (!world.selectionFails) world.tabSelected = true; world.visible.add(S3_PANEL_SELECTOR); },
+          isVisible: async () => world.alive && world.visible.has(selector),
         }),
         waitForFunction: async (fn, arg) => { if (!(await inPage(fn, arg))) throw new Error("timeout"); },
         waitForSelector: async (selector) => { if (!world.alive || !world.visible.has(selector)) throw new Error(`selector ${selector} never appeared`); },

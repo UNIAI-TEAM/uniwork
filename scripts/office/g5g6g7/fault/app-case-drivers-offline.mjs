@@ -117,10 +117,26 @@ export const INDEX_RECORD_NAME = recordName("index");
 // ---- reading the offline library (snapshot) -------------------------------------
 
 /**
- * The raw answer of one snapshot read: `{answered, snapshot}`. `answered` is
- * false when the app could not answer at all (no API, a rejection, an
- * exception), which is a different fact from an empty library (review r1
- * R1-6): a null slice must never be read as "0 rows".
+ * Why an offline slice is not the fork's `OfflineLibrarySnapshot` (shared/
+ * offline-library.ts): an object whose `rows` is an array of rows that each
+ * carry a string `documentId`, `name` and `state`. null when the shape holds
+ * (review r2 R2-2): `{}`, an array or `rows: null` must never read as "0 rows".
+ */
+export function offlineSliceShapeError(slice) {
+  if (slice === null || typeof slice !== "object" || Array.isArray(slice)) return "the offline slice is not an object";
+  if (!Array.isArray(slice.rows)) return "offline.rows is not an array";
+  const bad = slice.rows.findIndex(
+    (row) => row === null || typeof row !== "object" || ["documentId", "name", "state"].some((field) => typeof row[field] !== "string"),
+  );
+  return bad < 0 ? null : `offline.rows[${bad}] lacks a string documentId/name/state`;
+}
+
+/**
+ * The raw answer of one snapshot read: `{answered, snapshot, shapeError}`.
+ * `answered` is false when the app could not answer at all (no API, a
+ * rejection, an exception), which is a different fact from an empty library
+ * (review r1 R1-6): a null slice must never be read as "0 rows". A slice that
+ * answered but is not shaped like the fork's carries a `shapeError` (R2-2).
  */
 export const offlineSnapshotAnswer = async (session) => {
   try {
@@ -129,9 +145,9 @@ export const offlineSnapshotAnswer = async (session) => {
       if (!api?.getSnapshot) return null;
       return (await api.getSnapshot())?.offline ?? null;
     });
-    return { answered: snapshot !== null && typeof snapshot === "object", snapshot };
+    return { answered: snapshot !== null && typeof snapshot === "object", snapshot, shapeError: snapshot === null ? null : offlineSliceShapeError(snapshot) };
   } catch {
-    return { answered: false, snapshot: null };
+    return { answered: false, snapshot: null, shapeError: null };
   }
 };
 
@@ -166,7 +182,11 @@ export const firstLaunchStates = (ctx) => ctx.expect.offline("firstLaunchStates"
  * report when the snapshot did not answer (null when it did).
  */
 export async function requireAnsweredSnapshot(ctx, session, name, { documentId = null, states = null } = {}) {
-  const { answered, snapshot } = await offlineSnapshotAnswer(session);
+  const { answered, snapshot, shapeError } = await offlineSnapshotAnswer(session);
+  if (answered && shapeError) {
+    // answered, but not a library: the zero-row claims that lean on it must fail too, so it is not "answered"
+    return { answered: false, snapshot: null, failure: assertion("snapshot_shape", "an offline slice with rows[] of {documentId, name, state}", `${name}: ${shapeError}`, false) };
+  }
   if (!answered) {
     const alive = await ctx.appAlive(session).catch(() => false);
     if (!alive) throw new AppBlocked(`the app stopped before ${name} could be read (harness down; no product claim)`);
@@ -635,10 +655,32 @@ export async function captureRowShots(ctx, session, { s3 = false, s11 = false } 
   // settings pane is opened over it
   if (s11) shots.push(await captureDeclaredShot(ctx, session, "s11_shot", "s11-lock-panel.png", S11_LOCK_SELECTOR));
   if (s3) {
+    // the selection is the shot's precondition (review r2 R2-3): a tab that never
+    // came up, or a panel that is not showing right before the capture, is no S3
     await openOfflineTab(session);
-    shots.push(await captureDeclaredShot(ctx, session, "s3_shot", "s3-offline-tab.png", S3_PANEL_SELECTOR));
+    const tab = await selectedTabReading(session);
+    if (tab.selected && tab.visible) {
+      shots.push(assertion("s3_tab_selected", "aria-selected=true and the panel visible", "selected and visible", true));
+      shots.push(await captureDeclaredShot(ctx, session, "s3_shot", "s3-offline-tab.png", S3_PANEL_SELECTOR));
+    } else {
+      const alive = await ctx.appAlive(session).catch(() => false);
+      if (!alive) throw new AppBlocked("the app stopped before the S3 tab could be read (harness down; no product claim)");
+      shots.push(assertion("s3_tab_selected", "aria-selected=true and the panel visible", `aria-selected=${tab.selected} panelVisible=${tab.visible}`, false));
+      shots.push(captureAssertion("s3_shot", "s3-offline-tab.png", null, true));
+    }
   }
   return shots;
+}
+
+/** Whether the offline tab is selected AND its panel is visible, read right now (not what a wait once saw). */
+async function selectedTabReading(session) {
+  try {
+    const selected = (await session.shell.locator(S3_TAB_SELECTOR).first().getAttribute("aria-selected", { timeout: 5_000 })) === "true";
+    const visible = await session.shell.locator(S3_PANEL_SELECTOR).first().isVisible();
+    return { selected, visible: visible === true };
+  } catch {
+    return { selected: false, visible: false };
+  }
 }
 
 async function captureDeclaredShot(ctx, session, name, artifact, selector) {
@@ -743,6 +785,16 @@ export function preStoreAssertion(before, documentId) {
   return assertion("pre_store_has_the_pinned_copy", "the pin row and >= 1 ciphertext blob", `${pins.filter((name) => names.has(name)).length}/${pins.length} pin row(s), ${blobs.length} blob(s)`, ok);
 }
 
+/**
+ * The ciphertext blobs of a library reading: every record that is neither the
+ * index nor one of `documentIds`' pin rows (a record is named by the hash of its
+ * key, so a blob generation cannot be derived - the exclusion is the definition).
+ */
+export const libraryBlobs = (state, documentIds) => {
+  const pins = pinRecordNames(documentIds);
+  return state.library.filter((record) => record.name !== INDEX_RECORD_NAME && !pins.includes(record.name));
+};
+
 /** The account the app reports it is signed in as, against the seeded account (review r1 R1-7). */
 export async function signedInAsAssertion(session, name, account) {
   const status = await accountStatusOf(session);
@@ -787,7 +839,14 @@ async function fl01(ctx) {
   // armed the committed generation was absent, so the faulted reading differs from
   // the recovered one (a positive store invariant, not a claim about ciphertext we
   // cannot decrypt - review r1 R1-14)
-  const faultedToReady = storeDelta(faultedState, after);
+  // R2-14: only the TARGET's library records count - a blob committed while the fault
+  // was armed, or a sync-store record added beside the retry, says nothing about it
+  const faultedBlobs = libraryBlobs(faultedState, [doc.id]);
+  const afterBlobs = libraryBlobs(after, [doc.id]);
+  const faultedBlobNames = new Map(faultedBlobs.map((record) => [record.name, record.sha256]));
+  const gainedBlobs = afterBlobs.filter((record) => faultedBlobNames.get(record.name) !== record.sha256);
+  const pinAfter = pinRecordNames([doc.id]).every((name) => after.library.some((record) => record.name === name));
+  const libraryAdded = delta.added.filter((key) => key.startsWith("library/"));
   return {
     documentId: doc.id,
     assertions: [
@@ -803,8 +862,9 @@ async function fl01(ctx) {
       offlineBoolAssertion(ctx, "capability_on", "capabilityOn", (await offlineSnapshot(session))?.capabilityOn === true),
       // the proxy count reads its own namespace (expect.proxyLog), never expect.offline (review r1 R1-1)
       countAssertion(ctx, "download_requests", "downloadRequestsMin", downloadRequests(log, doc.id).length),
-      assertion("store_gained_the_pinned_copy", ">= 1 library record", delta.added.length, delta.added.length >= 1),
-      assertion("no_ready_copy_while_faulted", "the verified copy appears only after the retry", faultedToReady.added.length, faultedToReady.added.length >= 1),
+      assertion("store_gained_the_pinned_copy", ">= 1 library record", libraryAdded.length, libraryAdded.length >= 1),
+      assertion("no_ready_copy_while_faulted", "0 committed target blob while the fault is armed", faultedBlobs.length, faultedBlobs.length === 0),
+      assertion("recovery_adds_target_records", "the target's pin row and >= 1 new blob after the retry", `pin=${pinAfter} newBlobs=${gainedBlobs.length}`, pinAfter && gainedBlobs.length >= 1),
       ...shots,
       ...noWriteAssertions(ctx, log, doc.id),
       await deltaAssertion(ctx, doc.id),
@@ -846,6 +906,7 @@ async function fl03(ctx) {
   const servedTampered = opened?.ok === true || (row?.state === "ready" && stillTampered.length > 0);
   // recovery is its own claim, with its own evidence: the network is back, the app
   // downloads again, and the bytes under the row are no longer the tampered ones
+  const retryBoundary = (await ctx.proxyLog()).length;
   await ctx.clearRules();
   const retry = await downloadNow(second, doc.id);
   const recovery = await awaitRowState(ctx, second, doc.id, recoveredStates);
@@ -853,6 +914,12 @@ async function fl03(ctx) {
   const after = collectOfflineState(storeArgs(ctx, [doc.id]));
   writeStoreEvidence(ctx.runDirOut(), { before, faulted: afterOpen, after });
   const replaced = after.library.filter((record) => tampered.some((was) => was.name === record.name && was.sha256 === record.sha256));
+  // R2-1: the recovery is a successful upstream download AFTER the retry boundary and a
+  // committed pin plus a replacement ciphertext blob (a hash that is not a tampered one)
+  const recoveryDownloads = upstreamDownloads(log.slice(retryBoundary), doc.id).filter((entry) => entry.status === 200);
+  const afterBlobs = libraryBlobs(after, [doc.id]);
+  const replacementBlobs = afterBlobs.filter((record) => !tampered.some((was) => was.name === record.name && was.sha256 === record.sha256));
+  const pinCommitted = pinRecordNames([doc.id]).every((name) => after.library.some((record) => record.name === name));
   const copies = listPlaintextCopies(ctx.userDataDir(), ctx.deploymentId(), { accountIds: [ctx.tenant.app.userId] });
   return {
     documentId: doc.id,
@@ -877,6 +944,8 @@ async function fl03(ctx) {
       resultAssertion("retry_accepted", retry),
       assertion("row_recovered", recoveredStates.join("|"), recovery?.state ?? "never", Boolean(recovery)),
       assertion("recovered_bytes_are_not_the_tampered_ones", "0 record still carrying a tampered hash", replaced.length, replaced.length === 0),
+      assertion("recovery_downloaded_target", ">= 1 successful upstream download of the target after the retry", recoveryDownloads.length, recoveryDownloads.length >= 1),
+      assertion("recovered_committed_pin_and_blob", "the committed pin row and >= 1 replacement ciphertext blob", `pin=${pinCommitted} replacementBlobs=${replacementBlobs.length}`, pinCommitted && replacementBlobs.length >= 1),
       countAssertion(ctx, "download_after_tamper", "downloadRequestsMin", downloadRequests(log, doc.id).length),
       ...shots,
       ...noWriteAssertions(ctx, log, doc.id),
@@ -884,6 +953,10 @@ async function fl03(ctx) {
     ],
   };
 }
+
+/** `N row(s)` plus the sha256 of each row's name - never a name (R2-10). */
+const nameDigest = (rows) =>
+  rows.length === 0 ? "0 row(s)" : `${rows.length} row(s), sha256(name) ${rows.map((row) => createHash("sha256").update(String(row.name ?? ""), "utf8").digest("hex")).join(",")}`;
 
 // ---- FL-07: sign-out A, sign-in B ------------------------------------------------
 async function fl07(ctx) {
@@ -932,7 +1005,8 @@ async function fl07(ctx) {
       ...(bRead.failure ? [bRead.failure] : []),
       offlineCountAssertion(ctx, "account_b_rows", "accountBRows", bRows.length),
       offlineCountAssertion(ctx, "account_b_copies", "accountBCopies", bCopies.length),
-      assertion("account_b_sees_no_document_name", "0 rows naming a document", bRows.map((row) => row.name).join(", ") || "(none)", bRead.answered && bRows.length === 0),
+      // count + sha256 of each name only: a privacy failure must not write the name it detects (R2-10)
+      assertion("account_b_sees_no_document_name", "0 rows naming a document", nameDigest(bRows), bRead.answered && bRows.length === 0),
       ...shots,
       ...noWriteAssertions(ctx, await ctx.proxyLog(), doc.id),
       await deltaAssertion(ctx, doc.id),
