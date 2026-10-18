@@ -410,10 +410,12 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		rows, err := s.q.ListArchivedDocumentsPage(ctx, db.ListArchivedDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
-			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
-			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelEdit),
+			ShareWorkspaces: scope.shareWorkspaces,
+			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(), Access: nullText(filters.access),
 			Query: query, MatchTitle: matchTitle,
@@ -474,7 +476,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		rows, err := s.q.ListDocumentsByParentPage(ctx, db.ListDocumentsByParentPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ParentID: nullText(*in.ParentID),
-			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
@@ -502,7 +505,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		rows, err := s.q.ListDocumentsPage(ctx, db.ListDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
@@ -708,7 +712,8 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	}
 	rows, err := s.q.ListRecentDocumentsPage(ctx, db.ListRecentDocumentsPageParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ActorID: actor.ID,
-		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
+		MaxLevel: subtreeMaxLevel(),
+		SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
 		AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
 		ShareWorkspaces: scope.shareWorkspaces,
 		Format:          nullText(filters.format), FormatMime: nullText(filters.formatMime),

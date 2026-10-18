@@ -25,6 +25,32 @@ RETURNING *;
 INSERT INTO notification_deliveries (event_id, user_id) VALUES ($1, $2)
 ON CONFLICT DO NOTHING;
 
+
+-- The historical (batch, recipient) claim of a once-only draft
+-- (TRASH-NOTIFY-01): the merge index in UpsertNotification only covers an
+-- open row, so a draft that may never repeat itself checks for ANY row of
+-- its group - read, archived, purged from view - inside the write
+-- transaction. The consumer treats a hit as already delivered.
+-- name: HasNotificationGroupRow :one
+-- tenant: self
+SELECT EXISTS (
+  SELECT 1 FROM notifications
+  WHERE user_id = sqlc.arg('user_id')
+    AND kind = sqlc.arg('kind')
+    AND group_key = sqlc.arg('group_key')
+);
+
+-- The exclusive half of that claim (BE-TN-9): HasNotificationGroupRow alone
+-- is an unlocked existence read, so two dispatcher nodes carrying different
+-- events of one (user, kind, group_key) can both miss it and merge through
+-- UpsertNotification's count + 1. The claim is taken here as a
+-- transaction-scoped advisory lock on the group, held until the write
+-- commits, so the loser's existence read runs after the winner's row is
+-- visible and skips. The key is hashed because advisory locks take bigint
+-- keys; a collision only serializes two unrelated groups for one write.
+-- name: ClaimNotificationGroup :exec
+SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg('claim_key')::text, 0));
+
 -- name: GetNotification :one
 -- tenant: system
 SELECT * FROM notifications WHERE id = $1;
