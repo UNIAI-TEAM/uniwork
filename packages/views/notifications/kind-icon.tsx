@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Pencil,
   RefreshCw,
+  Share2,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -52,6 +53,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_access_requested: KeyRound,
   document_access_approved: CircleCheck,
   document_access_declined: CircleX,
+  document_shared: Share2,
   document_trashed_by_other: Trash2,
 };
 

@@ -25,6 +25,10 @@ export interface ShareLinksSectionProps {
   onOpenSettings: () => void;
   /** Active locale, for the created/expiry times. */
   locale: string;
+  /** Organization public-links policy when known (SH-W1 §5.3). */
+  publicLinksEnabled?: boolean | null;
+  /** Whether the caller is an organization owner/admin who can change the policy. */
+  canManageOrgSettings?: boolean;
 }
 
 /**
@@ -37,7 +41,14 @@ export interface ShareLinksSectionProps {
  * action is theirs. Revoking is immediate; losing the URL means creating
  * another link.
  */
-export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLinksSectionProps) {
+export function ShareLinksSection({
+  wsId,
+  doc,
+  onOpenSettings,
+  locale,
+  publicLinksEnabled,
+  canManageOrgSettings = true,
+}: ShareLinksSectionProps) {
   const { t } = useTranslation();
   const [expiry, setExpiry] = useState("7");
   const [created, setCreated] = useState<{ url: string } | null>(null);
@@ -102,6 +113,18 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
         </h3>
         <span className="text-caption text-muted-foreground">{t("documents.share.links_description")}</span>
       </div>
+      <div className="flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
+        <span>
+          {publicLinksEnabled === false || createError?.settings
+            ? t("documents.share.links_policy_disabled")
+            : t("documents.share.links_policy_enabled")}
+        </span>
+        {publicLinksEnabled === false && !createError?.settings && canManageOrgSettings ? (
+          <Button type="button" variant="outline" size="sm" onClick={onOpenSettings}>
+            {t("documents.share.links_off_action")}
+          </Button>
+        ) : null}
+      </div>
 
       {created ? (
         <div className="flex flex-col gap-1.5 rounded-lg border border-primary/40 bg-primary/5 p-3">
@@ -159,7 +182,7 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
       {createError ? (
         <p role="alert" className="flex items-center gap-2 text-caption text-destructive">
           {createError.text}
-          {createError.settings ? (
+          {createError.settings && canManageOrgSettings ? (
             <Button type="button" variant="outline" size="sm" onClick={onOpenSettings}>
               {t("documents.share.links_off_action")}
             </Button>

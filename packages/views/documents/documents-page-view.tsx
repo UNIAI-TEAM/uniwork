@@ -20,7 +20,7 @@ import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
 import { AccessReportMenu } from "./access-report/access-report-menu";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
-import { useCreateOfType } from "./documents-create";
+import { isParentWorkspaceShared, useCreateOfType, type CreateShareOptions } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
@@ -108,6 +108,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const [chip, setChip] = useState<TypeChip>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("folder");
   const [navOpen, setNavOpen] = useState(false);
+  // One state for the strip switch and the "Tạo mới" menu check item (TV1-15):
+  // the two controls always agree because they read and write the same value.
+  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
 
   // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
   const focusId = searchParams.get("focus");
@@ -194,6 +197,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     (folderDoc !== null &&
       canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
+  const parentShared = parentForCreate !== null && isParentWorkspaceShared(folderDoc, library.docById.get(parentForCreate));
+
   const fileUpload = useDocumentFileUpload({
     wsId,
     parentId: parentForCreate,
@@ -203,9 +208,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     rootDestination: "my_folder",
     rootParentId: myFolderId,
     resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id,
+    parentShared,
   });
 
-  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, parentShared });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
@@ -239,8 +245,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   };
 
 
-  const newRootFolder = async (title?: string): Promise<boolean> => {
-    const id = await creator.newFolder(null, title);
+
+  const newRootFolder = async (title?: string, options?: CreateShareOptions): Promise<boolean> => {
+    const id = await creator.newFolder(null, title, options);
     if (id) {
       goHome({ kind: "home" }, id);
       return true;
@@ -303,7 +310,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         description: canCreate ? t("documents.home.empty.description") : t("documents.home.empty.view_only"),
         actions:
           folderId && canCreate ? (
-            <Button type="button" variant="outline" size="sm" onClick={rowDialogs.onCreateFolder}>
+            <Button type="button" variant="outline" size="sm" onClick={() => rowDialogs.onCreateFolder()}>
               <FolderPlus aria-hidden className="size-3.5" />
               {t("documents.home.folders.create_title")}
             </Button>
@@ -324,12 +331,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onMyFolder: openMyFolder,
-    onNewFolder: (title?: string) => newRootFolder(title),
+    onNewFolder: (title?: string, options?: CreateShareOptions) => newRootFolder(title, options),
   };
   const createProps = {
     pending: creator.pending,
     unavailable: creator.unavailable,
-    onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
+    parentShared,
+    shareToggle: { shareWithWorkspace, setShareWithWorkspace },
+    onCreate: (type: Parameters<typeof creator.create>[0], options: CreateShareOptions) => void creator.create(type, parentForCreate, options),
     onUpload: fileUpload.openUpload,
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };

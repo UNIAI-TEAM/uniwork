@@ -620,19 +620,21 @@ type Routes struct {
 	AnswerDocumentEditRequest http.HandlerFunc
 	CancelDocumentEditRequest http.HandlerFunc
 
-	ListSharedWithMe           http.HandlerFunc
-	DocumentAccessReport       http.HandlerFunc
-	ExportDocumentAccessReport http.HandlerFunc
-	DocumentTree               http.HandlerFunc
-	MoveDocument               http.HandlerFunc
-	ArchiveDocument            http.HandlerFunc
-	ArchiveImpact              http.HandlerFunc
-	RestoreDocument            http.HandlerFunc
-	PurgeDocument              http.HandlerFunc
-	ListDocumentShares         http.HandlerFunc
-	CreateDocumentShare        http.HandlerFunc
-	CreateDocumentShareBatch   http.HandlerFunc
-	RevokeDocumentShare        http.HandlerFunc
+	ListSharedWithMe            http.HandlerFunc
+	DocumentAccessReport        http.HandlerFunc
+	ExportDocumentAccessReport  http.HandlerFunc
+	DocumentTree                http.HandlerFunc
+	MoveDocument                http.HandlerFunc
+	ArchiveDocument             http.HandlerFunc
+	ArchiveImpact               http.HandlerFunc
+	RestoreDocument             http.HandlerFunc
+	PurgeDocument               http.HandlerFunc
+	ListDocumentShares          http.HandlerFunc
+	ListDocumentShareCandidates http.HandlerFunc
+	CreateDocumentShare         http.HandlerFunc
+	CreateDocumentShareBatch    http.HandlerFunc
+	UpdateDocumentAccess        http.HandlerFunc
+	RevokeDocumentShare         http.HandlerFunc
 	// Emergency view access for a workspace admin on a restricted document
 	// (DOC-05; UNI-1628).
 	CreateDocumentBreakGlass http.HandlerFunc

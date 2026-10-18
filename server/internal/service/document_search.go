@@ -152,6 +152,9 @@ type DocumentListItem struct {
 	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
 	// carries the tenure id - that is R1's or the holder's.
 	EditLock *DocumentEditLockSummary
+	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
+	// addendum §6.4, §7); nil for agent actors (C-01 §4).
+	ShareScope *DocumentShareScope
 	// Access is the actor's level on the row (document_list_access.go); the
 	// zero value means the service did not compute it.
 	Access DocumentAccess
@@ -328,7 +331,10 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	if err := s.attachListFacts(ctx, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
-	return page, s.attachListEditLocks(ctx, actor, page.Items)
+	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
 func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
@@ -631,7 +637,10 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 	if err := s.attachListFacts(ctx, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
-	return page, s.attachListEditLocks(ctx, actor, page.Items)
+	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
 func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {

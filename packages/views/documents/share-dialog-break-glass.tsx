@@ -101,9 +101,9 @@ export function ShareDialogBreakGlassSection({
           return (
             <li
               key={grant.id}
-              className="flex items-center justify-between gap-2 px-3 py-2"
+              className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2"
             >
-              <span className="min-w-0 flex-1 text-caption text-foreground">
+              <span className="min-w-0 flex-1 basis-40 text-caption break-words text-foreground">
                 {t("documents.breakGlass.accessPanelRow", {
                   name: actorDisplay,
                   time: expiryDisplay,
