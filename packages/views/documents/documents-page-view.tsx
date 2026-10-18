@@ -272,8 +272,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const homeView = view.kind === "home";
   const homeFilters = homeView && !folderId && (library.editor !== "any" || library.updated !== "any");
   const accessFiltered = library.access !== "all";
-  const filteredBy =
-    chip !== "all" || accessFiltered || library.shelvedBy !== null ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
+  const filteredBy = chip !== "all" || accessFiltered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
@@ -351,8 +350,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         library.setAccess("all");
         library.setEditor("any");
         library.setUpdated("any");
-        // RAR-16: clear-filters also releases the Lưu trữ member filter.
-        library.setShelvedBy(null);
       }}
       handlers={handlers}
       empty={emptyCopy}
