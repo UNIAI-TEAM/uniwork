@@ -49,6 +49,14 @@ test("fix13: FL-09 fails when the locked pane names the document", async () => {
   assert.ok(!failed.includes(HIDDEN), "the tab is still absent");
 });
 
+test("fix13: FL-09 fails when the locked pane shows only the fixture's file name (G703-R11-5)", async () => {
+  const { failed, world } = await runFl09((w) => { w.paneText = "Thư viện khóa. quarterly-board-minutes.docx"; });
+  // the generated title is NOT in the pane: only the fixture basename leaks
+  assert.ok(!world.paneText.includes("FL-09 run"));
+  assert.ok(failed.includes("s3_pane_names_no_document"));
+  assert.ok(!failed.includes(HIDDEN), "the tab is still absent");
+});
+
 test("fix13: FL-09 fails (not passes) when the pane never shows", async () => {
   const { failed } = await runFl09((world) => { world.paneMissing = true; });
   assert.ok(failed.includes(HIDDEN));

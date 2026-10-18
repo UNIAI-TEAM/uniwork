@@ -561,6 +561,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
     expect: caseExpect(world.row, null),
     tenant: { apiOrigin: "http://d", orgId: "01JORGANIZATION000000000", workspaceId: "01JWORKSPACE0000000000000", app: { userId: ACCOUNT_A }, foreign: { userId: ACCOUNT_B } },
     userDataDir: () => userData,
+    // the real runner uploads a fixture file: its basename is a second name the document goes by in the pane (G703-R11-5)
+    fixture: { path: world.fixturePath ?? "/fixtures/quarterly-board-minutes.docx" },
     deploymentId: () => "default",
     runDirOut: () => runDir,
     artifactPath: (name) => join(runDir, name),
