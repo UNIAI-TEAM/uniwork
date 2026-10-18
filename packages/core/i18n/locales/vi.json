@@ -9674,7 +9674,7 @@
         "md": {
           "chip": "Tệp Markdown",
           "hint": ".md",
-          "menu": "Markdown",
+          "menu": "Tệp Markdown",
           "ext": ".md"
         },
         "html": {

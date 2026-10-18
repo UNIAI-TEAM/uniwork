@@ -9680,7 +9680,7 @@
         "md": {
           "chip": "Markdown file",
           "hint": ".md",
-          "menu": "Markdown",
+          "menu": "Markdown file",
           "ext": ".md"
         },
         "html": {
