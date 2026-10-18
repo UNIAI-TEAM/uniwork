@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1856-desktop-home; git log --oneline -3
+87fad1812a519d71699b2043bb983b5ff2922862
+87fad1812a519d71699b2043bb983b5ff2922862
+87fad181 merge: fork main 059f63f06 (EL-1(a) edit_locked) into DH-1
+16229881 fix(shell): omit updater filter options that have no resolved name (DESKTOP-HOME DH1 fix8 FE, DH1-BE-10)
+415f96bf test(shell): pin updater filter omission of unresolved user ids (DESKTOP-HOME DH1 fix8 FE, DH1-BE-10)
