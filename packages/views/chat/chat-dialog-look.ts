@@ -37,3 +37,14 @@ export const CHAT_EMPTY_TITLE_CLASS = "font-display text-title font-bold text-fo
 
 /** A small pill action (34px): Join, Open, Play, Create task. */
 export const CHAT_PILL_SM_CLASS = "h-8.5 rounded-full px-3.5 text-label font-semibold";
+
+/** A dialog field (Input/Textarea className): the canvas' 44px muted well with 12px corners. */
+export const CHAT_FIELD_CLASS = "h-11 rounded-lg border-border bg-muted px-3.5 md:text-body-lg dark:bg-muted";
+
+/** A section label over a list in a dialog ("THÀNH VIÊN WORKSPACE"): small tracked capitals in the copy face. */
+export const CHAT_SECTION_LABEL_CLASS = "text-caption font-semibold tracking-[0.06em] text-muted-foreground uppercase";
+
+/** A filled field in a chat create dialog (canvas): 44px, 12px corners, 15px text; white with the ring while focused. */
+export const CHAT_FIELD_INPUT_CLASS = "h-11 rounded-xl px-3.5 focus-visible:bg-transparent md:text-body-lg";
+export const CHAT_FIELD_TEXTAREA_CLASS =
+  "rounded-xl border-transparent bg-surface-hover/60 px-3.5 py-3 hover:bg-surface-hover focus-visible:bg-transparent md:text-body-lg";

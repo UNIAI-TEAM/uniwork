@@ -17,7 +17,6 @@ import { useMyInvitations } from "@uniwork/core/workspaces";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { MODULE_ICONS } from "../layout/module-icons";
@@ -28,51 +27,6 @@ import type { ChatSidebarActivityFilter, ChatSidebarKindFilter } from "./chat-si
 const PILL = "h-10 rounded-full px-4";
 const EMPTY_FRAME = "flex flex-col items-center px-4 pt-20 pb-6 text-center";
 const EMPTY_TITLE = "mt-4 max-w-65 font-display text-title-sm font-bold text-foreground";
-
-/** A quiet icon action in the sidebar header, named by its tooltip. */
-export function SidebarIconAction({
-  icon: Icon,
-  label,
-  onClick,
-  className,
-  expanded,
-  ...rest
-}: {
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-  className?: string;
-  expanded?: boolean;
-  "data-chat-sidebar-collapse"?: string;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-lg"
-            // A disclosure that is open most of the time: ghost's
-            // aria-expanded fill is meant for a menu trigger, and here it would
-            // paint the button as pressed for good.
-            className={cn(
-              "rounded-lg text-muted-foreground hover:text-foreground aria-expanded:not-hover:bg-transparent aria-expanded:not-hover:text-muted-foreground",
-              className,
-            )}
-            aria-label={label}
-            aria-expanded={expanded}
-            onClick={onClick}
-            {...rest}
-          />
-        }
-      >
-        <Icon aria-hidden className="size-4.5" />
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 /** The centred tile every empty state of the list opens with. */
 function EmptyTile({ icon }: { icon: LucideIcon }) {
@@ -121,8 +75,8 @@ export function SidebarSkeleton() {
     <div role="status" className="py-1">
       <span className="sr-only">{t("common.loading")}</span>
       {SKELETON_ROWS.map((row) => (
-        <div key={row.name} className="flex h-17 items-center gap-3 px-3" aria-hidden>
-          <Skeleton className={cn("size-12 shrink-0", row.mark)} />
+        <div key={row.name} className="flex h-17.5 items-center gap-3 px-3" aria-hidden>
+          <Skeleton className={cn("size-12.5 shrink-0", row.mark)} />
           <div className="flex min-w-0 flex-1 flex-col gap-2.5">
             <div className="flex items-center justify-between gap-3">
               <Skeleton className={cn("h-3.5 rounded-full", row.name)} />
@@ -188,7 +142,8 @@ export function SidebarEmpty({
 }) {
   const { t } = useTranslation();
   const filtered = kindFilter !== "all" || activityFilter !== "all";
-  const showAll = filtered ? (
+  // A search with no hit always offers the way back to the whole list.
+  const showAll = filtered || searching ? (
     <Button type="button" variant={searching ? "secondary" : "ghost"} className={PILL} onClick={actions.onShowAll}>
       {t("chat.sidebar_show_all")}
     </Button>

@@ -1,42 +1,29 @@
 "use client";
 
-import { Compass, Hash, ListChecks, PanelLeftClose, Plus, Search, UserPlus, Users } from "lucide-react";
 import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useChatRooms } from "@uniwork/core/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { useChatRoomPreferencesStore } from "@uniwork/core/chat/room-preferences-store";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ChannelDirectorySheet } from "./channel-directory-sheet";
 import { CreateChannelDialog } from "./create-channel-dialog";
 import { CreateGroupDialog } from "./create-group-dialog";
 import { StartDmDialog } from "./start-dm-dialog";
-import type { ChatSidebarProps, ChatSidebarTarget } from "./chat-sidebar-types";
+import type { ChatSidebarProps } from "./chat-sidebar-types";
 import {
   buildUnifiedSidebarEntries,
-  chatSidebarActivityFilterOptions,
-  chatSidebarFilterOptions,
-  type ChatSidebarActivityFilter,
-  type ChatSidebarKindFilter,
+  CHAT_SIDEBAR_TABS,
+  chatSidebarTabCounts,
+  chatSidebarTabFilters,
+  type ChatSidebarTab,
 } from "./chat-sidebar-unified";
 import { ChatSidebarList } from "./chat-sidebar-list";
+import { SidebarHeader, SidebarSearch } from "./chat-sidebar-header";
 import { typingNameByUserIdFromContext } from "./chat-sidebar-typing";
 import {
   SidebarEmpty,
-  SidebarIconAction,
   SidebarInvitations,
   SidebarLoadError,
   SidebarSkeleton,
@@ -54,21 +41,16 @@ const EMPTY_PEOPLE: NonNullable<ChatSidebarProps["knownPeople"]> = [];
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
-/* The kind filter is the list's tab strip: a quiet label that takes the brand
-   and an underline when chosen, sitting on the rule above the list. */
-/* Menu rows at the canvas' 40px, icon and label 12px apart. */
-const MENU_ITEM = "h-10 gap-3 rounded-md px-2.5 font-medium";
-
-const KIND_TAB =
-  "relative h-11 min-w-0 flex-1 truncate rounded-md border-0 px-1 text-label font-semibold text-muted-foreground transition-colors duration-(--duration-fast) " +
-  "after:absolute after:inset-x-1.5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent " +
+/* One tab row (canvas "Main"): 14px labels, 10px apart, the brand and a
+   2.5px underline when chosen; it scrolls sideways when the column is narrow. */
+const TAB =
+  "relative h-11 gap-1.5 rounded-none border-0 px-2.5 text-body font-semibold text-muted-foreground transition-colors duration-(--duration-fast) " +
+  "after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:bg-transparent " +
   "hover:bg-transparent hover:text-foreground aria-pressed:bg-transparent aria-pressed:text-brand aria-pressed:after:bg-brand";
 
-/* The read-state filter is a row of pills under the tabs: muted when off, the
-   brand wash when on, so the two filters never read as one control. */
-const ACTIVITY_CHIP =
-  "h-7 rounded-full border-0 px-3 text-label font-medium text-muted-foreground bg-muted transition-colors duration-(--duration-fast) pointer-coarse:h-11 " +
-  "hover:bg-surface-hover hover:text-foreground aria-pressed:bg-brand-subtle aria-pressed:text-brand-subtle-foreground";
+/* The count beside a tab: neutral, the brand fill on the chosen tab. */
+const TAB_COUNT =
+  "h-5 min-w-5 rounded-full bg-border px-1.5 text-center text-caption leading-5 text-chat-chip-foreground tabular-nums";
 
 /**
  * Memoised: the page re-renders on every composer keystroke and typing
@@ -105,8 +87,8 @@ export const ChatSidebar = memo(function ChatSidebar({
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [filterQuery, setFilterQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState<ChatSidebarKindFilter>("all");
-  const [activityFilter, setActivityFilter] = useState<ChatSidebarActivityFilter>("all");
+  const [tab, setTab] = useState<ChatSidebarTab>("all");
+  const { kindFilter, activityFilter } = chatSidebarTabFilters(tab);
   const [startDmOpen, setStartDmOpen] = useState(false);
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [channelDirectoryOpen, setChannelDirectoryOpen] = useState(false);
@@ -121,14 +103,32 @@ export const ChatSidebar = memo(function ChatSidebar({
     () => new Set((rooms ?? []).filter((room) => room.notifications_muted).map((room) => room.id)),
     [rooms],
   );
+  const peerReadAtByRoomId = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const room of rooms ?? []) if (room.kind === "dm" && room.peer_last_read_at) out[room.id] = room.peer_last_read_at;
+    return out;
+  }, [rooms]);
   const workspaceTitle = workspaceRoomTitle ?? t("chat.workspace_room");
   const typingNameByUserId = useMemo(
     () => typingNameByUserIdFromContext(knownPeople),
     [knownPeople],
   );
 
-  const filterOptions = useMemo(() => chatSidebarFilterOptions(), []);
-  const activityFilterOptions = useMemo(() => chatSidebarActivityFilterOptions(), []);
+  const tabCounts = useMemo(
+    () =>
+      chatSidebarTabCounts({
+        roomIds: [
+          workspaceRoomId ?? "",
+          ...channels.map((channel) => channel.id),
+          ...groups.map((group) => group.room_id),
+          ...contacts.map((contact) => contact.dm_room_id ?? ""),
+        ],
+        unreadByRoomId,
+        mentionUnreadByRoomId,
+        mutedRoomIds,
+      }),
+    [workspaceRoomId, channels, groups, contacts, unreadByRoomId, mentionUnreadByRoomId, mutedRoomIds],
+  );
 
   const entries = useMemo(
     () =>
@@ -169,6 +169,7 @@ export const ChatSidebar = memo(function ChatSidebar({
       youLabel: t("chat.you"),
       voiceCallLabel: t("chat.sidebar_voice_call_preview"),
       voiceMessageLabel: t("chat.sidebar_voice_message_preview"),
+      missedCallLabel: t("chat.voice_call_log_missed"),
       fileMessageLabel: t("chat.sidebar_file_message_preview"),
       yesterdayLabel: t("chat.sidebar_yesterday"),
     }),
@@ -197,37 +198,28 @@ export const ChatSidebar = memo(function ChatSidebar({
   };
   const openStartDm = useCallback(() => setStartDmOpen(true), []);
   const openCreateGroup = onCreateGroup ? () => setCreateGroupOpen(true) : undefined;
-  const filtering = filterText.length > 0 || kindFilter !== "all" || activityFilter !== "all";
+  const filtering = filterText.length > 0 || tab !== "all";
 
-  const filterLabel = (kind: ChatSidebarKindFilter) => {
-    switch (kind) {
+  const tabLabel = (value: ChatSidebarTab) => {
+    switch (value) {
       case "all":
         return t("chat.filter_all");
+      case "unread":
+        return t("chat.filter_unread");
+      case "mentions":
+        return t("chat.filter_mentions");
       case "dm":
         return t("chat.filter_dm");
       case "group":
         return t("chat.filter_group");
       case "channel":
         return t("chat.filter_channel");
-      case "workspace":
-        return t("chat.filter_workspace");
       default:
-        return kind;
+        return value;
     }
   };
-
-  const activityFilterLabel = (kind: ChatSidebarActivityFilter) => {
-    switch (kind) {
-      case "all":
-        return t("chat.filter_activity_all");
-      case "unread":
-        return t("chat.filter_unread");
-      case "mentions":
-        return t("chat.filter_mentions");
-      default:
-        return kind;
-    }
-  };
+  const tabCount = (value: ChatSidebarTab) =>
+    unreadBadgesReady && (value === "all" || value === "unread" || value === "mentions") ? tabCounts[value] : 0;
 
   return (
     <>
@@ -237,128 +229,48 @@ export const ChatSidebar = memo(function ChatSidebar({
           embedded ? "h-full min-w-0 flex-1 border-r border-border" : "rounded-lg border border-border",
         )}
       >
-        <header className="flex shrink-0 items-center gap-1 pt-3.5 pr-3 pb-3 pl-5">
-          <h2
-            id="chat-sidebar-title"
-            className="min-w-0 flex-1 truncate font-display text-title-lg font-extrabold text-foreground"
-          >
-            {t("chat.title")}
-          </h2>
-          {onOpenFollowUps ? (
-            <SidebarIconAction icon={ListChecks} label={t("chat.follow_up.list_title")} onClick={onOpenFollowUps} />
-          ) : null}
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-lg"
-                        // A filled square, so the one way to start a conversation
-                        // stands apart from the quiet icons beside it.
-                        className="size-10 rounded-lg bg-muted text-foreground hover:bg-surface-hover aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground dark:hover:bg-surface-hover"
-                        aria-label={t("chat.new_conversation_aria")}
-                      />
-                    }
-                  />
-                }
-              >
-                <Plus aria-hidden className="size-5" />
-              </TooltipTrigger>
-              <TooltipContent>{t("chat.new_conversation_aria")}</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end" className="min-w-60 rounded-xl p-1.5">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="px-2.5 pt-2 pb-1.5">{t("chat.new_conversation_aria")}</DropdownMenuLabel>
-                <DropdownMenuItem className={MENU_ITEM} onClick={() => setStartDmOpen(true)}>
-                  <UserPlus aria-hidden />
-                  {t("chat.add_dm_aria")}
-                </DropdownMenuItem>
-                <DropdownMenuItem className={MENU_ITEM} disabled={!onCreateGroup} onClick={() => setCreateGroupOpen(true)}>
-                  <Users aria-hidden />
-                  {t("chat.create_group_aria")}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator className="mx-1 my-1.5" />
-              <DropdownMenuItem className={MENU_ITEM} onClick={() => setCreateChannelOpen(true)}>
-                <Hash aria-hidden />
-                {t("chat.channel.create_aria")}
-              </DropdownMenuItem>
-              <DropdownMenuItem className={MENU_ITEM} onClick={() => setChannelDirectoryOpen(true)}>
-                <Compass aria-hidden />
-                {t("chat.channel.directory_aria")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {onCollapse ? (
-            <SidebarIconAction
-              icon={PanelLeftClose}
-              label={t("chat.hide_conversations")}
-              onClick={onCollapse}
-              expanded
-              data-chat-sidebar-collapse=""
-              className="hidden lg:inline-flex"
-            />
-          ) : null}
-        </header>
-
-        <div className="shrink-0 px-4 pb-1">
-          <div className="relative">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder={t("chat.search_conversations")}
-              aria-label={t("chat.search_conversations_label")}
-              type="search"
-              autoComplete="off"
-              className="h-11 rounded-full border-transparent bg-muted pr-4 pl-10 hover:bg-surface-hover focus-visible:bg-surface md:text-body-lg dark:bg-muted dark:focus-visible:bg-surface"
-            />
-          </div>
-        </div>
-        {/* Registry toggle groups: arrow keys move between options (roving focus). */}
+        <SidebarHeader
+          onOpenFollowUps={onOpenFollowUps}
+          onCollapse={onCollapse}
+          onStartDm={openStartDm}
+          onCreateGroup={openCreateGroup}
+          onCreateChannel={() => setCreateChannelOpen(true)}
+          onBrowseChannels={() => setChannelDirectoryOpen(true)}
+        />
+        <SidebarSearch value={filterQuery} onChange={setFilterQuery} />
+        {/* Registry toggle group: arrow keys move between tabs (roving focus). */}
         <ToggleGroup
-          value={[kindFilter]}
+          value={[tab]}
           onValueChange={(value) => {
-            const next = value[0] as ChatSidebarKindFilter | undefined;
-            if (next) setKindFilter(next);
+            const next = value[0] as ChatSidebarTab | undefined;
+            if (next) setTab(next);
           }}
           aria-label={t("chat.filter_aria")}
-          className="flex w-full shrink-0 rounded-none border-b border-border px-2.5"
+          spacing={0.5}
+          className="no-scrollbar flex w-full shrink-0 overflow-x-auto rounded-none border-b border-border px-2.5"
         >
-          {filterOptions.map((kind) => (
-            <ToggleGroupItem key={kind} value={kind} className={KIND_TAB}>
-              {filterLabel(kind)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        <ToggleGroup
-          value={[activityFilter]}
-          onValueChange={(value) => {
-            const next = value[0] as ChatSidebarActivityFilter | undefined;
-            if (next) setActivityFilter(next);
-          }}
-          aria-label={t("chat.filter_activity_aria")}
-          spacing={1.5}
-          className="flex w-full shrink-0 px-4 pt-2.5 pb-1"
-        >
-          {activityFilterOptions.map((kind) => (
-            <ToggleGroupItem key={kind} value={kind} className={ACTIVITY_CHIP}>
-              {activityFilterLabel(kind)}
-            </ToggleGroupItem>
-          ))}
+          {CHAT_SIDEBAR_TABS.map((value) => {
+            const count = tabCount(value);
+            return (
+              <ToggleGroupItem key={value} value={value} className={TAB}>
+                {tabLabel(value)}
+                {count > 0 ? (
+                  <>
+                    <span aria-hidden className={cn(TAB_COUNT, value === tab && "bg-brand text-brand-foreground")}>
+                      {count}
+                    </span>
+                    <span className="sr-only">{t("chat.sidebar_result_count", { count })}</span>
+                  </>
+                ) : null}
+              </ToggleGroupItem>
+            );
+          })}
         </ToggleGroup>
 
         <SidebarInvitations />
 
         <nav
-          className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pt-2"
           aria-label={t("chat.sidebar_nav")}
         >
           {/* One persistent region: the count a filter or search leaves is
@@ -383,8 +295,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                 onCreateChannel: () => setCreateChannelOpen(true),
                 onBrowseChannels: () => setChannelDirectoryOpen(true),
                 onShowAll: () => {
-                  setKindFilter("all");
-                  setActivityFilter("all");
+                  setTab("all");
                   setFilterQuery("");
                 },
               }}
@@ -407,6 +318,7 @@ export const ChatSidebar = memo(function ChatSidebar({
               labels={labels}
               memberAvatarByUserId={memberAvatarByUserId}
               typingNameByUserId={typingNameByUserId}
+              peerReadAtByRoomId={peerReadAtByRoomId}
             />
           )}
           {!loading && !loadError && !filtering && entries.length === 1 && entries[0]?.kind === "workspace" ? (

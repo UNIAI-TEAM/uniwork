@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildUnifiedSidebarEntries } from "./chat-sidebar-unified";
+import { buildUnifiedSidebarEntries, chatSidebarTabCounts, chatSidebarTabFilters } from "./chat-sidebar-unified";
 
 describe("buildUnifiedSidebarEntries", () => {
   it("sorts pinned then recent across kinds into one list", () => {
@@ -126,5 +126,22 @@ describe("buildUnifiedSidebarEntries", () => {
     expect(
       buildUnifiedSidebarEntries({ ...base, activityFilter: "mentions" }).map((e) => e.key),
     ).toEqual(["dm:u2"]);
+  });
+
+  it("maps each tab to one kind and one read-state filter", () => {
+    expect(chatSidebarTabFilters("mentions")).toEqual({ kindFilter: "all", activityFilter: "mentions" });
+    expect(chatSidebarTabFilters("channel")).toEqual({ kindFilter: "channel", activityFilter: "all" });
+    expect(chatSidebarTabFilters("all")).toEqual({ kindFilter: "all", activityFilter: "all" });
+  });
+
+  it("counts conversations, not messages, and leaves muted rooms out of All", () => {
+    expect(
+      chatSidebarTabCounts({
+        roomIds: ["ws", "dm1", "dm1", "g", "ch", ""],
+        unreadByRoomId: { ws: 0, dm1: 2, g: 14, ch: 3, elsewhere: 9 },
+        mentionUnreadByRoomId: { ch: 1, elsewhere: 1 },
+        mutedRoomIds: new Set(["g"]),
+      }),
+    ).toEqual({ all: 2, unread: 3, mentions: 1 });
   });
 });

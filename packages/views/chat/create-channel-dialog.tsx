@@ -25,7 +25,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
-import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import { CHAT_DIALOG_CLASS, CHAT_FIELD_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
@@ -39,6 +39,21 @@ import { memberToChatContact } from "./workspace-member-picker-utils";
 type Visibility = "public" | "private";
 const NO_PROJECT = "__none__";
 const NAME_MAX = 80;
+const TOPIC_MAX = 280;
+
+/* A field label with the canvas' character count at its right. */
+function CountedLabel({ htmlFor, label, length, max }: { htmlFor: string; label: string; length: number; max: number }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <Label htmlFor={htmlFor} className="text-label font-semibold">
+        {label}
+      </Label>
+      <span aria-hidden className="text-caption text-muted-foreground tabular-nums">
+        {length}/{max}
+      </span>
+    </div>
+  );
+}
 
 export function CreateChannelDialog({
   open,
@@ -68,7 +83,7 @@ export function CreateChannelDialog({
   const [error, setError] = useState<string | null>(null);
 
   const pickerFocus = useMemberPickerFocus();
-  const excludeUserIds = useMemo(
+  const pickedUserIds = useMemo(
     () => new Set(pendingMembers.map((member) => member.user_id)),
     [pendingMembers],
   );
@@ -79,7 +94,6 @@ export function CreateChannelDialog({
     open,
     query: memberQuery,
     searchSubmitted,
-    excludeUserIds,
   });
 
   const resetForm = () => {
@@ -103,13 +117,22 @@ export function CreateChannelDialog({
     setPendingMembers((prev) =>
       prev.some((member) => member.user_id === contact.user_id) ? prev : [...prev, contact],
     );
-    setMemberQuery("");
-    setSearchSubmitted(false);
-    pickerFocus.focusInput();
+    // A search found them: clear it and start the next one from the field.
+    if (memberQuery.trim()) {
+      setMemberQuery("");
+      setSearchSubmitted(false);
+      pickerFocus.focusInput();
+    }
   };
 
   const removeMember = (userId: string) => {
     setPendingMembers((prev) => prev.filter((member) => member.user_id !== userId));
+  };
+
+  /* The list's rows are checkboxes: a picked row stays, ticked, and unticks. */
+  const toggleMember = (contact: ChatContact) => {
+    if (pickedUserIds.has(contact.user_id)) removeMember(contact.user_id);
+    else addMember(contact);
   };
 
   const submitMemberSearch = () => {
@@ -163,20 +186,18 @@ export function CreateChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-2xl`}>
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-160`}>
         <FormDialogHeader
           title={t("chat.channel.create_title")}
           description={t("chat.channel.create_description")}
         />
         <FormDialogBody className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="channel-name" className="text-label font-semibold">
-              {t("chat.channel.name_label")}
-            </Label>
+            <CountedLabel htmlFor="channel-name" label={t("chat.channel.name_label")} length={name.length} max={NAME_MAX} />
             <div className="relative">
               <Hash
                 aria-hidden
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
               />
               <Input
                 id="channel-name"
@@ -194,22 +215,20 @@ export function CreateChannelDialog({
                 placeholder={t("chat.channel.name_placeholder")}
                 autoFocus
                 maxLength={NAME_MAX}
-                className="pl-9"
+                className={`${CHAT_FIELD_CLASS} pl-10`}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="channel-topic" className="text-label font-semibold">
-              {t("chat.channel.topic_label")}
-            </Label>
+            <CountedLabel htmlFor="channel-topic" label={t("chat.channel.topic_label")} length={topic.length} max={TOPIC_MAX} />
             <Textarea
               id="channel-topic"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder={t("chat.channel.topic_placeholder")}
-              className="min-h-16 resize-none"
-              maxLength={280}
+              className={`${CHAT_FIELD_CLASS} h-auto min-h-16 resize-none py-3`}
+              maxLength={TOPIC_MAX}
             />
           </div>
 
@@ -229,7 +248,7 @@ export function CreateChannelDialog({
                 <Label
                   key={option.value}
                   htmlFor={`channel-vis-${option.value}`}
-                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3.5 font-normal transition-colors hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle has-[[data-checked]]:ring-1 has-[[data-checked]]:ring-primary"
+                  className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-border p-3.5 font-normal transition-colors hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle has-[[data-checked]]:ring-1 has-[[data-checked]]:ring-primary"
                 >
                   <RadioGroupItem
                     value={option.value}
@@ -269,7 +288,7 @@ export function CreateChannelDialog({
               <SelectTrigger
                 id="channel-project"
                 aria-labelledby="channel-project-label channel-project"
-                className="w-full"
+                className="min-h-11 w-full rounded-lg border-border bg-muted px-3.5 md:text-body-lg dark:bg-muted"
               >
                 <SelectValue placeholder={t("chat.channel.project_none")} />
               </SelectTrigger>
@@ -313,7 +332,8 @@ export function CreateChannelDialog({
               loading={isLoading}
               query={memberQuery}
               hasOtherMembers={hasOtherMembers}
-              onPick={addMember}
+              selectedUserIds={pickedUserIds}
+              onPick={toggleMember}
               listRef={pickerFocus.listRef}
             />
           </div>
@@ -332,7 +352,19 @@ export function CreateChannelDialog({
           submitting={createChannel.isPending}
           submitDisabled={!nameValid}
           onSubmit={submit}
-          leading={!nameValid ? t("chat.channel.name_required") : undefined}
+          leading={
+            !nameValid
+              ? t("chat.channel.name_required")
+              : [
+                  `#${trimmedName}`,
+                  visibility === "public"
+                    ? t("chat.channel.visibility_public_title")
+                    : t("chat.channel.visibility_private_title"),
+                  pendingMembers.length > 0 ? t("chat.channel.invite_count", { count: pendingMembers.length }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+          }
         />
       </FormDialogContent>
     </Dialog>

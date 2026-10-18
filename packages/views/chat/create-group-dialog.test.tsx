@@ -111,8 +111,13 @@ describe("CreateGroupDialog", () => {
     // "How many are missing" is said once, beside the submit button.
     expect(screen.getByText("Chọn thêm 2 người nữa để tạo nhóm.")).toBeInTheDocument();
     expect(screen.queryByText(/cần ít nhất/)).toBeNull();
+    // The rows are checkboxes: a second pick unticks.
+    fireEvent.click(screen.getByRole("button", { name: "Binh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Binh" }));
+    expect(screen.getByText("Chọn thêm 2 người nữa để tạo nhóm.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tran Hoang Long" }));
     fireEvent.click(screen.getByRole("button", { name: "Binh" }));
+    expect(screen.getByText("Nhóm gồm bạn và 2 người")).toBeInTheDocument();
 
     const startButton = screen.getByRole("button", { name: "Tạo nhóm chat" });
     expect(startButton).not.toHaveAttribute("aria-disabled");

@@ -268,7 +268,7 @@ export function ChannelDirectorySheet({
           <div className="relative">
             <Search
               aria-hidden
-              className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-4 top-1/2 size-4.5 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               value={query}
@@ -277,7 +277,7 @@ export function ChannelDirectorySheet({
               aria-label={t("chat.channel.directory_search")}
               type="search"
               variant="subtle"
-              className="h-11 rounded-full pl-10"
+              className="h-11 rounded-full bg-muted pl-11.5 hover:bg-surface-hover md:text-body-lg dark:bg-muted"
             />
           </div>
         </div>

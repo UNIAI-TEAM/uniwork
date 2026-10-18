@@ -7,7 +7,8 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
+import { chatPersonFaceClass } from "./chat-person-card";
 
 /**
  * People picked so far, each removable. `summary` is a plain-words count
@@ -85,7 +86,12 @@ export function SelectedMemberChips({
                 key={member.user_id}
                 className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-full bg-brand-subtle pr-1 pl-1 text-brand-subtle-foreground"
               >
-                <ActorAvatar name={label} initials={initialOf(label)} size="md" />
+                <ActorAvatar
+                  name={label}
+                  initials={initialsOf(label)}
+                  size="fluid"
+                  className={`size-7 text-micro ${chatPersonFaceClass(member.user_id)}`}
+                />
                 <span className="min-w-0 truncate text-body font-semibold">{label}</span>
                 <Button
                   type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight, Sparkle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { displayLabelForChatContact, type ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -75,26 +75,22 @@ export function SidebarCatchUpCard({
   const { top } = catchUp;
   const content = (
     <>
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <Sparkles aria-hidden className="size-4.5" />
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-control bg-primary text-primary-foreground">
+        <Sparkle aria-hidden className="size-4.5" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-display text-body font-bold text-foreground">{t("chat.sidebar_catch_up_title")}</span>
-        <span className="text-label text-muted-foreground">
+        <span className="font-display text-body leading-4.5 font-bold text-foreground">{t("chat.sidebar_catch_up_title")}</span>
+        <span className="text-label leading-4.25 text-muted-foreground">
           {top
             ? t("chat.sidebar_catch_up_body", { count: catchUp.total, rooms: catchUp.rooms })
             : t("chat.sidebar_catch_up_none")}
         </span>
-        {top ? (
-          <span className="flex min-w-0 items-center gap-1 text-label font-semibold text-brand">
-            <ArrowRight aria-hidden className="size-3.5 shrink-0" />
-            <span className="truncate">{t("chat.sidebar_catch_up_target", { name: top.title })}</span>
-          </span>
-        ) : null}
+        {/* The card opens the busiest room; the canvas draws no line for it, so only a screen reader hears where. */}
+        {top ? <span className="sr-only">{t("chat.sidebar_catch_up_target", { name: top.title })}</span> : null}
       </span>
     </>
   );
-  const box = "mx-1 mb-1.5 flex shrink-0 items-center gap-3 rounded-xl border border-brand/25 bg-brand-subtle px-3.5 py-3 text-left";
+  const box = "mb-1.5 flex w-full shrink-0 items-center gap-3 rounded-[14px] border border-brand/25 bg-brand-subtle px-3.5 py-3 text-left";
   if (!top) return <div className={box}>{content}</div>;
   return (
     <button
