@@ -688,7 +688,7 @@ async function captureDeclaredShot(ctx, session, name, artifact, selector) {
   if (captured) return captureAssertion(name, artifact, captured, true);
   const alive = await ctx.appAlive(session).catch(() => false);
   if (!alive) throw new AppBlocked(`the app stopped before ${artifact} could be captured (harness down; no product claim)`);
-  return captureAssertion(name, artifact, null, false);
+  return captureAssertion(name, artifact, null, true);
 }
 
 // ---- drivers --------------------------------------------------------------------

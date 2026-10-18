@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { captureRowShots } from "./app-case-drivers-offline.mjs";
 import { createAppDocument } from "./app-tenant.mjs";
 
 const FAULT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -62,4 +63,19 @@ test("CL1-1: ctx.newDocument of the runner goes through createAppDocument, not t
   const source = readFileSync(join(FAULT_DIR, "app-cases.mjs"), "utf8");
   assert.match(source, /await createAppDocument\(tenant, fixture,/);
   assert.doesNotMatch(source, /await createFileDocument\(/);
+});
+
+test("CL1-2: a declared shot that did not capture while the app is alive reads 'not captured', not 'the app died'", async () => {
+  const session = { shell: { waitForSelector: async () => { throw new Error("no such selector"); } } };
+  const ctx = { appAlive: async () => true, artifactPath: (name) => join(FAULT_DIR, "never-written", name) };
+  const [shot] = await captureRowShots(ctx, session, { s11: true });
+  assert.equal(shot.name, "s11_shot");
+  assert.equal(shot.ok, false);
+  assert.equal(shot.actual, "not captured");
+});
+
+test("CL1-2: the same capture on a dead app is still BLOCKED, never a FAIL", async () => {
+  const session = { shell: { waitForSelector: async () => { throw new Error("gone"); } } };
+  const ctx = { appAlive: async () => false, artifactPath: (name) => join(FAULT_DIR, "never-written", name) };
+  await assert.rejects(captureRowShots(ctx, session, { s11: true }), /the app stopped before s11-lock-panel\.png could be captured/);
 });
