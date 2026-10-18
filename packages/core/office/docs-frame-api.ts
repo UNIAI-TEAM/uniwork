@@ -121,12 +121,19 @@ export function docsFrameError(error: unknown): DocsProtocolError {
     // The server words its message in the ACCOUNT language, which is not the page's: the frame
     // gets the stable code (`details.apiCode`, plus this English developer text) and maps it to
     // page-language copy itself. The sentence never travels.
-    const message = error.code ? `${error.code} (HTTP ${error.status})` : `HTTP ${error.status}`;
+    const message =
+      error.status === 423
+        ? `${error.code || "document_locked"} (HTTP 423)`
+        : error.code
+          ? `${error.code} (HTTP ${error.status})`
+          : `HTTP ${error.status}`;
     const shape = noRenderer
       ? { code: "unsupported" as const, message, status: error.status }
       : error.status === 504
         ? { code: "timeout" as const, message, status: 504, retryable: true }
-        : errorFromHttpStatus(error.status, message).toShape();
+        : error.status === 423
+          ? { code: "forbidden" as const, message, status: 423 }
+          : errorFromHttpStatus(error.status, message).toShape();
     const rawMax = error.fields?.["max_bytes"];
     const maxBytes = typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : undefined;
     return new DocsProtocolError({
@@ -329,15 +336,9 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       } catch (error) {
         // A stale base is an answer, not a failure: the frame offers to reload.
         if (error instanceof ApiError && error.status === 409) return { ok: false, error: docsFrameError(error).toShape() };
-        // 423 document_locked (UNI-1645, addendum §11.1) is never {ok:false}: the frame would read
-        // it as a stale base and offer "Overwrite". It is a read-only refusal the host turns into
-        // its lost-lock state; the holder the server named rides in details.fields.
-        if (error instanceof ApiError && error.status === 423) {
-          throw new DocsProtocolError({
-            code: "forbidden", message: `${error.code || "document_locked"} (HTTP 423)`, status: 423,
-            details: { apiCode: error.code, ...(error.fields ? { fields: error.fields } : {}) },
-          });
-        }
+        // 423 document_locked (UNI-1645, addendum §11.1; UNI-1890 at session create) is never
+        // {ok:false}: the frame would read it as a stale base and offer "Overwrite". docsFrameError
+        // maps it to a 423 forbidden refusal so the host turns it into its lost-lock state.
         throw error;
       }
     }),

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Download, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError } from "@uniwork/core/api";
+import { getDocumentEditLock } from "@uniwork/core/api/endpoints/documents-edit-lock";
 import {
   ChunkedUploadError,
   chunkedUploadThreshold,
@@ -17,6 +19,7 @@ import {
   useUploadDocumentFile,
 } from "@uniwork/core/documents/hooks";
 import { useCommitDocumentVersion } from "@uniwork/core/documents/hooks-versions";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import type { Document } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
@@ -43,6 +46,7 @@ export interface DocumentFileActions {
  */
 export function useDocumentFileActions(wsId: string, doc: Document): DocumentFileActions {
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
   const downloadFile = useDocumentDownload(wsId, doc.id);
   const upload = useUploadDocumentFile(wsId, doc.id);
   const commit = useCommitDocumentVersion(wsId, doc.id);
@@ -108,6 +112,23 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
     try {
       let uploadId: string;
       if (useChunked) {
+        const lockState = await queryClient
+          .fetchQuery({
+            queryKey: documentKeys.editLock(wsId, doc.id),
+            queryFn: ({ signal }) => getDocumentEditLock(doc.id, signal),
+            staleTime: 0,
+          })
+          .catch(() => null);
+        const lock = lockState?.lock;
+        if (lock && (!lock.held_by_me || !heldEditLockId(doc.id))) {
+          // Same shape as a server 423 body: never the lock id, which a
+          // manage-level reader of the summary may see.
+          const fields: Record<string, unknown> = {};
+          for (const key of ["holder_id", "holder_name", "since", "expires_at", "held_by_me", "offline_hold_until"] as const) {
+            if (lock[key] != null) fields[key] = lock[key];
+          }
+          throw new ApiError("", "document_locked", 423, undefined, fields);
+        }
         const res = await chunked.start({
           file: picked,
           filename: picked.name,
@@ -143,7 +164,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       if (err instanceof ChunkedUploadError && err.code === "upload_canceled") {
         return;
       }
-      if (err instanceof ApiError && err.code === "document_locked") {
+      if (err instanceof ApiError && (err.code === "document_locked" || err.status === 423)) {
         // The page ends its hold when this was the lock it holds; a new lock id is a new write.
         reportWriteRefused(doc.id, err.fields, lockId);
         idempotencyKey.current = null;
