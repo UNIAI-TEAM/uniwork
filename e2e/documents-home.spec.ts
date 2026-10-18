@@ -64,7 +64,7 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   });
   expect(attached.status(), await attached.text()).toBe(200);
 
-  // 1. A blank docx from its quick-create pill: created in the open folder (the root) and opened at once.
+  // 1. A blank docx from its quick-create pill: created in My Folder (destination: "my_folder") and opened at once.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
   await quickCreate(page, /^Văn bản/).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 90_000 });
@@ -75,6 +75,8 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   // 2. A folder: named in the FD-07/08 name dialog (as documents-folders.spec.ts does), opened,
   // listed in the sidebar tree and named in the breadcrumb.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
+  await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Thư mục của tôi", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await sidebar(page).getByRole("button", { name: "Tạo thư mục" }).click();
   const nameDialog = page.getByRole("dialog", { name: "Thư mục mới ở Tài liệu (gốc)" });
@@ -88,6 +90,7 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   await crumbs.getByRole("button", { name: "Tài liệu của workspace" }).click();
 
   // 3. Move the docx into the folder from its row menu, then find it inside.
+  await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
@@ -116,6 +119,55 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   await expect(sidebar(page).getByText("Thư mục", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(sidebar(page).getByText("Từ nơi khác")).toHaveCount(0);
   await page.unroute("**/api/v1/workspaces/*/documents/sources**");
+});
+
+test("My Folder sub-nav row, personal folder view, localized tree label, Home create into My Folder, and system folder guards", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const seed = workspaceSeed("dochome", "myfolder", stamp);
+  await onboardDocumentsUser(page, seed);
+  await openLibrary(page, seed.orgSlug, seed.wsSlug);
+
+  const nav = sidebar(page);
+  const myFolderNav = nav.getByRole("button", { name: "Thư mục của tôi", exact: true });
+  await expect(myFolderNav).toBeVisible({ timeout: 30_000 });
+
+  // 1. Clicking "Thư mục của tôi" ensures the personal folder, opens it as a folder view, and lists it in the tree with its i18n label.
+  await myFolderNav.click();
+  await expect(page).toHaveURL(/\/documents\?folder=[0-9A-HJKMNP-TV-Z]{26}$/, { timeout: 30_000 });
+  await expect(page.getByRole("heading", { level: 1, name: "Thư mục của tôi", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(myFolderNav).toHaveAttribute("aria-current", "page");
+  const myFolderTreeItem = nav.getByRole("treeitem", { name: /Thư mục của tôi/ });
+  await expect(myFolderTreeItem).toBeVisible({ timeout: 30_000 });
+  await expect(nav.getByText("My Folder", { exact: true })).toHaveCount(0);
+
+  // 2. Guards on the open My Folder header and tree row: no inline rename, no Rename / Move / Delete in menus, while New subfolder stays available.
+  const crumbs = page.getByRole("navigation", { name: "Đường dẫn thư mục" });
+  await expect(crumbs.getByRole("button", { name: "Đổi tên thư mục" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Thao tác với thư mục" }).click();
+  await expect(page.getByRole("menuitem", { name: "Thư mục con mới" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Đổi tên" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Di chuyển tới…" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Xóa thư mục…" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await myFolderTreeItem.getByRole("button", { name: "Thao tác cho Thư mục của tôi" }).click();
+  await expect(page.getByRole("menuitem", { name: "Thư mục con mới" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Đổi tên…" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Di chuyển tới…" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Xóa thư mục…" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // 3. Creating from Documents Home (root) places the new document inside My Folder.
+  await nav.getByRole("button", { name: "Tài liệu của workspace", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Tài liệu của workspace", exact: true })).toBeVisible({ timeout: 30_000 });
+  await quickCreate(page, /^UniNote/).click();
+  await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
+
+  await openLibrary(page, seed.orgSlug, seed.wsSlug);
+  await myFolderNav.click();
+  await expect(libraryRowButton(library(page), "UniNote mới")).toBeVisible({ timeout: 30_000 });
 });
 
 test("the header Open UniWork Office falls back to the installer dialog when no app answers", async ({ page }) => {

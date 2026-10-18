@@ -275,8 +275,10 @@ describe("folder layout (Folder.dc)", () => {
 
     const crumb = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     expect(within(crumb).getByRole("button", { name: t("documents.home.sidebar.home") })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { level: 1, name: /Dự án CCB/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: t("documents.home.folder.menu") })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { level: 1, name: "Dự án CCB" });
+    const menuButton = screen.getByRole("button", { name: t("documents.home.folder.menu") });
+    expect(within(heading).queryByRole("button")).toBeNull();
+    expect(heading.parentElement).toContainElement(menuButton);
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toHaveAttribute(
       "placeholder",
       t("documents.home.search.placeholder_folder"),

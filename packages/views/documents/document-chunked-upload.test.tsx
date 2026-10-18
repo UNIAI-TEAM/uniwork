@@ -89,6 +89,41 @@ function createdFileDoc(id = "d-large"): Document {
     system_kind: parsed.system_kind as Document["system_kind"],
   };
 }
+function myFolderDoc(): Document {
+  const parsed = DocumentSchema.parse({
+    id: "mf1",
+    workspace_id: WS,
+    organization_id: "org1",
+    kind: "folder",
+    title: "My Folder",
+    system_kind: "my_folder",
+    visibility: "restricted",
+    revision: "1",
+    my_level: "manage",
+    created_at: "2026-10-17T12:00:00Z",
+    updated_at: "2026-10-17T12:00:00Z",
+  });
+  return {
+    ...parsed,
+    kind: parsed.kind as Document["kind"],
+    visibility: parsed.visibility as Document["visibility"],
+    my_level: parsed.my_level as Document["my_level"],
+    via: parsed.via as Document["via"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"],
+    system_kind: parsed.system_kind as Document["system_kind"],
+  };
+}
+
+// The tree row that makes `myFolderId` known without a my-folder POST.
+const MY_FOLDER_TREE_NODE = {
+  id: "mf1",
+  title: "My Folder",
+  kind: "folder",
+  system_kind: "my_folder",
+  position: 0,
+  children: [],
+};
+
 
 const makePartUrls = (nums: number[]) =>
   nums.map((n) => ({
@@ -177,7 +212,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
         return {
           session_id: "sess-ws-1",
@@ -228,6 +263,147 @@ describe("Chunked document upload in views", () => {
     expect(calls).not.toContain(`POST /api/v1/workspaces/${WS}/documents/files`);
   });
 
+  it("opens a Home-root chunked session under My Folder, ensuring it first when no parent is open", async () => {
+    const calls: string[] = [];
+    const sessionBodies: unknown[] = [];
+    let ensureCalls = 0;
+    const myFolderUrl = `/api/v1/workspaces/${WS}/documents/my-folder`;
+    const sessionUrl = `/api/v1/workspaces/${WS}/documents/upload-sessions`;
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string; body?: unknown }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) {
+        return {
+          flags: { documents: true },
+          documents: {
+            limits: {
+              upload_max_bytes: 200 * 1024 * 1024,
+              chunked_upload_threshold_bytes: THRESHOLD,
+              docx_max_bytes: 200 * 1024 * 1024,
+              xlsx_max_bytes: 200 * 1024 * 1024,
+              pptx_max_bytes: 200 * 1024 * 1024,
+              pdf_max_bytes: 200 * 1024 * 1024,
+            },
+          },
+        };
+      }
+      // No My Folder in the tree: the session opener must ensure it first.
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path === myFolderUrl && method === "POST") {
+        ensureCalls += 1;
+        return { document: myFolderDoc() };
+      }
+      if (path === sessionUrl && method === "POST") {
+        sessionBodies.push(opts?.body);
+        return {
+          session_id: "sess-mf-drop",
+          part_size: THRESHOLD,
+          total_parts: 1,
+          completed_parts: [],
+          parts: makePartUrls([1]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-mf-drop/complete" && method === "POST") {
+        return { document: createdFileDoc("d-mf-drop") };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 200, headers: { ETag: '"etag-1"' } })),
+    );
+
+    renderPageView();
+    await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    await waitForUploadLimits();
+    const dropRegion = screen.getByRole("region", { name: t("documents.page.title") });
+    fireEvent.drop(dropRegion, {
+      dataTransfer: { types: ["Files"], files: [makePdfFile(THRESHOLD + 1024, "drop-mf.pdf")] },
+    });
+
+    await waitFor(() =>
+      expect(calls).toContain("POST /api/v1/upload-sessions/sess-mf-drop/complete"),
+    );
+    expect(ensureCalls).toBe(1);
+    expect(sessionBodies).toHaveLength(1);
+    expect(sessionBodies[0]).toMatchObject({ parent_id: "mf1" });
+    // The session open must follow the ensure, never run at the workspace root.
+    expect(calls.indexOf(`POST ${myFolderUrl}`)).toBeLessThan(calls.indexOf(`POST ${sessionUrl}`));
+    expect(calls).not.toContain(`POST /api/v1/workspaces/${WS}/documents/files`);
+  });
+
+  it("ignores an old root resume record for a Home-root chunked upload and opens a fresh session under My Folder", async () => {
+    const calls: string[] = [];
+    const sessionBodies: unknown[] = [];
+    const sessionUrl = `/api/v1/workspaces/${WS}/documents/upload-sessions`;
+    const dropFile = makePdfFile(THRESHOLD + 1024, "drop-stale.pdf");
+    saveResumableUpload(defaultStorage, uploadFileKey(dropFile), { kind: "workspace", workspaceId: WS }, {
+      session_id: "sess-stale-root",
+      expires_at: "2099-01-01T00:00:00Z",
+      idempotency_key: "idem-stale-root",
+    });
+
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string; body?: unknown }) => {
+      const method = opts?.method ?? "GET";
+      calls.push(`${method} ${path}`);
+      if (path.startsWith("/api/v1/config")) {
+        return {
+          flags: { documents: true },
+          documents: {
+            limits: {
+              upload_max_bytes: 200 * 1024 * 1024,
+              chunked_upload_threshold_bytes: THRESHOLD,
+              docx_max_bytes: 200 * 1024 * 1024,
+              xlsx_max_bytes: 200 * 1024 * 1024,
+              pptx_max_bytes: 200 * 1024 * 1024,
+              pdf_max_bytes: 200 * 1024 * 1024,
+            },
+          },
+        };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
+      if (path === sessionUrl && method === "POST") {
+        sessionBodies.push(opts?.body);
+        return {
+          session_id: "sess-fresh-mf",
+          part_size: THRESHOLD,
+          total_parts: 1,
+          completed_parts: [],
+          parts: makePartUrls([1]),
+          expires_at: "2099-01-02T00:00:00Z",
+        };
+      }
+      if (path === "/api/v1/upload-sessions/sess-fresh-mf/complete" && method === "POST") {
+        return { document: createdFileDoc("d-fresh-mf") };
+      }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents`)) return { documents: [], next_cursor: null };
+      return {};
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 200, headers: { ETag: '"etag-1"' } })),
+    );
+
+    renderPageView();
+    await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    await waitForUploadLimits();
+    fireEvent.drop(screen.getByRole("region", { name: t("documents.page.title") }), {
+      dataTransfer: { types: ["Files"], files: [dropFile] },
+    });
+
+    await waitFor(() =>
+      expect(calls).toContain("POST /api/v1/upload-sessions/sess-fresh-mf/complete"),
+    );
+    expect(sessionBodies).toHaveLength(1);
+    expect(sessionBodies[0]).toMatchObject({ parent_id: "mf1" });
+    expect(calls.some((c) => c.includes("sess-stale-root"))).toBe(false);
+  });
+
   it("keeps a file at or below threshold on the single-request /documents/files path", async () => {
     const calls: string[] = [];
     requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
@@ -248,7 +424,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/files` && method === "POST") {
         return { document: createdFileDoc("d-small") };
       }
@@ -291,7 +467,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
         return {
           session_id: "sess-pause",
@@ -366,9 +542,9 @@ describe("Chunked document upload in views", () => {
     });
   });
 
-  it("shows the resume hint when a picked file has an open resume record and resumes from completed parts", async () => {
+  it("resumes a Home-root pick from completed parts when the open resume record sits under My Folder", async () => {
     const bigFile = makePdfFile(THRESHOLD * 2, "resumable.pdf");
-    const target = { kind: "workspace" as const, workspaceId: WS };
+    const target = { kind: "workspace" as const, workspaceId: WS, parentId: "mf1" };
     saveResumableUpload(defaultStorage, uploadFileKey(bigFile), target, {
       session_id: "sess-resume-1",
       expires_at: "2099-01-01T00:00:00Z",
@@ -394,7 +570,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === "/api/v1/upload-sessions/sess-resume-1" && method === "GET") {
         return {
           session_id: "sess-resume-1",
@@ -552,7 +728,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
         throw new ApiError("raw server error", nextCode, 422);
       }
@@ -602,7 +778,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
         return {
           session_id: "sess-pause-close",
@@ -684,7 +860,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
         return {
           session_id: "sess-unmount-view",
@@ -752,7 +928,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
         return {
           session_id: "sess-drop-unmount",
@@ -819,7 +995,7 @@ describe("Chunked document upload in views", () => {
           },
         };
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
         return {
           session_id: "sess-drop-cancel",
@@ -1330,7 +1506,7 @@ describe("BIGUP-LOCKCHECK: edit-lock pre-check and create-time 423 on large new 
       if (path === `/api/v1/documents/${DOC_ID}/upload-sessions` && method === "POST") {
         throw new ApiError("đang bị khóa", "document_locked", 423, undefined, gateFields);
       }
-      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [] };
+      if (path.startsWith(`/api/v1/workspaces/${WS}/documents/tree`)) return { documents: [MY_FOLDER_TREE_NODE] };
       if (path === `/api/v1/workspaces/${WS}/documents/upload-sessions` && method === "POST") {
         throw new ApiError("đang bị khóa", "document_locked", 423, undefined, gateFields);
       }
