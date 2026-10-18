@@ -647,6 +647,31 @@ export async function deploymentEvidence(session, userDataDir) {
 }
 
 /**
+ * Forgets the S11 locks the way the product does (fork main service.dismissLock, IPC
+ * `dismissUniworkLock`) and re-mounts the renderer. Main pushes no list after a dismiss
+ * and the panel's own Close exists only for the non-retry reasons (renderer
+ * uniwork-lock-model.ts COPY), so the lock layer would stay over Home
+ * (UniworkLockPanel.tsx `inert={lock ? true : undefined}`) until the next read: the
+ * reload is that read. The row's state is the store's and stays as the refused open
+ * left it. Returns whether the layer is gone.
+ */
+export async function dismissLockPanels(session, { timeoutMs = 15_000 } = {}) {
+  try {
+    await session.shell.evaluate(async () => {
+      const locks = (await window.aiOffice.uniworkLocks?.()) ?? [];
+      for (const lock of locks) await window.aiOffice.dismissUniworkLock(lock.path);
+    });
+    await session.shell.reload({ waitUntil: "domcontentloaded", timeout: timeoutMs });
+    await session.shell.waitForSelector(".uw-lock-layer", { state: "detached", timeout: timeoutMs });
+    // Home (the settings event listener lives in it) is mounted again before the caller dispatches
+    await session.shell.waitForSelector(".sidebar-dock", { state: "attached", timeout: timeoutMs });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The S3/S11 shots a row declares, each as its own assertion pair (review r1
  * R1-11): the offline tab is opened and selected first, a declared shot that did
  * not capture FAILs, and a capture that failed while the app died is the
@@ -662,6 +687,10 @@ export async function captureRowShots(ctx, session, { s3 = false, s11 = false, s
   // the lock panel is what a refused open just raised: it is grabbed before the
   // settings pane is opened over it
   if (s11) shots.push(await captureDeclaredShot(ctx, session, "s11_shot", "s11-lock-panel.png", S11_LOCK_SELECTOR));
+  // CL3-2: the lock layer makes the Home subtree (the settings modal with it) inert and a
+  // retry-action lock has no Close button, so S3 cannot be opened behind it: S11 is shot
+  // first, then the lock is dismissed the way the product forgets one
+  if (s11 && s3) await dismissLockPanels(session);
   if (s3) {
     // the selection is the shot's precondition (review r2 R2-3): a tab that never
     // came up, or a panel that is not showing right before the capture, is no S3
