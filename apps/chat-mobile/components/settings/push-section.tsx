@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Switch, View } from "react-native";
 import { Text } from "@/components/ui/text";
+import { TintTile } from "@/components/ui/tint-tile";
 import { api } from "@/data/api";
 import { isPushEnabled, setPushEnabled } from "@/data/push";
 import { easProjectId } from "@/lib/runtime-extra";
@@ -55,7 +56,8 @@ export function PushSection() {
 
   return (
     <SettingsSection title={t("settings.notifications.push_section")} hint={t("mobile.settings.push_hint")}>
-      <View className="min-h-[52px] flex-row items-center gap-3 px-4 py-2">
+      <View className="min-h-[60px] flex-row items-center gap-3 py-2 pl-4 pr-3.5">
+        <TintTile tint="blue" icon="notifications-outline" size={36} iconSize={19} className="rounded-[10px]" />
         <Text className="flex-1 text-base text-foreground">{t("mobile.settings.push_this_device")}</Text>
         <Switch
           value={enabled ?? false}

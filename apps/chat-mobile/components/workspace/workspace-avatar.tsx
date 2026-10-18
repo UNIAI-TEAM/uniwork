@@ -1,7 +1,7 @@
 /**
  * Mobile WorkspaceAvatar. Ported from usf apps/mobile/components/workspace/workspace-avatar.tsx
  *
- * A workspace icon URL renders as a rounded-square logo image, an emoji as
+ * A workspace icon URL renders as a squircle logo image, an emoji as
  * text, otherwise the workspace's initial letter sits in a muted tile. A
  * server-relative icon path is made absolute against the API origin inline;
  * RN's <Image> cannot load a relative URL.
@@ -9,6 +9,7 @@
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { Image, View } from "react-native";
 import { Text } from "@/components/ui/text";
+import { continuousCorners } from "@/lib/radius";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -26,8 +27,9 @@ function absoluteUrl(url: string | null | undefined): string | null {
 
 export function WorkspaceAvatar({ name, iconUrl, iconEmoji, size = 24, className }: Props) {
   const resolved = absoluteUrl(iconUrl);
-  const borderRadius = Math.round(size / 4);
-  const box = { width: size, height: size, borderRadius };
+  // The canvas squircle: 15 on a 48 tile, 12 on 40, 7 on 24.
+  const borderRadius = Math.round(size * 0.31);
+  const box = [continuousCorners, { width: size, height: size, borderRadius }];
 
   if (resolved) {
     return (
