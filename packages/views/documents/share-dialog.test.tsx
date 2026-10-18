@@ -297,6 +297,21 @@ describe("ShareDialog", () => {
     expect(fallbackDialog).not.toHaveAttribute("aria-describedby");
   });
 
+  it("TV1-02/TV1-06: keeps every grid child shrinkable and the title clear of the close button", async () => {
+    const { unmount } = renderDialog(documentFixture({ title: "Báo cáo doanh thu Q3 rất dài và không có dấu cáchcuốicùng" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: t("documents.share.title_named", { title: "Báo cáo doanh thu Q3 rất dài và không có dấu cáchcuốicùng" }),
+    });
+    // The dialog is a CSS grid; each child must be allowed to shrink below its
+    // content width or one long row widens the popup past the 390px viewport.
+    expect(dialog.className).toMatch(/\[\*>&\]:min-w-0|min-w-0/);
+    const title = within(dialog).getByRole("heading");
+    expect(title).toHaveClass("pr-8");
+    expect(title).toHaveClass("break-words");
+    unmount();
+  });
+
   it("labels a live comment grant, mine and a row's, as Comment and never as View", async () => {
     const comment = {
       ...accessPayload,
@@ -313,7 +328,7 @@ describe("ShareDialog", () => {
     renderDialog();
 
     expect(await screen.findByText(t("documents.share.my_level", { level: t("documents.share.level_comment") }))).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(`^${t("documents.share.level_comment")}`))).toBeInTheDocument();
+    expect(screen.getAllByText(new RegExp(`^${t("documents.share.level_comment")}`)).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(t("documents.share.my_level", { level: t("documents.share.level_view") }))).toBeNull();
   });
 
@@ -522,7 +537,7 @@ describe("ShareDialog", () => {
     await pickPerson("Bình");
     await pickPerson("Chi");
     await pickPerson("Dũng");
-    expect(screen.getByText(t("documents.share.people_selected", { count: 3 }))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.share.selected_count", { count: 3 }))).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
 
     await waitFor(() => expect(puts).toHaveLength(1));
@@ -971,9 +986,13 @@ describe("ShareDialog", () => {
     const name = await within(access).findByText("Bình");
     const row = name.closest("li")!;
     expect(name).toHaveClass("truncate");
-    // The level/effective text wraps under the name instead of claiming the
-    // row's width beside it (the 390px layout lost the name, TV-2).
-    const level = within(row).getByText(new RegExp(`^${t("documents.share.level_view")}`));
+    // The level/effective caption wraps under the name instead of claiming the
+    // row's width beside it (the 390px layout lost the name, TV-2); the
+    // Select value shows the same word, so the caption is the span under the
+    // name's min-w-0 parent, not a trigger child.
+    const level = within(row)
+      .getAllByText(new RegExp(`^${t("documents.share.level_view")}`))
+      .find((el) => !el.closest("[data-slot='select-trigger']"))!;
     expect(level.closest(".shrink-0")).toBeNull();
     expect(level.parentElement).toBe(name.closest(".min-w-0.flex-1"));
   });

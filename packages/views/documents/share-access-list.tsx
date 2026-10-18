@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Building2, FolderKanban, ShieldCheck, UserRound, Users } from "lucide-react";
+import { FolderKanban, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { DocumentAccessPreview, DocumentAccessUpdateItemInput, DocumentPrincipalType } from "@uniwork/core/api/endpoints/documents-sharing";
@@ -16,7 +16,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { OwnerTransferAction } from "./owner-transfer-dialog";
 import { allowedLevelsForPrincipal } from "./share-add-section";
-import { foldSearchText } from "./share-candidate-picker";
+import { foldSearchText, SharePrincipalIcon } from "./share-candidate-picker";
 import { shareErrorMessage } from "./share-dialog-break-glass";
 import type { ShareDialogTarget } from "./share-dialog-target";
 import { revokeSentence, warningSentence, type PreviewSentence } from "./share-preview-sentences";
@@ -51,7 +51,7 @@ interface PendingRowConfirm {
 const FILTER_THRESHOLD = 20;
 
 function NameOrSkeleton({ name }: { name: string | null }) {
-  return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="truncate" title={name}>{name}</span>;
+  return name === null ? <Skeleton aria-hidden className="h-4 w-24" /> : <span className="min-w-0 truncate" title={name}>{name}</span>;
 }
 
 export function ShareAccessList({
@@ -74,6 +74,22 @@ export function ShareAccessList({
   const homeWorkspace = access?.home_workspace ?? null;
   const homeWsId = homeWorkspace?.workspace_id || docWorkspaceId || "";
   const rawShares = useMemo(() => access?.shares ?? [], [access?.shares]);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+
+  // A revoke/downgrade click on a row near the top must not leave its confirm
+  // panel off-screen at the list's end (TV1-04): the panel renders inside the
+  // row it belongs to, scrolls into view and takes focus.
+  useEffect(() => {
+    if (!pendingConfirm || !confirmRef.current) return;
+    confirmRef.current.scrollIntoView?.({ block: "nearest" });
+    confirmRef.current.focus();
+  }, [pendingConfirm]);
+
+  useEffect(() => {
+    if (!actionError) return;
+    errorRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [actionError]);
 
   // A level the server knows and the client does not narrows to null (or stays
   // an unknown string): it is "Mức khác", never "Chỉ xem" (R3-02).
@@ -170,7 +186,7 @@ export function ShareAccessList({
   if (!canManage && !adminScope) {
     const mySources = access?.my_sources ?? [];
     return (
-      <section aria-labelledby="share-access-title" className="flex flex-col gap-2">
+      <section aria-labelledby="share-access-title" className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center justify-between">
           <h3 id="share-access-title" className="text-label font-medium text-foreground">{t("documents.share.access_title")}</h3>
           {myLevel ? <span className="text-caption text-muted-foreground">{t("documents.share.my_level", { level: levelLabel(myLevel) })}</span> : null}
@@ -178,7 +194,7 @@ export function ShareAccessList({
         {mySources.length > 0 ? (
           <ul className="flex flex-col gap-1 rounded-lg border border-border p-3 text-caption text-muted-foreground">
             {mySources.map((src, idx) => (
-              <li key={`${src.via}-${src.principal_id ?? idx}`}>
+              <li key={`${src.via}-${src.principal_id ?? idx}`} className="break-words">
                 {t("documents.share.source_item", { level: levelLabel(src.level), source: formatSourceOrigin(src) })}
               </li>
             ))}
@@ -267,9 +283,45 @@ export function ShareAccessList({
   const homeDisplayLabel = homeRow
     ? homeRow.workspace_name ? `${t("documents.share.principal_workspace")} ${homeRow.workspace_name}` : t("documents.share.principal_workspace")
     : "";
+  const homeRowKey = homeRow ? `home:${homeRow.workspace_id}` : "";
+  const visibleShares = orderedShares.filter((share) => {
+    const label = resolvePrincipalName(share.principal_type, share.principal_id);
+    return matchesFilter(label ?? "");
+  });
+  // The confirm panel lives inside the row it came from (TV1-04); when that
+  // row is not rendered (filtered out, or the share gone after a re-fetch)
+  // the panel falls back to the bottom of the list rather than disappearing.
+  const confirmInRow = Boolean(
+    pendingConfirm &&
+      ((homeRow && pendingConfirm.rowKey === homeRowKey && matchesFilter(homeRow.workspace_name)) ||
+        visibleShares.some(
+          (share) => pendingConfirm.rowKey === `share:${share.id || `${share.principal_type}:${share.principal_id}`}`,
+        )),
+  );
+
+  const confirmPanel = pendingConfirm ? (
+    <div
+      ref={confirmRef}
+      role="region"
+      data-testid="share-access-confirm"
+      tabIndex={-1}
+      className="flex flex-col gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-caption break-words text-foreground outline-none"
+    >
+      <p>{pendingConfirm.sentence.confirm}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => void commitRowChange(pendingConfirm.item, pendingConfirm.sentence.done)}>
+          {updateAccess.isPending ? <Spinner aria-hidden role="presentation" /> : null}
+          {t("documents.share.confirm_accept")}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => setPendingConfirm(null)}>
+          {t("documents.share.confirm_cancel")}
+        </Button>
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <section aria-labelledby="share-access-title" className="flex flex-col gap-2">
+    <section aria-labelledby="share-access-title" className="flex min-w-0 flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <h3 id="share-access-title" className="text-label font-medium text-foreground">{t("documents.share.access_title")}</h3>
         {myLevel ? <span className="text-caption text-muted-foreground">{t("documents.share.my_level", { level: levelLabel(myLevel) })}</span> : null}
@@ -318,25 +370,25 @@ export function ShareAccessList({
 
         {homeRow && matchesFilter(homeRow.workspace_name) ? (
           <li className="flex flex-col gap-1.5 px-3 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+              <span className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-body text-foreground">
                 <FolderKanban aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">{homeDisplayLabel}</span>
-                <Badge variant="secondary">{t("documents.share.home_badge")}</Badge>
+                <span className="min-w-0 truncate" title={homeDisplayLabel}>{homeDisplayLabel}</span>
+                <Badge className="shrink-0" variant="secondary">{t("documents.share.home_badge")}</Badge>
               </span>
               {canManage ? (
-                <div className="flex items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-1.5">
                   {homeRow.level !== null ? (
-                    <div className="w-32">
+                    <div className="w-28 shrink-0">
                       <Select
                         value={homeRow.level}
                         items={allowedLevelsForPrincipal("workspace", true).map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
                         onValueChange={(v) =>
-                          void requestRowChange(`home:${homeRow.workspace_id}`, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, v as DocumentAccessLevel)
+                          void requestRowChange(homeRowKey, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, v as DocumentAccessLevel)
                         }
                       >
-                        <SelectTrigger aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}`}>
-                          <SelectValue>{`${t("documents.share.level_label")}: ${levelLabel(homeRow.level)}`}</SelectValue>
+                        <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}`}>
+                          <SelectValue className="min-w-0">{levelLabel(homeRow.level)}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {allowedLevelsForPrincipal("workspace", true).map((lvl) => (
@@ -351,7 +403,7 @@ export function ShareAccessList({
                   <Button
                     type="button" variant="ghost" size="sm" disabled={updateAccess.isPending}
                     aria-label={`${t("documents.share.revoke")} ${homeDisplayLabel}`}
-                    onClick={() => void requestRowChange(`home:${homeRow.workspace_id}`, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, null)}
+                    onClick={() => void requestRowChange(homeRowKey, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, null)}
                   >
                     {t("documents.share.revoke")}
                   </Button>
@@ -360,12 +412,12 @@ export function ShareAccessList({
                 <Badge variant="outline">{levelLabel(homeRow.level)}</Badge>
               )}
             </div>
+            {pendingConfirm?.rowKey === homeRowKey ? confirmPanel : null}
           </li>
         ) : null}
 
-        {orderedShares.map((share) => {
+        {visibleShares.map((share) => {
           const label = resolvePrincipalName(share.principal_type, share.principal_id);
-          if (!matchesFilter(label ?? "")) return null;
           const displayLabel = label ?? t("documents.share.person_unknown");
           const rowKey = `share:${share.id || `${share.principal_type}:${share.principal_id}`}`;
           const allowedLevels = allowedLevelsForPrincipal(share.principal_type, false);
@@ -373,16 +425,10 @@ export function ShareAccessList({
           const isSourcesOpen = Boolean(expandedSources[rowKey]);
           return (
             <li key={rowKey} className="flex flex-col gap-1 px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <div className="min-w-0 flex-1 basis-44">
                   <span className="flex min-w-0 items-center gap-2 text-body text-foreground">
-                    {share.principal_type === "user" ? (
-                      <UserRound aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                    ) : share.principal_type === "workspace" ? (
-                      <Building2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                    )}
+                    <SharePrincipalIcon principalType={share.principal_type} />
                     <NameOrSkeleton name={label} />
                     {!share.active ? (
                       <span className="shrink-0 text-caption text-muted-foreground">{t("documents.share.inactive")}</span>
@@ -409,7 +455,7 @@ export function ShareAccessList({
                 {canManage ? (
                   <span className="flex shrink-0 items-center gap-1.5">
                     {share.level !== null ? (
-                      <div className="w-32">
+                      <div className="w-28 shrink-0">
                         <Select
                           value={share.level}
                           disabled={!share.active}
@@ -418,8 +464,8 @@ export function ShareAccessList({
                             void requestRowChange(rowKey, share.principal_type as DocumentPrincipalType, share.principal_id, displayLabel, share.level, v as DocumentAccessLevel)
                           }
                         >
-                          <SelectTrigger aria-label={`${t("documents.share.level_label")} ${displayLabel}`}>
-                            <SelectValue>{`${t("documents.share.level_label")}: ${levelLabel(share.level)}`}</SelectValue>
+                          <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${displayLabel}`}>
+                            <SelectValue className="min-w-0">{levelLabel(share.level)}</SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             {allowedLevels.map((lvl) => (
@@ -449,12 +495,14 @@ export function ShareAccessList({
               {isSourcesOpen && sources.length > 0 ? (
                 <ul className="mt-1 flex flex-col gap-0.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-caption text-muted-foreground">
                   {sources.map((src, idx) => (
-                    <li key={`${src.via}-${src.principal_id ?? idx}`}>
+                    <li key={`${src.via}-${src.principal_id ?? idx}`} className="break-words">
                       {t("documents.share.source_item", { level: levelLabel(src.level), source: formatSourceOrigin(src) })}
                     </li>
                   ))}
                 </ul>
               ) : null}
+
+              {pendingConfirm?.rowKey === rowKey ? confirmPanel : null}
             </li>
           );
         })}
@@ -462,26 +510,9 @@ export function ShareAccessList({
         {!hasAnyRow ? <li className="px-3 py-2 text-caption text-muted-foreground">{t("documents.share.no_grants")}</li> : null}
       </ul>
 
-      {pendingConfirm ? (
-        <div
-          role="region"
-          data-testid="share-access-confirm"
-          className="flex flex-col gap-2 rounded-md border border-warning/50 bg-warning/10 p-3 text-caption text-foreground"
-        >
-          <p>{pendingConfirm.sentence.confirm}</p>
-          <div className="flex items-center gap-2">
-            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => void commitRowChange(pendingConfirm.item, pendingConfirm.sentence.done)}>
-              {updateAccess.isPending ? <Spinner aria-hidden role="presentation" /> : null}
-              {t("documents.share.confirm_accept")}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => setPendingConfirm(null)}>
-              {t("documents.share.confirm_cancel")}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      {pendingConfirm && !confirmInRow ? confirmPanel : null}
 
-      {actionError ? <p role="alert" className="text-caption text-destructive">{actionError}</p> : null}
+      {actionError ? <p ref={errorRef} role="alert" className="text-caption break-words text-destructive">{actionError}</p> : null}
     </section>
   );
 }

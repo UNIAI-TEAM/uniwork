@@ -39,6 +39,19 @@ export interface ShareMembersDirectory {
 
 const PRINCIPAL_GROUPS: DocumentPrincipalType[] = ["user", "workspace", "organization"];
 
+/** Type icon shared by candidate options, selected chips and the custom-level
+ *  table (TV1-07): the same glyphs the access list uses per principal type. */
+export function SharePrincipalIcon({
+  principalType,
+  className = "size-3.5 shrink-0 text-muted-foreground",
+}: {
+  principalType: string;
+  className?: string;
+}) {
+  const Icon = principalType === "user" ? User : principalType === "workspace" ? FolderKanban : Building2;
+  return <Icon aria-hidden className={className} />;
+}
+
 export function foldSearchText(value: string): string {
   return value
     .normalize("NFD")
@@ -205,7 +218,9 @@ export function ShareCandidatePicker({
         <ul aria-label={t("documents.share.people_chosen")} className="flex flex-wrap gap-1.5">
           {selected.map((item) => {
             const rejectedCode = rejectedByKey[item.key];
-            const chipDisplay =
+            // Name only in the chip; the email moves to the tooltip (TV1-07)
+            // and a long name truncates instead of stretching the dialog.
+            const chipTitle =
               item.candidate.principal_type === "user" && item.candidate.secondary
                 ? `${item.candidate.name} <${item.candidate.secondary}>`
                 : item.candidate.name;
@@ -218,11 +233,12 @@ export function ShareCandidatePicker({
                 key={item.key}
                 className={
                   rejectedCode
-                    ? "inline-flex flex-wrap items-center gap-1.5 rounded-md border border-destructive bg-destructive/10 px-2 py-1 text-caption text-destructive"
-                    : "inline-flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-caption text-foreground"
+                    ? "inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-md border border-destructive bg-destructive/10 px-2 py-1 text-caption text-destructive"
+                    : "inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-caption text-foreground"
                 }
               >
-                <span className="max-w-60 truncate">{chipDisplay}</span>
+                <SharePrincipalIcon principalType={item.candidate.principal_type} />
+                <span className="max-w-60 truncate" title={chipTitle}>{item.candidate.name}</span>
                 {item.candidate.direct_level ? (
                   <Select
                     items={[
@@ -378,18 +394,12 @@ export function ShareCandidatePicker({
                           className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-body hover:bg-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                         >
                           <span className="flex min-w-0 items-center gap-2">
-                            {candidate.principal_type === "user" ? (
-                              <User aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                            ) : candidate.principal_type === "workspace" ? (
-                              <FolderKanban aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                            ) : (
-                              <Building2 aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-                            )}
+                            <SharePrincipalIcon principalType={candidate.principal_type} />
                             <span className="flex min-w-0 flex-col">
-                              <span className="flex items-center gap-1.5 truncate text-foreground">
-                                {candidate.name}
+                              <span className="flex min-w-0 items-center gap-1.5 text-foreground">
+                                <span className="min-w-0 truncate" title={candidate.name}>{candidate.name}</span>
                                 {candidate.is_home_workspace ? (
-                                  <Badge variant="secondary">{t("documents.share.home_badge")}</Badge>
+                                  <Badge variant="secondary" className="shrink-0">{t("documents.share.home_badge")}</Badge>
                                 ) : null}
                               </span>
                               {subtitle ? (
