@@ -83,6 +83,21 @@ export function useChatUnreadBadge(workspaceId: string): number {
 }
 
 /**
+ * Chat unread per workspace for the workspace switcher. One account-level
+ * entry; realtime invalidates it (chat.room.activity, chat.mention.created,
+ * own chat.room.read, notification.created).
+ */
+export function useChatUnreadSummary() {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  return useQuery({
+    queryKey: chatKeys.unreadSummary(),
+    queryFn: ({ signal }) => chat.getChatUnreadSummary(signal),
+    enabled: authReady,
+    staleTime: 30_000,
+  });
+}
+
+/**
  * Mutes or unmutes one room for the caller. Optimistic: the flag only moves
  * this person's own row of the rooms list, and a failure restores it.
  */

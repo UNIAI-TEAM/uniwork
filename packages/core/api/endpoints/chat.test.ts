@@ -16,6 +16,7 @@ import {
   searchChatRoomMessages,
   listChatRoomMessagesAround,
   listChatRooms,
+  getChatUnreadSummary,
   listWorkspaceChatMessages,
   lookupChatUser,
   lookupChatUserById,
@@ -164,6 +165,40 @@ describe("chat endpoints", () => {
       ["c2", 0],
       ["c3", 0],
     ]);
+  });
+
+  it("getChatUnreadSummary reads the totals", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        direct: { unread: 4, mentions: 1 },
+        workspaces: [{ workspace_id: "ws1", unread: 3, mentions: 0 }],
+      }),
+    );
+    expect(await getChatUnreadSummary()).toEqual({
+      direct: { unread: 4, mentions: 1 },
+      workspaces: [{ workspace_id: "ws1", unread: 3, mentions: 0 }],
+    });
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe("http://api.test/api/v1/me/chat/unread-summary");
+  });
+
+  it("getChatUnreadSummary degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await getChatUnreadSummary()).toEqual({ direct: { unread: 0, mentions: 0 }, workspaces: [] });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        direct: "lots",
+        workspaces: [
+          { workspace_id: "ws1", unread: "3", mentions: 2 },
+          { unread: 9, mentions: 9 },
+          "ws3",
+        ],
+      }),
+    );
+    expect(await getChatUnreadSummary()).toEqual({
+      direct: { unread: 0, mentions: 0 },
+      workspaces: [{ workspace_id: "ws1", unread: 0, mentions: 2 }],
+    });
   });
 
   it("resolveDMRoom degrades on malformed response", async () => {

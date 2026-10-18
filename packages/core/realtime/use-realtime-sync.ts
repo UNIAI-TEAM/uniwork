@@ -148,6 +148,7 @@ function keysFor(
       // comes back from the API.
       push(notificationKeys.lists());
       push(notificationKeys.unreadCount());
+      push(chatKeys.unreadSummary());
       push(homeKeys.summary(wsId));
       break;
     }

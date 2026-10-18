@@ -1,6 +1,8 @@
 export const chatKeys = {
   room: (wsId: string) => ["chat", "room", wsId] as const,
   rooms: (wsId: string) => ["chat", "rooms", wsId] as const,
+  /** The caller's unread across every workspace: account-level, not workspace-scoped. */
+  unreadSummary: () => ["chat", "unread-summary"] as const,
   channels: (wsId: string, scope: string, projectId = "") =>
     ["chat", "channels", wsId, scope, projectId] as const,
   projectChannels: (wsId: string, projectId: string) =>

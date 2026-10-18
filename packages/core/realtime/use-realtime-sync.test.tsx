@@ -342,6 +342,7 @@ describe("useRealtimeSync", () => {
       expect.arrayContaining([
         JSON.stringify(["notifications", "list"]),
         JSON.stringify(["notifications", "unread-count"]),
+        JSON.stringify(["chat", "unread-summary"]),
       ]),
     );
   });
