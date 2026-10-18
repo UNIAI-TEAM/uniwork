@@ -1,0 +1,102 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --shard=2/6 > /tmp/archfive-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/archfive-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/archfive-E2E.log; grep -E "✘|\[failed\]" /tmp/archfive-E2E.log | head -40; echo; echo "E2E_SUITE2_EXIT=$rc"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('#product-preview').locator('.lovable-canvas')
+
+
+      11 |     await landingReady(page);
+      12 |     const workspace = page.locator("#product-preview");
+    > 13 |     await expect(workspace.locator(width < 768 ? ".mobile-feature-story" : ".lovable-canvas")).toBeVisible();
+         |                                                                                                ^
+      14 |     await expect(page.locator(".demo-director, .demo-beats, .workspace-availability, .hero-scene-footer, .preview-caption")).toHaveCount(0);
+      15 |     await expect(page.locator("#platform-title")).toHaveClass("sr-only");
+      16 |     const geometry = await workspace.evaluate(node => {
+
+    Error Context: test-results/landing-density-product-st-d520a--the-landing-frame-at-768px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-density-product-st-d520a--the-landing-frame-at-768px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-density-product-st-d520a--the-landing-frame-at-768px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px ────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('#product-preview').locator('.mobile-feature-story')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('#product-preview').locator('.mobile-feature-story')
+
+
+      11 |     await landingReady(page);
+      12 |     const workspace = page.locator("#product-preview");
+    > 13 |     await expect(workspace.locator(width < 768 ? ".mobile-feature-story" : ".lovable-canvas")).toBeVisible();
+         |                                                                                                ^
+      14 |     await expect(page.locator(".demo-director, .demo-beats, .workspace-availability, .hero-scene-footer, .preview-caption")).toHaveCount(0);
+      15 |     await expect(page.locator("#platform-title")).toHaveClass("sr-only");
+      16 |     const geometry = await workspace.evaluate(node => {
+
+    Error Context: test-results/landing-density-product-st-72a1a--the-landing-frame-at-390px/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-density-product-st-72a1a--the-landing-frame-at-390px/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-density-product-st-72a1a--the-landing-frame-at-390px/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17 failed
+    landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 1440-light ────────────
+    landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 768-light ─────────────
+    landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 820-dark ──────────────
+    landing-catalog.spec.ts:5:1 › catalog covers 25 reference entries without implying illustrations are working modules 
+    landing-catalog.spec.ts:30:1 › project and organization previews work locally and source links stay within the showcase 
+    landing-chapters.spec.ts:16:3 › public chapters 1440-vi-light ──────────────────────────────────
+    landing-chapters.spec.ts:16:3 › public chapters 390-en-dark ────────────────────────────────────
+    landing-chapters.spec.ts:16:3 › public chapters 1510-en-dark ───────────────────────────────────
+    landing-chapters.spec.ts:16:3 › public chapters 768-vi-light ───────────────────────────────────
+    landing-chapters.spec.ts:16:3 › public chapters 320-vi-light ───────────────────────────────────
+    landing-chapters.spec.ts:92:1 › contextual closing demo links open their actual preview ────────
+    landing-closing.spec.ts:18:3 › product-led closing / 1554-vi-dark ──────────────────────────────
+    landing-closing.spec.ts:18:3 › product-led closing / 390-vi-light ──────────────────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 1910px ─────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px ─────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px ──────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px ──────────────────
+  49 passed (6.8m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=2/6
+  17 failed
+  49 passed (6.8m)
+  ✘  20 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 1440-light (11.5s)
+  ✘  21 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 768-light (11.5s)
+  ✘  22 landing-action-motion.spec.ts:11:3 › click leads a continuous card move: 820-dark (11.2s)
+  ✘  29 landing-catalog.spec.ts:5:1 › catalog covers 25 reference entries without implying illustrations are working modules (6.6s)
+  ✘  30 landing-catalog.spec.ts:30:1 › project and organization previews work locally and source links stay within the showcase (1.0m)
+  ✘  31 landing-chapters.spec.ts:16:3 › public chapters 1440-vi-light (9.3s)
+  ✘  32 landing-chapters.spec.ts:16:3 › public chapters 390-en-dark (9.4s)
+  ✘  33 landing-chapters.spec.ts:16:3 › public chapters 1510-en-dark (9.5s)
+  ✘  34 landing-chapters.spec.ts:16:3 › public chapters 768-vi-light (9.6s)
+  ✘  35 landing-chapters.spec.ts:16:3 › public chapters 320-vi-light (9.6s)
+  ✘  36 landing-chapters.spec.ts:92:1 › contextual closing demo links open their actual preview (6.0s)
+  ✘  38 landing-closing.spec.ts:18:3 › product-led closing / 1554-vi-dark (6.4s)
+  ✘  41 landing-closing.spec.ts:18:3 › product-led closing / 390-vi-light (6.3s)
+  ✘  63 landing-density.spec.ts:5:3 › product stage shares the landing frame at 1910px (5.8s)
+  ✘  64 landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px (5.9s)
+  ✘  65 landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px (5.9s)
+  ✘  66 landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px (5.8s)
+
+E2E_SUITE2_EXIT=1
