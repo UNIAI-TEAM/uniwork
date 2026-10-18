@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+1d9fb5c25113f3bded5c6092fe22efb1fa31599b
+1d9fb5c25 test(views): pass shelved to composeFrameInit in merged saveCopy tests (UNI-1845, UNI-1892)
+f611c122f test(views): pin api.saveCopy on a mid-session shelved document (UNI-1845, UNI-1892)
+864a75a1b chore(merge): e6-server ARCHIVE 333086de3 (root f6aebb640) into ARCHIVE-01 web
+333086de3 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1845-archive
