@@ -30,10 +30,12 @@ export interface RoomRowProps {
   pinned: boolean;
   onPress: () => void;
   onLongPress: () => void;
+  /** For the Maestro flows (apps/chat-mobile/maestro): `room-row-<roomId>`. */
+  testID?: string;
 }
 
 export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
-  const { title, mark, seed, subtitle, typing, time, unread, mentionUnread, muted, pinned, onPress, onLongPress } = props;
+  const { title, mark, seed, subtitle, typing, time, unread, mentionUnread, muted, pinned, onPress, onLongPress, testID } = props;
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
@@ -58,6 +60,7 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
       onLongPress={onLongPress}
       accessibilityActions={[{ name: "longpress", label: t("chat.settings_manage_room") }]}
       onAccessibilityAction={onLongPress}
+      testID={testID}
       className="min-h-[76px] flex-row items-center gap-3 pl-4 active:bg-secondary"
     >
       <RoomAvatar mark={mark} seed={seed} />

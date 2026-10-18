@@ -266,6 +266,7 @@ export function Composer(props: Props) {
               placeholder={t("chat.message_placeholder")}
               placeholderTextColor={theme.mutedForeground}
               accessibilityLabel={t("chat.message_placeholder")}
+              testID="composer-input"
               multiline
               className="max-h-32 min-h-[42px] flex-1 py-2.5 text-base text-foreground"
             />
@@ -303,6 +304,7 @@ export function Composer(props: Props) {
             accessibilityState={{ disabled: !trimmed || tooLong }}
             disabled={!trimmed || tooLong}
             onPress={submit}
+            testID="composer-send"
             className={cn("h-11 w-11 items-center justify-center rounded-full", !trimmed || tooLong ? "bg-muted" : "bg-primary")}
           >
             <Ionicons name={edit ? "checkmark" : "send"} size={edit ? 24 : 20} color={!trimmed || tooLong ? theme.mutedForeground : theme.primaryForeground} />

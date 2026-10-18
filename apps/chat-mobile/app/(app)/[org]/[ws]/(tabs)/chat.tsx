@@ -211,6 +211,7 @@ export default function ChatTab() {
                 pinned={item.pinned}
                 onPress={() => open(item)}
                 onLongPress={() => setMenuRow(item)}
+                testID={item.roomId ? `room-row-${item.roomId}` : undefined}
               />
             )}
           />
