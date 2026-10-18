@@ -1902,7 +1902,7 @@ describe('usage rows and arguments', () => {
     assert.equal(score(injCase, deriveAnswer(injCase, ask([], 'get_document_context', ['docs'])).answer).status, 'pass');
   });
 
-  it('R18-4: count values accept number words 0-20 in English and Vietnamese only inside a count item, and synonym count topics match and conflict alike (review-g712-18 R18-4)', () => {
+  it('R18-4: count values accept number words 0-20 in English and Vietnamese only inside a count item, and a synonym count topic only ever conflicts, it never credits (review-g712-18 R18-4, option B)', () => {
     const count = (anchor, value) => ({ kind: 'count', anchor, value });
     const ask = (items, call = 'read_document', modules = ['docs'], text = 'Five paragraphs.') => ({
       reply: `${text}\n${ANSWER_MARKER} ${JSON.stringify({ numbers: [], items, refused: false, not_found: false, caveats: [] })}`,

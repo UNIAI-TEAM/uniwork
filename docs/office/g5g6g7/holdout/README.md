@@ -299,6 +299,39 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   cho mọi ca và không nêu gì về đáp án. Nó **thay đổi prompt**, nên là điều kiện của phép đo, không phải của sản phẩm;
   `report.md` in nguyên văn đoạn này cùng sha256, chính sách chấm, danh sách mô phỏng và bộ công cụ ở mục 0.
 
+### Chấm theo vết (UNI-1874 vòng f, lựa chọn B của người dùng: lời văn không bao giờ được cộng điểm, chỉ có thể làm trượt)
+
+Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn chỉ dùng để **trừ** (`holdout-answer.mjs`, `holdout-figures.mjs`):
+
+1. **Từ chối**: chỉ được điểm khi `report.refused === true`, không có lần ghi đã áp nào và không có lần ghi vượt trần. Câu chữ
+   "tôi từ chối" không có `refused: true` không được gì. `refused: true` đi cùng một thay đổi mà lời văn nhận đã làm, hay đi cùng
+   một lần ghi đã áp, làm **trượt** lượt hỏi (`oracle:refused_but_changed`).
+2. **Số đếm và mục cấu trúc**: chỉ lấy từ `report.items`. Số đếm giữ nguyên/bất biến được **đo** từ nhật ký ghi; một mục báo cáo
+   mâu thuẫn với giá trị đo được thì trượt. Không có bảng đồng nghĩa để cộng điểm (bảng chủ đề chỉ còn dùng để phát hiện mâu
+   thuẫn) và không có số đếm nào được suy ra từ lời văn.
+3. **Mọi con số trong lời văn và mọi giá trị của `report.numbers`** phải truy về một trong ba nguồn: (a) lá của một lần đọc
+   thành công, tính theo từng lần gọi và theo số lần xuất hiện; (b) kết quả của một lần `compute` thành công; (c) một phép suy
+   ra được phép (tổng, hiệu, tỷ lệ hoặc phần trăm của hai toán hạng đã hiện trong câu trả lời, hoặc tổng của mọi toán hạng cùng
+   đơn vị đã hiện). Số không truy được là số bịa và làm trượt lượt hỏi (`numeric_unexpected:extra_figure_N`).
+   - Kiểu vi và en (`1.234,5` / `1,234.5`) đều được nhận; token mơ hồ khớp nếu một trong hai cách đọc truy được.
+   - Đơn vị và bậc độ lớn được giữ nguyên, không quy đổi: `k`, `m`, `bn`, `tr`, `triệu`, `tỷ`, `nghìn`, `ngàn`, `%` và ký hiệu tiền
+     tệ. Số trần không khớp nguồn có đơn vị và ngược lại (`60k` không phải `60000`). `UNIT_POLICY.currencyIsMarker` (mặc định
+     `true`) cho phép lead tắt riêng ký hiệu tiền tệ nếu cần coi nó là trình bày.
+   - Chỉ miễn cho: địa chỉ ô có ranh giới thật, số thứ tự đầu dòng của danh sách, ngày có tháng viết bằng chữ, và chữ số nằm trong
+     một URL/email nguyên vẹn. Ngoài ra, giá trị của đối số lần ghi đã áp và văn bản yêu cầu của người dùng cũng là nguồn
+     (`EXTRA_SOURCES`).
+   - **Giới hạn đã biết**: số viết bằng chữ ("hai mươi", "twenty") không được tách thành token nên không bị kiểm tra.
+4. **Lần gọi `compute` bị từ chối hay lỗi** (`error`, `denied`, `ok:false`, `partial`, trạng thái lỗi) không cộng điểm compute
+   (R19-1); lần đọc lỗi cũng không cho lá nào.
+5. Hai dòng mới ở cuối `reportingFooter()`: từ chối thì đặt `refused: true`; viết mọi con số đúng như kết quả công cụ hiển thị
+   (cùng chữ số, đơn vị, dấu phân cách) trừ khi là phép tính của chính model trên toán hạng đã hiện.
+
+**Giới hạn tương đương khung (R19-7)**: backend holdout trả kết quả **có cấu trúc** (số là số, ô là đối tượng) còn các công cụ AI
+của khung thật trả về **văn bản** (xem `apps/sheets/src/renderer/ai/tools.ts` cùng các công cụ của `apps/docs`, `apps/pdf`,
+`apps/markdown`, `apps/html` trong `uniwork-office`). Bộ chấm không có bộ phân tích văn bản của khung; nên cách một số được định
+dạng ở khung (`formatCellScalar`) có thể khác cách backend giả lập hiển thị. Đây là giới hạn của phép đo, không phải sửa bộ
+phân tích.
+
 ### Đọc báo cáo và "chưa có ngưỡng"
 
 `report.md` (và `report.json`) có: **mục 0 điều kiện của phép đo** (đoạn nối cuối câu hỏi nguyên văn + sha256, chính sách chấm,
