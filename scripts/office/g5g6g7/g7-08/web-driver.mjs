@@ -203,6 +203,7 @@ export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
 export async function runWebMatrixRow(runEntry, {
   runDir, repoRoot = DEFAULT_REPO_ROOT, dryRun = false, fetchImpl = fetch,
   env = process.env, timeoutMs = 45_000, observedOverride = null,
+  injectedPage = null, injectedRowBody = null,
 } = {}) {
   const row = getRowById(runEntry?.rowId ?? runEntry?.id) ?? runEntry;
   if (!row) return blockedVerdict('unknown_matrix_row');
@@ -211,30 +212,39 @@ export async function runWebMatrixRow(runEntry, {
   }
   if (observedOverride) return evaluateRowObserved(row, observedOverride);
   if (row.mode === 'hitl') return evaluateRowObserved(row, {});
-  if (!dryRun && env.HARNESS_ALLOW_REAL_AI_UPSTREAM !== '1') return blockedVerdict(REAL_AI_BLOCKER, { owner: 'G6' });
-
-  const gate = startGate(readStartStatus(runDir));
-  if (gate.gate !== 'proceed') {
-    return gate.gate === 'blocked' ? blockedVerdict(gate.reason, { owner: 'G7-01 harness' }) : failVerdict(gate.reason);
+  const injected = typeof injectedRowBody === 'function';
+  let apiOrigin;
+  let webOrigin;
+  let fixture;
+  if (!injected) {
+    if (!dryRun && env.HARNESS_ALLOW_REAL_AI_UPSTREAM !== '1') return blockedVerdict(REAL_AI_BLOCKER, { owner: 'G6' });
+    const gate = startGate(readStartStatus(runDir));
+    if (gate.gate !== 'proceed') {
+      return gate.gate === 'blocked' ? blockedVerdict(gate.reason, { owner: 'G7-01 harness' }) : failVerdict(gate.reason);
+    }
+    const paths = harnessPaths(runDir);
+    if (!existsSync(paths.envFile)) return blockedVerdict('missing_harness_ports_env', { runDir });
+    const ports = parseEnvFile(readFileSync(paths.envFile, 'utf8'));
+    apiOrigin = ports.API_ORIGIN;
+    webOrigin = ports.WEB_ORIGIN;
+    if (!apiOrigin || !webOrigin) return blockedVerdict('missing_api_or_web_origin_in_ports_env', { runDir });
+    fixture = loadVerifiedFixture(row.fixtureId, repoRoot);
   }
-  const paths = harnessPaths(runDir);
-  if (!existsSync(paths.envFile)) return blockedVerdict('missing_harness_ports_env', { runDir });
-  const ports = parseEnvFile(readFileSync(paths.envFile, 'utf8'));
-  const { API_ORIGIN: apiOrigin, WEB_ORIGIN: webOrigin } = ports;
-  if (!apiOrigin || !webOrigin) return blockedVerdict('missing_api_or_web_origin_in_ports_env', { runDir });
-
-  const fixture = loadVerifiedFixture(row.fixtureId, repoRoot);
   const provider = runEntry?.provider ?? 'uniwork';
   let seeded = null;
   let browser = null;
   let web = null;
   let stub = null;
-  // R4-3: hoisted so the catch below can still read them - the observer's own record, not the
-  // matched arrays, is what proves whether a throw happened before any frame AI POST.
+  // R4-3: hoisted so the catch can still read the observer's own record.
   const wireRequests = [];
   const wireResponses = [];
   const aiPaths = [];
   try {
+    if (injected) {
+      observeModelWire(injectedPage, { requests: wireRequests, responses: wireResponses, aiPaths });
+      await injectedRowBody();
+      return blockedVerdict('injected_row_body_returned');
+    }
     seeded = await seedFixtureDocument({ apiOrigin, runDir, fetchImpl, fixtureId: row.fixtureId, repoRoot });
     const { documentId, token, organizationSlug, workspaceSlug, email, password, userId } = seeded;
     // R2-6: a 200 without a versions array is BLOCKED, never a count of 0.
@@ -350,11 +360,8 @@ export async function runWebMatrixRow(runEntry, {
       turnError = err;
     }
     inAiTurn = false;
-    // A response body still in flight is not a response that never arrived: settle the observer first.
+    // Settle in-flight bodies first; a throw after any frame AI POST is classified below.
     await settleWire();
-    // R3-3 + R4-3: a turn that threw after a model request consumed an unknown amount. The outer
-    // catch classifies it against the observer's own record; `row_runner_threw` is the one case it
-    // can still prove (no POST to any frame AI path at all).
     if (turnError) throw turnError;
 
     const replyText = await frame.$$eval(
@@ -464,11 +471,7 @@ export async function runWebMatrixRow(runEntry, {
     } : verdict.details;
     return { ...verdict, details, documentId, usage, preconditions, screenshotPath };
   } catch (err) {
-    // R4-3: after the observer is attached, ANY throw - during the turn or later, during
-    // edit/save/IO - is unknown usage, so the matrix stops instead of starting the next row on a
-    // trusted zero. `interruptionFromTurn` only calls it provable when the observer saw no POST to
-    // a registered model route AND none under the frame's AI mount at all; that one case keeps its
-    // own `row_runner_threw` FAIL.
+    // R4-3 + R5-2: any throw after the observer is attached is unknown usage unless no frame AI POST was seen.
     const interruption = interruptionFromTurn(err, { requests: wireRequests, responses: wireResponses, aiPaths });
     if (interruption instanceof InterruptedAiTurnError) throw interruption;
     return {

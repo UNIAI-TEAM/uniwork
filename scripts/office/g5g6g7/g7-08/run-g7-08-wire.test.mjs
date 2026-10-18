@@ -16,7 +16,24 @@ import { describe, it } from 'node:test';
 import { VERDICT, blockedVerdict, failVerdict, passVerdict } from './oracles.mjs';
 import { ROW_EXIT, getRowById } from './rows.mjs';
 import { runG708Matrix } from './run-g7-08.mjs';
-import { evaluateWireObservation, interruptionFromTurn } from './wire-observe.mjs';
+import { runWebMatrixRow } from './web-driver.mjs';
+import { evaluateWireObservation, InterruptedAiTurnError, interruptionFromTurn } from './wire-observe.mjs';
+
+const fakePage = () => {
+  const listeners = new Map();
+  return {
+    on(event, handler) {
+      const list = listeners.get(event) ?? [];
+      list.push(handler);
+      listeners.set(event, list);
+    },
+    emit(event, payload) {
+      for (const handler of listeners.get(event) ?? []) handler(payload);
+    },
+  };
+};
+const fakeReq = (url) => ({ method: () => 'POST', url: () => url, postData: () => '{}' });
+const MODEL_URL = 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions';
 
 const makeTempRunDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'g708-wire-test-'));
 
@@ -177,5 +194,50 @@ describe('G7-08 real-run wire observation drives the matrix stop', () => {
     const provable = interruptionFromTurn(new Error('composer detached'), { requests: [], responses: [], aiPaths: [] });
     assert.equal(provable.name, 'Error');
     assert.equal(provable.message, 'composer detached');
+  });
+
+  it('G708-R5-2: a plain Error after a driver-observed request is BLOCKED unknown usage', async () => {
+    const page = fakePage();
+    await assert.rejects(
+      () => runWebMatrixRow({ rowId: 'X-R1', host: 'web' }, {
+        injectedPage: page,
+        injectedRowBody: async () => {
+          page.emit('request', fakeReq(MODEL_URL));
+          throw new Error('edit stage blew up');
+        },
+      }),
+      (err) => {
+        assert.equal(err instanceof InterruptedAiTurnError, true);
+        assert.ok(err.usage.missingUsageCalls >= 1);
+        return true;
+      },
+    );
+
+    const tmp = makeTempRunDir();
+    try {
+      let calls = 0;
+      const res = await runG708Matrix(matrixArgs(tmp), {
+        evidenceFn: () => null,
+        log: () => {},
+        rowRunner: async () => {
+          calls += 1;
+          const p = fakePage();
+          return runWebMatrixRow({ rowId: 'X-R1', host: 'web' }, {
+            injectedPage: p,
+            injectedRowBody: async () => {
+              p.emit('request', fakeReq(MODEL_URL));
+              throw new Error('edit stage blew up');
+            },
+          });
+        },
+      });
+      assert.equal(calls, 1, 'the second row does not start');
+      assert.equal(res.runs[0].status, VERDICT.BLOCKED);
+      assert.equal(res.runs[0].reason, 'missing_usage_on_model_call');
+      assert.ok(res.runs[0].usage.missingUsageCalls >= 1);
+      assert.equal(res.runs[1].reason, 'missing_usage_on_model_call');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
