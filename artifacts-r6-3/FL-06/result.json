@@ -1,0 +1,253 @@
+{
+  "case": "FL-06",
+  "ac": [
+    "G5-A07"
+  ],
+  "fixture": "fx-docx-report-vi",
+  "layer": "app",
+  "result": "PASS",
+  "exits": [
+    {
+      "n": 0,
+      "label": "revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa",
+      "result": "PASS",
+      "assertions": [
+        {
+          "name": "pin_accepted",
+          "expected": "ok",
+          "actual": "ok",
+          "ok": true
+        },
+        {
+          "name": "short_lease_granted",
+          "expected": "lease-expiring",
+          "actual": "lease-expiring",
+          "ok": true
+        },
+        {
+          "name": "lease_until_is_the_rewritten_expiry",
+          "expected": "leaseUntil = a grant between the runner's readings + 120000 ms (tolerance 10000 ms)",
+          "actual": "leaseUntil - 120000 ms is 35603 ms after the pin started",
+          "ok": true
+        },
+        {
+          "name": "pre_store_has_the_pinned_copy",
+          "expected": "the pin row and >= 1 ciphertext blob",
+          "actual": "1/1 pin row(s), 1 blob(s)",
+          "ok": true
+        },
+        {
+          "name": "revoke_cli_hit_this_org",
+          "expected": "01M58C8Y0P63DVGDPDWT5Z8B7W, >= 1 live lease revoked",
+          "actual": "01M58C8Y0P63DVGDPDWT5Z8B7W offline policy epoch now 1, 1 live lease(s) revoked",
+          "ok": true
+        },
+        {
+          "name": "regrant_needs_live_session",
+          "expected": "no lease 200 while the network was cut",
+          "actual": "0 lease 200(s)",
+          "ok": true
+        },
+        {
+          "name": "renew_refused_after_revoke",
+          "expected": "first PUT offline-lease answered 403 offline_lease_revoked",
+          "actual": "403 offline_lease_revoked, 200 policy_epoch 1",
+          "ok": true
+        },
+        {
+          "name": "regrant_records_new_epoch",
+          "expected": "then a 200 lease grant with policy_epoch 1 (the CLI line's epoch), in that order",
+          "actual": "403 offline_lease_revoked, 200 policy_epoch 1",
+          "ok": true
+        },
+        {
+          "name": "regrant_row_usable",
+          "expected": "lease-expiring",
+          "actual": "lease-expiring",
+          "ok": true
+        },
+        {
+          "name": "s11_window_renew_refused",
+          "expected": "first PUT answered 403 offline_lease_revoked, then the re-grant refused by the INJECTED rule refuse-regrant, no 200",
+          "actual": "403 offline_lease_revoked, synthetic",
+          "ok": true
+        },
+        {
+          "name": "row_revoked",
+          "expected": "revoked",
+          "actual": "revoked",
+          "ok": true
+        },
+        {
+          "name": "open_refused_permission_revoked",
+          "expected": "revoked / permission_revoked",
+          "actual": "revoked / permission_revoked",
+          "ok": true
+        },
+        {
+          "name": "no_plaintext_copy_left",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "s11_shot",
+          "expected": "s11-lock-panel.png",
+          "actual": "/workspace/.harness-run-r6-3/fault/FL-06/s11-lock-panel.png",
+          "ok": true
+        },
+        {
+          "name": "s3_tab_selected",
+          "expected": "aria-selected=true and the panel visible",
+          "actual": "selected and visible",
+          "ok": true
+        },
+        {
+          "name": "s3_shot",
+          "expected": "s3-offline-tab.png",
+          "actual": "/workspace/.harness-run-r6-3/fault/FL-06/s3-offline-tab.png",
+          "ok": true
+        },
+        {
+          "name": "no_commit_outside_policy",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "no_upload_outside_policy",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        },
+        {
+          "name": "version_delta",
+          "expected": 0,
+          "actual": 0,
+          "ok": true
+        }
+      ],
+      "evidence": {
+        "documentId": "01M58C8YCXH6Q1B0HGA23S1DZF",
+        "trace": [],
+        "requests": []
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "pin_accepted",
+      "expected": "ok",
+      "actual": "ok",
+      "ok": true
+    },
+    {
+      "name": "short_lease_granted",
+      "expected": "lease-expiring",
+      "actual": "lease-expiring",
+      "ok": true
+    },
+    {
+      "name": "lease_until_is_the_rewritten_expiry",
+      "expected": "leaseUntil = a grant between the runner's readings + 120000 ms (tolerance 10000 ms)",
+      "actual": "leaseUntil - 120000 ms is 35603 ms after the pin started",
+      "ok": true
+    },
+    {
+      "name": "pre_store_has_the_pinned_copy",
+      "expected": "the pin row and >= 1 ciphertext blob",
+      "actual": "1/1 pin row(s), 1 blob(s)",
+      "ok": true
+    },
+    {
+      "name": "revoke_cli_hit_this_org",
+      "expected": "01M58C8Y0P63DVGDPDWT5Z8B7W, >= 1 live lease revoked",
+      "actual": "01M58C8Y0P63DVGDPDWT5Z8B7W offline policy epoch now 1, 1 live lease(s) revoked",
+      "ok": true
+    },
+    {
+      "name": "regrant_needs_live_session",
+      "expected": "no lease 200 while the network was cut",
+      "actual": "0 lease 200(s)",
+      "ok": true
+    },
+    {
+      "name": "renew_refused_after_revoke",
+      "expected": "first PUT offline-lease answered 403 offline_lease_revoked",
+      "actual": "403 offline_lease_revoked, 200 policy_epoch 1",
+      "ok": true
+    },
+    {
+      "name": "regrant_records_new_epoch",
+      "expected": "then a 200 lease grant with policy_epoch 1 (the CLI line's epoch), in that order",
+      "actual": "403 offline_lease_revoked, 200 policy_epoch 1",
+      "ok": true
+    },
+    {
+      "name": "regrant_row_usable",
+      "expected": "lease-expiring",
+      "actual": "lease-expiring",
+      "ok": true
+    },
+    {
+      "name": "s11_window_renew_refused",
+      "expected": "first PUT answered 403 offline_lease_revoked, then the re-grant refused by the INJECTED rule refuse-regrant, no 200",
+      "actual": "403 offline_lease_revoked, synthetic",
+      "ok": true
+    },
+    {
+      "name": "row_revoked",
+      "expected": "revoked",
+      "actual": "revoked",
+      "ok": true
+    },
+    {
+      "name": "open_refused_permission_revoked",
+      "expected": "revoked / permission_revoked",
+      "actual": "revoked / permission_revoked",
+      "ok": true
+    },
+    {
+      "name": "no_plaintext_copy_left",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "s11_shot",
+      "expected": "s11-lock-panel.png",
+      "actual": "/workspace/.harness-run-r6-3/fault/FL-06/s11-lock-panel.png",
+      "ok": true
+    },
+    {
+      "name": "s3_tab_selected",
+      "expected": "aria-selected=true and the panel visible",
+      "actual": "selected and visible",
+      "ok": true
+    },
+    {
+      "name": "s3_shot",
+      "expected": "s3-offline-tab.png",
+      "actual": "/workspace/.harness-run-r6-3/fault/FL-06/s3-offline-tab.png",
+      "ok": true
+    },
+    {
+      "name": "no_commit_outside_policy",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "no_upload_outside_policy",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "name": "version_delta",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    }
+  ]
+}
