@@ -86,6 +86,6 @@ export interface ChatMessage {
   };
   priority?: "important" | "urgent";
   clientMsgId?: string;
-  deliveryStatus?: "sending" | "queued";
+  deliveryStatus?: "sending" | "queued" | "failed";
 }
 export const CHAT_MESSAGE_INITIAL = 80;

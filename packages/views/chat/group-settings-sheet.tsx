@@ -39,6 +39,7 @@ import {
 import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
+import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
 import { ChatRoomRenameDialog } from "./chat-room-rename-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
@@ -231,6 +232,26 @@ export function GroupSettingsSheet({
             />
           ) : null}
 
+          <ChatSettingsSection className="py-1">
+            <ChatSettingsMenuRow
+              icon={StickyNote}
+              label={t("chat.settings_notes_pins_polls")}
+              onClick={() => setBulletinOpen(true)}
+            />
+            {onOpenSearch ? (
+              <ChatSettingsMenuRow
+                icon={Search}
+                label={t("chat.search_messages")}
+                onClick={() => {
+                  onOpenChange(false);
+                  onOpenSearch();
+                }}
+              />
+            ) : null}
+          </ChatSettingsSection>
+
+          <ChatRoomSharedTotals workspaceId={workspaceId} roomId={group.room_id} open={open} />
+
           <ChatSettingsCollapsibleSection
             title={t("chat.settings_group_members")}
             summary={
@@ -339,24 +360,6 @@ export function GroupSettingsSheet({
               </ul>
             )}
           </ChatSettingsCollapsibleSection>
-
-          <ChatSettingsSection className="py-1">
-            <ChatSettingsMenuRow
-              icon={StickyNote}
-              label={t("chat.settings_notes_pins_polls")}
-              onClick={() => setBulletinOpen(true)}
-            />
-            {onOpenSearch ? (
-              <ChatSettingsMenuRow
-                icon={Search}
-                label={t("chat.search_messages")}
-                onClick={() => {
-                  onOpenChange(false);
-                  onOpenSearch();
-                }}
-              />
-            ) : null}
-          </ChatSettingsSection>
 
           <ChatSettingsSection className="mt-auto px-5 pt-4 pb-5">
             <LeaveConversationSection

@@ -14,6 +14,7 @@ import { formatChatFileSize } from "./chat-file-size";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
 import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
+import { useChatFileDownload } from "./use-chat-file-download";
 import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER } from "./chat-message-row";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media-url";
 
@@ -88,46 +89,22 @@ function FileCard({
   );
 }
 
-/**
- * Downloads straight from storage: the signed download URL carries
- * Content-Disposition: attachment with the file's name, so the browser saves
- * it even though the anchor's own download attribute is ignored cross-origin.
- */
-function useDownload(workspaceId: string, roomId: string, message: ChatMessage) {
-  const { t } = useTranslation();
-  const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
-  const [busy, setBusy] = useState(false);
-  const download = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const url = await freshUrl(
-        message.id,
-        { url: message.file?.download_url, expiresAt: message.file?.url_expires_at },
-        (fresh) => fresh.file?.download_url,
-      );
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = message.file?.filename || "file";
-      anchor.rel = "noopener";
-      anchor.click();
-    } catch (err) {
-      toastChatError(err, t, t("chat.file_download_failed"));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return { busy, download: () => void download() };
-}
+type ChatFileSender = { userId: string; name: string; avatarUrl?: string; ts: number };
 
 function ImageAttachment({
   workspaceId,
   roomId,
   message,
+  sender,
+  busy,
+  onDownload,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
+  sender?: ChatFileSender;
+  busy: boolean;
+  onDownload: () => void;
 }) {
   const { t } = useTranslation();
   const file = message.file;
@@ -206,6 +183,9 @@ function ImageAttachment({
       src={previewSrc}
       loading={previewLoading}
       onOpenChange={closePreview}
+      sender={sender}
+      onDownload={onDownload}
+      downloading={busy}
     />
   );
   if (isGif) {
@@ -328,18 +308,31 @@ export function ChatFileAttachment({
   roomId,
   message,
   isOwn = false,
+  sender,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
   /** On my brand bubble the card's controls and secondary text invert. */
   isOwn?: boolean;
+  /** Who sent the photo, for the viewer's top bar. */
+  sender?: ChatFileSender;
 }) {
   const file = message.file;
-  const { busy, download } = useDownload(workspaceId, roomId, message);
+  const { busy, download: downloadMessage } = useChatFileDownload(workspaceId, roomId);
+  const download = () => downloadMessage(message);
   const contentType = file ? resolveChatFileContentType(file) : undefined;
   if (isChatImageContentType(contentType, file?.filename)) {
-    return <ImageAttachment workspaceId={workspaceId} roomId={roomId} message={message} />;
+    return (
+      <ImageAttachment
+        workspaceId={workspaceId}
+        roomId={roomId}
+        message={message}
+        sender={sender}
+        busy={busy}
+        onDownload={download}
+      />
+    );
   }
   if (isChatPdfContentType(contentType)) {
     return (

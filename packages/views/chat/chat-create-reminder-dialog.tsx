@@ -294,6 +294,7 @@ export function ChatCreateReminderDialog({
 
         <FormDialogFooter
           onCancel={() => onOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("chat.reminder_create_submit")}
           submittingLabel={t("chat.reminder_create_submitting")}
           submitting={sendMessage.isPending}

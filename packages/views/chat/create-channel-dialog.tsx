@@ -326,6 +326,7 @@ export function CreateChannelDialog({
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("chat.channel.create")}
           submittingLabel={t("chat.channel.creating")}
           submitting={createChannel.isPending}

@@ -84,6 +84,7 @@ export function ChatRoomRenameDialog({
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => onOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("common.save")}
           submittingLabel={t("chat.room_rename_saving")}
           submitting={updateSettings.isPending}

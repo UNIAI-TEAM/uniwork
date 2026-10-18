@@ -165,6 +165,7 @@ export function ChatCreatePostDialog({
 
           <FormDialogFooter
             onCancel={() => onOpenChange(false)}
+            cancelVariant="secondary"
             submitLabel={t("chat.post_create_submit")}
             submittingLabel={t("chat.post_create_submitting")}
             submitting={sendMessage.isPending}

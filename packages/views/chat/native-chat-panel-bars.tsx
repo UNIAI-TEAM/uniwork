@@ -5,17 +5,23 @@ import { useTranslation } from "react-i18next";
 import { useFollowChatThread, useUnfollowChatThread } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { toastChatError } from "./chat-error-message";
 
-/** Above the timeline while a thread is open: its name, Follow / Unfollow and the way out. */
+/**
+ * Above the timeline while a thread is open: its name, Follow / Unfollow and
+ * the way out. In the side panel the room's name sits under the title.
+ */
 export function ChatThreadBar({
   workspaceId,
   threadRootId,
+  subtitle,
   following,
   onClose,
 }: {
   workspaceId: string;
   threadRootId: string;
+  subtitle?: string;
   following: boolean;
   onClose: () => void;
 }) {
@@ -24,8 +30,16 @@ export function ChatThreadBar({
   const unfollow = useUnfollowChatThread(workspaceId);
   const toggle = following ? unfollow : follow;
   return (
-    <div className="flex h-13 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface pr-2 pl-4 sm:pr-3 sm:pl-5">
-      <p className="min-w-0 truncate font-display text-title-sm font-bold text-foreground">{t("chat.thread_title")}</p>
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-between gap-2 border-b border-border bg-surface pr-2 pl-4 sm:pr-3 sm:pl-5",
+        subtitle ? "h-16" : "h-13",
+      )}
+    >
+      <div className="min-w-0">
+        <p className="truncate font-display text-title-sm font-bold text-foreground">{t("chat.thread_title")}</p>
+        {subtitle ? <p className="truncate text-label text-muted-foreground">{subtitle}</p> : null}
+      </div>
       <div className="flex shrink-0 items-center gap-1">
         {/* A pill toggle: the brand wash while the thread is followed. */}
         <Button

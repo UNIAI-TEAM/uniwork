@@ -6,6 +6,7 @@ import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageRow } from "./chat-message-row";
 import { ChatFileMessageRow } from "./chat-file-message-row";
+import { ChatImageAlbumRow } from "./chat-image-album";
 import { ChatNoteMessageRow } from "./chat-note-message-row";
 import { ChatPostMessageRow } from "./chat-post-message-row";
 import { ChatPollMessageRow } from "./chat-poll-message-row";
@@ -15,7 +16,7 @@ import { VoiceCallLogRow } from "./voice-call-log-row";
 import { VoiceCallSummaryRow } from "./voice-call-summary-row";
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { NameContextEntry } from "./native-chat-message-mapping";
-import { messageGrouping } from "./native-chat-message-grouping";
+import { imageAlbumSpans, messageGrouping } from "./native-chat-message-grouping";
 import { messageDayKey } from "./chat-message-time";
 import { ChatDaySeparator, ChatUnreadSeparator } from "./chat-day-separator";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
@@ -63,6 +64,10 @@ export type NativeChatRowLayout = {
   replyTarget: ChatMessage | undefined;
   /** Who wrote replyTarget ("Bạn" for me), named inside the quote. */
   replySenderLabel: string | undefined;
+  /** The photos this row draws as one album, itself first. */
+  album?: ChatMessage[];
+  /** Drawn inside an earlier row's album: renders nothing of its own. */
+  inAlbum: boolean;
 };
 
 /**
@@ -86,6 +91,12 @@ export function layoutNativeChatMessages(
   const receiptIndex = latestSeenOwnMessageIndex(messages, input.currentUserId, input.peerLastReadAt);
   const grouping = messages.map((_, index) => messageGrouping(messages, index));
   const unreadIndex = firstUnreadIndex(messages, input.currentUserId, input.unreadSince ?? null);
+  const albums = new Map<number, ChatMessage[]>();
+  const inAlbum = new Set<number>();
+  for (const { start, end } of imageAlbumSpans(messages, unreadIndex)) {
+    albums.set(start, messages.slice(start, end));
+    for (let index = start + 1; index < end; index += 1) inAlbum.add(index);
+  }
   const labelOf = (sender: string) =>
     sender === input.currentUserId ? input.youLabel : names.get(sender) || sender;
   return messages.map((message, index) => {
@@ -112,6 +123,8 @@ export function layoutNativeChatMessages(
           : resolveAvatarUrlFromNameContext(input.nameContext, message.sender),
       replyTarget,
       replySenderLabel: replyTarget ? labelOf(replyTarget.sender) : undefined,
+      album: albums.get(index),
+      inAlbum: inAlbum.has(index),
     };
   });
 }
@@ -153,6 +166,8 @@ function MessageBody({
     actions,
   } = context;
   const { compactTop, showAvatar, senderLabel, senderAvatarUrl } = layout;
+  // Its photo is a tile of the album row above; the empty row keeps the virtual list's one-per-message count.
+  if (layout.inAlbum) return null;
   const isOwn = message.sender === currentUserId;
   const avatar = isOwn ? undefined : (
     <ChatSenderAvatar userId={message.sender} name={senderLabel} avatarUrl={senderAvatarUrl} nameContext={nameContext} />
@@ -234,6 +249,10 @@ function MessageBody({
   if (message.kind === "voice" && message.voice) {
     return <ChatVoiceMessageRow {...common} lastOfRun={layout.lastOfRun} />;
   }
+  if (layout.album) {
+    const { message: _head, ...rest } = common;
+    return <ChatImageAlbumRow {...rest} album={layout.album} />;
+  }
   if (message.kind === "file" && message.file) {
     return (
       <ChatFileMessageRow
@@ -306,6 +325,15 @@ function sameRow(
     a.showReadReceipt === b.showReadReceipt &&
     a.senderLabel === b.senderLabel &&
     a.replyTarget === b.replyTarget &&
-    a.replySenderLabel === b.replySenderLabel
+    a.replySenderLabel === b.replySenderLabel &&
+    a.inAlbum === b.inAlbum &&
+    sameMessages(a.album, b.album)
   );
+}
+
+/** Albums are sliced afresh on every layout; the same photos are the same album. */
+function sameMessages(a: ChatMessage[] | undefined, b: ChatMessage[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((message, index) => message === b[index]);
 }

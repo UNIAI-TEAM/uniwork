@@ -231,6 +231,8 @@ export function VoiceCallFloatingPanel({
   panelRef,
   panelStyle,
   dragHandleProps,
+  fullscreenAction,
+  fullscreenAside,
 }: {
   peerName: string;
   statusLabel: string;
@@ -257,6 +259,9 @@ export function VoiceCallFloatingPanel({
   panelRef?: RefObject<HTMLDivElement | null>;
   panelStyle?: CSSProperties;
   dragHandleProps?: DragHandleProps;
+  /** Fullscreen only: a header control before restore, and a panel beside the stage. */
+  fullscreenAction?: ReactNode;
+  fullscreenAside?: ReactNode;
 }) {
   const { t } = useTranslation();
   const titleId = useId();
@@ -390,7 +395,12 @@ export function VoiceCallFloatingPanel({
               duration={duration}
               indicator={indicator}
               pulse={pulse}
-              actions={headerActions}
+              actions={
+                <>
+                  {fullscreenAction}
+                  {headerActions}
+                </>
+              }
               title={
                 <DialogTitle className="truncate font-display text-title leading-normal font-bold text-foreground">
                   {peerName}
@@ -400,10 +410,17 @@ export function VoiceCallFloatingPanel({
             {notice ? <div className="shrink-0 px-4 pt-4">{notice}</div> : null}
             {/* The same stage the meeting room uses, on the call's dark plane. */}
             {children ? (
-              <div className="flex min-h-0 flex-1 flex-col px-4 pt-4">
-                <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto rounded-2xl bg-meeting-stage px-4 py-6 ring-1 ring-border sm:px-8">
+              <div className="flex min-h-0 flex-1 gap-4 px-4 pt-4">
+                {/* Below sm the side panel takes the stage's place instead of squeezing it. */}
+                <div
+                  className={cn(
+                    "flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center overflow-y-auto rounded-2xl bg-meeting-stage px-4 py-6 ring-1 ring-border sm:px-8",
+                    fullscreenAside && "max-sm:hidden",
+                  )}
+                >
                   <div className="flex w-full max-w-5xl flex-1 flex-col items-center justify-center">{children}</div>
                 </div>
+                {fullscreenAside}
               </div>
             ) : null}
             {footer ? <div className="shrink-0 px-4 py-6 sm:px-8">{footer}</div> : null}

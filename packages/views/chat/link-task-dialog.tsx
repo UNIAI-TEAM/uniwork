@@ -225,6 +225,7 @@ export function LinkTaskDialog({
 
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("chat.link.link")}
           submittingLabel={t("chat.link.linking")}
           submitting={linkTask.isPending}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Ban, Bell, CircleAlert, Eye, FileText, Lock, MicOff, Send, Square, X } from "lucide-react";
+import { Ban, Bell, CircleAlert, Eye, FileText, Lock, MicOff, Pencil, Send, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -108,6 +108,36 @@ export function ComposerPriorityChip({
         {t("chat.composer_clear_priority")}
       </Button>
     </span>
+  );
+}
+
+/**
+ * Above the field while a sent message is being edited: what is being
+ * edited, how to leave, and the way out. Esc and Enter are handled by the field.
+ */
+export function ComposerEditBar({ preview, onCancel }: { preview: string; onCancel: () => void }) {
+  const { t } = useTranslation();
+  return (
+    // A container: the hint shows by the field's own width, so the 400px thread panel on a wide screen drops it too.
+    <div className="@container mx-0.5 mt-1 flex items-center gap-2.5 rounded-2xl border-l-3 border-brand bg-muted py-1 pr-1 pl-3">
+      <Pencil className="size-4.5 shrink-0 text-brand" aria-hidden />
+      <span className="flex min-w-0 flex-1 flex-col py-0.5">
+        <span className="truncate text-label font-semibold text-brand">{t("chat.editing_message")}</span>
+        <span className="truncate text-label text-muted-foreground">{preview}</span>
+      </span>
+      <span className="hidden shrink-0 text-caption text-muted-foreground @lg:inline">{t("chat.editing_hint")}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-10 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+        aria-label={t("chat.editing_cancel")}
+        title={t("chat.editing_cancel")}
+        onClick={onCancel}
+      >
+        <X className="size-4.5" aria-hidden />
+      </Button>
+    </div>
   );
 }
 

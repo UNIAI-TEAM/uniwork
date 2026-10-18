@@ -13,9 +13,20 @@ import { ChatCard, ChatCardStatus } from "./chat-card";
 import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER, CHAT_ON_BUBBLE_LINE } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatPollVotersDialog } from "./chat-poll-voters-dialog";
+import { pollOptionPercents } from "./chat-poll-percent";
 import { toastChatError } from "./chat-error-message";
 
 type PollPayload = NonNullable<ChatMessage["poll"]>;
+
+/** "45%" beside an option's count; min-width keeps the column straight across options. */
+function PollOptionPercent({ percent }: { percent: number }) {
+  const { t } = useTranslation();
+  return (
+    <span className="min-w-9 text-right font-semibold text-foreground">
+      {t("chat.poll_option_percent", { percent })}
+    </span>
+  );
+}
 
 export function ChatPollMessageRow({
   messageId,
@@ -78,6 +89,7 @@ export function ChatPollMessageRow({
   const userVotes = poll.viewer_option_ids ?? [];
   const hasVoted = userVotes.length > 0;
   const totalVotes = poll.options.reduce((sum, option) => sum + option.votes, 0);
+  const percents = pollOptionPercents(poll.options.map((option) => option.votes));
   const hideCounts = poll.settings.hide_results_until_vote && !hasVoted;
   const canViewVoters = useMemo(() => canViewPollVoters(poll), [poll]);
 
@@ -143,9 +155,9 @@ export function ChatPollMessageRow({
           className="space-y-1.5"
           onKeyDown={moveFocus}
         >
-          {poll.options.map((option) => {
+          {poll.options.map((option, index) => {
             const selected = userVotes.includes(option.id);
-            const ratio = totalVotes > 0 ? option.votes / totalVotes : 0;
+            const percent = percents[index] ?? 0;
             const showVoterCountButton = !hideCounts && canViewVoters && option.votes > 0;
             const locked = expired || votePoll.isPending;
             return (
@@ -181,7 +193,7 @@ export function ChatPollMessageRow({
                           selected ? "bg-brand-subtle" : CHAT_ON_BUBBLE_FILL,
                         )}
                         // The share is data, not a style choice: the one inline value here.
-                        style={{ width: `${Math.round(ratio * 100)}%` }}
+                        style={{ width: `${percent}%` }}
                         aria-hidden
                       />
                     ) : null}
@@ -201,6 +213,7 @@ export function ChatPollMessageRow({
                     </span>
                   </button>
                   {!hideCounts ? (
+                    // The count, then its share; the bar behind the option draws the same share.
                     showVoterCountButton ? (
                       <button
                         type="button"
@@ -210,15 +223,17 @@ export function ChatPollMessageRow({
                         })}
                         onClick={() => openVoters(option.id)}
                         className={cn(
-                          "relative shrink-0 px-3 py-2 text-label font-semibold text-brand-subtle-foreground tabular-nums",
+                          "relative flex shrink-0 items-center gap-2 px-3 py-2 text-label font-semibold text-brand-subtle-foreground tabular-nums",
                           CHAT_ON_BUBBLE_HOVER,
                         )}
                       >
                         {option.votes}
+                        <PollOptionPercent percent={percent} />
                       </button>
                     ) : (
-                      <span className="relative flex shrink-0 items-center px-3 py-2 text-label text-muted-foreground tabular-nums">
+                      <span className="relative flex shrink-0 items-center gap-2 px-3 py-2 text-label text-muted-foreground tabular-nums">
                         {option.votes}
+                        <PollOptionPercent percent={percent} />
                       </span>
                     )
                   ) : null}

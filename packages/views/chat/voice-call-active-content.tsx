@@ -18,6 +18,7 @@ import {
   type VoiceCallPanelMode,
 } from "./voice-call-floating-panel";
 import { isMultiPartyVoiceCall, voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
+import { useVoiceCallParticipantsPanel } from "./voice-call-participants-panel";
 import type {
   VoiceCallEndInit,
   VoiceCallKind,
@@ -64,6 +65,7 @@ export function ActiveVoiceCallContent({
   // Recording state belongs to the call, not to the record button: the REC
   // badge and the "someone started recording" notice live in every panel size.
   const recording = useVoiceCallRecording({ workspaceId, roomId, callId });
+  const participants = useVoiceCallParticipantsPanel();
   const { live, startedAt } = useVoiceCallSessionLifecycle({
     callKind,
     isCaller,
@@ -136,6 +138,8 @@ export function ActiveVoiceCallContent({
       panelRef={panelRef}
       panelStyle={panelStyle}
       dragHandleProps={dragEnabled ? dragHandleProps : undefined}
+      fullscreenAction={participants.toggle}
+      fullscreenAside={participants.panel}
       live={
         <>
           <VoiceCallPresenceAnnouncer />

@@ -169,6 +169,7 @@ export function CreateGroupDialog({
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("chat.start_group")}
           submittingLabel={t("chat.creating_group")}
           submitting={creating}

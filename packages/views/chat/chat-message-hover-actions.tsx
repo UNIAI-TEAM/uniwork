@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { lazy, Suspense, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
   Bookmark,
   Copy,
@@ -22,6 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -43,6 +45,66 @@ export function chatMessageActionsRailClass(isOwn: boolean): string {
 
 /** The quick reactions the bar offers before the other actions. */
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
+
+// The composer's emoji set (search, categories, recently used), loaded on first open.
+const EmojiPicker = lazy(() =>
+  import("@uniwork/ui/components/common/emoji-picker").then((module) => ({
+    default: module.EmojiPicker,
+  })),
+);
+
+/** "Thêm cảm xúc": any emoji beyond the quick six, from a popover picker. */
+function MessageReactionPicker({
+  label,
+  align,
+  open,
+  onOpenChange,
+  onPick,
+}: {
+  label: string;
+  align: "start" | "end";
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPick: (emoji: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-lg"
+                  className="shrink-0 text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground"
+                  aria-label={label}
+                />
+              }
+            />
+          }
+        >
+          <FaceSlightlySmilingPlus className="size-5" aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        align={align}
+        side="top"
+        aria-label={label}
+        className="w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl p-0"
+      >
+        <Suspense fallback={<Spinner label={t("common.loading")} className="m-6 self-center" />}>
+          <div className="[&_em-emoji-picker]:!border-0">
+            <EmojiPicker onSelect={onPick} />
+          </div>
+        </Suspense>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function MessageActionButton({
   label,
@@ -118,6 +180,8 @@ export function ChatMessageHoverActions({
 }) {
   const { t } = useTranslation();
   const barRef = useRef<HTMLDivElement>(null);
+  // The bar stays up while its picker is open: the pointer and focus are in the popover then.
+  const [pickerOpen, setPickerOpen] = useState(false);
   const canInteract = Boolean(onReply && onReact);
   const canDelete = isOwn && Boolean(onDelete);
   const pinLabel = message.pinned ? t("chat.action_unpin") : t("chat.action_pin");
@@ -172,7 +236,7 @@ export function ChatMessageHoverActions({
       className={cn(
         "pointer-events-none absolute bottom-full z-10 mb-1.5 flex w-max items-center gap-0.5 rounded-xl border border-border bg-popover p-1 opacity-0 shadow-floating",
         "after:absolute after:inset-x-0 after:top-full after:h-1.5 after:content-['']",
-        forceOpen && "pointer-events-auto opacity-100",
+        (forceOpen || pickerOpen) && "pointer-events-auto opacity-100",
         "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
         "max-sm:max-w-72 max-sm:flex-wrap",
         isOwn ? "right-0" : "left-0",
@@ -193,6 +257,16 @@ export function ChatMessageHoverActions({
                 </span>
               </MessageActionButton>
             ))}
+            <MessageReactionPicker
+              label={t("chat.action_react_more")}
+              align={isOwn ? "end" : "start"}
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              onPick={(emoji) => {
+                onToggleReaction(message, emoji);
+                setPickerOpen(false);
+              }}
+            />
             <span aria-hidden className="mx-1 h-6 w-px bg-border max-sm:hidden" />
           </>
         ) : (

@@ -43,6 +43,7 @@ import {
   SidebarStarter,
 } from "./chat-sidebar-parts";
 import type { SidebarRowLabels } from "./chat-sidebar-unified-row";
+import { pickQuickCatchUp, SidebarCatchUpCard } from "./chat-sidebar-catch-up";
 
 const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_PREVIEWS: NonNullable<ChatSidebarProps["roomPreviewsByRoomId"]> = {};
@@ -82,6 +83,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   groups,
   channels = EMPTY_CHANNELS,
   onOpenFollowUps,
+  onQuickCatchUp,
   onCreateGroup,
   creatingGroup = false,
   createGroupOpen: createGroupOpenProp,
@@ -173,6 +175,21 @@ export const ChatSidebar = memo(function ChatSidebar({
     [t],
   );
   const memberChannelIds = useMemo(() => new Set(channels.map((c) => c.id)), [channels]);
+  const quickCatchUp = useMemo(
+    () =>
+      onQuickCatchUp
+        ? pickQuickCatchUp({
+            unreadByRoomId,
+            workspaceRoomId,
+            workspaceTitle,
+            channels,
+            groups,
+            contacts,
+            nicknamesByUserId,
+          })
+        : null,
+    [channels, contacts, groups, nicknamesByUserId, onQuickCatchUp, unreadByRoomId, workspaceRoomId, workspaceTitle],
+  );
 
   const handleCreateGroup = (members: ChatContact[], name: string) => {
     if (!onCreateGroup) return;
@@ -350,6 +367,9 @@ export const ChatSidebar = memo(function ChatSidebar({
             {filtering && !loading ? t("chat.sidebar_result_count", { count: entries.length }) : ""}
           </p>
           {loadError ? <SidebarLoadError onRetry={onRetry} /> : null}
+          {quickCatchUp && onQuickCatchUp && unreadBadgesReady && !loading && !loadError && !filtering ? (
+            <SidebarCatchUpCard catchUp={quickCatchUp} onOpen={onQuickCatchUp} />
+          ) : null}
           {loading && !loadError && entries.length <= 1 ? (
             <SidebarSkeleton />
           ) : entries.length === 0 ? (

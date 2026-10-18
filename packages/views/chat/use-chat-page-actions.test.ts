@@ -379,8 +379,55 @@ describe("useChatPageActions", () => {
 
     const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
     expect(useChatSendOutboxStore.getState().entries).toEqual([
-      expect.objectContaining({ roomId: "room1", body: "hello", thread_root_id: "root1" }),
+      // A 503 while online keeps the bubble as failed, with "Thử lại".
+      expect.objectContaining({ roomId: "room1", body: "hello", thread_root_id: "root1", failed_at: expect.any(String) }),
     ]);
+  });
+
+  it("queues a send lost to the network quietly, without marking it failed", async () => {
+    const deps = buildDeps({
+      sendRoomMessage: { mutateAsync: vi.fn().mockRejectedValue(new TypeError("Failed to fetch")) },
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend();
+    });
+
+    const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
+    const [entry] = useChatSendOutboxStore.getState().entries;
+    expect(entry).toEqual(expect.objectContaining({ roomId: "room1", body: "hello" }));
+    expect(entry?.failed_at).toBeUndefined();
+  });
+
+  it("sends the side thread's own draft into its thread and leaves the main composer's reply and priority alone", async () => {
+    const sendThreadMessage = { mutateAsync: vi.fn().mockResolvedValue(undefined) };
+    const setComposerPriority = vi.fn();
+    const deps = buildDeps({
+      replyTo: { id: "m9" } as ChatMessage,
+      composerPriority: "urgent",
+      setComposerPriority,
+      sendThreadMessage,
+    });
+    let threadDraft = "trong chủ đề";
+    const write = vi.fn((value: string) => {
+      threadDraft = value;
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend(() => threadDraft, write, "root1");
+    });
+
+    expect(sendThreadMessage.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ threadRootId: "root1", body: "trong chủ đề", priority: undefined }),
+    );
+    expect(deps.sendRoomMessage.mutateAsync).not.toHaveBeenCalled();
+    expect(threadDraft).toBe("");
+    // The main composer's draft, reply and priority are untouched.
+    expect(deps.getDraft()).toBe("hello");
+    expect(deps.setReplyTo).not.toHaveBeenCalled();
+    expect(setComposerPriority).not.toHaveBeenCalled();
   });
 
   it("tracks an optimistic pending row while sending online", async () => {

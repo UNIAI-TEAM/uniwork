@@ -179,7 +179,8 @@ export function ChatMessageSearchBar({
 
   return (
     <div className="shrink-0 border-b border-border bg-surface">
-      <div className="flex h-16 items-center gap-0.5 pr-2 pl-3 sm:pr-3">
+      {/* Under the room header, which stays: a 60px row like the canvas. */}
+      <div className="flex h-15 items-center gap-0.5 pr-2 pl-3 sm:pr-3">
         <div className="relative mr-1.5 min-w-0 flex-1">
           <Search
             aria-hidden

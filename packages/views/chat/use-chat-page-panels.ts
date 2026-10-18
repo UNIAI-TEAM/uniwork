@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import type { ChatMessage } from "./chat-messages";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import { useChatRoomUrl, useChatWideLayout } from "./use-chat-room-url";
 import { useChatDmDeepLink } from "./use-chat-dm-deep-link";
@@ -42,6 +43,12 @@ function focusIn(root: HTMLElement | null, selector: string): boolean {
  * reader users land on the thing that just appeared: the room title after
  * opening a conversation on a phone, the open row after going back, the
  * counterpart toggle after hiding or showing the list.
+ *
+ * From lg a thread opens in a panel beside the timeline (`sideThread`);
+ * below lg there is no room for it and the timeline opens it in place. A
+ * room switch, or the window narrowing past lg, closes the side thread. The
+ * info and settings sheets are modal and slide over it: while one is open
+ * nothing opens a thread, and closing it finds the thread where it was.
  */
 export function useChatPagePanels({
   setTarget,
@@ -64,6 +71,10 @@ export function useChatPagePanels({
 }) {
   const wide = useChatWideLayout();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sideThread, setSideThread] = useState<ChatMessage | null>(null);
+  useEffect(() => {
+    setSideThread(null);
+  }, [activeRoomId, wide]);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
 
@@ -161,5 +172,9 @@ export function useChatPagePanels({
     handleTargetChange,
     handleBackToConversationList,
     handleToggleSidebar,
+    /** Threads open beside the timeline (lg and up) rather than in it. */
+    threadBeside: wide,
+    sideThread: wide ? sideThread : null,
+    setSideThread,
   };
 }

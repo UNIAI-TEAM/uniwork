@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import type { ChatMessage } from "./chat-messages";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import { ChatPageEmptyConversation } from "./chat-page-empty-conversation";
 import { wrap } from "../test/api-mock";
@@ -112,5 +113,47 @@ describe("useChatPagePanels", () => {
 
     fireEvent.click(show);
     expect(screen.getByRole("button", { name: "Ẩn" })).toHaveFocus();
+  });
+
+  describe("side thread", () => {
+    const ROOT = { id: "m1", body: "Kịch bản bản 2", sender: "u2", ts: 0 } as unknown as ChatMessage;
+    function renderPanels() {
+      return renderHook(
+        ({ room }) =>
+          useChatPagePanels({
+            setTarget: () => undefined,
+            activeRoomId: room,
+            workspaceRoomId: "room-ws",
+            contacts: [],
+            groups: [group],
+            channels: [],
+            roomsReady: true,
+            showLoading: false,
+          }),
+        { initialProps: { room: "room-ws" }, wrapper: ({ children }) => wrap(<>{children}</>) },
+      );
+    }
+
+    it("from lg keeps an opened thread beside the timeline until it is closed or the room changes", () => {
+      const { result, rerender } = renderPanels();
+      expect(result.current.threadBeside).toBe(true);
+
+      act(() => result.current.setSideThread(ROOT));
+      expect(result.current.sideThread).toBe(ROOT);
+      act(() => result.current.setSideThread(null));
+      expect(result.current.sideThread).toBeNull();
+
+      act(() => result.current.setSideThread(ROOT));
+      rerender({ room: "room-g1" });
+      expect(result.current.sideThread).toBeNull();
+    });
+
+    it("below lg has no side panel: threads open in place", () => {
+      window.innerWidth = 375;
+      const { result } = renderPanels();
+      expect(result.current.threadBeside).toBe(false);
+      act(() => result.current.setSideThread(ROOT));
+      expect(result.current.sideThread).toBeNull();
+    });
   });
 });

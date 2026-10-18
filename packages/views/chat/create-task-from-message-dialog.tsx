@@ -156,6 +156,7 @@ export function CreateTaskFromMessageDialog({
 
         <FormDialogFooter
           onCancel={() => onOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("chat.link.create")}
           submittingLabel={t("chat.link.creating")}
           submitting={createTask.isPending}
