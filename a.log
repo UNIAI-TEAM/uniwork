@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+d0ba9fbcbd2ccbe1d20628ad7fb85874a93ef887
+d0ba9fbcb fix(documents): keep the row's editor on its own line until 34rem (UNI-1902)
+24135c07a fix(documents): keep the library row date and editor readable at 390 (UNI-1902)
+6f4ca157a chore: merge MYFOLDER-01 web My Folder as the default save destination (UNI-1850, 772e06fa7) into the G5-G7 root
+772e06fa7 fix(documents): show the resume hint for a Home-root upload saved under My Folder (UNI-1850)
+74de60298 fix(documents): ignore a root resume record for a Home-root chunked upload (UNI-1850)
+ebc45babe chore: merge TRASH-NOTIFY-01 trash and restore notifications, server + web (UNI-1844, 024e27f64) into the G5-G7 root
+024e27f64 chore(merge): e6-server TN 364ce43e4 (root f6aebb640) into TRASH-NOTIFY-01 web
+43db86954 fix(documents): Home root chunked upload lands in My Folder (UNI-1850)
