@@ -11,7 +11,7 @@ import { officeFrameKeys, useOfficeFrameSourceToken, useOfficeFrameToken } from 
 import type { OfficeFrameSourceToken, OfficeFrameToken } from "@uniwork/core/api/endpoints/office-frame";
 import { docsFrameError, docsFrameToken, type DocsFrameApi, type DocsFrameSavedAs } from "@uniwork/core/office/docs-frame-api";
 import { createDocsFrameHost, type ApiHandlers, type DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
-import { DocsProtocolError, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
+import { DocsProtocolError, type FileMeta, type FrameRequests, type ProtocolErrorShape, type TokenPayload } from "@uniwork/core/office/docs-frame-protocol";
 import {
   armWatchdog,
   attachFrameBundleProbe,
@@ -38,6 +38,7 @@ import {
 import { composeFrameInit } from "./docs-frame-init";
 import { deliverFrameDownload, frameDownloadMaxBytes } from "./frame-download";
 import { createFrameRemoteVersion, frameBlockError, openWithRevision, remoteAwareSave } from "./frame-remote-version";
+import { createFirstSaveGate } from "./first-save-gate";
 import { useFrameRemote } from "./use-frame-remote-source";
 
 
@@ -104,30 +105,25 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   const frameLife = useRef<FrameLife>({ state: "disposed" });
   // A clean frame after a save reads "saved"; one never saved reads "ready".
   const savedOnce = useRef(false);
+  // The page's own Save (below, post-declaration): a declined frame save re-issues through it.
+  const pageSave = useRef<((reason: "user" | "navigate") => Promise<DocsFrameSaveOutcome>) | null>(null);
+  // UNI-1847 (SAVE-01): the one gate deciding a save names a never-saved blank first.
+  const firstSaveGate = useRef(createFirstSaveGate({
+    current: () => ({ firstSave: latest.current.options.firstSave, viewOnly: latest.current.viewOnly, savedOnce: savedOnce.current }),
+  }));
   const sizeWarnedDoc = useRef<string | null>(null);
   const saveBlockedOpen = useRef(false);
   const downloadPending = useRef(false);
   const initDownloadMaxBytes = useRef<number>(frameDownloadMaxBytes(documentLimits.upload_max_bytes));
 
   useEffect(() => {
-    setStatus("booting");
-    setSlow(false);
-    setFatal(null);
-    setDirty(false);
-    setSaveState("ready");
-    setModal(false);
-    setAiRunning(false);
-    if (sizeWarnedDoc.current !== latest.current.scopeId) {
-      sizeWarnedDoc.current = null;
-      setSizeWarning(null);
-    }
-    saveBlockedOpen.current = false;
-    downloadPending.current = false;
-    setSaveBlocked(null);
+    setStatus("booting"); setSlow(false); setFatal(null); setDirty(false);
+    setSaveState("ready"); setModal(false); setAiRunning(false);
+    if (sizeWarnedDoc.current !== latest.current.scopeId) { sizeWarnedDoc.current = null; setSizeWarning(null); }
+    saveBlockedOpen.current = false; downloadPending.current = false; setSaveBlocked(null);
     initDownloadMaxBytes.current = frameDownloadMaxBytes(latest.current.documentLimits.upload_max_bytes);
-    modalOpen.current = false;
-    sentToken.current = null;
-    savedOnce.current = false;
+    modalOpen.current = false; sentToken.current = null; savedOnce.current = false;
+    firstSaveGate.current.reset();
     const life: FrameLife = { state: "live" };
     frameLife.current = life;
     // `endpoint` is assigned below, before any frame can open anything to announce.
@@ -301,6 +297,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
             context.signal,
           ).catch((error: unknown) => { const shape = shapeOf(error); if (latest.current.isSource && shape.code !== "cancelled") failSession(shape); throw error; }),
         "api.save": async (payload, context) => {
+          // UNI-1847 (SAVE-01, D4): a frame save of a still-unnamed blank is declined first -
+          // with the protocol's own "the user cancelled" so no conflict dialog opens - and the
+          // page names the document, then sends the Save itself. Declining at once keeps the
+          // frame's 120 s answer timeout out of a dialog that may stay open for hours.
+          const naming = firstSaveGate.current.pendingName();
+          if (naming) { firstSaveGate.current.frameAsk(naming, () => void pageSave.current?.("user")); return { ok: false, error: { code: "cancelled", message: "the document has no name yet" } }; }
           // This upload belongs to the page's Save in flight: the watchdog waits for it.
           const watch = hostSave.current?.life === life ? hostSave.current : null;
           if (watch) { watch.busy += 1; armWatchdog(watch); }
@@ -499,6 +501,11 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     // One Save at a time: a second one (the page is inert while the frame's dialog is open) is refused, unsent.
     const life = frameLife.current;
     if (!host || hostSave.current || life.state !== "live") return "failed";
+    // UNI-1847 (SAVE-01, D2): a never-saved blank is named before its first upload. Cancel
+    // answers "cancelled" (the edits stay, the header stays unsaved); the name written, the
+    // same Save carries on - and every later one, the dialog never opens twice.
+    const naming = firstSaveGate.current.pendingName();
+    if (naming && !(await firstSaveGate.current.pageAsk(naming))) return "cancelled";
     const watch: HostSaveWatch = { life, abort: new AbortController(), cause: null, settled: false, busy: 0, modal: modalOpen.current, stored: false, timer: null };
     hostSave.current = watch;
     armWatchdog(watch);
@@ -550,6 +557,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (hostSave.current === watch) hostSave.current = null;
     }
   }, [host]);
+  pageSave.current = save;
 
   const print = useCallback(async () => {
     if (!host) return false;
@@ -586,12 +594,17 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
     if (tokenFailure) void refetchToken();
     setAttempt((n) => n + 1);
   }, [refetchToken, tokenFailure]);
+
+  // The document's name changed on the page (the first-save dialog named it): the frame's
+  // title bar and recents read the same name without waiting on a save (UNI-1847, D5).
+  const notifyRenamed = useCallback((file: FileMeta) => {
+    if (frameLife.current.state === "live") host?.notifyRenamed(file);
+  }, [host]);
   return { status: failure ? "failed" : status, slow: slow && status === "booting" && !failure, viewOnly, failure, dirty,
     // Edits made after the last save (or during it) read as unsaved until the frame reports clean.
     saveState: dirty && saveState !== "saving" && saveState !== "error" ? "dirty" : saveState,
-    modal: modal && status === "ready" && !failure,
-    height, aiRunning: aiRunning && status === "ready" && !failure, blocked,
+    modal: modal && status === "ready" && !failure, height, aiRunning: aiRunning && status === "ready" && !failure, blocked,
     sizeWarning: status === "ready" && !failure ? sizeWarning : null,
     saveBlocked: status === "ready" && !failure ? saveBlocked : null,
-    dismissSaveBlocked, downloadCopy, save, print, attempt, retry };
+    dismissSaveBlocked, downloadCopy, save, print, notifyRenamed, attempt, retry };
 }

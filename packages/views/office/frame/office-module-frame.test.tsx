@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import type { Document } from "@uniwork/core/types/document";
 import { PROTOCOL_NS, PROTOCOL_VERSION, isInitPayload, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { endOfficeDraftSession } from "@uniwork/core/office/draft-session-key";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -40,12 +41,16 @@ function fullApi(): DocsFrameApi {
   } as unknown as DocsFrameApi;
 }
 
-function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, onSessionFailure, ackComments = false, ackCapabilities, fileRef }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; onSessionFailure?: (failure: unknown) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string } } = {}) {
+function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, tokenModule = module, mint, refuse, desktopOpen, inHeader = false, fileActions = false, onFrameCommentsChange, onSessionFailure, ackComments = false, ackCapabilities, fileRef, documentDetail, extraRoutes }: { ackCapabilities?: Record<string, boolean>; onFrameCommentsChange?: (framePanel: boolean) => void; onSessionFailure?: (failure: unknown) => void; ackComments?: boolean; inHeader?: boolean; canEdit?: boolean; readonly?: boolean; tokenModule?: string; mint?: () => Promise<unknown>; refuse?: () => void; desktopOpen?: FrameDesktopOpenProps; fileActions?: boolean | "download_only"; fileRef?: { kind: "document" | "source"; id: string }; documentDetail?: Document; extraRoutes?: (path: string, init?: { method?: string; body?: unknown }) => Promise<unknown> | undefined } = {}) {
   const ref = fileRef ?? { kind: "document" as const, id: "doc-1" };
-  requestMock.mockImplementation((path: string) => (path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : path === SOURCE_MINT_PATH ? Promise.resolve({ ...mintedSource, module: tokenModule }) : Promise.reject(new Error(`unexpected ${path}`))));
+  requestMock.mockImplementation((path: string, init?: { method?: string; body?: unknown }) => {
+    const routed = extraRoutes?.(path, init);
+    if (routed !== undefined) return routed;
+    return path === MINT_PATH ? (mint?.() ?? Promise.resolve({ ...minted, can_edit: canEdit, module: tokenModule })) : path === SOURCE_MINT_PATH ? Promise.resolve({ ...mintedSource, module: tokenModule }) : Promise.reject(new Error(`unexpected ${init?.method ?? "GET"} ${path}`));
+  });
   lastApi = fullApi();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const bare = <OfficeModuleFrame module={module} wsId="ws-1" fileRef={ref} title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} onSessionFailure={onSessionFailure} />;
+  const bare = <OfficeModuleFrame module={module} wsId="ws-1" fileRef={ref} title="Scan" frameVersion="1.0.0" api={lastApi} readonly={readonly} desktopOpen={desktopOpen} onFrameCommentsChange={onFrameCommentsChange} onSessionFailure={onSessionFailure} documentDetail={documentDetail} />;
   const framed = fileActions
     ? <OfficeTooLargeProvider value={{ desktopAction: fileActions === "download_only" ? null : <button type="button">Mở trong UniWork Office</button>, onDownload: vi.fn() }}>{bare}</OfficeTooLargeProvider>
     : bare;
@@ -75,6 +80,7 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
     }
   });
   return {
+    received,
     iframe,
     unmount: () => view.unmount(),
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
@@ -85,6 +91,8 @@ function mountFrame(module: OfficeModule, { canEdit = true, readonly = false, to
       post({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: to.id, kind: "response", type: to.type, error }),
     request: (type: string, payload: unknown) => { const e = envelope("request", type, payload); void post(e); return e.id; },
     answerTo: (id: string) => received.find((m) => m.kind === "response" && m.id === id),
+    respond: (to: Envelope, payload: unknown) =>
+      post({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: to.id, kind: "response", type: to.type, payload }),
   };
 }
 
@@ -697,6 +705,130 @@ describe("the leave dialog hands focus back to every module's frame", () => {
     await expect(leaving).resolves.toBe(false);
     await waitFor(() => expect(focusWindow).toHaveBeenCalledTimes(1));
     expect(focusIframe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("first save names a never-saved blank (UNI-1847, SAVE-01)", () => {
+  const UNTITLED = {
+    id: "doc-1", organization_id: "org-1", workspace_id: "ws-1", parent_id: "folder-mine",
+    kind: "file", title: "Tài liệu chưa đặt tên.docx", revision: "4", current_version: 1,
+    file: {
+      file_id: "f-1", version_id: "v-1", version: 1, filename: "untitled.docx",
+      mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      size_bytes: 12, checksum_sha256: "abc",
+    },
+  } as unknown as Document;
+  const OK_SAVE = { ok: true, file: { fileId: "doc-1", name: "untitled.docx" }, versionId: "v-2" };
+  const calls = () => requestMock.mock.calls as [string, { method?: string; body?: unknown } | undefined][];
+  const patchCalls = () => calls().filter(([path, init]) => path === "/api/v1/documents/doc-1" && init?.method === "PATCH");
+
+  const namingRoutes = (path: string, init?: { method?: string }) => {
+    if (path === "/api/v1/documents/doc-1" && init?.method === "PATCH") return Promise.resolve({ document: { ...UNTITLED, revision: "5" } });
+    if (path === "/api/v1/documents/doc-1") return Promise.resolve({ document: UNTITLED });
+    return undefined;
+  };
+
+  async function mountUnnamed() {
+    const frame = mountFrame("docs", { inHeader: true, documentDetail: UNTITLED, extraRoutes: namingRoutes });
+    await frame.ready({});
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    await frame.event("dirty", { dirty: true });
+    return frame;
+  }
+
+  it("header Save opens the name dialog: submit PATCHes the title, asks the frame once, tells it the name", async () => {
+    const frame = await mountUnnamed();
+    vi.mocked(lastApi!.save).mockResolvedValue(OK_SAVE as never);
+    fireEvent.click(screen.getByRole("button", { name: "Lưu vào UniWork" }));
+    const dialog = await screen.findByRole("dialog", { name: "Đặt tên tài liệu" });
+    expect(dialog).toBeTruthy();
+    expect(screen.getByText("Bạn có thể đổi tên sau trong thư mục.")).toBeTruthy();
+    const input = screen.getByLabelText("Tên tài liệu") as HTMLInputElement;
+    expect(input.value).toBe("Tài liệu chưa đặt tên.docx");
+    fireEvent.change(input, { target: { value: "Kế hoạch Q4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // One PATCH, then the save the click started: the frame is asked once and uploads once.
+    expect(patchCalls()).toHaveLength(1);
+    await waitFor(() => expect(frame.sent("save")).toHaveLength(1));
+    const upload = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "4" });
+    await waitFor(() => expect(frame.answerTo(upload)?.payload).toMatchObject({ ok: true }));
+    expect(lastApi!.save).toHaveBeenCalledTimes(1);
+    // The frame heard its new name before the save finished.
+    const renamed = frame.received.find((m) => m.kind === "event" && m.type === "file.renamed");
+    expect(renamed).toBeTruthy();
+    expect(JSON.stringify(renamed!.payload)).toContain("Kế hoạch Q4.docx");
+    await frame.respond(frame.sent("save")[0]!, OK_SAVE);
+    // A second Save stays quiet: no dialog, no PATCH.
+    fireEvent.click(screen.getByRole("button", { name: "Lưu vào UniWork" }));
+    await waitFor(() => expect(frame.sent("save")).toHaveLength(2));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(patchCalls()).toHaveLength(1);
+    await frame.respond(frame.sent("save")[1]!, OK_SAVE);
+  });
+
+  it("Cancel keeps the save unsent and the editor dirty; the next Save asks again", async () => {
+    const frame = await mountUnnamed();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu vào UniWork" }));
+    await screen.findByRole("dialog", { name: "Đặt tên tài liệu" });
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(frame.sent("save")).toHaveLength(0);
+    expect(lastApi!.save).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-dirty", "true");
+    expect(toast.error).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu vào UniWork" }));
+    await screen.findByRole("dialog", { name: "Đặt tên tài liệu" });
+  });
+
+  it("Save and leave goes through the same naming step; cancelling it stays on the page", async () => {
+    const frame = await mountUnnamed();
+    vi.mocked(lastApi!.save).mockResolvedValue(OK_SAVE as never);
+    const leaving = leaveGuardAllows("/elsewhere");
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
+    await screen.findByRole("dialog", { name: "Đặt tên tài liệu" });
+    // Cancel of the name dialog is stay-on-page: no save, no leave.
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await expect(leaving).resolves.toBe(false);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(frame.sent("save")).toHaveLength(0);
+  });
+
+  it("the leave Save that answers the name dialog carries on saving and leaving", async () => {
+    const frame = await mountUnnamed();
+    vi.mocked(lastApi!.save).mockResolvedValue(OK_SAVE as never);
+    const leaving = leaveGuardAllows("/elsewhere");
+    fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
+    await screen.findByRole("dialog", { name: "Đặt tên tài liệu" });
+    fireEvent.change(screen.getByLabelText("Tên tài liệu"), { target: { value: "Kế hoạch" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(frame.sent("save")).toHaveLength(1));
+    await frame.respond(frame.sent("save")[0]!, OK_SAVE);
+    await expect(leaving).resolves.toBe(true);
+  });
+
+  it("never prompts for an already-named document, a saved version, or a viewer", async () => {
+    const named = { ...UNTITLED, file: { ...UNTITLED.file!, filename: "Plan.docx" } } as unknown as Document;
+    const saved = { ...UNTITLED, file: { ...UNTITLED.file!, version: 2 } } as unknown as Document;
+    for (const doc of [named, saved]) {
+      cleanup();
+      const frame = mountFrame("docs", { inHeader: true, documentDetail: doc, extraRoutes: namingRoutes });
+      await frame.ready({});
+      await waitFor(() => expect(frame.inits()).toHaveLength(1));
+      await frame.event("dirty", { dirty: true });
+      fireEvent.click(screen.getByRole("button", { name: "Lưu vào UniWork" }));
+      await waitFor(() => expect(frame.sent("save")).toHaveLength(1));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await frame.respond(frame.sent("save")[0]!, OK_SAVE);
+    }
+    // A viewer never sees the dialog: api.save is refused before the prompt runs.
+    cleanup();
+    const viewer = mountFrame("docs", { readonly: true, documentDetail: UNTITLED, extraRoutes: namingRoutes });
+    await viewer.ready({});
+    await waitFor(() => expect(viewer.inits()).toHaveLength(1));
+    const id = viewer.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "1" });
+    await waitFor(() => expect(viewer.answerTo(id)?.error?.code).toBe("forbidden"));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 

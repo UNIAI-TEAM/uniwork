@@ -1,0 +1,47 @@
+import type { FirstSaveNamer } from "./docs-frame-session-model";
+
+/**
+ * UNI-1847 (SAVE-01): the one place a session decides whether a save may run as
+ * sent or must name the document first - a never-saved blank (`untitled.<ext>`
+ * at version 1, per `firstSave.needsName`) the user may edit. Both save entry
+ * points use it:
+ *
+ * - A page Save asks inline: the name written, the same save carries on
+ *   (`pageAsk`); Cancel answers "cancelled" and sends nothing.
+ * - A frame `api.save` is declined at once (`frameAsk`) with the protocol's own
+ *   cancelled shape - the name dialog may stay open for hours and the frame's
+ *   120 s answer timeout could never fire otherwise - while the page names the
+ *   document, then issues the Save itself.
+ *
+ * `savedOnce` (the session's own ref) covers documents whose first save already
+ * happened; `namedOnce` latches a dialog answer so a later save never asks
+ * again even when the save that followed it failed.
+ */
+export interface FirstSaveGate {
+  /** The open save must name the document first, or null when it may run as sent. */
+  pendingName: () => FirstSaveNamer | null;
+  /** Naming for a page Save: resolves false on Cancel, true once named - and latches it. */
+  pageAsk: (namer: FirstSaveNamer) => Promise<boolean>;
+  /** Naming for a declined frame save: latches the name, then issues the page's Save. */
+  frameAsk: (namer: FirstSaveNamer, reissue: () => void) => void;
+  /** A fresh session (retry, another document) asks again for its own blank. */
+  reset: () => void;
+}
+
+export function createFirstSaveGate(opts: {
+  /** Session state read live: `readonly` now, `savedOnce` when the document already saved. */
+  current: () => { firstSave?: FirstSaveNamer; viewOnly: boolean; savedOnce: boolean };
+}): FirstSaveGate {
+  let namedOnce = false;
+  return {
+    pendingName: () => {
+      const { firstSave, viewOnly, savedOnce } = opts.current();
+      return firstSave && !savedOnce && !namedOnce && !viewOnly && firstSave.needsName() ? firstSave : null;
+    },
+    pageAsk: async (namer) => (await namer.ask()) ? (namedOnce = true) : false,
+    frameAsk: (namer, reissue) => {
+      void namer.ask().then((named) => { if (named) { namedOnce = true; reissue(); } });
+    },
+    reset: () => { namedOnce = false; },
+  };
+}

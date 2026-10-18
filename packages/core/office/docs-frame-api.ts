@@ -1,5 +1,5 @@
 import { ApiError } from "../api/http";
-import { createDocumentFile } from "../api/endpoints/documents";
+import { createDocumentFile, ensureMyFolder, getDocument } from "../api/endpoints/documents";
 import { copyDocument } from "../api/endpoints/office";
 import {
   createOfficeFrameClient,
@@ -243,6 +243,20 @@ async function runChunkedUpload(opts: ChunkedUploadOptions, signal: AbortSignal)
 }
 
 /**
+ * Where a save-as copy lands without a chosen folder (UNI-1847, D6): beside its
+ * source document, or into the caller's My Folder when the source sits at the
+ * workspace root (the root itself is not a folder a file can be filed under).
+ */
+async function saveAsParentId(call: DocsFrameCall): Promise<string> {
+  const source = await getDocument(call.documentId, call.signal);
+  if (!source) throw malformed("GET /api/v1/documents/{id}");
+  if (source.parent_id) return source.parent_id;
+  const myFolder = await ensureMyFolder(call.workspaceId, { signal: call.signal });
+  if (!myFolder) throw malformed("documents/my-folder");
+  return myFolder.id;
+}
+
+/**
  * The DocsFrameApi on the UniWork office-frame routes (W6): every call is made
  * with the frame token only (Bearer, `credentials: 'omit'`), never the session.
  * `OfficeModuleFrame` uses one by default, so the web host mounts it inside
@@ -348,13 +362,17 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
       const title = name.replace(ext, "");
       const file = new File([payload.data], name, { type: mimeType });
       const key = await operationKey("saveas", [call.workspaceId, name, payload.folderId ?? ""], payload.data);
+      // UNI-1847 (D6): the copy lands beside its source - never at the workspace root. A
+      // folder the frame's picker chose wins; else the source's own parent; a root document's
+      // copy goes into the caller's My Folder (the workspace root is not a folder).
+      const parentId = payload.folderId ?? (await saveAsParentId(call));
       const threshold = resolveThreshold(call, options);
       const created = threshold !== null && payload.data.byteLength > threshold
         ? await runChunkedUpload(
             {
               file,
               filename: name,
-              target: { kind: "workspace", workspaceId: call.workspaceId, parentId: payload.folderId, title },
+              target: { kind: "workspace", workspaceId: call.workspaceId, parentId, title },
               idempotencyKey: `${key}:upload`,
               fetch: sessionFetch,
             },
@@ -363,7 +381,7 @@ export function createOfficeFrameApi(module: OfficeModule, options: DocsFrameApi
         : await createDocumentFile(
             call.workspaceId,
             file,
-            { title, parent_id: payload.folderId },
+            { title, parent_id: parentId },
             { idempotencyKey: key, signal: call.signal },
           );
       if (!created) throw malformed("documents/files");
