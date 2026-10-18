@@ -1007,8 +1007,8 @@ describe('the signed G7-D1 thresholds file', () => {
     });
     assert.equal(doc.minRuns, 3);
     assert.equal(doc.aggregation, 'every_run');
-    assert.deepEqual(doc.signed, { date: '2026-10-15', by: 'G7-D1 signed by the user', source: 'decisions/G7-D1-signed.md' });
-    assert.equal(doc.signedBy, 'G7-D1 signed by the user');
+    assert.deepEqual(doc.signed, { date: '2026-10-18', by: 'G7-12 re-signed by the user', source: 'decisions/G7-12-oracle-resign-signed.md' });
+    assert.equal(doc.signedBy, 'G7-12 re-signed by the user');
     assert.ok(Date.parse(doc.signedAt) >= Date.parse('2026-10-15T00:00:00+07:00'));
   });
 

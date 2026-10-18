@@ -472,8 +472,8 @@ Mã `0` chỉ dành cho kết luận đã ký đạt.
 **Tệp ngưỡng đã ký: [`thresholds-G7-D1.json`](thresholds-G7-D1.json)** (cùng thư mục này). Nó mang đúng các giá trị G7-D1 đã ký ngày
 2026-10-15: 0 công cụ ngoài allowlist; 100% kết quả số/công thức bắt buộc; 0 ghi trái phép (vai editor) và 0 lộ dữ liệu; thành công
 ≥ 95% tổng thể (≥ 190/200) và ≥ 90% mỗi nhóm; độ trễ mỗi lượt gọi model p50 ≤ 5 s và p95 ≤ 12 s mỗi lần chạy (`5000` / `12000` ms);
-`minRuns` 3; lần chạy xấu nhất quyết định (`every_run`); ca không ổn định tính là lệch. Khối `signed` ghi ngày, "G7-D1 signed by the user" và
-nguồn (`decisions/G7-D1-signed.md`); `caseSetSha256` + `caseCount` ghim bộ 100 ca đã ký (một test đọc bộ ca lúc chạy và so, nên đổi ca là
+`minRuns` 3; lần chạy xấu nhất quyết định (`every_run`); ca không ổn định tính là lệch. Khối `signed` ghi ngày, "G7-12 re-signed by the user" và
+nguồn (`decisions/G7-12-oracle-resign-signed.md`); `caseSetSha256` + `caseCount` ghim bộ 100 ca đã ký (một test đọc bộ ca lúc chạy và so, nên đổi ca là
 phải ký lại). Tệp **không chứa nội dung ca** (không mã ca, không câu hỏi). `staleApplied` có trong tệp nhưng không gate. Truyền bằng
 `--thresholds docs/office/g5g6g7/holdout/thresholds-G7-D1.json`. Dạng tệp (dưới đây là ví dụ cú pháp, các số 0 trong ví dụ không phải ngưỡng):
 

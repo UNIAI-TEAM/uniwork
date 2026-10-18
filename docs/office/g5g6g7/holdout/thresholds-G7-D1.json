@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "kind": "uniwork-office-g7-holdout-thresholds",
   "decision": "G7-D1",
-  "signedBy": "G7-D1 signed by the user",
-  "signedAt": "2026-10-15T23:35:00+07:00",
+  "signedBy": "G7-12 re-signed by the user",
+  "signedAt": "2026-10-18T22:30:00+07:00",
   "signed": {
-    "date": "2026-10-15",
-    "by": "G7-D1 signed by the user",
-    "source": "decisions/G7-D1-signed.md"
+    "date": "2026-10-18",
+    "by": "G7-12 re-signed by the user",
+    "source": "decisions/G7-12-oracle-resign-signed.md"
   },
   "aggregation": "every_run",
   "minRuns": 3,
-  "caseSetSha256": "581f973d3e50cc2f20ae52f17ea0f517fb7095bcaa9bddf73965274593a55d24",
+  "caseSetSha256": "21a2898117669cf5ebf029dab434c654ec86aa81f20882e5de064b9e578d8552",
   "caseCount": 100,
   "thresholds": {
     "outsideAllowlistCases": {
