@@ -1,0 +1,7 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test ./internal/handler -run "EditLock|Shelve|Shelved|Document" -count=1 -timeout 30m -v > /tmp/h.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)" /tmp/h.log | tail -20; grep -cE "^\s*--- PASS" /tmp/h.log; echo; echo "TEST_HANDLER_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	24.473s
+110
+
+TEST_HANDLER_EXIT=0

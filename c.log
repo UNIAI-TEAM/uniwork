@@ -1,0 +1,29 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; gofmt -l internal/service internal/handler; go vet ./internal/service ./internal/handler && AI_PROVIDER=fake go test ./internal/service -run "EditLock|Shelve|Shelved|ArchiveReleases|DeleteReleases|AuditCoverage|Archive|Trash|UpdateDocumentAccess|Commit|Dedup" -count=1 -timeout 40m -v > /tmp/svc.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)" /tmp/svc.log | tail -20; grep -cE "^\s*--- PASS" /tmp/svc.log; grep -E "^\s*--- (PASS|FAIL): (TestShelveReleasesEditLock|TestShelvedUpdateDocumentAccess)" /tmp/svc.log | head -20; echo; echo "TEST_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- SKIP: TestFD04ArchiveImpactEvidence (0.00s)
+    --- SKIP: TestDocumentCommit/minio (0.00s)
+    --- SKIP: TestDocumentCommitIdenticalBytesIsANoOp/minio (0.00s)
+    --- SKIP: TestDocumentCopyPristineArchive/minio (0.00s)
+    --- SKIP: TestDocumentOfficeCommit/minio (0.00s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	39.689s
+338
+--- PASS: TestShelveReleasesEditLock (1.91s)
+    --- PASS: TestShelveReleasesEditLock/root_and_descendant_end_with_document_shelved (0.21s)
+    --- PASS: TestShelveReleasesEditLock/already-shelved_child_keeps_its_tenure (0.25s)
+    --- PASS: TestShelveReleasesEditLock/trashed_child_keeps_document_archived (0.21s)
+    --- PASS: TestShelveReleasesEditLock/holder_heartbeat_is_edit_lock_lost_document_shelved (0.20s)
+    --- PASS: TestShelveReleasesEditLock/unshelve_does_not_restore_the_tenure (0.27s)
+    --- PASS: TestShelveReleasesEditLock/second_shelve_ends_nothing (0.28s)
+    --- PASS: TestShelveReleasesEditLock/manage_refusal_leaves_the_lock_live (0.28s)
+    --- PASS: TestShelveReleasesEditLock/folder_too_large_leaves_the_lock_live (0.23s)
+--- PASS: TestShelvedUpdateDocumentAccess (0.27s)
+    --- PASS: TestShelvedUpdateDocumentAccess/new_user_grant_is_refused (0.01s)
+    --- PASS: TestShelvedUpdateDocumentAccess/dry_run_of_a_new_grant_is_refused (0.00s)
+    --- PASS: TestShelvedUpdateDocumentAccess/raise_view_to_edit_is_refused (0.00s)
+    --- PASS: TestShelvedUpdateDocumentAccess/home_row_restricted_to_view_is_refused (0.00s)
+    --- PASS: TestShelvedUpdateDocumentAccess/revoke-only_batch_succeeds (0.00s)
+    --- PASS: TestShelvedUpdateDocumentAccess/lower_edit_to_view_succeeds (0.00s)
+    --- PASS: TestShelvedUpdateDocumentAccess/outsider_hits_the_access_gate (0.00s)
+
+TEST_SVC_EXIT=0
