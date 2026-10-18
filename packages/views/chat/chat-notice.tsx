@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, Ban, RefreshCw } from "lucide-react";
+import { CircleAlert, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Notice } from "../common/notice";
@@ -30,20 +30,19 @@ export function ChatNoticeRetryButton({ onClick }: { onClick: () => void }) {
  * The polite ones are announced through one region that stays mounted and only
  * changes its text — a region mounted together with its text is often missed.
  * A connect error is an alert, which screen readers do read on insertion.
+ * A blocked DM says so in the composer's pill, not here.
  */
 export function ChatConversationNotices({
   workspaceLoadFailed,
   onRetryWorkspace,
   connectError,
-  blockedNotice,
 }: {
   workspaceLoadFailed: boolean;
   onRetryWorkspace: () => void;
   connectError: string | null;
-  blockedNotice: string | null;
 }) {
   const { t } = useTranslation();
-  const politeText = workspaceLoadFailed ? t("chat.room_load_failed") : (blockedNotice ?? "");
+  const politeText = workspaceLoadFailed ? t("chat.room_load_failed") : "";
   return (
     <>
       <p role="status" className="sr-only">
@@ -63,11 +62,6 @@ export function ChatConversationNotices({
       {connectError ? (
         <Notice tone="destructive" icon={CircleAlert} live="assertive" className="min-h-10 py-1.5">
           <p className="text-label">{connectError}</p>
-        </Notice>
-      ) : null}
-      {blockedNotice ? (
-        <Notice tone="muted" icon={Ban} live="off" className={CHAT_NOTICE_STRIP}>
-          <p className="text-body font-normal">{blockedNotice}</p>
         </Notice>
       ) : null}
     </>

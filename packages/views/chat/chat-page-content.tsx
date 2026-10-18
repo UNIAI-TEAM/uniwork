@@ -56,7 +56,6 @@ export function ChatPageContent(props: ChatPageContentProps) {
     onSendThreadMedia,
     onGroupSettingsOpenChange,
     dmBlocked,
-    dmBlockedByMe,
     onCreateGroupOpenChange,
     createGroupOpen,
     onChannelSettingsOpenChange,
@@ -171,13 +170,6 @@ export function ChatPageContent(props: ChatPageContentProps) {
         workspaceLoadFailed={isWorkspaceError && target.kind === "workspace"}
         onRetryWorkspace={onRefetchWorkspace}
         connectError={target.kind === "workspace" ? null : connectError}
-        blockedNotice={
-          target.kind === "dm" && dmBlocked
-            ? dmBlockedByMe
-              ? t("chat.block_active_banner")
-              : t("chat.blocked_me_banner")
-            : null
-        }
       />
     </>
   );
@@ -309,9 +301,10 @@ export function ChatPageContent(props: ChatPageContentProps) {
           >
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {showListToggleInFrame ? <ChatFrameListToggle t={t} onShowList={handleToggleSidebar} /> : null}
-              {roomOpen ? null : notices}
+              {/* A loading room draws its header first; its strips go under it, as on an open room. */}
+              {roomOpen || showLoading ? null : notices}
               {showLoading ? (
-                <ChatConversationSkeleton />
+                <ChatConversationSkeleton notices={notices} />
               ) : activeRoomId ? (
                 <ChatPageConversation
                   props={props}

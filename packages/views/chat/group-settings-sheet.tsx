@@ -36,6 +36,7 @@ import {
   ChatSettingsSection,
 } from "./chat-settings-ui";
 import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
+import { settingsMemberOrder } from "./chat-info-panel-utils";
 import { ChatGroupAvatarEditor } from "./chat-group-avatar-editor";
 import { ChatRoomFace } from "./chat-info-panel-mark";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
@@ -168,7 +169,10 @@ export function GroupSettingsSheet({
         },
       });
     }
-    return ordered;
+    return settingsMemberOrder(
+      ordered.map((entry) => ({ ...entry, user_id: entry.key, role: entry.chat.role })),
+      currentUserId,
+    );
   }, [chatMembers, currentUserId, youLabel, memberProfiles, nicknamesByUserId]);
 
   return (
@@ -330,7 +334,7 @@ export function GroupSettingsSheet({
                           title={t("chat.nickname_action")}
                           onClick={() => setNicknameTarget({ userId: member.key, label: member.legalLabel })}
                         >
-                          <Tag className="size-5" aria-hidden />
+                          <Tag className="size-4.5" aria-hidden />
                         </Button>
                         {!member.isSelf && isModerator ? (
                           <ChatRoomMemberActions

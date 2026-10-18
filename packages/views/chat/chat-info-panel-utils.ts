@@ -56,3 +56,16 @@ export function formatTaskDue(due: string, locale: string): string {
 export function stripInlineMarkdown(text: string): string {
   return text.replace(/\*\*|__|~~|`/g, "");
 }
+
+/**
+ * A settings member list's order: you first, then the leads (room admins, or
+ * whoever `isLead` adds), then everyone else in the room's own order.
+ */
+export function settingsMemberOrder<T extends { user_id: string; role: string }>(
+  members: readonly T[],
+  currentUserId: string,
+  isLead: (member: T) => boolean = () => false,
+): T[] {
+  const rank = (m: T) => (m.user_id === currentUserId ? 0 : m.role === "admin" || isLead(m) ? 1 : 2);
+  return [...members].sort((a, b) => rank(a) - rank(b));
+}

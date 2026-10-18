@@ -5,13 +5,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Mic } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
+import { useChatRoomSharedSummary } from "@uniwork/core/chat";
 import { cn } from "@uniwork/ui/lib/utils";
-import { sharedItemsFromMessages } from "./chat-person-shared";
+import { sharedItemsFromMessages, type PersonSharedItem } from "./chat-person-shared";
 import { SharedItemList } from "./chat-person-shared-panel";
 import { formatMessageDateTime } from "./chat-message-time";
 import { ChatInfoSection } from "./chat-info-panel-parts";
 import { SharedPhotoCell } from "./shared-photo-gallery";
-import { loadSharedRoomMessages } from "./use-person-shared";
+import { sharedRoomMessagesQuery } from "./use-person-shared";
 import { formatVoiceCallDuration } from "./voice-call-duration";
 
 type MediaTab = "photo" | "file" | "link" | "voice";
@@ -24,8 +25,10 @@ const byNewest = (left: { at: string }, right: { at: string }) => Date.parse(rig
 
 /**
  * What the room has shared — photos, files, links, voice messages — as
- * scrollable pill tabs over a 3-column grid (photos) or a list. A photo or a
- * voice message jumps to where it was sent.
+ * scrollable pill tabs over a 3-column grid (photos) or a list. The counts and
+ * the first photos come from the room's summary; the history is paged only
+ * once a list is asked for (another tab, or "+N"). A photo or a voice message
+ * jumps to where it was sent.
  */
 export function ChatInfoMedia({
   workspaceId,
@@ -39,27 +42,43 @@ export function ChatInfoMedia({
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<MediaTab>("photo");
   const [allPhotos, setAllPhotos] = useState(false);
-  // Same key as the settings sheet's totals: opening it reads this cache.
-  // shortcut: counts cover the last 500 messages paged on the client; a server count endpoint replaces it when rooms outgrow that.
-  const query = useQuery({
-    queryKey: ["chat-person-shared", workspaceId, roomId],
-    queryFn: () => loadSharedRoomMessages(workspaceId, roomId),
-    enabled: !!workspaceId && !!roomId,
-    staleTime: 30_000,
+  const summary = useChatRoomSharedSummary(workspaceId, roomId);
+  const history = useQuery({
+    ...sharedRoomMessagesQuery(workspaceId, roomId),
+    enabled: !!workspaceId && !!roomId && (tab !== "photo" || allPhotos),
   });
-  const messages = query.data ?? NO_MESSAGES;
+  const messages = history.data ?? NO_MESSAGES;
   const { photos, files, links, voices } = useMemo(() => {
     const items = sharedItemsFromMessages(messages);
     return {
-      photos: [...items.photo, ...items.gif].sort(byNewest),
+      photos: items.photo.sort(byNewest),
       files: items.file.sort(byNewest),
       links: items.link.sort(byNewest),
       voices: messages.filter((message) => message.kind === "voice").sort((a, b) => byNewest({ at: a.created_at }, { at: b.created_at })),
     };
   }, [messages]);
-  const counts: Record<MediaTab, number> = { photo: photos.length, file: files.length, link: links.length, voice: voices.length };
-  const shownPhotos = allPhotos ? photos : photos.slice(0, PHOTO_PREVIEW);
-  const hiddenPhotos = photos.length - PHOTO_PREVIEW;
+  const recent = useMemo<PersonSharedItem[]>(
+    () =>
+      (summary.data?.recent_photos ?? []).map((photo) => ({
+        id: photo.message_id,
+        title: photo.title,
+        url: photo.url,
+        thumbUrl: photo.thumb_url || photo.url,
+        expiresAt: photo.url_expires_at,
+        at: photo.created_at,
+      })),
+    [summary.data],
+  );
+  const counts: Record<MediaTab, number> = {
+    photo: summary.data?.counts.photo ?? 0,
+    file: summary.data?.counts.file ?? 0,
+    link: summary.data?.counts.link ?? 0,
+    voice: summary.data?.counts.voice ?? 0,
+  };
+  const expanded = allPhotos && history.isSuccess;
+  const shownPhotos = expanded ? photos : recent.slice(0, PHOTO_PREVIEW);
+  const hiddenPhotos = counts.photo - PHOTO_PREVIEW;
+  const lists = tab === "photo" ? [summary] : [summary, history];
 
   return (
     <ChatInfoSection className="pt-3">
@@ -80,18 +99,18 @@ export function ChatInfoMedia({
         ))}
       </div>
       <div>
-        {query.isPending ? (
+        {lists.some((query) => query.isPending) ? (
           <p role="status" className="py-2 text-caption text-muted-foreground">
             {t("chat.person_shared_loading")}
           </p>
-        ) : query.isError ? (
+        ) : lists.some((query) => query.isError) ? (
           <p className="py-2 text-caption text-muted-foreground">{t("chat.person_shared_unavailable")}</p>
         ) : counts[tab] === 0 ? (
           <p className="py-2 text-caption text-muted-foreground">{t("chat.person_shared_empty")}</p>
         ) : tab === "photo" ? (
           <div className="grid grid-cols-3 gap-0.75">
             {shownPhotos.map((item, index) => {
-              const more = !allPhotos && index === PHOTO_PREVIEW - 1 && hiddenPhotos > 0;
+              const more = !expanded && index === PHOTO_PREVIEW - 1 && hiddenPhotos > 0;
               return (
                 <SharedPhotoCell
                   key={item.id}

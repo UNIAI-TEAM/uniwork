@@ -6,7 +6,7 @@ import type { User } from "@uniwork/core/types";
 import { requestMock, wrap } from "../test/api-mock";
 import { ChatInfoPanel, type ChatInfoPanelProps } from "./chat-info-panel";
 import { previewMembers } from "./chat-info-panel-members";
-import { linkedTaskLine } from "./chat-info-panel-utils";
+import { linkedTaskLine, settingsMemberOrder } from "./chat-info-panel-utils";
 
 initI18n();
 
@@ -180,5 +180,18 @@ describe("previewMembers", () => {
     const rows = [member("u2", "Hà"), member("u3", "Minh"), member("u1", "Quang"), member("u4", "Lan")];
     const ids = previewMembers(rows, { U4: true }, "u1", 3).map((row) => row.user_id);
     expect(ids).toEqual(["u1", "u4", "u2"]);
+  });
+});
+
+describe("settingsMemberOrder", () => {
+  it("puts you first, then admins and leads, keeping the room's order within each", () => {
+    const list = [member("u2", "Minh"), member("u3", "Lan", "admin"), member("u1", "Quang"), member("u4", "Hà"), member("u5", "Tâm")];
+    expect(settingsMemberOrder(list, "u1", (m) => m.user_id === "u5").map((m) => m.user_id)).toEqual([
+      "u1",
+      "u3",
+      "u5",
+      "u2",
+      "u4",
+    ]);
   });
 });

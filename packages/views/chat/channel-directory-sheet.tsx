@@ -37,6 +37,23 @@ import {
 import { toastChatError } from "./chat-error-message";
 import { foldedIncludes } from "./chat-search-fold";
 
+/**
+ * One directory: channels you could join and those you are in, each once, by
+ * name. The default channel is the workspace room, always atop the list, so
+ * it is not repeated here.
+ */
+export function directoryChannels(
+  discoverable: ChatRoomRecord[] | undefined,
+  mine: ChatRoomRecord[] | undefined,
+): ChatRoomRecord[] | undefined {
+  if (!discoverable) return undefined;
+  const byId = new Map<string, ChatRoomRecord>();
+  for (const room of [...(mine ?? []), ...discoverable]) {
+    if (room.kind === "channel" && !room.is_default) byId.set(room.id, room);
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "vi"));
+}
+
 /** Channels are loading: rows in their own shape — a mark, a name, a line. */
 function ChannelDirectorySkeleton({ label }: { label: string }) {
   return (
@@ -80,7 +97,11 @@ export function ChannelDirectorySheet({
   // A workspace's public channels are few: load them once and search only
   // here, accent-insensitively ("phong" finds "Phòng") and with no wildcards.
   const discoverQuery = useChatChannels(workspaceId, { scope: "discoverable" }, open);
-  const rooms = discoverQuery.data;
+  // The canvas lists the channels you are already in too (with "Mở"): the
+  // server's discoverable scope holds only those you could join.
+  const { data: mine } = useChatChannels(workspaceId, { scope: "mine" }, open);
+  const mineIds = useMemo(() => new Set((mine ?? []).map((room) => room.id)), [mine]);
+  const rooms = useMemo(() => directoryChannels(discoverQuery.data, mine), [discoverQuery.data, mine]);
   const trimmedQuery = query.trim();
   const localQuery = useDeferredValue(trimmedQuery);
   const filtered = useMemo(() => {
@@ -100,7 +121,7 @@ export function ChannelDirectorySheet({
     });
 
   const handleJoin = (room: ChatRoomRecord) => {
-    if (memberChannelIds.has(room.id) || joiningIds.has(room.id)) return;
+    if (memberChannelIds.has(room.id) || mineIds.has(room.id) || joiningIds.has(room.id)) return;
     setJoining(room.id, true);
     void joinChannel
       .mutateAsync(room.id)
@@ -190,7 +211,7 @@ export function ChannelDirectorySheet({
     body = (
       <ul className="space-y-0.5">
         {filtered.map((room) => {
-          const isMember = memberChannelIds.has(room.id);
+          const isMember = memberChannelIds.has(room.id) || mineIds.has(room.id);
           const isPrivate = room.visibility === "private";
           const joining = joiningIds.has(room.id);
           const topic = (room.topic ?? "").trim();
@@ -259,7 +280,7 @@ export function ChannelDirectorySheet({
       }}
     >
       <SheetContent side="right" className={CHAT_SHEET_CLASS} closeLabel={t("common.close")}>
-        <SheetHeader className="gap-1 pt-4 pr-16 pb-3.5 pl-5">
+        <SheetHeader className="gap-1 pt-4.5 pr-16 pb-3.5 pl-6">
           <SheetTitle>{t("chat.channel.directory_title")}</SheetTitle>
           <SheetDescription>{t("chat.channel.directory_description")}</SheetDescription>
         </SheetHeader>

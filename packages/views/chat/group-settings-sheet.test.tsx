@@ -11,6 +11,7 @@ vi.mock("@uniwork/core/chat", () => ({
   useSetChatRoomAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useRemoveChatRoomMember: () => ({ mutateAsync: vi.fn() }),
+  useChatRoomSharedSummary: () => ({ data: undefined, isPending: false, isError: false }),
   useUpdateChatRoomSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
@@ -116,6 +117,6 @@ describe("GroupSettingsSheet", () => {
     const members = screen.getByText("Thành viên nhóm");
     expect(bulletin.compareDocumentPosition(photos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(photos.compareDocumentPosition(members) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("/chat/rooms/room-g1/messages"));
+    expect(requestMock).not.toHaveBeenCalledWith(expect.stringContaining("/chat/rooms/room-g1/messages"));
   });
 });

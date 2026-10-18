@@ -17,7 +17,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { cn } from "@uniwork/ui/lib/utils";
 import { chatSettingsIconButtonClass } from "./chat-settings-ui";
+
+/* Canvas menu rows: 42px, 14px label, 18px icon 12px before it; removing reads red and medium. */
+const ITEM = "h-10.5 gap-3 rounded-[10px] px-3 text-body [&_svg]:size-4.5";
 
 /**
  * What a moderator can do to one member, behind a single "more" button so a
@@ -66,43 +70,43 @@ export function ChatRoomMemberActions({
             type="button"
             variant="ghost"
             size="icon"
-            className={chatSettingsIconButtonClass}
+            className={cn(chatSettingsIconButtonClass, "data-popup-open:bg-tint-gray data-popup-open:text-foreground")}
             aria-label={t("chat.member_actions_aria", { name: label })}
             aria-busy={busy || undefined}
           />
         }
       >
-        <Ellipsis className="size-5" aria-hidden />
+        <Ellipsis className="size-4.5" aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
+      <DropdownMenuContent align="end" className="min-w-58 rounded-[14px] p-1.5">
         {canPromote ? (
-          <DropdownMenuItem onClick={onPromote}>
+          <DropdownMenuItem className={cn(ITEM, "[&_svg]:text-muted-foreground")} onClick={onPromote}>
             <Shield aria-hidden />
             {t("chat.promote_room_admin", { name: label })}
           </DropdownMenuItem>
         ) : null}
         {canDemote ? (
-          <DropdownMenuItem onClick={onDemote}>
+          <DropdownMenuItem className={cn(ITEM, "[&_svg]:text-muted-foreground")} onClick={onDemote}>
             <ShieldOff aria-hidden />
             {t("chat.demote_room_admin", { name: label })}
           </DropdownMenuItem>
         ) : null}
         {canMute ? (
-          <DropdownMenuItem onClick={onMute}>
+          <DropdownMenuItem className={cn(ITEM, "[&_svg]:text-muted-foreground")} onClick={onMute}>
             <MessageSquareOff aria-hidden />
             {t("chat.mute_member", { name: label })}
           </DropdownMenuItem>
         ) : null}
         {canUnmute ? (
-          <DropdownMenuItem onClick={onUnmute}>
+          <DropdownMenuItem className={cn(ITEM, "[&_svg]:text-muted-foreground")} onClick={onUnmute}>
             <MessageSquarePlus aria-hidden />
             {t("chat.unmute_member", { name: label })}
           </DropdownMenuItem>
         ) : null}
         {canKick ? (
           <>
-            {canPromote || canDemote || canMute || canUnmute ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuItem variant="destructive" onClick={onKick}>
+            {canPromote || canDemote || canMute || canUnmute ? <DropdownMenuSeparator className="mx-1 my-1.5" /> : null}
+            <DropdownMenuItem variant="destructive" className={cn(ITEM, "font-medium")} onClick={onKick}>
               <UserMinus aria-hidden />
               {kickLabel ?? t("chat.remove_member", { name: label })}
             </DropdownMenuItem>

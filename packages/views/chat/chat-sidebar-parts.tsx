@@ -18,7 +18,6 @@ import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { Notice } from "../common/notice";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { InvitationList } from "../workspace/invitation-list";
 import type { ChatSidebarActivityFilter, ChatSidebarKindFilter } from "./chat-sidebar-unified";
@@ -59,30 +58,34 @@ export function SidebarStarter({ onStartDm, onCreateGroup }: { onStartDm: () => 
   );
 }
 
-/* Alternating shapes: the list is people (circles) and rooms (squircles). */
+/* Alternating shapes: the list is people (circles) and rooms (squircles);
+   the last rows fade out, as the canvas draws a list running past the fold. */
 const SKELETON_ROWS = [
-  { name: "w-2/3", line: "w-11/12", mark: "rounded-xl" },
-  { name: "w-1/2", line: "w-3/4", mark: "rounded-full" },
-  { name: "w-3/4", line: "w-5/6", mark: "rounded-full" },
-  { name: "w-2/5", line: "w-2/3", mark: "rounded-xl" },
-  { name: "w-3/5", line: "w-4/5", mark: "rounded-full" },
+  { name: "w-32", line: "w-49", mark: "rounded-2xl", fade: "" },
+  { name: "w-24", line: "w-40", mark: "rounded-full", fade: "" },
+  { name: "w-37.5", line: "w-45", mark: "rounded-full", fade: "" },
+  { name: "w-28", line: "w-35", mark: "rounded-2xl", fade: "" },
+  { name: "w-34", line: "w-50", mark: "rounded-full", fade: "" },
+  { name: "w-22.5", line: "w-37.5", mark: "rounded-2xl", fade: "opacity-75" },
+  { name: "w-30", line: "w-43", mark: "rounded-full", fade: "opacity-50" },
+  { name: "w-26", line: "w-32", mark: "rounded-full", fade: "opacity-25" },
 ];
 
 /** The loading shape is the row's shape: a mark, a name with its time, a preview. */
 export function SidebarSkeleton() {
   const { t } = useTranslation();
   return (
-    <div role="status" className="py-1">
+    <div role="status" className="overflow-hidden">
       <span className="sr-only">{t("common.loading")}</span>
       {SKELETON_ROWS.map((row) => (
-        <div key={row.name} className="flex h-17.5 items-center gap-3 px-3" aria-hidden>
+        <div key={row.name} className={cn("flex h-17.5 items-center gap-3 px-3", row.fade)} aria-hidden>
           <Skeleton className={cn("size-12.5 shrink-0", row.mark)} />
           <div className="flex min-w-0 flex-1 flex-col gap-2.5">
             <div className="flex items-center justify-between gap-3">
-              <Skeleton className={cn("h-3.5 rounded-full", row.name)} />
-              <Skeleton className="h-2.5 w-8 shrink-0 rounded-full" />
+              <Skeleton className={cn("h-3.25 max-w-full rounded-full", row.name)} />
+              <Skeleton className="h-2.5 w-7.5 shrink-0 rounded-full" />
             </div>
-            <Skeleton className={cn("h-3 rounded-full", row.line)} />
+            <Skeleton className={cn("h-2.75 max-w-full rounded-full", row.line)} />
           </div>
         </div>
       ))}
@@ -90,27 +93,34 @@ export function SidebarSkeleton() {
   );
 }
 
-/** The rooms request failed: say so in the list itself, with the way to try again. */
+/**
+ * The rooms request failed: say so in the list itself, with the way to try
+ * again under the words (canvas WebSidebarStates "Lỗi tải").
+ */
 export function SidebarLoadError({ onRetry }: { onRetry?: () => void }) {
   const { t } = useTranslation();
   return (
-    <Notice
-      tone="destructive"
-      icon={CircleAlert}
-      layout="inline"
-      live="assertive"
-      className="mx-1 my-2 items-start rounded-xl p-3.5"
-      action={
-        onRetry ? (
-          <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={onRetry}>
-            <RefreshCw aria-hidden />
-            {t("chat.retry")}
-          </Button>
-        ) : null
-      }
+    <div
+      role="alert"
+      className="mx-1 my-2 flex flex-col gap-3 rounded-[14px] border border-destructive/20 bg-destructive-soft p-3.5 text-destructive-soft-foreground"
     >
-      {t("chat.sidebar_load_failed")}
-    </Notice>
+      <p className="flex items-start gap-2.5 text-body font-medium text-pretty">
+        <CircleAlert aria-hidden className="mt-0.5 size-4.5 shrink-0" />
+        {t("chat.sidebar_load_failed")}
+      </p>
+      {onRetry ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="ml-7.5 h-8.5 gap-1.5 self-start rounded-full border-destructive/25 bg-surface px-3.5 font-semibold text-destructive-soft-foreground hover:text-destructive-soft-foreground"
+          onClick={onRetry}
+        >
+          <RefreshCw aria-hidden />
+          {t("chat.retry")}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 

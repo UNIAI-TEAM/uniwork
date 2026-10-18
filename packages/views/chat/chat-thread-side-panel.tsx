@@ -7,7 +7,7 @@ import type { ComposerReadOnlyReason } from "./chat-composer-parts";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import type { ChatMessage } from "./chat-messages";
-import type { NameContextEntry } from "./native-chat-message-mapping";
+import { senderLabelFor, type NameContextEntry } from "./native-chat-message-mapping";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
 import { useChatInlineEdit } from "./use-chat-inline-edit";
 
@@ -106,6 +106,12 @@ export function ChatThreadSidePanel({
         readOnlyReason={readOnlyReason}
         placeholder={readOnlyReason ? readOnlyPlaceholder : t("chat.thread_reply_placeholder")}
         sendLabel={t("chat.send")}
+        replyTo={replyTo}
+        replyToSenderLabel={replyTo ? senderLabelFor(replyTo, currentUserId, t("chat.you"), nameContext) : undefined}
+        onCancelReply={() => {
+          setReplyTo(null);
+          focusComposer();
+        }}
         mentionCandidates={mentionCandidates}
         memberAvatarByUserId={memberAvatarByUserId}
         textOnly

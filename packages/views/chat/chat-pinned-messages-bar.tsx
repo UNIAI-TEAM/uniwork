@@ -2,9 +2,9 @@
 
 import {
   ChartColumn,
+  ChevronDown,
   ChevronUp,
   Clock,
-  List,
   Megaphone,
   Phone,
   Pin,
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { useChatRoomMessages, useToggleChatMessagePin } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
@@ -59,7 +60,7 @@ const KIND: Record<string, { icon: LucideIcon; tile: string; ink: string; label:
   poll: { icon: ChartColumn, tile: "bg-tint-blue text-tint-blue-foreground", ink: "text-tint-blue-foreground", label: "chat.poll_message_badge" },
   voice_call_log: { icon: Phone, tile: "bg-tint-green text-tint-green-foreground", ink: "text-tint-green-foreground", label: "chat.voice_call_log_unknown" },
 };
-const PLAIN_PIN = { icon: Pin, tile: "bg-brand-subtle text-brand-subtle-foreground", ink: "text-brand", label: "chat.bulletin_tab_pinned" };
+const PLAIN_PIN = { icon: Pin, tile: "bg-brand-subtle text-brand-subtle-foreground", ink: "text-brand", label: "chat.pinned_bar_kind_message" };
 
 function kindOf(kind: string | undefined) {
   return (kind && KIND[kind]) || PLAIN_PIN;
@@ -198,22 +199,26 @@ export function ChatPinnedMessagesBar({
     );
   }
 
-  // Collapsed (canvas): one segment per pin on the left marking which one the
-  // bar shows, "Tin ghim 2/3" over its preview, and the list of all of them.
+  // Collapsed (WebSearchPins, the pins board, over Main's plainer bar): one
+  // segment per pin marking which one shows, its kind tile, "Tin ghim 1/3"
+  // over its preview, unpin, and "+2" opening the rest.
+  const more = pinned.length - 1;
   return (
     <section className="shrink-0 border-b border-border bg-surface" aria-label={t("chat.pinned_bar_aria")}>
-      <div className="flex h-13 items-center gap-3 pr-3 pl-5">
-        <span aria-hidden className="flex h-9 w-0.75 shrink-0 flex-col gap-0.5">
-          {pinned.map((pin) => (
-            <span
-              key={pin.id}
-              className={cn("min-h-px flex-1 rounded-full", pin.id === item.id ? "bg-brand" : "bg-brand/20")}
-            />
-          ))}
-        </span>
+      <div className="flex h-15 items-center gap-2.5 pr-1.5 pl-4">
+        {more > 0 ? (
+          <span aria-hidden className="flex h-10 w-0.75 shrink-0 flex-col gap-0.5">
+            {pinned.map((pin) => (
+              <span
+                key={pin.id}
+                className={cn("min-h-px flex-1 rounded-full", pin.id === item.id ? "bg-brand" : "bg-brand/20")}
+              />
+            ))}
+          </span>
+        ) : null}
         <button
           type="button"
-          className={cn(jumpClass, "-ml-1 pl-1")}
+          className={cn(jumpClass, "h-12")}
           aria-label={t("chat.pinned_bar_jump", { preview: item.preview })}
           title={jumpTitle}
           onClick={() => {
@@ -221,27 +226,38 @@ export function ChatPinnedMessagesBar({
             setCursor(position + 1);
           }}
         >
+          {kindTile(item)}
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="text-label font-semibold text-brand tabular-nums">
-              {pinned.length > 1
+              {more > 0
                 ? t("chat.pinned_bar_position", { current: position + 1, total: pinned.length })
                 : t("chat.bulletin_tab_pinned")}
             </span>
             <span className="truncate text-body text-foreground">{item.preview}</span>
           </span>
         </button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={ROW_ICON_BUTTON}
-          aria-expanded={false}
-          aria-label={t("chat.pinned_bar_view_all")}
-          title={t("chat.pinned_bar_view_all")}
-          onClick={() => setExpanded(true)}
-        >
-          <List className="size-4.75" aria-hidden />
-        </Button>
+        {unpinButton(item.id)}
+        {more > 0 ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-8.5 shrink-0 gap-1 rounded-full pr-2 pl-3 font-semibold tabular-nums"
+                  aria-expanded={false}
+                  aria-label={t("chat.pinned_bar_more", { count: more })}
+                  onClick={() => setExpanded(true)}
+                />
+              }
+            >
+              {`+${more}`}
+              <ChevronDown className="size-4" aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>{t("chat.pinned_bar_more", { count: more })}</TooltipContent>
+          </Tooltip>
+        ) : null}
       </div>
     </section>
   );

@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useChatRoomSharedSummary } from "@uniwork/core/chat";
 import { sharedItemsFromMessages } from "./chat-person-shared";
 import { SharedItemList, SharedKindRow } from "./chat-person-shared-panel";
 import { SharedPhotoGallery } from "./shared-photo-gallery";
-import { loadSharedRoomMessages } from "./use-person-shared";
+import { sharedRoomMessagesQuery } from "./use-person-shared";
 
 const ROOM_KINDS = ["photo", "video", "file", "link", "gif"] as const;
 type RoomSharedKind = (typeof ROOM_KINDS)[number];
@@ -20,7 +21,10 @@ function labelKey(kind: RoomSharedKind): string {
   return "chat.person_shared_gifs";
 }
 
-/** Totals for the open room: photos, videos, files, links and GIFs. */
+/**
+ * Totals for the open room: photos, videos, files, links and GIFs. The counts
+ * come from the room's summary; the history is paged only for an opened kind.
+ */
 export function ChatRoomSharedTotals({
   workspaceId,
   roomId,
@@ -32,16 +36,16 @@ export function ChatRoomSharedTotals({
 }) {
   const { t } = useTranslation();
   const [kind, setKind] = useState<RoomSharedKind | null>(null);
+  const summary = useChatRoomSharedSummary(workspaceId, roomId, open);
   const query = useQuery({
-    queryKey: ["chat-person-shared", workspaceId, roomId],
-    queryFn: () => loadSharedRoomMessages(workspaceId, roomId),
-    enabled: open && !!workspaceId && !!roomId,
-    staleTime: 30_000,
+    ...sharedRoomMessagesQuery(workspaceId, roomId),
+    enabled: open && kind !== null && !!workspaceId && !!roomId,
   });
   const items = sharedItemsFromMessages(query.data ?? []);
+  const counts = summary.data?.counts;
 
   if (!open) return null;
-  if (query.isPending) {
+  if (kind ? query.isPending : summary.isPending) {
     return (
       <p className="border-t-8 border-muted px-5 py-3 text-caption text-muted-foreground" role="status">
         {t("chat.person_shared_loading")}
@@ -63,7 +67,7 @@ export function ChatRoomSharedTotals({
             <ChevronLeft className="size-5" aria-hidden />
           </button>
           <p className="min-w-0 flex-1 truncate font-display text-title-sm font-bold">
-            {t(labelKey(kind), { count: list.length })}
+            {t(labelKey(kind), { count: counts?.[kind] ?? list.length })}
           </p>
         </div>
         {list.length === 0 ? (
@@ -83,11 +87,11 @@ export function ChatRoomSharedTotals({
         <SharedKindRow
           key={row}
           kind={row}
-          label={t(labelKey(row), { count: items[row].length })}
+          label={t(labelKey(row), { count: counts?.[row] ?? 0 })}
           onClick={() => setKind(row)}
         />
       ))}
-      {query.isError ? (
+      {summary.isError ? (
         <p className="px-5 pb-3 text-caption text-muted-foreground">{t("chat.person_shared_unavailable")}</p>
       ) : null}
     </section>

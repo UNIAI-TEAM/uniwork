@@ -29,7 +29,7 @@ export function ChatPageEmptyConversation({
       <Button
         type="button"
         variant="secondary"
-        className="hidden h-10 rounded-full px-4 lg:inline-flex"
+        className="hidden h-10 gap-2 rounded-full pr-4.5 pl-3.5 font-semibold lg:inline-flex"
         aria-expanded={false}
         data-chat-sidebar-expand=""
         onClick={onShowList}
@@ -73,19 +73,19 @@ export function ChatPageEmptyConversation({
  * collapsed list must not depend on a room being open.
  */
 export function ChatFrameListToggle({ t, onShowList }: { t: (key: string) => string; onShowList: () => void }) {
+  // Canvas WebBanners "Danh sách đang ẩn": a 56px bar with the way back spelled out.
   return (
-    <div className="hidden h-16 shrink-0 items-center border-b border-border bg-surface px-3 lg:flex">
+    <div className="hidden h-14 shrink-0 items-center border-b border-border bg-surface px-2 lg:flex">
       <Button
         type="button"
         variant="ghost"
-        size="icon-lg"
-        className="text-muted-foreground hover:text-foreground"
-        aria-label={t("chat.show_conversations")}
+        className="h-11 gap-2 rounded-lg pr-3.5 pl-2.5 text-body font-semibold text-muted-foreground hover:text-foreground"
         aria-expanded={false}
         data-chat-sidebar-expand=""
         onClick={onShowList}
       >
         <PanelLeft aria-hidden className="size-4.5" />
+        {t("chat.show_conversations")}
       </Button>
     </div>
   );

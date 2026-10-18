@@ -114,6 +114,8 @@ describe("ChatFollowUpsSheet", () => {
     const pill = document.querySelector("[data-due-state]");
     expect(pill).toHaveAttribute("data-due-state", "overdue");
     expect(pill?.textContent).not.toContain(past.slice(0, 10));
+    // "Quá hạn từ 22/10": day/month with a slash (canvas).
+    expect(pill?.textContent).toMatch(/\d{2}\/\d{2}/);
 
     const deletes = screen.getAllByRole("button", { name: t("chat.follow_up.delete") });
     expect(deletes[0]).toBeDisabled();

@@ -218,16 +218,16 @@ export function DmSettingsSheet({
                         name={participant.label}
                         initials={initialsOf(participant.key === "self" ? selfName || youLabel : participant.legalLabel)}
                         avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, currentUserId)}
-                        size="xl"
-                        className={chatPersonFaceClass(currentUserId)}
+                        size="fluid"
+                        className={cn("size-10 text-label", chatPersonFaceClass(currentUserId))}
                       />
                     ) : (
                       <ChatPresenceAvatar
                         name={participant.label}
                         initials={initialsOf(participant.key === "self" ? selfName || youLabel : participant.legalLabel)}
                         avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, contact.user_id)}
-                        size="xl"
-                        avatarClassName={chatPersonFaceClass(contact.user_id)}
+                        size="fluid"
+                        avatarClassName={cn("size-10 text-label", chatPersonFaceClass(contact.user_id))}
                         online={contactOnline}
                       />
                     )
@@ -252,7 +252,7 @@ export function DmSettingsSheet({
                         participant.key === "self" ? setSelfNicknameOpen(true) : setNicknameOpen(true)
                       }
                     >
-                      <Tag className="size-5" aria-hidden />
+                      <Tag className="size-4.5" aria-hidden />
                     </Button>
                   }
                 />
@@ -267,17 +267,9 @@ export function DmSettingsSheet({
               onClick={() => setBulletinOpen(true)}
               disabled={!roomId}
               disabledReason={t("chat.settings_bulletin_needs_room")}
+              hint={t("chat.settings_dm_bulletin")}
             />
-            {onOpenSearch ? (
-              <ChatSettingsMenuRow
-                icon={Search}
-                label={t("chat.search_messages")}
-                onClick={() => {
-                  onOpenChange(false);
-                  onOpenSearch();
-                }}
-              />
-            ) : null}
+            {/* Search is the "Tìm" quick action above; the canvas lists no second row for it. */}
             <ChatSettingsMenuRow
               icon={Tag}
               label={t("chat.nickname_action")}

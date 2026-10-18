@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { CircleAlert, CircleCheck, RotateCcwClock, ListChecks, MessageSquareText, Sparkles } from "lucide-react";
+import { CircleAlert, CircleCheck, ListChecks, MessageCircle, Sparkle, SquareCheckBig } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChatCatchUpActionItem, ChatCatchUpHighlight, ChatCatchUpResponse } from "@uniwork/core/types";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Notice } from "../common/notice";
+import { cn } from "@uniwork/ui/lib/utils";
 import {
   CHAT_EMPTY_TILE_CLASS,
   CHAT_EMPTY_TITLE_CLASS,
@@ -48,9 +49,12 @@ function parseTs(value: string): number | null {
   return Number.isNaN(ts) ? null : ts;
 }
 
+/** The canvas sheet is 480px wide (the shared chat sheet stops at 448). */
+const CATCH_UP_WIDTH = "data-[side=right]:sm:max-w-120";
+
 function SectionLabel({ icon: Icon, children }: { icon?: typeof ListChecks; children: string }) {
   return (
-    <h3 className="flex items-center gap-1.5 text-overline text-muted-foreground uppercase">
+    <h3 className="flex items-center gap-1.5 text-micro leading-4 font-semibold tracking-[0.06em] text-muted-foreground uppercase">
       {Icon ? <Icon aria-hidden className="size-3.5" /> : null}
       {children}
     </h3>
@@ -60,21 +64,22 @@ function SectionLabel({ icon: Icon, children }: { icon?: typeof ListChecks; chil
 /** Placeholder in the brief's shape (summary lines, list rows) under a line saying UNI is reading. */
 function CatchUpSkeleton({ label }: { label: string }) {
   return (
-    <div role="status" className="flex flex-col gap-4">
+    <div role="status" className="flex flex-col gap-3.5">
       <p className="flex items-center gap-2 text-body text-foreground">
         <Spinner className="text-brand" />
         {label}
       </p>
-      <div aria-hidden className="flex flex-col gap-4">
+      <div aria-hidden className="flex flex-col gap-3.5">
+        <Skeleton className="h-3.5 w-50 rounded-full" />
         <div className="flex flex-col gap-2.5 rounded-xl border border-border px-4 py-3.5">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-11/12" />
-          <Skeleton className="h-4 w-3/5" />
+          <Skeleton className="h-3 w-full rounded-full" />
+          <Skeleton className="h-3 w-11/12 rounded-full" />
+          <Skeleton className="h-3 w-3/5 rounded-full" />
         </div>
+        <Skeleton className="h-2.5 w-24 rounded-full" />
         <div className="flex flex-col gap-2">
-          <Skeleton className="h-3 w-24" />
-          {[0, 1, 2].map((row) => (
-            <Skeleton key={row} className="h-10 w-full rounded-lg" />
+          {[0, 1].map((row) => (
+            <Skeleton key={row} className="h-9 w-full rounded-lg" />
           ))}
         </div>
       </div>
@@ -129,11 +134,11 @@ export function ChatCatchUpSheet({
         <SheetContent
           side="right"
           closeLabel={t("common.close")}
-          className={CHAT_SHEET_CLASS}
+          className={cn(CHAT_SHEET_CLASS, CATCH_UP_WIDTH)}
         >
-          <SheetHeader className={CHAT_SHEET_HEADER_CLASS}>
+          <SheetHeader className={cn(CHAT_SHEET_HEADER_CLASS, "gap-0.5 pb-3.5 pl-6")}>
             <SheetTitle className="flex items-center gap-3">
-              <IconTile icon={RotateCcwClock} tone="brand" size="md" className="size-9" />
+              <IconTile icon={Sparkle} tone="brand" size="md" className="size-9 rounded-[11px]" />
               {t("chat.ai.catch_up_title")}
             </SheetTitle>
             <SheetDescription className="pl-12">
@@ -161,7 +166,7 @@ export function ChatCatchUpSheet({
             </Notice>
           ) : null}
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-4.5 pb-5">
             {loading ? <CatchUpSkeleton label={t("chat.ai.catch_up_loading")} /> : null}
 
             {!loading && !error && empty ? (
@@ -184,7 +189,7 @@ export function ChatCatchUpSheet({
                     id={`${idBase}-attribution`}
                     className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-label text-muted-foreground tabular-nums"
                   >
-                    <IconTile icon={Sparkles} size="xs" tone="brand" />
+                    <Sparkle aria-hidden className="size-3.5 text-brand" />
                     <span className="font-semibold text-foreground">{t("chat.ai.catch_up_attribution")}</span>
                     {stamp ? (
                       <time dateTime={new Date(stamp).toISOString()} title={formatMessageDateTime(stamp, locale)}>
@@ -208,7 +213,7 @@ export function ChatCatchUpSheet({
                   </p>
                   {/* The AI's words sit on the brand wash, apart from the room's own messages. */}
                   <div className="rounded-xl border border-brand/25 bg-brand-subtle/50 px-4 py-3.5">
-                    <p className="whitespace-pre-wrap text-body-lg text-foreground">{result.summary}</p>
+                    <p className="text-body-lg leading-[1.533] whitespace-pre-wrap text-foreground">{result.summary}</p>
                   </div>
                 </section>
 
@@ -222,25 +227,24 @@ export function ChatCatchUpSheet({
                         return (
                           <li
                             key={`${h.text}-${sourceId}-${index}`}
-                            className="flex gap-2.5 px-3.5 py-2.5 text-body text-foreground"
+                            className="flex items-start gap-2.5 py-2.5 pr-2 pl-3.5 text-body leading-[1.5] text-foreground"
                           >
                             <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
-                            <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
-                              <span id={textId}>{h.text}</span>
-                              {sourceId && onJumpToMessage ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className={CHAT_PILL_SM_CLASS}
-                                  aria-describedby={textId}
-                                  onClick={() => jumpTo(sourceId)}
-                                >
-                                  <MessageSquareText aria-hidden />
-                                  {t("chat.ai.catch_up_view_source")}
-                                </Button>
-                              ) : null}
-                            </div>
+                            <span id={textId} className="min-w-0 flex-1">
+                              {h.text}
+                            </span>
+                            {sourceId && onJumpToMessage ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7.5 shrink-0 rounded-full px-2.5 text-label font-semibold text-brand hover:text-brand"
+                                aria-describedby={textId}
+                                onClick={() => jumpTo(sourceId)}
+                              >
+                                {t("chat.ai.catch_up_view_source")}
+                              </Button>
+                            ) : null}
                           </li>
                         );
                       })}
@@ -260,7 +264,7 @@ export function ChatCatchUpSheet({
                             key={`${item.title}-${sourceId}-${index}`}
                             className="rounded-xl border border-border bg-surface px-3.5 py-3"
                           >
-                            <p id={titleId} className="text-body-lg font-semibold text-foreground">
+                            <p id={titleId} className="text-body-lg leading-[1.4] font-semibold text-foreground">
                               {item.title}
                             </p>
                             {item.owner || item.due ? (
@@ -274,11 +278,11 @@ export function ChatCatchUpSheet({
                                   type="button"
                                   variant="brandSubtle"
                                   size="sm"
-                                  className={CHAT_PILL_SM_CLASS}
+                                  className={cn(CHAT_PILL_SM_CLASS, "pl-3")}
                                   aria-describedby={titleId}
                                   onClick={() => setCreateFor(item)}
                                 >
-                                  <ListChecks aria-hidden />
+                                  <SquareCheckBig aria-hidden />
                                   {t("chat.link.create_task")}
                                 </Button>
                                 {onJumpToMessage ? (
@@ -286,11 +290,11 @@ export function ChatCatchUpSheet({
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    className={CHAT_PILL_SM_CLASS}
+                                    className={cn(CHAT_PILL_SM_CLASS, "px-3 text-muted-foreground")}
                                     aria-describedby={titleId}
                                     onClick={() => jumpTo(sourceId)}
                                   >
-                                    <MessageSquareText aria-hidden />
+                                    <MessageCircle aria-hidden />
                                     {t("chat.ai.catch_up_view_source")}
                                   </Button>
                                 ) : null}

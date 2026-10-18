@@ -9,6 +9,7 @@ import type { Member } from "@uniwork/core/types/workspace";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useOptionalWorkspace } from "../layout/workspace-context";
+import { CHAT_FIELD_CLASS } from "./chat-dialog-look";
 import { memberAvatarUrl } from "./chat-member-avatar";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
@@ -17,6 +18,7 @@ import {
   canPromoteChatMember,
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
+import { settingsMemberOrder } from "./chat-info-panel-utils";
 import { foldedIncludes } from "./chat-search-fold";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChatMemberFace, ChatMemberRow, type ChatMemberDetailTone } from "./chat-settings-ui";
@@ -68,12 +70,12 @@ export function WorkspaceRoomMemberList({
 
   const rows = useMemo(
     () =>
-      members.map((member) => {
+      settingsMemberOrder(members, currentUserId, (member) => wsMemberByUserId.get(member.user_id)?.role === "owner").map((member) => {
         const isSelf = member.user_id === currentUserId;
         const label = isSelf ? youLabel : member.display_name?.trim() || member.email || member.user_id;
         return { member, isSelf, label };
       }),
-    [members, currentUserId, youLabel],
+    [members, currentUserId, youLabel, wsMemberByUserId],
   );
   const matches = useMemo(
     () => (query.trim() ? rows.filter((row) => foldedIncludes(`${row.label} ${row.member.email}`, query)) : rows),
@@ -89,14 +91,14 @@ export function WorkspaceRoomMemberList({
           <div className="relative">
             <Search
               aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               type="search"
               value={query}
               aria-label={t("chat.workspace_members_search")}
               placeholder={t("chat.workspace_members_search")}
-              className="h-11 bg-muted pl-10"
+              className={`${CHAT_FIELD_CLASS} pl-10`}
               onChange={(event) => {
                 setQuery(event.target.value);
                 setVisible(WORKSPACE_MEMBER_PAGE);

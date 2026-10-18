@@ -15,6 +15,7 @@ import {
 } from "./chat-page-conversation-toolbar";
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPinnedMessagesBar } from "./chat-pinned-messages-bar";
+import { senderLabelFor } from "./native-chat-message-mapping";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
 import type { useChatCatchUpUi } from "./use-chat-catch-up-ui";
 import { useChatInlineEdit } from "./use-chat-inline-edit";
@@ -148,6 +149,7 @@ export function ChatPageConversation({
             roomId={activeRoomId}
             currentUserId={currentUserId}
             nameContext={nameContext}
+            roomTitle={headerTitle}
             youLabel={t("chat.you")}
             emptyLabel={chatPageEmptyLabel(t, target, headerTitle, nicknamesByUserId)}
             intro={
@@ -159,7 +161,8 @@ export function ChatPageConversation({
                 t={t}
                 onViewMembers={() => props.onWorkspaceSettingsOpenChange(true)}
                 onAddMembers={() => props.onAddMembersOpenChange(true)}
-                workspaceMemberCount={workspaceMembers.length}
+                workspaceMembers={workspaceMembers}
+                currentUserId={currentUserId}
                 memberAvatarByUserId={memberAvatarByUserId}
                 onWave={dmBlocked || chatSendRestricted ? undefined : () => void props.onSendMedia(CHAT_WAVE)}
               />
@@ -206,6 +209,17 @@ export function ChatPageConversation({
           chatSendRestricted,
         })}
         sendLabel={t("chat.send")}
+        blockedByMe={props.dmBlockedByMe}
+        onUnblock={props.onUnblockContact}
+        unblocking={props.unblockingContact}
+        replyTo={props.replyTo}
+        replyToSenderLabel={
+          props.replyTo ? senderLabelFor(props.replyTo, currentUserId, t("chat.you"), nameContext) : undefined
+        }
+        onCancelReply={() => {
+          props.onReplyToChange(null);
+          focusComposer();
+        }}
         typingLabel={props.typingLabel}
         onAttachAction={onAttachAction}
         showCreatePoll={props.canCreatePolls && many}

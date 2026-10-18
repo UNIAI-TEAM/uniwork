@@ -18,6 +18,8 @@ import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
+import type { Member } from "@uniwork/core/types/workspace";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { ChatConversationToolbar, chatMembersLine, type ChatToolbarCommonProps } from "./chat-conversation-toolbar";
@@ -204,7 +206,8 @@ export function ChatPageConversationIntro({
   t,
   onViewMembers,
   onAddMembers,
-  workspaceMemberCount,
+  workspaceMembers,
+  currentUserId,
   memberAvatarByUserId,
   onWave,
 }: {
@@ -216,7 +219,8 @@ export function ChatPageConversationIntro({
   onViewMembers: () => void;
   onAddMembers: () => void;
   /** Members of the workspace — the workspace room's audience. */
-  workspaceMemberCount: number;
+  workspaceMembers: readonly Member[];
+  currentUserId: string;
   memberAvatarByUserId: MemberAvatarUrlMap;
   /** A DM's first move: sends a waving hand (canvas "Gửi lời chào"). */
   onWave?: () => void;
@@ -232,6 +236,7 @@ export function ChatPageConversationIntro({
   if (target.kind === "workspace") {
     // Say what is true for this workspace today: alone, the room is a place
     // to invite people into; with others, it is where all of them already are.
+    const workspaceMemberCount = workspaceMembers.length;
     const alone = workspaceMemberCount <= 1;
     const invite = inviteHref ? (
       <AppLink
@@ -246,6 +251,17 @@ export function ChatPageConversationIntro({
       <ChatConversationIntro
         mark={tile(House)}
         title={t("chat.intro_workspace_title", { name: headerTitle })}
+        people={
+          alone ? undefined : (
+            <WorkspacePeople
+              members={workspaceMembers}
+              total={workspaceMemberCount}
+              currentUserId={currentUserId}
+              memberAvatarByUserId={memberAvatarByUserId}
+              t={t}
+            />
+          )
+        }
         description={
           alone
             ? t("chat.intro_workspace_description_alone")
@@ -308,6 +324,49 @@ export function ChatPageConversationIntro({
       avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, target.contact.user_id)}
       onWave={onWave}
     />
+  );
+}
+
+/**
+ * "Thu Hà, Võ Minh và 22 người khác" under five faces (canvas): the people
+ * already in the workspace room, by the last two words of their names.
+ */
+function WorkspacePeople({
+  members,
+  total,
+  currentUserId,
+  memberAvatarByUserId,
+  t,
+}: {
+  members: readonly Member[];
+  total: number;
+  currentUserId: string;
+  memberAvatarByUserId: MemberAvatarUrlMap;
+  t: (key: string, options?: Record<string, string | number>) => string;
+}) {
+  const others = members.filter((member) => member.user_id !== currentUserId);
+  const nameOf = (member: Member) => member.display_name.trim() || member.email;
+  const shortName = (member: Member) => nameOf(member).split(/\s+/).slice(-2).join(" ");
+  const named = others.slice(0, 2).map(shortName);
+  // Everyone not named, you included (canvas: 24 members → "… và 22 người khác").
+  const rest = total - named.length;
+  const line = rest > 0 ? t("chat.intro_people_others", { names: named.join(", "), count: rest }) : named.join(", ");
+  return (
+    <>
+      <span aria-hidden className="flex -space-x-1.5">
+        {others.slice(0, 5).map((member) => (
+          <ActorAvatar
+            key={member.user_id}
+            name={nameOf(member)}
+            initials={initialsOf(nameOf(member))}
+            avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.user_id)}
+            size="md"
+            className={cn("ring-2 ring-chat-bubble-other", chatPersonFaceClass(member.user_id))}
+          />
+        ))}
+      </span>
+      <span className="text-label text-muted-foreground">{line}</span>
+    </>
   );
 }
 

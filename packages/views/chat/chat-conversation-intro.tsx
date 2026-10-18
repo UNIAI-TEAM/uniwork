@@ -13,11 +13,14 @@ export function ChatConversationIntro({
   mark,
   title,
   description,
+  people,
   actions,
 }: {
   mark: ReactNode;
   title: string;
   description: string;
+  /** Who is here: faces and names, between the words and the actions (canvas). */
+  people?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -28,6 +31,7 @@ export function ChatConversationIntro({
       <div className="mb-2">{mark}</div>
       <h2 className="font-display text-title font-bold text-balance text-foreground">{title}</h2>
       <p className="text-body text-pretty text-muted-foreground">{description}</p>
+      {people ? <div className="mt-2.5 flex items-center justify-center gap-2">{people}</div> : null}
       {actions ? <div className="mt-3.5 flex flex-wrap justify-center gap-2">{actions}</div> : null}
     </section>
   );

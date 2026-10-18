@@ -1,5 +1,6 @@
 "use client";
 
+import { Globe, Lock, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { ChatSettingsNote, ChatSettingsSection } from "./chat-settings-ui";
@@ -19,7 +20,7 @@ export function ChannelSettingsReadonly({
   const { t } = useTranslation();
   const visibility = channel.visibility === "private" ? "private" : "public";
   const topic = channel.topic?.trim();
-  const rows: { key: string; label: string; value: string; muted?: boolean }[] = [
+  const rows: { key: string; label: string; value: string; muted?: boolean; icon?: LucideIcon; note?: string }[] = [
     { key: "name", label: t("chat.channel.name_label"), value: channel.name },
     {
       key: "topic",
@@ -31,6 +32,8 @@ export function ChannelSettingsReadonly({
       key: "visibility",
       label: t("chat.channel.visibility_label"),
       value: t(`chat.channel.visibility_${visibility}_title`),
+      icon: visibility === "private" ? Lock : Globe,
+      note: channel.is_default ? t("chat.channel.default_visibility_locked") : undefined,
     },
     {
       key: "project",
@@ -49,7 +52,15 @@ export function ChannelSettingsReadonly({
             <dd
               className={row.muted ? "text-body-lg text-muted-foreground" : "text-body-lg text-pretty text-foreground"}
             >
-              {row.value}
+              {row.icon ? (
+                <span className="flex items-center gap-1.5">
+                  <row.icon className="size-4 shrink-0" aria-hidden />
+                  {row.value}
+                </span>
+              ) : (
+                row.value
+              )}
+              {row.note ? <span className="mt-0.5 block text-caption text-muted-foreground">{row.note}</span> : null}
             </dd>
           </div>
         ))}

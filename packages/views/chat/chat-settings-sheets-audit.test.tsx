@@ -29,6 +29,7 @@ vi.mock("@uniwork/core/chat", () => ({
   useSetChatRoomAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useRemoveChatRoomMember: () => ({ mutateAsync: vi.fn() }),
+  useChatRoomSharedSummary: () => ({ data: undefined, isPending: false, isError: false }),
   useUpdateChatRoomSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateChatChannel: () => ({ mutateAsync: state.updateChannel, isPending: false }),
   useArchiveChatChannel: () => ({ mutateAsync: vi.fn(), isPending: false }),

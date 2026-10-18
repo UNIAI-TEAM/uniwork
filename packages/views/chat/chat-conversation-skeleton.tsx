@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -46,12 +47,16 @@ export function ChatMessagesSkeleton({ className }: { className?: string }) {
 /**
  * Header, messages and composer: a room that is still being opened. The
  * shapes are hidden from assistive tech; one status line says what is going on.
+ * `notices` (a load failure) sit under the header, as on an open room (canvas).
  */
-export function ChatConversationSkeleton() {
+export function ChatConversationSkeleton({ notices }: { notices?: ReactNode }) {
   const { t } = useTranslation();
   return (
-    <div role="status" className={cn("flex min-h-0 flex-1 flex-col", CHAT_WALL)}>
-      <span className="sr-only">{t("common.loading")}</span>
+    <div aria-busy className={cn("flex min-h-0 flex-1 flex-col", CHAT_WALL)}>
+      {/* The live region is the status line alone, so a strip shown in here is not read twice. */}
+      <span role="status" className="sr-only">
+        {t("common.loading")}
+      </span>
       <div aria-hidden className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4">
         <Skeleton className="size-10 shrink-0 rounded-lg" />
         <div className="flex flex-1 flex-col gap-2">
@@ -61,6 +66,7 @@ export function ChatConversationSkeleton() {
         <Skeleton className="size-8 shrink-0 rounded-lg" />
         <Skeleton className="size-8 shrink-0 rounded-lg" />
       </div>
+      {notices}
       <ChatMessagesSkeleton className="min-h-0 flex-1" />
       <div aria-hidden className="flex shrink-0 items-center gap-2 px-3 pt-1 pb-3">
         <Skeleton className={cn("size-11 shrink-0 rounded-full", ON_WALL)} />

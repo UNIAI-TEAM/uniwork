@@ -6,6 +6,7 @@ import type { ChatRoomMemberPermissions } from "@uniwork/core/api/endpoints/chat
 import { useUpdateChatRoomSettings } from "@uniwork/core/chat";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { CHAT_SWITCH_CLASS } from "./chat-dialog-look";
 import { toastChatError } from "./chat-error-message";
 import { ChatSettingsNote } from "./chat-settings-ui";
 
@@ -79,6 +80,7 @@ export function ChatGroupManageSection({
               checked={current[key]}
               disabled={!canManage || updateSettings.isPending}
               onCheckedChange={(value) => toggle(key, value === true)}
+              className={CHAT_SWITCH_CLASS}
             />
           </li>
         ))}

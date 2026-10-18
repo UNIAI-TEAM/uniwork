@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Hash, Lock, Search, TriangleAlert, UserPlus } from "lucide-react";
+import { Archive, Folder, Hash, Lock, Search, TriangleAlert, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,7 +24,7 @@ import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChannelSettingsMembers } from "./channel-settings-members";
 import { ChannelSettingsReadonly } from "./channel-settings-readonly";
 import { ChatSettingsHeader, ChatSettingsMenuRow, ChatSettingsSection } from "./chat-settings-ui";
-import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
+import { CHAT_FIELD_CLASS, CHAT_FIELD_TEXTAREA_CLASS, CHAT_SELECT_TRIGGER_CLASS, CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatRoomMark } from "./chat-room-mark";
 import { identityTint } from "../people/identity-tint";
 import { ConfirmDialog } from "../common/form-dialog";
@@ -33,6 +33,9 @@ import { toastChatError } from "./chat-error-message";
 import { canAdminChannel, isChatRoomModerator } from "./chat-room-moderation-utils";
 import { LeaveConversationSection } from "./leave-conversation-section";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
+
+/** Field labels as the canvas form draws them: 13px semibold, a shade under the values. */
+const FIELD_LABEL = "text-label font-semibold text-foreground/80";
 
 export function ChannelSettingsSheet({
   open,
@@ -224,36 +227,37 @@ export function ChannelSettingsSheet({
           ) : (
             <form
               id="channel-settings-form"
-              className="space-y-4 border-t-8 border-muted px-5 py-4"
+              className="space-y-3 border-t-8 border-muted px-5 py-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 save();
               }}
             >
               <div className="space-y-1.5">
-                <Label htmlFor="channel-settings-name" className="text-label font-semibold">{t("chat.channel.name_label")}</Label>
+                <Label htmlFor="channel-settings-name" className={FIELD_LABEL}>{t("chat.channel.name_label")}</Label>
                 <Input
                   id="channel-settings-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={80}
                   required
+                  className={CHAT_FIELD_CLASS}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="channel-settings-topic" className="text-label font-semibold">{t("chat.channel.topic_label")}</Label>
+                <Label htmlFor="channel-settings-topic" className={FIELD_LABEL}>{t("chat.channel.topic_label")}</Label>
                 <Textarea
                   id="channel-settings-topic"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  className="min-h-16"
+                  className={`${CHAT_FIELD_TEXTAREA_CLASS} min-h-14 py-1.5`}
                   maxLength={280}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label id="channel-settings-visibility-label" className="text-label font-semibold">{t("chat.channel.visibility_label")}</Label>
+                <Label id="channel-settings-visibility-label" className={FIELD_LABEL}>{t("chat.channel.visibility_label")}</Label>
                 <RadioGroup
                   aria-labelledby="channel-settings-visibility-label"
                   value={visibility}
@@ -265,7 +269,7 @@ export function ChannelSettingsSheet({
                   {(["public", "private"] as const).map((value) => (
                     <label
                       key={value}
-                      className="flex cursor-pointer items-start gap-3 rounded-xl border border-border px-3.5 py-2.5 transition-colors duration-(--duration-fast) hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle has-[[data-checked]]:ring-1 has-[[data-checked]]:ring-primary"
+                      className="flex min-h-13 cursor-pointer items-start gap-3 rounded-lg border border-border px-3.5 py-1.5 transition-colors duration-(--duration-fast) hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle has-[[data-checked]]:ring-[0.5px] has-[[data-checked]]:ring-primary"
                     >
                       <RadioGroupItem
                         value={value}
@@ -274,8 +278,9 @@ export function ChannelSettingsSheet({
                         className="mt-0.5"
                       />
                       <span className="min-w-0">
-                        <span className="block text-body font-semibold text-foreground">
+                        <span className="flex items-center gap-1.5 text-body font-semibold text-foreground">
                           {t(`chat.channel.visibility_${value}_title`)}
+                          {value === "private" ? <Lock className="size-3.5 text-muted-foreground" aria-hidden /> : null}
                         </span>
                         <span className="block text-caption text-muted-foreground">
                           {t(`chat.channel.visibility_${value}_hint`)}
@@ -290,7 +295,7 @@ export function ChannelSettingsSheet({
               </div>
 
               <div className="space-y-1.5">
-                <Label id="channel-settings-project-label" className="text-label font-semibold">{t("chat.channel.project_label")}</Label>
+                <Label id="channel-settings-project-label" className={FIELD_LABEL}>{t("chat.channel.project_label")}</Label>
                 <Select
                   value={projectId || "__none__"}
                   onValueChange={(value) => setProjectId(!value || value === "__none__" ? "" : value)}
@@ -305,7 +310,11 @@ export function ChannelSettingsSheet({
                     })),
                   ]}
                 >
-                  <SelectTrigger className="w-full" aria-labelledby="channel-settings-project-label">
+                  <SelectTrigger
+                    className={`${CHAT_SELECT_TRIGGER_CLASS} pr-3 [&>svg:last-child]:size-4.5`}
+                    aria-labelledby="channel-settings-project-label"
+                  >
+                    <Folder className="size-4.5 text-muted-foreground" aria-hidden />
                     <SelectValue placeholder={t("chat.channel.project_none")} />
                   </SelectTrigger>
                   <SelectContent>

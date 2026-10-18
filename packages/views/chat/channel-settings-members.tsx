@@ -14,6 +14,7 @@ import {
   ChatMemberRow,
   ChatSettingsCollapsibleSection,
 } from "./chat-settings-ui";
+import { settingsMemberOrder } from "./chat-info-panel-utils";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
@@ -61,7 +62,7 @@ export function ChannelSettingsMembers({
         <ChatMemberListError onRetry={() => void refetch()} />
       ) : (
         <ul>
-          {members.map((member) => {
+          {settingsMemberOrder(members, currentUserId).map((member) => {
             const isSelf = member.user_id === currentUserId;
             const label = isSelf ? youLabel : member.display_name.trim() || member.email || member.user_id;
             return (

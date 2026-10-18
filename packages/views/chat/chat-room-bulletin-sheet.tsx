@@ -126,7 +126,7 @@ function BulletinLoadMore({ more }: { more: LoadMore }) {
         type="button"
         variant="outline"
         size="sm"
-        className={CHAT_PILL_SM_CLASS}
+        className={cn(CHAT_PILL_SM_CLASS, "border-border bg-surface px-4")}
         disabled={more.loadingMore}
         aria-busy={more.loadingMore || undefined}
         onClick={more.loadMore}
@@ -202,6 +202,8 @@ function BulletinTabPanel({
           const sender = item.sender_display_name.trim();
           // A pinned note or post says so beside its kind; a plain pinned message already reads "Tin ghim".
           const pinnedKind = item.pinned && visual !== PINNED_VISUAL;
+          const postTitle = item.kind === "post" ? (item.post?.title.trim() ?? "") : "";
+          const postBody = postTitle ? (item.post?.body.replace(/\s+/g, " ").trim() ?? "") : "";
           return (
             <li key={item.id}>
               <button
@@ -212,28 +214,45 @@ function BulletinTabPanel({
                   onClose();
                 }}
               >
-                <IconTile icon={visual.icon} tone={visual.tone} size="md" className="size-9" />
+                {/* A pinned message's tile leans its pin, as the timeline's pin mark does (canvas). */}
+                <IconTile
+                  icon={visual.icon}
+                  tone={visual.tone}
+                  size="md"
+                  className={cn("size-9", visual === PINNED_VISUAL && "[&_svg]:rotate-45")}
+                />
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="flex items-center gap-2">
-                    <span className={cn("flex-1 text-overline font-semibold uppercase", overlineClass(visual.tone))}>
+                    <span
+                      className={cn(
+                        "flex-1 text-micro leading-4 font-semibold tracking-[0.06em] uppercase",
+                        overlineClass(visual.tone),
+                      )}
+                    >
                       {t(visual.labelKey)}
                     </span>
                     {pinnedKind ? (
                       <span className="inline-flex items-center gap-1 text-caption font-semibold text-muted-foreground">
-                        <Pin aria-hidden className="size-3" />
+                        <Pin aria-hidden className="size-3.25 rotate-45" />
                         {t("chat.pinned_label")}
                       </span>
                     ) : null}
                   </span>
                   <span
                     className={cn(
-                      "line-clamp-3 text-body-lg text-foreground",
-                      // A poll's question and a post's title read as headings; a body stays body text.
-                      (item.kind === "poll" || (item.kind === "post" && item.post?.title.trim())) &&
-                        "font-display font-bold",
+                      "line-clamp-3 text-body-lg leading-[1.4] text-foreground",
+                      // A poll's question reads as a heading; a post leads with its title in bold, then its body.
+                      item.kind === "poll" && "font-display font-bold",
                     )}
                   >
-                    {stripInlineMarkdown(preview)}
+                    {postTitle ? (
+                      <>
+                        <strong className="font-display font-bold">{postTitle}</strong>
+                        {postBody ? ` ${stripInlineMarkdown(postBody)}` : null}
+                      </>
+                    ) : (
+                      stripInlineMarkdown(preview)
+                    )}
                   </span>
                   <span className="mt-1 flex min-w-0 items-center gap-1.5 text-label text-muted-foreground">
                     {sender ? (
@@ -362,7 +381,7 @@ export function ChatRoomBulletinSheet({
         <DialogContent
           showCloseButton={false}
           closeLabel={t("common.close")}
-          className="flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(720px,92vh)] sm:max-w-2xl sm:rounded-2xl"
+          className="flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(932px,calc(100dvh-3rem))] sm:max-w-160 sm:rounded-2xl"
         >
           <DialogHeader className="sr-only">
             <DialogDescription>{t("chat.bulletin_sheet_description")}</DialogDescription>
@@ -401,7 +420,7 @@ export function ChatRoomBulletinSheet({
                   key={entry.value}
                   value={entry.value}
                   className={cn(
-                    "h-11 shrink-0 rounded-none border-x-0 border-t-0 border-b-2 border-solid border-transparent bg-transparent px-3 text-body font-semibold text-muted-foreground shadow-none -mb-px",
+                    "h-11.5 flex-none shrink-0 rounded-none border-x-0 border-t-0 border-b-2 border-solid border-transparent bg-transparent px-3 text-body font-semibold text-muted-foreground shadow-none -mb-px",
                     "data-active:border-x-0 data-active:border-t-0 data-active:border-b-brand data-active:bg-transparent data-active:text-brand data-active:shadow-none",
                     "dark:data-active:border-x-0 dark:data-active:border-t-0 dark:data-active:border-b-brand dark:data-active:bg-transparent",
                     "focus-visible:border-x-0 focus-visible:border-t-0",

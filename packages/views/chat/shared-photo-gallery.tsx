@@ -77,7 +77,8 @@ export function SharedPhotoCell({
 }) {
   const refresh = useRefreshChatMessageMedia(workspaceId, roomId);
   const initial = signedThumb(item);
-  const fresh = isChatMediaUrlFresh(initial, item.expiresAt);
+  // A picker image's public URL carries no expiry: only signed URLs go stale.
+  const fresh = item.expiresAt ? isChatMediaUrlFresh(initial, item.expiresAt) : !!initial;
   const [src, setSrc] = useState(initial);
 
   useEffect(() => {

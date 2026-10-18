@@ -1,11 +1,16 @@
 "use client";
 
+import { Globe } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getDesktopBridge } from "@uniwork/core/platform";
 import { UniChatIcon } from "@uniwork/ui/brand/unichat-icon";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
+
+/** The gate's one action: a 280px, 44px pill. */
+const PILL = "h-11 w-70 max-w-full rounded-full text-body font-semibold";
 
 type Phase = "idle" | "opening" | "waiting" | "failed";
 
@@ -32,30 +37,40 @@ export function UniChatLoginGate() {
         () => setPhase("failed"),
       );
   };
+  // Canvas DeskGateStates (A): mark, 26px welcome, one line, then the one action as a 44px pill.
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background px-6 py-12">
-      <div className="flex w-full max-w-sm flex-col items-center gap-8 text-center">
+    <main className="flex min-h-dvh items-center justify-center bg-background px-12 py-8">
+      <div className="flex w-full max-w-md flex-col items-center text-center">
         <UniChatIcon size={96} decorative />
-        <div className="flex flex-col gap-2">
-          <h1 className="font-display text-display-sm font-bold text-foreground">{t("auth.desktop.unichat_login_title")}</h1>
-          <p className="text-body text-muted-foreground">{t("auth.desktop.unichat_login_hint")}</p>
-        </div>
-        <div className="flex w-full max-w-xs flex-col items-center gap-3">
-          {phase === "waiting" ? (
-            <>
-              <p role="status" className="text-body text-foreground">{t("auth.desktop.unichat_login_waiting")}</p>
-              <Button type="button" variant="outline" size="lg" className="w-full" onClick={login}>
-                {t("auth.desktop.unichat_login_reopen")}
-              </Button>
-            </>
-          ) : (
-            <Button type="button" size="lg" className="w-full" aria-disabled={phase === "opening"} onClick={login}>
-              {phase === "opening" ? <Spinner data-icon="inline-start" /> : null}
-              {t("auth.desktop.unichat_login_button")}
+        <h1 className="mt-7 font-display text-display-sm leading-8 font-extrabold tracking-[-0.01em] text-foreground">
+          {t("auth.desktop.unichat_login_title")}
+        </h1>
+        <p className="mt-2 max-w-95 text-body-lg text-muted-foreground">{t("auth.desktop.unichat_login_hint")}</p>
+        {phase === "waiting" ? (
+          <>
+            <p
+              role="status"
+              className="mt-8 flex items-center gap-2.5 rounded-[14px] bg-muted px-4.5 py-3 text-body text-foreground"
+            >
+              <Spinner className="size-4.5 text-brand" />
+              {t("auth.desktop.unichat_login_waiting")}
+            </p>
+            <Button type="button" variant="secondary" className={cn(PILL, "mt-3.5")} onClick={login}>
+              <Globe aria-hidden className="size-4.5" />
+              {t("auth.desktop.unichat_login_reopen")}
             </Button>
-          )}
-          {phase === "failed" ? <p role="alert" className="text-body text-destructive">{t("auth.desktop.unichat_login_failed")}</p> : null}
-        </div>
+          </>
+        ) : (
+          <Button type="button" className={cn(PILL, "mt-8")} aria-disabled={phase === "opening"} onClick={login}>
+            {phase === "opening" ? <Spinner data-icon="inline-start" /> : null}
+            {t("auth.desktop.unichat_login_button")}
+          </Button>
+        )}
+        {phase === "failed" ? (
+          <p role="alert" className="mt-3 text-body text-destructive">
+            {t("auth.desktop.unichat_login_failed")}
+          </p>
+        ) : null}
       </div>
     </main>
   );

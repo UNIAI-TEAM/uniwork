@@ -66,8 +66,8 @@ export function ChatMemberFace({ userId, name, avatarUrl }: { userId: string; na
       name={name}
       initials={initialsOf(name)}
       avatarUrl={avatarUrl}
-      size="xl"
-      avatarClassName={chatPersonFaceClass(userId)}
+      size="fluid"
+      avatarClassName={cn("size-10 text-label", chatPersonFaceClass(userId))}
       online={online}
     />
   );
@@ -211,7 +211,7 @@ export function ChatSettingsCollapsibleSection({
     <ChatSettingsSection>
       <button
         type="button"
-        className="flex min-h-13 w-full items-center gap-3 py-2.5 pr-5 pl-5 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover"
+        className="flex min-h-13 w-full items-center gap-3 py-2.5 pr-5.5 pl-5 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen(!open)}
@@ -224,7 +224,7 @@ export function ChatSettingsCollapsibleSection({
         </span>
         <ChevronDown
           className={cn(
-            "size-5 shrink-0 text-faint-foreground transition-transform duration-(--duration-fast) motion-reduce:transition-none",
+            "size-4.5 shrink-0 text-muted-foreground transition-transform duration-(--duration-fast) motion-reduce:transition-none",
             open && "rotate-180",
           )}
           aria-hidden
@@ -252,6 +252,7 @@ export function ChatSettingsMenuRow({
   disabled,
   disabledReason,
   action = false,
+  hint,
 }: {
   icon: LucideIcon;
   label: string;
@@ -259,6 +260,8 @@ export function ChatSettingsMenuRow({
   disabled?: boolean;
   disabledReason?: string;
   action?: boolean;
+  /** A quiet word before the chevron naming where the row leads ("Bảng tin"). */
+  hint?: string;
 }) {
   const reasonId = useId();
   const reason = disabled ? disabledReason : undefined;
@@ -286,7 +289,8 @@ export function ChatSettingsMenuRow({
           </span>
         ) : null}
       </span>
-      {action ? null : <ChevronRight className="size-4 shrink-0 text-faint-foreground" aria-hidden />}
+      {hint ? <span className="shrink-0 text-label text-muted-foreground">{hint}</span> : null}
+      {action ? null : <ChevronRight className="size-4.5 shrink-0 text-faint-foreground" aria-hidden />}
     </button>
   );
 }
@@ -388,7 +392,7 @@ export function ChatMemberRow({
     </>
   );
   return (
-    <li className="flex min-h-13.5 items-center gap-1 py-1 pr-2 pl-5">
+    <li className="flex min-h-13.5 items-center gap-1 py-1 pr-2 pl-5 has-[[data-popup-open]]:bg-muted">
       {profile ? (
         <ChatMemberProfileTrigger
           name={name}
