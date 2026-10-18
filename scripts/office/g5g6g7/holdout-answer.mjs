@@ -289,7 +289,11 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   if (EXTRA_SOURCES.appliedWrites) for (const w of applied) for (const q of argumentLeaves(w.args)) extra.push({ q, tag: 'write' });
   const proseQs = quantitiesOf(parsed.text, { prose: true });
   const itemQs = items.flatMap((it) => quantitiesOf(String(it.value ?? '')));
-  const reportQs = figures.map((f) => withProsePercent(figureQuantity(f), proseQs));
+  // `fromReport` lets a plain number of report.numbers trace to a "%" leaf; prose figures never carry it (round h, H-1).
+  const reportQs = figures.map((f) => {
+    const q = withProsePercent(figureQuantity(f), proseQs);
+    return q ? { ...q, fromReport: true } : q;
+  });
   const operands = operandsOf(reads.map((r) => r.q), [proseQs, itemQs, reportQs.filter(Boolean)]);
   // Trace (d): a count of a kind the reply names. report.items names a kind by its anchor; the prose names one beside a
   // figure ("3 slides"). A figure that report.items marks as a count traces only through this (see traceClaim).

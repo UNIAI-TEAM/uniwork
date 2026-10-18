@@ -16,7 +16,10 @@
 // currency) matches only a source value with the same marker, or a percent derivation for %. A bare number never
 // matches a marked value and a marked one never matches a bare value; there is no conversion and no unconditional
 // x100 or /100. vi and en grouping and decimal styles are both read; a token ambiguous between styles matches when
-// either reading is traceable. Spelled-out numbers are not tokenized and never earn credit (a known limit).
+// either reading is traceable. One exception, for report.numbers ONLY: its figures are plain numbers by protocol (the
+// footer says percentages in percent units), so a plain report number also traces to a "%" leaf or compute result of the
+// same value; every other marker and a currency contradiction stay strict there, and prose stays strict (round h, H-1).
+// Spelled-out numbers are not tokenized and never earn credit (a known limit).
 // Exempt from being a figure, and nothing else: cell or range addresses with real boundaries, line-start list
 // markers, unambiguous written-month dates, and the digits inside a whole URL or email token.
 
@@ -587,7 +590,10 @@ export function traceClaim(claim, ctx, { ignoreUnit = false } = {}) {
     const hit = ctx.reads.find((r) => r.q.raw.trim() === raw && (ignoreUnit || sameUnit(r.q.unit, claim.unit)));
     return hit ? { by: hit.compute ? 'compute' : 'read' } : { by: null };
   }
-  const unitOk = (u) => ignoreUnit || sameUnit(u, claim.unit);
+  // report.numbers is plain numbers by protocol (footer: percentages in percent units), so a plain report number carries no
+  // unit and may trace to a leaf or compute result shown with exactly "%". No other marker relaxes (round h, H-1).
+  const percentLeafOk = claim.fromReport === true && !claim.unit && !claim.currency;
+  const unitOk = (u) => ignoreUnit || sameUnit(u, claim.unit) || (percentLeafOk && u === '%');
   const reads = ctx.reads.filter((r) => unitOk(r.q.unit) && r.q.readings.some((rv) => readingMatches(claim, rv.n)));
   if (reads.length > 0) return { by: reads.some((r) => r.compute) ? 'compute' : 'read' };
   const extra = ctx.extra.find((e) => unitOk(e.q.unit) && e.q.readings.some((rv) => readingMatches(claim, rv.n)));
