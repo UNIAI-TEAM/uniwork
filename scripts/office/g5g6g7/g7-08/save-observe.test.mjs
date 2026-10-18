@@ -241,8 +241,14 @@ describe('G7-08 w2e save-observe pure helpers', () => {
   });
 
   it('R3-1: the model route matcher and the response-body readers read both providers', () => {
+    // G708-R4-2: the matcher pins the routes the server actually registers
+    // (router/office_frame_ai.go:74,79,84,126), not a shape it does not serve.
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions'), true);
-    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/openai/chat/completions'), true);
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), true);
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages'), true);
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/gemini/generate'), true);
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/openai/chat/completions'), false, 'no such route is registered');
+    assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/byok/x/models'), false, '/models is a GET listing, not a model call');
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/ai/uniwork/models'), false);
     assert.equal(isModelCompletionPath('/api/v1/office-frame/documents/D1/uploads'), false);
     assert.equal(isModelCompletionPath(undefined), false);
