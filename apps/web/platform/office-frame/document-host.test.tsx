@@ -18,6 +18,7 @@ vi.mock("next/dynamic", () => ({
 }));
 vi.mock("@uniwork/core/feature-flags", () => ({ useFlag: mocks.useFlag }));
 vi.mock("./module-frame-host", () => ({ OfficeModuleHost: "the module host" }));
+
 import { detectDocumentFormat, DocumentOfficeEditorHost } from "./document-host";
 
 const file = (filename: string, mime_type: string) => ({ filename, mime_type, size_bytes: 10 });
@@ -108,9 +109,7 @@ describe("detectDocumentFormat", () => {
       expect(detectDocumentFormat(doc("no-extension", "text/plain"), flag)).toBe("unknown");
     }
   });
-});
 
-describe("detectDocumentFormat", () => {
   it("reads the mime type before the file name, and names the conversion-only sources", () => {
     expect(detectDocumentFormat(doc("noext", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))).toBe("docx");
     expect(detectDocumentFormat(doc("noext", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))).toBe("xlsx");
