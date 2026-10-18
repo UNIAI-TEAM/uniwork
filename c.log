@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+27b62ce4fced0a173b8d6ab5bfc80553d2bad7e0
+27b62ce4f chore(merge): e6-server ARCHIVE 3eaaec5f9 (root 923e42c99) into ARCHIVE-01 web
+3eaaec5f9 chore: merge the G5-G7 root (923e42c99) into ARCHIVE-01
+7098950fc refactor(documents): split view-url and download helpers off the page view
+923e42c99 chore: merge G7-12 PACK3 instruction pack v3 (UNI-1875, e8ae54a7c) into the G5-G7 root
