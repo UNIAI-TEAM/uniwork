@@ -1,6 +1,7 @@
 // G7-08 (UNI-1385) W2 web frame driver per format family and provider ('uniwork' | 'byok').
 // Reuses harness/web.mjs, g7-04/cross-host.mjs (listVersions, strict), g7-10/tracer.mjs, docx-roundtrip.mjs;
-// the Save/undo/old-version tail of the edit rows is web-edit-flow.mjs, its pure decisions save-observe.mjs.
+// the Save/undo/old-version tail of the edit rows is web-edit-flow.mjs, its pure decisions
+// save-observe.mjs, and the AI-turn wire observation wire-observe.mjs.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

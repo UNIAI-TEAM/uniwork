@@ -86,7 +86,7 @@ describe('G7-08 W2 web-driver pure observation builders and preflight guards', (
     );
     assert.deepEqual(wire.offeredTools, ['read_range', 'aggregate_range']);
     assert.deepEqual(wire.executedTools, ['aggregate_range', 'read_range']);
-    // Usage extraction (and its fail-closed unknown) is covered by save-observe.test.mjs.
+    // Usage extraction (and its fail-closed unknown) is covered by wire-observe.test.mjs.
   });
 
   it('evaluates read/edit observations and enforces BLOCKED on missing fields or unknown rows', async () => {
