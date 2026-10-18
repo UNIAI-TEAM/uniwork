@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+eeb13731721b010e7a88158d1b4794a692e62588
+eeb137317 chore(merge): e6-server UN-02 309631d48 (root a605e291f) into UN-02 web
+9691cb0e8 test(office): fold the second detectDocumentFormat describe into the first
+dbf88e124 fix(office): unwrap only one wrapper directory of a frame release
+17cc8f3f9 test(documents): pin the workspace layout to the .txt flag gate
