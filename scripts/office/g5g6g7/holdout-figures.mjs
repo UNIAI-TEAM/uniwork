@@ -439,33 +439,39 @@ export function countsOf(text) {
       const level = b && typeof b === 'object' ? Number(HEADING_STYLE_RE.exec(foldAscii(b.style ?? '').replace(/[\s_-]+/g, ''))?.[1] ?? 0) : 0;
       if (level > 0) levels[level] += 1;
     }
-    levels.forEach((n, level) => { if (level > 0) add(`heading_level_${level}`, n); });
+    levels.forEach((n, level) => { if (level > 0 && n > 0) add(`heading_level_${level}`, n); });
   }
-  if (Array.isArray(root.lines)) headingLevelsOfLines(root.lines).forEach((n, level) => { if (level > 0) add(`heading_level_${level}`, n); });
+  if (Array.isArray(root.lines)) headingLevelsOfLines(root.lines).forEach((n, level) => { if (level > 0 && n > 0) add(`heading_level_${level}`, n); });
   return out;
 }
 
 const SENTENCE_END_RE = /[.!?;\n]/;
 const CONNECTORS = new Set(['is', 'are', 'was', 'were', 'be', 'la', 'co', 'gom', 'bang', 'of', 'only', 'total', 'in']);
+// Words that may stand right before a kind phrase without modifying it ("the slides", "number of sheets"); any other word
+// before it makes a modified kind ("changed paragraphs"), which names nothing.
+const KIND_LEAD_OK = new Set([...CONNECTORS, 'the', 'a', 'an', 'there', 'this', 'that', 'these', 'those', 'number', 'count', 'so', 'luong', 'tong', 'and', 'va', 'with', 'has', 'have']);
 const wordsOf = (text) => foldAscii(text).match(/[\p{L}\d]+/gu) ?? [];
 
-/** The kinds a reply names right beside one of its figures: "3 slides", "4 level 2 headings", "slides: 3", "number of sheets is 3". */
+/**
+ * The kinds a reply names right beside one of its figures: "3 slides", "4 level 2 headings", "slides: 3", "number of sheets is 3".
+ * The kind is a closed phrase that starts right after the figure, or ends right before it (past a connector); no window
+ * slides onto a later content word, and a modified kind ("3 changed paragraphs") names nothing (R21-2).
+ */
 export function kindsNear(text, q) {
   const source = String(text ?? '');
   const tail = source.slice(q.end, q.end + 80);
   const after = wordsOf(tail.slice(0, (SENTENCE_END_RE.exec(tail) ?? { index: tail.length }).index));
-  for (let skip = 0; skip <= 2; skip += 1) {
-    for (let len = 1; len <= 4; len += 1) {
-      const kinds = kindsOfName(after.slice(skip, skip + len).join(' '));
-      if (kinds.length > 0) return kinds;
-    }
+  for (let len = 1; len <= 4; len += 1) {
+    const kinds = kindsOfName(after.slice(0, len).join(' '));
+    if (kinds.length > 0) return kinds;
   }
   const head = source.slice(Math.max(0, q.start - 80), q.start);
   const before = wordsOf(head.split(/[.!?;\n]/).at(-1));
   while (before.length > 0 && CONNECTORS.has(before.at(-1))) before.pop();
   for (let len = 1; len <= 4; len += 1) {
     const kinds = kindsOfName(before.slice(-len).join(' '));
-    if (kinds.length > 0) return kinds;
+    const lead = before.at(-len - 1);
+    if (kinds.length > 0 && (lead === undefined || KIND_LEAD_OK.has(lead))) return kinds;
   }
   return [];
 }
@@ -473,16 +479,45 @@ export function kindsNear(text, q) {
 const headingLevelOf = (kind) => Number(/^heading_level_(\d)$/.exec(kind)?.[1] ?? 0);
 
 /**
+ * The heading-level kind a prose figure is the LABEL digit of ("level 2 headings", "headings level 2", "h2 headings"), or
+ * null: the figure sits inside a closed heading-level phrase whose level is its own value. A label is no count of anything.
+ * A bare "section 2" / "mục 2" is a label too, but only when a report.items anchor already names that heading level (`namedKinds`).
+ */
+export function labelKindOf(text, q, namedKinds = null) {
+  if (q.unit || q.currency) return null;
+  const level = q.readings.length === 1 && q.readings[0].dp === 0 ? q.readings[0].n : 0;
+  if (!(level >= 1 && level <= 6)) return null;
+  const sentence = (s) => s.split(/[.!?;\n]/).at(-1);
+  const before = wordsOf(sentence(String(text ?? '').slice(Math.max(0, q.start - 80), q.start)));
+  const after = wordsOf(String(text ?? '').slice(q.end, q.end + 80).split(/[.!?;\n]/)[0]);
+  const digit = String(level);
+  for (let b = 0; b <= 3; b += 1) {
+    for (let a = 0; a <= 3; a += 1) {
+      const phrase = [...before.slice(before.length - b), digit, ...after.slice(0, a)].join(' ');
+      if (kindsOfName(phrase).includes(`heading_level_${level}`)) return `heading_level_${level}`;
+    }
+  }
+  return /^(?:sections?|muc)$/.test(before.at(-1) ?? '') && namedKinds?.has(`heading_level_${level}`) ? `heading_level_${level}` : null;
+}
+
+/** Is a figure of value `n` the count of one of `kinds` in ONE successful read of this turn? */
+export const backedCount = (kinds, n, ctx) => Array.isArray(ctx.counts) && ctx.counts.some((c) => kinds.includes(c.kind) && nearEq(c.n, n));
+
+// The label digit of a heading-level phrase in prose, when the read really holds headings of that level (c.n > 0). It is a
+// label, never a count: only a prose figure carries `labelKind` (report.numbers and the items-only fill never do).
+const labelTraced = (claim, ctx) => Boolean(claim.labelKind) && claim.fromReport !== true && Array.isArray(ctx.counts)
+  && claim.readings.some((r) => r.dp === 0 && r.n === headingLevelOf(claim.labelKind))
+  && ctx.counts.some((c) => c.kind === claim.labelKind && c.n > 0);
+
+/**
  * Does the figure equal the count of a kind in ONE successful read that the reply (items or prose) names? The level digit
- * of a named heading-level kind ("level 2 headings") is that kind's own label: it traces when the read holds the kind.
+ * of a named heading-level phrase in prose is that kind's own label: it traces when the read holds headings of that level.
  */
 export function tracedByCount(claim, ctx) {
   if (claim.unit !== null && claim.unit !== undefined) return false;
   if (claim.currency || !Array.isArray(ctx.counts)) return false;
   const named = (kind, n) => ctx.namedKinds?.has(kind) || ctx.proseKinds?.get(n)?.has(kind);
-  const labelNamed = (kind) => ctx.namedKinds?.has(kind) || [...(ctx.proseKinds?.values() ?? [])].some((kinds) => kinds.has(kind));
-  return ctx.counts.some((c) => claim.readings.some((r) => r.dp === 0
-    && ((nearEq(r.n, c.n) && named(c.kind, c.n)) || (headingLevelOf(c.kind) === r.n && labelNamed(c.kind)))));
+  return labelTraced(claim, ctx) || ctx.counts.some((c) => claim.readings.some((r) => r.dp === 0 && nearEq(r.n, c.n) && named(c.kind, c.n)));
 }
 
 /** A figure of report.numbers that the prose writes in percent units is a percent figure (`pctFromProse`), not a bare one. */
@@ -606,15 +641,18 @@ export function derivesFrom(claim, operands, { ignoreUnit = false } = {}) {
 }
 
 /**
- * Traces one claim { unit, readings }. ctx = { reads: [{ q, compute }], extra: [{ q, tag }], operands, counts, namedKinds, proseKinds, countMarked }.
+ * Traces one claim { unit, readings }. ctx = { reads: [{ q, compute }], extra: [{ q, tag }], operands, counts, namedKinds, proseKinds, countMarked: Map(value -> [kinds of each marking item]) }.
  * Returns { by: 'read' | 'compute' | 'derived' | 'count' | 'request' | 'write' | null, unitOnly }: `unitOnly` marks an
  * untraceable figure that would trace if its unit were ignored (reported, never credited).
  */
 export function traceClaim(claim, ctx, { ignoreUnit = false } = {}) {
-  // A figure that report.items marks as a count traces ONLY as a count of a named kind in one successful read, never as a
-  // text leaf that happens to hold the same integer (review-g712-20 L1G).
-  if (claim.readings.length > 0 && ctx.countMarked instanceof Set && claim.readings.some((r) => ctx.countMarked.has(r.n))) {
-    return tracedByCount(claim, ctx) ? { by: 'count' } : { by: null };
+  // A plain figure that report.items marks as a count traces ONLY as the count its own item states, backed by a successful read
+  // (never as a text leaf that happens to hold the same integer, review-g712-20 L1G), and only when EVERY marking item of that
+  // value is backed (R21-3). A figure with a unit or currency (a percent leaf) never takes this path.
+  if (labelTraced(claim, ctx)) return { by: 'count' };
+  if (claim.readings.length > 0 && !claim.unit && !claim.currency && ctx.countMarked instanceof Map) {
+    const marked = claim.readings.find((r) => ctx.countMarked.has(r.n));
+    if (marked) return ctx.countMarked.get(marked.n).every((kinds) => backedCount(kinds, marked.n, ctx)) ? { by: 'count' } : { by: null };
   }
   if (claim.readings.length === 0) {
     const raw = claim.raw.trim();
@@ -622,10 +660,12 @@ export function traceClaim(claim, ctx, { ignoreUnit = false } = {}) {
     return hit ? { by: hit.compute ? 'compute' : 'read' } : { by: null };
   }
   // report.numbers is plain numbers by protocol (footer: percentages in percent units), so a plain report number carries no
-  // unit and may trace to a leaf or compute result shown with exactly "%". No other marker relaxes (round h, H-1).
+  // unit and may trace to a read leaf or compute result shown with exactly "%" (not to an applied-write value, R21-5). No other
+  // marker relaxes (round h, H-1).
   const percentLeafOk = claim.fromReport === true && !claim.unit && !claim.currency;
-  const unitOk = (u) => ignoreUnit || sameUnit(u, claim.unit) || (percentLeafOk && u === '%');
-  const reads = ctx.reads.filter((r) => unitOk(r.q.unit) && r.q.readings.some((rv) => readingMatches(claim, rv.n)));
+  const unitOk = (u) => ignoreUnit || sameUnit(u, claim.unit);
+  const readUnitOk = (u) => unitOk(u) || (percentLeafOk && u === '%');
+  const reads = ctx.reads.filter((r) => readUnitOk(r.q.unit) && r.q.readings.some((rv) => readingMatches(claim, rv.n)));
   if (reads.length > 0) return { by: reads.some((r) => r.compute) ? 'compute' : 'read' };
   const extra = ctx.extra.find((e) => unitOk(e.q.unit) && e.q.readings.some((rv) => readingMatches(claim, rv.n)));
   if (extra) return { by: extra.tag };

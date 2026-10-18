@@ -690,6 +690,8 @@ describe('item 10 (round i, R21-1): the heading-level label digit is no count', 
     assert.equal(verdict(h2(3), dAsk('There are 3 level 2 headings.', { numbers: [3], items: [h2Item(3)] })), 'pass');
     assert.equal(verdict(h2(3), dAsk('There are 3 headings level 2.', { numbers: [3], items: [h2Item(3)] })), 'pass');
     assert.equal(verdict(h2(3), dAsk('Counted.', { items: [h2Item(3)] })), 'pass', 'items only');
+    assert.equal(verdict(h2(3), dAsk('Có 3 mục 2.', { numbers: [3], items: [h2Item(3)] })), 'pass', 'a bare "mục 2" is a label when the item names the level');
+    assert.equal(verdict(h2(3), dAsk('Có 3 mục 2.', { numbers: [3], items: [{ kind: 'count', anchor: 'Meeting notes', value: 3 }] })), 'fail', 'but not when nothing names the level');
   });
 
   it('fails the level digit claimed as the count: 2 against three level 2 headings (C02, C03)', () => {
@@ -702,7 +704,7 @@ describe('item 10 (round i, R21-1): the heading-level label digit is no count', 
   });
 
   it('never credits the label digit as a report.numbers value or a stray prose figure', () => {
-    const four = { blocks: [1, 2, 3, 4].map((i) => ({ index: i, style: 'Heading2', preview: `H${i}` })) };
+    const four = { blocks: [1, 2, 3, 4].map((i) => ({ index: i, style: 'Heading2', preview: `Head ${'ABCD'[i - 1]}` })) };
     assert.equal(verdict(h2(4), dAsk('There are 4 level 2 headings.', { numbers: [4], items: [h2Item(4)] }, four)), 'pass');
     assert.equal(verdict(h2(4), dAsk('There are 4 level 2 headings.', { numbers: [4, 2], items: [h2Item(4)] }, four)), 'fail', 'numbers 4 and 2');
     assert.equal(verdict(h2(4), dAsk('There are 4 level 2 headings. Budget 2.', { numbers: [4], items: [h2Item(4)] }, four)), 'fail', 'a stray 2 in the prose');

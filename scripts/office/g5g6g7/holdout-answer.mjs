@@ -36,7 +36,7 @@
 
 import { anchorMatches, countTopicKey, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
-import { EXTRA_SOURCES, argumentLeaves, countsOf, currenciesIn, derivesFrom, figureQuantity, kindsNear, kindsOfName, operandsOf, quantitiesOf, quantityOfNumber, readLeaves, tracedByCount, tracedFigure, withProsePercent } from './holdout-figures.mjs';
+import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, figureQuantity, kindsNear, kindsOfName, labelKindOf, operandsOf, quantitiesOf, readLeaves, tracedFigure, withProsePercent } from './holdout-figures.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
@@ -287,7 +287,10 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const extra = [];
   if (EXTRA_SOURCES.request) for (const q of quantitiesOf(queryText)) extra.push({ q, tag: 'request' });
   if (EXTRA_SOURCES.appliedWrites) for (const w of applied) for (const q of argumentLeaves(w.args)) extra.push({ q, tag: 'write' });
-  const proseQs = quantitiesOf(parsed.text, { prose: true });
+  const countItems = items.filter((it) => it.kind === 'count');
+  const namedKinds = new Set(countItems.flatMap((it) => kindsOfName(it.anchor)));
+  // `labelKind` marks the level digit of a heading-level phrase in prose ("level 2 headings"): a label, never a count (R21-1).
+  const proseQs = quantitiesOf(parsed.text, { prose: true }).map((q) => ({ ...q, labelKind: labelKindOf(parsed.text, q, namedKinds) }));
   const itemQs = items.flatMap((it) => quantitiesOf(String(it.value ?? '')));
   // `fromReport` lets a plain number of report.numbers trace to a "%" leaf; prose figures never carry it (round h, H-1).
   const reportQs = figures.map((f) => {
@@ -297,15 +300,19 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const operands = operandsOf(reads.map((r) => r.q), [proseQs, itemQs, reportQs.filter(Boolean)]);
   // Trace (d): a count of a kind the reply names. report.items names a kind by its anchor; the prose names one beside a
   // figure ("3 slides"). A figure that report.items marks as a count traces only through this (see traceClaim).
-  const countItems = items.filter((it) => it.kind === 'count');
-  const namedKinds = new Set(countItems.flatMap((it) => kindsOfName(it.anchor)));
   const proseKinds = new Map();
   for (const q of proseQs) {
     for (const r of q.readings) proseKinds.set(r.n, new Set([...(proseKinds.get(r.n) ?? []), ...kindsNear(parsed.text, q)]));
   }
   // Only a count item whose anchor is a kind of the table marks its figure: a count of something trace (d) does not know
-  // (list items, changed paragraphs) is measured or self-reported and leaves its integer to the ordinary trace.
-  const countMarked = new Set(countItems.filter((it) => kindsOfName(it.anchor).length > 0).map((it) => toNumber(it.value)).filter((n) => n !== null));
+  // (list items, changed paragraphs) is measured or self-reported and leaves its integer to the ordinary trace. The mark is kept
+  // per item (value -> the kinds of each marking item), so a figure traces only through the item that states it (R21-3).
+  const countMarked = new Map();
+  for (const it of countItems) {
+    const kinds = kindsOfName(it.anchor);
+    const n = toNumber(it.value);
+    if (kinds.length > 0 && n !== null) countMarked.set(n, [...(countMarked.get(n) ?? []), kinds]);
+  }
   const ctx = { reads, extra, operands, sourceCurrencies, counts, namedKinds, proseKinds, countMarked };
   const tracedReport = reportQs.map((q) => (q ? tracedFigure(q, ctx) : null));
   const tracedProse = proseQs.map((q) => ({ q, ...tracedFigure(q, ctx) }));
@@ -323,15 +330,16 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const { numeric, extras, extraIdx } = matchNumbers(caseDoc.expected.numeric, figures);
   // A correct items-only structure answer: when trace (d) backs a count item, the same integer is not required a second
   // time in report.numbers. An expected COUNT numeric (unit count or sheets) that no figure of the line matched takes the
-  // value of the count item that (d) backs; nothing else fills a numeric slot.
+  // value of a count item whose OWN kind (its anchor) has exactly that count in one successful read; nothing else fills a numeric
+  // slot, and a heading-level label digit never does (R21-1).
   for (const item of caseDoc.expected.numeric) {
     if (!COUNT_UNITS.has(item.unit)) continue;
     const got = figureNumber(numeric[item.name]);
     if (got !== null && Math.abs(roundTo(got, item.rounding) - item.value) <= item.tolerance + 1e-9) continue;
-    const backed = countItems.map((it) => toNumber(it.value)).find((n) => n !== null
+    const backed = countItems.map((it) => ({ n: toNumber(it.value), kinds: kindsOfName(it.anchor) })).find(({ n, kinds }) => n !== null
       && Math.abs(roundTo(n, item.rounding) - item.value) <= item.tolerance + 1e-9
-      && tracedByCount(quantityOfNumber(n), ctx));
-    if (backed !== undefined) numeric[item.name] = backed;
+      && kinds.length > 0 && backedCount(kinds, n, ctx));
+    if (backed !== undefined) numeric[item.name] = backed.n;
   }
   const allExpectedNumericMatched = caseDoc.expected.numeric.every((item) => {
     const actual = figureNumber(numeric[item.name]);
