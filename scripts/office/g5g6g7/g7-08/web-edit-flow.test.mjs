@@ -121,8 +121,10 @@ describe('G7-08 w2e2 runEditStage', () => {
 
   it('w2l: an AI turn that produced no edit is named as that, not as a broken undo', async () => {
     const io = makeIo({ undoRedo: { aiChangeVisibleBeforeSave: false, aiChangeUndoableBeforeSave: false, missingControl: null, undoReverted: false, redoRestored: false } });
-    const out = await runEditStage(ctx(), io);
+    const aiTurn = { executedTools: ['propose_operations'], stepTitles: ['Đề xuất thao tác'], panelFootprintText: '', replyText: 'xong' };
+    const out = await runEditStage(ctx({ aiTurn }), io);
     assert.equal(out.stop.reason, 'ai_change_not_visible_before_save');
+    assert.deepEqual(out.stop.details.aiTurn, aiTurn, 'the row json says what the panel showed and which tools ran');
     assert.equal(io.calls.some((c) => c[0] === 'webSave'), false);
   });
 
