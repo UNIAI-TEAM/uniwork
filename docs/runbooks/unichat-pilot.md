@@ -28,10 +28,10 @@ Pilot chứng minh UniChat dùng được làm kênh chat chính của nhân s�
      (`.env.example`, mục Desktop auth).
    - `EXPO_ACCESS_TOKEN` nếu tài khoản Expo bật "enhanced push security" (`docs/evidence/unichat/release-accounts.md`).
    - `UNICHAT_INSTALLER_BETA_URLS` (hoặc kênh đang dùng) từ `installer-urls.env` của release desktop;
-     `UNICHAT_TESTFLIGHT_URL`, `UNICHAT_PLAY_INTERNAL_URL` khi có — trang `/unichat` hiện chúng.
+     `UNICHAT_TESTFLIGHT_URL`, `UNICHAT_PLAY_INTERNAL_URL` khi có — trang `/apps/unichat` hiện chúng.
    - `UNICHAT_IOS_TEAM_ID`, `UNICHAT_ANDROID_SHA256` khi có tài khoản (universal link; thiếu thì
      `/.well-known/*` trả 404 và link `https://` mở trình duyệt thay vì app — không chặn pilot).
-3. Trong tổ chức nội bộ: tạo kênh `#unichat-feedback`, ghim tin hướng dẫn (link `/unichat`, cách báo lỗi: mô tả, ảnh,
+3. Trong tổ chức nội bộ: tạo kênh `#unichat-feedback`, ghim tin hướng dẫn (link `/apps/unichat`, cách báo lỗi: mô tả, ảnh,
    thiết bị, giờ xảy ra, có `X-Trace-Id` thì gửi kèm). Lập danh sách người tham gia (mẫu số của 80 %) và ghi vào
    bình luận đầu tiên của nhật ký.
 4. Ghi số mốc trước ngày 1: phiên bản desktop và mobile đang cài, giá trị hiện tại của các truy vấn ở mục Kiểm tra.
@@ -121,7 +121,7 @@ Pilot chứng minh UniChat dùng được làm kênh chat chính của nhân s�
 3. **Lệch số chưa đọc** giữa điện thoại và web: chụp cả hai màn, ghi id phòng; mở P2 (P1 nếu không tự đúng sau khi mở
    lại app). Đối chiếu với parity test `apps/chat-mobile/lib/rooms-display.test.ts`.
 4. **Desktop trắng/treo**: đóng hẳn và mở lại; gửi output main (mục Kiểm tra bước 4). Bản mac chưa ký không tự cập
-   nhật — tải tay ở `/unichat`.
+   nhật — tải tay ở `/apps/unichat`.
 5. **Mức dùng dưới 80 %**: hỏi trực tiếp người không dùng (thiếu bản cho máy của họ, không nhận push, thói quen), ghi
    lý do vào nhật ký; ngày dưới ngưỡng vẫn tính vào 10 ngày nhưng phải giải thích trong báo cáo go/no-go.
 

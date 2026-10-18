@@ -39,7 +39,7 @@ Ubuntu x64; bản từ release `chat-desktop-v…` (`docs/runbooks/unichat-deskt
 
 | Bước | Kỳ vọng | mac | win | linux |
 | --- | --- | --- | --- | --- |
-| Cài từ tệp trên trang `/unichat` (hoặc release) | Cài được; cảnh báo chưa ký đúng như ghi chú release | ☐ | ☐ | ☐ |
+| Cài từ tệp trên trang `/apps/unichat` (hoặc release) | Cài được; cảnh báo chưa ký đúng như ghi chú release | ☐ | ☐ | ☐ |
 | Mở lần đầu | Màn chào UniChat, không phải landing | ☐ | ☐ | ☐ |
 | Đăng nhập | Trình duyệt hệ thống mở trang consent → bấm cho phép → quay về app, vào chat | ☐ | ☐ | ☐ |
 | Thoát và mở lại | Vẫn đăng nhập (không rơi về `/login`) | ☐ | ☐ | ☐ |
