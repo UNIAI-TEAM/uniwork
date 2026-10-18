@@ -1,0 +1,87 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --shard=1/6 > /tmp/rootb-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rootb-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/rootb-E2E.log; grep -E "✘|\[failed\]" /tmp/rootb-E2E.log | head -40; echo; echo "E2E_SUITE1_EXIT=$rc"
+  ✓  34 documents-folders.spec.ts:621:1 › FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search (4.6s)
+  ✓  35 documents-folders.spec.ts:732:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live (8.5s)
+  ✓  36 documents-folders.spec.ts:972:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast (4.4s)
+  ✓  37 documents-folders.spec.ts:1058:1 › FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop (2.6s)
+  ✓  38 documents-folders.spec.ts:1160:1 › FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable aria-disabled rows with the reason Nằm trong chính nó and refuses to select them (2.9s)
+  ✓  39 documents-folders.spec.ts:1236:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision (3.8s)
+  ✓  40 documents-folders.spec.ts:1329:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành (2.7s)
+  ✓  41 documents-folders.spec.ts:1385:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder= (5.6s)
+  ✓  42 documents-folders.spec.ts:1528:1 › FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and the … menu Các cấp ẩn opens and navigates by keyboard (2.0s)
+  ✓  43 documents-folders.spec.ts:1587:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches (5.2s)
+  ✘  44 documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing (305ms)
+(node:29068) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:29068) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  -  45 documents-folders.spec.ts:1992:1 › FD-A10 (entity/email link API) structured graph DOCUMENT links and email-hub thread links resolve after move
+  ✓  46 documents-folders.spec.ts:2000:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (3.8s)
+  ✓  47 documents-folders.spec.ts:2183:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403 (11.1s)
+FD-A12 seeded 1000 pages in 1905 ms
+  ✓  48 documents-folders.spec.ts:2397:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button (4.9s)
+  ✓  49 documents-folders.spec.ts:2463:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts (3.0s)
+  ✓  50 documents-home.spec.ts:49:1 › quick create, folder, move and the other-modules section on the owner's home (7.1s)
+  ✓  51 documents-home.spec.ts:124:1 › My Folder sub-nav row, personal folder view, localized tree label, Home create into My Folder, and system folder guards (3.6s)
+  ✓  52 documents-home.spec.ts:173:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.4s)
+  ✓  53 documents-home.spec.ts:285:3 › a view-only member › sees create controls at the root, none inside a folder shared at view level (2.1s)
+  ✓  54 documents-home.spec.ts:306:3 › a view-only member › gets no Move or Archive on a row shared at view level (2.3s)
+  ✓  55 documents-home.spec.ts:319:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ (5.1s)
+  ✓  56 documents-isolation.spec.ts:108:1 › another organization answers not found across read, history, comments and download (31ms)
+  ✓  57 documents-isolation.spec.ts:120:1 › an organization member outside the document workspace answers not found (20ms)
+  ✓  58 documents-isolation.spec.ts:124:1 › an account in no organization answers not found (25ms)
+  ✓  59 documents-isolation.spec.ts:129:1 › a deactivated member is refused with member_deactivated (4ms)
+  ✓  60 documents-isolation.spec.ts:136:1 › two saves from one base: the first wins, the stale one conflicts (13ms)
+  ✓  61 documents-isolation.spec.ts:159:1 › a create replay returns the same page; a changed payload under the same key is refused (12ms)
+  ✓  62 documents-isolation.spec.ts:175:1 › a plain member creates, types and reloads a page in the browser (5.3s)
+  ✓  63 documents-isolation.spec.ts:196:1 › a workspace member without access sees the locked card, not the content (3.0s)
+  ✓  64 documents-isolation.spec.ts:207:1 › the other organization's shell sends a foreign document URL to the picker (2.0s)
+  ✓  65 documents-share-rules.spec.ts:66:1 › AC09 without Manage there is no way to change access, list candidates or see others (24ms)
+  ✓  66 documents-share-rules.spec.ts:89:1 › U-SH4 a person without Manage opens Share and sees their own level and sources only (2.0s)
+  ✓  67 documents-share-rules.spec.ts:115:1 › AC11 sharing to another workspace does not move the document (32ms)
+  ✓  68 documents-share-rules.spec.ts:135:1 › AC13 a second grant to the same person: keep or update, duplicates refused, one row (4.2s)
+  ✓  69 documents-share-rules.spec.ts:171:1 › AC16 leaving the workspace ends the access that came through it (35ms)
+  ✓  70 documents-share-rules.spec.ts:186:1 › AC19 the library row shows the share scope as a type and a count, never names (3.4s)
+  ✓  71 documents-share-rules.spec.ts:219:1 › AC20 opening a document's URL grants nothing; Stored-in is separate from sharing (5.7s)
+  ✓  72 documents-share-rules.spec.ts:244:1 › U-SH3 one bad recipient rejects the whole batch; the popup marks that chip only (2.9s)
+  ✓  73 documents-share-rules.spec.ts:284:1 › isolation another organization reaches neither the access nor the candidates route (17ms)
+  ✓  74 documents-share-rules.spec.ts:297:1 › FR-13 the recipient gets a document_shared inbox item with the level; groups and lowering stay silent (3.6s)
+
+
+  1) documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing 
+
+    Error: expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 2
+    Received:    1
+
+      1765 |   );
+      1766 |   const before = await readDocumentArtifacts(page, ws.owner.token, doc.id);
+    > 1767 |   expect(before.versionNumbers.length).toBeGreaterThanOrEqual(2);
+           |                                        ^
+      1768 |   expect(before.commentIds.length).toBe(1);
+      1769 |   expect(before.shareIds.length).toBe(1);
+      1770 |
+
+    Error Context: test-results/documents-folders-FD-A10-m-1b709-nks-and-Từ-nơi-khác-listing/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A10-m-1b709-nks-and-Từ-nơi-khác-listing/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A10-m-1b709-nks-and-Từ-nơi-khác-listing/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing 
+  3 skipped
+  70 passed (5.1m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=1/6
+  1 failed
+  3 skipped
+  70 passed (5.1m)
+  ✘  44 documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing (305ms)
+
+E2E_SUITE1_EXIT=1
