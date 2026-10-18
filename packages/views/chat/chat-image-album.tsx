@@ -229,7 +229,7 @@ function ChatImageAlbumRowImpl({
   const closeViewer = useCallback(() => setViewing(null), []);
   const image = viewing === null ? undefined : album[viewing];
   const src = useViewerSrc(workspaceId, roomId, image, closeViewer);
-  const { busy, download } = useChatFileDownload(workspaceId, roomId);
+  const { busy, download } = useChatFileDownload(workspaceId, roomId, image?.id);
   const head = album[0];
   const last = album[album.length - 1];
   if (!head || !last) return null;

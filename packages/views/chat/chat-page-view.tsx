@@ -54,6 +54,7 @@ import { ChatPageAuthLoading } from "./chat-page-auth-loading";
 import { givenNameOf } from "./chat-initials";
 import { ChatPageContent } from "./chat-page-content";
 import { ChatSeenByProvider, useChatSeenBy } from "./chat-seen-by";
+import { useChatDeliveredAt } from "./chat-delivered";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useUrlRoomPending } from "./use-chat-page-panels";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
@@ -369,6 +370,7 @@ export function ChatPageView({
   );
   const seenBy = useChatSeenBy(activeRoomRecord, activeRoomMembers, nameContext, currentUserId);
   const peerLastReadAt = target.kind === "dm" ? (activeRoomRecord?.peer_last_read_at ?? null) : seenBy.lastReadAt;
+  const deliveredAt = useChatDeliveredAt(activeRoomRecord, activeRoomMembers, currentUserId);
   const roomPreviewsByRoomId = useMemo(
     () => applyKnownPeopleToRoomPreviews(rawRoomPreviews, nameContext),
     [nameContext, rawRoomPreviews],
@@ -438,7 +440,7 @@ export function ChatPageView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ChatSeenByProvider value={seenBy.value}>
+      <ChatSeenByProvider value={seenBy.value} deliveredAt={deliveredAt}>
         <ChatPageContent
           target={target}
           setTarget={setTarget}

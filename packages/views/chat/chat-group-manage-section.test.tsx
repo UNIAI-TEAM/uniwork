@@ -29,6 +29,7 @@ describe("ChatGroupManageSection", () => {
             allow_create_notes: true,
             allow_create_polls: true,
             allow_send_messages: true,
+            allow_forward: true,
           }}
         />,
       ),
@@ -36,5 +37,6 @@ describe("ChatGroupManageSection", () => {
 
     expect(screen.getByText("Cho phép các thành viên trong nhóm:")).toBeInTheDocument();
     expect(screen.getByText("Gửi tin nhắn")).toBeInTheDocument();
+    expect(screen.getByText("Chuyển tiếp tin nhắn sang cuộc trò chuyện khác")).toBeInTheDocument();
   });
 });

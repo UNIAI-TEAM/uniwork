@@ -240,6 +240,7 @@ export async function patchChatRoom(
     allow_create_notes: true,
     allow_create_polls: true,
     allow_send_messages: true,
+    allow_forward: true,
   }, {
     endpoint: "PATCH /api/v1/workspaces/{ws}/chat/rooms/{roomID}",
   });

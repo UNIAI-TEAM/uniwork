@@ -877,6 +877,30 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
+  // ✓✓ grey: a member's device acknowledged the room, so only its members (their cursors) refetch.
+  it("refreshes only the room's members on chat.room.member_delivered", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.member_delivered", payload: { room_id: "dm1", user_id: "u2" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomMembers("ws1", "dm1"))]);
+    vi.useRealTimers();
+  });
+
+  // ADR 0035: a stored link card refreshes only that room's cards.
+  it("refreshes only the room's link cards on chat.message.preview_ready", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.message.preview_ready", payload: { room_id: "g1", message_id: "m1" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomLinkPreviewsRoom("ws1", "g1"))]);
+    vi.useRealTimers();
+  });
+
   it("invalidates message links on chat.message.linked without dropping message cache", () => {
     const qc = new QueryClient();
     const messages = [

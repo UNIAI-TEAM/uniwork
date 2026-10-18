@@ -13,6 +13,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
 import { useFreshChatMediaUrl } from "./use-chat-media-url";
@@ -23,6 +24,7 @@ import { useMessageActionsReveal } from "./use-message-actions-reveal";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
 import { useChatMessageLinksFor } from "./chat-message-links-context";
 import { MessageTaskCard } from "./message-task-card";
+import { VoiceSpeedPill, VoiceTranscriptBlock, VoiceTranscriptChip, useVoiceTranscript } from "./chat-voice-transcript";
 
 /** A fixed sound-wave silhouette (the canvas's own): decoration, not the recording's real levels, in px. */
 const WAVE_BARS = [8, 14, 20, 12, 24, 18, 26, 16, 10, 22, 26, 14, 8, 18, 24, 12, 20, 26, 16, 10, 14, 22, 18, 8, 12, 24, 20, 14, 26, 16, 10, 18, 12, 8, 14, 10];
@@ -64,6 +66,8 @@ function VoicePlayer({
   const playing = status === "playing";
   const active = status === "playing" || status === "paused";
   const played = active && durationMs > 0 ? Math.min(positionMs / durationMs, 1) : 0;
+  // A note still sending has no server id to transcribe yet.
+  const transcript = useVoiceTranscript(workspaceId, message.id, !message.deliveryStatus);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -136,8 +140,10 @@ function VoicePlayer({
               </>
             ) : null}
           </span>
-          <span className={cn("flex items-center gap-2 text-caption tabular-nums", isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
+          <span className={cn("flex flex-wrap items-center gap-2 text-caption tabular-nums", isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>
             {active ? `${formatDuration(positionMs)} / ${formatDuration(durationMs)}` : formatDuration(durationMs)}
+            {active ? <VoiceSpeedPill isOwn={isOwn} /> : null}
+            <VoiceTranscriptChip transcript={transcript} isOwn={isOwn} />
             {meta}
           </span>
         </span>
@@ -147,6 +153,7 @@ function VoicePlayer({
           {t("chat.voice_load_failed")}
         </p>
       ) : null}
+      <VoiceTranscriptBlock transcript={transcript} isOwn={isOwn} />
     </div>
   );
 }
@@ -253,6 +260,7 @@ function ChatVoiceMessageRowImpl({
                   {senderLabel}
                 </p>
               ) : null}
+              <ChatForwardedLabel message={message} isOwn={isOwn} />
               <VoicePlayer
                 workspaceId={workspaceId}
                 roomId={roomId}
@@ -270,7 +278,7 @@ function ChatVoiceMessageRowImpl({
               />
             ) : null}
             <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
-            <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
+            <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
           </div>
           <ChatMessageHoverActions
             message={message}

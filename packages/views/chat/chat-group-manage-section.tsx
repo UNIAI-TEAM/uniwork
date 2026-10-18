@@ -16,6 +16,7 @@ const defaultPermissions = (): ChatRoomMemberPermissions => ({
   allow_create_notes: true,
   allow_create_polls: true,
   allow_send_messages: true,
+  allow_forward: true,
 });
 
 type PermissionKey = keyof ChatRoomMemberPermissions;
@@ -26,6 +27,7 @@ const permissionKeys: PermissionKey[] = [
   "allow_create_notes",
   "allow_create_polls",
   "allow_send_messages",
+  "allow_forward",
 ];
 
 export function ChatGroupManageSection({
@@ -34,6 +36,8 @@ export function ChatGroupManageSection({
   roomId,
   permissions,
   canManage,
+  keys = permissionKeys,
+  title,
 }: {
   /** Lets the "Manage" toggle point at this section (aria-controls). */
   id?: string;
@@ -41,6 +45,9 @@ export function ChatGroupManageSection({
   roomId: string;
   permissions?: ChatRoomMemberPermissions | null;
   canManage: boolean;
+  /** The switches to show; a channel offers only forwarding. */
+  keys?: PermissionKey[];
+  title?: string;
 }) {
   const { t } = useTranslation();
   const updateSettings = useUpdateChatRoomSettings(workspaceId);
@@ -65,9 +72,9 @@ export function ChatGroupManageSection({
   // a checkbox waiting for a Save that does not exist.
   return (
     <section id={id} className="border-t-8 border-muted px-5 pt-3.5 pb-4">
-      <p className="mb-1 text-body font-semibold text-foreground">{t("chat.settings_group_permissions_title")}</p>
+      <p className="mb-1 text-body font-semibold text-foreground">{title ?? t("chat.settings_group_permissions_title")}</p>
       <ul className="divide-y divide-border">
-        {permissionKeys.map((key) => (
+        {keys.map((key) => (
           <li key={key} className="flex min-h-13 items-center justify-between gap-4 py-1.5">
             <Label
               htmlFor={`chat-perm-${roomId}-${key}`}

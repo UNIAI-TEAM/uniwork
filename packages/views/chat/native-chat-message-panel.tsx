@@ -28,6 +28,8 @@ import type { ChatMessageLinkRecord } from "@uniwork/core/api/endpoints/chat-lin
 import type { ChatMessage } from "./chat-messages";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import { ChatMessageLinksProvider } from "./chat-message-links-context";
+import { ChatLinkPreviewsProvider } from "./chat-link-preview-card";
+import { ChatForwardContext } from "./chat-forward-context";
 import { ChatPeerReadAtContext } from "./chat-message-parts";
 import { CHAT_WALL } from "./chat-wall";
 import { toastChatError } from "./chat-error-message";
@@ -260,6 +262,7 @@ export function NativeChatMessagePanel({
     taskLinkActions,
     onFollowUp,
     onEditMessage,
+    canModerate,
   });
 
   useEffect(() => {
@@ -516,28 +519,32 @@ export function NativeChatMessagePanel({
         >
           {/* One readable column however wide the window is; the side thread is narrower (canvas). */}
           <div className={sideThreadPanel ? "w-full p-4" : "mx-auto w-full max-w-195 px-3 pt-5 pb-3 sm:px-7"}>
-            <ChatMessageLinksProvider value={linksValue}>
-              <ChatPeerReadAtContext.Provider value={receiptReadAt}>
-                <VirtualChatMessageList
-                  key={roomId}
-                  messages={messages}
-                  scrollRef={scrollRef}
-                  stickToBottomRef={stickToBottomRef}
-                  programmaticScrollRef={programmaticScrollRef}
-                  highlightMessageId={highlightMessageId}
-                  onHighlightShown={focusChatMessage}
-                  header={listHeader}
-                  empty={
-                    latestPending ? (
-                      <ChatMessagesSkeleton className="px-0" />
-                    ) : (
-                      (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
-                    )
-                  }
-                  renderMessage={renderMessage}
-                />
-              </ChatPeerReadAtContext.Provider>
-            </ChatMessageLinksProvider>
+            <ChatLinkPreviewsProvider workspaceId={workspaceId} roomId={roomId} messages={messages}>
+              <ChatMessageLinksProvider value={linksValue}>
+                <ChatPeerReadAtContext.Provider value={receiptReadAt}>
+                  <ChatForwardContext.Provider value={actions.onForward ?? null}>
+                    <VirtualChatMessageList
+                      key={roomId}
+                      messages={messages}
+                      scrollRef={scrollRef}
+                      stickToBottomRef={stickToBottomRef}
+                      programmaticScrollRef={programmaticScrollRef}
+                      highlightMessageId={highlightMessageId}
+                      onHighlightShown={focusChatMessage}
+                      header={listHeader}
+                      empty={
+                        latestPending ? (
+                          <ChatMessagesSkeleton className="px-0" />
+                        ) : (
+                          (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
+                        )
+                      }
+                      renderMessage={renderMessage}
+                    />
+                  </ChatForwardContext.Provider>
+                </ChatPeerReadAtContext.Provider>
+              </ChatMessageLinksProvider>
+            </ChatLinkPreviewsProvider>
             {threadRoot || anchorMessages ? null : <ChatTypingBubble userIds={typingUserIds} nameContext={nameContext} />}
           </div>
         </div>

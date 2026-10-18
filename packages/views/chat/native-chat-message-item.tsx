@@ -34,6 +34,8 @@ export type NativeChatMessageActions = {
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
+  /** Absent when the room turned forwarding off for the viewer (the hover menu reads it through ChatForwardContext). */
+  onForward?: (message: ChatMessage) => void;
 };
 
 /** What every row in one room shares; built once per change, not per row. */

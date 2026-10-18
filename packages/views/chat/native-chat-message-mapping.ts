@@ -35,6 +35,7 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
     threadRootId: record.thread_root_id,
     replyCount: record.reply_count,
     lastReplyAt: record.last_reply_at ? Date.parse(record.last_reply_at) : undefined,
+    threadParticipantIds: record.thread_participant_ids,
     threadUnread: record.thread_unread,
     editedAt: record.edited_at ? Date.parse(record.edited_at) : undefined,
     pinned: record.pinned,
@@ -126,6 +127,9 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
       record.priority === "important" || record.priority === "urgent"
         ? record.priority
         : undefined,
+    forwardedFrom: record.forwarded_from
+      ? { senderId: record.forwarded_from.sender_id, senderName: record.forwarded_from.sender_name }
+      : undefined,
     clientMsgId: record.client_msg_id,
   };
 }

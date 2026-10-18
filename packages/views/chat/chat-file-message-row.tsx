@@ -6,6 +6,7 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
 import { isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
@@ -135,6 +136,7 @@ function ChatFileMessageRowImpl({
                     {senderLabel}
                   </p>
                 ) : null}
+                <ChatForwardedLabel message={message} isOwn={isOwn} className={photo ? "px-2.25 pt-1" : "px-1"} />
                 {replyToMessage ? (
                   <div className={cn(photo ? "px-1 pt-1" : undefined)}>
                     <ChatReplyQuote
@@ -166,7 +168,7 @@ function ChatFileMessageRowImpl({
                 {gif ? <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall /> : null}
               </div>
               <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
-              <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
+              <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
               <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
             </div>
             <ChatMessageHoverActions

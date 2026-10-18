@@ -674,6 +674,7 @@ describe("canSendInRoom (web use-resolved-room-permissions parity)", () => {
     allow_create_notes: true,
     allow_create_polls: true,
     allow_send_messages: false,
+    allow_forward: true,
   };
 
   it("sends by default, and not when the room closes sending or the caller is restricted", () => {

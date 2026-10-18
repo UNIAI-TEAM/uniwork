@@ -118,6 +118,7 @@
     "./chat/use-chat-presence-sync": "./chat/use-chat-presence-sync.ts",
     "./chat/use-chat-presence-heartbeat": "./chat/use-chat-presence-heartbeat.ts",
     "./chat/use-chat-room-read-sync": "./chat/use-chat-room-read-sync.ts",
+    "./chat/use-chat-delivery-acks": "./chat/use-chat-delivery-acks.ts",
     "./chat/read-receipt-utils": "./chat/read-receipt-utils.ts",
     "./chat/typing-user-id": "./chat/typing-user-id.ts",
     "./chat/user-lookup": "./chat/user-lookup.ts",

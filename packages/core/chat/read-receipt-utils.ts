@@ -59,6 +59,7 @@ export function latestSeenOwnMessageIndex(
 }
 
 type ReadPointer = { user_id: string; last_read_at?: string | null };
+type DeliveryPointer = ReadPointer & { last_delivered_at?: string | null };
 
 /**
  * The members of a group or channel whose read cursor has reached this
@@ -102,4 +103,26 @@ export function furthestReadAt(members: readonly ReadPointer[], selfId: string):
     }
   }
   return best;
+}
+
+/**
+ * How far every member but `selfId` has received the room (✓✓ grey), or
+ * null while one of them has not (or nobody else is in it): the earliest of
+ * their delivered cursors, a read counting as delivered. A DM's is its peer's.
+ */
+export function deliveredToAllAt(members: readonly DeliveryPointer[], selfId: string): string | null {
+  let earliest: string | null = null;
+  let earliestTs = Infinity;
+  for (const member of members) {
+    if (member.user_id === selfId) continue;
+    const read = member.last_read_at ? Date.parse(member.last_read_at) : Number.NaN;
+    const delivered = member.last_delivered_at ? Date.parse(member.last_delivered_at) : Number.NaN;
+    const ts = Math.max(Number.isNaN(read) ? -Infinity : read, Number.isNaN(delivered) ? -Infinity : delivered);
+    if (ts === -Infinity) return null;
+    if (ts < earliestTs) {
+      earliestTs = ts;
+      earliest = new Date(ts).toISOString();
+    }
+  }
+  return earliest;
 }

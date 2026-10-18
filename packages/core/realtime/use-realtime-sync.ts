@@ -187,8 +187,9 @@ function keysFor(
       }
       break;
     }
-    case "chat.room.member_read": {
-      // Someone's read cursor moved: only this room's "N người đã xem" changes.
+    case "chat.room.member_read":
+    case "chat.room.member_delivered": {
+      // Someone's read or delivered cursor moved: only this room's receipts change.
       if (payload.room_id) push(chatKeys.roomMembers(wsId, payload.room_id));
       break;
     }
@@ -205,6 +206,11 @@ function keysFor(
       if (payload.room_id) {
         push(chatKeys.voiceRecordings(wsId, payload.room_id));
       }
+      break;
+    }
+    case "chat.message.preview_ready": {
+      // A message's link card is stored (ADR 0035): the open timeline asks again.
+      if (payload.room_id) push(chatKeys.roomLinkPreviewsRoom(wsId, payload.room_id));
       break;
     }
     case "chat.follow_up.created":
