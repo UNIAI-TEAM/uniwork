@@ -163,6 +163,8 @@ Response `200` theo route tạo:
 - route workspace → `DocumentSDO` (tài liệu đã tạo, như `POST .../documents/files` trả `201`);
 - route tài liệu và route frame → `DocumentUploadSDO` `{upload_id, checksum_sha256, size_bytes, claim_expires_at}` rồi commit như hiện có (`POST /documents/{id}/versions/commit` hoặc `/office-frame/documents/{id}/versions/commit`).
 
+Lưu tệp mà checksum trùng phiên bản hiện hành trả **200** với đúng phiên bản đó (UNI-1900): không claim upload đã staged, không tăng quota, không thêm version, không đổi pointer/revision, không audit/outbox. Không dùng 409 `document_version_unchanged` (mã đó vẫn chỉ dành cho checkpoint trang). Base cũ vẫn 409 `document_version_conflict`; khóa sửa vẫn 423 trước bước so checksum. Output của office job và restore vẫn luôn tạo version.
+
 Kiểm tra có thể kéo dài với tệp 200 MB: request `complete` giữ kết nối tới khi xong (client hiện "Đang kiểm tra tệp…"). Nếu proxy cắt kết nối, client gọi lại `complete` (idempotent) hoặc `GET` để đọc trạng thái `validating` / `completed`.
 
 ### 6.5 Huỷ, GC, giới hạn
