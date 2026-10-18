@@ -24,6 +24,7 @@ import {
   useSendChatThreadMessage,
   useSendChatVoiceMessage,
   useSendChatFileMessage,
+  useSetChatRoomAvatar,
   useChatSendOutboxCount,
   useSyncChatRoomsOnAuth,
 } from "@uniwork/core/chat";
@@ -97,6 +98,7 @@ export function ChatPageView({
   const resolveDMRef = useRef(resolveDM);
   resolveDMRef.current = resolveDM;
   const createGroup = useCreateChatGroup(workspaceId);
+  const setRoomAvatar = useSetChatRoomAvatar(workspaceId);
   const inviteMembers = useInviteChatGroupMembers(workspaceId);
   const leaveRoom = useLeaveChatRoom(workspaceId);
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
@@ -315,6 +317,7 @@ export function ChatPageView({
       sendThreadMessage,
       resolveDM,
       createGroup,
+      setRoomAvatar,
       inviteMembers,
       leaveRoom,
       setConnectError,

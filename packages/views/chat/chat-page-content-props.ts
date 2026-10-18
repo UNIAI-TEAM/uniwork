@@ -72,7 +72,7 @@ export type ChatPageContentProps = {
   channelSettingsOpen: boolean;
   onChannelSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   creatingGroup: boolean;
-  onCreateGroup: (members: ChatContact[], name: string) => void;
+  onCreateGroup: (members: ChatContact[], name: string, avatar: File | null) => void;
   invitingMembers: boolean;
   onAddGroupMembers: (members: ChatContact[]) => void;
   leavingConversation: boolean;

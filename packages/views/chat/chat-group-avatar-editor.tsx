@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Camera, Trash2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -48,44 +48,27 @@ function GroupAvatarCameraBadge() {
   );
 }
 
-const GROUP_AVATAR_BADGE_BUTTON_CLASS =
-  "absolute -right-3.5 -bottom-3.5 size-11 rounded-full p-0 hover:bg-transparent aria-expanded:bg-transparent";
-
 /**
- * The group settings hero's mark. Members who may rename the group (the same
- * rule: canChangeProfile) get the camera badge: it picks a photo, or — once
- * the group has one — opens "Đổi ảnh nhóm" / "Gỡ ảnh nhóm".
+ * The camera badge and its file picker, at the bottom-right of a group's mark.
+ * Without a photo it picks one; with one it opens "Đổi ảnh nhóm" / "Gỡ ảnh
+ * nhóm". A file of another type or over 2 MiB is refused here, before it goes
+ * anywhere.
  */
-export function ChatGroupAvatarEditor({
-  workspaceId,
-  roomId,
-  tint,
-  imageUrl,
-  canEdit,
+function GroupAvatarBadge({
+  hasPhoto,
+  pending = false,
+  onFile,
+  onRemove,
 }: {
-  workspaceId: string;
-  roomId: string;
-  tint: Tint;
-  imageUrl?: string;
-  canEdit: boolean;
+  hasPhoto: boolean;
+  pending?: boolean;
+  onFile: (file: File) => void;
+  onRemove: () => void;
 }) {
   const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
-  const setAvatar = useSetChatRoomAvatar(workspaceId);
-  const pending = setAvatar.isPending;
-  const mark = <ChatSettingsRoomMark icon={Users} tint={tint} imageUrl={imageUrl} />;
-  if (!canEdit) return mark;
-
-  const send = (file: File | null) =>
-    setAvatar.mutate({ roomId, file }, { onError: (err) => toastGroupAvatarError(err, t, t("chat.group_avatar_failed")) });
   const pick = () => {
     if (!pending) fileRef.current?.click();
-  };
-  const onPicked = (file: File | undefined) => {
-    if (!file) return;
-    const problem = groupAvatarFileProblem(file, t);
-    if (problem) toast.error(problem);
-    else send(file);
   };
   const label = t("chat.group_avatar_change");
   const badgeButton = (props: { onClick?: () => void; children?: ReactNode }) => (
@@ -93,7 +76,7 @@ export function ChatGroupAvatarEditor({
       type="button"
       variant="ghost"
       size="icon"
-      className={GROUP_AVATAR_BADGE_BUTTON_CLASS}
+      className="absolute -right-3.5 -bottom-3.5 size-11 rounded-full p-0 hover:bg-transparent aria-expanded:bg-transparent"
       aria-label={label}
       title={label}
       aria-disabled={pending || undefined}
@@ -103,14 +86,8 @@ export function ChatGroupAvatarEditor({
   );
 
   return (
-    <div className="relative">
-      {mark}
-      {pending ? (
-        <span className="absolute inset-0 flex items-center justify-center rounded-2xl bg-background/70">
-          <Spinner label={t("chat.group_avatar_uploading")} className="size-5 text-foreground" />
-        </span>
-      ) : null}
-      {imageUrl && !pending ? (
+    <>
+      {hasPhoto && !pending ? (
         <DropdownMenu>
           <DropdownMenuTrigger render={badgeButton({})}>
             <GroupAvatarCameraBadge />
@@ -120,7 +97,7 @@ export function ChatGroupAvatarEditor({
               <Camera className="size-4" aria-hidden />
               {label}
             </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onClick={() => send(null)}>
+            <DropdownMenuItem variant="destructive" onClick={onRemove}>
               <Trash2 className="size-4" aria-hidden />
               {t("chat.group_avatar_remove")}
             </DropdownMenuItem>
@@ -140,9 +117,74 @@ export function ChatGroupAvatarEditor({
           const file = event.target.files?.[0];
           // Cleared so picking the same file again after a refusal fires onChange.
           event.target.value = "";
-          onPicked(file);
+          if (!file) return;
+          const problem = groupAvatarFileProblem(file, t);
+          if (problem) toast.error(problem);
+          else onFile(file);
         }}
       />
+    </>
+  );
+}
+
+/**
+ * The group settings hero's mark. Members who may rename the group (the same
+ * rule: canChangeProfile) get the camera badge, and the photo goes up at once.
+ */
+export function ChatGroupAvatarEditor({
+  workspaceId,
+  roomId,
+  tint,
+  imageUrl,
+  canEdit,
+}: {
+  workspaceId: string;
+  roomId: string;
+  tint: Tint;
+  imageUrl?: string;
+  canEdit: boolean;
+}) {
+  const { t } = useTranslation();
+  const setAvatar = useSetChatRoomAvatar(workspaceId);
+  const pending = setAvatar.isPending;
+  const mark = <ChatSettingsRoomMark icon={Users} tint={tint} imageUrl={imageUrl} />;
+  if (!canEdit) return mark;
+
+  const send = (file: File | null) =>
+    setAvatar.mutate({ roomId, file }, { onError: (err) => toastGroupAvatarError(err, t, t("chat.group_avatar_failed")) });
+
+  return (
+    <div className="relative">
+      {mark}
+      {pending ? (
+        <span className="absolute inset-0 flex items-center justify-center rounded-2xl bg-background/70">
+          <Spinner label={t("chat.group_avatar_uploading")} className="size-5 text-foreground" />
+        </span>
+      ) : null}
+      <GroupAvatarBadge hasPhoto={Boolean(imageUrl)} pending={pending} onFile={send} onRemove={() => send(null)} />
+    </div>
+  );
+}
+
+/**
+ * The create-group dialog's photo: chosen and previewed here, uploaded by the
+ * caller once the group exists (it has no room id before).
+ */
+export function ChatGroupAvatarPicker({ file, onFileChange }: { file: File | null; onFileChange: (file: File | null) => void }) {
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>();
+  useEffect(() => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+      setPreviewUrl(undefined);
+    };
+  }, [file]);
+  return (
+    <div className="relative shrink-0">
+      <ChatSettingsRoomMark icon={Users} tint="violet" imageUrl={previewUrl} />
+      <GroupAvatarBadge hasPhoto={Boolean(file)} onFile={onFileChange} onRemove={() => onFileChange(null)} />
     </div>
   );
 }

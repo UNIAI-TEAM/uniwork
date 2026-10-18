@@ -191,9 +191,9 @@ export const ChatSidebar = memo(function ChatSidebar({
     [channels, contacts, groups, nicknamesByUserId, onQuickCatchUp, unreadByRoomId, workspaceRoomId, workspaceTitle],
   );
 
-  const handleCreateGroup = (members: ChatContact[], name: string) => {
+  const handleCreateGroup = (members: ChatContact[], name: string, avatar: File | null) => {
     if (!onCreateGroup) return;
-    onCreateGroup(members, name);
+    onCreateGroup(members, name, avatar);
   };
   const openStartDm = useCallback(() => setStartDmOpen(true), []);
   const openCreateGroup = onCreateGroup ? () => setCreateGroupOpen(true) : undefined;

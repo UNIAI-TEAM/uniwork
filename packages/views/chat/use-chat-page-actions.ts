@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import {
@@ -21,6 +22,7 @@ import type {
   useLeaveChatRoom,
   useResolveDMRoom,
   useSendChatRoomMessage,
+  useSetChatRoomAvatar,
 } from "@uniwork/core/chat";
 import type { ChatMessage } from "./chat-messages";
 import type { ChatSidebarTarget } from "./chat-sidebar";
@@ -45,6 +47,7 @@ export function useChatPageActions({
   sendThreadMessage,
   resolveDM,
   createGroup,
+  setRoomAvatar,
   inviteMembers,
   leaveRoom,
   setConnectError,
@@ -87,6 +90,7 @@ export function useChatPageActions({
   };
   resolveDM: Pick<ReturnType<typeof useResolveDMRoom>, "mutateAsync">;
   createGroup: Pick<ReturnType<typeof useCreateChatGroup>, "mutateAsync">;
+  setRoomAvatar: Pick<ReturnType<typeof useSetChatRoomAvatar>, "mutateAsync">;
   inviteMembers: Pick<ReturnType<typeof useInviteChatGroupMembers>, "mutateAsync">;
   leaveRoom: Pick<ReturnType<typeof useLeaveChatRoom>, "mutateAsync">;
   setConnectError: React.Dispatch<React.SetStateAction<string | null>>;
@@ -249,7 +253,7 @@ export function useChatPageActions({
   );
 
   const handleCreateGroup = useCallback(
-    (members: ChatContact[], name: string) => {
+    (members: ChatContact[], name: string, avatar: File | null = null) => {
       if (members.length < 2) return;
       setCreatingGroup(true);
       setConnectError(null);
@@ -269,6 +273,12 @@ export function useChatPageActions({
           };
           setTarget({ kind: "group", group });
           setCreateGroupOpen(false);
+          // The group exists either way: a photo that does not follow is a toast, not a failed create.
+          if (avatar) {
+            setRoomAvatar
+              .mutateAsync({ roomId: room.id, file: avatar })
+              .catch(() => toast.error(t("chat.group_avatar_failed_after_create")));
+          }
         })
         .catch((err: unknown) => {
           setConnectError(apiErrorMessage(err) ?? t("chat.group_failed"));
@@ -277,7 +287,7 @@ export function useChatPageActions({
           setCreatingGroup(false);
         });
     },
-    [createGroup, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup, t],
+    [createGroup, setRoomAvatar, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup, t],
   );
 
   const handleAddGroupMembers = useCallback(

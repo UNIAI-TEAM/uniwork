@@ -13,6 +13,7 @@ import {
   FormDialogHeader,
 } from "../common/form-dialog";
 import { CHAT_DIALOG_CLASS } from "./chat-dialog-look";
+import { ChatGroupAvatarPicker } from "./chat-group-avatar-editor";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberLookupResult,
@@ -38,13 +39,15 @@ export function CreateGroupDialog({
   workspaceId: string;
   currentUserId: string;
   creating?: boolean;
-  onCreate: (members: ChatContact[], name: string) => void;
+  /** `avatar` is uploaded by the caller once the group exists. */
+  onCreate: (members: ChatContact[], name: string, avatar: File | null) => void;
 }) {
   const { t } = useTranslation();
   const [groupName, setGroupName] = useState("");
   const [memberQuery, setMemberQuery] = useState("");
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
+  const [avatar, setAvatar] = useState<File | null>(null);
 
   const pickerFocus = useMemberPickerFocus();
   const excludeUserIds = useMemo(
@@ -67,6 +70,7 @@ export function CreateGroupDialog({
     setMemberQuery("");
     setSearchSubmitted(false);
     setPendingMembers([]);
+    setAvatar(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -102,7 +106,7 @@ export function CreateGroupDialog({
 
   const submit = () => {
     if (!canCreate) return;
-    onCreate(pendingMembers, groupName.trim());
+    onCreate(pendingMembers, groupName.trim(), avatar);
   };
 
   return (
@@ -113,18 +117,21 @@ export function CreateGroupDialog({
           description={t("chat.create_group_description")}
         />
         <FormDialogBody>
-          <div className="space-y-2">
-            <Label htmlFor="group-name" className="text-label font-semibold">
-              {t("chat.group_name_optional_label")}
-            </Label>
-            <Input
-              id="group-name"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              placeholder={t("chat.group_name_placeholder")}
-              maxLength={80}
-              autoFocus
-            />
+          <div className="flex items-center gap-5">
+            <ChatGroupAvatarPicker file={avatar} onFileChange={setAvatar} />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Label htmlFor="group-name" className="text-label font-semibold">
+                {t("chat.group_name_optional_label")}
+              </Label>
+              <Input
+                id="group-name"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder={t("chat.group_name_placeholder")}
+                maxLength={80}
+                autoFocus
+              />
+            </div>
           </div>
 
           <SelectedMemberChips

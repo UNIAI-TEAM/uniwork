@@ -4,8 +4,11 @@ import { initI18n } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
 import { resetChatSendOutboxForTests } from "@uniwork/core/chat/send-outbox-store";
 import { resetPendingChatMessagesForTests } from "@uniwork/core/chat/pending-messages-store";
+import { toast } from "sonner";
 import { useChatPageActions } from "./use-chat-page-actions";
 import type { ChatMessage } from "./chat-messages";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() } }));
 
 beforeAll(() => {
   initI18n();
@@ -43,6 +46,7 @@ function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> 
     sendRoomMessage: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
     resolveDM: { mutateAsync: vi.fn() },
     createGroup: { mutateAsync: vi.fn().mockResolvedValue({ id: "g1", name: "Squad", member_user_ids: ["u2"] }) },
+    setRoomAvatar: { mutateAsync: vi.fn().mockResolvedValue(null) },
     inviteMembers: { mutateAsync: vi.fn() },
     leaveRoom: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
     setConnectError,
@@ -189,6 +193,27 @@ describe("useChatPageActions", () => {
       });
       expect(deps.setCreateGroupOpen).toHaveBeenCalledWith(false);
     });
+  });
+
+  it("uploads the photo picked in the dialog once the group exists; a failed upload keeps the group", async () => {
+    const deps = buildDeps({ setRoomAvatar: { mutateAsync: vi.fn().mockRejectedValue(new Error("413")) } });
+    const members = [
+      { user_id: "u1", email: "a@example.com", display_name: "A" },
+      { user_id: "u2", email: "b@example.com", display_name: "B" },
+    ];
+    const photo = new File(["png"], "g.png", { type: "image/png" });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    act(() => {
+      result.current.handleCreateGroup(members, "Squad", photo);
+    });
+
+    await waitFor(() => {
+      expect(deps.setRoomAvatar.mutateAsync).toHaveBeenCalledWith({ roomId: "g1", file: photo });
+      expect(toast.error).toHaveBeenCalledWith("Đã tạo nhóm nhưng chưa tải được ảnh lên. Đổi ảnh trong Cài đặt nhóm.");
+    });
+    expect(deps.setTarget).toHaveBeenCalledWith({ kind: "group", group: expect.objectContaining({ id: "g1" }) });
+    expect(deps.setConnectError).not.toHaveBeenCalledWith(expect.any(String));
   });
 
   it("lets the server name a group left unnamed", async () => {
