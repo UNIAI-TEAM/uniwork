@@ -1,6 +1,6 @@
 # Tài liệu — Giới hạn 200 MB, tải lên tệp lớn, gợi ý mở bằng app khi lag (addendum, phía D)
 
-> **Trạng thái:** in-progress — Contract r2 Advisor duyệt 2026-10-16 23:35 (UTC+7); r2 = route theo phiên riêng cho frame + chủ thể mở phiên; r4 (2026-10-17, size-cap:006) = chỉnh §6 theo contract BIGUP-S1 `2026-10-17-bigup-upload-sessions-contract.md`. Lát SIZE-SPEC (UNI-1858) của lane size-cap (UNI-1857).
+> **Trạng thái:** shipped — mọi thẻ của lane size-cap (UNI-1857) đã vào root G5-G7 (đến 1c7760c5f, 2026-10-19); danh sách và việc để sau ở §11. Lịch sử: contract r2 Advisor duyệt 2026-10-16 23:35 (UTC+7) (route theo phiên riêng cho frame + chủ thể mở phiên); r3 trần đầu vào engine 383 MiB (size-cap:005); r4 (2026-10-17, size-cap:006) chỉnh §6 theo contract BIGUP-S1 `2026-10-17-bigup-upload-sessions-contract.md`; r5 banner lag ẩn khi không mở được app (§5); r6 BIGUP-LOCKCHECK (§6.2); r7 VERSION-DEDUP lưu trùng checksum không tạo phiên bản (§6.4). Lát SIZE-SPEC (UNI-1858) của lane size-cap (UNI-1857).
 
 **Ngày:** 2026-10-16 · **Nguồn quyết định:** `briefs/size-thresholds-proposal-2026-10-16.md` §0 (D-S1, D-S2, D-S3 user ký 18:20), `briefs/plan-size-cap-2026-10-16.md`, quyết định Advisor `reports/g5-fork_main/advisor-size-decisions-2026-10-16.md` (OQ-SIZE-1..5, BENCH-01), contract fork `contract-size-frame-v0.1` r3 · **Vùng:** `server/internal/{config,handler,service,files,document,storage}`, `server/migrations`, `packages/core/{api,office}`, `packages/views/office`, `apps/web/platform/office-frame`
 
@@ -215,3 +215,30 @@ Khoá cuối cùng theo `docs/conventions.md` (worker chọn chỗ đặt trong 
 - SIZE-W1: từ chối trước khi gửi (không có request) + tệp khác vẫn tải; fallback khi config hỏng; trần tải xuống 256 MiB; chip một lần; hộp thoại không mất bản; `doc.download` gửi đúng; 413 nêu `{{max}}`.
 - LAG-W1: banner khi `lag_detected`; fallback kích thước chỉ khi không có observer; dismiss nhớ theo tài liệu; không chặn lưu.
 - BIGUP-S1/W1: theo contract BIGUP-S1.
+
+## 11. Đã giao và việc để sau (đóng SIZE-SPEC, 2026-10-19)
+
+Các thẻ xây trên addendum này, theo commit merge vào root G5-G7:
+
+| Thẻ | Issue | Merge root |
+|---|---|---|
+| SIZE-S1 + SIZE-W1a | UNI-1859, UNI-1860 | a8b2b3914 |
+| SIZE-W1b + LAG-W1 | UNI-1860, UNI-1866 | 1c20aa10e |
+| BIGUP-S1 | UNI-1862 | beff88384 |
+| SIZE-S2 (kiểm tra trên spool trước `Put`) | UNI-1870 | 844aab79f |
+| BIGUP-W1 | UNI-1863 | 98c210422 |
+| BIGUP-LOCKCHECK (r6) | UNI-1890 | f6aebb640 |
+| VERSION-DEDUP (r7) | UNI-1900 | 49c44680f |
+| UPLOAD-DIALOG-POLISH | UNI-1906 | 7b5ea5e23 |
+| FRAME-SAVE-HYGIENE | UNI-1907 | 11c6a963f |
+| UX-FLOOR-LOCKBAR (fixture e2e theo r7) | UNI-1917 | 1c7760c5f |
+
+Việc để sau, không xây trong lane này (mỗi việc cần một thẻ riêng do Advisor mở):
+
+- **SIZE-OPS1:** transport nhị phân/streaming cho job engine, để tài liệu trên 383 MiB chuyển đổi và xuất PDF được (§3, r3); hiện engine trả 413 `upload_bounds`.
+- **Phía fork (g5-fork_main):** BIGUP-A1 (phiên tải lên từ app desktop) và BENCH-01 (đo mở web theo kích thước, giữ chặn xlsx chỉ nơi tab thật sự sập).
+- **Frame, lưu bị khoá (F-1, FRAME-SAVE-HYGIENE):** frame vẫn ghi "Không lưu được tài liệu. Hãy thử lại." khi lưu bị khoá sửa từ chối; câu riêng cho khoá cần đổi ở fork.
+- **Số phiên bản trên thanh của frame (F-3):** thanh "Đã cập nhật lên phiên bản N" dùng revision tài liệu, lịch sử dùng số phiên bản; host nên gửi số phiên bản.
+- **Nhãn sau khi lấy lại khoá (F-4):** đầu trang ghi "Chưa xác nhận được việc lưu" dù lần lưu bị từ chối chứ không phải chưa xác nhận.
+- **Toast xếp chồng (P-2, UPLOAD-DIALOG-POLISH):** sonner gộp toast đang chờ dưới toast tiến trình, nút Hủy chỉ bấm được khi rê chuột; cần chỉnh Toaster chung.
+- **Ngoài phạm vi từ đầu (user chưa quyết):** quota chỉ tính bản mới nhất, chính sách giữ phiên bản.

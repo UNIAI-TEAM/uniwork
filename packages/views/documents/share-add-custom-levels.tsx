@@ -71,7 +71,7 @@ export function ShareAddCustomLevels({
                   items={allowed.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
                   onValueChange={(v) => { if (!shelved) onChangeLevel(item.key, v as DocumentAccessLevel); }}
                 >
-                  <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${item.candidate.name}: ${levelLabel(currentLvl)}`}>
+                  <SelectTrigger className="w-full" aria-label={t("documents.share.level_for", { name: item.candidate.name })}>
                     <SelectValue className="min-w-0">{levelLabel(currentLvl)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>

@@ -125,7 +125,7 @@ export function HomeWorkspaceRow({
                     void requestRowChange(homeRowKey, "workspace", homeRow.workspace_id, homeDisplayLabel, homeRow.level, v as DocumentAccessLevel)
                   }
                 >
-                  <SelectTrigger ref={(el) => setOpenerEl("level", homeRowKey, el)} className="w-full" aria-label={`${t("documents.share.level_label")} ${homeRow.workspace_name || t("documents.share.principal_workspace")}: ${levelLabel(homeRow.level)}`}>
+                  <SelectTrigger ref={(el) => setOpenerEl("level", homeRowKey, el)} className="w-full" aria-label={t("documents.share.level_for", { name: homeRow.workspace_name || t("documents.share.principal_workspace") })}>
                     <SelectValue className="min-w-0">{levelLabel(homeRow.level)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -228,7 +228,7 @@ export function ShareRow({
                     void requestRowChange(rowKey, share.principal_type as DocumentPrincipalType, share.principal_id, displayLabel, share.level, v as DocumentAccessLevel)
                   }
                 >
-                  <SelectTrigger ref={(el) => setOpenerEl("level", rowKey, el)} className="w-full" aria-label={`${t("documents.share.level_label")} ${displayLabel}: ${levelLabel(share.level)}`}>
+                  <SelectTrigger ref={(el) => setOpenerEl("level", rowKey, el)} className="w-full" aria-label={t("documents.share.level_for", { name: displayLabel })}>
                     <SelectValue className="min-w-0">{levelLabel(share.level)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>

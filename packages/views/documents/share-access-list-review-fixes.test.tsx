@@ -84,7 +84,7 @@ describe("ShareAccessList review fixes", () => {
     const user = userEvent.setup();
     render(tree(access([row({ id: "s2", principal_type: "organization", principal_id: "o1", level: "view" })])));
 
-    await user.click(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Acme: ${t("documents.share.level_view")}` }));
+    await user.click(screen.getByRole("combobox", { name: t("documents.share.level_for", { name: "Acme" }) }));
     // Wait for the popup first, so the absence check runs against rendered options.
     expect(await screen.findByRole("option", { name: t("documents.share.level_edit") })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: t("documents.share.level_manage") })).not.toBeInTheDocument();
@@ -113,7 +113,7 @@ describe("ShareAccessList review fixes", () => {
 
   it("F-W1-12: an inactive row's level select is disabled, so it cannot re-grant the row", () => {
     render(tree(access([row({ active: false })])));
-    expect(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Nguyễn An: ${t("documents.share.level_view")}` })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: t("documents.share.level_for", { name: "Nguyễn An" }) })).toBeDisabled();
     expect(screen.getByText(new RegExp(t("documents.share.inactive")))).toBeInTheDocument();
   });
 
@@ -122,7 +122,7 @@ describe("ShareAccessList review fixes", () => {
     const user = userEvent.setup();
     render(tree(access([row()])));
 
-    await user.click(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Nguyễn An: ${t("documents.share.level_view")}` }));
+    await user.click(screen.getByRole("combobox", { name: t("documents.share.level_for", { name: "Nguyễn An" }) }));
     await user.click(await screen.findByRole("option", { name: t("documents.share.level_edit") }));
 
     await waitFor(() => expect(bodies).toHaveLength(2));
@@ -143,7 +143,7 @@ describe("ShareAccessList review fixes", () => {
     const user = userEvent.setup();
     render(tree(access([row({ id: "s3", principal_type: "workspace", principal_id: "w2", level: "edit" })])));
 
-    await user.click(screen.getByRole("combobox", { name: `${t("documents.share.level_label")} Kỹ thuật: ${t("documents.share.level_edit")}` }));
+    await user.click(screen.getByRole("combobox", { name: t("documents.share.level_for", { name: "Kỹ thuật" }) }));
     await user.click(await screen.findByRole("option", { name: t("documents.share.level_view") }));
 
     const box = await screen.findByTestId("share-access-confirm");

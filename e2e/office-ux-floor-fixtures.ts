@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Frame, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import JSZip from "jszip";
 import { Client } from "pg";
 import { basename, resolve } from "node:path";
 import { e2eApiUrl } from "./api-url";
@@ -87,6 +88,9 @@ export async function makeDirty(page: Page, marker: string): Promise<void> {
  * A second writer commits a new version through the API (uploads + versions/commit
  * on the current head), carrying the open page's `edit_lock_id` so the server's
  * lock gate accepts the commit while the frame's own Save then meets a 409.
+ * The bytes differ from v1 (a zip comment; the document is unchanged): an
+ * identical file makes no new version (VERSION-DEDUP, UNI-1900), so no S6 bar
+ * and no 409 would follow.
  */
 export async function commitElsewhere(request: APIRequestContext, seeded: SeededDocx): Promise<void> {
   const auth = { authorization: `Bearer ${seeded.account.token}` };
@@ -94,9 +98,13 @@ export async function commitElsewhere(request: APIRequestContext, seeded: Seeded
   expect(got.ok(), `read head: HTTP ${got.status()}`).toBeTruthy();
   const revision = ((await got.json()) as { document: { revision: string } }).document.revision;
   const key = `ux-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const newBytes = await (await JSZip.loadAsync(readFileSync(DOCX_FIXTURE))).generateAsync({
+    type: "nodebuffer",
+    comment: `ux-floor commit elsewhere ${key}`,
+  });
   const up = await request.post(`${e2eApiUrl}/api/v1/documents/${seeded.documentId}/uploads`, {
     headers: { ...auth, "Idempotency-Key": `up-${key}` },
-    multipart: { file: { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) } },
+    multipart: { file: { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: newBytes } },
   });
   expect(up.ok(), `stage upload: HTTP ${up.status()} ${await up.text()}`).toBeTruthy();
   const { upload_id } = (await up.json()) as { upload_id: string };
