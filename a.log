@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+024e27f64f87ad58f983374769ee775c680446f7
+f6aebb6405401636d2e4dd19edd157ed143944c1
+024e27f64 chore(merge): e6-server TN 364ce43e4 (root f6aebb640) into TRASH-NOTIFY-01 web
+364ce43e4 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-1844-trash-notify
+f6aebb640 chore: merge BIGUP-LOCKCHECK refuse a large new version up front when the edit lock is held (UNI-1890, 85dbcd447) into the G5-G7 root
+85dbcd447 chore(merge): BIGUP-LOCKCHECK web half into the lockcheck branch (UNI-1890)
+f998562f4 chore(merge): G5-G7 root 98c210422 into BIGUP-LOCKCHECK (UNI-1890)
+7f73e2144 test(documents): wait for the upload limits before dropping in the chunked upload tests
+f53062023 fix(documents): keep lock_id out of the pre-check refusal fields (UNI-1890 R1-2)
+380bb2215 test(documents): pin a genuine same-actor replay and the lock's read-only state
+3587b344d chore: merge RFSH-5 Save a copy from a lock-less tab (UNI-1892, 4b1fa4fc6) into the G5-G7 root
+eb26d9485 feat(documents): pre-check edit lock before chunked version upload
