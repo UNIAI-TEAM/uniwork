@@ -897,3 +897,70 @@ describe('item 15 (round j, J-1): an integer after a location noun is exempt onl
     assert.equal(verdict(pptx, sAsk('The total is 25 (slide 3).', { ...slides, ok: false })), 'fail');
   });
 });
+
+describe('item 16 (round k, R22-1): a question echo is never a derivation operand', () => {
+  const derived = (en) => mkCase({
+    query: { vi: en, en },
+    tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
+    expected: { numeric: [{ name: 'v', value: 26, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: 26 }, structural: [], writes: 0, text: 'x' },
+  });
+  const cells = { toolResults: [{ name: 'read_range', text: readResult({ A1: 3, B1: 23 }) }] };
+  const reply = (text) => mkAsk(text, { numbers: [26] }, cells);
+
+  it('fails a sum whose second operand is shown only as the echo of the question (R22 probe A)', () => {
+    assert.equal(verdict(derived('Within 3 days, what is the total?'), reply('Within 3 days the total is 26 from 23.')), 'fail');
+  });
+
+  it('keeps the same shape without an echo failing, and both operands shown passing (probes B, C, D)', () => {
+    assert.equal(verdict(derived('What is the total?'), reply('The total is 26 from 23.')), 'fail', 'B');
+    assert.equal(verdict(derived('What is the total?'), reply('The total is 26 from 23 and 3.')), 'pass', 'C');
+    assert.equal(verdict(derived('Within 3 days, what is the total?'), reply('Within 3 days the total is 26 from 23 and 3.')), 'pass', 'D');
+  });
+
+  it('fails a derivation that needs one read value twice when the second shown occurrence is the echo', () => {
+    const twice = mkCase({
+      query: { vi: 'Within 3 days, what is the total?', en: 'Within 3 days, what is the total?' },
+      tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
+      expected: { numeric: [{ name: 'v', value: 6, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+      referenceAnswer: { numeric: { v: 6 }, structural: [], writes: 0, text: 'x' },
+    });
+    const one = { toolResults: [{ name: 'read_range', text: readResult({ A1: 3 }) }] };
+    assert.equal(verdict(twice, mkAsk('Within 3 days the total is 6, from 3 and 3.', { numbers: [6] }, one)), 'fail');
+  });
+});
+
+describe('item 17 (round k, R22-2): the heading-level count phrase accepts a preposition before the level word', () => {
+  const headings = { blocks: [{ index: 0, style: 'Heading2', preview: 'Alpha' }, { index: 1, style: 'Heading2', preview: 'Beta' }, { index: 2, style: 'Heading2', preview: 'Gamma' }] };
+  const h2 = countCaseOf({ id: 'HO-DOCX-989', format: 'docx', anchor: 'heading_level_2', value: 3, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
+  const item = { kind: 'count', anchor: 'heading_level_2', value: 3 };
+  const say = (text, report = { numbers: [3], items: [item] }) => verdict(h2, readAsk('get_document_context', 'docs', headings, text, report));
+
+  it('passes the English forms: at, of and on level, and level-2 headings', () => {
+    assert.equal(say('The document has 3 headings at level 2.'), 'pass');
+    assert.equal(say('There are 3 headings of level 2.'), 'pass');
+    assert.equal(say('There are 3 headings on level 2.'), 'pass');
+    assert.equal(say('There are 3 level-2 headings.'), 'pass');
+    assert.equal(say('The number of headings at level 2 is 3.'), 'pass');
+  });
+
+  it('passes the vietnamese forms: ở cấp, heading cấp, mục ở cấp', () => {
+    assert.equal(say('Có 3 tiêu đề ở cấp 2.'), 'pass');
+    assert.equal(say('Có 3 heading cấp 2.'), 'pass');
+    assert.equal(say('Có 3 mục ở cấp 2.'), 'pass');
+    assert.equal(say('Có 3 mục cấp 2.'), 'pass');
+  });
+
+  it('still needs an explicit level word for "mục" and a preposition needs its level word', () => {
+    assert.equal(say('Có 3 mục 2.', { numbers: [3], items: [{ kind: 'count', anchor: 'Meeting notes', value: 3 }] }), 'fail');
+    assert.equal(say('There are 3 headings at 2.'), 'fail');
+  });
+
+  it('fails an unrelated word between the count noun and the level, and a level digit as the count', () => {
+    assert.equal(say('There are 3 headings only at level 2.'), 'fail');
+    assert.equal(say('There are 3 headings, mostly at level 2.'), 'fail');
+    assert.equal(say('Có 3 tiêu đề thường ở cấp 2.'), 'fail');
+    const two = countCaseOf({ id: 'HO-DOCX-988', format: 'docx', anchor: 'heading_level_2', value: 2, numericName: 'heading2Count', tool: 'get_document_context', op: 'read_document' });
+    assert.equal(verdict(two, readAsk('get_document_context', 'docs', headings, 'There are headings at level 2.', { numbers: [2], items: [{ ...item, value: 2 }] })), 'fail');
+  });
+});
