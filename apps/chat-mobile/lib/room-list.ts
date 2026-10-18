@@ -71,6 +71,26 @@ export interface RoomListRow {
   pinned: boolean;
 }
 
+/** The chips above the list (MobileList board): one at a time, applied to rows already built. */
+export const ROOM_LIST_FILTERS = ["all", "unread", "mentions", "group", "channel"] as const;
+export type RoomListFilter = (typeof ROOM_LIST_FILTERS)[number];
+
+/** Rows a chip keeps; the workspace room is a channel (migration 165 made it a default one). */
+export function filterRoomList(rows: readonly RoomListRow[], filter: RoomListFilter): RoomListRow[] {
+  switch (filter) {
+    case "unread":
+      return rows.filter((row) => row.unread > 0 || row.mentionUnread > 0);
+    case "mentions":
+      return rows.filter((row) => row.mentionUnread > 0);
+    case "group":
+      return rows.filter((row) => row.mark.kind === "group");
+    case "channel":
+      return rows.filter((row) => row.mark.kind === "channel" || row.mark.kind === "private-channel" || row.mark.kind === "workspace");
+    default:
+      return [...rows];
+  }
+}
+
 export function buildRoomList(input: {
   rooms: ChatRoomRecord[];
   filterText: string;

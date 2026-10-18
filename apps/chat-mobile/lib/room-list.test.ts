@@ -4,7 +4,7 @@
 import { ChatRoomSchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
 import { i18n } from "./i18n/singleton";
-import { buildRoomList, roomTitle, workspaceRoomTitle } from "./room-list";
+import { buildRoomList, filterRoomList, roomTitle, workspaceRoomTitle, type RoomListFilter } from "./room-list";
 
 const room = (raw: Record<string, unknown>): ChatRoomRecord =>
   ChatRoomSchema.parse({ workspace_id: "w1", name: "", member_count: 0, ...raw });
@@ -96,6 +96,23 @@ describe("buildRoomList", () => {
   it("keeps a group's own empty preview empty", () => {
     const rows = buildRoomList({ ...base, rooms: [room({ id: "g2", kind: "group", name: "Mới" })] });
     expect(rows.find((row) => row.key === "group:g2")?.subtitle).toBeNull();
+  });
+});
+
+describe("filterRoomList", () => {
+  it("keeps what each chip names, the workspace room among the channels", () => {
+    const rows = buildRoomList(base);
+    const keys = (filter: RoomListFilter) => filterRoomList(rows, filter).map((row) => row.key);
+    expect(keys("all")).toEqual(["dm:u2", "workspace", "group:g1", "channel:c1", "channel:c2"]);
+    expect(keys("unread")).toEqual(["dm:u2", "workspace"]);
+    expect(keys("mentions")).toEqual(["dm:u2"]);
+    expect(keys("group")).toEqual(["group:g1"]);
+    expect(keys("channel")).toEqual(["workspace", "channel:c1", "channel:c2"]);
+  });
+
+  it("counts a mention without an unread count as unread", () => {
+    const rows = buildRoomList({ ...base, rooms: [room({ id: "g3", kind: "group", name: "Nhắc", mention_unread_count: 1 })] });
+    expect(filterRoomList(rows, "unread").map((row) => row.key)).toEqual(["group:g3"]);
   });
 });
 

@@ -1,52 +1,66 @@
-// A conversation's mark: a person's initial with a presence dot for a DM, an
-// icon for the workspace room, a channel (# or lock) or a group — the web's
-// ChatRoomMark / ChatPresenceAvatar in the list.
+// A conversation's mark (MobileList board): a person is a circle with the
+// presence dot (PersonAvatar), a room a squircle in the room's own tint with
+// its kind's glyph — the web's ChatRoomMark (chat-sidebar-unified-row.tsx):
+// the workspace room is blue, a channel or group takes identityTint(room id).
 import { Ionicons } from "@expo/vector-icons";
 import { View } from "react-native";
+import { PersonAvatar } from "@/components/people/person-avatar";
 import { Text } from "@/components/ui/text";
+import { identityTint, type IdentityTint } from "@/lib/identity-tint";
 import type { RoomMark } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const ICONS = {
-  workspace: "home-outline",
-  group: "people-outline",
-  "private-channel": "lock-closed-outline",
+  workspace: "home",
+  group: "people",
+  "private-channel": "lock-closed",
 } as const;
 
-export function RoomAvatar({ mark, size = 48 }: { mark: RoomMark; size?: number }) {
+// Whole class names, so NativeWind finds them.
+const TINT_BOX: Record<IdentityTint, string> = {
+  blue: "bg-tint-blue",
+  orange: "bg-tint-orange",
+  green: "bg-tint-green",
+  yellow: "bg-tint-yellow",
+  teal: "bg-tint-teal",
+};
+const TINT_TEXT: Record<IdentityTint, string> = {
+  blue: "text-tint-blue-foreground",
+  orange: "text-tint-orange-foreground",
+  green: "text-tint-green-foreground",
+  yellow: "text-tint-yellow-foreground",
+  teal: "text-tint-teal-foreground",
+};
+const TINT_INK = {
+  blue: "tintBlueForeground",
+  orange: "tintOrangeForeground",
+  green: "tintGreenForeground",
+  yellow: "tintYellowForeground",
+  teal: "tintTealForeground",
+} as const satisfies Record<IdentityTint, keyof (typeof THEME)["light"]>;
+
+/** `seed` is the room id the tint is hashed from. */
+export function RoomAvatar({ mark, size = 54, seed = "" }: { mark: RoomMark; size?: number; seed?: string }) {
   const { colorScheme } = useColorScheme();
-  const theme = THEME[colorScheme];
-  const box = { width: size, height: size, borderRadius: size / 2 };
-  if (mark.kind !== "dm") {
-    return (
-      <View className="items-center justify-center bg-secondary" style={box} accessible={false}>
-        {/* Ionicons has no hash glyph; a public channel is drawn as the "#" its name carries. */}
-        {mark.kind === "channel" ? (
-          <Text className="font-semibold text-muted-foreground" style={{ fontSize: Math.round(size * 0.45) }}>
-            #
-          </Text>
-        ) : (
-          <Ionicons name={ICONS[mark.kind]} size={Math.round(size * 0.45)} color={theme.mutedForeground} />
-        )}
-      </View>
-    );
-  }
-  const dot = Math.max(10, Math.round(size / 4));
+  if (mark.kind === "dm") return <PersonAvatar name={mark.label} size={size} online={mark.online} />;
+  const tint: IdentityTint = mark.kind === "workspace" ? "blue" : identityTint(seed);
+  const glyph = Math.round(size * 0.44);
   return (
-    <View style={box} accessible={false}>
-      <View className="items-center justify-center bg-primary" style={box}>
-        <Text className="font-semibold text-primary-foreground" style={{ fontSize: Math.round(size * 0.4) }}>
-          {mark.label.trim().charAt(0).toUpperCase() || "?"}
+    <View
+      className={`items-center justify-center ${TINT_BOX[tint]}`}
+      style={{ width: size, height: size, borderRadius: Math.round(size / 3) }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {/* Ionicons has no hash glyph; a public channel is drawn as the "#" its name carries. */}
+      {mark.kind === "channel" ? (
+        <Text className={`font-bold ${TINT_TEXT[tint]}`} style={{ fontSize: glyph }}>
+          #
         </Text>
-      </View>
-      {mark.online ? (
-        <View
-          className="absolute bottom-0 right-0 border-2 border-background"
-          // tokens.css --success-solid, the same in light and dark; the mobile theme carries no success slot yet.
-          style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: "#16824b" }}
-        />
-      ) : null}
+      ) : (
+        <Ionicons name={ICONS[mark.kind]} size={glyph} color={THEME[colorScheme][TINT_INK[tint]]} />
+      )}
     </View>
   );
 }
