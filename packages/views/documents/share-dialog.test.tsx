@@ -305,7 +305,7 @@ describe("ShareDialog", () => {
     });
     // The dialog is a CSS grid; each child must be allowed to shrink below its
     // content width or one long row widens the popup past the 390px viewport.
-    expect(dialog.className).toMatch(/\[\*>&\]:min-w-0|min-w-0/);
+    expect(dialog).toHaveClass("[&>*]:min-w-0");
     const title = within(dialog).getByRole("heading");
     expect(title).toHaveClass("pr-8");
     expect(title).toHaveClass("break-words");
