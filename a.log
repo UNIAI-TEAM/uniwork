@@ -1,0 +1,10 @@
+$ git rev-parse HEAD; git log --oneline -8
+772e06fa77ed57257906e2a86b6ffcbac18cf237
+772e06fa7 fix(documents): show the resume hint for a Home-root upload saved under My Folder (UNI-1850)
+74de60298 fix(documents): ignore a root resume record for a Home-root chunked upload (UNI-1850)
+43db86954 fix(documents): Home root chunked upload lands in My Folder (UNI-1850)
+1395441a8 chore(merge): G5-G7 root f6aebb640 into MYFOLDER-01 web (UNI-1850)
+7dbb0820d fix(documents): My Folder hint, folder upload copy and Home card locator (UNI-1850)
+f6aebb640 chore: merge BIGUP-LOCKCHECK refuse a large new version up front when the edit lock is held (UNI-1890, 85dbcd447) into the G5-G7 root
+85dbcd447 chore(merge): BIGUP-LOCKCHECK web half into the lockcheck branch (UNI-1890)
+f998562f4 chore(merge): G5-G7 root 98c210422 into BIGUP-LOCKCHECK (UNI-1890)
