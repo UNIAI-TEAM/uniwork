@@ -162,6 +162,25 @@ export function oracleCapabilityAndToolSurface(observed) {
   return passVerdict('capability_surface_ok', { offeredCount: observed.offeredTools.length });
 }
 
+/**
+ * Oracle aligned to the prompt wording (Advisor 2026-10-19): the X-R2 prompt asks how the hidden row and the two
+ * total rows (SUM, SUBTOTAL) are handled, not for the figure, so an EXPLICIT statement that the SUM total row
+ * includes the hidden row counts as the all-rows total, symmetric with the SUBTOTAL operand. The statement is the
+ * text from a SUM mention to the next sentence end or SUBTOTAL; it must name the hidden row, say it is included
+ * and carry no negation. A bare SUM mention or "SUM excludes the hidden row" does not count.
+ */
+function sumRowIncludesHiddenRow(reply) {
+  return reply.split(/[;.!?\n]|(?=SUBTOTAL)/i).some((clause) => {
+    const fromSum = /\bSUM\b[^]*/i.exec(clause)?.[0];
+    return Boolean(
+      fromSum &&
+        /ẩn|hidden/i.test(fromSum) &&
+        /tính cả|tính luôn|bao gồm|gồm cả|kể cả|có cả|includ|count/i.test(fromSum) &&
+        !/không|chẳng|bỏ qua|loại|trừ|ignor|exclud|skip|omit|\bnot\b|n't|without|except/i.test(fromSum),
+    );
+  });
+}
+
 /** XLSX read oracle (X-R1, X-R2) reusing holdout-xlsx-truth.mjs and holdout-score.mjs. */
 export function oracleXlsxRead(observed) {
   if (!observed || !observed.fixtureBytes || typeof observed.replyText !== 'string' || !observed.replyText.trim()) {
@@ -208,7 +227,8 @@ export function oracleXlsxRead(observed) {
     zMeaning: /10%/.test(reply) && /\b10\b/.test(reply) && /phần trăm|percent|0[,.]1/i.test(reply),
     hiddenRowId: /Q1-005|Q2-005|dòng\s*6|hidden/i.test(reply),
     subtotalOrVisibleTotal: /SUBTOTAL/i.test(reply) || containsToken(reply, q1VisVi) || containsToken(reply, String(truth.q1_revenue_visible)),
-    allRowsTotal: containsToken(reply, q1AllVi) || containsToken(reply, String(truth.q1_revenue_all)),
+    allRowsTotal:
+      containsToken(reply, q1AllVi) || containsToken(reply, String(truth.q1_revenue_all)) || sumRowIncludesHiddenRow(reply),
     errorCells: Object.fromEntries(['#DIV/0!', '#N/A', '#REF!'].map((errCode) => [errCode, reply.includes(errCode)])),
   };
   if (!predicates.zMeaning) return failVerdict('xlsx_read_missing_z_meaning', { predicates });
