@@ -44,7 +44,6 @@ const KNOWN_REFERENCE_GAPS = new Set([
   'HO-CROSS-010',
   'HO-CROSS-011',
   'HO-CROSS-014',
-  'HO-MD-002',
   'HO-XLSX-001',
   'HO-XLSX-002',
   'HO-XLSX-003',
