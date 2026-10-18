@@ -1,0 +1,2 @@
+$ rustup toolchain install 1.90.0 --profile minimal --target wasm32-wasip1 >/dev/null 2>&1; echo RUST_PIN_EXIT=$?
+RUST_PIN_EXIT=0

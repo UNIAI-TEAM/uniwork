@@ -1,0 +1,3 @@
+$ SPECS=$(awk '/- name: Web e2e/{f=1;next} f&&/npx playwright test -c web\/e2e/{g=1;next} g&&/^ *- name:/{exit} g&&NF{printf "%s ",$0}' .github/workflows/ci.yml | sed 's/  */ /g'); echo "SPEC_LIST=$SPECS"; echo "$SPECS" | grep -qw markdown-web; echo SPEC_LIST_HAS_MARKDOWN_EXIT=$?
+SPEC_LIST= html-preview-security draft-recovery slides-presenter ai-web modules-smoke docs-web docs-rename-save conflict-dialog-layout docs-conflict-diff ui-forced-colors-picker size-gate open-refused sheets-too-large markdown-web 
+SPEC_LIST_HAS_MARKDOWN_EXIT=0

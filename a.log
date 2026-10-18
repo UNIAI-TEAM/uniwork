@@ -1,0 +1,7 @@
+$ git rev-parse HEAD; git log --oneline -3; echo; echo HEAD_LOGGED_EXIT=0
+4259dace130bffd82cd4776bce2eb9d7ddfd0247
+4259dace ci(web-e2e): add markdown-web spec to playwright spec list
+5932073e Merge fork main 53d99a418 into feature-UNI-1909-frame-rename-cancel (UNI-1909)
+53d99a41 test(web): focus the frame before Ctrl+S in the .txt plain-mode e2e
+
+HEAD_LOGGED_EXIT=0

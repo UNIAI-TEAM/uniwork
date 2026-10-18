@@ -1,0 +1,22 @@
+$ export PATH=$HOME/.cargo/bin:$PATH; npm run build:web -- --all 2>&1 | tail -20; echo BUILD_WEB_ALL_EXIT=${PIPESTATUS[0]}
+../../../dist-web/sheets/0.1.0-4259dac/assets/ar-SA-DS-33eUd.js                      330.72 kB │ gzip:    61.72 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/no-B8ItS0F3-BlrHaK3Z.js                341.90 kB │ gzip:    87.84 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/nb-DI8u59ch-S2a9vUN_.js                341.92 kB │ gzip:    87.85 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/nn-ntZvarUK-cMBifkqM.js                341.92 kB │ gzip:    87.85 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/es-ES-CyoWovj1.js                      344.89 kB │ gzip:    62.78 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/ja-JP-fc_vetDJ.js                      369.84 kB │ gzip:    66.69 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/vi-VN-DRdKP61f.js                      383.86 kB │ gzip:    69.08 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/ru-RU-SOAcQeGU.js                      548.64 kB │ gzip:    79.41 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/hu-DVk7Y_ka-CCTZJfqn.js                765.41 kB │ gzip:   172.84 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/index-CYJ5xWn0.js                    4,060.82 kB │ gzip: 1,150.90 kB
+../../../dist-web/sheets/0.1.0-4259dac/assets/App-D048_rSp.js                      8,573.27 kB │ gzip: 2,440.68 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-sheets 0.1.0-4259dac: 219 files, 27.70 MiB (gzip 7.91); initial 4.13 MiB (gzip 1.13), deferred 23.57 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/sheets/0.1.0-4259dac
+✓ built in 1m 23s
+BUILD_WEB_ALL_EXIT=0
