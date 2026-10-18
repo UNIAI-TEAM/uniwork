@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+ca5bd6b95f483ec39720c74408713e2173cc0358
+ca5bd6b95 test(views): warm the lazy document editor chunk before findBy budgets
+cbc4d36d1 chore: merge FU-SHARING-POLISH r2 (UNI-1914, e469b8055) into the G5-G7 root
+d7d6e6845 chore: merge HOST-PRINT (UNI-1911, ae9789e62) into the G5-G7 root
