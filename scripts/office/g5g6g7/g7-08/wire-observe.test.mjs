@@ -49,6 +49,21 @@ const fakeResponse = (status, url, text) => ({
   text: async () => text,
 });
 
+const ANTHROPIC_URL = 'http://web.test/api/v1/office-frame/documents/D1/ai/byok/anthropic/messages';
+const OPENAI_URL = 'http://web.test/api/v1/office-frame/documents/D1/ai/uniwork/chat/completions';
+const GEMINI_URL = 'http://web.test/api/v1/office-frame/documents/D1/ai/byok/gemini/generate';
+
+async function observeSseTurn(url, sseText) {
+  const page = makeFakePage();
+  const requests = [];
+  const responses = [];
+  const { settle } = observeModelWire(page, { requests, responses });
+  page.emit('request', fakeRequest('POST', url, '{}'));
+  page.emit('response', fakeResponse(200, url, sseText));
+  await settle();
+  return { requests, responses, wire: evaluateWireObservation({ requests, responses, sawTurnEffects: true }) };
+}
+
 describe('G7-08 w2g wire-observe pure helpers', () => {
   it('R2-7: extractWireUsage counts a response without usage as unknown, never as 0', () => {
     assert.deepEqual(extractWireUsage([]), { modelCalls: 0, inputTokens: 0, outputTokens: 0, missingUsageCalls: 0 });
@@ -345,5 +360,72 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     assert.equal(byokMissed instanceof InterruptedAiTurnError, true, 'a missed route is not "no request began"');
     assert.equal(byokMissed.usage.missingUsageCalls, 1);
     assert.equal(isFrameAiPath('/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions'), true);
+  });
+
+  it('G708-R5-1 (a): Anthropic message_start only is unknown usage', async () => {
+    const { responses, wire } = await observeSseTurn(
+      ANTHROPIC_URL,
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":25,"output_tokens":1}}}\n',
+    );
+    assert.equal(responses[0].usage, null, 'message_start output_tokens is not a complete stream');
+    assert.ok(wire.missingUsageCalls >= 1);
+    assert.equal(wire.reason, 'missing_usage_on_model_call');
+  });
+
+  it('G708-R5-1 (b): Anthropic start + partial message_delta is unknown usage', async () => {
+    const { responses, wire } = await observeSseTurn(
+      ANTHROPIC_URL,
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":25,"output_tokens":1}}}\n\ndata: {"type":"message_delta","usage":{"output_tok\n',
+    );
+    assert.equal(responses[0].usage, null, 'a cut message_delta is not a complete stream');
+    assert.ok(wire.missingUsageCalls >= 1);
+  });
+
+  it('G708-R5-1 (c): Anthropic start + delta + stop is counted', async () => {
+    const { responses, wire } = await observeSseTurn(
+      ANTHROPIC_URL,
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":25}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: {"type":"message_stop"}\n',
+    );
+    assert.deepEqual(responses[0].usage, { prompt_tokens: 25, completion_tokens: 9 });
+    assert.equal(wire.missingUsageCalls, 0);
+    assert.equal(wire.unobserved, false);
+  });
+
+  it('G708-R5-1 (d): OpenAI usage is counted only from a complete chunk before [DONE]', async () => {
+    const counted = await observeSseTurn(
+      OPENAI_URL,
+      'data: {"choices":[{"delta":{"content":"a"}}]}\n\ndata: {"usage":{"prompt_tokens":30,"completion_tokens":7}}\n\ndata: [DONE]\n',
+    );
+    assert.deepEqual(counted.responses[0].usage, { prompt_tokens: 30, completion_tokens: 7 });
+    assert.equal(counted.wire.missingUsageCalls, 0);
+
+    const cutBefore = await observeSseTurn(OPENAI_URL, 'data: {"choices":[{"delta":{"content":"a"}}]}\n');
+    assert.equal(cutBefore.responses[0].usage, null, 'cut before the usage chunk');
+    assert.ok(cutBefore.wire.missingUsageCalls >= 1);
+
+    const cutInside = await observeSseTurn(OPENAI_URL, 'data: {"usage":{"prompt_tokens":30,"completion_tok\n');
+    assert.equal(cutInside.responses[0].usage, null, 'cut inside the usage chunk');
+    assert.ok(cutInside.wire.missingUsageCalls >= 1);
+
+    const noDone = await observeSseTurn(OPENAI_URL, 'data: {"usage":{"prompt_tokens":30,"completion_tokens":7}}\n');
+    assert.equal(noDone.responses[0].usage, null, 'a complete usage chunk without [DONE] is still incomplete');
+    assert.ok(noDone.wire.missingUsageCalls >= 1);
+  });
+
+  it('G708-R5-1 (e): Gemini usage counts only when the last usage chunk has finishReason', async () => {
+    const noFinish = await observeSseTurn(
+      GEMINI_URL,
+      'data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4}}\n',
+    );
+    assert.equal(noFinish.responses[0].usage, null, 'cumulative usage without finishReason is a cut stream');
+    assert.ok(noFinish.wire.missingUsageCalls >= 1);
+
+    const withFinish = await observeSseTurn(
+      GEMINI_URL,
+      'data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4},"candidates":[{"finishReason":"STOP"}]}\n',
+    );
+    assert.deepEqual(withFinish.responses[0].usage, { prompt_tokens: 8, completion_tokens: 4 });
+    assert.equal(withFinish.wire.missingUsageCalls, 0);
+    assert.equal(withFinish.wire.unobserved, false);
   });
 });
