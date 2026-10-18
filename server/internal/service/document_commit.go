@@ -480,6 +480,25 @@ func (s *DocumentService) commitClaimedFileVersion(
 		// ClaimInTx, so a stale base is still 409 and a locked caller already
 		// got 423.
 		if job == nil && fileVersionUnchanged(current, file) {
+			// R1-1: identical bytes are only a no-op for an upload this
+			// document may still take. An upload another version already
+			// consumed stays the contract's refusal, exactly as it is after
+			// ClaimInTx - the guard would otherwise swallow
+			// upload_already_committed for any other document whose current
+			// version happens to carry the same bytes. The read is unlocked
+			// on purpose: a no-op writes nothing, so a lost race with a
+			// concurrent claimer only decides which of the two the caller
+			// hears, and the claimer's own transaction still locks the row.
+			inUse, err := q.DocumentFileInUse(ctx, db.DocumentFileInUseParams{
+				OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
+				FileID: pgtype.Text{String: string(file.ID), Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+			if inUse && (!current.FileID.Valid || files.FileID(current.FileID.String) != file.ID) {
+				return errUploadAlreadyCommitted()
+			}
 			name := locked.Title
 			if current.FileID.Valid {
 				resolved, rerr := fs.ResolveMany(ctx, files.ResolveInput{

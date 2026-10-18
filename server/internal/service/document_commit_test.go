@@ -387,6 +387,39 @@ func TestDocumentCommitIdenticalBytesIsANoOp(t *testing.T) {
 			}
 		})
 
+		t.Run("a consumed upload from another document is still 409", func(t *testing.T) {
+			// R1-1: the no-op guard must not swallow upload_already_committed.
+			// Upload A is committed into document A, so it is consumed; the
+			// same upload_id then reaches document B, whose current version
+			// carries the same bytes. The bytes match, but the upload is not
+			// B's own current file, so the answer is the contract's refusal.
+			// Doc A starts on different bytes, so its commit is a real
+			// version that consumes the upload.
+			body := pdfBody("de1-cross")
+			a := env.createFile(t, member, "de1-cross-a.pdf", pdfBody("de1-cross-v1"))
+			up := env.upload(t, member, a.Document.ID, "de1-cross-up.pdf", body)
+			committed, err := env.commit(member, a.Document.ID, up.UploadID, a.Document.Revision, util.NewID())
+			mustf(t, err, "commit A")
+			if committed.Version.FileID.String != up.UploadID {
+				t.Fatalf("fixture: commit A did not consume the upload: version file %s, upload %s", committed.Version.FileID.String, up.UploadID)
+			}
+			b := env.createFile(t, member, "de1-cross-b.pdf", body)
+			if b.Version.ChecksumSha256.String != committed.Version.ChecksumSha256.String {
+				t.Fatalf("fixture: doc B checksum %q != doc A %q", b.Version.ChecksumSha256.String, committed.Version.ChecksumSha256.String)
+			}
+			_, err = env.commit(member, b.Document.ID, up.UploadID, b.Document.Revision, util.NewID())
+			if ce := wantCode(t, err, "upload_already_committed"); ce.Status != 409 {
+				t.Fatalf("consumed upload on another document = %+v, want 409 upload_already_committed", ce)
+			}
+			d := env.doc(t, b.Document.ID)
+			if d.Revision != b.Document.Revision || d.FileVersionID.String != b.Version.ID {
+				t.Fatalf("doc B moved: rev %d ptr %s, want rev %d ptr %s", d.Revision, d.FileVersionID.String, b.Document.Revision, b.Version.ID)
+			}
+			if vs := env.versions(t, b.Document); len(vs) != 1 {
+				t.Fatalf("doc B versions = %d, want 1", len(vs))
+			}
+		})
+
 		t.Run("first version and a row with no checksum still commit", func(t *testing.T) {
 			created := env.createFile(t, member, "de1-first.pdf", pdfBody("first-v1"))
 			if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET file_version_id = NULL WHERE id = $1`, created.Document.ID); err != nil {
