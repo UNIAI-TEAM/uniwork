@@ -223,6 +223,102 @@ func TestOfficeFrameSourceChatMarkdownOpensAndDownloads(t *testing.T) {
 	}
 }
 
+// TestOfficeFrameSourceTxtOpenGate (UNI-1813): a .txt source file has
+// can_open_in_app: false and refuses frame-token mint while office_txt_open is
+// off (default); once office_txt_open is on, can_open_in_app is true and it
+// mints/opens in module "markdown", while .csv and .log stay not openable.
+func TestOfficeFrameSourceTxtOpenGate(t *testing.T) {
+	srv, q := sourceFrameWorld(t)
+	f := setupChatFixtureOn(t, srv, "srcf-txt")
+	member := f.tokens["b"]
+
+	seedChatSource := func(filename, contentType, clientID string, body []byte) string {
+		t.Helper()
+		res, out := uploadChatFile(
+			t, srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
+			filename, contentType, clientID, body,
+		)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("upload chat %s: %d %v", filename, res.StatusCode, out)
+		}
+		messageID, _ := out["message"].(map[string]any)["id"].(string)
+		var fileID string
+		if err := testPool.QueryRow(context.Background(),
+			`SELECT file_id::text FROM chat_messages WHERE id = $1`, messageID).Scan(&fileID); err != nil {
+			t.Fatalf("chat file row(%s): %v", filename, err)
+		}
+		if _, err := testPool.Exec(context.Background(), `INSERT INTO files
+			(id, organization_id, storage, object_key, original_filename, content_type, size_bytes, status, ready_at)
+			VALUES ($1, $2, 'local', $3, $4, $5, $6, 'ready', now())`,
+			fileID, f.orgID, "chat/"+fileID, filename, contentType, int64(len(body))); err != nil {
+			t.Fatalf("files catalog row(%s): %v", filename, err)
+		}
+		return "chat:" + messageID
+	}
+
+	txtID := seedChatSource("ghi-chu.txt", "text/plain", "src-txt-1", []byte("dong 1\n"))
+	csvID := seedChatSource("bang.csv", "text/csv", "src-csv-1", []byte("a,b\n1,2\n"))
+	logID := seedChatSource("server.log", "text/plain", "src-log-1", []byte("log\n"))
+	mdLongID := seedChatSource("ghi-chu.markdown", "text/markdown", "src-mdlong-1", []byte("# md\n"))
+
+	// Flag off (default): .txt has can_open_in_app: false and mint returns 404.
+	res, list := doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/documents/sources", member, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list sources (flag off): %d %v", res.StatusCode, list)
+	}
+	itemsByID := func(out map[string]any) map[string]map[string]any {
+		m := map[string]map[string]any{}
+		for _, raw := range out["items"].([]any) {
+			row := raw.(map[string]any)
+			m[row["id"].(string)] = row
+		}
+		return m
+	}
+	rows := itemsByID(list)
+	for _, id := range []string{txtID, csvID, logID} {
+		if rows[id]["can_open_in_app"] != false {
+			t.Fatalf("flag off: %s can_open_in_app = %v, want false", id, rows[id]["can_open_in_app"])
+		}
+		if res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/documents/sources/"+id+"/office/frame-token", member, nil); res.StatusCode != http.StatusNotFound {
+			t.Fatalf("flag off: mint %s = %d %v, want 404", id, res.StatusCode, out)
+		}
+	}
+	// Flag off: .markdown sources still mint and open as before.
+	if minted := sourceFrameMint(t, srv, f.wsID, mdLongID, member); minted["module"] != "markdown" {
+		t.Fatalf("flag off: minted .markdown source module = %v, want markdown", minted["module"])
+	}
+
+	// Enable office_txt_open for the organization.
+	setOfficeFrameFlagFor(t, q, "office_txt_open", f.orgID, true)
+	t.Cleanup(func() { setOfficeFrameFlagFor(t, q, "office_txt_open", f.orgID, false) })
+
+	res, list = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/documents/sources", member, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list sources (flag on): %d %v", res.StatusCode, list)
+	}
+	rows = itemsByID(list)
+	if rows[txtID]["can_open_in_app"] != true {
+		t.Fatalf("flag on: .txt can_open_in_app = %v, want true", rows[txtID]["can_open_in_app"])
+	}
+	for _, id := range []string{csvID, logID} {
+		if rows[id]["can_open_in_app"] != false {
+			t.Fatalf("flag on: %s can_open_in_app = %v, want false", id, rows[id]["can_open_in_app"])
+		}
+		if res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/documents/sources/"+id+"/office/frame-token", member, nil); res.StatusCode != http.StatusNotFound {
+			t.Fatalf("flag on: mint %s = %d %v, want 404", id, res.StatusCode, out)
+		}
+	}
+	minted := sourceFrameMint(t, srv, f.wsID, txtID, member)
+	if minted["module"] != "markdown" {
+		t.Fatalf("minted .txt source module = %v, want markdown", minted["module"])
+	}
+	token := minted["token"].(string)
+	res, opened := doJSON(t, srv, "GET", "/api/v1/office-frame/sources/"+txtID, token, nil)
+	if res.StatusCode != http.StatusOK || opened["module"] != "markdown" {
+		t.Fatalf("open .txt source = %d %v", res.StatusCode, opened)
+	}
+}
+
 // TestOfficeFrameSourceEmailHeadPromisesNoLength pins the email half of the
 // content route's HEAD contract: the attachment's size_bytes is the IMAP
 // ENCODED length, so a HEAD must not promise it as Content-Length (the GET

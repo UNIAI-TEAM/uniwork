@@ -123,7 +123,7 @@ func TestDocumentOfficeBlankCreatesEveryFormat(t *testing.T) {
 			t.Fatalf("%s first version is not the seed", c.format)
 		}
 		// The document resolves back to its format like any file document.
-		if got, err := f.service(eng).formatForVersion(context.Background(), res.Document, nil); err != nil || got != c.format {
+		if got, err := f.service(eng).formatForVersion(context.Background(), f.actor.ID, res.Document, nil); err != nil || got != c.format {
 			t.Fatalf("%s resolves to %q, %v", c.format, got, err)
 		}
 		if after := f.documentCount(t); after != before+1 {

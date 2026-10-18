@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api/http";
+import { useAuthStore } from "@uniwork/core/auth";
 import { listDocumentChanges } from "@uniwork/core/api/endpoints/document-changes";
 import { getDocument } from "@uniwork/core/api/endpoints/documents";
 import { useOptionalWS } from "@uniwork/core/realtime";
@@ -47,8 +49,10 @@ const documentOf = (payload: unknown): string | null =>
 
 function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }: FrameRemoteSourceOptions): void {
   const client = useOptionalWS()?.client ?? null;
-  const latest = useRef({ onHead, onBlocked });
-  latest.current = { onHead, onBlocked };
+  const userId = useAuthStore((s) => s.user?.id ?? "");
+  const { t } = useTranslation();
+  const latest = useRef({ onHead, onBlocked, userId, t });
+  latest.current = { onHead, onBlocked, userId, t };
   // The feed cursor survives reconnects of this document's session; a new document starts cold.
   const cursor = useRef<{ documentId: string; value: string } | null>(null);
 
@@ -62,7 +66,13 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
       try {
         const doc = await getDocument(documentId, abort.signal);
         if (!doc || !live() || !news) return;
-        latest.current.onHead({ revision: doc.revision, versionId: doc.file?.version_id ?? null, savedAt: doc.updated_at || new Date().toISOString() });
+        const own = doc.updated_by !== "" && doc.updated_by === latest.current.userId && doc.updated_by_kind === "human";
+        latest.current.onHead({
+          revision: doc.revision, versionId: doc.file?.version_id ?? null, savedAt: doc.updated_at || new Date().toISOString(),
+          // Your own new version names you (D-3): "…do bạn lưu…" / "…saved by you…". Another member's
+          // or an agent's head carries no author_name; the frame falls back to "a member".
+          ...(own ? { authorName: latest.current.t("office.docsFrame.remote_author_you") } : {}),
+        });
       } catch (error) {
         if (!live() || !(error instanceof ApiError)) return;
         // Anything else (offline, 5xx) is not a verdict: the next frame or reconnect asks again.

@@ -270,7 +270,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if officeJobRequiredLevel(in.Operation) == DocumentLevelEdit && jobDoc.ShelvedAt.Valid {
 		return db.OfficeJob{}, errDocumentShelved()
 	}
-	input, format, baseRevision, err := s.jobInput(ctx, in)
+	input, format, baseRevision, err := s.jobInput(ctx, actor, in)
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
@@ -336,7 +336,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 // the document row it accepted the base against: the caller records that
 // revision as office_jobs.base_revision, the way StartOfficeJobForDocument
 // does, so both submit paths write down the base they actually took.
-func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput) (officeInput, office.Format, int64, error) {
+func (s *DocumentOfficeService) loadBase(ctx context.Context, actor Actor, in OfficeJobInput) (officeInput, office.Format, int64, error) {
 	doc, err := s.q.GetDocument(ctx, db.GetDocumentParams{ID: in.DocumentID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID})
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && doc.ArchivedAt.Valid) {
 		return officeInput{}, "", 0, ErrNotFound
@@ -372,7 +372,7 @@ func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput)
 		// through here and stay available.
 		return officeInput{}, "", 0, officeErr("engine_incompatible", "version_engine:"+ver.EngineVersion.String)
 	}
-	format, err := s.formatForVersion(ctx, doc, &ver)
+	format, err := s.formatForVersion(ctx, actor.ID, doc, &ver)
 	if err != nil {
 		return officeInput{}, "", 0, err
 	}
@@ -431,7 +431,7 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 		return db.OfficeJob{}, officeErr("payload_fingerprint_mismatch", "input_changed")
 	}
 	if row.State == string(office.JobAccepted) && !row.DispatchedAt.Valid && s.now().Before(row.DeadlineAt.Time) {
-		input, _, _, err := s.jobInput(ctx, in)
+		input, _, _, err := s.jobInput(ctx, actor, in)
 		if err != nil {
 			return row, err
 		}
@@ -459,8 +459,8 @@ type officeInput struct {
 // jobInput checks the base like loadBase and answers the bytes the engine
 // works on - the base version's, or the supplied edit of that base - beside
 // the revision loadBase accepted the base against.
-func (s *DocumentOfficeService) jobInput(ctx context.Context, in OfficeJobInput) (officeInput, office.Format, int64, error) {
-	input, format, baseRevision, err := s.loadBase(ctx, in)
+func (s *DocumentOfficeService) jobInput(ctx context.Context, actor Actor, in OfficeJobInput) (officeInput, office.Format, int64, error) {
+	input, format, baseRevision, err := s.loadBase(ctx, actor, in)
 	if err != nil || in.input == nil {
 		return input, format, baseRevision, err
 	}

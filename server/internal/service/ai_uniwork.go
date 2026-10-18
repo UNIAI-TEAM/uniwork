@@ -418,6 +418,9 @@ func (s *AIUniworkService) documentScope(ctx context.Context, scope UniworkScope
 		if file == nil {
 			return uniworkDocument{}, ErrNotFound
 		}
+		if isTxtFilename(file.Filename) && !s.docs.txtOpenEnabled(ctx, scope.UserID, doc.WorkspaceID, doc.OrganizationID) {
+			return uniworkDocument{}, ErrNotFound
+		}
 		module, ok := officeFrameModuleOf(file.MimeType, file.Filename)
 		if !ok {
 			return uniworkDocument{}, ErrNotFound

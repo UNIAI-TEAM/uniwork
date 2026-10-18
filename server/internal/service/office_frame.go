@@ -260,6 +260,9 @@ func (s *OfficeFrameService) load(ctx context.Context, actor Actor, documentID s
 	if file == nil {
 		return OfficeFrameDocument{}, ErrNotFound
 	}
+	if isTxtFilename(file.Filename) && !s.documents.txtOpenEnabled(ctx, actor.ID, doc.WorkspaceID, doc.OrganizationID) {
+		return OfficeFrameDocument{}, ErrNotFound
+	}
 	module, ok := officeFrameModuleOf(file.MimeType, file.Filename)
 	if !ok {
 		return OfficeFrameDocument{}, ErrNotFound
@@ -385,6 +388,7 @@ func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClai
 			fileIDs = append(fileIDs, files.FileID(v.FileID.String))
 		}
 	}
+	txtOpen := s.documents.txtOpenEnabled(ctx, claims.UserID, claims.WorkspaceID, claims.OrganizationID)
 	names := s.fileNames(ctx, claims, fileIDs)
 	for _, doc := range candidates {
 		v, ok := byID[doc.FileVersionID.String]
@@ -393,7 +397,10 @@ func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClai
 		}
 		name := doc.Title
 		if n := names[files.FileID(v.FileID.String)]; n != "" {
-			name = n
+			name = s.documents.versionFilename(ctx, doc, v, n)
+		}
+		if isTxtFilename(name) && !txtOpen {
+			continue
 		}
 		if m, ok := officeFrameModuleOf(v.MimeType.String, name); !ok || m != claims.ModuleName() {
 			continue
