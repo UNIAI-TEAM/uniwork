@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+2ac37d25536075619355f058adfcfeca1058f6c5
+57a6ce311ce49ad049229e7f20d66d42179a2ce8
+2ac37d255 chore: merge G5-G7 root 24bc72fe8 into UNI-1911 host print
+0b18e793e feat(office): host Print entry for office frames and one print per action
+24bc72fe8 test(e2e): share to the organization through the candidate picker (UNI-1784)
+941ca9343 test(e2e): give a new file version different bytes from v1 (UNI-1900)
+76f8977d7 test(documents): wait for the organization level popup before checking its options (UNI-1784)
+d4b10b2ba test(office): red specs for host Print menu entry and Ctrl+P print dedupe
+
+SYNCED_EXIT=1
