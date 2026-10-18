@@ -817,3 +817,77 @@ describe('item 14 (round i, R21-5): the percent-leaf exception reaches read leav
     assert.equal(verdict(compute, withCompute), 'pass');
   });
 });
+
+// ---------- round j (J-1): a location ordinal is not a figure ----------
+
+describe('item 15 (round j, J-1): an integer after a location noun is exempt only when a successful read holds that location', () => {
+  const lookupCase = (id, format, tool, op) => mkCase({
+    id,
+    format,
+    category: 'lookup',
+    tools: { allowed: [op], required: [op] },
+    expected: { numeric: [{ name: 'v', value: 25, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] },
+    referenceAnswer: { numeric: { v: 25 }, structural: [], writes: 0, text: 'x' },
+  });
+  const pptx = lookupCase('HO-PPTX-993', 'pptx', 'read_slide', 'read_slide');
+  const docx = lookupCase('HO-DOCX-993', 'docx', 'get_document_context', 'read_document');
+  const slides = { slideCount: 3, slides: [{ index: 1, texts: ['alpha'] }, { index: 2, texts: ['beta'] }, { index: 3, texts: ['Total 25'] }] };
+  const pages = { pageCount: 4, pages: [{ index: 1, lines: ['alpha'] }, { index: 2, lines: ['Total 25'] }] };
+  const sAsk = (text, result = slides, over = {}) => readAsk('read_slide', 'slides', result, text, { numbers: [25] }, over);
+  const dAsk = (text, result = pages, over = {}) => readAsk('get_document_context', 'docs', result, text, { numbers: [25] }, over);
+
+  it('passes a location a read holds beside a correct traced answer (slide, page, sheet, trang, trang chiếu)', () => {
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 3).')), 'pass');
+    assert.equal(verdict(pptx, sAsk('The total is 25 on slide #3.')), 'pass');
+    assert.equal(verdict(pptx, sAsk('The total is 25 on slide no. 3.')), 'pass');
+    assert.equal(verdict(pptx, sAsk('Tổng là 25 (trang chiếu 3).')), 'pass');
+    assert.equal(verdict(pptx, sAsk('Tổng là 25 ở trang chiếu số 3.')), 'pass');
+    assert.equal(verdict(docx, dAsk('The total is 25 on page 4.')), 'pass', 'pageCount holds page 4 although the array holds two');
+    assert.equal(verdict(docx, dAsk('Tổng là 25 (trang 2).')), 'pass');
+    const sheets = { sheetName: 'SheetZ', sheetNames: ['SheetZ', 'Data'], rows: [{ row: 1, cells: { A1: '25' } }] };
+    const sheetCase = mkCase({ tools: { allowed: ['read_range'], required: ['read_range'] }, expected: { numeric: [{ name: 'v', value: 25, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] }, referenceAnswer: { numeric: { v: 25 }, structural: [], writes: 0, text: 'x' } });
+    assert.equal(verdict(sheetCase, readAsk('read_range', 'sheets', sheets, 'The total is 25 (sheet 2).', { numbers: [25] })), 'pass');
+  });
+
+  it('fails a location no read holds, the same as any figure ("slide 9" on a 3-slide read)', () => {
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 9).')), 'fail');
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 4).')), 'fail', 'one past the count');
+    assert.equal(verdict(docx, dAsk('The total is 25 on page 5.')), 'fail');
+    assert.equal(verdict(docx, dAsk('Tổng là 25 (trang 7).')), 'fail');
+    assert.equal(verdict(pptx, sAsk('Tổng là 25 (trang chiếu 9).')), 'fail');
+    const sheets = { sheetName: 'SheetZ', sheetNames: ['SheetZ', 'Data'], rows: [{ row: 1, cells: { A1: '25' } }] };
+    const sheetCase = mkCase({ tools: { allowed: ['read_range'], required: ['read_range'] }, expected: { numeric: [{ name: 'v', value: 25, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] }, referenceAnswer: { numeric: { v: 25 }, structural: [], writes: 0, text: 'x' } });
+    assert.equal(verdict(sheetCase, readAsk('read_range', 'sheets', sheets, 'The total is 25 (sheet 3).', { numbers: [25] })), 'fail');
+  });
+
+  it('is a location only as a plain integer right after the noun: other shapes stay figures', () => {
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 2.5).')), 'fail', 'not an integer');
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 3%).')), 'fail', 'a unit makes it a figure');
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide, then 3).')), 'fail', 'not directly after the noun');
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slides 3).')), 'fail', 'the plural is no location noun');
+  });
+
+  it('never credits: a location is no expected numeric, report.numbers value, operand or count', () => {
+    const three = mkCase({ id: 'HO-PPTX-992', format: 'pptx', category: 'lookup', tools: { allowed: ['read_slide'], required: ['read_slide'] }, expected: { numeric: [{ name: 'v', value: 3, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] }, referenceAnswer: { numeric: { v: 3 }, structural: [], writes: 0, text: 'x' } });
+    assert.equal(verdict(three, readAsk('read_slide', 'slides', slides, 'It is on (slide 3).', { numbers: [] })), 'fail', 'the only figure of the expected 3');
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 3).', slides, { toolResults: [{ name: 'read_slide', text: JSON.stringify({ slideCount: 3, slides: [{ texts: ['alpha'] }] }) }] })), 'fail', 'a read without a total gives the 25 no trace, whatever the location');
+    const slideCase = countCaseOf({ id: 'HO-PPTX-991', format: 'pptx', anchor: 'slides', value: 3, numericName: 'slideCount', tool: 'read_slide', op: 'read_slide' });
+    const item = { kind: 'count', anchor: 'slides', value: 3 };
+    assert.equal(verdict(slideCase, readAsk('read_slide', 'slides', slides, 'See (slide 3).', { numbers: [3] })), 'fail', 'no kind named: slide 3 is no count of 3 slides');
+    assert.equal(verdict(slideCase, readAsk('read_slide', 'slides', slides, 'See slide 3.', { numbers: [3], items: [] })), 'fail');
+    assert.equal(verdict(slideCase, readAsk('read_slide', 'slides', slides, 'There are 3 slides (slide 3 is the last).', { numbers: [3], items: [item] })), 'pass', 'the count is its own phrase');
+    assert.equal(verdict(slideCase, readAsk('read_slide', 'slides', slides, 'There are 4 slides (slide 3 is the last).', { numbers: [4], items: [{ ...item, value: 4 }] })), 'fail', 'a wrong count stays a failure');
+  });
+
+  it('gives report.numbers no exemption', () => {
+    assert.equal(verdict(pptx, sAsk('The total is 25.')), 'pass', 'the control: no location, no report.numbers 3');
+    const ask = readAsk('read_slide', 'slides', slides, 'The total is 25 (slide 3).', { numbers: [25, 3] });
+    assert.equal(verdict(pptx, { ...ask, toolResults: [{ name: 'read_slide', text: JSON.stringify({ slideCount: 3, slides: [{ texts: ['Total 25'] }] }) }] }), 'fail', 'a 3 in report.numbers is an invented figure');
+  });
+
+  it('fails a location on a denied or failed read', () => {
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 3).', slides, { calls: [{ name: 'read_slide', denied: true }] })), 'fail');
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 3).', { ...slides, error: 'upstream failed' })), 'fail');
+    assert.equal(verdict(pptx, sAsk('The total is 25 (slide 3).', { ...slides, ok: false })), 'fail');
+  });
+});
