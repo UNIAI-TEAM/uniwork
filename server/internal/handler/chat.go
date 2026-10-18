@@ -344,6 +344,24 @@ func (h *handlers) listChatRooms(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{"rooms": out})
 }
 
+func (h *handlers) chatUnreadSummary(w http.ResponseWriter, r *http.Request) {
+	sum, err := h.Chat.UnreadSummary(r.Context(), middleware.UserID(r.Context()))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.ChatUnreadSummarySDO{
+		Direct:     sdo.ChatUnreadTotalsDTO{Unread: sum.Direct.Unread, Mentions: sum.Direct.Mentions},
+		Workspaces: make([]sdo.ChatWorkspaceUnreadDTO, 0, len(sum.Workspaces)),
+	}
+	for _, ws := range sum.Workspaces {
+		out.Workspaces = append(out.Workspaces, sdo.ChatWorkspaceUnreadDTO{
+			WorkspaceID: ws.WorkspaceID, Unread: ws.Unread, Mentions: ws.Mentions,
+		})
+	}
+	respondJSON(w, http.StatusOK, out)
+}
+
 func (h *handlers) resolveDM(w http.ResponseWriter, r *http.Request) {
 	var in sdi.ResolveDMSDI
 	if !decode(w, r, &in, maxJSONBody) {

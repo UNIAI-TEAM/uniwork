@@ -257,6 +257,7 @@ var isoRoutes = map[string]isoSpec{
 	// The caller's own account.
 	"GET /api/v1/ws":                            {class: isoRealtime, reason: "workspace WebSocket: membership is checked on the auth frame, scopes on subscribe - TestIsolationRealtime"},
 	"GET /api/v1/me":                            {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/chat/unread-summary":        {class: isoSelf, reason: reasonSelf},
 	"PATCH /api/v1/me":                          {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/avatar":                    {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/delete":                    {class: isoSelf, reason: reasonSelf},

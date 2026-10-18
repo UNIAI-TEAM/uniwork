@@ -88,9 +88,29 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		out = append(out, *def)
 	}
 
+	direct, err := s.directRooms(ctx, userID, w.OrganizationID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, direct...)
+
+	for _, row := range channelRows {
+		if row.IsDefault {
+			continue // already first
+		}
+		out = append(out, channelSummaryFromMineRow(row))
+	}
+	return out, nil
+}
+
+// directRooms are the caller's dms and groups in one organization, the rows
+// every workspace's sidebar shows: a dm whose member set no longer holds the
+// caller, or whose peer the caller blocked, is left out. workspaceID anchors
+// a room that has no workspace of its own.
+func (s *ChatService) directRooms(ctx context.Context, userID, orgID, workspaceID string) ([]ChatRoomSummary, error) {
 	blockedPeers := map[string]struct{}{}
 	if blockedIDs, err := s.q.ListChatBlockedPeerIDs(ctx, db.ListChatBlockedPeerIDsParams{
-		OrganizationID: w.OrganizationID, BlockerID: userID,
+		OrganizationID: orgID, BlockerID: userID,
 	}); err != nil {
 		return nil, err
 	} else {
@@ -100,11 +120,12 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 	}
 
 	rows, err := s.q.ListChatRoomsForMember(ctx, db.ListChatRoomsForMemberParams{
-		UserID: userID, OrganizationID: w.OrganizationID,
+		UserID: userID, OrganizationID: orgID,
 	})
 	if err != nil {
 		return nil, err
 	}
+	out := make([]ChatRoomSummary, 0, len(rows))
 	for _, row := range rows {
 		if row.Kind == chatRoomKindDM && !s.userInVoiceRoomMemberSet(db.ChatRoom{
 			Kind: row.Kind, MemberSetKey: row.MemberSetKey,
@@ -141,13 +162,6 @@ func (s *ChatService) ListChatRooms(ctx context.Context, userID, workspaceID str
 		))
 		summary.LastReadAt = timePtr(row.MyLastReadAt)
 		out = append(out, summary)
-	}
-
-	for _, row := range channelRows {
-		if row.IsDefault {
-			continue // already first
-		}
-		out = append(out, channelSummaryFromMineRow(row))
 	}
 	return out, nil
 }

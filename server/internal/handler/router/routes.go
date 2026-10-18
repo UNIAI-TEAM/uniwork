@@ -424,6 +424,7 @@ type Routes struct {
 	GetWorkspaceChatRoom             http.HandlerFunc
 	EnsureWorkspaceChatRoom          http.HandlerFunc
 	ListChatRooms                    http.HandlerFunc
+	ChatUnreadSummary                http.HandlerFunc
 	ResolveDM                        http.HandlerFunc
 	CreateChatGroup                  http.HandlerFunc
 	InviteChatGroupMembers           http.HandlerFunc

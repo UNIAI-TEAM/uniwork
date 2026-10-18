@@ -342,3 +342,22 @@ type ChatMessageLinkDTO struct {
 type ChatMessageLinkListSDO struct {
 	Links []ChatMessageLinkDTO `json:"links"`
 }
+
+// ChatUnreadTotalsDTO is what a set of rooms adds to a chat badge.
+type ChatUnreadTotalsDTO struct {
+	Unread   int `json:"unread" description:"Tin chưa đọc; phòng tắt thông báo chỉ góp số nhắc tên" example:"5"`
+	Mentions int `json:"mentions" description:"Tin chưa đọc nhắc tên người gọi (tên hoặc @all)" example:"1"`
+}
+
+// ChatWorkspaceUnreadDTO is one workspace's channels.
+type ChatWorkspaceUnreadDTO struct {
+	WorkspaceID string `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Unread      int    `json:"unread" description:"Tin chưa đọc trong các kênh của workspace; phòng tắt thông báo chỉ góp số nhắc tên" example:"3"`
+	Mentions    int    `json:"mentions" description:"Tin chưa đọc nhắc tên người gọi trong các kênh" example:"0"`
+}
+
+// ChatUnreadSummarySDO is GET /api/v1/me/chat/unread-summary.
+type ChatUnreadSummarySDO struct {
+	Direct     ChatUnreadTotalsDTO      `json:"direct" description:"DM và nhóm của tổ chức, đếm một lần (hiện ở mọi workspace)"`
+	Workspaces []ChatWorkspaceUnreadDTO `json:"workspaces" description:"Mỗi workspace người gọi mở được; workspace bị chặn ở cổng thành viên không có mặt"`
+}

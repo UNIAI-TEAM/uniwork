@@ -15,6 +15,7 @@ import (
 //	GET  /api/v1/workspaces/{workspaceID}/chat/room
 //	POST /api/v1/workspaces/{workspaceID}/chat/room
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms
+//	GET  /api/v1/me/chat/unread-summary
 //	POST /api/v1/workspaces/{workspaceID}/chat/dm
 //	POST /api/v1/workspaces/{workspaceID}/chat/groups
 //	POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/leave
@@ -150,6 +151,13 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		description: "Danh sách phòng DM và nhóm của thành viên trong tổ chức.",
 		tags:        []string{"chat"},
 		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
+	r.Get("/me/chat/unread-summary", h.ChatUnreadSummary, apiOp{
+		summary:     "Chat unread summary",
+		description: "Chưa đọc chat của người gọi theo từng workspace mở được, cho bộ chuyển workspace: DM và nhóm đếm một lần (direct), kênh theo workspace; phòng tắt thông báo chỉ tính nhắc tên.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatUnreadSummarySDO{},
 		auth:        true,
 	})
 	r.Post("/workspaces/{workspaceID}/chat/dm", h.ResolveDM, apiOp{

@@ -639,6 +639,7 @@ func New(d Deps) http.Handler {
 		GetWorkspaceChatRoom:             h.getWorkspaceChatRoom,
 		EnsureWorkspaceChatRoom:          h.ensureWorkspaceChatRoom,
 		ListChatRooms:                    h.listChatRooms,
+		ChatUnreadSummary:                h.chatUnreadSummary,
 		ResolveDM:                        h.resolveDM,
 		CreateChatGroup:                  h.createChatGroup,
 		InviteChatGroupMembers:           h.inviteChatGroupMembers,
