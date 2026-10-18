@@ -1,7 +1,7 @@
 "use client";
 
 import { FolderKanban, ShieldCheck } from "lucide-react";
-import type { TFunction } from "react-i18next";
+import type { useTranslation } from "react-i18next";
 import type { DocumentAccessUpdateItemInput, DocumentPrincipalType } from "@uniwork/core/api/endpoints/documents-sharing";
 import type { DocumentAccess, DocumentAccessLevel, DocumentAccessSource, DocumentAccessVia, DocumentShare } from "@uniwork/core/types/document";
 import type { OrgMember } from "@uniwork/core/types/people";
@@ -13,6 +13,8 @@ import { OwnerTransferAction } from "./owner-transfer-dialog";
 import { allowedLevelsForPrincipal } from "./share-add-section";
 import { SharePrincipalIcon } from "./share-candidate-picker";
 import type { ShareDialogTarget } from "./share-dialog-target";
+
+type TFunction = ReturnType<typeof useTranslation>["t"];
 
 /** Everything a row needs from the list: labels, flags and callbacks. */
 export interface ShareAccessRowContext {

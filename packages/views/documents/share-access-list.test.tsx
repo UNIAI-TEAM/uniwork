@@ -289,7 +289,13 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     // The real interleave: Accept's commit is still in flight when the
     // refetched access flips the view to the non-manager branch; only then
     // does the close effect look up headingRef — it must be that branch's h3.
-    const commit = Promise.withResolvers<unknown>();
+    let resolveCommit: (value: unknown) => void = () => {};
+    const commit = {
+      promise: new Promise<unknown>((r) => {
+        resolveCommit = r;
+      }),
+      resolve: (value: unknown) => resolveCommit(value),
+    };
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: { dry_run?: boolean } }) => {
       if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
         if (opts.body?.dry_run) {
