@@ -64,6 +64,9 @@ export function patchRoomSidebarFromMessage(
       last_message_kind: message.kind ?? "text",
       last_message_sender_id: message.sender_id,
       last_message_sender_name: message.sender_display_name,
+      // The list line's call outcome and voice length, as the room list sends them.
+      last_message_call_outcome: message.kind === "voice_call_log" ? message.voice_call?.outcome : undefined,
+      last_message_duration_ms: message.kind === "voice" ? message.voice?.duration_ms : undefined,
       last_message_at: message.created_at,
       unread_count:
         options?.incrementUnread === true
@@ -139,6 +142,15 @@ export function insertCreatedRoomMessage(
   message: ChatMessageRecord,
 ): void {
   patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) => insertCreatedTimelineMessage(existing, message));
+  invalidateRoomSharedSummary(qc, wsId, roomId);
+}
+
+/** A message created or deleted on the main timeline can change the info panel's media counts. */
+function invalidateRoomSharedSummary(qc: QueryClient, wsId: string, roomId: string): void {
+  const queryKey = chatKeys.roomSharedSummary(wsId, roomId);
+  // Only a summary someone loaded can be stale; skipping the rest keeps message frames to their timeline patch.
+  if (!qc.getQueryState(queryKey)) return;
+  void qc.invalidateQueries({ queryKey });
 }
 
 function patchWorkspaceMessageListIfLoaded(
@@ -338,6 +350,7 @@ export async function fetchAndPatchChatMessage(
     // GET fills the preview. The frame names the sender: one's own message
     // (another tab or device) is not unread.
     if (created && !viewing && senderId !== currentUserId()) bumpUnreadLocally(qc, wsId, roomId);
+    if (created) invalidateRoomSharedSummary(qc, wsId, roomId);
     if (created) await refreshUnshownDefaultChannelPreview(qc, wsId, roomId, messageId);
     return;
   }
@@ -372,6 +385,7 @@ export function patchChatMessageDeleted(
   roomId: string,
   messageId: string,
 ): void {
+  invalidateRoomSharedSummary(qc, wsId, roomId);
   patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) =>
     roomTimelineHas(existing, messageId)
       ? mapRoomTimeline(existing, (page) => removeMessageFromList(page, messageId))
@@ -422,6 +436,8 @@ export function invalidateChatMessageLinks(
 ): void {
   if (!messageId) return;
   void qc.invalidateQueries({ queryKey: chatKeys.messageLinks(wsId, messageId) });
+  // The message id does not name its room: refresh every open linked-task list.
+  void qc.invalidateQueries({ queryKey: chatKeys.roomLinkedTasksRoot(wsId) });
   // The room cache only fetches ids it lacks: forget this one so the open
   // timeline asks for its links, and nothing else, again.
   qc.setQueriesData<Map<string, unknown[]>>(

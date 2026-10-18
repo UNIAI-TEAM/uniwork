@@ -362,6 +362,41 @@ func TestListChatRoomMembersMarksTheCreator(t *testing.T) {
 	}
 }
 
+// "N người đã xem" counts the members whose read pointer reached a message,
+// so the member list carries each pointer, at the message's own precision.
+func TestListChatRoomMembersCarriesTheReadPointer(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc := chatTestUser(t, q, w, "read-pointer-c@example.com")
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Ops", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, group.ID, SendChatMessageInput{Body: "seen?"})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if err := s.MarkRoomRead(ctx, ub.ID, w.ID, group.ID); err != nil {
+		t.Fatalf("mark read: %v", err)
+	}
+	members, err := s.ListChatRoomMembers(ctx, ua.ID, w.ID, group.ID)
+	if err != nil {
+		t.Fatalf("list members: %v", err)
+	}
+	byID := map[string]ChatRoomMemberView{}
+	for _, m := range members {
+		byID[m.UserID] = m
+	}
+	if got := byID[ub.ID].LastReadAt; got == nil || !got.Equal(msg.CreatedAt) {
+		t.Fatalf("reader LastReadAt = %v, want the message time %v", got, msg.CreatedAt)
+	}
+	if got := byID[uc.ID].LastReadAt; got != nil {
+		t.Fatalf("member who never read has LastReadAt %v", got)
+	}
+}
+
 // UNI-1672: chat.channel.updated is ephemeral, so the outbox row alone reaches
 // nobody; unarchiving tells the members directly, as UpdateChannel does.
 func TestUnarchiveChannelTellsTheMembers(t *testing.T) {

@@ -6,6 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
 import { requestMock, wrap } from "../test/api-mock";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
+import { ChatUnreadProvider } from "./chat-day-separator";
 
 const toggleReaction = vi.fn().mockResolvedValue(undefined);
 const deleteMessage = vi.fn();
@@ -81,6 +82,8 @@ import { toast } from "sonner";
 // @tanstack/react-virtual needs layout measurements that jsdom cannot provide,
 // so render rows synchronously in this test.
 vi.mock("./virtual-chat-message-list", () => ({
+  // Every scroll here stands for the reader's own.
+  useReaderScrollAt: () => ({ current: Date.now() }),
   updateStickToBottomFromScroll: (_el: HTMLElement, ref: { current: boolean }) => {
     ref.current = nearBottom;
     return nearBottom;
@@ -124,6 +127,7 @@ function panel(props: Partial<Parameters<typeof NativeChatMessagePanel>[0]> = {}
       youLabel="Bạn"
       replyTo={null}
       onReplyToChange={vi.fn()}
+      onEditMessage={vi.fn()}
       {...props}
     />
   );
@@ -139,9 +143,7 @@ function messageArticle(text: string): HTMLElement {
 }
 
 describe("NativeChatMessagePanel", () => {
-  it("renders messages and clears an active reply, handing focus back to the composer", () => {
-    const onReplyToChange = vi.fn();
-    const onFocusComposer = vi.fn();
+  it("renders messages and leaves an active reply's bar to the composer", () => {
     const replyTo = {
       id: "m1",
       sender: "u2",
@@ -150,13 +152,12 @@ describe("NativeChatMessagePanel", () => {
       reactions: {},
     };
 
-    render(wrap(panel({ replyTo, onReplyToChange, onFocusComposer })));
+    render(wrap(panel({ replyTo })));
 
     expect(screen.getAllByText("Hi team").length).toBeGreaterThan(0);
     expect(screen.getByText("Reply")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
-    expect(onReplyToChange).toHaveBeenCalledWith(null);
-    expect(onFocusComposer).toHaveBeenCalled();
+    // The quote heads the composer pill now (ChatComposer `replyTo`), not the timeline's foot.
+    expect(screen.queryByRole("button", { name: "Hủy" })).not.toBeInTheDocument();
   });
 
   it("names every message's sender and time, mine as “Bạn”, and keeps the list silent", () => {
@@ -200,27 +201,16 @@ describe("NativeChatMessagePanel", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Bạn không có quyền làm việc này."));
   });
 
-  it("keeps the edit dialog open with the error inside it when saving fails", async () => {
+  // Saving, the unchanged case and a failed save live in useChatInlineEdit and the composer.
+  it("hands my message to the composer's edit mode on Sửa, and offers it only on my messages", async () => {
     const user = userEvent.setup();
-    editMessage.mockRejectedValueOnce(new Error("boom"));
-    render(wrap(panel()));
+    const onEditMessage = vi.fn();
+    render(wrap(panel({ onEditMessage })));
 
+    expect(within(messageArticle("Hi team")).queryByRole("button", { name: "Sửa" })).not.toBeInTheDocument();
     await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Sửa" }));
-    const field = await screen.findByRole("textbox", { name: "Sửa tin nhắn" });
-    await user.clear(field);
-    await user.type(field, "Reply edited");
-    await user.keyboard("{Control>}{Enter}{/Control}");
-
-    expect(editMessage).toHaveBeenCalledWith({ roomId: "room1", messageId: "m2", body: "Reply edited" });
-    expect(await screen.findByRole("alert")).toHaveTextContent("Chưa lưu được thay đổi. Thử lại.");
-    expect(screen.getByRole("textbox", { name: "Sửa tin nhắn" })).toHaveValue("Reply edited");
-  });
-
-  it("does not save an edit that changed nothing", async () => {
-    const user = userEvent.setup();
-    render(wrap(panel()));
-    await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Sửa" }));
-    await user.click(await screen.findByRole("button", { name: "Lưu" }));
+    expect(onEditMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "m2", body: "Reply" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(editMessage).not.toHaveBeenCalled();
   });
 
@@ -266,8 +256,27 @@ describe("NativeChatMessagePanel", () => {
     ];
     render(wrap(panel({ unreadSince: "2026-01-01T10:00:30.000Z" })));
     const divider = screen.getByRole("separator", { name: "Tin mới" });
-    expect(divider.parentElement?.textContent).toContain("Later");
+    expect(divider.parentElement?.parentElement?.textContent).toContain("Later");
     expect(screen.getAllByRole("separator", { name: "Tin mới" })).toHaveLength(1);
+  });
+
+  it("counts the unread messages on that line and offers the quick summary when the page provides them", async () => {
+    const user = userEvent.setup();
+    const onCatchUp = vi.fn();
+    rows = [
+      ...BASE_ROWS,
+      { id: "m3", sender_id: "u2", body: "Later", kind: "text", created_at: "2026-01-01T10:05:00.000Z", reactions: {} },
+    ];
+    render(
+      wrap(
+        <ChatUnreadProvider value={{ count: 4, onCatchUp }}>
+          {panel({ unreadSince: "2026-01-01T10:00:30.000Z" })}
+        </ChatUnreadProvider>,
+      ),
+    );
+    expect(screen.getByRole("separator", { name: "4 tin chưa đọc" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tóm tắt nhanh" }));
+    expect(onCatchUp).toHaveBeenCalledTimes(1);
   });
 
   it("unfollows the open thread from the thread bar", async () => {
@@ -276,7 +285,7 @@ describe("NativeChatMessagePanel", () => {
     render(wrap(panel({ threadsEnabled: true })));
 
     await user.click(screen.getByRole("button", { name: "1 trả lời" }));
-    await user.click(await screen.findByRole("button", { name: "Bỏ theo dõi" }));
+    await user.click(await screen.findByRole("button", { name: "Theo dõi", pressed: true }));
 
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith(
@@ -284,6 +293,49 @@ describe("NativeChatMessagePanel", () => {
         expect.objectContaining({ method: "DELETE" }),
       ),
     );
+  });
+
+  it("opens a thread beside the timeline when the page hosts it, keeping the timeline and highlighting the root", async () => {
+    const user = userEvent.setup();
+    const onOpenThread = vi.fn();
+    rows = [{ ...BASE_ROWS[0]!, reply_count: 1 }, BASE_ROWS[1]!];
+    const { rerender } = render(wrap(panel({ threadsEnabled: true, onOpenThread })));
+
+    await user.click(screen.getByRole("button", { name: "1 trả lời" }));
+    expect(onOpenThread).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }));
+    // No in-place thread: the room timeline is still here.
+    expect(screen.queryByRole("button", { name: "Đóng chủ đề" })).not.toBeInTheDocument();
+    expect(messageArticle("Reply")).toBeInTheDocument();
+
+    rerender(wrap(panel({ threadsEnabled: true, onOpenThread, openThreadRootId: "m1" })));
+    expect(messageArticle("Hi team").closest("[data-highlighted]")).not.toBeNull();
+  });
+
+  it("as the side thread panel shows only its thread, names the room, and closing asks the page", async () => {
+    const user = userEvent.setup();
+    const onCloseThread = vi.fn();
+    const root = { id: "m1", sender: "u2", body: "Hi team", ts: Date.parse("2026-01-01T10:00:00.000Z") };
+    rows = [
+      { ...BASE_ROWS[0]!, reply_count: 1 },
+      { ...BASE_ROWS[1]!, reply_to_message_id: undefined, thread_root_id: "m1" },
+      { id: "m3", sender_id: "u2", body: "Room only", kind: "text", created_at: "2026-01-01T10:02:00.000Z", reactions: {} },
+    ];
+    render(
+      wrap(
+        panel({
+          threadsEnabled: true,
+          thread: root as unknown as Parameters<typeof NativeChatMessagePanel>[0]["thread"],
+          onCloseThread,
+          threadSubtitle: "Design",
+        }),
+      ),
+    );
+
+    expect(screen.getByText("Chủ đề")).toBeInTheDocument();
+    expect(screen.getByText("Design")).toBeInTheDocument();
+    expect(screen.queryByText("Room only")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Đóng chủ đề" }));
+    expect(onCloseThread).toHaveBeenCalledTimes(1);
   });
 
   // The cursor itself is chosen by useChatRoomMessages (core chat-hooks-rooms.test).

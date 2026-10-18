@@ -149,6 +149,10 @@ func TestPromptSnapshots(t *testing.T) {
 		"to": "team@example.com", "sent_at": "2026-09-06T10:00:00Z",
 		"body": "Chốt demo thứ Sáu.",
 	}
+	catchUp := map[string]any{
+		"locale": "vi", "today": "2026-09-11", "scope": "room", "since": "2026-09-11T08:00:00Z",
+		"sources": RenderSources([]Source{{ID: "S1", Kind: "chat", Title: "An · 2026-09-11 09:00", Excerpt: "Nhắc hạn F-09"}}),
+	}
 	fixtures := map[string]map[string]any{
 		// Superseded versions stay registered for old usage rows; their keys
 		// are literal so moving a Prompt* constant cannot re-point a fixture.
@@ -171,10 +175,8 @@ func TestPromptSnapshots(t *testing.T) {
 			"question": "task nào quá hạn?", "locale": "vi", "today": "2026-09-06",
 			"sources": RenderSources([]Source{{ID: "S1", Kind: "task", Title: "Viết spec", Excerpt: "quá hạn 2 ngày"}}),
 		},
-		PromptChatCatchUp: {
-			"locale": "vi", "today": "2026-09-11", "scope": "room", "since": "2026-09-11T08:00:00Z",
-			"sources": RenderSources([]Source{{ID: "S1", Kind: "chat", Title: "An · 2026-09-11 09:00", Excerpt: "Nhắc hạn F-09"}}),
-		},
+		"chat_catchup@1":  catchUp,
+		PromptChatCatchUp: catchUp,
 		PromptChatCallSummary: {
 			"locale": "vi", "today": "2026-09-16", "duration": "1:05", "participants": "An, Bình",
 			"sources": RenderSources([]Source{
@@ -333,6 +335,28 @@ func TestParseCatchUpJSON(t *testing.T) {
 	}
 	if out.ActionItems[0].SourceID != "S1" || out.ActionItems[1].SourceID != "" {
 		t.Fatalf("source filter %+v", out.ActionItems)
+	}
+	// chat_catchup@1 and chat_call_summary@1 answer highlights as strings;
+	// @2 as objects naming a source, which must be one the pack holds.
+	v1, err := ParseCatchUpJSON(`{"summary":"x","highlights":["Chốt thứ Sáu",""]}`, pack)
+	if err != nil || len(v1.Highlights) != 2 || v1.Highlights[0] != (CatchUpHighlight{Text: "Chốt thứ Sáu"}) {
+		t.Fatalf("string highlights: %+v %v", v1, err)
+	}
+	if got := v1.HighlightTexts(); len(got) != 2 || got[0] != "Chốt thứ Sáu" || got[1] != "" {
+		t.Fatalf("texts must keep every string as is: %q", got)
+	}
+	v2, err := ParseCatchUpJSON(`{"summary":"x","highlights":[{"text":"Có nguồn","source_id":"S2"},{"text":"Nguồn lạ","source_id":"S9"},{"text":"Không nguồn","source_id":""}]}`, pack)
+	want := []CatchUpHighlight{{Text: "Có nguồn", SourceID: "S2"}, {Text: "Nguồn lạ"}, {Text: "Không nguồn"}}
+	if err != nil || len(v2.Highlights) != len(want) {
+		t.Fatalf("object highlights: %+v %v", v2, err)
+	}
+	for i := range want {
+		if v2.Highlights[i] != want[i] {
+			t.Fatalf("highlight %d: %+v want %+v", i, v2.Highlights[i], want[i])
+		}
+	}
+	if _, err := ParseCatchUpJSON(`{"summary":"x","highlights":[1]}`, pack); !errors.Is(err, ErrOutputInvalid) {
+		t.Fatalf("a highlight neither string nor object: %v", err)
 	}
 	if _, err := ParseCatchUpJSON("no json", pack); !errors.Is(err, ErrOutputInvalid) {
 		t.Fatalf("%v", err)

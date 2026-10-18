@@ -77,6 +77,24 @@ describe("useChatSendOutboxStore", () => {
     expect(useChatSendOutboxStore.getState().entries.map((e) => e.client_msg_id)).toEqual(["fresh"]);
   });
 
+  it("marks an entry failed and back, and counts only the ones waiting for the network", () => {
+    resetChatSendOutboxForTests();
+    const { enqueue } = useChatSendOutboxStore.getState();
+    enqueue(entry({ client_msg_id: "a1" }));
+    enqueue(entry({ client_msg_id: "a2" }));
+
+    useChatSendOutboxStore.getState().setFailed("a1", true);
+    let state = useChatSendOutboxStore.getState();
+    expect(state.entries.find((e) => e.client_msg_id === "a1")?.failed_at).toEqual(expect.any(String));
+    expect(state.listForWorkspace("ws1", "u1", NOW)).toHaveLength(2);
+    expect(state.countForWorkspace("ws1", "u1", NOW)).toBe(1);
+
+    useChatSendOutboxStore.getState().setFailed("a1", false);
+    state = useChatSendOutboxStore.getState();
+    expect(state.entries.find((e) => e.client_msg_id === "a1")?.failed_at).toBeUndefined();
+    expect(state.countForWorkspace("ws1", "u1", NOW)).toBe(2);
+  });
+
   it("drops legacy entries without a sender when rehydrating", async () => {
     const fresh = new Date().toISOString();
     localStorage.setItem(

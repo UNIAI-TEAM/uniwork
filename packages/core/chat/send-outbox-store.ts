@@ -29,16 +29,24 @@ export type ChatSendOutboxEntry = {
   priority?: ComposerMessagePriority;
   thread_root_id?: string;
   queued_at: string;
+  /**
+   * Set when the last attempt reached the server and failed: the bubble reads
+   * "Chưa gửi được" with "Thử lại" instead of waiting for the network. Still
+   * delivered by the reconnect flush; cleared when an attempt stops at the network.
+   */
+  failed_at?: string;
 };
 
 type ChatSendOutboxState = {
   entries: ChatSendOutboxEntry[];
   enqueue: (entry: ChatSendOutboxEntry) => void;
   remove: (clientMsgId: string) => void;
+  setFailed: (clientMsgId: string, failed: boolean) => void;
   /** Drop entries past the TTL and legacy entries that carry no sender. */
   pruneStale: (now?: number) => void;
   /** Deliverable entries: this workspace, this sender, within the TTL. */
   listForWorkspace: (workspaceId: string, senderId: string, now?: number) => ChatSendOutboxEntry[];
+  /** Entries waiting for the network; a failed one says so on its own bubble. */
   countForWorkspace: (workspaceId: string, senderId: string, now?: number) => number;
 };
 
@@ -78,6 +86,15 @@ export const useChatSendOutboxStore = create<ChatSendOutboxState>()(
           entries: state.entries.filter((entry) => entry.client_msg_id !== clientMsgId),
         }));
       },
+      setFailed: (clientMsgId, failed) => {
+        set((state) => ({
+          entries: state.entries.map((entry) =>
+            entry.client_msg_id === clientMsgId
+              ? { ...entry, failed_at: failed ? new Date().toISOString() : undefined }
+              : entry,
+          ),
+        }));
+      },
       pruneStale: (now = Date.now()) => {
         set((state) => {
           const live = state.entries.filter((entry) => isLive(entry, now));
@@ -87,7 +104,7 @@ export const useChatSendOutboxStore = create<ChatSendOutboxState>()(
       listForWorkspace: (workspaceId, senderId, now = Date.now()) =>
         deliverable(get().entries, workspaceId, senderId, now),
       countForWorkspace: (workspaceId, senderId, now = Date.now()) =>
-        deliverable(get().entries, workspaceId, senderId, now).length,
+        deliverable(get().entries, workspaceId, senderId, now).filter((entry) => !entry.failed_at).length,
     }),
     {
       name: CHAT_SEND_OUTBOX_STORAGE_KEY,

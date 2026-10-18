@@ -3,6 +3,9 @@
 // (600 ms after the draft stops changing, as packages/views/chat/use-native-typing.ts).
 // M3: an empty draft's send button records a voice message, and the attach
 // sheet opens the sticker/GIF picker and the reminder sheet.
+// R4 (canvas MobileChat / MobStates): a round "+" outside the field opens the
+// attach sheet, a pill field holds the input and the sticker button, a round
+// brand button sends or records; the reply/edit banner is a card above it.
 // Mentions are typed as "@Tên" and stored as tokens on send
 // (lib/mentions.ts › serializeComposerDraftToMessageBody), as on the web.
 import { Ionicons } from "@expo/vector-icons";
@@ -30,6 +33,7 @@ import {
 import type { PendingFile } from "@/lib/send-pipeline";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
+import { cn } from "@/lib/utils";
 import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
 
 const TYPING_DEBOUNCE_MS = 600;
@@ -197,6 +201,8 @@ export function Composer(props: Props) {
     : reply
       ? { title: reply.sender, text: t("chat.replying_to", { preview: reply.text }), cancel: props.onCancelReply }
       : null;
+  // The "+" and the sticker button: off in a thread and while editing, as the attach sheet always was.
+  const attach = allowAttachments && !edit;
 
   return (
     <View className="border-t border-border bg-background" style={{ paddingBottom: bottomInset }}>
@@ -217,62 +223,79 @@ export function Composer(props: Props) {
         </View>
       ) : null}
       {banner ? (
-        <View className="flex-row items-center gap-2 border-l-2 border-primary bg-secondary/60 mx-3 mt-2 px-3 py-1.5 rounded-r-md">
-          <View className="flex-1">
-            <Text className="text-xs font-semibold text-primary" numberOfLines={1}>
+        <View className="mx-3 mt-2 flex-row items-center gap-2.5 rounded-r-[10px] border-l-[3px] border-primary bg-muted pl-3">
+          <Ionicons name={edit ? "create-outline" : "arrow-undo-outline"} size={18} color={theme.primary} />
+          <View className="flex-1 py-1.5">
+            <Text className="text-[13px] font-semibold text-primary" numberOfLines={1}>
               {banner.title}
             </Text>
-            <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+            <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
               {banner.text}
             </Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={t("chat.cancel_reply")} hitSlop={8} onPress={banner.cancel} className="h-11 w-11 items-center justify-center">
+          <Pressable accessibilityRole="button" accessibilityLabel={t("chat.cancel_reply")} onPress={banner.cancel} className="h-11 w-11 items-center justify-center">
             <Ionicons name="close" size={18} color={theme.mutedForeground} />
           </Pressable>
         </View>
       ) : null}
-      <View className="flex-row items-end gap-1 px-2 py-2">
-        {allowAttachments && !edit && !voice.active ? (
+      <View className={cn("flex-row items-end gap-1.5 py-2 pr-2", attach ? "pl-2" : "pl-3")}>
+        {attach && !voice.active ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("chat.composer_attach")}
             onPress={() => setAttachOpen(true)}
             className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary"
           >
-            <Ionicons name="attach" size={24} color={theme.mutedForeground} />
+            <Ionicons name="add" size={28} color={theme.mutedForeground} />
           </Pressable>
         ) : null}
         {voice.active ? (
-          <View className="flex-1 min-h-11 flex-row items-center gap-2 rounded-2xl bg-secondary px-4" accessible accessibilityLabel={t("chat.voice_recording_aria")}>
-            <View className="h-2.5 w-2.5 rounded-full bg-destructive" />
-            <Text className="text-base text-foreground">
-              {formatVoiceCallDuration(voice.elapsedMs / 1000)} / {formatVoiceCallDuration(VOICE_MAX_MS / 1000)}
+          <View className="h-11 flex-1 flex-row items-center gap-2.5 rounded-[22px] bg-tint-red px-3.5" accessible accessibilityLabel={t("chat.voice_recording_aria")}>
+            <View className="h-2.5 w-2.5 rounded-full bg-destructive-solid" />
+            <Text className="text-base font-semibold text-foreground">
+              {formatVoiceCallDuration(voice.elapsedMs / 1000)}{" "}
+              <Text className="font-normal text-muted-foreground">/ {formatVoiceCallDuration(VOICE_MAX_MS / 1000)}</Text>
             </Text>
           </View>
         ) : (
-        <TextInput
-          value={draft}
-          onChangeText={onChange}
-          onSelectionChange={(event) => setCursor(event.nativeEvent.selection.end)}
-          placeholder={t("chat.message_placeholder")}
-          placeholderTextColor={theme.mutedForeground}
-          accessibilityLabel={t("chat.message_placeholder")}
-          multiline
-          className="flex-1 max-h-32 min-h-11 rounded-2xl bg-secondary px-4 py-2.5 text-base text-foreground"
-        />
+          <View className="min-h-11 flex-1 flex-row items-end rounded-[22px] border border-border bg-muted pl-3.5 pr-0.5">
+            <TextInput
+              value={draft}
+              onChangeText={onChange}
+              onSelectionChange={(event) => setCursor(event.nativeEvent.selection.end)}
+              placeholder={t("chat.message_placeholder")}
+              placeholderTextColor={theme.mutedForeground}
+              accessibilityLabel={t("chat.message_placeholder")}
+              testID="composer-input"
+              multiline
+              className="max-h-32 min-h-[42px] flex-1 py-2.5 text-base text-foreground"
+            />
+            {attach ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("chat.expression_picker_open")}
+                // 42 pt inside the field's border, 44 pt target.
+                hitSlop={2}
+                onPress={props.onOpenExpressions}
+                className="h-[42px] w-[42px] items-center justify-center rounded-full active:bg-secondary"
+              >
+                <Ionicons name="happy-outline" size={23} color={theme.mutedForeground} />
+              </Pressable>
+            ) : null}
+          </View>
         )}
         {voice.active ? (
           <>
             <Pressable accessibilityRole="button" accessibilityLabel={t("common.cancel")} testID="composer-voice-cancel" onPress={() => void voice.cancel()} className="h-11 w-11 items-center justify-center rounded-full">
-              <Ionicons name="trash-outline" size={24} color={theme.destructive} />
+              <Ionicons name="trash-outline" size={22} color={theme.destructive} />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={t("chat.send")} testID="composer-voice-send" onPress={() => void voice.send()} className="h-11 w-11 items-center justify-center rounded-full">
-              <Ionicons name="send" size={24} color={theme.primary} />
+            <Pressable accessibilityRole="button" accessibilityLabel={t("chat.send")} testID="composer-voice-send" onPress={() => void voice.send()} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
+              <Ionicons name="send" size={20} color={theme.primaryForeground} />
             </Pressable>
           </>
-        ) : !trimmed && !edit && allowAttachments ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={t("chat.voice_message")} testID="composer-voice" onPress={startVoice} className="h-11 w-11 items-center justify-center rounded-full">
-            <Ionicons name="mic-outline" size={26} color={theme.primary} />
+        ) : !trimmed && attach ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={t("chat.voice_message")} testID="composer-voice" onPress={startVoice} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
+            <Ionicons name="mic-outline" size={22} color={theme.primaryForeground} />
           </Pressable>
         ) : (
           <Pressable
@@ -281,9 +304,10 @@ export function Composer(props: Props) {
             accessibilityState={{ disabled: !trimmed || tooLong }}
             disabled={!trimmed || tooLong}
             onPress={submit}
-            className="h-11 w-11 items-center justify-center rounded-full"
+            testID="composer-send"
+            className={cn("h-11 w-11 items-center justify-center rounded-full", !trimmed || tooLong ? "bg-muted" : "bg-primary")}
           >
-            <Ionicons name={edit ? "checkmark-circle" : "send"} size={edit ? 30 : 24} color={!trimmed || tooLong ? theme.mutedForeground : theme.primary} />
+            <Ionicons name={edit ? "checkmark" : "send"} size={edit ? 24 : 20} color={!trimmed || tooLong ? theme.mutedForeground : theme.primaryForeground} />
           </Pressable>
         )}
       </View>
@@ -296,11 +320,13 @@ export function Composer(props: Props) {
       <ActionSheet
         visible={attachOpen}
         onClose={() => setAttachOpen(false)}
+        title={t("chat.composer_attach")}
+        layout="tiles"
         actions={[
-          { key: "photo", label: t("chat.media_image"), onPress: () => void pickPhoto() },
-          { key: "file", label: t("chat.composer_attach_file"), onPress: () => void pickFile() },
-          { key: "expressions", label: `${t("chat.expression_tab_sticker")} · ${t("chat.expression_tab_gif")}`, onPress: props.onOpenExpressions },
-          { key: "reminder", label: t("chat.composer_create_reminder"), onPress: props.onOpenReminder },
+          { key: "photo", label: t("chat.media_image"), icon: "image-outline", tint: "blue", onPress: () => void pickPhoto() },
+          { key: "file", label: t("chat.composer_attach_file"), icon: "attach", tint: "orange", onPress: () => void pickFile() },
+          { key: "expressions", label: `${t("chat.expression_tab_sticker")} · ${t("chat.expression_tab_gif")}`, icon: "happy-outline", tint: "yellow", onPress: props.onOpenExpressions },
+          { key: "reminder", label: t("chat.composer_create_reminder"), icon: "alarm-outline", tint: "teal", onPress: props.onOpenReminder },
         ]}
       />
     </View>

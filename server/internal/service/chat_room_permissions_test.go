@@ -87,3 +87,68 @@ func TestRoomSettingsRejectsABadNameBeforeWriting(t *testing.T) {
 		t.Fatalf("permissions written by a request that failed validation: %+v", perms)
 	}
 }
+
+// A group's description follows the rename rule, is capped, clears with "",
+// is audited, and comes back on the room list.
+func TestGroupTopicFollowsTheRenameRule(t *testing.T) {
+	f := groupAvatarFixture(t)
+	ctx := context.Background()
+	set := func(userID, topic string) error {
+		_, err := f.s.UpdateChatRoomSettings(ctx, userID, f.w.ID, f.group.ID, UpdateChatRoomSettingsInput{Topic: &topic})
+		return err
+	}
+	topicOf := func() string {
+		room, err := f.q.GetChatRoomByID(ctx, f.group.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return room.Topic
+	}
+
+	if err := set(f.ub.ID, "  Nơi team trao đổi  "); err != nil {
+		t.Fatalf("member sets the description with the flag on: %v", err)
+	}
+	if got := topicOf(); got != "Nơi team trao đổi" {
+		t.Fatalf("topic=%q, want trimmed", got)
+	}
+
+	locked := defaultChatRoomMemberPermissions()
+	locked.AllowChangeProfile = false
+	if _, err := f.s.UpdateChatRoomSettings(ctx, f.ua.ID, f.w.ID, f.group.ID, UpdateChatRoomSettingsInput{MemberPermissions: &locked}); err != nil {
+		t.Fatal(err)
+	}
+	if err := set(f.ub.ID, "hijack"); err != ErrForbidden {
+		t.Fatalf("member with the flag off: err=%v, want ErrForbidden", err)
+	}
+	requireValidationError(t, set(f.ua.ID, strings.Repeat("ạ", chatChannelTopicMaxRunes+1)), "overlong topic")
+	if got := topicOf(); got != "Nơi team trao đổi" {
+		t.Fatalf("a refused request changed the topic to %q", got)
+	}
+	if err := set(f.ua.ID, strings.Repeat("ạ", chatChannelTopicMaxRunes)); err != nil {
+		t.Fatalf("creator sets a topic at the limit: %v", err)
+	}
+
+	rooms, err := f.s.ListChatRooms(ctx, f.ua.ID, f.w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed := ""
+	for _, r := range rooms {
+		if r.ID == f.group.ID {
+			listed = r.Topic
+		}
+	}
+	if listed != strings.Repeat("ạ", chatChannelTopicMaxRunes) {
+		t.Fatalf("room list topic=%q", listed)
+	}
+
+	if err := set(f.ua.ID, ""); err != nil || topicOf() != "" {
+		t.Fatalf("clearing the topic: err=%v topic=%q", err, topicOf())
+	}
+	var n int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE action = 'chat.room.settings_updated' AND resource_id = $1 AND changes::jsonb ? 'topic'`, f.group.ID,
+	).Scan(&n); err != nil || n != 3 {
+		t.Fatalf("topic audit rows: err=%v count=%d, want 3", err, n)
+	}
+}

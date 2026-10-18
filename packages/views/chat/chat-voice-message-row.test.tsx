@@ -64,6 +64,6 @@ describe("ChatVoiceMessageRow", () => {
         />,
       ),
     );
-    expect(container.querySelector("#chat-msg-message-hl")).toHaveClass("ring-2", "ring-brand", "bg-brand-subtle");
+    expect(container.querySelector("#chat-msg-message-hl")).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
   });
 });

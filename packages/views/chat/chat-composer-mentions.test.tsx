@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { ChatComposer } from "./chat-composer";
+import { splitMentionMatch } from "./chat-mention-autocomplete";
 
 initI18n();
 
@@ -99,5 +100,15 @@ describe("ChatComposer mentions", () => {
     expect(screen.getByText("Vượt 54 ký tự")).toHaveClass("text-destructive");
     fireEvent.keyDown(screen.getByLabelText("Nhập tin nhắn…"), { key: "Enter" });
     expect(onSend).not.toHaveBeenCalled();
+  });
+});
+
+describe("splitMentionMatch", () => {
+  it("marks where the typed query meets the name, accents ignored", () => {
+    expect(splitMentionMatch("Võ Minh", "mi")).toEqual(["Võ ", "Mi", "nh"]);
+    expect(splitMentionMatch("Ngô Thanh Tâm", "tam")).toEqual(["Ngô Thanh ", "Tâm", ""]);
+    expect(splitMentionMatch("Đinh Lan Anh", "di")).toEqual(["", "Đi", "nh Lan Anh"]);
+    expect(splitMentionMatch("Võ Minh", "")).toBeNull();
+    expect(splitMentionMatch("Võ Minh", "lan")).toBeNull();
   });
 });

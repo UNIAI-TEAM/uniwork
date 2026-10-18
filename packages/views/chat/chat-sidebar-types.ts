@@ -19,7 +19,9 @@ export interface ChatSidebarProps {
   groups: GroupChat[];
   channels?: ChatRoomRecord[];
   onOpenFollowUps?: () => void;
-  onCreateGroup?: (members: ChatContact[], name: string) => void;
+  /** "Bắt kịp nhanh" at the top of the list: opens the busiest room and its catch-up brief. Absent when UNI cannot summarise. */
+  onQuickCatchUp?: (target: ChatSidebarTarget, roomId: string) => void;
+  onCreateGroup?: (members: ChatContact[], name: string, avatar: File | null) => void;
   creatingGroup?: boolean;
   createGroupOpen?: boolean;
   onCreateGroupOpenChange?: (open: boolean) => void;

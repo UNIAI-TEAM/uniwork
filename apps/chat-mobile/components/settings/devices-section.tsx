@@ -25,19 +25,21 @@ function DeviceRow({ device, onRevoke }: { device: Device; onRevoke: (name: stri
     ? t("mobile.settings.this_device")
     : [PLATFORM_NAMES[device.platform] ?? device.platform, formatCallTime(device.last_used_at, i18n.language)].filter(Boolean).join(" · ");
   return (
-    <View className="min-h-[56px] flex-row items-center gap-3 px-4 py-2">
-      <Ionicons name={phone ? "phone-portrait-outline" : "laptop-outline"} size={22} color={THEME[colorScheme].mutedForeground} />
+    <View className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-2">
+      <View className="h-9 w-9 items-center justify-center rounded-[10px] bg-muted">
+        <Ionicons name={phone ? "phone-portrait-outline" : "laptop-outline"} size={19} color={THEME[colorScheme].mutedForeground} />
+      </View>
       <View className="flex-1">
         <Text numberOfLines={1} className="text-base text-foreground">
           {name}
         </Text>
-        <Text numberOfLines={1} className={device.current ? "text-sm font-medium text-primary" : "text-sm text-muted-foreground"}>
+        <Text numberOfLines={1} className={device.current ? "text-sm font-semibold text-primary" : "text-sm text-muted-foreground"}>
           {detail}
         </Text>
       </View>
       {device.current ? null : (
-        <Button variant="ghost" size="sm" onPress={() => onRevoke(name)} accessibilityLabel={`${t("settings.security.sessions.revoke")} ${name}`}>
-          <Text className="text-destructive">{t("settings.security.sessions.revoke")}</Text>
+        <Button variant="ghost" size="sm" className="h-11 rounded-full px-3 sm:h-11" onPress={() => onRevoke(name)} accessibilityLabel={`${t("settings.security.sessions.revoke")} ${name}`}>
+          <Text className="font-semibold text-destructive">{t("settings.security.sessions.revoke")}</Text>
         </Button>
       )}
     </View>
@@ -69,7 +71,7 @@ export function DevicesSection() {
       ) : (
         devices.data.map((device, index) => (
           <View key={device.id}>
-            {index > 0 ? <Separator /> : null}
+            {index > 0 ? <Separator className="ml-16 w-auto" /> : null}
             <DeviceRow device={device} onRevoke={(name) => confirm(device, name)} />
           </View>
         ))

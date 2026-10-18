@@ -189,6 +189,11 @@ var catalogue = []EventDef{
 	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
 	// else renders it, and every client that hears one reloads its sidebar.
 	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	// A member of a group or non-default channel moved their read pointer:
+	// sockets holding the room open refetch its member list to count who has
+	// seen a message. Losing one costs nobody anything; the next read or
+	// refetch corrects the count.
+	{Topic: "chat.room.member_read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	// Message and typing rows of the workspace's default channel go to the

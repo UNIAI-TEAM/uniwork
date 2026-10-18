@@ -179,9 +179,11 @@ func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, s
 
 // markChatRoomRead moves the caller's read pointer to at and, only when that
 // moves it forward, tells the reader's other tabs and, in a DM, the peer who
-// renders the receipt. Nobody else shows another person's read state, and
-// every client that hears one reloads its sidebar, so a room-wide read (or a
-// repeat that moved nothing) cost every open client a reload for nothing.
+// renders the receipt. Every client that hears chat.room.read reloads its
+// sidebar, so a room-wide one (or a repeat that moved nothing) cost every open
+// client a reload for nothing. A group or a non-default channel instead tells
+// the sockets holding it open with chat.room.member_read, which only refetches
+// that room's member list ("N người đã xem").
 func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, userID string, at pgtype.Timestamptz) error {
 	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: room.ID, UserID: userID,
@@ -217,6 +219,14 @@ func (s *ChatService) markChatRoomRead(ctx context.Context, room db.ChatRoom, us
 	s.pub.SendToUser(ctx, userID, ev)
 	if peerID, err := dmPeerUserID(room, userID); err == nil {
 		s.pub.SendToUser(ctx, peerID, ev)
+	}
+	// The default channel's members are the workspace: refetching that list
+	// on every read in every open client costs more than the count is worth.
+	if room.Kind == chatRoomKindGroup || (room.Kind == chatRoomKindChannel && !room.IsDefault) {
+		s.publishChatRoomEvent(ctx, room.ID, Event{
+			Type:    "chat.room.member_read",
+			Payload: map[string]string{"room_id": room.ID, "user_id": userID},
+		})
 	}
 	return nil
 }

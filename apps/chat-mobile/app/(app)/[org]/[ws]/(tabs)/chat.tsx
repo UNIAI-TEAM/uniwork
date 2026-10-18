@@ -1,6 +1,7 @@
-// The Chat tab (spec §2.1): every conversation in one list, sorted and
-// counted like the web's sidebar, with search, pin and mute on a long-press,
-// and "+" for a new DM or the channel directory. It is also where a deep link
+// The Chat tab (spec §2.1, MobileList board): every conversation in one list,
+// sorted and counted like the web's sidebar, with search, the filter chips,
+// pin and mute on a long-press, the workspace pill (the workspace switch) and
+// the compose button for a new DM or the channel directory. It is also where a deep link
 // lands: `?room=` opens that room, with `&message=` jumping to the message,
 // and `?dm=` opens (or creates) the DM with that person — the params
 // lib/deep-link.ts › deepLinkHref writes.
@@ -9,21 +10,22 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, TextInput, View } from "react-native";
+import { Alert, FlatList, Pressable, RefreshControl, View } from "react-native";
+import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, WorkspacePill } from "@/components/chat/room-list-parts";
 import { RoomRow } from "@/components/chat/room-row";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { ActionSheet, type SheetAction } from "@/components/ui/action-sheet";
-import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
-import { Text } from "@/components/ui/text";
+import { SearchField } from "@/components/ui/search-field";
 import { callEngine } from "@/data/calls/call-store";
 import { resolveDMRoom, setRoomMuted } from "@/data/chat-actions";
 import { nicknamesOptions, roomsOptions, workspaceMembersOptions } from "@/data/queries/chat";
+import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { useSidebarTypingStore } from "@/data/stores/chat-typing-store";
 import { chatRoutes } from "@/lib/chat-routes";
-import { buildRoomList, type RoomListRow } from "@/lib/room-list";
+import { buildRoomList, filterRoomList, type RoomListFilter, type RoomListRow } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
@@ -78,10 +80,12 @@ export default function ChatTab() {
   const rooms = useQuery({ ...roomsOptions(wsId), enabled: Boolean(chat) });
   const nicknames = useQuery({ ...nicknamesOptions(wsId), enabled: Boolean(chat) });
   const members = useQuery({ ...workspaceMembersOptions(wsId), enabled: Boolean(chat) });
+  const workspace = useQuery(workspaceListOptions()).data?.find((w) => w.id === wsId);
   const pinnedByRoomId = useChatPinsStore((s) => s.byRoomId);
   const typingByRoomId = useSidebarTypingStore((s) => s.byRoomId);
   const online = usePresenceStore((s) => s.onlineUserIds);
   const [filterText, setFilterText] = useState("");
+  const [filter, setFilter] = useState<RoomListFilter>("all");
   const [menuRow, setMenuRow] = useState<RoomListRow | null>(null);
   const [pulling, setPulling] = useState(false);
 
@@ -104,6 +108,8 @@ export default function ChatTab() {
         : [],
     [chat, rooms.data, filterText, nicknames.data, members.data, pinnedByRoomId, typingByRoomId, online, t, i18n.language],
   );
+  const shown = useMemo(() => filterRoomList(rows, filter), [rows, filter]);
+  const mentionRooms = useMemo(() => filterRoomList(rows, "mentions").length, [rows]);
 
   const open = useCallback(
     (row: RoomListRow) => {
@@ -138,84 +144,78 @@ export default function ChatTab() {
     }
   }
 
+  const pill = chat ? (
+    <WorkspacePill name={chat.workspaceName} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} onPress={() => router.push("/select-workspace")} />
+  ) : null;
   const newChat = chat ? (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t("chat.new_conversation_aria")}
-      hitSlop={8}
-      className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary"
+      className="h-11 w-11 items-center justify-center rounded-full bg-muted active:opacity-80"
       onPress={() => router.push(chatRoutes.newChat(chat))}
     >
-      <Ionicons name="create-outline" size={24} color={theme.primary} />
+      <Ionicons name="create-outline" size={21} color={theme.primary} />
     </Pressable>
   ) : null;
 
   return (
     <View className="flex-1 bg-background">
-      <Header title={t("nav.chat")} right={newChat} />
-      {!chat || rooms.isPending ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator accessibilityLabel={t("common.loading")} />
-        </View>
-      ) : rooms.isError && !rooms.data ? (
-        <View className="flex-1 items-center justify-center gap-3 px-8">
-          <Text className="text-sm text-muted-foreground text-center">{t("chat.sidebar_load_failed")}</Text>
-          <Button variant="outline" onPress={() => void rooms.refetch()}>
-            <Text>{t("common.retry")}</Text>
-          </Button>
-        </View>
-      ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={(row) => row.key}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl
-              refreshing={pulling}
-              onRefresh={() => {
-                setPulling(true);
-                void rooms.refetch().finally(() => setPulling(false));
-              }}
-            />
-          }
-          ListHeaderComponent={
-            <View className="px-4 pt-3 pb-2">
-              <TextInput
-                value={filterText}
-                onChangeText={setFilterText}
-                placeholder={t("chat.search_conversations")}
-                placeholderTextColor={theme.mutedForeground}
-                accessibilityLabel={t("chat.search_conversations_label")}
-                clearButtonMode="while-editing"
-                autoCorrect={false}
-                className="h-11 rounded-lg bg-secondary px-3 text-base text-foreground"
-              />
-            </View>
-          }
-          ListEmptyComponent={
-            <View className="items-center gap-2 px-8 pt-16">
-              <Text className="text-base font-medium text-foreground text-center">
-                {filterText.trim() ? t("chat.search_no_results") : t("chat.sidebar_empty_title")}
-              </Text>
-              {filterText.trim() ? null : <Text className="text-sm text-muted-foreground text-center">{t("chat.sidebar_empty_hint")}</Text>}
-            </View>
-          }
-          renderItem={({ item }) => (
-            <RoomRow
-              title={item.title}
-              mark={item.mark}
-              subtitle={item.subtitle}
-              typing={item.typing}
-              time={item.time}
-              unread={item.unread}
-              mentionUnread={item.mentionUnread}
-              muted={item.muted}
-              pinned={item.pinned}
-              onPress={() => open(item)}
-              onLongPress={() => setMenuRow(item)}
-            />
-          )}
+      <Header large title={t("nav.chat")} left={pill} right={newChat}>
+        <SearchField
+          value={filterText}
+          onChangeText={setFilterText}
+          placeholder={t("chat.search_conversations")}
+          accessibilityLabel={t("chat.search_conversations_label")}
+          className="mt-2.5 h-10"
         />
+      </Header>
+      {!chat || rooms.isPending ? (
+        <RoomListSkeleton />
+      ) : rooms.isError && !rooms.data ? (
+        <RoomListError onRetry={() => void rooms.refetch()} />
+      ) : (
+        <>
+          <FilterChips value={filter} onChange={setFilter} mentionRooms={mentionRooms} />
+          <FlatList
+            data={shown}
+            keyExtractor={(row) => row.key}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={pulling}
+                onRefresh={() => {
+                  setPulling(true);
+                  void rooms.refetch().finally(() => setPulling(false));
+                }}
+              />
+            }
+            ListEmptyComponent={
+              <RoomListEmpty
+                searching={filterText.trim().length > 0}
+                filter={filter}
+                onStartDm={() => router.push(chatRoutes.newChat(chat))}
+                onBrowseChannels={() => router.push(chatRoutes.channels(chat))}
+              />
+            }
+            renderItem={({ item }) => (
+              <RoomRow
+                title={item.title}
+                mark={item.mark}
+                seed={item.roomId ?? item.key}
+                subtitle={item.subtitle}
+                typing={item.typing}
+                time={item.time}
+                unread={item.unread}
+                mentionUnread={item.mentionUnread}
+                muted={item.muted}
+                pinned={item.pinned}
+                onPress={() => open(item)}
+                onLongPress={() => setMenuRow(item)}
+                testID={item.roomId ? `room-row-${item.roomId}` : undefined}
+              />
+            )}
+          />
+        </>
       )}
       <ActionSheet visible={menuRow !== null && menuActions.length > 0} onClose={() => setMenuRow(null)} title={menuRow?.title} actions={menuActions} />
     </View>

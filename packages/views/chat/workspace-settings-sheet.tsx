@@ -28,11 +28,15 @@ import {
   ChatMemberListError,
   ChatMemberListSkeleton,
   ChatSettingsCollapsibleSection,
+  ChatSettingsHeader,
+  ChatSettingsHero,
   ChatSettingsMenuRow,
   ChatSettingsQuickAction,
   ChatSettingsQuickActions,
-  ChatSettingsTitleRow,
+  ChatSettingsRoomMark,
+  ChatSettingsSection,
 } from "./chat-settings-ui";
+import { CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatGroupManageSection } from "./chat-group-manage-section";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatRoomRenameDialog } from "./chat-room-rename-dialog";
@@ -40,8 +44,6 @@ import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { WorkspaceRoomMemberList } from "./workspace-room-member-list";
-import { ChatConversationToolbar } from "./chat-conversation-toolbar";
-import { ChatRoomMark } from "./chat-room-mark";
 import { ChatRoomSharedTotals } from "./chat-room-shared-totals";
 
 export function WorkspaceSettingsSheet({
@@ -79,7 +81,8 @@ export function WorkspaceSettingsSheet({
   const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(workspaceId, roomId);
   const currentMember = useCurrentMember(workspaceId);
   const manageId = useId();
-  const [membersOpen, setMembersOpen] = useState(false);
+  // The canvas opens the sheet on its member list.
+  const [membersOpen, setMembersOpen] = useState(true);
   const [manageOpen, setManageOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [bulletinOpen, setBulletinOpen] = useState(false);
@@ -97,16 +100,24 @@ export function WorkspaceSettingsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className={CHAT_SHEET_CLASS}>
         <SheetHeader className="sr-only">
           <SheetTitle>{displayName}</SheetTitle>
           <SheetDescription>{t("chat.workspace_room_settings_description")}</SheetDescription>
         </SheetHeader>
 
+        <ChatSettingsHeader title={t("chat.workspace_room_settings")} />
+
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <ChatSettingsTitleRow
-            title={displayName}
-            leading={<ChatRoomMark icon={House} size="header" />}
+          {/* Blue, as the workspace room's row in the sidebar. */}
+          <ChatSettingsHero
+            mark={<ChatSettingsRoomMark icon={House} tint="blue" />}
+            name={displayName}
+            subtitle={
+              membersPending || membersError
+                ? undefined
+                : t("chat.group_member_count", { count: chatMembers.length })
+            }
             editAriaLabel={t("chat.settings_edit_name")}
             onEdit={isModerator ? () => setRenameOpen(true) : undefined}
           />
@@ -170,10 +181,12 @@ export function WorkspaceSettingsSheet({
                 onMessage={onMessage}
               />
             )}
-            <p className="px-4 pt-1 text-caption text-muted-foreground">{t("chat.workspace_room_moderation_hint")}</p>
+            <p className="px-5 pt-1.5 pb-1.5 text-caption text-pretty text-muted-foreground">
+              {t("chat.workspace_room_moderation_hint")}
+            </p>
           </ChatSettingsCollapsibleSection>
 
-          <section className="border-b border-border py-1">
+          <ChatSettingsSection className="py-1">
             <ChatSettingsMenuRow
               icon={StickyNote}
               label={t("chat.settings_notes_pins_polls")}
@@ -189,7 +202,7 @@ export function WorkspaceSettingsSheet({
                 }}
               />
             ) : null}
-          </section>
+          </ChatSettingsSection>
         </div>
 
         {renameOpen ? (
@@ -215,45 +228,5 @@ export function WorkspaceSettingsSheet({
         ) : null}
       </SheetContent>
     </Sheet>
-  );
-}
-
-export function WorkspaceChatToolbar({
-  title,
-  memberCount,
-  backAriaLabel,
-  onBack,
-  sidebarCollapsed,
-  onToggleSidebar,
-  onOpenSettings,
-  onCatchUp,
-  catchUpDisabled,
-}: {
-  title: string;
-  memberCount: number;
-  backAriaLabel?: string;
-  onBack?: () => void;
-  sidebarCollapsed?: boolean;
-  onToggleSidebar?: () => void;
-  onOpenSettings: () => void;
-  onCatchUp?: () => void;
-  catchUpDisabled?: boolean;
-}) {
-  const { t } = useTranslation();
-  return (
-    <ChatConversationToolbar
-      avatar={<ChatRoomMark icon={House} />}
-      title={title}
-      subtitle={t("chat.group_member_count", { count: memberCount })}
-      backAriaLabel={backAriaLabel}
-      onBack={onBack}
-      sidebarCollapsed={sidebarCollapsed}
-      onToggleSidebar={onToggleSidebar}
-      settingsAriaLabel={t("chat.workspace_room_settings")}
-      onOpenSettings={onOpenSettings}
-      catchUpAriaLabel={t("chat.ai.catch_up")}
-      onCatchUp={onCatchUp}
-      catchUpDisabled={catchUpDisabled}
-    />
   );
 }

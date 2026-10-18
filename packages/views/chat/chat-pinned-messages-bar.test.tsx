@@ -65,8 +65,11 @@ describe("ChatPinnedMessagesBar", () => {
     expect(screen.getByText(/second/i)).toBeInTheDocument();
     expect(screen.queryByText(/hello pinned/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Xem thêm 1|Show 1 more/i }));
+    expect(screen.getByText("Tin ghim 1/2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Xem thêm 1 tin đã ghim" }));
     expect(screen.getByText(/hello pinned/i)).toBeInTheDocument();
+    // A plain pinned message is labelled by its kind, like the note beside it.
+    expect(screen.getByText("Tin nhắn")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Thu gọn|Show less/i }));
     expect(screen.queryByText(/hello pinned/i)).not.toBeInTheDocument();
@@ -86,6 +89,10 @@ describe("ChatPinnedMessagesBar", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /second/i }));
     expect(onJump).toHaveBeenCalledWith("m2");
+    // The bar moves on to the next older pin, as "Tin ghim 2/2" says.
+    expect(screen.getByText("Tin ghim 2/2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /hello pinned/i }));
+    expect(onJump).toHaveBeenLastCalledWith("m1");
   });
 
   it("unpins from the pinned bar when allowed", () => {
@@ -100,6 +107,7 @@ describe("ChatPinnedMessagesBar", () => {
         />,
       ),
     );
+    // The collapsed bar unpins the pin it shows.
     fireEvent.click(screen.getByRole("button", { name: "Bỏ ghim" }));
     expect(mutateAsync).toHaveBeenCalledWith({ roomId: "room1", messageId: "m2" });
   });

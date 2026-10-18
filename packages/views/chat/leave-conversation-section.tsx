@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 
 export function LeaveConversationSection({
   variant,
@@ -48,12 +49,12 @@ export function LeaveConversationSection({
 
   return (
     <>
-      <div className="mt-auto space-y-2 border-t border-border pt-4">
-        <p className="text-caption text-muted-foreground">{hint}</p>
+      <div className="space-y-2.5">
+        <p className="text-caption text-pretty text-muted-foreground">{hint}</p>
         <Button
           type="button"
           variant={destructive ? "destructive" : "outline"}
-          className="w-full justify-start gap-2"
+          className="h-10 w-full gap-2 rounded-full font-semibold"
           disabled={disabled || leaving}
           onClick={() => setConfirmOpen(true)}
         >
@@ -72,6 +73,10 @@ export function LeaveConversationSection({
         confirmLabel={leaving ? t("chat.leaving_conversation") : leaveLabel}
         pending={leaving}
         destructive={destructive}
+        icon={Icon}
+        solid
+        cancelVariant="secondary"
+        className={CHAT_CONFIRM_CLASS}
         onConfirm={handleConfirm}
       />
     </>

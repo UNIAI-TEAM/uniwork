@@ -11,7 +11,11 @@ export type MessageTaskLinkActions = {
 };
 
 /** Owns create/link task dialogs for the message panel; keeps the panel under max-lines. */
-export function useMessageTaskLinkDialogs(workspaceId: string): {
+export function useMessageTaskLinkDialogs(
+  workspaceId: string,
+  /** The conversation, named in the create dialog's quote of the message. */
+  roomTitle?: string,
+): {
   actions: MessageTaskLinkActions;
   dialogs: ReactNode;
 } {
@@ -41,6 +45,9 @@ export function useMessageTaskLinkDialogs(workspaceId: string): {
           workspaceId={workspaceId}
           messageId={createFor?.id ?? ""}
           messageBody={createFor?.body ?? ""}
+          senderId={createFor?.sender}
+          sentAt={createFor?.ts}
+          roomTitle={roomTitle}
           allowSyncThread={allowSyncThread}
         />
         <LinkTaskDialog

@@ -147,7 +147,18 @@ type PatchChatRoomMemberSDI struct {
 // PatchChatRoomSDI is PATCH .../rooms/{roomID}.
 type PatchChatRoomSDI struct {
 	Name              *string                       `json:"name,omitempty" description:"Group or workspace room display name" example:"Team Alpha"`
+	Topic             *string                       `json:"topic,omitempty" description:"Room description, ≤280 chars; empty clears it" example:"Nơi team thiết kế trao đổi hằng ngày"`
 	MemberPermissions *ChatRoomMemberPermissionsSDI `json:"member_permissions,omitempty" description:"Permissions granted to regular members"`
+}
+
+// ListChatRoomLinkedTasksSDI is GET .../chat/rooms/{roomID}/linked-tasks.
+type ListChatRoomLinkedTasksSDI struct {
+	Limit int `query:"limit" description:"Số task tối đa (mặc định 20, tối đa 50)" example:"3"`
+}
+
+// UploadChatRoomAvatarSDI is POST .../chat/rooms/{roomID}/avatar (multipart).
+type UploadChatRoomAvatarSDI struct {
+	File []byte `formData:"file" description:"Ảnh PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB"`
 }
 
 // CreateChatChannelSDI is POST .../chat/channels.

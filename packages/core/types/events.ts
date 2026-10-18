@@ -38,6 +38,7 @@ export const WS_EVENT_TYPES = [
   "chat.room.member_added",
   "chat.room.members_added",
   "chat.room.member_removed",
+  "chat.room.member_read",
   "chat.room.read",
   "chat.room.updated",
   "chat.thread.linked",

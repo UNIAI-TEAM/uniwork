@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { requestMock, wrap } from "../test/api-mock";
-import { ChannelDirectorySheet } from "./channel-directory-sheet";
+import { ChannelDirectorySheet, directoryChannels } from "./channel-directory-sheet";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -76,6 +76,7 @@ describe("ChannelDirectorySheet", () => {
   it("says a join failed in its own words, not the server's", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.endsWith("/join")) return Promise.reject(new ApiError("Kênh đã bị lưu trữ", "gone", 409));
+      if (path.includes("scope=mine")) return Promise.resolve({ rooms: [] });
       return Promise.resolve({ rooms: [room("c1", "marketing"), room("c2", "design")] });
     });
     const onJoined = vi.fn();
@@ -129,5 +130,12 @@ describe("ChannelDirectorySheet", () => {
     requestMock.mockResolvedValue({ rooms: [] });
     renderSheet();
     expect(await screen.findByRole("button", { name: t("common.close") })).toBeInTheDocument();
+  });
+
+  it("lists the channels you are in beside those you could join, once each, by name, without the default", () => {
+    const mine = [room("c2", "design"), room("c0", "chung", { is_default: true }), room("c4", "riêng", { visibility: "private" })];
+    const discoverable = [room("c1", "marketing"), room("c2", "design")];
+    expect(directoryChannels(undefined, mine as never)).toBeUndefined();
+    expect(directoryChannels(discoverable as never, mine as never)?.map((r) => r.id)).toEqual(["c2", "c1", "c4"]);
   });
 });

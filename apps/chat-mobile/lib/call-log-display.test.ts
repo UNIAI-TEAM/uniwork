@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callLogTitle, callLogView, formatCallTime, formatVoiceCallDuration } from "./call-log-display";
+import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime, formatVoiceCallDuration } from "./call-log-display";
 import { i18n } from "./i18n/singleton";
 
 const call = (outcome: string, caller: string, extra: { video?: boolean; duration_seconds?: number } = {}) => ({
@@ -70,5 +70,50 @@ describe("formatCallTime", () => {
   });
   it("an unreadable time is left blank", () => {
     expect(formatCallTime("", "en", now)).toBe("");
+  });
+});
+
+describe("formatCallClock", () => {
+  it("shows the time of day whatever the day, blank when unreadable", () => {
+    expect(formatCallClock(new Date(2025, 0, 3, 17, 32).toISOString(), "vi")).toMatch(/17:32/);
+    expect(formatCallClock("", "vi")).toBe("");
+    expect(formatCallClock("not a date", "vi")).toBe("");
+  });
+});
+
+describe("callLogSections", () => {
+  const now = new Date(2026, 9, 17, 15, 0);
+  const labels = { today: "Hôm nay", yesterday: "Hôm qua" };
+  const at = (day: number, hour: number) => new Date(2026, 9, day, hour, 0).toISOString();
+  const log = (id: string, ended_at: string, outcome = "completed", caller = "peer") => ({ id, ended_at, ...call(outcome, caller) });
+  const logs = [
+    log("a", at(17, 10), "unanswered"),
+    log("b", at(17, 9)),
+    log("c", at(16, 17), "unanswered", "me"),
+    log("d", at(16, 15), "unanswered"),
+    log("e", at(1, 14)),
+  ];
+  const shape = (sections: ReturnType<typeof callLogSections<(typeof logs)[number]>>) =>
+    sections.map((section) => [section.title, section.data.map((row) => row.id).join("")]);
+
+  it("heads each calendar day once, in the server's order, titled like the room's day divider", () => {
+    const sections = callLogSections(logs, { userId: "me", filter: "all", locale: "vi", labels, now });
+    expect(shape(sections).slice(0, 2)).toEqual([
+      ["Hôm nay", "ab"],
+      ["Hôm qua", "cd"],
+    ]);
+    expect(sections[2]?.data.map((row) => row.id)).toEqual(["e"]);
+    expect(sections[2]?.title).toMatch(/1/);
+  });
+
+  it("missed keeps only the calls the viewer missed, never the ones they cancelled", () => {
+    expect(shape(callLogSections(logs, { userId: "me", filter: "missed", locale: "vi", labels, now }))).toEqual([
+      ["Hôm nay", "a"],
+      ["Hôm qua", "d"],
+    ]);
+  });
+
+  it("an unreadable time joins an untitled group instead of a wrong day", () => {
+    expect(shape(callLogSections([log("x", "")], { userId: "me", filter: "all", locale: "vi", labels, now }))).toEqual([["", "x"]]);
   });
 });

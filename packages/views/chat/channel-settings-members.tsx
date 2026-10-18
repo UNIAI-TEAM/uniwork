@@ -5,19 +5,19 @@ import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useTranslation } from "react-i18next";
 import { useChatRoomMembers } from "@uniwork/core/chat";
 import { useCurrentMember } from "@uniwork/core/permissions";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import type { ChatMemberMessageTarget } from "./chat-member-profile";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
+  ChatMemberFace,
   ChatMemberListError,
   ChatMemberListSkeleton,
   ChatMemberRow,
   ChatSettingsCollapsibleSection,
 } from "./chat-settings-ui";
+import { settingsMemberOrder } from "./chat-info-panel-utils";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
-import { initialOf } from "./chat-initials";
 
 export function ChannelSettingsMembers({
   open,
@@ -62,22 +62,22 @@ export function ChannelSettingsMembers({
         <ChatMemberListError onRetry={() => void refetch()} />
       ) : (
         <ul>
-          {members.map((member) => {
+          {settingsMemberOrder(members, currentUserId).map((member) => {
             const isSelf = member.user_id === currentUserId;
             const label = isSelf ? youLabel : member.display_name.trim() || member.email || member.user_id;
             return (
               <ChatMemberRow
                 key={member.user_id}
                 avatar={
-                  <ActorAvatar
-                    name={label}
-                    initials={initialOf(label)}
+                  <ChatMemberFace
+                    userId={member.user_id}
+                    name={member.display_name.trim() || label}
                     avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.user_id)}
-                    size="lg"
                   />
                 }
                 name={label}
                 detail={member.role === "admin" ? t("chat.room_role_admin") : member.email}
+                detailTone={member.role === "admin" ? "admin" : undefined}
                 profile={{
                   userId: member.user_id,
                   email: member.email,

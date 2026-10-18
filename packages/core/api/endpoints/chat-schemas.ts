@@ -226,6 +226,10 @@ export const ChatRoomSchema = z.object({
   last_message_kind: z.string().optional(),
   last_message_sender_id: z.string().optional(),
   last_message_sender_name: z.string().optional(),
+  /** A call log's outcome (completed, declined, unanswered): an unanswered call from someone else is missed. */
+  last_message_call_outcome: z.string().optional().catch(undefined),
+  /** A voice note's length, for the list line's "· 0:42". */
+  last_message_duration_ms: z.number().optional().catch(undefined),
   last_message_at: z.string().optional(),
   member_permissions: ChatRoomMemberPermissionsSchema.optional(),
   visibility: z.string().optional(),
@@ -234,6 +238,8 @@ export const ChatRoomSchema = z.object({
   is_default: z.boolean().optional(),
   /** The caller muted this room's notifications; kept on the server, so on every device. */
   notifications_muted: z.boolean().optional().catch(undefined),
+  /** A group's uploaded avatar, signed; absent when the group shows its members. */
+  avatar_url: z.string().optional().catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 
@@ -266,6 +272,8 @@ export const ChatRoomMemberSchema = z.object({
   display_name: z.string(),
   /** The room's creator, whom the server's moderation rules treat apart from `role`. */
   is_creator: z.boolean().catch(false),
+  /** Main-timeline read cursor (RFC 3339, sub-second); absent if never read. */
+  last_read_at: z.string().optional().catch(undefined),
 });
 export type ChatRoomMemberRecord = z.infer<typeof ChatRoomMemberSchema>;
 

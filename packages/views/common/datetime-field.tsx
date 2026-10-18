@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "./date-field";
@@ -32,6 +32,9 @@ interface DateTimeFieldProps {
   /** Accessible names for the hour and minute segments. */
   hourLabel: string;
   minuteLabel: string;
+  /** Passed to DateField: how the picked day reads, and a custom trigger body. */
+  dateFormatOptions?: Intl.DateTimeFormatOptions;
+  renderDateTrigger?: (label: string, selected: boolean) => ReactNode;
 }
 
 /**
@@ -50,6 +53,8 @@ export function DateTimeField({
   className,
   hourLabel,
   minuteLabel,
+  dateFormatOptions,
+  renderDateTrigger,
 }: DateTimeFieldProps) {
   const { date, time } = splitDateTimeLocal(value);
   // The time of day typed while the day is still empty; the value cannot carry it yet.
@@ -62,6 +67,8 @@ export function DateTimeField({
         value={date}
         min={minDate}
         disabled={disabled}
+        formatOptions={dateFormatOptions}
+        renderTrigger={renderDateTrigger}
         onChange={(next) => {
           // Clearing the day keeps the time shown, so picking a day again restores it.
           if (!next && time) setPendingTime(time);

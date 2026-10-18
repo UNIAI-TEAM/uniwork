@@ -4,14 +4,17 @@ name: UniChat mobile verify
 # iOS simulator and an Android emulator (UNI-1836). Each job builds a Release
 # binary of the staging variant on the runner (JS embedded: no Metro, no EAS,
 # no account), signs in through the real system browser sheet with a test
-# account on the staging server and runs apps/chat-mobile/maestro/flows.
+# account on the staging server and runs the three golden flows in
+# apps/chat-mobile/maestro/flows: sign in → read/send, a push opens its room,
+# join a call (what each proves is written at its top).
 # Typecheck, lint and unit tests stay in mobile-verify.yml on every PR.
 #
 # Repository settings it reads (names only; Maestro picks up every MAESTRO_*
 # variable of its environment):
 #   vars     MAESTRO_API_URL, MAESTRO_APP_URL     the staging server
 #            MAESTRO_ORG_SLUG, MAESTRO_WS_SLUG    the test workspace
-#            MAESTRO_ROOM_ID                      a room the account belongs to
+#            MAESTRO_ROOM_ID                      a group room the account is in (a
+#                                                 group calls without a second party)
 #   secrets  MAESTRO_TEST_EMAIL, MAESTRO_TEST_PASSWORD
 # Without all of them the run ends green with a notice. The staging server must
 # list uniworkchat://auth/callback for uniwork-chat-mobile in
@@ -125,13 +128,13 @@ jobs:
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
-      - name: Sign in
+      - name: Sign in, read and send
         working-directory: apps/chat-mobile/maestro
         env:
           # The test account reaches the Maestro runs only, not install or build.
           MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
           MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
-        run: maestro --device "$UDID" test flows/login.yaml
+        run: maestro --device "$UDID" test flows/chat-read-send.yaml
       - name: Push opens the room
         working-directory: apps/chat-mobile/maestro
         env:
@@ -148,6 +151,13 @@ jobs:
           jq -n --arg url "$url" '{aps: {alert: {title: "UniChat Maestro", body: "Nightly push"}}, body: {url: $url}, url: $url}' > "$RUNNER_TEMP/push.apns"
           xcrun simctl push "$UDID" "$APP_ID" "$RUNNER_TEMP/push.apns"
           maestro --device "$UDID" test -e PUSH_DELIVERED=true flows/push-open-room.yaml
+      - name: Join a call
+        working-directory: apps/chat-mobile/maestro
+        env:
+          # The test account reaches the Maestro runs only, not install or build.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        run: maestro --device "$UDID" test flows/call-join.yaml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -213,8 +223,9 @@ jobs:
             adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
             adb shell am set-debug-app --persistent com.android.chrome
             adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
-            cd apps/chat-mobile/maestro && maestro test flows/login.yaml
+            cd apps/chat-mobile/maestro && maestro test flows/chat-read-send.yaml
             cd apps/chat-mobile/maestro && maestro test flows/push-open-room.yaml
+            cd apps/chat-mobile/maestro && maestro test flows/call-join.yaml
       - uses: actions/upload-artifact@v4
         if: always()
         with:

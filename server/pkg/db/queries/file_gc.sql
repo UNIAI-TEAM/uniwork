@@ -189,3 +189,10 @@ WHERE a.file_id = ANY(sqlc.arg('file_ids')::text[]);
 SELECT w.icon_file_id AS file_id, w.organization_id
 FROM workspaces w
 WHERE w.icon_file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: FileGCChatRoomAvatarRefTenants :many
+-- tenant: system
+-- chat_rooms.avatar_file_id: the uploaded group avatar (UNI-1898).
+SELECT r.avatar_file_id AS file_id, r.organization_id
+FROM chat_rooms r
+WHERE r.avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);

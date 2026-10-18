@@ -15,7 +15,7 @@ import (
 // link, is not on a workspace socket: the lobby socket serves them.
 func (s *MeetingService) AuthorizeMeetingScope(ctx context.Context, userID, workspaceID, meetingID string) (bool, error) {
 	m, _, err := s.authorize(ctx, userID, meetingID)
-	if refusesMeetingScope(err) {
+	if refusedByGate(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -24,9 +24,9 @@ func (s *MeetingService) AuthorizeMeetingScope(ctx context.Context, userID, work
 	return m.WorkspaceID == workspaceID, nil
 }
 
-// refusesMeetingScope reports whether err is an answer rather than a failure:
-// the meeting is gone or hidden, or the membership gate said no.
-func refusesMeetingScope(err error) bool {
+// refusedByGate reports whether err is an answer rather than a failure: the
+// row is gone or hidden, or the membership gate said no.
+func refusedByGate(err error) bool {
 	return errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) ||
 		errors.Is(err, ErrMemberDeactivated) || errors.Is(err, ErrOrganizationSuspended) ||
 		errors.Is(err, ErrOrganizationDeletionScheduled)

@@ -169,7 +169,10 @@ beforeEach(() => {
       return scrollTops.get(this) ?? 0;
     },
     set(this: HTMLElement, value: number) {
-      scrollTops.set(this, Math.max(0, Math.min(value, 3520 - 570)));
+      const next = Math.max(0, Math.min(value, 3520 - 570));
+      // As in a browser, a scroll event fires only when the position moves.
+      if (next === (scrollTops.get(this) ?? 0)) return;
+      scrollTops.set(this, next);
       this.dispatchEvent(new Event("scroll"));
     },
   });
@@ -262,8 +265,11 @@ describe("ChatPageView ?room=&message= deep link", () => {
     expect(document.getElementById("chat-msg-r-dm-a29")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Về tin mới nhất" })).toBeNull();
 
+    // A reader's scroll (wheel first): a bare scrollTop change while pinned reads as the list moving.
     act(() => {
-      screen.getByRole("log").scrollTop = 500;
+      const log = screen.getByRole("log");
+      fireEvent.wheel(log);
+      log.scrollTop = 500;
     });
     expect(screen.getByRole("button", { name: "Về tin mới nhất" })).toBeInTheDocument();
   });

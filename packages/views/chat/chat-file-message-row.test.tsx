@@ -68,7 +68,7 @@ describe("ChatFileMessageRow", () => {
     renderRow(fileMessage("message1", { filename: "sprint.pdf", content_type: "application/pdf", size_bytes: 2048 }));
 
     expect(screen.getByText("sprint.pdf")).toBeInTheDocument();
-    expect(screen.getByText("2,0 KB")).toBeInTheDocument();
+    expect(screen.getByText("2 KB · PDF")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tải sprint.pdf xuống" })).toBeInTheDocument();
     // Nothing loads for a PDF nobody opened.
     expect(screen.queryByTitle("Xem trước PDF")).not.toBeInTheDocument();
@@ -224,7 +224,7 @@ describe("ChatFileMessageRow", () => {
     };
     const { container, rerender } = render(wrap(<ChatFileMessageRow {...props} highlighted />));
     const article = container.querySelector("#chat-msg-message-hl");
-    expect(article).toHaveClass("ring-2", "ring-brand", "bg-brand-subtle");
+    expect(article).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
     rerender(wrap(<ChatFileMessageRow {...props} />));
     expect(container.querySelector("#chat-msg-message-hl")).not.toHaveClass("ring-brand");
   });
