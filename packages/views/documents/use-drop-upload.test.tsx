@@ -257,7 +257,9 @@ describe("useDropUpload", () => {
     if (typeof cancelB !== "function") {
       throw new Error("b's Cancel action is not callable");
     }
-    act(() => cancelB());
+    act(() => {
+      void cancelB();
+    });
 
     releaseFirst();
     await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
