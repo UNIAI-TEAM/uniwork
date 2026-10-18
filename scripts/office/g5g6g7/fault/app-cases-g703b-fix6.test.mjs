@@ -221,3 +221,22 @@ test("CL3-6: a pane that never shows is still read as 'not showing' once the wai
   assert.equal(shots[0].actual, "pane=not showing");
   assert.ok(state.dispatches >= 1);
 });
+
+// ---- CL3-5: FL-02's store comparison starts at the reservation, B's lease is written before the content ----
+
+test("CL3-5: B's lease record (granted before the content download, manager.ts:918-937) is not a partial write while faulted", async () => {
+  const world = createWorld("FL-02");
+  try {
+    const outcome = await OFFLINE_FAULT_DRIVERS["FL-02"](world.ctx);
+    const byName = Object.fromEntries(outcome.assertions.map((a) => [a.name, a]));
+    const faulted = JSON.parse(readFileSync(join(world.runDir, "offline-store-faulted.json"), "utf8"));
+    const before = JSON.parse(readFileSync(join(world.runDir, "offline-store-before.json"), "utf8"));
+    const had = new Set(before.records.map((record) => `${record.store}/${record.name}`));
+    const added = faulted.records.map((record) => `${record.store}/${record.name}`).filter((key) => !had.has(key));
+    assert.ok(added.some((key) => key.startsWith("offline-leases/")), `the faulted store holds B's lease: ${added.join(", ")}`);
+    assert.equal(byName.nothing_partial_in_the_store.ok, true, JSON.stringify(byName.nothing_partial_in_the_store));
+    assert.match(byName.nothing_partial_in_the_store.expected, /no record added after B's reservation and lease/);
+  } finally {
+    world.clean();
+  }
+});

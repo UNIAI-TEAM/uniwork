@@ -225,10 +225,11 @@ async function fl02(ctx) {
     );
     // everything the library held before B was pinned is A's (its pin row, its blobs) plus the shared index
     const aNames = new Set(before.library.map((record) => record.name));
-    const toFault = storeDelta(before, faultedState);
-    const bPinKey = `library/${pinRecordNames([docB.id])[0]}`;
-    // nothing but B's own pin row (and the index that lists it) may have changed while faulted: no blob = nothing partial marked ready
-    const strayAdded = toFault.added.filter((key) => key !== bPinKey);
+    // the reservation (pin row + index) and B's lease are written BEFORE the content download (fork manager.ts:918-937
+    // reserve -> ensureLease -> beginDownload), so they are in the `reserved` reading taken while the download was held;
+    // CL3-5: the fault window is what the fill and the content write added after it - no blob = nothing partial marked ready
+    const toFault = storeDelta(reserved, faultedState);
+    const strayAdded = toFault.added;
     const aTouched = [...toFault.removed, ...toFault.changed].filter((key) => aNames.has(key.replace(/^library\//, "")) && key !== `library/${INDEX_RECORD_NAME}`);
     return {
       documentId: docB.id,
@@ -251,7 +252,7 @@ async function fl02(ctx) {
         assertion("fault_hit_the_content_write", ">= 1 upstream content download of B answered after the fill", contentServed.length, contentServed.length >= 1),
         assertion("b_row_faulted", faulted.join("|"), watch.states.join(" → ") || "(no row seen)", Boolean(watch.found)),
         assertion("b_never_ready_while_faulted", "never ready", watch.states.join(" → ") || "(no row seen)", !watch.states.includes("ready")),
-        assertion("nothing_partial_in_the_store", "only B's pin row added while faulted (no blob)", strayAdded.length === 0 ? "pin row only" : strayAdded.join(", "), strayAdded.length === 0),
+        assertion("nothing_partial_in_the_store", "no record added after B's reservation and lease (no blob)", strayAdded.length === 0 ? "none added" : strayAdded.join(", "), strayAdded.length === 0),
         offlineBoolAssertion(ctx, "kept_old_copy", "keptOldCopy", aReading.state === "ready" && aTouched.length === 0),
         resultAssertion("retry_accepted", retry),
         assertion("b_recovered_after_free_space", recovered.join("|"), recoveredRow?.state ?? "never", Boolean(recoveredRow)),

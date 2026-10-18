@@ -276,6 +276,8 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       // a disk that is already full refuses the reservation itself: that is store_full before any content moved
       if (world.diskFull) return { ok: false, code: "store_full" };
       reserve(documentId);
+      // the fork takes the lease between the reservation and the content download (offline-library/manager.ts:918-937 reserve -> ensureLease -> beginDownload)
+      leasePut(documentId, true);
       if (!(await downloadHeld(documentId))) {
         world.rows.set(documentId, { state: "interrupted", name: "doc" });
         return { ok: true };
@@ -286,7 +288,6 @@ export function createWorld(rowId, { deployment = "default", dead = false } = {}
       }
       world.rows.set(documentId, { state: "ready", name: "doc" });
       world.writeLibrary(documentId);
-      leasePut(documentId, true);
       return { ok: true };
     },
     downloadNow: async (documentId) => {
