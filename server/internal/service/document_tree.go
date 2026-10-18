@@ -367,7 +367,8 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	}
 	rows, err := s.q.ListTreeDocuments(ctx, db.ListTreeDocumentsParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
+		MaxLevel: subtreeMaxLevel(),
+		SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
 		AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
 		AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
 		ShareWorkspaces: scope.shareWorkspaces,
