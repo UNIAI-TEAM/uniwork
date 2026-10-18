@@ -397,7 +397,7 @@ func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClai
 		}
 		name := doc.Title
 		if n := names[files.FileID(v.FileID.String)]; n != "" {
-			name = n
+			name = s.documents.versionFilename(ctx, doc, v, n)
 		}
 		if isTxtFilename(name) && !txtOpen {
 			continue

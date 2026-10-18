@@ -691,6 +691,7 @@ func TestDocumentSourceTxtOpenGateAndPlainTextNarrowing(t *testing.T) {
 	txtID := send("ghi-chu.txt", "text/plain", "chat-txt-gate-1", []byte("dong 1\ndong 2\n"))
 	csvID := send("bang.csv", "text/plain", "chat-csv-gate-1", []byte("a,b\n1,2\n"))
 	logID := send("server.log", "text/plain", "chat-log-gate-1", []byte("line\n"))
+	mdLongID := send("ghi-chu.markdown", "text/markdown", "chat-mdlong-gate-1", []byte("# md\n"))
 
 	// Flag off (default): .txt has CanOpenInApp == false and MintSource refuses with ErrNotFound.
 	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{})
@@ -708,6 +709,15 @@ func TestDocumentSourceTxtOpenGateAndPlainTextNarrowing(t *testing.T) {
 		if _, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, id); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("flag off: MintSource(%s) = %v, want ErrNotFound", id, err)
 		}
+	}
+	// Flag off: .markdown sources still mint and authorize (flag-off leaves
+	// pre-existing non-.txt sources untouched).
+	mtok, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, mdLongID)
+	if err != nil || mtok.Claims.ModuleName() != OfficeFrameModuleMarkdown {
+		t.Fatalf("flag off: MintSource(.markdown) = %+v, %v; want module markdown", mtok, err)
+	}
+	if _, _, err := frame.AuthorizeSource(s.ctx, mtok.Claims); err != nil {
+		t.Fatalf("flag off: AuthorizeSource(.markdown) = %v", err)
 	}
 
 	// Flag on: .txt opens as markdown; .csv and .log with text/plain stay not openable.

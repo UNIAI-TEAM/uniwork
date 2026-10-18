@@ -259,6 +259,7 @@ func TestOfficeFrameSourceTxtOpenGate(t *testing.T) {
 	txtID := seedChatSource("ghi-chu.txt", "text/plain", "src-txt-1", []byte("dong 1\n"))
 	csvID := seedChatSource("bang.csv", "text/csv", "src-csv-1", []byte("a,b\n1,2\n"))
 	logID := seedChatSource("server.log", "text/plain", "src-log-1", []byte("log\n"))
+	mdLongID := seedChatSource("ghi-chu.markdown", "text/markdown", "src-mdlong-1", []byte("# md\n"))
 
 	// Flag off (default): .txt has can_open_in_app: false and mint returns 404.
 	res, list := doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/documents/sources", member, nil)
@@ -281,6 +282,10 @@ func TestOfficeFrameSourceTxtOpenGate(t *testing.T) {
 		if res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/documents/sources/"+id+"/office/frame-token", member, nil); res.StatusCode != http.StatusNotFound {
 			t.Fatalf("flag off: mint %s = %d %v, want 404", id, res.StatusCode, out)
 		}
+	}
+	// Flag off: .markdown sources still mint and open as before.
+	if minted := sourceFrameMint(t, srv, f.wsID, mdLongID, member); minted["module"] != "markdown" {
+		t.Fatalf("flag off: minted .markdown source module = %v, want markdown", minted["module"])
 	}
 
 	// Enable office_txt_open for the organization.

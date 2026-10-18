@@ -523,8 +523,16 @@ describe("createDocsFrameApi saveAs", () => {
     expect(txtFile.type).toBe("text/plain");
     expect(txtForm.get("title")).toBe("ban-sao");
 
+    await mdApi.saveAs!({ name: "BAN-SAO.TXT", data: new TextEncoder().encode("plain upper\n").buffer }, call());
+    const upperCreate = fake.calls.filter((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")[1]!;
+    const upperForm = upperCreate.init.body as FormData;
+    const upperFile = upperForm.get("file") as File;
+    expect(upperFile.name).toBe("BAN-SAO.TXT");
+    expect(upperFile.type).toBe("text/plain");
+    expect(upperForm.get("title")).toBe("BAN-SAO");
+
     await mdApi.saveAs!({ name: "ghi-chu-md", data: new TextEncoder().encode("# md\n").buffer }, call());
-    const mdCreate = fake.calls.filter((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")[1]!;
+    const mdCreate = fake.calls.filter((c) => c.path === "/api/v1/workspaces/ws-1/documents/files")[2]!;
     const mdForm = mdCreate.init.body as FormData;
     const mdFile = mdForm.get("file") as File;
     expect(mdFile.name).toBe("ghi-chu-md.md");

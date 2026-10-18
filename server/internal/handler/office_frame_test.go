@@ -492,4 +492,12 @@ func TestOfficeFrameTxtOpenGateAndSaveRoundTrip(t *testing.T) {
 	if res, out := doJSON(t, w.srv, "GET", base, token, nil); res.StatusCode != 404 {
 		t.Fatalf("open .txt after flag off = %d %v", res.StatusCode, out)
 	}
+	if res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", token, nil, "ghi-chu.txt", edited, nil); res.StatusCode != 404 {
+		t.Fatalf("upload .txt after flag off = %d %s", res.StatusCode, raw)
+	}
+	if res, out := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token,
+		map[string]string{"Idempotency-Key": "txt-save-after-off"},
+		map[string]string{"upload_id": up.UploadID, "base_revision": saved["revision"].(string)}); res.StatusCode != 404 {
+		t.Fatalf("commit .txt after flag off = %d %v", res.StatusCode, out)
+	}
 }

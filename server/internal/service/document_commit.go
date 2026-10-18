@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"path"
 	"strconv"
 	"time"
 
@@ -566,6 +567,11 @@ func (s *DocumentService) commitClaimedFileVersion(
 					Fields: map[string]any{"reason": "format_changed"}}
 			}
 			f.ContentType = current.MimeType.String
+		}
+		if job != nil && current != nil && current.FileID.Valid && path.Ext(f.Filename) == "" {
+			if base, rerr := resolveUpload(ctx, fs, scope, current.FileID.String); rerr == nil && base.Filename != "" {
+				f.Filename = base.Filename
+			}
 		}
 		if err := s.consumeStorage(ctx, q, actor, locked.OrganizationID, locked.WorkspaceID, f); err != nil {
 			return err

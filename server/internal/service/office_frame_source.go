@@ -82,7 +82,7 @@ func (s *OfficeFrameService) MintSource(ctx context.Context, actor Actor, worksp
 	if err != nil {
 		return OfficeFrameSourceToken{}, err
 	}
-	if !item.CanOpenInApp {
+	if item.Extension == "txt" && !item.CanOpenInApp {
 		return OfficeFrameSourceToken{}, ErrNotFound
 	}
 	module, ok := officeFrameModuleOf(item.MimeType, item.Name)
@@ -148,7 +148,7 @@ func (s *OfficeFrameService) AuthorizeSource(ctx context.Context, claims OfficeF
 	if ws.OrganizationID != claims.OrganizationID || item.Parent.Kind != claims.ParentKind || item.Parent.ID != claims.ParentID {
 		return db.Workspace{}, DocumentSourceItem{}, ErrNotFound
 	}
-	if !item.CanOpenInApp {
+	if item.Extension == "txt" && !item.CanOpenInApp {
 		return db.Workspace{}, DocumentSourceItem{}, ErrNotFound
 	}
 	if module, ok := officeFrameModuleOf(item.MimeType, item.Name); !ok || module != claims.ModuleName() {

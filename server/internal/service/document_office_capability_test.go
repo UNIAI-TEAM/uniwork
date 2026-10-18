@@ -13,6 +13,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // G2-07a (UNI-690): the capability answer, the pre-mutation negotiation and
@@ -32,11 +33,24 @@ func (f *officeFixture) reseed(t *testing.T, filename string, body []byte) {
 	t.Helper()
 	res, err := f.docs.CreateFileDocument(context.Background(), f.actor, f.ws, CreateFileDocumentInput{
 		Title: "Tai lieu " + util.NewID()[20:], Filename: filename, Body: bytes.NewReader(body),
+		Visibility: documentVisibilityWorkspace,
 	})
 	if err != nil {
 		t.Fatalf("reseed %s: %v", filename, err)
 	}
+	setWorkspaceLevel(t, f.pf, res.Document, string(DocumentLevelEdit))
 	f.doc, f.ver, f.rev = res.Document.ID, res.Version.ID, res.Document.Revision
+}
+
+type userDocFlags map[string]bool
+
+func (f userDocFlags) IsEnabled(ctx context.Context, key string, def bool) bool {
+	if key == "office_txt_open" {
+		if v, ok := f[featureflag.EvalContextFrom(ctx).UserID]; ok {
+			return v
+		}
+	}
+	return def
 }
 
 func (f *officeFixture) officeJobCount(t *testing.T, documentID string) int {
@@ -133,7 +147,10 @@ func TestDocumentOfficeCapability(t *testing.T) {
 func TestDocumentOfficeCapabilityForTxtAndPlainText(t *testing.T) {
 	ctx := context.Background()
 	f := newOfficeFixture(t, "# Ghi chu\n")
-	svc := f.service(newScriptedEngine())
+	eng := newScriptedEngine()
+	eng.fake = f.files.Fake
+	svc := f.service(eng)
+	frame := NewOfficeFrameService(f.docs, "office-frame-test-secret-0123456789abcdef")
 
 	// Flag off (default): .txt is not openable and answers format_not_supported.
 	f.reseed(t, "ghi-chu.txt", []byte("dong 1\ndong 2\n"))
@@ -141,6 +158,44 @@ func TestDocumentOfficeCapabilityForTxtAndPlainText(t *testing.T) {
 		t.Fatal("flag-off .txt document answered a capability")
 	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
 		t.Fatalf("flag-off .txt refusal = %+v", ee)
+	}
+	if _, err := svc.StartOfficeJobForDocument(ctx, f.actor, f.doc, OfficeJobRequest{
+		Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(),
+	}); err == nil {
+		t.Fatal("flag-off .txt document started an office job")
+	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
+		t.Fatalf("flag-off .txt job refusal = %+v", ee)
+	}
+
+	// A user-scope override enables .txt for that user only on both Capability
+	// and the job submission paths, while another member keeps the default off.
+	f.docs.SetFlags(userDocFlags{f.actor.ID: true})
+	if caps, err := svc.Capability(ctx, f.actor, f.doc); err != nil || caps.Format != office.FormatMD {
+		t.Fatalf("user-override on .txt capability = %+v, %v", caps, err)
+	}
+	if _, err := svc.Capability(ctx, human(f.tn.wsAdmin), f.doc); err == nil {
+		t.Fatal("other user without override answered a .txt capability")
+	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
+		t.Fatalf("other user .txt refusal = %+v", ee)
+	}
+	if _, err := svc.StartOfficeJob(ctx, human(f.tn.wsAdmin), OfficeJobInput{
+		OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: f.doc,
+		BaseVersionID: f.ver, BaseRevision: f.rev,
+		Operation: office.OperationSerialize, Format: office.FormatMD, IdempotencyKey: util.NewID(),
+	}); err == nil {
+		t.Fatal("other user without override started a .txt job via loadBase")
+	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
+		t.Fatalf("other user .txt loadBase refusal = %+v", ee)
+	}
+	if job, err := svc.StartOfficeJob(ctx, f.actor, OfficeJobInput{
+		OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: f.doc,
+		BaseVersionID: f.ver, BaseRevision: f.rev,
+		Operation: office.OperationSerialize, Format: office.FormatMD, IdempotencyKey: util.NewID(),
+	}); err != nil || job.Format != string(office.FormatMD) {
+		t.Fatalf("user-override on .txt StartOfficeJob = %+v, %v", job, err)
+	}
+	if _, err := svc.CancelOfficeJobForDocument(ctx, f.actor, f.doc, eng.grants[len(eng.grants)-1].JobID); err != nil {
+		t.Fatalf("cancel first .txt job: %v", err)
 	}
 
 	// Flag on: .txt (and .TXT) resolves to FormatMD, while .csv and .log
@@ -153,6 +208,42 @@ func TestDocumentOfficeCapabilityForTxtAndPlainText(t *testing.T) {
 	if caps.Format != office.FormatMD {
 		t.Fatalf("flag-on .txt format = %q, want %q", caps.Format, office.FormatMD)
 	}
+	// An office job on a .txt document starts as FormatMD; after the engine
+	// commits its provider output (whose stored filename in the real FileService
+	// is the placeholder "file"), the document keeps resolving as .txt, opens as
+	// module "markdown", and preserves mime_type "text/plain" + a .txt filename.
+	txtJob, err := svc.StartOfficeJobForDocument(ctx, f.actor, f.doc, OfficeJobRequest{
+		Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(),
+	})
+	if err != nil || txtJob.Format != string(office.FormatMD) {
+		t.Fatalf("flag-on .txt StartOfficeJobForDocument = %+v, %v", txtJob, err)
+	}
+	eng.finish(t, txtJob.ID, []byte("dong 1\ndong 2 engine\n"), "text/plain")
+	doneJob, err := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, txtJob.ID)
+	if err != nil || doneJob.State != string(office.JobCompleted) {
+		t.Fatalf("complete .txt job: %+v, %v", doneJob, err)
+	}
+	committed, err := f.docs.CommitFileVersion(ctx, f.actor, f.doc, CommitFileVersionInput{
+		UploadID: doneJob.OutputFileID.String, BaseRevision: doneJob.BaseRevision, IdempotencyKey: util.NewID(),
+	})
+	if err != nil {
+		t.Fatalf("commit .txt engine output: %v", err)
+	}
+	if committed.File.MimeType != "text/plain" || committed.File.Filename != "ghi-chu.txt" {
+		t.Fatalf("committed .txt file = %+v", committed.File)
+	}
+	if capsAfter, err := svc.Capability(ctx, f.actor, f.doc); err != nil || capsAfter.Format != office.FormatMD {
+		t.Fatalf("capability after .txt engine commit = %+v, %v", capsAfter, err)
+	}
+	ftok, err := frame.Mint(ctx, f.actor, f.doc)
+	if err != nil || ftok.Claims.ModuleName() != OfficeFrameModuleMarkdown {
+		t.Fatalf("mint frame after .txt engine commit = %+v, %v", ftok, err)
+	}
+	opened, err := frame.Open(ctx, ftok.Claims)
+	if err != nil || opened.Module != OfficeFrameModuleMarkdown || opened.File.MimeType != "text/plain" || opened.File.Filename != "ghi-chu.txt" {
+		t.Fatalf("open frame after .txt engine commit = %+v, %v", opened, err)
+	}
+
 	f.reseed(t, "README.TXT", []byte("PLAIN TEXT\n"))
 	if caps, err := svc.Capability(ctx, f.actor, f.doc); err != nil || caps.Format != office.FormatMD {
 		t.Fatalf("flag-on .TXT capability = %+v, %v", caps, err)
