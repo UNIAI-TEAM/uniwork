@@ -268,21 +268,41 @@ export function LibraryRowView({
             />
           ) : null}
         </span>
-        {/* The editor rides on this line until its column joins (40rem), the date · size pair until theirs do (28rem); the level and the restricted mark until Truy cập does (53rem, library-columns.ts). Only the meta parts truncate: the mark keeps its width inside the Name cell. */}
+        {/* Below 34rem the meta group (editor · date · size) and level · restricted stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
         {editor || metaTail || levelLabel || restricted ? (
-          <span data-library-access-line className={cn("flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-muted-foreground", ladder.accessLineHides)}>
-            {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
-            {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
-            {metaTail ? <span className={cn("min-w-0 truncate", ladder.metaTailHides)}>{metaTail}</span> : null}
-            {(editor || metaTail) && (levelLabel || restricted) ? (
-              <span aria-hidden className={cn("shrink-0", editor ? ladder.metaHides : ladder.metaTailHides)}>·</span>
+          <span
+            data-library-access-line
+            className={cn(
+              "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[34rem]/library:flex-nowrap",
+              ladder.accessLineHides,
+            )}
+          >
+            {editor || metaTail ? (
+              <span
+                data-library-meta-line
+                className={cn(
+                  "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
+                  editor ? ladder.metaHides : ladder.metaTailHides,
+                )}
+              >
+                {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
+                {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
+                {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
+              </span>
             ) : null}
-            {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
-            {levelLabel && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
-            {restricted && visibilityKey ? (
-              <span className="flex shrink-0 items-center gap-1">
-                <Lock aria-hidden className="size-3 shrink-0" />
-                {t(visibilityKey)}
+            {editor && (levelLabel || restricted) ? (
+              <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaHides)}>·</span>
+            ) : null}
+            {levelLabel || restricted ? (
+              <span data-library-access-group className="flex shrink-0 items-center gap-1.5">
+                {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
+                {levelLabel && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
+                {restricted && visibilityKey ? (
+                  <span className="flex shrink-0 items-center gap-1">
+                    <Lock aria-hidden className="size-3 shrink-0" />
+                    {t(visibilityKey)}
+                  </span>
+                ) : null}
               </span>
             ) : null}
           </span>
