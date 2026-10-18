@@ -121,7 +121,7 @@ export function DocumentsSearchResults({
     search.filter !== "document" &&
     trimmedQuery.length > 0 &&
     myFolderLabel.toLocaleLowerCase().includes(trimmedQuery.toLocaleLowerCase());
-  const visibleItems: Pick<DocumentSummary, "id" | "kind" | "title" | "system_kind" | "path">[] =
+  const visibleItems: Pick<DocumentSummary, "id" | "kind" | "title" | "system_kind" | "path" | "shelved_at">[] =
     matchesMyFolder && !search.items.some((item) => item.id === myFolderId || isMyFolder(item))
       ? [{ id: myFolderId!, kind: "folder", title: myFolderLabel, system_kind: "my_folder" }, ...search.items]
       : search.items;
