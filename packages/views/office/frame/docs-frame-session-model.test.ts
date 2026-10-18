@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { DocsProtocolError } from "@uniwork/core/office/docs-frame-protocol";
 import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
 import { composeFrameInit } from "./docs-frame-init";
 import { frameCommentsLevel } from "./frame-comments-events";
-import type { FrameCommentsBinding } from "./use-frame-comments";
 // Every shipped module has AI panels, so the `spec.ai === false` row needs a module spec of its own.
 vi.mock("@uniwork/core/office/office-modules", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/office/office-modules")>();
@@ -11,7 +11,7 @@ vi.mock("@uniwork/core/office/office-modules", async (importOriginal) => {
 });
 
 // Loaded after vi.mock so the mocked officeModuleSpec is active.
-const { officeModuleCapabilities } = await import("./docs-frame-session-model");
+const { officeModuleCapabilities, lockAwareSave } = await import("./docs-frame-session-model");
 
 const api = {} as DocsFrameApi;
 const all = { ai: true, web_search: true, image_search: true, image_generation: true, uniwork_ai: true };
@@ -265,6 +265,34 @@ describe("composeFrameInit readOnly profile and the comment level (RFH-1)", () =
     });
     expect(init.profile).toBe("readOnly");
     expect(init.commentsLevel).toBe("view");
+  });
+});
+
+describe("lockAwareSave (UNI-1907, L-3)", () => {
+  it("a 423 calls onLocked once with the holder fields and throws a refusal the frame does not read as revoked", async () => {
+    const fields = { holder_id: "u2", holder_name: "An", held_by_me: false };
+    const locked = new DocsProtocolError({
+      code: "forbidden", message: "document_locked (HTTP 423)", status: 423,
+      details: { apiCode: "document_locked", fields },
+    });
+    const save = vi.fn(async (): Promise<never> => { throw locked; });
+    const onLocked = vi.fn();
+    const wrapped = lockAwareSave(save, onLocked);
+    const thrown = await wrapped().catch((error: unknown) => error);
+    // `forbidden` without an org apiCode locks the vendored frame as 'revoked' (the red
+    // lost-access bar); `internal` stays a plain, localized save failure and keeps the edits.
+    expect(thrown).toMatchObject({ code: "internal", status: 423, details: { apiCode: "document_locked" } });
+    expect(thrown).not.toMatchObject({ code: "forbidden" });
+    expect(onLocked).toHaveBeenCalledTimes(1);
+    expect(onLocked).toHaveBeenCalledWith(fields);
+  });
+
+  it("passes a refusal that is not a 423 through untouched and never calls onLocked", async () => {
+    const conflict = new DocsProtocolError({ code: "conflict", message: "stale", status: 409 });
+    const save = vi.fn(async (): Promise<never> => { throw conflict; });
+    const onLocked = vi.fn();
+    await expect(lockAwareSave(save, onLocked)()).rejects.toBe(conflict);
+    expect(onLocked).not.toHaveBeenCalled();
   });
 });
 

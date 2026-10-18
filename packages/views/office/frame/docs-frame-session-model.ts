@@ -447,8 +447,12 @@ export function attachFrameBundleProbe(options: {
 
 /**
  * A 423 document_locked (addendum §11.1) is never {ok:false}: the page ends its hold (banner,
- * read-only) via `onLocked`, and the frame hears the same refusal the host gives a viewer, so it
- * opens no conflict dialog. Sending doc.editLock first waits for the protocol change (card c, Q4).
+ * read-only) via `onLocked`, which stays the one explanation. The frame hears `internal`
+ * (UNI-1907, L-3): `forbidden` with no org apiCode would lock it as 'revoked' and draw the red
+ * lost-access bar, `conflict` would open the overwrite dialog — both wrong while only the edit
+ * lock is gone. `internal` shows nothing but the frame's localized save-failed line; the edits
+ * stay dirty. `apiCode` stays so the host-side save bookkeeping can still name the refusal.
+ * Sending doc.editLock first waits for the protocol change (card c, Q4).
  */
 export function lockAwareSave<F extends (...args: never[]) => Promise<unknown>>(
   upload: F,
@@ -462,7 +466,12 @@ export function lockAwareSave<F extends (...args: never[]) => Promise<unknown>>(
       if (shape.status !== 423) throw error;
       const fields = shape.details?.fields;
       onLocked(fields && typeof fields === "object" ? fields as Record<string, unknown> : undefined);
-      throw readOnly("api.save");
+      throw new DocsProtocolError({
+        code: "internal",
+        message: "api.save refused: the edit lock was lost",
+        status: 423,
+        details: { apiCode: shape.details?.apiCode ?? "document_locked" },
+      });
     }
   }) as F;
 }
