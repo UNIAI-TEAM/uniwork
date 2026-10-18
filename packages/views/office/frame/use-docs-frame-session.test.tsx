@@ -988,6 +988,37 @@ describe("useDocsFrameSession: close_requested (UNI-1876, UNI-1901)", () => {
     expect(onCloseRequested).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores close_requested while the first-save name dialog is open, and again while the named save is pending (UNI-1901)", async () => {
+    let resolveAsk!: (named: boolean) => void;
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => { resolveAsk = resolve; }));
+    const save = vi.fn(async () => ({ ok: true as const, file: FILE, versionId: "v2" }));
+    const onCloseRequested = vi.fn();
+    const frame = setup({ onCloseRequested, firstSave: { needsName: () => true, ask }, api: { save } });
+    await frame.boot();
+    await frame.event("dirty", { dirty: true });
+
+    // The naming wait counts as a save in flight: Esc while the dialog is open is ignored.
+    let saving!: Promise<string>;
+    act(() => { saving = frame.hook.result.current.save("user"); });
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+
+    // Named: the save the dialog was blocking is now pending - still no leave on Esc.
+    await act(async () => { resolveAsk(true); });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await settle();
+    expect(frame.sent("save")).toHaveLength(1);
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).not.toHaveBeenCalled();
+
+    // Only once the whole save settles does close_requested reach onCloseRequested.
+    await frame.respond(frame.sent("save")[0]!, { ok: true, file: FILE, versionId: "v2" });
+    await expect(saving).resolves.toBe("saved");
+    await frame.event("close_requested", { reason: "escape" });
+    expect(onCloseRequested).toHaveBeenCalledTimes(1);
+  });
+
 });
 
 describe("useDocsFrameSession: first-save naming (UNI-1847, SAVE-01)", () => {
