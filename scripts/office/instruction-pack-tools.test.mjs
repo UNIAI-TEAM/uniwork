@@ -40,6 +40,18 @@ test("the mechanical table parses into the six pack modules with a plausible too
 });
 
 test("the mechanical table parses a CRLF copy of the doc", () => {
+  const helperSrc = fs.readFileSync(new URL("./instruction-pack-tools.mjs", import.meta.url), "utf8");
+  const markerExpr = helperSrc.match(/const marker = \(name\) => new RegExp\(`([^`]+)`, "([^"]+)"\)/);
+  assert.ok(markerExpr, "instruction-pack-tools.mjs must define the extract marker RegExp");
+  for (const name of ["begin", "end"]) {
+    const markerRe = new RegExp(markerExpr[1].replace("${name}", name), markerExpr[2]);
+    const crlfSample = `prose\r\n<!-- extract:${name} -->\r\n| row |\r\n`;
+    assert.equal(
+      markerRe.exec(crlfSample)?.[0],
+      `<!-- extract:${name} -->\r`,
+      `marker("${name}") must consume the trailing CR on a CRLF marker line`,
+    );
+  }
   const lf = parseMechanicalTable(toolsDoc);
   const crlfDoc = toolsDoc.replace(/\r?\n/g, "\r\n");
   assert.ok(crlfDoc.includes("\r\n") && !/[^\r]\n/.test(crlfDoc), "the fixture must use CRLF line ends and no bare LF");
