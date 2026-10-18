@@ -1,0 +1,15 @@
+$ grep -aq "backend=gnome_libsecret available=true" /tmp/probe.out || { echo "probe did not show gnome_libsecret; e2e not started"; echo "UNIWORK_E2E_EXIT=3"; exit 3; }; timeout 1320 dbus-run-session -- bash -c 'printf "uniwork-ci" | timeout 20 gnome-keyring-daemon --unlock --components=secrets >/dev/null; export XDG_CURRENT_DESKTOP=GNOME; xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts --reporter=list e2e/uniwork-documents.spec.ts --grep "documents [klm]\. "'; rc=$?; echo; echo "UNIWORK_E2E_EXIT=$rc"; exit $rc
+
+Running 3 tests using 1 worker
+
+(node:56254) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+dbus-daemon[56207]: [session uid=1000 pid=56207] Activating service name='org.a11y.Bus' requested by ':1.1' (uid=1000 pid=56266 comm="/home/ubuntu/work/uniwork-office/node_modules/elec" label="kernel")
+dbus-daemon[56207]: [session uid=1000 pid=56207] Successfully activated service 'org.a11y.Bus'
+  ✓  1 e2e/uniwork-documents.spec.ts:1760:7 › UniWork documents › k. a 423 on commit shows the holder in the pill and is not retried (7.4s)
+  ✓  2 e2e/uniwork-documents.spec.ts:1822:7 › UniWork documents › l. someone else editing opens read-only; once free, Sửa ở đây appears within one poll (31.5s)
+  ✓  3 e2e/uniwork-documents.spec.ts:1903:7 › UniWork documents › m. commits carry edit_lock_id and closing the document releases the lock (2.3s)
+
+  3 passed (47.4s)
+
+UNIWORK_E2E_EXIT=0

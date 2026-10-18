@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1645c-el1b-desktop; git log --oneline -3
+e579a7f9c91ec087569209bca35ebba05d4b3f71
+3ccf98850c5527627bb86ef6d57198f2ac70acf5
+e579a7f9 merge: EL-1(b) desktop edit lock (UNI-1645 c, 3ccf98850) into fork main 685628005
+3ccf9885 revert(shell): R3-4 denied reacquire path back to r3b behaviour, deferred to EL-2
+68562800 test(slides): match harness onError to the stored-errorKey signature
