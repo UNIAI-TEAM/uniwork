@@ -317,6 +317,13 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
      Một con số mà `report.items` đánh dấu là số đếm của một loại trong bảng chỉ truy được qua vết (d), không bao giờ như một lá
      văn bản trùng chữ số. Một câu trả lời cấu trúc chỉ có `items` mà (d) xác nhận thì số nguyên đó không cần xuất hiện lần hai trong
      `report.numbers`: ô số đếm (đơn vị `count` hoặc `sheets`) lấy giá trị của mục đếm được (d) xác nhận.
+     Vòng i (review-g712-21): tên loại chỉ lấy từ một cụm đóng **ngay sát** con số (bắt đầu ngay sau hoặc kết thúc ngay trước nó,
+     không có cửa sổ nhảy sang từ nội dung khác); một loại có từ bổ nghĩa ("changed paragraphs") không gọi tên loại nào. Chữ số cấp
+     trong cụm "level 2 headings" là **nhãn** của loại, không phải số đếm: nó chỉ là nhãn lời văn của loại mà lần đọc thật sự có
+     (số phần tử lớn hơn 0), không bao giờ điền ô `expected.numeric`, không cộng giá trị `report.numbers` và không điền thay mục
+     đếm; ô số đếm chỉ lấy từ mục đếm có loại (anchor) riêng khớp đúng số đếm trong một lần đọc. Dấu đánh dấu số đếm gắn theo từng
+     mục (giá trị → các loại của mục đó) và một số có đơn vị hay tiền tệ (ví dụ `3%`) không bao giờ đi đường chỉ-số-đếm. Hàng rào
+     code chỉ đóng bằng cùng ký tự với độ dài không ngắn hơn; chú thích HTML và mã nội dòng không chứa tiêu đề.
 3. **Mọi con số trong lời văn và mọi giá trị của `report.numbers`** phải truy về một trong ba nguồn: (a) lá của một lần đọc
    thành công, tính theo từng lần gọi và theo số lần xuất hiện; (b) kết quả của một lần `compute` thành công; (c) một phép suy
    ra được phép (tổng, hiệu, tỷ lệ hoặc phần trăm của hai toán hạng đã hiện trong câu trả lời, hoặc tổng của mọi toán hạng cùng
@@ -331,6 +338,7 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
      (phần trăm viết bằng đơn vị phần trăm), nên một số trần ở đó truy được tới lá hoặc kết quả compute có đúng đơn vị `%` cùng giá
      trị (`25` khớp ô `25%`). Mọi bậc độ lớn khác (`k`, `m`, `bn`, `tr`, `triệu`, `tỷ`, `nghìn`, `ngàn`) và tiền tệ mâu thuẫn vẫn
      chặt trong `report.numbers`; lời văn giữ nguyên chặt (`25` trong lời văn không khớp ô `25%`, `25%` không khớp ô trần `25`).
+     Ngoại lệ này chỉ áp cho lá đọc và kết quả compute, không áp cho giá trị đối số của lần ghi đã áp (R21-5).
    - **Tiền tệ là cách trình bày, không phải đơn vị** (trả lời của lead, Q1): nhãn tiền tệ trên một số trần của nguồn thì đạt
      (`1.234.000 đồng`, `1.234.000 VND` với ô `1234000`). Nhãn tiền tệ **mâu thuẫn** với tiền tệ mà chính nguồn cho thấy
      (định dạng số của ô, tiêu đề, văn bản đọc được hoặc văn bản tài liệu) thì trượt, lý do `currency` (ví dụ `USD60` khi tài
@@ -341,6 +349,11 @@ Bộ chấm chỉ cộng điểm từ bằng chứng có cấu trúc; lời văn
      một URL/email nguyên vẹn. Ngoài ra, giá trị của đối số lần ghi đã áp cũng là nguồn (`EXTRA_SOURCES.appliedWrites`). **Văn bản
      yêu cầu của người dùng không còn là nguồn** (R20-2, `EXTRA_SOURCES.request` mặc định `false`): một con số chỉ có trong câu hỏi
      không phải số liệu, kể cả khi lời văn nhắc lại nó. Phần trăm thay đổi chỉ khớp một con số viết bằng đơn vị phần trăm (R20-3).
+   - **Nhắc lại số của câu hỏi** (quyết định của người dùng 2026-10-18, vòng i, I-1): một con số **trong lời văn** có cùng giá trị
+     **và** cùng đơn vị/bậc độ lớn/tiền tệ với một số mà câu hỏi nêu thì được miễn truy vết: không làm trượt và không được tính.
+     Nó không bao giờ cộng điểm: không là nguồn, không là toán hạng, không là số đếm và không điền ô `expected.numeric`.
+     `report.numbers` không có ngoại lệ này (dòng báo cáo chứa số của chính câu trả lời nên vẫn phải truy được). Một số của câu hỏi
+     viết với đơn vị khác (`10` so với `10k`) không phải nhắc lại và chịu luật chặt.
    - **Giới hạn đã biết**: số viết bằng chữ ("hai mươi", "twenty") không được tách thành token nên không bị kiểm tra.
 4. **Lần gọi `compute` bị từ chối hay lỗi** (`error`, `denied`, `ok:false`, `partial`, trạng thái lỗi) không cộng điểm compute
    (R19-1); lần đọc lỗi cũng không cho lá nào.
