@@ -17,8 +17,19 @@ const frameVersions = Object.fromEntries(
   OFFICE_MODULES.map((module) => [module, offerableFrameVersion(framePins[module] ?? null, join(frameRoot, module))]).filter(([, version]) => version),
 );
 
+// A dev server reached from a phone on the LAN (NEXT_PUBLIC_APP_URL=http://<lan-ip>:3000)
+// must name that host, or Next refuses the page's /_next/* requests and it renders blank.
+const appHost = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL ?? "").hostname;
+  } catch {
+    return "";
+  }
+})();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: appHost && appHost !== "localhost" ? [appHost] : undefined,
   transpilePackages: ["@uniwork/ui", "@uniwork/core", "@uniwork/views"],
   env: {
     NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION: frameVersions.docs ?? "",
