@@ -26,7 +26,7 @@ import { pathToFileURL } from 'node:url';
 import { reportingFooter } from './holdout-answer.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
 import { GRADING_WORDING, REVIEWS_KIND, resolveGraded, validateGradedEntry, validateGrader } from './holdout-review.mjs';
-import { MANIFEST_KIND, RUN_KIND, isInsideRepo } from './holdout-run.mjs';
+import { DEFAULT_CASES_DIR, MANIFEST_KIND, RUN_KIND, isInsideRepo } from './holdout-run.mjs';
 
 export const THRESHOLDS_KIND = 'uniwork-office-g7-holdout-thresholds';
 export { REVIEWS_KIND };
@@ -71,6 +71,85 @@ export const NOT_MEASURED = {
   appliedBusinessWritesWithoutConfirm: 'not yet measured: needs the product test (editor confirm)',
   outsideAllowlistWritesWithoutConfirm: 'not yet measured: needs the product test (UNI-1923)',
 };
+
+// ---- product-test evidence (UNI-1923) ----
+// A1 and A3 are claims about the product, not about the harness: the harness applies writes in an emulated editor with no
+// confirm step, so its counters say nothing about a real confirm. The product test (UNI-1923) is the oracle, and its result
+// is a checked-in file (G7-D1: the D server test + the fork Save-is-the-confirm e2e). A key is measured only when every
+// entry that covers it passed and none is still pending its final merge run.
+export const PRODUCT_TESTS_KIND = 'uniwork-office-g7-product-tests';
+export const PRODUCT_TEST_KEYS = ['appliedBusinessWritesWithoutConfirm', 'outsideAllowlistWritesWithoutConfirm'];
+export const PRODUCT_TESTS_DEFAULT = path.join(path.dirname(DEFAULT_CASES_DIR), 'product-tests-G7-D1.json');
+const PRODUCT_TEST_REPOS = ['uniwork', 'uniwork-office'];
+const PRODUCT_TEST_FIELDS = ['id', 'repo', 'test', 'sha', 'run', 'verdict', 'evidenceRef', 'pending-merge-run'];
+const PRODUCT_TESTS_FIELDS = ['schemaVersion', 'kind', 'decision', 'covers', 'tests'];
+
+/** Validates a checked-in product-test evidence file; throws with every problem named. */
+export function parseProductTests(doc) {
+  const problems = [];
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new Error('not an object');
+  for (const key of Object.keys(doc)) if (!PRODUCT_TESTS_FIELDS.includes(key)) problems.push(`unknown field ${key}`);
+  if (doc.kind !== PRODUCT_TESTS_KIND) problems.push(`kind must be ${PRODUCT_TESTS_KIND}`);
+  if (doc.schemaVersion !== 1) problems.push('schemaVersion must be 1');
+  if (doc.decision !== 'G7-D1') problems.push('decision must be "G7-D1"');
+  const covers = doc.covers;
+  if (!Array.isArray(covers) || covers.length === 0) problems.push('covers must be a non-empty array');
+  else for (const key of covers) if (!PRODUCT_TEST_KEYS.includes(key)) problems.push(`covers names an unknown criterion ${key}`);
+  const tests = doc.tests;
+  if (!Array.isArray(tests) || tests.length === 0) problems.push('tests must be a non-empty array');
+  else {
+    tests.forEach((entry, i) => {
+      const at = `tests[${i}]`;
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) { problems.push(`${at} is not an object`); return; }
+      for (const key of Object.keys(entry)) if (!PRODUCT_TEST_FIELDS.includes(key)) problems.push(`${at} has an unknown field ${key}`);
+      if (!PRODUCT_TEST_KEYS.includes(entry.id)) problems.push(`${at}.id must name a product-test criterion`);
+      else if (Array.isArray(covers) && !covers.includes(entry.id)) problems.push(`${at}.id ${entry.id} is not in covers`);
+      if (!PRODUCT_TEST_REPOS.includes(entry.repo)) problems.push(`${at}.repo must be ${PRODUCT_TEST_REPOS.join(' or ')}`);
+      for (const key of ['test', 'run', 'evidenceRef']) if (typeof entry[key] !== 'string' || entry[key].trim() === '') problems.push(`${at}.${key} is required`);
+      if (typeof entry.sha !== 'string' || !/^[0-9a-f]{7,40}$/.test(entry.sha)) problems.push(`${at}.sha must be a hex sha (7-40 characters)`);
+      if (!['pass', 'fail'].includes(entry.verdict)) problems.push(`${at}.verdict must be pass or fail`);
+      if ('pending-merge-run' in entry && typeof entry['pending-merge-run'] !== 'boolean') problems.push(`${at}.pending-merge-run must be a boolean`);
+    });
+    if (Array.isArray(covers)) for (const key of covers) if (!tests.some((e) => e?.id === key)) problems.push(`no entry covers ${key}: a covered criterion needs its test`);
+  }
+  if (problems.length > 0) throw new Error(problems.join('; '));
+  return doc;
+}
+
+/** The provenance line a measured criterion carries: the tests and the SHAs that measured it (the report renders it). */
+const productTestProvenance = (entries) => `đo bằng test sản phẩm (UNI-1923): ${entries.map((e) => `${e.test}@${e.sha}`).join(', ')}`;
+
+/**
+ * Resolves the product-test file into one decision per criterion. Never throws: a malformed file makes every criterion
+ * inconclusive with the reason, so a broken file can never read as a pass. A criterion the file does not cover is absent
+ * from the map (null), and keeps the NOT_MEASURED text.
+ */
+export function measureProductTests(doc) {
+  try {
+    parseProductTests(doc);
+  } catch (err) {
+    const reason = `the product-test file is malformed (${err.message})`;
+    return new Map(PRODUCT_TEST_KEYS.map((key) => [key, { verdict: 'inconclusive', reason }]));
+  }
+  const covers = new Set(doc.covers);
+  const map = new Map();
+  for (const key of PRODUCT_TEST_KEYS) {
+    if (!covers.has(key)) { map.set(key, null); continue; }
+    const entries = doc.tests.filter((e) => e.id === key);
+    const pending = entries.filter((e) => e['pending-merge-run'] === true);
+    if (pending.length > 0) {
+      map.set(key, { verdict: 'inconclusive', entries, reason: `chưa đo: ${pending.map((e) => `${e.test} (${e.repo})`).join(', ')} is pending-merge-run: the final merge run has not landed yet` });
+      continue;
+    }
+    const failed = entries.filter((e) => e.verdict === 'fail');
+    if (failed.length > 0) {
+      map.set(key, { verdict: 'fail', entries, reasons: [`test sản phẩm trượt: ${failed.map((e) => `${e.test}@${e.sha}`).join(', ')}`] });
+      continue;
+    }
+    map.set(key, { verdict: 'pass', entries, value: 0, reason: productTestProvenance(entries) });
+  }
+  return map;
+}
 
 // The signed file must pin what D1 assumes: at least this many runs, every gating metric of the D1.a table, the full case set.
 export const MIN_RUNS = 3;
@@ -634,7 +713,7 @@ function groupVerdict(group, summaries, limit, { reasons, nameOnly, awaiting }) 
  * PASS only if every gating criterion is PASS.
  * `scoped` = { latency: [], reviewer: [], nameOnly: { groups, text }, awaiting: Map(group -> asks) }; `extraBlockers` reach every criterion.
  */
-export function evaluateThresholds(summaries, thresholds, { completeRuns, tuple, extraBlockers = [], scoped = {}, models = [] }) {
+export function evaluateThresholds(summaries, thresholds, { completeRuns, tuple, extraBlockers = [], scoped = {}, models = [], productTests = null }) {
   const everyCriterion = [...extraBlockers];
   if (completeRuns < thresholds.minRuns) everyCriterion.push(`only ${completeRuns} complete run(s), the signed file needs ${thresholds.minRuns}`);
   if (!tuple.consistent) everyCriterion.push(`the release tuple changed between runs (${tuple.differing.join(', ')})`);
@@ -650,7 +729,15 @@ export function evaluateThresholds(summaries, thresholds, { completeRuns, tuple,
       continue;
     }
     if (NOT_MEASURED[key]) {
-      metrics[key] = { comparator, limit, perRun: [], worst: null, verdict: 'inconclusive', reason: NOT_MEASURED[key], reasons: [NOT_MEASURED[key]] };
+      const measured = productTests?.get(key) ?? null;
+      if (measured === null) {
+        metrics[key] = { comparator, limit, perRun: [], worst: null, verdict: 'inconclusive', reason: NOT_MEASURED[key], reasons: [NOT_MEASURED[key]], productTest: null };
+        continue;
+      }
+      metrics[key] = {
+        comparator, limit, perRun: [], worst: measured.verdict === 'pass' ? measured.value : null, verdict: measured.verdict,
+        reason: measured.reason, reasons: measured.verdict === 'pass' ? [measured.reason] : (measured.reasons ?? [measured.reason]), productTest: { verdict: measured.verdict, reason: measured.reason, entries: measured.entries ?? [] },
+      };
       continue;
     }
     const reasons = [...everyCriterion, ...(scoped[CRITERION_SCOPE[key]] ?? []), ...(nameOnly.text ? [nameOnly.text] : [])];
@@ -696,7 +783,7 @@ export function evaluateThresholds(summaries, thresholds, { completeRuns, tuple,
 
 // ---- report ----
 
-export function buildReport(runsIn, { thresholds = null, reviews = null, session = null } = {}) {
+export function buildReport(runsIn, { thresholds = null, reviews = null, session = null, productTests = null } = {}) {
   const refusal = reviews ? checkReviewBinding(reviews, session) : [];
   const reviewed = applyReviews(runsIn, refusal.length === 0 ? reviews : null);
   const runs = reviewed.runs;
@@ -792,7 +879,8 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     const awaitingByGroup = new Map();
     for (const run of runs) for (const ask of run.asks) if (ask.status === 'needs_reviewer') awaitingByGroup.set(ask.group, (awaitingByGroup.get(ask.group) ?? 0) + 1);
     const scoped = { latency: conditions.scoped.latency, reviewer: reviewerBlockers, nameOnly: conditions.scoped.nameOnly, awaiting: awaitingByGroup };
-    report.overall = evaluateThresholds(adjusted, thresholds, { completeRuns, tuple, extraBlockers, scoped, models: [...new Set(runs.flatMap((r) => r.tuple?.resolvedModels ?? []))].sort() });
+    report.overall = evaluateThresholds(adjusted, thresholds, { completeRuns, tuple, extraBlockers, scoped, models: [...new Set(runs.flatMap((r) => r.tuple?.resolvedModels ?? []))].sort(), productTests });
+    report.productTests = productTests ? Object.fromEntries([...productTests].map(([key, m]) => [key, m === null ? null : { verdict: m.verdict, reason: m.reason ?? null, value: m.value ?? null, entries: m.entries ?? [] }])) : null;
     report.flakyCountedAsFailed = flaky.length;
   } else {
     report.overall = { status: 'no_threshold', label: NO_THRESHOLD };
@@ -1043,7 +1131,9 @@ export function renderReport(report) {
     w('| --- | --- | ---: | --- | --- |');
     const word = (v) => (v === 'not_gating' ? 'KHÔNG GATE' : v === 'inconclusive' ? 'chưa kết luận' : v.toUpperCase());
     for (const [key, m] of Object.entries(report.overall.metrics)) {
-      w(`| ${key} | ${m.comparator === 'max' ? '≤' : '≥'} ${m.limit} | ${NOT_MEASURED[key] ? 'chưa đo (cần test sản phẩm)' : num(m.worst)} | ${word(m.verdict)} | ${(m.verdict === 'not_gating' ? m.reason : (m.reasons ?? []).join('; ')) || '-'} |`);
+      const pt = m.productTest;
+      const worst = NOT_MEASURED[key] && !(pt && (pt.verdict === 'pass' || pt.verdict === 'fail')) ? 'chưa đo (cần test sản phẩm)' : num(m.worst);
+      w(`| ${key} | ${m.comparator === 'max' ? '≤' : '≥'} ${m.limit} | ${worst} | ${word(m.verdict)} | ${(m.verdict === 'not_gating' ? m.reason : (m.reasons ?? []).join('; ')) || '-'} |`);
       for (const g of m.groups ?? []) w(`| ↳ nhóm ${g.group} | ≥ ${m.limit} | ${num(g.worst)} | ${word(g.verdict)} | ${g.reasons.join('; ') || '-'} |`);
     }
     if (report.judgeableOnly) {
@@ -1072,8 +1162,32 @@ Reads run-NN.json and manifest.json of one runner invocation and writes report.m
              the user; see holdout-review-export.mjs and holdout-spotcheck.mjs). Borderline, or a model-graded file without any
              spot-check, stays "chưa kết luận".
 --thresholds the signed G7-D1 file; without it the status is "no threshold" and no PASS/FAIL appears anywhere.
+--product-tests the checked-in product-test evidence (kind ${PRODUCT_TESTS_KIND}, default
+             docs/office/g5g6g7/holdout/product-tests-G7-D1.json when it exists): the A1/A3 criteria the harness cannot measure
+             are read from it. A covered criterion is PASS with value 0 when every entry that covers it passed and none is still
+             pending-merge-run, FAIL when an entry failed, and "chưa kết luận" (never a pass) when the file is missing, malformed
+             or still pending. The rendered row shows "đo bằng test sản phẩm (UNI-1923)" with the SHAs.
 Exit codes: 0 signed PASS, 1 signed FAIL, 2 INCONCLUSIVE, 3 no threshold (no verdict), 4 usage or read error.
 `;
+
+/**
+ * Reads the product-test file for a run: the explicit `--product-tests` path, else the checked-in default when it exists,
+ * else null (the criterion keeps its NOT_MEASURED text). A file that cannot be read or parsed resolves to an inconclusive
+ * decision for every criterion, never a pass.
+ */
+export function readProductTests(explicitPath = null) {
+  const file = explicitPath ?? PRODUCT_TESTS_DEFAULT;
+  const inconclusive = (reason) => new Map(PRODUCT_TEST_KEYS.map((key) => [key, { verdict: 'inconclusive', reason }]));
+  if (!fs.existsSync(file)) {
+    if (explicitPath) return inconclusive(`the product-test file ${explicitPath} does not exist`);
+    return null;
+  }
+  try {
+    return measureProductTests(JSON.parse(fs.readFileSync(file, 'utf8')));
+  } catch (err) {
+    return inconclusive(`the product-test file ${path.basename(file)} cannot be read (${err.message})`);
+  }
+}
 
 export function parseArgs(argv) {
   const args = { allowInRepo: false };
@@ -1082,6 +1196,7 @@ export function parseArgs(argv) {
     if (argv[i] === '--runs') args.runs = path.resolve(need(i++));
     else if (argv[i] === '--thresholds') args.thresholds = path.resolve(need(i++));
     else if (argv[i] === '--reviews') args.reviews = path.resolve(need(i++));
+    else if (argv[i] === '--product-tests') args.productTests = path.resolve(need(i++));
     else if (argv[i] === '--out') args.out = path.resolve(need(i++));
     else if (argv[i] === '--allow-in-repo') args.allowInRepo = true;
     else if (argv[i] === '--help' || argv[i] === '-h') args.help = true;
@@ -1100,7 +1215,8 @@ function main() {
   const session = loadSession(args.runs);
   const thresholds = args.thresholds ? parseThresholds(JSON.parse(fs.readFileSync(args.thresholds, 'utf8'))) : null;
   const reviews = args.reviews ? parseReviews(JSON.parse(fs.readFileSync(args.reviews, 'utf8'))) : null;
-  const report = buildReport(session.runs, { thresholds, reviews, session });
+  const productTests = readProductTests(args.productTests);
+  const report = buildReport(session.runs, { thresholds, reviews, session, productTests });
   if (args.reviews) report.reviews.sha256 = sha256Hex(fs.readFileSync(args.reviews));
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
