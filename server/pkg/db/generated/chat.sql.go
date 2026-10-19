@@ -2664,6 +2664,114 @@ func (q *Queries) SearchChatMessagesByRoom(ctx context.Context, arg SearchChatMe
 	return items, nil
 }
 
+const searchChatMessagesForMember = `-- name: SearchChatMessagesForMember :many
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN chat_rooms r ON r.id = m.room_id
+INNER JOIN chat_room_members rm ON rm.room_id = m.room_id
+  AND rm.user_id = $1::text
+  AND rm.status = 'active'
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.organization_id = $2::text
+  AND r.organization_id = $2::text
+  AND r.archived_at IS NULL
+  AND m.deleted_at IS NULL
+  AND m.kind = 'text'
+  AND (
+    ($3::text = 'messages' AND r.kind IN ('dm', 'group'))
+    OR ($3::text = 'workspace' AND r.kind IN ('workspace', 'channel') AND r.workspace_id = $4::text)
+  )
+  -- Folded on both sides, as SearchChatMessagesByRoom (idx_chat_messages_body_fold).
+  AND uw_fold_search(m.body) ILIKE $5::text ESCAPE '\'
+  AND ($6::timestamptz IS NULL OR m.created_at < $6)
+ORDER BY m.created_at DESC
+LIMIT $7
+`
+
+type SearchChatMessagesForMemberParams struct {
+	UserID         string             `json:"user_id"`
+	OrganizationID string             `json:"organization_id"`
+	Scope          string             `json:"scope"`
+	WorkspaceID    string             `json:"workspace_id"`
+	SearchPattern  string             `json:"search_pattern"`
+	BeforeAt       pgtype.Timestamptz `json:"before_at"`
+	ResultLimit    int32              `json:"result_limit"`
+}
+
+type SearchChatMessagesForMemberRow struct {
+	ID                string             `json:"id"`
+	RoomID            string             `json:"room_id"`
+	WorkspaceID       string             `json:"workspace_id"`
+	SenderID          string             `json:"sender_id"`
+	Kind              string             `json:"kind"`
+	Body              string             `json:"body"`
+	Metadata          []byte             `json:"metadata"`
+	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
+	EditedAt          pgtype.Timestamptz `json:"edited_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
+	SenderDisplayName string             `json:"sender_display_name"`
+}
+
+// The sidebar's search: text messages in every room the reader is an active
+// member of, within one scope — 'messages' (the organization's DMs and groups)
+// or 'workspace' (that workspace's room and channels). Membership is the read
+// gate, as in authorizeRoomRead for every room but a public channel not
+// joined, which this search leaves out. Same columns as
+// SearchChatMessagesByRoom, so the service maps both rows alike.
+func (q *Queries) SearchChatMessagesForMember(ctx context.Context, arg SearchChatMessagesForMemberParams) ([]SearchChatMessagesForMemberRow, error) {
+	rows, err := q.db.Query(ctx, searchChatMessagesForMember,
+		arg.UserID,
+		arg.OrganizationID,
+		arg.Scope,
+		arg.WorkspaceID,
+		arg.SearchPattern,
+		arg.BeforeAt,
+		arg.ResultLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchChatMessagesForMemberRow{}
+	for rows.Next() {
+		var i SearchChatMessagesForMemberRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RoomID,
+			&i.WorkspaceID,
+			&i.SenderID,
+			&i.Kind,
+			&i.Body,
+			&i.Metadata,
+			&i.ReplyToMessageID,
+			&i.EditedAt,
+			&i.CreatedAt,
+			&i.ClientMsgID,
+			&i.SenderDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setChatRoomAvatar = `-- name: SetChatRoomAvatar :exec
 UPDATE chat_rooms SET avatar_file_id = $1, updated_at = now()
 WHERE id = $2 AND organization_id = $3

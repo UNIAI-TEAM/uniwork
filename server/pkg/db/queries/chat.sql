@@ -691,6 +691,47 @@ WHERE m.room_id = $1
 ORDER BY m.created_at DESC
 LIMIT sqlc.arg(result_limit);
 
+-- name: SearchChatMessagesForMember :many
+-- The sidebar's search: text messages in every room the reader is an active
+-- member of, within one scope — 'messages' (the organization's DMs and groups)
+-- or 'workspace' (that workspace's room and channels). Membership is the read
+-- gate, as in authorizeRoomRead for every room but a public channel not
+-- joined, which this search leaves out. Same columns as
+-- SearchChatMessagesByRoom, so the service maps both rows alike.
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN chat_rooms r ON r.id = m.room_id
+INNER JOIN chat_room_members rm ON rm.room_id = m.room_id
+  AND rm.user_id = sqlc.arg(user_id)::text
+  AND rm.status = 'active'
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.organization_id = sqlc.arg(organization_id)::text
+  AND r.organization_id = sqlc.arg(organization_id)::text
+  AND r.archived_at IS NULL
+  AND m.deleted_at IS NULL
+  AND m.kind = 'text'
+  AND (
+    (sqlc.arg(scope)::text = 'messages' AND r.kind IN ('dm', 'group'))
+    OR (sqlc.arg(scope)::text = 'workspace' AND r.kind IN ('workspace', 'channel') AND r.workspace_id = sqlc.arg(workspace_id)::text)
+  )
+  -- Folded on both sides, as SearchChatMessagesByRoom (idx_chat_messages_body_fold).
+  AND uw_fold_search(m.body) ILIKE sqlc.arg(search_pattern)::text ESCAPE '\'
+  AND (sqlc.narg(before_at)::timestamptz IS NULL OR m.created_at < sqlc.narg(before_at))
+ORDER BY m.created_at DESC
+LIMIT sqlc.arg(result_limit);
+
 -- name: ListChatMessagesInRoomBetween :many
 SELECT
   m.id,
