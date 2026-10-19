@@ -778,6 +778,16 @@
       "from": "Forwarded from {{name}}",
       "from_unknown": "Forwarded message"
     },
+    "followed_threads": {
+      "list_title": "My threads",
+      "list_description": "Threads you follow in this workspace.",
+      "empty": "No followed threads yet",
+      "empty_hint": "Open a thread and turn on Follow in the thread bar to get notified about new replies.",
+      "load_failed": "Could not load your followed threads.",
+      "untitled": "Thread",
+      "reply_count": "{{count}} replies",
+      "unread_aria": "Unread replies"
+    },
     "follow_up": {
       "group_overdue": "Overdue",
       "group_upcoming": "Upcoming",
