@@ -1,0 +1,3 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git status --short | wc -l
+d4a16d653fb688b29c321085a6eff30d5fa7a35a
+0

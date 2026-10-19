@@ -1,0 +1,15 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test ./internal/handler -run '^TestAIUniworkWriteCallsAreProposalsOnly$' -count=1 -v > /tmp/red.log 2>&1); rc=$?; grep -E "^\s*--- (PASS|FAIL|SKIP)|table documents changed|^(ok|FAIL)" /tmp/red.log | head -20; N=$(grep -c "table documents changed in a proposal-only turn" /tmp/red.log); echo "RED_TEST_RC=$rc DOCS_LINES=$N"; test $rc -ne 0 -a $N -ge 3 && echo RED_OK=1 || echo RED_OK=0
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+    ai_uniwork_proposal_test.go:572: table documents changed in a proposal-only turn; it is not in the permitted accounting set (G712-A1-CONFIRM §1)
+    ai_uniwork_proposal_test.go:572: table documents changed in a proposal-only turn; it is not in the permitted accounting set (G712-A1-CONFIRM §1)
+    ai_uniwork_proposal_test.go:572: table documents changed in a proposal-only turn; it is not in the permitted accounting set (G712-A1-CONFIRM §1)
+--- FAIL: TestAIUniworkWriteCallsAreProposalsOnly (1.14s)
+    --- FAIL: TestAIUniworkWriteCallsAreProposalsOnly/R1_org_route,_a_local_spreadsheet_file (0.05s)
+    --- FAIL: TestAIUniworkWriteCallsAreProposalsOnly/R2_frame_route,_a_spreadsheet_document (0.02s)
+    --- FAIL: TestAIUniworkWriteCallsAreProposalsOnly/R3_document_route,_a_DOCX_the_owner_edits (0.02s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	1.159s
+FAIL
+RED_TEST_RC=1 DOCS_LINES=3
+RED_OK=1
