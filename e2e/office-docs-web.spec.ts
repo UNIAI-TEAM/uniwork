@@ -342,10 +342,12 @@ test.describe("open, edit, save", () => {
  * `appendChild` wrap hands the count of the hidden srcdoc iframe the HTML
  * module prints through back to the module's probe, re-stubbing on the
  * child's `load` so the count survives a Window swap at the srcdoc
- * navigation.
+ * navigation. `REQUIRE_ALL_FRAMES` turns "bundle not installed" from a skip
+ * into a failure on the lanes that install every frame.
  */
 interface PrintCounts { windowPrints: number; hostPrints: number; ctrlP: boolean[] }
 
+const REQUIRE_ALL_FRAMES = process.env.OFFICE_FRAME_REQUIRE_ALL === "1";
 /** Hold after the print's own settle so a second print has room to show up. */
 const PRINT_SETTLE_MS = 1500;
 
@@ -417,12 +419,22 @@ test.describe("Ctrl/Cmd+P", () => {
   let html: SeededDocx;
 
   test.beforeAll(async ({ browser, request }) => {
-    test.skip(!(await frameInstalled(request)), "the pinned Docs bundle is not installed in this web build");
+    const [docsInstalled, htmlInstalled] = await Promise.all([
+      frameInstalled(request),
+      moduleFrameInstalled(request, baseUrl, "html"),
+    ]);
+    // The cloud lane installs every frame (office-frame-sync --all): there an absent
+    // bundle is a broken install, not a case to wave through (RR2-5).
+    if (REQUIRE_ALL_FRAMES) {
+      expect(docsInstalled, "the pinned Docs bundle is installed (OFFICE_FRAME_REQUIRE_ALL)").toBe(true);
+      expect(htmlInstalled, "the pinned HTML module is installed (OFFICE_FRAME_REQUIRE_ALL)").toBe(true);
+    }
+    test.skip(!docsInstalled, "the pinned Docs bundle is not installed in this web build");
     const context = await browser.newContext({ baseURL: baseUrl });
     try {
       const seeding = await context.newPage();
       docs = await seedDocx(seeding, baseUrl, `docs-print-${Date.now().toString(36)}`);
-      if (await moduleFrameInstalled(request, baseUrl, "html")) {
+      if (htmlInstalled) {
         html = await seedDocument(seeding, baseUrl, `html-print-${Date.now().toString(36)}`, {
           name: "print-page.html",
           mimeType: "text/html",
