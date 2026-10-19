@@ -39,12 +39,15 @@ export interface CreateTaskStatusBody {
   description?: string;
   category: string;
   color?: string;
+  icon?: string;
 }
 
 export interface PatchTaskStatusBody {
   name?: string;
   description?: string;
   color?: string;
+  icon?: string;
+  category?: string;
   position?: number;
 }
 
@@ -112,7 +115,8 @@ export async function patchTaskStatus(
 
 export async function reorderTaskStatuses(
   workspaceId: string,
-  body: { category: string; ids: string[] },
+  /** Every active status of the group, built-ins included, in the new order. */
+  body: { group: string; ids: string[] },
 ): Promise<TaskStatusList> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/task-statuses/reorder`, {
     method: "PATCH",
