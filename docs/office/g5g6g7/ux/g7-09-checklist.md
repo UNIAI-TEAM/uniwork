@@ -20,7 +20,7 @@ Cột **Chế độ**:
 - `blocked` — S3, S11 (desktop): BLOCKED tới khi G5-05u merge (G5-D1 đã ký 2026-10-13, G5-05u HOLD vì UNI-1645);
   phần macOS VoiceOver/Safari: BLOCKED(G7-D2).
 
-Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pin lúc viết: `0.1.0-05fd209`; REPIN-1 (UNI-1825) nâng lên `0.1.0-5a72c13` (fork main `5a72c1313`, thay các bản trước `0.1.0-fa22cd9` và candidate `0.1.0-0d77962`), `0.1.0-cc35602` (fork main `cc35602c8`, UNI-1860), `0.1.0-c9181fa` (fork main `c9181fac7`, UNI-1860, sửa lỗi lưu ảnh của Sheets), `0.1.0-5932073` (fork main `5932073ee`, UNI-1813: UNI-1905 `.txt` trong markdown web + UNI-1909 SAVE-01), `0.1.0-82c8381` (fork main `82c8381e1`, REPIN-2: UNI-1919 + UNI-1920), và REPIN-2 vòng hai (UNI-1919, sửa SVR-1: AiPanel của HTML forward `uniworkBound`) đặt pin hiện tại `0.1.0-55b587b` (fork main `55b587bfe`). Spec đọc pin từ
+Host: **W** = web frame trên D web, **D** = desktop shell (fork). Frame đã pin lúc viết: `0.1.0-05fd209`; REPIN-1 (UNI-1825) nâng lên `0.1.0-5a72c13` (fork main `5a72c1313`, thay các bản trước `0.1.0-fa22cd9` và candidate `0.1.0-0d77962`), `0.1.0-cc35602` (fork main `cc35602c8`, UNI-1860), `0.1.0-c9181fa` (fork main `c9181fac7`, UNI-1860, sửa lỗi lưu ảnh của Sheets), `0.1.0-5932073` (fork main `5932073ee`, UNI-1813: UNI-1905 `.txt` trong markdown web + UNI-1909 SAVE-01), `0.1.0-82c8381` (fork main `82c8381e1`, REPIN-2: UNI-1919 + UNI-1920), `0.1.0-55b587b` (fork main `55b587bfe`, REPIN-2 vòng hai: UNI-1919, sửa SVR-1 AiPanel của HTML forward `uniworkBound`), `0.1.0-3d4ccd1` (fork main `3d4ccd18f`, bản trung gian chưa merge của REPIN-3), `0.1.0-9f867d9` (fork main `9f867d992`, REPIN-3 của UNI-1919), `0.1.0-b5da4d4` (fork main `b5da4d4dc`, pin tạm thời của REPIN-4), và REPIN-4 đặt pin hiện tại và là pin cuối `0.1.0-b1cbd5d` (fork main `b1cbd5db4`). Spec đọc pin từ
 `apps/web/platform/office-frame/docs.pin.json`, không ghi cứng pin trong logic/selector (marker S5 nhận cả `data-docs-web` và
 `data-office-web`, hàng UniWork AI tìm theo nhóm), nên mỗi lần re-pin chạy lại đúng file này.
 
@@ -39,7 +39,7 @@ Annotation `contrast` ghi số nút đo và **tỉ lệ nhỏ nhất** (tỉ l�
 
 | id | S# | Host | Floor | Kiểm | Chế độ |
 | --- | --- | --- | --- | --- | --- |
-| G-01 | S5 S6 S7 S9 | W | Floor › Chung; DESIGN › Colors | Chữ ≥ 4.5:1 (lớn ≥ 3:1) đo trên trang render, light + dark, vi + en | auto: `S6 clean + dirty bars and every reachable S5 step — {mode} {locale}`, `S7 picker with UniWork AI and the S9 result line — {mode} {locale}` (phần S7/S9 chạy trên pin `0.1.0-55b587b`, chờ cloud e2e) |
+| G-01 | S5 S6 S7 S9 | W | Floor › Chung; DESIGN › Colors | Chữ ≥ 4.5:1 (lớn ≥ 3:1) đo trên trang render, light + dark, vi + en | auto: `S6 clean + dirty bars and every reachable S5 step — {mode} {locale}`, `S7 picker with UniWork AI and the S9 result line — {mode} {locale}` (phần S7/S9 chạy trên pin `0.1.0-b1cbd5d`, chờ cloud e2e) |
 | G-02 | S1 S2 S3 S4 S10 S11 | D | Floor › Chung; DESIGN › Colors | Như G-01 trên bề mặt desktop | fork e2e (proposed): spec Playwright-Electron của shell mở từng bề mặt qua fixture store, chạy cùng phép đo `auditText` trên `webContents` light/dark |
 | G-03 | mọi | W + D | Floor › Chung | Trạng thái không chỉ bằng màu (badge/pill luôn có chữ) | manual: ảnh light/dark + forced colors từng trạng thái |
 | G-04 | S5 | W | Floor › Chung | Điều khiển không chạy được: `aria-disabled` + `aria-describedby` lý do, giữ trong thứ tự Tab | auto: `aria-disabled choices (web offline) stay in the Tab loop with a reason` |
@@ -118,10 +118,10 @@ Annotation `contrast` ghi số nút đo và **tỉ lệ nhỏ nhất** (tỉ l�
 | P-04 | mọi | W + D | Floor › Chung | vi + en | W S5/S6/S7/S9: auto (vòng `{locale}`); còn lại manual: ảnh vi/en |
 | P-05 | mọi | W + D | Floor › Chung | light + dark | W S5/S6/S7/S9: auto (vòng `{mode}`, kiểm nền thẻ đúng chế độ); D: fork e2e (proposed) |
 
-## Findings chặn đã biết (frame `0.1.0-55b587b`)
+## Findings chặn đã biết (frame `0.1.0-b1cbd5d`)
 
 Chi tiết (vị trí, giá trị đo, quy tắc) ở báo cáo lane `reports/ux-accept_local/worker-r1.md`; lead chuyển Advisor. Pin hiện tại
-của D: `0.1.0-55b587b` (release `web-0.1.0-55b587b` từ fork main `55b587bfe`, REPIN-2 vòng hai / UNI-1919 — sửa SVR-1 forward `uniworkBound` của AiPanel HTML, thay `0.1.0-82c8381`, `0.1.0-5932073`, `0.1.0-c9181fa`, `0.1.0-cc35602`, `0.1.0-5a72c13`, `0.1.0-fa22cd9` và candidate `0.1.0-0d77962` của REPIN-1). UXF-FIX (UNI-1824, fork main `005e54632`, vào từ `0.1.0-5a72c13`) đã vào pin nên các finding UXF-03, 04, 05, 06, 07, 10 đã gỡ expected-fail và chờ cloud e2e xác nhận; UXF-02 đã gỡ marker từ UNI-1872 (`09da7ebb9`) khi D web host có `api.saveCopy`. Spec không còn marker `finding()` nào; số annotation `blocked` là 0.
+của D: `0.1.0-b1cbd5d` (release `web-0.1.0-b1cbd5d` từ fork main `b1cbd5db4`, REPIN-4 / UNI-1919, pin cuối; mang thêm AIPANEL-FU lát A (CSS ô soạn AI và bộ chọn model trong html, markdown, pdf), UNI-1984 (lưu PDF khi không có thay đổi là no-op) và UNI-1989 (lưu Sheets trên web giữ giá trị cache của công thức không đổi) so với `0.1.0-9f867d9`; bản tạm `0.1.0-b5da4d4` (fork main `b5da4d4dc`) chỉ có lát A và UNI-1984; bản `0.1.0-9f867d9` là REPIN-3 / UNI-1919 — UNI-1972 bình luận app, UNI-1847 lưu lần đầu, UNI-1975, UNI-1963, UNI-1918, UNI-1958, UNI-1920 docs hooks, cộng UNI-1645 (thanh khóa đỏ của fork), AIPANEL-FU lát B (HTML gắn với tài liệu UniWork ẩn thanh ý định AI, không gửi lệnh ghi) và lát C (Ctrl/Cmd+P trong Preview HTML chuyển một lần sang lệnh in của module); `0.1.0-3d4ccd1` (fork main `3d4ccd18f`) chỉ là bản trung gian chưa merge của REPIN-3; thay `0.1.0-55b587b`, `0.1.0-82c8381`, `0.1.0-5932073`, `0.1.0-c9181fa`, `0.1.0-cc35602`, `0.1.0-5a72c13`, `0.1.0-fa22cd9` và candidate `0.1.0-0d77962` của REPIN-1). UXF-FIX (UNI-1824, fork main `005e54632`, vào từ `0.1.0-5a72c13`) đã vào pin nên các finding UXF-03, 04, 05, 06, 07, 10 đã gỡ expected-fail và chờ cloud e2e xác nhận; UXF-02 đã gỡ marker từ UNI-1872 (`09da7ebb9`) khi D web host có `api.saveCopy`. Spec không còn marker `finding()` nào; số annotation `blocked` là 0.
 
 | Mã | Hàng | Tóm tắt | Owner / trạng thái |
 | --- | --- | --- | --- |

@@ -91,6 +91,16 @@ describe("resourceHref", () => {
       });
       expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/documents/d1?access=break_glass");
     });
+    it("opens the body mention deep link with ?mention=1 (UNI-1968)", () => {
+      const n = notification({
+        kind: "document_body_mentioned",
+        resource_type: "document",
+        resource_id: "d1",
+        workspace_id: "ws2",
+        params: { actor: "An", document: "Kế hoạch" },
+      });
+      expect(resourceHref(n, workspace, [workspace, sales])).toBe("/acme/sales/documents/d1?mention=1");
+    });
   });
 
   // Web link == push link. Every input and expected path below is a vector of

@@ -144,7 +144,14 @@ func validDocumentVisibility(v string) error {
 // is no home row to read, so view), and view at the root - Q-S3: turning
 // "share with workspace" on at create grants view, the owner raises it from
 // the share dialog.
+//
+// A folder is never a source of visibility (UNI-1974): under a folder parent a
+// create behaves as at the root - private unless the request names workspace,
+// then at view. Only a page parent passes its pair on.
 func createHomeRow(requested string, parent *db.Document) (visibility, level string) {
+	if parent != nil && parent.Kind == DocumentKindFolder {
+		parent = nil
+	}
 	visibility = requested
 	if parent != nil && visibility == "" {
 		visibility, level = parent.Visibility, parent.WorkspaceLevel
@@ -208,6 +215,9 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if in.Visibility != "" {
 		if err := validDocumentVisibility(in.Visibility); err != nil {
 			return DocumentView{}, err
+		}
+		if kind == DocumentKindFolder && in.Visibility == documentVisibilityWorkspace {
+			return DocumentView{}, errFolderNotShareable()
 		}
 	}
 	var page sanitizedPage
@@ -744,6 +754,11 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			if !access.canAdminister() {
 				return ErrForbidden
 			}
+			// A folder is never opened to the workspace; closing a legacy one
+			// stays allowed. Behind the access gate so a stranger sees 404.
+			if doc.Kind == DocumentKindFolder && *in.Visibility == documentVisibilityWorkspace {
+				return errFolderNotShareable()
+			}
 			// Opening a restricted document to the workspace would hand the
 			// admin read access by role: manage only, never AdminScope.
 			if doc.Visibility == documentVisibilityRestricted && *in.Visibility != documentVisibilityRestricted &&
@@ -817,6 +832,19 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			out = view
 			return err
 		}
+		// A page body that newly names somebody notifies them (UNI-1968): the
+		// save writes one event per person, on the same audit row as the
+		// change, so an autosave still fans out no document.updated frame
+		// (C-01 §5.1) while a mention still reaches its reader.
+		var bodyMentionRecipients []string
+		bodyMentionsAdded := 0
+		if contentChanged && doc.Kind == DocumentKindPage {
+			recipients, named, err := s.newBodyMentionRecipients(ctx, q, actor, doc, doc.Content, page.content)
+			if err != nil {
+				return err
+			}
+			bodyMentionRecipients, bodyMentionsAdded = recipients, named
+		}
 		updated := doc
 		if metaChanged || contentChanged {
 			next.SearchText = documentSearchText(next.Title, next.ContentText)
@@ -853,6 +881,12 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
 				}})
 			}
+			for _, uid := range bodyMentionRecipients {
+				emit = append(emit, audit.Event{Topic: "document.body_mentioned", Payload: map[string]string{
+					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+					"user_id": uid, "author_id": actor.ID,
+				}})
+			}
 			if err := auditRecorder.Record(ctx, q, audit.Entry{
 				OrganizationID: updated.OrganizationID,
 				WorkspaceID:    updated.WorkspaceID,
@@ -865,6 +899,9 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 					"revision":        strconv.FormatInt(updated.Revision, 10),
 					"content_changed": contentChanged,
 					"content_bytes":   updated.ContentBytes,
+					// How many people this save newly named in the page body,
+					// before the per-save cap (UNI-1968).
+					"mentions_added": bodyMentionsAdded,
 				},
 			}, emit...); err != nil {
 				return err

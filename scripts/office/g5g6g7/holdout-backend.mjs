@@ -336,6 +336,87 @@ function numberFormatOf(doc, cell) {
   return doc.workbook.formatKinds?.[cell.s ?? 0] ?? 'number';
 }
 
+// The frame's overview previews: whitespace-collapsed text, cut at 60 characters with an ellipsis
+// (apps/markdown and apps/html `PREVIEW_CHARS` in the uniwork-office frame).
+const PREVIEW_CHARS = 60;
+const preview = (text) => {
+  const flat = String(text ?? '').replace(/\s+/g, ' ').trim();
+  return flat.length > PREVIEW_CHARS ? `${flat.slice(0, PREVIEW_CHARS)}…` : flat;
+};
+
+/** The top-level blocks of a markdown text: front matter, headings, fenced code, and runs of non-blank lines. */
+function markdownBlocks(lines) {
+  const blocks = [];
+  const push = (type, body, style = null) => blocks.push({ index: blocks.length, type, style, lines: body, text: plainMarkdown(type, body) });
+  let i = 0;
+  if (lines[0] === '---') {
+    const close = lines.indexOf('---', 1);
+    if (close > 0) { push('frontmatter', lines.slice(0, close + 1)); i = close + 1; }
+  }
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === '') { i += 1; continue; }
+    const heading = /^ {0,3}(#{1,6})[ \t]+\S/.exec(line);
+    if (heading) { push(`h${heading[1].length}`, [line], `Heading${heading[1].length}`); i += 1; continue; }
+    const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trimStart().startsWith(fence[1])) j += 1;
+      push('codeBlock', lines.slice(i, Math.min(j + 1, lines.length)));
+      i = j + 1;
+      continue;
+    }
+    let j = i;
+    while (j < lines.length && lines[j].trim() !== '' && !/^ {0,3}#{1,6}[ \t]+\S/.test(lines[j]) && !/^ {0,3}(`{3,}|~{3,})/.test(lines[j])) j += 1;
+    const body = lines.slice(i, j);
+    const type = body[0].trimStart().startsWith('|') ? 'table' : /^\s*(?:[-*+]|\d+[.)])\s/.test(body[0]) ? 'list' : 'paragraph';
+    push(type, body);
+    i = j;
+  }
+  return blocks;
+}
+
+/** The text content of a markdown block, as the editor's node.textContent gives it (markup and table rules dropped). */
+function plainMarkdown(type, body) {
+  if (type === 'codeBlock') return body.slice(1, -1).join(' ');
+  if (type === 'table') return body.filter((l) => !/^\s*\|?\s*:?-{2,}/.test(l)).map((l) => l.replace(/\|/g, ' ')).join(' ');
+  return body.map((l) => l.replace(/^\s*(?:#{1,6}|[-*+]|\d+[.)]|>)\s+/, '').replace(/\[[ xX]\]\s*/, '').replace(/[*_`]/g, '')).join(' ');
+}
+
+const HTML_VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const OUTLINE_HIDDEN = new Set(['html', 'head', 'body', 'meta', 'link', 'title', 'noscript']);
+
+/**
+ * The frame's html outline (default depth 3, html at depth 0, a table's rows under an implied tbody): one entry per
+ * element with its line, tag and a 60-character preview of its text; style and script are listed without a preview.
+ */
+function htmlOutline(lines, maxDepth = 3) {
+  const src = lines.join('\n');
+  const lineAt = (offset) => src.slice(0, offset).split('\n').length;
+  const stack = [];
+  const open = [];
+  for (const m of src.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g)) {
+    const tag = m[2].toLowerCase();
+    if (m[1]) {
+      const at = stack.map((e) => e.tag).lastIndexOf(tag);
+      if (at >= 0) for (const e of stack.splice(at)) e.end = m.index;
+      continue;
+    }
+    const parent = stack.at(-1);
+    const depth = stack.reduce((d, e) => d + 1 + (e.tbody ? 1 : 0), 0);
+    const el = { tag, depth: depth + (tag === 'tr' && parent?.tag === 'table' ? 1 : 0), start: m.index + m[0].length, line: lineAt(m.index), end: src.length, tbody: tag === 'tr' && parent?.tag === 'table' };
+    open.push(el);
+    if (!m[3] && !HTML_VOID.has(tag)) stack.push(el);
+  }
+  return open
+    .filter((e) => e.depth <= maxDepth && !OUTLINE_HIDDEN.has(e.tag))
+    .map((e, index) => {
+      const level = /^h([1-6])$/.exec(e.tag)?.[1];
+      const text = e.tag === 'style' || e.tag === 'script' ? '' : preview(src.slice(e.start, e.end).replace(/<[^>]*>/g, ' '));
+      return { index, line: e.line, tag: e.tag, ...(level ? { style: `Heading${level}` } : {}), preview: text };
+    });
+}
+
 /** A tool argument the real tool would refuse; the backend answers `invalid_arguments` and the runner marks the ask. */
 class InvalidArguments extends Error {}
 
@@ -431,11 +512,23 @@ function readTools(caseDoc, doc) {
       }
     }
     if (doc.format === 'pptx' && name === 'read_slide') {
-      const wanted = args.slideIndex ?? args.index ?? args.slide;
-      const slides = wanted ? doc.slides.filter((s) => s.index === Number(wanted)) : doc.slides;
-      return { slideCount: doc.slides.length, slides: slides.length ? slides : doc.slides };
+      // The real schema's slideIndex is 0-based (oracle2 O2-B1); the older index/slide aliases stay 1-based. A slide
+      // past the deck is refused, never answered with another slide.
+      if (args.slideIndex !== undefined) {
+        const idx = typeof args.slideIndex === 'number' || (typeof args.slideIndex === 'string' && args.slideIndex.trim() !== '') ? Number(args.slideIndex) : NaN;
+        const slides = Number.isInteger(idx) && idx >= 0 ? doc.slides.filter((s) => s.index === idx + 1) : [];
+        if (slides.length === 0) throw new InvalidArguments(`slideIndex ${String(args.slideIndex)} is outside the deck (0..${doc.slides.length - 1})`);
+        return { slideCount: doc.slides.length, slides };
+      }
+      const wanted = Number(args.index ?? args.slide ?? 0);
+      if (!wanted) return { slideCount: doc.slides.length, slides: doc.slides };
+      const slides = doc.slides.filter((s) => s.index === wanted);
+      if (slides.length === 0) throw new InvalidArguments(`slideIndex ${wanted - 1} is outside the deck (0..${doc.slides.length - 1})`);
+      return { slideCount: doc.slides.length, slides };
     }
     if (doc.format === 'pdf') {
+      // The frame's get_outline is the bookmark tree, empty when the document has none (oracle2 O2-B2).
+      if (name === 'get_outline') return { pageCount: doc.pageCount, outline: doc.outline ?? [] };
       if (name === 'search_text') {
         const query = String(args.query ?? args.text ?? '').toLowerCase();
         return { pageCount: doc.pageCount, hits: doc.pages.flatMap((p) => p.lines.filter((l) => query && l.toLowerCase().includes(query)).map((line) => ({ page: p.page, line }))) };
@@ -444,6 +537,23 @@ function readTools(caseDoc, doc) {
     }
     if (doc.format === 'md' || doc.format === 'html') {
       if (name === 'read_frontmatter') return { frontmatter: doc.lines[0] === '---' ? doc.lines.slice(1, doc.lines.indexOf('---', 1)) : [] };
+      // The overview tools answer as the frame does, with a 60-character preview per block or element; the full text
+      // comes only from read_blocks / read_source (oracle2 O2-B2).
+      if (doc.format === 'md' && name === 'get_document_context') {
+        const blocks = markdownBlocks(doc.lines);
+        return { lineCount: doc.lines.length, blockCount: blocks.length, blocks: blocks.map(({ index, type, style, text: body }) => ({ index, type, ...(style ? { style } : {}), preview: preview(body) })) };
+      }
+      if (doc.format === 'html' && name === 'get_outline') {
+        const depth = args.depth !== undefined && Number.isFinite(Number(args.depth)) ? Number(args.depth) : 3;
+        return { lineCount: doc.lines.length, blocks: htmlOutline(doc.lines, depth) };
+      }
+      if (doc.format === 'md' && name === 'read_blocks' && (args.startIndex !== undefined || args.endIndex !== undefined)) {
+        const blocks = markdownBlocks(doc.lines);
+        const start = Math.max(0, Number(args.startIndex ?? 0));
+        const end = Math.min(blocks.length - 1, Number(args.endIndex ?? blocks.length - 1));
+        const lines = blocks.slice(start, end + 1).flatMap((b) => b.lines);
+        return { blockCount: blocks.length, startIndex: start, endIndex: end, lines, text: lines.join('\n') };
+      }
       const from = Number(args.startBlockIndex ?? 0);
       return { lineCount: doc.lines.length, lines: doc.lines.slice(from), text: doc.lines.slice(from).join('\n') };
     }
@@ -465,41 +575,165 @@ function parseArguments(raw) {
   return { ok: true, args: value };
 }
 
+// ---- formula evaluation of the emulated sheet (oracle2 O2-B3) ----
+// A small evaluator for what a proposed formula usually holds: numbers, "strings", same-sheet cell references and
+// ranges, + - * / ^ &, comparisons, and IF / SUM / SUBTOTAL(9|109) / AVERAGE / MIN / MAX / ROUND. Anything else (another
+// sheet, an unknown function, an error value) leaves the cell's value as it was, so a fixture formula keeps its cached
+// value and a new one reads back blank, never a guessed number.
+class Unsupported extends Error {}
+const BLANK = Symbol('blank');
+const FORMULA_FUNCS = new Set(['IF', 'SUM', 'SUBTOTAL', 'AVERAGE', 'MIN', 'MAX', 'ROUND']);
+
+function tokenizeFormula(text) {
+  const tokens = [];
+  const re = /\s*(?:(\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)|("(?:[^"]|"")*")|(#REF!(?::\$?[A-Za-z]{1,3}\$?\d+)?|\$?[A-Za-z]{1,3}\$?\d+(?::(?:\$?[A-Za-z]{1,3}\$?\d+|#REF!))?)(?![A-Za-z0-9_(])|([A-Za-z_][A-Za-z0-9_.]*)(?=\s*\()|(TRUE|FALSE)\b|(<>|<=|>=|[-+*/^&=<>(),]))/gy;
+  let m;
+  let at = 0;
+  while (at < text.length) {
+    re.lastIndex = at;
+    m = re.exec(text);
+    if (!m || m[0].length === 0) { if (/^\s*$/.test(text.slice(at))) break; throw new Unsupported(text.slice(at)); }
+    at = re.lastIndex;
+    if (m[1]) tokens.push({ t: 'num', v: Number(m[1]) });
+    else if (m[2]) tokens.push({ t: 'str', v: m[2].slice(1, -1).replace(/""/g, '"') });
+    else if (m[3]) tokens.push({ t: 'ref', v: m[3].replace(/\$/g, '').toUpperCase() });
+    else if (m[4]) tokens.push({ t: 'fn', v: m[4].toUpperCase() });
+    else if (m[5]) tokens.push({ t: 'bool', v: m[5] === 'TRUE' });
+    else tokens.push({ t: 'op', v: m[6] });
+  }
+  return tokens;
+}
+
+function evaluateFormula(formula, sheet) {
+  const tokens = tokenizeFormula(String(formula).trim().replace(/^=+/, ''));
+  let pos = 0;
+  let dry = 0;
+  const peek = () => tokens[pos];
+  const take = (v) => { const tok = tokens[pos]; if (v !== undefined && (!tok || tok.v !== v)) throw new Unsupported(String(v)); pos += 1; return tok; };
+  const cellValue = (ref) => {
+    if (ref.includes('#REF!')) throw new Unsupported('#REF!');
+    const cell = sheet.cells[ref];
+    if (!cell || cell.v === null || cell.v === undefined || cell.v === '') return BLANK;
+    if (typeof cell.v === 'string' && /^#/.test(cell.v)) throw new Unsupported(cell.v);
+    return cell.v;
+  };
+  const rangeCells = (ref) => {
+    const rect = parseRange(ref);
+    if (!rect) throw new Unsupported(ref);
+    const out = [];
+    for (let r = rect.r1; r <= rect.r2; r += 1) for (let c = rect.c1; c <= rect.c2; c += 1) out.push({ row: r, value: cellValue(`${colName(c)}${r}`) });
+    return out;
+  };
+  const num = (v) => {
+    if (v === BLANK) return 0;
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v);
+    throw new Unsupported(String(v));
+  };
+  const numbersOf = (args) => args.flatMap((a) => (a && a.range ? a.cells.map((x) => x.value).filter((v) => typeof v === 'number') : [num(a)]));
+  const compare = (a, b, op) => {
+    const norm = (v, other) => (v === BLANK ? (typeof other === 'string' ? '' : typeof other === 'boolean' ? false : 0) : v);
+    let x = norm(a, b);
+    let y = norm(b, a);
+    if (typeof x === 'string' && typeof y === 'string') { x = x.toLowerCase(); y = y.toLowerCase(); }
+    else if (typeof x !== typeof y) { const rank = (v) => (typeof v === 'number' ? 0 : typeof v === 'string' ? 1 : 2); x = rank(x); y = rank(y); }
+    return { '=': x === y, '<>': x !== y, '<': x < y, '>': x > y, '<=': x <= y, '>=': x >= y }[op];
+  };
+  const call = (name, args) => {
+    if (name === 'SUM') return numbersOf(args).reduce((a, b) => a + b, 0);
+    if (name === 'SUBTOTAL') {
+      const code = num(args[0]);
+      if (code !== 9 && code !== 109) throw new Unsupported(`SUBTOTAL ${code}`);
+      return args.slice(1).flatMap((a) => (a && a.range ? a.cells : [{ value: a }]))
+        .filter((x) => code === 9 || x.row === undefined || !sheet.hiddenRows?.has(x.row))
+        .map((x) => x.value).filter((v) => typeof v === 'number').reduce((a, b) => a + b, 0);
+    }
+    const values = numbersOf(args);
+    if (name === 'AVERAGE') { if (!values.length) throw new Unsupported('AVERAGE'); return values.reduce((a, b) => a + b, 0) / values.length; }
+    if (name === 'MIN') return values.length ? Math.min(...values) : 0;
+    if (name === 'MAX') return values.length ? Math.max(...values) : 0;
+    if (name === 'ROUND') { const x = num(args[0]); const f = 10 ** num(args[1] ?? 0); return (x < 0 ? -1 : 1) * Math.round(Math.abs(x) * f) / f; }
+    throw new Unsupported(name);
+  };
+  const truthy = (v) => (typeof v === 'string' ? (() => { throw new Unsupported('text condition'); })() : num(v) !== 0);
+  const primary = () => {
+    const tok = take();
+    if (!tok) throw new Unsupported('end');
+    if (tok.t === 'num' || tok.t === 'str' || tok.t === 'bool') return dry ? 0 : tok.v;
+    if (tok.t === 'ref') return dry ? 0 : (!tok.v.includes('#REF!') && tok.v.includes(':') ? { range: true, cells: rangeCells(tok.v) } : cellValue(tok.v));
+    if (tok.t === 'fn') {
+      if (!FORMULA_FUNCS.has(tok.v)) throw new Unsupported(tok.v);
+      take('(');
+      if (tok.v === 'IF') {
+        const cond = dry ? (expr(), false) : truthy(expr());
+        take(',');
+        if (!cond) dry += 1;
+        const onTrue = expr();
+        if (!cond) dry -= 1;
+        let onFalse = false;
+        if (peek()?.v === ',') {
+          take(',');
+          if (cond) dry += 1;
+          onFalse = expr();
+          if (cond) dry -= 1;
+        }
+        take(')');
+        return dry ? 0 : (cond ? onTrue : onFalse);
+      }
+      const args = [];
+      if (peek()?.v !== ')') { args.push(expr()); while (peek()?.v === ',') { take(','); args.push(expr()); } }
+      take(')');
+      return dry ? 0 : call(tok.v, args);
+    }
+    if (tok.v === '(') { const v = expr(); take(')'); return v; }
+    if (tok.v === '-') return -num(primary());
+    if (tok.v === '+') return num(primary());
+    throw new Unsupported(String(tok.v));
+  };
+  const power = () => { let v = primary(); while (peek()?.v === '^') { take(); v = num(v) ** num(primary()); } return v; };
+  const term = () => { let v = power(); while (peek()?.v === '*' || peek()?.v === '/') { const op = take().v; const r = num(power()); if (op === '/' && !dry && r === 0) throw new Unsupported('div0'); v = dry ? 0 : (op === '*' ? num(v) * r : num(v) / r); } return v; };
+  const additive = () => { let v = term(); while (peek()?.v === '+' || peek()?.v === '-') { const op = take().v; const r = num(term()); v = op === '+' ? num(v) + r : num(v) - r; } return v; };
+  const concat = () => { let v = additive(); while (peek()?.v === '&') { take(); const r = additive(); v = dry ? 0 : `${v === BLANK ? '' : v}${r === BLANK ? '' : r}`; } return v; };
+  function expr() {
+    const left = concat();
+    const op = peek()?.v;
+    if (['=', '<>', '<', '>', '<=', '>='].includes(op)) { take(); const right = concat(); return dry ? 0 : compare(left, right, op); }
+    return left;
+  }
+  const value = expr();
+  if (pos !== tokens.length) throw new Unsupported('trailing');
+  if (value && value.range) throw new Unsupported('range');
+  if (value === BLANK) return 0;
+  if (typeof value === 'number') { if (!Number.isFinite(value)) throw new Unsupported('nan'); return Number(value.toPrecision(15)); }
+  return value;
+}
+
 function recalcSheet(sheet) {
   for (let pass = 0; pass < 2; pass += 1) {
     for (const cell of Object.values(sheet.cells)) {
       if (!cell || typeof cell.f !== 'string') continue;
-      const expr = cell.f.replace(/\$/g, '').trim();
-      const sumMatch = /^SUM\(([A-Z]+\d+:[A-Z]+\d+)\)$/i.exec(expr);
-      if (sumMatch) {
-        const rect = parseRange(sumMatch[1]);
-        if (!rect) continue;
-        let sum = 0;
-        for (let r = rect.r1; r <= rect.r2; r += 1) {
-          for (let c = rect.c1; c <= rect.c2; c += 1) {
-            const v = sheet.cells[`${colName(c)}${r}`]?.v;
-            if (typeof v === 'number' && Number.isFinite(v)) sum += v;
-          }
-        }
-        cell.v = sum;
-        continue;
-      }
-      if (/^[A-Z0-9+\-*/().\s]+$/i.test(expr) && /[A-Z]+\d+/i.test(expr)) {
-        let ok = true;
-        const substituted = expr.replace(/[A-Z]+\d+/gi, (ref) => {
-          const v = sheet.cells[ref.toUpperCase()]?.v;
-          if (typeof v !== 'number' || !Number.isFinite(v)) { ok = false; return '0'; }
-          return String(v);
-        });
-        if (ok && /^[0-9+\-*/().\s]+$/.test(substituted)) {
-          try {
-            const val = Function(`"use strict"; return (${substituted});`)();
-            if (typeof val === 'number' && Number.isFinite(val)) cell.v = val;
-          } catch { /* ignore */ }
-        }
+      try {
+        const v = evaluateFormula(cell.f, sheet);
+        if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') cell.v = v;
+      } catch (err) {
+        if (!(err instanceof Unsupported)) throw err;
+        if (err.message === '#REF!') cell.v = '#REF!';
       }
     }
   }
+}
+
+/** Moves the relative references of a formula by (dr, dc), as a fill or a copy does; $-anchored parts stay. */
+function shiftFormula(formula, dr, dc) {
+  if (!dr && !dc) return formula;
+  return String(formula).replace(/("(?:[^"]|"")*")|(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![A-Za-z0-9_(])/g, (all, str, colAbs, col, rowAbs, row, offset, whole) => {
+    if (str) return str;
+    if (/[A-Za-z0-9_.]/.test(whole[offset - 1] ?? '')) return all;
+    const c = colAbs ? colNum(col.toUpperCase()) : colNum(col.toUpperCase()) + dc;
+    const r = rowAbs ? Number(row) : Number(row) + dr;
+    return c >= 1 && r >= 1 ? `${colAbs}${colName(c)}${rowAbs}${r}` : '#REF!';
+  });
 }
 
 function applyWriteToDoc(doc, name, args, caseDoc) {
@@ -529,17 +763,32 @@ function applyWriteToDoc(doc, name, args, caseDoc) {
         if (sheet && rect) {
           const fmtStr = String(node.numberFormat ?? node.format ?? '');
           const isPctFmt = /%|percent/i.test(fmtStr);
+          // A fill from a source cell (fill_range {sourceRange}) copies its formula, moved to each target, or its value
+          // (oracle2 O2-B3); it is read when this operation runs, so an earlier operation of the call may have written it.
+          const srcText = typeof node.sourceRange === 'string' ? node.sourceRange : typeof node.source === 'string' ? node.source : null;
+          const srcAt = srcText ? splitCell(srcText.split('!').pop().replace(/\$/g, '').toUpperCase().split(':')[0]) : null;
+          const srcCell = srcAt ? sheet.cells[`${colName(srcAt.col)}${srcAt.row}`] : null;
           for (let r = rect.r1; r <= rect.r2; r += 1) {
             for (let c = rect.c1; c <= rect.c2; c += 1) {
               const ref = `${colName(c)}${r}`;
               const prev = sheet.cells[ref] ?? { v: null, f: null, t: 'n' };
               const next = { ...prev };
-              const rawVal = Array.isArray(node.values)
+              let rawVal = Array.isArray(node.values)
                 ? (Array.isArray(node.values[r - rect.r1]) ? node.values[r - rect.r1][c - rect.c1] : node.values[(r - rect.r1) * (rect.c2 - rect.c1 + 1) + (c - rect.c1)])
                 : node.value;
-              const rawFormula = typeof node.formula === 'string' ? node.formula : (typeof rawVal === 'string' && rawVal.trim().startsWith('=') ? rawVal : null);
+              // One formula written over a range moves its relative references cell by cell, as the editor's fill does
+              // (oracle2 O2-B3); a formula of a `values` grid is already per cell.
+              const single = !Array.isArray(node.values);
+              let rawFormula = typeof node.formula === 'string'
+                ? shiftFormula(node.formula, r - rect.r1, c - rect.c1)
+                : (typeof rawVal === 'string' && rawVal.trim().startsWith('=') ? (single ? shiftFormula(rawVal, r - rect.r1, c - rect.c1) : rawVal) : null);
+              if (rawFormula === null && rawVal === undefined && srcCell) {
+                if (typeof srcCell.f === 'string') rawFormula = shiftFormula(`=${srcCell.f}`, r - srcAt.row, c - srcAt.col);
+                else rawVal = srcCell.v ?? undefined;
+              }
               if (rawFormula !== null) {
                 next.f = rawFormula.trim().replace(/^=+/, '');
+                next.v = null;
               } else if (rawVal !== undefined && (typeof rawVal === 'number' || typeof rawVal === 'string' || typeof rawVal === 'boolean')) {
                 // A literal replacement replaces the cell's content, so the previous formula must not survive: without
                 // this, recalcSheet below would evaluate the old formula and a later read would return the pre-write

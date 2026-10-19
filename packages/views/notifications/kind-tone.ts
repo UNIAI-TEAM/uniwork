@@ -25,6 +25,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   email_hub_new_mail: moduleTone("email"),
   document_commented: moduleTone("documents"),
   document_mentioned: moduleTone("documents"),
+  document_body_mentioned: moduleTone("documents"),
   document_comment_replied: moduleTone("documents"),
   document_discussion_mentioned: moduleTone("documents"),
   document_discussion_replied: moduleTone("documents"),

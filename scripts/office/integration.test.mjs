@@ -50,11 +50,13 @@ const pins = {
   engine: constFrom(tsVersion, "ENGINE_VERSION_TRUSTED"),
   contract: constFrom(tsVersion, "ENGINE_CONTRACT_VERSION"),
   protocol: numberFrom(tsVersion, "ENGINE_PROTOCOL_VERSION"),
+  transport: constFrom(tsVersion, "ENGINE_JOB_TRANSPORT"),
 };
 
 test("the Go and TypeScript contract identities are the same pin", () => {
   assert.equal(constFrom(goContract, "ContractVersion"), pins.contract);
   assert.equal(numberFrom(goContract, "ProtocolVersion"), pins.protocol);
+  assert.equal(constFrom(goContract, "JobTransport"), pins.transport);
   assert.equal(constFrom(goContract, "TrustedEngineVersion"), pins.engine);
 });
 
@@ -131,6 +133,7 @@ test("the real engine container advertises the pin and the honesty rule", async 
     assert.equal(res.status, 200, "capability " + format);
     const body = await res.json();
     assert.equal(body.engine_version, pins.engine, "engine pin for " + format);
+    assert.equal(body.job_transport, pins.transport, "job transport for " + format);
     const convert = body.capabilities.find((row) => row.operation === "convert");
     const target = CONVERT_TARGETS[format];
     if (target) {

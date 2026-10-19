@@ -35,6 +35,7 @@ import { DocumentPageHeader } from "./document-page-header";
 import { DocumentShelvedBadge, DocumentShelvedBanner } from "./document-shelved-banner";
 import { useShelvedWriteGuard } from "./use-shelved-write-guard";
 import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
+import { BodyMentionGate, useBodyMentionDeepLink } from "./document-body-mention-gate";
 
 /**
  * The editor chunk. The document route must stay inside the bundle budget, so
@@ -48,6 +49,8 @@ const DocumentEditor = lazy(() =>
 export interface DocumentWorkspaceProps {
   wsId: string;
   doc: Document;
+  /** The detail query is refetching `doc`: a `?mention=1` link waits for the fresh body. */
+  bodyRefreshing?: boolean;
   /** The library list, the one breadcrumb ancestor we can point at today. */
   libraryHref: string;
   /**
@@ -94,8 +97,7 @@ export function DocumentWorkspace({
   documentHref,
   ownerHref,
   headerActions,
-  refetch,
-  officeEditorHost,
+  refetch, officeEditorHost, bodyRefreshing,
 }: DocumentWorkspaceProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
@@ -118,6 +120,7 @@ export function DocumentWorkspace({
   shelvedRef.current = shelved;
   const wasShelvedRef = useRef(false);
   const editorRef = useRef<DocumentEditorHandle>(null);
+  const { onEditorReady } = useBodyMentionDeepLink({ doc, editorRef, bodyRefreshing });
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [pageTitle, setPageTitle] = useState(doc.title);
   // The edit lock (UNI-1645) owns the save machine: every gated write carries the held id.
@@ -461,16 +464,14 @@ export function DocumentWorkspace({
   const ownerCrumb: BreadcrumbSegment[] = owned
     ? [{ href: ownerCrumbHref ?? undefined, label: t("documents.detail.breadcrumb_work_product") }]
     : [];
+  const crumbRows: BreadcrumbSegment[] = documentHref
+    ? (doc.breadcrumbs ?? [])
+        .filter((crumb) => crumb.id)
+        .map((crumb) => ({ href: documentHref(crumb.id), label: crumb.title }))
+    : [];
   const breadcrumbSegments: BreadcrumbSegment[] = owned
     ? ownerCrumb
-    : [
-        { href: libraryHref, label: t("documents.detail.breadcrumb_library") },
-        ...(documentHref
-          ? (doc.breadcrumbs ?? [])
-              .filter((crumb) => crumb.id)
-              .map((crumb) => ({ href: documentHref(crumb.id), label: crumb.title }))
-          : []),
-      ];
+    : [{ href: libraryHref, label: t("documents.detail.breadcrumb_library") }, ...crumbRows];
   /** Owner route when there is one; otherwise no back control for owned docs. */
   const backHref = ownerCrumbHref ?? (owned ? null : libraryHref);
   const backLabel = ownerCrumbHref
@@ -586,6 +587,7 @@ export function DocumentWorkspace({
               canPersist={!dirty && state.phase !== "saving" && pendingUploads === 0}
               getRevision={() => stateRef.current.revision}
               onStatusChange={handleMetadataStatus} onSaved={(saved) => save.updateBase(saved.revision, saved)} />
+          <BodyMentionGate wsId={wsId} doc={doc} state={state} />
           <Suspense
             fallback={
               <div className="min-h-64 space-y-3" aria-busy>
@@ -609,9 +611,8 @@ export function DocumentWorkspace({
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}
                 onPendingUploadsChange={setPendingUploads}
-                onContentError={handleContentError} toolbarHost={toolbarHost}
-                onFocusTitle={() => { titleRef.current?.focus(); const input = titleRef.current;
-                  if (input) input.setSelectionRange(input.value.length, input.value.length); }}
+                onContentError={handleContentError} toolbarHost={toolbarHost} onReady={onEditorReady}
+                onFocusTitle={() => { titleRef.current?.focus(); titleRef.current?.setSelectionRange(titleRef.current.value.length, titleRef.current.value.length); }}
               />
             </div>
           </Suspense>

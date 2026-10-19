@@ -39,6 +39,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   email_hub_new_mail: MODULE_ICONS.email,
   document_commented: MessageSquare,
   document_mentioned: AtSign,
+  document_body_mentioned: AtSign,
   document_comment_replied: MessageSquare,
   document_discussion_mentioned: AtSign,
   document_discussion_replied: MessageSquare,

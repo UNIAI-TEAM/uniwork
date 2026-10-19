@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-55b587b",
-  "forkSha": "55b587b",
-  "capturedOn": "2026-10-19T10:31:05.320Z",
+  "pinVersion": "0.1.0-b1cbd5d",
+  "forkSha": "b1cbd5d",
+  "capturedOn": "2026-10-19T22:40:23.592Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -40,19 +40,19 @@
       "masks": []
     },
     "desktop/fx-md-notes-vi": {
-      "sha256": "0cf65354df35450724f5e02867dfdf1423fb2e0ce241d552f9a1505d0c876e76",
+      "sha256": "04a3feb2da47dec8f3d018ecaf9f125bcae638a52c52a08ebfe14122c686b36a",
       "masks": []
     },
     "desktop/fx-html-page-vi": {
-      "sha256": "2779c6eba7e07efe33a8a5b9b089ea5092fc5077223e291cf90bc92a49a43b3f",
+      "sha256": "be0599cdb7718f1c687d80e4272e1c36aebb43fdc7806199338982957e08e7ae",
       "masks": []
     },
     "web/fx-xlsx-revenue-xyz": {
-      "sha256": "64568597085e10fb4b1cf8c456ae2458b8e8706cc5b7be5a3b66218943b246ac",
+      "sha256": "3e111c8600f601ef9fc179dee52d41adca43f979de7347abb1603c0d63453dfb",
       "masks": []
     },
     "web/fx-docx-report-vi": {
-      "sha256": "902f8ad7ebbc77dd989bea5db823bf118059dd6f29fbd52941d66da0bc405bd4",
+      "sha256": "1632918978df9940664c7e95178b2e68e386254f69990097a02596dc6b9b79aa",
       "masks": []
     },
     "web/fx-pptx-deck-vi": {
@@ -60,15 +60,15 @@
       "masks": []
     },
     "web/fx-pdf-invoice-vi": {
-      "sha256": "19d23224a381a041b28c979ef52586e07cf3b4c07dee1900904aea8537aabd91",
+      "sha256": "b4e9c806161c537800a33c591df51bc2222c3ed4afc4ddd09c73243bbb2de919",
       "masks": []
     },
     "web/fx-md-notes-vi": {
-      "sha256": "ba038e68797abae8eb512106653c8688886f63fa6047da8b506a9465a2b416fe",
+      "sha256": "e0805178dd88052661fb30a9537b168e0def7a9ce00927b07dea5352374e2562",
       "masks": []
     },
     "web/fx-html-page-vi": {
-      "sha256": "8ea678562fbd0c502c9751d612678dacb04d0469bc122f017d7c4e57555933db",
+      "sha256": "8a303153b04eb19b53bfcd77b9223ec6b98c9ccf5011d218b0fbba5fb65150dc",
       "masks": []
     }
   }

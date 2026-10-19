@@ -37,7 +37,7 @@
 
 import { anchorMatches, countTopicKey, normalizeAnchor, splitAnchor, toNumber, valuesEqual } from './holdout-score.mjs';
 import { WRITE_OPERATIONS, opsOfTool } from './holdout-backend.mjs';
-import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, echoOccurrences, echoesQuestion, figureQuantity, heldLocation, kindsNear, kindsOfName, labelKindOf, locationKindsOf, operandsOf, quantitiesOf, readLeaves, sheetNamesOf, tracedFigure, withProsePercent } from './holdout-figures.mjs';
+import { EXTRA_SOURCES, argumentLeaves, backedCount, countsOf, currenciesIn, derivesFrom, echoOccurrences, echoesQuestion, figureQuantity, heldLocation, kindsNear, kindsOfName, labelKindOf, locationKindsOf, operandsOf, quantitiesOf, readLeaves, rowNumbersOf, sheetNamesOf, tracedFigure, withProsePercent } from './holdout-figures.mjs';
 import { cellProof, configOpProof, contentfulWrites, introducesNew, parseRangeText, percentFormatProof, presentInSource, valueInWrites } from './holdout-write-proof.mjs';
 
 export const ANSWER_MARKER = 'UNIWORK_ANSWER';
@@ -261,6 +261,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   const reads = [];
   const counts = [];
   const sheetNames = new Set();
+  const rowNumbers = new Set();
   const sourceCurrencies = currenciesIn(sourceText);
   const pushLeaves = (text, compute) => {
     for (const q of readLeaves(text)) reads.push({ q, compute });
@@ -279,6 +280,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       if (pairedCall.isCountSource) {
         counts.push(...countsOf(String(r.text ?? '')));
         sheetNamesOf(String(r.text ?? '')).forEach((n) => sheetNames.add(n));
+        rowNumbersOf(String(r.text ?? '')).forEach((n) => rowNumbers.add(n));
       }
     }
   } else if (successfulReads.length > 0) {
@@ -287,6 +289,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
       pushLeaves(chunk, anyCompute);
       counts.push(...countsOf(chunk));
       sheetNamesOf(chunk).forEach((n) => sheetNames.add(n));
+      rowNumbersOf(chunk).forEach((n) => rowNumbers.add(n));
     }
   }
   const queryText = [caseDoc.query?.vi, caseDoc.query?.en].filter((s) => typeof s === 'string').join('\n');
@@ -300,7 +303,7 @@ export function deriveAnswer(caseDoc, ask, { numbers = 'strict', computeByReply 
   // `location` marks an integer right after a location noun ("slide 3"); `heldLocation` is true when a successful read holds it (J-1).
   const proseQs = quantitiesOf(parsed.text, { prose: true }).map((q) => {
     const location = locationKindsOf(parsed.text, q);
-    return { ...q, labelKind: labelKindOf(parsed.text, q, namedKinds), location, heldLocation: heldLocation(location, q, { counts, sheetNames }) };
+    return { ...q, labelKind: labelKindOf(parsed.text, q, namedKinds), location, heldLocation: heldLocation(location, q, { counts, sheetNames, rowNumbers }) };
   });
   const itemQs = items.flatMap((it) => quantitiesOf(String(it.value ?? '')));
   // `fromReport` lets a plain number of report.numbers trace to a "%" leaf; prose figures never carry it (round h, H-1).
