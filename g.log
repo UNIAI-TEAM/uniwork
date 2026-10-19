@@ -1,0 +1,314 @@
+$ NODE_ENV=test AI_PROVIDER=fake npm run test -w @genoffice/shell; rc=$?; echo; echo "SHELL_SUITE_EXIT=$rc"
+
+> @genoffice/shell@1.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+ ❯ tests/uniwork-queue-popover-ui.test.ts (64 tests | 14 failed) 1001ms
+     × opens as a non-modal dialog labelled by line 1 with the time and base of the fake row 148ms
+     × offers Cancel only in cancellable states and always Open sync center 21ms
+     × opens from the pill button with the queued line when the row exists 20ms
+     × confirm step: sentence, focus on Back, Back returns, Cancel save calls cancelSave and closes 18ms
+     × a refused cancel (draft cap / store full) keeps the intent, stays open, says it assertively 18ms
+     × follows a pushed snapshot and stops listening on close 16ms
+     × blocked: an access reason offers Check again, which calls recheck with the row id 16ms
+     × failed: Save again calls saveAgain with the row id and closes 16ms
+     × a busy action keeps the button mounted with aria-disabled and ignores a second click 15ms
+     × RFE6u-02: an action that closes it returns focus to the pill button, never to <body> 27ms
+     × RFE6u-02: Save again / sign in also hand focus back (the pill, or the editor after Ctrl/Cmd+S) 27ms
+     × RFE6u-05: Esc in the cancel confirmation backs out of it first, a second Esc closes 15ms
+         × the text scrolls inside the dialog; the action row stays outside the scroll area 17ms
+         × holds the band height until the sync-center row has arrived 17ms
+ ❯ tests/uniwork-docs-ui-components.test.ts (80 tests | 2 failed) 1010ms
+     × lists the workspace documents; unsupported ones are hidden and counted 30ms
+       × FE14-R1-01/03: the shared empty body offers Load more, and it loads the next page 14ms
+ ❯ tests/uniwork-save-pill-ui.test.ts (46 tests | 1 failed) 853ms
+     × RFE6u-07: a failed save names the row reason in the pill, the same one as the popover 13ms
+(node:5533) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5605) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Socket]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5605) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Socket]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:6402) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:7184) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:7402) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:7642) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 17 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/uniwork-docs-ui-components.test.ts > picker dialog > lists the workspace documents; unsupported ones are hidden and counted
+AssertionError: expected 'Hidden because UniWork Office can’t o…' to be 'Hidden because UniWork Office cannot …' // Object.is equality
+
+Expected: "Hidden because UniWork Office cannot open their format: 1"
+Received: "Hidden because UniWork Office can’t open these formats: 1"
+
+ ❯ tests/uniwork-docs-ui-components.test.ts:246:64
+    244|     ])
+    245|     expect(dialog()!.textContent).not.toContain('Photo.png')
+    246|     expect(host.querySelector('.uw-pick-hidden')!.textContent).toBe(
+       |                                                                ^
+    247|       'Hidden because UniWork Office cannot open their format: 1',
+    248|     )
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/17]⎯
+
+ FAIL  tests/uniwork-docs-ui-components.test.ts > picker dialog > FD-14: bodies where every loaded row is hidden but more pages exist > FE14-R1-01/03: the shared empty body offers Load more, and it loads the next page
+AssertionError: expected 'Hidden because UniWork Office can’t o…' to be 'Hidden because UniWork Office cannot …' // Object.is equality
+
+Expected: "Hidden because UniWork Office cannot open their format: 1"
+Received: "Hidden because UniWork Office can’t open these formats: 1"
+
+ ❯ tests/uniwork-docs-ui-components.test.ts:517:35
+    515|       expect(rows()).toHaveLength(0)
+    516|       expect(dialog()!.textContent).toContain('Nothing has been shared…
+    517|       expect(hint()!.textContent).toBe('Hidden because UniWork Office …
+       |                                   ^
+    518|       await click(buttonByText('Load more'))
+    519|       expect(api.uniworkListSharedWithMe).toHaveBeenLastCalledWith({ c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > opens as a non-modal dialog labelled by line 1 with the time and base of the fake row
+AssertionError: expected 'Your last save is still waiting. You …' to be 'Waiting to save: from Mar 2, 08:30 AM…' // Object.is equality
+
+Expected: "Waiting to save: from Mar 2, 08:30 AM (based on version 7)"
+Received: "Your last save is still waiting. You can save again once it finishes."
+
+ ❯ tests/uniwork-queue-popover-ui.test.ts:471:32
+    469|     const label = document.getElementById(el.getAttribute('aria-labell…
+    470|     const time = formatQueueTime(SAVED_AT, 'en-US')
+    471|     expect(label?.textContent).toBe(
+       |                                ^
+    472|       en.uwQueuePopWaiting.replace('{time}', time).replace('{base}', '…
+    473|     )
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > offers Cancel only in cancellable states and always Open sync center
+AssertionError: expected undefined to be defined
+ ❯ tests/uniwork-queue-popover-ui.test.ts:489:44
+    487|   it('offers Cancel only in cancellable states and always Open sync ce…
+    488|     await mount(makeStatus({ state: 'queued' }))
+    489|     expect(buttonByText(en.uwQueueCancel)).toBeDefined()
+       |                                            ^
+    490|     expect(buttonByText(en.uwQueueOpenCenter)).toBeDefined()
+    491|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > opens from the pill button with the queued line when the row exists
+AssertionError: expected 'Your last save is still waiting. You …' to contain 'version 7'
+
+Expected: "version 7"
+Received: "Your last save is still waiting. You can save again once it finishes.Open sync center"
+
+ ❯ tests/uniwork-queue-popover-ui.test.ts:513:35
+    511|     })
+    512|     await act(async () => {})
+    513|     expect(dialog()!.textContent).toContain('version 7')
+       |                                   ^
+    514|     expect(buttonByText(en.uwQueueCancel)).toBeDefined()
+    515|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > confirm step: sentence, focus on Back, Back returns, Cancel save calls cancelSave and closes
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ tests/uniwork-queue-popover-ui.test.ts:524:36
+    522|     await mount(makeStatus())
+    523|     await act(async () => {
+    524|       buttonByText(en.uwQueueCancel)!.click()
+       |                                    ^
+    525|     })
+    526|     expect(dialog()!.textContent).toContain(en.uwQueueCancelConfirm)
+ ❯ process.env.NODE_ENV.exports.act ../../node_modules/react/cjs/react.development.js:814:22
+ ❯ tests/uniwork-queue-popover-ui.test.ts:523:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > a refused cancel (draft cap / store full) keeps the intent, stays open, says it assertively
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ tests/uniwork-queue-popover-ui.test.ts:557:36
+    555|     await mount(makeStatus())
+    556|     await act(async () => {
+    557|       buttonByText(en.uwQueueCancel)!.click()
+       |                                    ^
+    558|     })
+    559|     await act(async () => {
+ ❯ process.env.NODE_ENV.exports.act ../../node_modules/react/cjs/react.development.js:814:22
+ ❯ tests/uniwork-queue-popover-ui.test.ts:556:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > follows a pushed snapshot and stops listening on close
+AssertionError: expected 'Your last save is still waiting. You …' to contain 'version 7'
+
+Expected: "version 7"
+Received: "Your last save is still waiting. You can save again once it finishes.Open sync center"
+
+ ❯ tests/uniwork-queue-popover-ui.test.ts:641:35
+    639|   it('follows a pushed snapshot and stops listening on close', async (…
+    640|     await mount(makeStatus())
+    641|     expect(dialog()!.textContent).toContain('version 7')
+       |                                   ^
+    642|     await act(async () => {
+    643|       pushSnapshot?.(makeSnapshot([makeRow({ base: 9 })]))
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > blocked: an access reason offers Check again, which calls recheck with the row id
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ tests/uniwork-queue-popover-ui.test.ts:679:35
+    677|     await mount(makeStatus({ state: 'blocked', error: 'forbidden' }))
+    678|     await act(async () => {
+    679|       buttonByText(en.uwActRecheck)!.click()
+       |                                   ^
+    680|     })
+    681|     expect(api.recheck).toHaveBeenCalledWith('row-1')
+ ❯ process.env.NODE_ENV.exports.act ../../node_modules/react/cjs/react.development.js:814:22
+ ❯ tests/uniwork-queue-popover-ui.test.ts:678:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > failed: Save again calls saveAgain with the row id and closes
+AssertionError: expected 'This save won’t retry on its own: una…' to contain 'This save won’t retry on its own: fil…'
+
+Expected: "This save won’t retry on its own: file too large. Your changes stay on this computer."
+Received: "This save won’t retry on its own: unavailable. Your changes stay on this computer.Open sync center"
+
+ ❯ tests/uniwork-queue-popover-ui.test.ts:708:35
+    706|     snapshot = makeSnapshot([], [makeRow({ state: 'failed', failedReas…
+    707|     await mount(makeStatus({ state: 'failed' }))
+    708|     expect(dialog()!.textContent).toContain(
+       |                                   ^
+    709|       en.uwTipFailed.replace('{reason}', enDocs.uwReasonTooLarge),
+    710|     )
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > a busy action keeps the button mounted with aria-disabled and ignores a second click
+TypeError: Cannot read properties of undefined (reading 'focus')
+ ❯ tests/uniwork-queue-popover-ui.test.ts:731:11
+    729|     await mount(makeStatus({ state: 'failed' }))
+    730|     const again = buttonByText(en.uwActSaveAgain)!
+    731|     again.focus()
+       |           ^
+    732|     await act(async () => {
+    733|       again.click()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > RFE6u-02: an action that closes it returns focus to the pill button, never to <body>
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ tests/uniwork-queue-popover-ui.test.ts:759:36
+    757|     await mount(makeStatus()) // second render: the opener ref is fill…
+    758|     await act(async () => {
+    759|       buttonByText(en.uwQueueCancel)!.click()
+       |                                    ^
+    760|     })
+    761|     await act(async () => {
+ ❯ process.env.NODE_ENV.exports.act ../../node_modules/react/cjs/react.development.js:814:22
+ ❯ tests/uniwork-queue-popover-ui.test.ts:758:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > RFE6u-02: Save again / sign in also hand focus back (the pill, or the editor after Ctrl/Cmd+S)
+TypeError: Cannot read properties of undefined (reading 'focus')
+ ❯ tests/uniwork-queue-popover-ui.test.ts:773:35
+    771|     await mount(makeStatus({ state: 'failed' }))
+    772|     await mount(makeStatus({ state: 'failed' }))
+    773|     buttonByText(en.uwActSaveAgain)!.focus()
+       |                                   ^
+    774|     await act(async () => {
+    775|       buttonByText(en.uwActSaveAgain)!.click()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > RFE6u-05: Esc in the cancel confirmation backs out of it first, a second Esc closes
+TypeError: Cannot read properties of undefined (reading 'click')
+ ❯ tests/uniwork-queue-popover-ui.test.ts:802:36
+    800|     await mount(makeStatus())
+    801|     await act(async () => {
+    802|       buttonByText(en.uwQueueCancel)!.click()
+       |                                    ^
+    803|     })
+    804|     expect(dialog()!.textContent).toContain(en.uwQueueCancelConfirm)
+ ❯ process.env.NODE_ENV.exports.act ../../node_modules/react/cjs/react.development.js:814:22
+ ❯ tests/uniwork-queue-popover-ui.test.ts:801:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > RFE6u-01: the popover lives in the reserved band under the strip > RBE6u2-03: the band never asks for more than main will give > the text scrolls inside the dialog; the action row stays outside the scroll area
+AssertionError: expected 'Your last save is still waiting. You …' to contain 'version 7'
+
+Expected: "version 7"
+Received: "Your last save is still waiting. You can save again once it finishes."
+
+ ❯ tests/uniwork-queue-popover-ui.test.ts:968:38
+    966|         expect(scroller).not.toBeNull()
+    967|         expect(dialog()!.contains(scroller)).toBe(true)
+    968|         expect(scroller.textContent).toContain('version 7')
+       |                                      ^
+    969|         const actions = dialog()!.querySelector('.uw-queue-pop-actions…
+    970|         expect(scroller.contains(actions)).toBe(false)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/17]⎯
+
+ FAIL  tests/uniwork-queue-popover-ui.test.ts > UniworkQueuePopover (S4) > RFE6u-01: the popover lives in the reserved band under the strip > V6u-03: the editor moves once on open, once on close > holds the band height until the sync-center row has arrived
+AssertionError: expected [ 117 ] to deeply equal [ 98 ]
+
+- Expected
++ Received
+
+  [
+-   98,
++   117,
+  ]
+
+ ❯ tests/uniwork-queue-popover-ui.test.ts:1160:46
+    1158|         })
+    1159|         await act(async () => {})
+    1160|         expect(moves().filter((v) => v > 0)).toEqual([98])
+       |                                              ^
+    1161|         await act(async () => {
+    1162|           document.dispatchEvent(new KeyboardEvent('keydown', { key: '…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/17]⎯
+
+ FAIL  tests/uniwork-save-pill-ui.test.ts > Ctrl/Cmd+S and the queue popover (T8) > RFE6u-07: a failed save names the row reason in the pill, the same one as the popover
+AssertionError: expected 'This save won’t retry on its own: una…' to contain 'storage full'
+
+Expected: "storage full"
+Received: "This save won’t retry on its own: unavailable. Your changes stay on this computer."
+
+ ❯ tests/uniwork-save-pill-ui.test.ts:752:29
+    750|     await flush()
+    751|     const tip = document.getElementById(button()!.getAttribute('aria-d…
+    752|     expect(tip.textContent).toContain(enDocs.uwReasonQuota)
+       |                             ^
+    753|     await click(button())
+    754|     expect(popover()!.textContent).toContain(enDocs.uwReasonQuota)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/17]⎯
+
+
+ Test Files  3 failed | 319 passed | 3 skipped (325)
+      Tests  17 failed | 6354 passed | 23 skipped (6394)
+   Start at  04:05:12
+   Duration  85.94s (transform 22.10s, setup 0ms, import 51.38s, tests 150.60s, environment 23.88s)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /home/ubuntu/work/uniwork-office/apps/shell
+npm error workspace @genoffice/shell@1.0.0
+npm error location /home/ubuntu/work/uniwork-office/apps/shell
+npm error command failed
+npm error command sh -c vitest run
+
+SHELL_SUITE_EXIT=1
