@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -114,7 +115,9 @@ func TestDocumentSourceSaveRefusesWhatTheUploadWouldRefuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]bool{"task:" + pdf: true, "task:" + video: false, "task:" + big: false, "task:" + csv: false}
+	// Only document kinds are sources (UNI-1967): a video or a csv is not
+	// listed at all, so it has no can_save to report.
+	want := map[string]bool{"task:" + pdf: true, "task:" + big: false}
 	for _, it := range page.Items {
 		if w, ok := want[it.ID]; ok {
 			if it.CanSave != w {
@@ -129,11 +132,15 @@ func TestDocumentSourceSaveRefusesWhatTheUploadWouldRefuse(t *testing.T) {
 
 	// The bytes of the refused rows do not exist in the store: the 422 came
 	// before any read, not from a failed one.
-	for _, id := range []string{video, big, csv} {
+	for _, id := range []string{big} {
 		_, err := svc.Save(s.ctx, human(tn.member), tn.wsA, "task:"+id, SaveSourceFileInput{IdempotencyKey: util.NewID()})
 		if ce := wantCode(t, err, "source_not_saveable"); ce.Status != http.StatusUnprocessableEntity {
 			t.Fatalf("status = %d, want 422", ce.Status)
 		}
+	}
+	for _, id := range []string{video, csv} {
+		_, err := svc.Save(s.ctx, human(tn.member), tn.wsA, "task:"+id, SaveSourceFileInput{IdempotencyKey: util.NewID()})
+		wantNotFound(t, err)
 	}
 	var docs int
 	if err := env.f.pool.QueryRow(s.ctx, `SELECT count(*) FROM documents WHERE workspace_id = $1`, tn.wsA).Scan(&docs); err != nil {
@@ -279,5 +286,66 @@ func TestDocumentSourceSearchIgnoresDiacritics(t *testing.T) {
 	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Source: DocumentSourceTask, Q: "%"})
 	if err != nil || len(page.Items) != 0 {
 		t.Fatalf("q=%% found %d files (err %v), want none", len(page.Items), err)
+	}
+}
+
+// Only document files are sources (UNI-1967): a png or a zip attached in Chat
+// or a task is not listed, a docx / pdf / txt is, the image and other type
+// filters are gone, and opening, viewing or saving an image's id answers
+// not_found through the same filtered lookup.
+func TestDocumentSourceListsDocumentFilesOnly(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := newSourceSceneOn(t, env)
+	svc, _ := sourceService(t, env)
+	tn := env.tn
+	taskA := s.task(tn, tn.wsA)
+	public := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+
+	docx := "task:" + s.attachmentWith(tn, tn.wsA, taskA, "plan.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 5, "")
+	pdf := "task:" + s.attachmentWith(tn, tn.wsA, taskA, "spec.PDF", "application/pdf", 5, "")
+	txt := "task:" + s.attachmentWith(tn, tn.wsA, taskA, "notes.txt", "text/plain", 5, "")
+	taskPNG := "task:" + s.attachmentWith(tn, tn.wsA, taskA, "shot.png", "image/png", 5, "")
+	taskZip := "task:" + s.attachmentWith(tn, tn.wsA, taskA, "bundle.zip", "application/zip", 5, "")
+	chatPDF := "chat:" + s.fileMessage(tn.orgID, tn.wsA, public, tn.owner.ID, "brief.pdf", false)
+	chatPNG := "chat:" + s.fileMessage(tn.orgID, tn.wsA, public, tn.owner.ID, "photo.png", false)
+	chatZip := "chat:" + s.fileMessage(tn.orgID, tn.wsA, public, tn.owner.ID, "dump.zip", false)
+
+	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, it := range page.Items {
+		got[it.ID] = true
+	}
+	for _, id := range []string{docx, pdf, txt, chatPDF} {
+		if !got[id] {
+			t.Errorf("document source %s is not listed", id)
+		}
+	}
+	for _, id := range []string{taskPNG, taskZip, chatPNG, chatZip} {
+		if got[id] {
+			t.Errorf("non-document source %s is listed", id)
+		}
+	}
+
+	for _, typ := range []string{"image", "other"} {
+		_, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Type: typ})
+		var ve ValidationError
+		if !errors.As(err, &ve) {
+			t.Errorf("type=%s: err = %v, want a validation error (400)", typ, err)
+		}
+	}
+
+	for _, id := range []string{taskPNG, taskZip, chatPNG, chatZip} {
+		_, err := svc.Open(s.ctx, human(tn.member), tn.wsA, id)
+		wantNotFound(t, err)
+		_, _, err = svc.ViewSource(s.ctx, human(tn.member), tn.wsA, id)
+		wantNotFound(t, err)
+		_, err = svc.Save(s.ctx, human(tn.member), tn.wsA, id, SaveSourceFileInput{IdempotencyKey: util.NewID()})
+		wantNotFound(t, err)
+	}
+	if _, _, err := svc.ViewSource(s.ctx, human(tn.member), tn.wsA, docx); err != nil {
+		t.Fatalf("ViewSource of a docx source: %v", err)
 	}
 }
