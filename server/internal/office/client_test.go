@@ -95,14 +95,14 @@ func TestClientMapsEngineAnswersToTypedErrors(t *testing.T) {
 	}
 
 	c := fakeEngine(t, 400, `{"error":{"code":"contract_violation","field_path":"envelope.payload.x","rule":"unknown_field"}}`)
-	_, err := c.Submit(ctx, "grant", Envelope{RequestID: "r"})
+	_, err := c.Submit(ctx, "grant", Envelope{RequestID: "r"}, InputSource{})
 	var cv *ContractViolationError
 	if !errors.As(err, &cv) || cv.FieldPath != "envelope.payload.x" || Retryable(err) {
 		t.Fatalf("contract violation: %v", err)
 	}
 
 	c = fakeEngine(t, 413, `{"error":{"code":"upload_bounds","status":413,"error_class":"quota","kind":"byte_bound","retryable":false,"max_input_bytes":401604608,"reason":"declared_length"}}`)
-	_, err = c.Submit(ctx, "grant", Envelope{RequestID: "r"})
+	_, err = c.Submit(ctx, "grant", Envelope{RequestID: "r"}, InputSource{})
 	var ee *EngineError
 	if !errors.As(err, &ee) {
 		t.Fatalf("upload_bounds did not decode as EngineError: %v", err)

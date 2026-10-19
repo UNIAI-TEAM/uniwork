@@ -205,10 +205,10 @@ type FidelityWarning struct {
 	Detail string `json:"detail,omitempty"`
 }
 
-// InputTuple is the caller-declared input byte description. The boundary
-// decodes and measures the real bytes; these fields are never trusted.
+// InputTuple is the caller-declared input byte description. The bytes travel
+// after the envelope in the protocol-2 frame; the boundary counts and hashes
+// them against these fields, which are never trusted on their own.
 type InputTuple struct {
-	InputBytes    string `json:"input_bytes"`
 	InputChecksum string `json:"input_checksum"`
 	InputLength   int64  `json:"input_length"`
 }

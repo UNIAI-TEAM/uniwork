@@ -1,15 +1,16 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ import (
 // OfficeEngine is the part of office.Client the service uses.
 type OfficeEngine interface {
 	Sign(office.ServiceGrant) (string, error)
-	Submit(ctx context.Context, grant string, env office.Envelope) (office.JobStatus, error)
+	Submit(ctx context.Context, grant string, env office.Envelope, input office.InputSource) (office.JobStatus, error)
 	Status(ctx context.Context, jobID, grant string) (office.JobStatus, error)
 	Cancel(ctx context.Context, jobID, grant string) (office.JobStatus, error)
 	Ready(ctx context.Context) (office.Readiness, error)
@@ -274,6 +275,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
+	defer input.release()
 	// Version negotiation and the operation gate run before any mutation: a
 	// build, contract or protocol outside the pin, or an operation this build
 	// does not bind for the format, is refused while no office_jobs row and no
@@ -288,7 +290,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if err := checkConvertPair(in); err != nil {
 		return db.OfficeJob{}, err
 	}
-	fp := officeFingerprint(in, input.checksum, int64(len(input.bytes)))
+	fp := officeFingerprint(in, input.checksum, input.length)
 	scope := files.Scope{OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}
 
 	deadlineIn := in.Deadline
@@ -312,7 +314,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 		Operation: string(in.Operation), Format: string(in.Format),
 		BaseRevision: baseRevision, BaseVersionID: in.BaseVersionID,
 		IdempotencyKey: key, PayloadFingerprint: fp,
-		InputChecksum: input.checksum, InputLength: int64(len(input.bytes)),
+		InputChecksum: input.checksum, InputLength: input.length,
 		GrantID:      s.newID(),
 		TargetFormat: pgtype.Text{String: string(in.TargetFormat), Valid: in.TargetFormat != ""},
 		OutputFileID: pgtype.Text{String: string(out.FileID), Valid: true},
@@ -435,6 +437,7 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 		if err != nil {
 			return row, err
 		}
+		defer input.release()
 		if input.checksum != row.InputChecksum {
 			return row, officeErr("payload_fingerprint_mismatch", "base_changed")
 		}
@@ -451,9 +454,36 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 	return s.Refresh(ctx, row)
 }
 
+// officeInput is the raw input of one job. The bytes are never held for a
+// stored base: open yields a fresh stream per attempt, and release frees what
+// the input holds (an unused stream, a spool file); it is safe to call twice.
 type officeInput struct {
-	bytes    []byte
 	checksum string
+	length   int64
+	open     func() (io.ReadCloser, error)
+	release  func()
+}
+
+// errOfficeInputOpen marks a source that could not be opened at submit time
+// (storage hiccup): the job stays accepted and the same key dispatches again.
+var errOfficeInputOpen = errors.New("office input unavailable")
+
+// bytesInput is an input already in memory (a supplied edit, a blank seed).
+func bytesInput(raw []byte, checksum string) officeInput {
+	return officeInput{
+		checksum: checksum, length: int64(len(raw)), release: func() {},
+		open: func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(raw)), nil },
+	}
+}
+
+func (i officeInput) source() office.InputSource {
+	return office.InputSource{Length: i.length, Checksum: i.checksum, Open: func() (io.ReadCloser, error) {
+		r, err := i.open()
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", errOfficeInputOpen, err)
+		}
+		return r, nil
+	}}
 }
 
 // jobInput checks the base like loadBase and answers the bytes the engine
@@ -464,29 +494,80 @@ func (s *DocumentOfficeService) jobInput(ctx context.Context, actor Actor, in Of
 	if err != nil || in.input == nil {
 		return input, format, baseRevision, err
 	}
+	input.release()
 	return *in.input, format, baseRevision, nil
 }
 
+// readBase answers the base as a stream. With a stored checksum nothing is
+// buffered: the first attempt takes the reader opened here (so a missing file
+// still fails before any row exists), a later attempt reopens, and the
+// engine's digest check is the proof (a mismatch settles upload_checksum_mismatch).
+// Without one (a legacy row) the base is spooled to a temp file while it is
+// hashed, and the spool is deleted by release.
 func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope, id files.FileID, want pgtype.Text) (officeInput, error) {
-	r, err := s.files.Open(ctx, files.OpenInput{Scope: scope, FileID: id})
+	openFile := func() (files.Reader, error) {
+		return s.files.Open(ctx, files.OpenInput{Scope: scope, FileID: id})
+	}
+	r, err := openFile()
 	if err != nil {
 		return officeInput{}, documentFileError(err)
 	}
-	defer r.Close()
 	limit := s.documentFileMaxBytes()
-	raw, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
+	if want.Valid && want.String != "" {
+		if r.File.SizeBytes > limit {
+			_ = r.Close()
+			return officeInput{}, officeErr("upload_bounds", "base_too_large")
+		}
+		first := io.ReadCloser(r.Body)
+		in := officeInput{checksum: strings.ToLower(want.String), length: r.File.SizeBytes}
+		in.open = func() (io.ReadCloser, error) {
+			if first != nil {
+				body := first
+				first = nil
+				return body, nil
+			}
+			again, err := openFile()
+			if err != nil {
+				return nil, err
+			}
+			return again.Body, nil
+		}
+		in.release = func() {
+			if first != nil {
+				_ = first.Close()
+				first = nil
+			}
+		}
+		return in, nil
+	}
+	defer r.Close()
+	spool, err := os.CreateTemp("", "office-base-*")
 	if err != nil {
 		return officeInput{}, err
 	}
-	if int64(len(raw)) > limit {
+	name := spool.Name()
+	keep := false
+	defer func() {
+		_ = spool.Close()
+		if !keep {
+			_ = os.Remove(name)
+		}
+	}()
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(spool, h), io.LimitReader(r.Body, limit+1))
+	if err != nil {
+		return officeInput{}, err
+	}
+	if n > limit {
 		return officeInput{}, officeErr("upload_bounds", "base_too_large")
 	}
-	sum := sha256.Sum256(raw)
-	checksum := hex.EncodeToString(sum[:])
-	if want.Valid && want.String != "" && !strings.EqualFold(want.String, checksum) {
-		return officeInput{}, officeErr("upload_checksum_mismatch", "base_version")
-	}
-	return officeInput{bytes: raw, checksum: checksum}, nil
+	_ = spool.Close()
+	keep = true
+	return officeInput{
+		checksum: hex.EncodeToString(h.Sum(nil)), length: n,
+		open:    func() (io.ReadCloser, error) { return os.Open(name) },
+		release: func() { _ = os.Remove(name) },
+	}, nil
 }
 
 // officeFingerprint is the identity of the job's result-deciding inputs: a
@@ -570,9 +651,8 @@ func (s *DocumentOfficeService) envelope(row db.OfficeJob, in OfficeJobInput, in
 	payload := map[string]any{
 		"base_revision":   row.BaseRevision,
 		"base_version_id": row.BaseVersionID,
-		"input_bytes":     base64.StdEncoding.EncodeToString(input.bytes),
 		"input_checksum":  input.checksum,
-		"input_length":    len(input.bytes),
+		"input_length":    input.length,
 	}
 	switch office.Operation(row.Operation) {
 	case office.OperationConvert, office.OperationExport:
@@ -582,9 +662,8 @@ func (s *DocumentOfficeService) envelope(row db.OfficeJob, in OfficeJobInput, in
 			"source_version_id": row.BaseVersionID,
 			"target_format":     row.TargetFormat.String,
 			"overwrite_source":  false,
-			"input_bytes":       payload["input_bytes"],
 			"input_checksum":    input.checksum,
-			"input_length":      len(input.bytes),
+			"input_length":      input.length,
 		}
 	case office.OperationSerialize:
 		ref := in.DocumentModelRef
@@ -619,7 +698,7 @@ func (s *DocumentOfficeService) dispatch(ctx context.Context, row db.OfficeJob, 
 		return s.settleWith(ctx, row, err)
 	}
 	grant, err := s.grantFor(row,
-		&office.GrantInput{Checksum: input.checksum, Length: int64(len(input.bytes))},
+		&office.GrantInput{Checksum: input.checksum, Length: input.length},
 		&office.GrantOutput{
 			FileID: row.OutputFileID.String, URL: target.URL, Method: target.Method, Headers: target.Headers,
 			ExpiresAt: millis(target.ExpiresAt), MaxBytes: s.documentFileMaxBytes(),
@@ -627,11 +706,11 @@ func (s *DocumentOfficeService) dispatch(ctx context.Context, row db.OfficeJob, 
 	if err != nil {
 		return row, err
 	}
-	js, err := s.engine.Submit(ctx, grant, env)
+	js, err := s.engine.Submit(ctx, grant, env, input.source())
 	if err != nil {
 		// Retryable, or a credential the deployment can still fix: keep the
 		// row accepted so the same key dispatches it again.
-		if office.Retryable(err) || errors.Is(err, office.ErrServiceAuth) {
+		if office.Retryable(err) || errors.Is(err, office.ErrServiceAuth) || errors.Is(err, errOfficeInputOpen) {
 			return row, err
 		}
 		return s.settleWith(ctx, row, err)
