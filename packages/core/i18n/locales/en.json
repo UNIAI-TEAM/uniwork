@@ -8888,8 +8888,13 @@
       "archived_banner": "This document is in the trash — read-only.",
       "first_save": {
         "title": "Name the document",
-        "hint": "You can rename it later from the folder.",
-        "submit": "Save"
+        "hint": "You can rename or move it later.",
+        "submit": "Save",
+        "location": "Location",
+        "change": "Change",
+        "picker_title": "Choose where to save",
+        "picker_description": "Pick the folder this document is saved in.",
+        "picker_submit": "Choose"
       }
     },
     "save": {
@@ -9576,6 +9581,7 @@
       "collabSave": "Save",
       "collabCancel": "Cancel",
       "collabDelete": "Delete",
+      "collabEditedMark": "(edited)",
       "collabHistory": "View edit history",
       "collabHistoryTitle": "Edit history",
       "collabHistoryCurrent": "Current version",
@@ -9766,7 +9772,6 @@
         "documents": "Documents"
       },
       "folder": {
-        "info_banner": "New and uploaded files here will be placed in “{{folder}}”. Drag and drop files into the list to upload.",
         "menu": "Folder actions"
       },
       "folder_card": {
@@ -9888,7 +9893,6 @@
         "unstar": "Remove star",
         "go_to_source": "View where attached",
         "go_to_source_named": "View where attached: {{title}}",
-        "preview_loading": "Loading image…",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
         "view_only_notice": "View only · changes will not be saved",
@@ -10126,7 +10130,7 @@
       "copy_failed": "Failed to copy"
     },
     "mention": {
-      "group_users": "Users",
+      "group_users": "Members",
       "all_members": "All members",
       "searching": "Searching...",
       "no_results": "No results",
