@@ -1,0 +1,39 @@
+$ pnpm --filter @uniwork/office-engine-app exec vitest run; echo "VITEST_ENGINE_APP_EXIT=$?"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:2:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:3:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/apps/office-engine
+
+office-engine bundle written to dist/
+{"fixture":"fresh-production-worker","revision":"65cd304cb36f0c4e43c19a62ac8a7177a340b8e9","startedAt":"2026-10-19T20:27:17.405Z","finishedAt":"2026-10-19T20:27:17.573Z","node":"v22.23.3","artifacts":[{"path":"/workspace/apps/office-engine/dist/worker.mjs","bytes":1940,"sha256":"298fb362ee92f1b6293894664b306f6279b2cc18fc613023083575344e3c11c6"},{"path":"/workspace/apps/office-engine/dist/worker-run.mjs","bytes":2498257,"sha256":"63d196cbf6209a4817133c05ac931b3c30c427e5d04c8d4eccd230d2536ea2ae"}]}
+ ❯ src/pool.test.ts (4 tests | 1 failed) 10993ms
+     × settles live jobs as crashed(shutdown), kills every tree and removes temp dirs 10160ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pool.test.ts > shutdown > settles live jobs as crashed(shutdown), kills every tree and removes temp dirs
+AssertionError: expected 0 to be greater than 0
+ ❯ src/pool.test.ts:74:17
+     72|       await new Promise((r) => setTimeout(r, 50));
+     73|     }
+     74|     expect(pid).toBeGreaterThan(0);
+       |                 ^
+     75|     const runningJob = h.service.jobs.get(running.grant.job_id)!;
+     76|     const queuedJob = h.service.jobs.get(queued.grant.job_id)!;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 10 passed (11)
+      Tests  1 failed | 133 passed | 11 skipped (148)
+   Start at  20:27:17
+   Duration  17.49s (transform 1.12s, setup 0ms, import 2.28s, tests 34.01s, environment 1ms)
+
+undefined
+/workspace/apps/office-engine:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run
+VITEST_ENGINE_APP_EXIT=1

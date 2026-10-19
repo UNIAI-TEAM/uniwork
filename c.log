@@ -1,0 +1,11 @@
+$ (. scripts/local-env.sh && cd server && go test ./internal/service/ -run "Office|Document" -count=1 -timeout 25m > /tmp/ops1-svc.log 2>&1); rc=$?; echo; echo "GO_SERVICE_OFFICE_EXIT=$rc"; grep -E "^\s*--- FAIL|^(ok|FAIL)\s|panic:" /tmp/ops1-svc.log | tail -40
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+
+GO_SERVICE_OFFICE_EXIT=1
+--- FAIL: TestDocumentCommit (0.59s)
+    --- FAIL: TestDocumentCommit/fake (0.27s)
+        --- FAIL: TestDocumentCommit/fake/engine_range (0.00s)
+    --- FAIL: TestDocumentCommit/local (0.32s)
+        --- FAIL: TestDocumentCommit/local/engine_range (0.01s)
+FAIL	github.com/unicomhub/uniwork/server/internal/service	99.083s

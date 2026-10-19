@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+65cd304cb36f0c4e43c19a62ac8a7177a340b8e9
+65cd304cb test(office): send the wire-drift probes as protocol-2 frames (SIZE-OPS1 R4)
+fa7731997 chore: merge the SIZE-OPS1 Go client branch into the engine branch
+9a4bffe60 fix(office-engine): refuse unsupported submit media types with 415 before parsing (SIZE-OPS1 E3)

@@ -1,0 +1,3889 @@
+$ node --test scripts/office-g0/*.test.mjs; echo "OFFICE_G0_EXIT=$?"
+TAP version 13
+# Subtest: a full honest login yields a session and consumes the attempt
+ok 1 - a full honest login yields a session and consumes the attempt
+  ---
+  duration_ms: 2.694217
+  type: 'test'
+  ...
+# Subtest: a callback with the wrong state signs nobody in
+ok 2 - a callback with the wrong state signs nobody in
+  ---
+  duration_ms: 0.624217
+  type: 'test'
+  ...
+# Subtest: a callback to a foreign scheme signs nobody in
+ok 3 - a callback to a foreign scheme signs nobody in
+  ---
+  duration_ms: 0.293063
+  type: 'test'
+  ...
+# Subtest: the server refuses a foreign redirect at authorize time, before a code exists
+ok 4 - the server refuses a foreign redirect at authorize time, before a code exists
+  ---
+  duration_ms: 0.114162
+  type: 'test'
+  ...
+# Subtest: a hex code challenge is refused at authorize time
+ok 5 - a hex code challenge is refused at authorize time
+  ---
+  duration_ms: 0.143869
+  type: 'test'
+  ...
+# Subtest: a non-S256 method is refused
+ok 6 - a non-S256 method is refused
+  ---
+  duration_ms: 0.085861
+  type: 'test'
+  ...
+# Subtest: a code expires on its own TTL and cannot be exchanged
+ok 7 - a code expires on its own TTL and cannot be exchanged
+  ---
+  duration_ms: 0.257305
+  type: 'test'
+  ...
+# Subtest: a code is single-use on the server, even when the client asks twice
+ok 8 - a code is single-use on the server, even when the client asks twice
+  ---
+  duration_ms: 0.230644
+  type: 'test'
+  ...
+# Subtest: a stolen code is useless without the private verifier
+ok 9 - a stolen code is useless without the private verifier
+  ---
+  duration_ms: 0.441411
+  type: 'test'
+  ...
+# Subtest: a swapped code from another attempt cannot complete this one
+ok 10 - a swapped code from another attempt cannot complete this one
+  ---
+  duration_ms: 0.472103
+  type: 'test'
+  ...
+# Subtest: an expired client attempt is refused even before the server is asked
+ok 11 - an expired client attempt is refused even before the server is asked
+  ---
+  duration_ms: 0.25764
+  type: 'test'
+  ...
+# Subtest: completing an already-consumed attempt is refused
+ok 12 - completing an already-consumed attempt is refused
+  ---
+  duration_ms: 0.157914
+  type: 'test'
+  ...
+# Subtest: revocation and access expiry are the client's only two stops
+ok 13 - revocation and access expiry are the client's only two stops
+  ---
+  duration_ms: 0.14124
+  type: 'test'
+  ...
+# Subtest: a cold cursor returns a snapshot and the final page returns an incremental cursor
+ok 14 - a cold cursor returns a snapshot and the final page returns an incremental cursor
+  ---
+  duration_ms: 2.102062
+  type: 'test'
+  ...
+# Subtest: the cursor is opaque and bound to account, org and workspace
+ok 15 - the cursor is opaque and bound to account, org and workspace
+  ---
+  duration_ms: 0.709355
+  type: 'test'
+  ...
+# Subtest: a hidden event still advances the cursor
+ok 16 - a hidden event still advances the cursor
+  ---
+  duration_ms: 0.465888
+  type: 'test'
+  ...
+# Subtest: an unreadable document id never leaks, deleted or not
+ok 17 - an unreadable document id never leaks, deleted or not
+  ---
+  duration_ms: 0.219851
+  type: 'test'
+  ...
+# Subtest: a revoke reaches the reader who lost access, with the id and nothing else
+ok 18 - a revoke reaches the reader who lost access, with the id and nothing else
+  ---
+  duration_ms: 0.348901
+  type: 'test'
+  ...
+# Subtest: a grant is targeted at the granted account only
+ok 19 - a grant is targeted at the granted account only
+  ---
+  duration_ms: 0.384492
+  type: 'test'
+  ...
+# Subtest: a snapshot is stable across pages even when retention would drop its events
+ok 20 - a snapshot is stable across pages even when retention would drop its events
+  ---
+  duration_ms: 0.387783
+  type: 'test'
+  ...
+# Subtest: catchup after a snapshot carries the writes the client raced
+ok 21 - catchup after a snapshot carries the writes the client raced
+  ---
+  duration_ms: 0.243652
+  type: 'test'
+  ...
+# Subtest: a snapshot cursor abandoned past its TTL expires instead of silently restarting
+ok 22 - a snapshot cursor abandoned past its TTL expires instead of silently restarting
+  ---
+  duration_ms: 0.400836
+  type: 'test'
+  ...
+# Subtest: an incremental cursor older than retention expires and a fresh snapshot recovers
+ok 23 - an incremental cursor older than retention expires and a fresh snapshot recovers
+  ---
+  duration_ms: 0.492603
+  type: 'test'
+  ...
+# Subtest: a document deleted while the snapshot is open is emitted as its tombstone
+ok 24 - a document deleted while the snapshot is open is emitted as its tombstone
+  ---
+  duration_ms: 0.227733
+  type: 'test'
+  ...
+# Subtest: owner ACL transitions fan out to owned documents and nowhere else
+ok 25 - owner ACL transitions fan out to owned documents and nowhere else
+  ---
+  duration_ms: 0.193159
+  type: 'test'
+  ...
+# Subtest: a cursor from another organization is refused
+ok 26 - a cursor from another organization is refused
+  ---
+  duration_ms: 0.184342
+  type: 'test'
+  ...
+# Subtest: a cursor from a previous log expires instead of answering an empty catchup
+ok 27 - a cursor from a previous log expires instead of answering an empty catchup
+  ---
+  duration_ms: 0.199887
+  type: 'test'
+  ...
+# Subtest: rename and in-workspace move keep the document identity and carry no name or path
+ok 28 - rename and in-workspace move keep the document identity and carry no name or path
+  ---
+  duration_ms: 0.21128
+  type: 'test'
+  ...
+# Subtest: archive and restore are delivered in order to readers only, and a stranger's cursor still advances
+ok 29 - archive and restore are delivered in order to readers only, and a stranger's cursor still advances
+  ---
+  duration_ms: 0.223639
+  type: 'test'
+  ...
+# Subtest: a move to another workspace is an id-only removal in the old scope and a targeted grant in the new one
+ok 30 - a move to another workspace is an id-only removal in the old scope and a targeted grant in the new one
+  ---
+  duration_ms: 0.917959
+  type: 'test'
+  ...
+# Subtest: the pinned fixture is the independent source of the expected cell identity
+ok 31 - the pinned fixture is the independent source of the expected cell identity
+  ---
+  duration_ms: 6.654867
+  type: 'test'
+  ...
+# Subtest: the fixture grid identity is read from the OOXML, not from any editor
+ok 32 - the fixture grid identity is read from the OOXML, not from any editor
+  ---
+  duration_ms: 0.519541
+  type: 'test'
+  ...
+# Subtest: a surgical single-cell save passes every declared check
+ok 33 - a surgical single-cell save passes every declared check
+  ---
+  duration_ms: 2.685159
+  type: 'test'
+  ...
+# Subtest: the oracle rejects a save that changed a different cell instead of the target
+ok 34 - the oracle rejects a save that changed a different cell instead of the target
+  ---
+  duration_ms: 2.897377
+  type: 'test'
+  ...
+# Subtest: the oracle rejects a saved package whose table is missing
+ok 35 - the oracle rejects a saved package whose table is missing
+  ---
+  duration_ms: 4.161863
+  type: 'test'
+  ...
+# Subtest: the oracle rejects a stale saved file that is byte-identical to the fixture
+ok 36 - the oracle rejects a stale saved file that is byte-identical to the fixture
+  ---
+  duration_ms: 0.912446
+  type: 'test'
+  ...
+# Subtest: the oracle rejects a save that rewrote a neighbour while the target looks right
+ok 37 - the oracle rejects a save that rewrote a neighbour while the target looks right
+  ---
+  duration_ms: 1.828848
+  type: 'test'
+  ...
+# Subtest: the oracle rejects a save that dropped the image, its relationships or the table shape
+ok 38 - the oracle rejects a save that dropped the image, its relationships or the table shape
+  ---
+  duration_ms: 3.323668
+  type: 'test'
+  ...
+# Subtest: the oracle names a malformed or unreadable package instead of passing it
+ok 39 - the oracle names a malformed or unreadable package instead of passing it
+  ---
+  duration_ms: 0.469563
+  type: 'test'
+  ...
+# Subtest: the file wrapper agrees with the byte assessment on the real fixture path
+ok 40 - the file wrapper agrees with the byte assessment on the real fixture path
+  ---
+  duration_ms: 2.846846
+  type: 'test'
+  ...
+# Subtest: retained prose must survive as TOP-LEVEL body text, not as any document.xml substring
+ok 41 - retained prose must survive as TOP-LEVEL body text, not as any document.xml substring
+  ---
+  duration_ms: 2.975525
+  type: 'test'
+  ...
+# Subtest: a confirmed commit removes exactly the draft it consumed
+ok 42 - a confirmed commit removes exactly the draft it consumed
+  ---
+  duration_ms: 3.896065
+  type: 'test'
+  ...
+# Subtest: cleanup keeps a newer same-base local payload that no longer matches the commit
+ok 43 - cleanup keeps a newer same-base local payload that no longer matches the commit
+  ---
+  duration_ms: 0.654821
+  type: 'test'
+  ...
+# Subtest: cleanup refuses a draft whose baseVersion is not the version the commit consumed
+ok 44 - cleanup refuses a draft whose baseVersion is not the version the commit consumed
+  ---
+  duration_ms: 0.538152
+  type: 'test'
+  ...
+# Subtest: cleanup never touches another document's draft
+ok 45 - cleanup never touches another document's draft
+  ---
+  duration_ms: 0.342706
+  type: 'test'
+  ...
+# Subtest: cleanup never reaches a draft in another workspace
+ok 46 - cleanup never reaches a draft in another workspace
+  ---
+  duration_ms: 0.49354
+  type: 'test'
+  ...
+# Subtest: cleanup reports a retained no-match instead of rewriting the store
+ok 47 - cleanup reports a retained no-match instead of rewriting the store
+  ---
+  duration_ms: 0.708239
+  type: 'test'
+  ...
+# Subtest: a cleanup write failure keeps commit and draft, and a same-key retry replays it
+ok 48 - a cleanup write failure keeps commit and draft, and a same-key retry replays it
+  ---
+  duration_ms: 0.489751
+  type: 'test'
+  ...
+# Subtest: discard is scoped and refuses to guess between bases
+ok 49 - discard is scoped and refuses to guess between bases
+  ---
+  duration_ms: 0.807121
+  type: 'test'
+  ...
+# Subtest: discard never removes another document's draft
+ok 50 - discard never removes another document's draft
+  ---
+  duration_ms: 1.144942
+  type: 'test'
+  ...
+# Subtest: discard accepts an exact draftId only inside the session's own scope
+ok 51 - discard accepts an exact draftId only inside the session's own scope
+  ---
+  duration_ms: 0.666633
+  type: 'test'
+  ...
+# Subtest: memory mode works with dir=null, isolates nested rows, and creates nothing
+ok 52 - memory mode works with dir=null, isolates nested rows, and creates nothing
+  ---
+  duration_ms: 1.528996
+  type: 'test'
+  ...
+# Subtest: the guarantee getter describes the private byte layer honestly in both modes
+ok 53 - the guarantee getter describes the private byte layer honestly in both modes
+  ---
+  duration_ms: 1.522922
+  type: 'test'
+  ...
+# Subtest: a real restart reopens the same directory and returns the same rows
+ok 54 - a real restart reopens the same directory and returns the same rows
+  ---
+  duration_ms: 3.205521
+  type: 'test'
+  ...
+# Subtest: no plaintext, no raw account id and no key material reach the disk
+ok 55 - no plaintext, no raw account id and no key material reach the disk
+  ---
+  duration_ms: 1.446817
+  type: 'test'
+  ...
+# Subtest: a wrong encryption key fails authentication instead of reporting no draft
+ok 56 - a wrong encryption key fails authentication instead of reporting no draft
+  ---
+  duration_ms: 2.941873
+  type: 'test'
+  ...
+# Subtest: a read distinguishes an absent draft from an unreadable one
+ok 57 - a read distinguishes an absent draft from an unreadable one
+  ---
+  duration_ms: 1.58366
+  type: 'test'
+  ...
+# Subtest: tampered bytes are refused, not silently returned
+ok 58 - tampered bytes are refused, not silently returned
+  ---
+  duration_ms: 2.13443
+  type: 'test'
+  ...
+# Subtest: a copied ciphertext does not decrypt, even when both accounts share the key
+ok 59 - a copied ciphertext does not decrypt, even when both accounts share the key
+  ---
+  duration_ms: 2.876085
+  type: 'test'
+  ...
+# Subtest: nested rows are deep-cloned so aliases cannot mutate the stored draft
+ok 60 - nested rows are deep-cloned so aliases cannot mutate the stored draft
+  ---
+  duration_ms: 1.926546
+  type: 'test'
+  ...
+# Subtest: rows JSON cannot round-trip are refused by name
+ok 61 - rows JSON cannot round-trip are refused by name
+  ---
+  duration_ms: 0.588784
+  type: 'test'
+  ...
+# Subtest: a bad key provider and a missing namespace key are refused by name
+ok 62 - a bad key provider and a missing namespace key are refused by name
+  ---
+  duration_ms: 2.200353
+  type: 'test'
+  ...
+# Subtest: a non-absolute or empty dir is refused before any filesystem IO
+ok 63 - a non-absolute or empty dir is refused before any filesystem IO
+  ---
+  duration_ms: 0.216615
+  type: 'test'
+  ...
+# Subtest: an interrupted replace keeps the previous good file and leaves no staging file
+ok 64 - an interrupted replace keeps the previous good file and leaves no staging file
+  ---
+  duration_ms: 2.587369
+  type: 'test'
+  ...
+# Subtest: write, fsync, close and rename failures clean up and classify, keeping the old draft
+ok 65 - write, fsync, close and rename failures clean up and classify, keeping the old draft
+  ---
+  duration_ms: 4.424752
+  type: 'test'
+  ...
+# Subtest: a write refuses to replace a draft it cannot authenticate and preserves the bytes
+ok 66 - a write refuses to replace a draft it cannot authenticate and preserves the bytes
+  ---
+  duration_ms: 1.446558
+  type: 'test'
+  ...
+# Subtest: a tampered draft cannot be replaced; the tampered bytes stay for recovery
+ok 67 - a tampered draft cannot be replaced; the tampered bytes stay for recovery
+  ---
+  duration_ms: 2.074695
+  type: 'test'
+  ...
+# Subtest: an IO failure while checking the existing draft refuses the write and preserves it
+ok 68 - an IO failure while checking the existing draft refuses the write and preserves it
+  ---
+  duration_ms: 1.795371
+  type: 'test'
+  ...
+# Subtest: an authenticated empty write removes all rows; an unauthenticated one cannot
+ok 69 - an authenticated empty write removes all rows; an unauthenticated one cannot
+  ---
+  duration_ms: 2.979178
+  type: 'test'
+  ...
+# Subtest: write reports whether it replaced existing bytes or created the first file
+ok 70 - write reports whether it replaced existing bytes or created the first file
+  ---
+  duration_ms: 0.862707
+  type: 'test'
+  ...
+# Subtest: a zeroed key from the provider fails authentication instead of using a cached key
+ok 71 - a zeroed key from the provider fails authentication instead of using a cached key
+  ---
+  duration_ms: 1.204849
+  type: 'test'
+  ...
+# Subtest: namespaceKey must stay stable: a different one does not find the draft but keeps it
+ok 72 - namespaceKey must stay stable: a different one does not find the draft but keeps it
+  ---
+  duration_ms: 0.647892
+  type: 'test'
+  ...
+# Subtest: directory sync reports unsupported instead of guaranteeing power-loss durability
+ok 73 - directory sync reports unsupported instead of guaranteeing power-loss durability
+  ---
+  duration_ms: 1.059346
+  type: 'test'
+  ...
+# Subtest: a real directory sync failure is reported as an error, not as unsupported
+ok 74 - a real directory sync failure is reported as an error, not as unsupported
+  ---
+  duration_ms: 1.204159
+  type: 'test'
+  ...
+# Subtest: a directory close failure is reported instead of silently swallowed
+ok 75 - a directory close failure is reported instead of silently swallowed
+  ---
+  duration_ms: 2.103529
+  type: 'test'
+  ...
+# Subtest: a successful replace rotates the nonce and keeps exactly one file per account
+ok 76 - a successful replace rotates the nonce and keeps exactly one file per account
+  ---
+  duration_ms: 2.868602
+  type: 'test'
+  ...
+# Subtest: default memory model saves, recovers and discards without a disk claim
+ok 77 - default memory model saves, recovers and discards without a disk claim
+  ---
+  duration_ms: 3.186684
+  type: 'test'
+  ...
+# Subtest: accepted store in memory mode preserves a truthful protocol result
+ok 78 - accepted store in memory mode preserves a truthful protocol result
+  ---
+  duration_ms: 0.450385
+  type: 'test'
+  ...
+# Subtest: an unproven void write cannot become success: {"durable":true}
+ok 79 - an unproven void write cannot become success: {"durable":true}
+  ---
+  duration_ms: 0.679521
+  type: 'test'
+  ...
+# Subtest: an unproven void write cannot become success: {}
+ok 80 - an unproven void write cannot become success: {}
+  ---
+  duration_ms: 0.335856
+  type: 'test'
+  ...
+# Subtest: a non-array store read locks recovery and refuses replacement
+ok 81 - a non-array store read locks recovery and refuses replacement
+  ---
+  duration_ms: 0.370058
+  type: 'test'
+  ...
+# Subtest: a thrown memory write still fails with the typed lock code
+ok 82 - a thrown memory write still fails with the typed lock code
+  ---
+  duration_ms: 0.279561
+  type: 'test'
+  ...
+# Subtest: memory failure cannot be relabeled as a completed save
+ok 83 - memory failure cannot be relabeled as a completed save
+  ---
+  duration_ms: 0.305325
+  type: 'test'
+  ...
+# Subtest: memory explicit unsuccessful report cannot be relabeled as a completed save
+ok 84 - memory explicit unsuccessful report cannot be relabeled as a completed save
+  ---
+  duration_ms: 0.205647
+  type: 'test'
+  ...
+# Subtest: durable explicit unsuccessful report cannot be relabeled as a completed save
+ok 85 - durable explicit unsuccessful report cannot be relabeled as a completed save
+  ---
+  duration_ms: 0.542793
+  type: 'test'
+  ...
+# Subtest: a malformed memory write report cannot be accepted: empty object
+ok 86 - a malformed memory write report cannot be accepted: empty object
+  ---
+  duration_ms: 0.487071
+  type: 'test'
+  ...
+# Subtest: a malformed durable write report is refused exactly like memory mode: empty object
+ok 87 - a malformed durable write report is refused exactly like memory mode: empty object
+  ---
+  duration_ms: 0.3246
+  type: 'test'
+  ...
+# Subtest: a malformed memory write report cannot be accepted: empty array
+ok 88 - a malformed memory write report cannot be accepted: empty array
+  ---
+  duration_ms: 0.768696
+  type: 'test'
+  ...
+# Subtest: a malformed durable write report is refused exactly like memory mode: empty array
+ok 89 - a malformed durable write report is refused exactly like memory mode: empty array
+  ---
+  duration_ms: 0.130965
+  type: 'test'
+  ...
+# Subtest: a malformed memory write report cannot be accepted: Date instance
+ok 90 - a malformed memory write report cannot be accepted: Date instance
+  ---
+  duration_ms: 0.097429
+  type: 'test'
+  ...
+# Subtest: a malformed durable write report is refused exactly like memory mode: Date instance
+ok 91 - a malformed durable write report is refused exactly like memory mode: Date instance
+  ---
+  duration_ms: 0.083839
+  type: 'test'
+  ...
+# Subtest: a malformed memory write report cannot be accepted: thenable
+ok 92 - a malformed memory write report cannot be accepted: thenable
+  ---
+  duration_ms: 0.105805
+  type: 'test'
+  ...
+# Subtest: a malformed durable write report is refused exactly like memory mode: thenable
+ok 93 - a malformed durable write report is refused exactly like memory mode: thenable
+  ---
+  duration_ms: 0.081111
+  type: 'test'
+  ...
+# Subtest: a malformed memory write report cannot be accepted: resolved thenable
+ok 94 - a malformed memory write report cannot be accepted: resolved thenable
+  ---
+  duration_ms: 0.224923
+  type: 'test'
+  ...
+# Subtest: a malformed durable write report is refused exactly like memory mode: resolved thenable
+ok 95 - a malformed durable write report is refused exactly like memory mode: resolved thenable
+  ---
+  duration_ms: 0.110726
+  type: 'test'
+  ...
+# Subtest: a malformed memory write report cannot be accepted: persisted string
+ok 96 - a malformed memory write report cannot be accepted: persisted string
+  ---
+  duration_ms: 0.080124
+  type: 'test'
+  ...
+# Subtest: a malformed durable write report is refused exactly like memory mode: persisted string
+ok 97 - a malformed durable write report is refused exactly like memory mode: persisted string
+  ---
+  duration_ms: 0.074499
+  type: 'test'
+  ...
+# Subtest: a malformed memory write report cannot be accepted: inherited persisted
+ok 98 - a malformed memory write report cannot be accepted: inherited persisted
+  ---
+  duration_ms: 0.080289
+  type: 'test'
+  ...
+# Subtest: a malformed durable write report is refused exactly like memory mode: inherited persisted
+ok 99 - a malformed durable write report is refused exactly like memory mode: inherited persisted
+  ---
+  duration_ms: 0.074218
+  type: 'test'
+  ...
+# Subtest: a directory-mode report needs an own persisted boolean and no failure
+    # Subtest: a contradicting directory report stays a failure: explicit succeeded:false
+    ok 1 - a contradicting directory report stays a failure: explicit succeeded:false
+      ---
+      duration_ms: 0.19542
+      type: 'test'
+      ...
+    # Subtest: a contradicting directory report stays a failure: explicit failure
+    ok 2 - a contradicting directory report stays a failure: explicit failure
+      ---
+      duration_ms: 0.122211
+      type: 'test'
+      ...
+    # Subtest: a contradicting directory report stays a failure: succeeded not true
+    ok 3 - a contradicting directory report stays a failure: succeeded not true
+      ---
+      duration_ms: 0.09321
+      type: 'test'
+      ...
+    # Subtest: a contradicting directory report stays a failure: missing persisted
+    ok 4 - a contradicting directory report stays a failure: missing persisted
+      ---
+      duration_ms: 0.087676
+      type: 'test'
+      ...
+    1..4
+ok 100 - a directory-mode report needs an own persisted boolean and no failure
+  ---
+  duration_ms: 0.952917
+  type: 'test'
+  ...
+# Subtest: tamperDigest changes the digest while staying 64 lowercase hex, and never equals the input
+ok 101 - tamperDigest changes the digest while staying 64 lowercase hex, and never equals the input
+  ---
+  duration_ms: 0.955444
+  type: 'test'
+  ...
+# Subtest: the captured real output declares the engine hash unchanged, and the tampered path declares a different hash over the SAME bytes
+ok 102 - the captured real output declares the engine hash unchanged, and the tampered path declares a different hash over the SAME bytes
+  ---
+  duration_ms: 1.067539
+  type: 'test'
+  ...
+# Subtest: a capture against an unreachable host fails loudly and never returns output
+ok 103 - a capture against an unreachable host fails loudly and never returns output
+  ---
+  duration_ms: 0.355562
+  type: 'test'
+  ...
+# Subtest: a capture with a refused route code fails loudly and never returns output
+ok 104 - a capture with a refused route code fails loudly and never returns output
+  ---
+  duration_ms: 0.13557
+  type: 'test'
+  ...
+# Subtest: untampered real bytes are ACCEPTED and committed once with the real checksum
+ok 105 - untampered real bytes are ACCEPTED and committed once with the real checksum
+  ---
+  duration_ms: 2.244489
+  type: 'test'
+  ...
+# Subtest: a tampered DECLARED checksum is REFUSED with the full contract error and no version commit
+ok 106 - a tampered DECLARED checksum is REFUSED with the full contract error and no version commit
+  ---
+  duration_ms: 0.813985
+  type: 'test'
+  ...
+# Subtest: the refusal oracle is non-vacuous: an accepted job does NOT satisfy it, and a non-checksum refusal does not either
+ok 107 - the refusal oracle is non-vacuous: an accepted job does NOT satisfy it, and a non-checksum refusal does not either
+  ---
+  duration_ms: 1.026932
+  type: 'test'
+  ...
+# Subtest: writable-path containment refuses lexical traversal and an escaping link
+ok 108 - writable-path containment refuses lexical traversal and an escaping link
+  ---
+  duration_ms: 5.14006
+  type: 'test'
+  ...
+# Subtest: assertNoReparseEscape refuses an absolute or outside target
+ok 109 - assertNoReparseEscape refuses an absolute or outside target
+  ---
+  duration_ms: 0.418185
+  type: 'test'
+  ...
+# Subtest: the tampered-digest refusal is driven only by the declared checksum, not by bytes
+ok 110 - the tampered-digest refusal is driven only by the declared checksum, not by bytes
+  ---
+  duration_ms: 0.918664
+  type: 'test'
+  ...
+# Subtest: the single-capture claim is measured from the bytes each path actually served
+ok 111 - the single-capture claim is measured from the bytes each path actually served
+  ---
+  duration_ms: 0.756525
+  type: 'test'
+  ...
+# Subtest: the harness enforces the frozen fresh-work containment guard
+ok 112 - the harness enforces the frozen fresh-work containment guard
+  ---
+  duration_ms: 1.046144
+  type: 'test'
+  ...
+# Subtest: a pre-existing escape-target directory survives the containment probe
+ok 113 - a pre-existing escape-target directory survives the containment probe
+  ---
+  duration_ms: 1.587123
+  type: 'test'
+  ...
+# Subtest: a pre-existing junction and its target file are preserved
+ok 114 - a pre-existing junction and its target file are preserved
+  ---
+  duration_ms: 0.146919
+  type: 'test'
+  ...
+# Subtest: a failed junction creation removes only directories this invocation created
+ok 115 - a failed junction creation removes only directories this invocation created
+  ---
+  duration_ms: 1.721924
+  type: 'test'
+  ...
+# Subtest: exclusive acquire fails closed and does not delete a directory that already exists
+ok 116 - exclusive acquire fails closed and does not delete a directory that already exists
+  ---
+  duration_ms: 0.318111
+  type: 'test'
+  ...
+# Subtest: a nested probe cannot delete another probe's still-owned target
+ok 117 - a nested probe cannot delete another probe's still-owned target
+  ---
+  duration_ms: 0.102705
+  type: 'test'
+  ...
+# file:///workspace/scripts/office-g0/engine-contract-adapter-faults.test.mjs:8
+# if (!root) throw new Error('OFFICE_G0_TEST_TMP must name owned scratch');
+#                  ^
+# Error: OFFICE_G0_TEST_TMP must name owned scratch
+#     at file:///workspace/scripts/office-g0/engine-contract-adapter-faults.test.mjs:8:18
+# Node.js v22.23.3
+# Subtest: scripts/office-g0/engine-contract-adapter-faults.test.mjs
+not ok 8 - scripts/office-g0/engine-contract-adapter-faults.test.mjs
+  ---
+  duration_ms: 45.421841
+  type: 'test'
+  location: '/workspace/scripts/office-g0/engine-contract-adapter-faults.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: the mandatory case list cannot shrink or silently duplicate
+ok 119 - the mandatory case list cannot shrink or silently duplicate
+  ---
+  duration_ms: 1.31719
+  type: 'test'
+  ...
+# Subtest: every mandatory case matches its oracle
+ok 120 - every mandatory case matches its oracle
+  ---
+  duration_ms: 9.559474
+  type: 'test'
+  ...
+# Subtest: limits are finite, safe integers inside a sane envelope
+ok 121 - limits are finite, safe integers inside a sane envelope
+  ---
+  duration_ms: 0.492615
+  type: 'test'
+  ...
+# Subtest: checksum is recomputed from bytes by an independent implementation
+ok 122 - checksum is recomputed from bytes by an independent implementation
+  ---
+  duration_ms: 0.518011
+  type: 'test'
+  ...
+# Subtest: a failed case leaves the current version and the input untouched
+ok 123 - a failed case leaves the current version and the input untouched
+  ---
+  duration_ms: 0.262649
+  type: 'test'
+  ...
+# Subtest: serialize declaration refusals make no ledger, storage or commit calls, including replay
+ok 124 - serialize declaration refusals make no ledger, storage or commit calls, including replay
+  ---
+  duration_ms: 0.467581
+  type: 'test'
+  ...
+# Subtest: a malformed request is refused before a job exists, with the revision intact
+ok 125 - a malformed request is refused before a job exists, with the revision intact
+  ---
+  duration_ms: 0.201367
+  type: 'test'
+  ...
+# Subtest: the fingerprint ignores request_id but tracks decisive payload changes
+ok 126 - the fingerprint ignores request_id but tracks decisive payload changes
+  ---
+  duration_ms: 0.216419
+  type: 'test'
+  ...
+# Subtest: cancel and complete linearize to exactly one winner
+ok 127 - cancel and complete linearize to exactly one winner
+  ---
+  duration_ms: 0.466923
+  type: 'test'
+  ...
+# Subtest: a restart turns a running job into crashed and cannot commit it
+ok 128 - a restart turns a running job into crashed and cannot commit it
+  ---
+  duration_ms: 0.475625
+  type: 'test'
+  ...
+# Subtest: terminal states are immutable
+ok 129 - terminal states are immutable
+  ---
+  duration_ms: 0.449153
+  type: 'test'
+  ...
+# Subtest: idempotency is keyed on the payload fingerprint, not the key alone
+ok 130 - idempotency is keyed on the payload fingerprint, not the key alone
+  ---
+  duration_ms: 0.2891
+  type: 'test'
+  ...
+# Subtest: an orphan delete failure is surfaced and retried, never swallowed
+ok 131 - an orphan delete failure is surfaced and retried, never swallowed
+  ---
+  duration_ms: 0.100576
+  type: 'test'
+  ...
+# Subtest: every error code carries a status, a class, a kind and a retryable flag
+ok 132 - every error code carries a status, a class, a kind and a retryable flag
+  ---
+  duration_ms: 0.224502
+  type: 'test'
+  ...
+# Subtest: wire fields on the frozen examples are snake_case
+ok 133 - wire fields on the frozen examples are snake_case
+  ---
+  duration_ms: 0.208308
+  type: 'test'
+  ...
+# Subtest: no browser-facing projection leaks a path, a storage key or a credential
+ok 134 - no browser-facing projection leaks a path, a storage key or a credential
+  ---
+  duration_ms: 0.496387
+  type: 'test'
+  ...
+# Subtest: the engine can be injected, which is the seam task 4.4 wires
+ok 135 - the engine can be injected, which is the seam task 4.4 wires
+  ---
+  duration_ms: 0.365433
+  type: 'test'
+  ...
+# Subtest: the runtime map cannot claim a proven runtime it has not earned
+ok 136 - the runtime map cannot claim a proven runtime it has not earned
+  ---
+  duration_ms: 3.016618
+  type: 'test'
+  ...
+# Subtest: proposed namespaces are marked as new G0 outputs, not deployed resources
+ok 137 - proposed namespaces are marked as new G0 outputs, not deployed resources
+  ---
+  duration_ms: 0.10854
+  type: 'test'
+  ...
+# Subtest: documentation references the runtime map and the harness by real paths
+ok 138 - documentation references the runtime map and the harness by real paths
+  ---
+  duration_ms: 0.450928
+  type: 'test'
+  ...
+# Subtest: the doc opening points at the real adapter without denying it, and never cites a volatile file digest
+ok 139 - the doc opening points at the real adapter without denying it, and never cites a volatile file digest
+  ---
+  duration_ms: 0.495161
+  type: 'test'
+  ...
+# Subtest: the doc's mandatory-case table names every script case, and adds no case the script lacks
+ok 140 - the doc's mandatory-case table names every script case, and adds no case the script lacks
+  ---
+  duration_ms: 0.546326
+  type: 'test'
+  ...
+# Subtest: the doc's fingerprint fence matches the fields the code actually hashes
+ok 141 - the doc's fingerprint fence matches the fields the code actually hashes
+  ---
+  duration_ms: 0.508376
+  type: 'test'
+  ...
+# Subtest: input bytes are measured at submit: a lying digest, a lying length, and non-canonical base64 never reach the ledger
+ok 142 - input bytes are measured at submit: a lying digest, a lying length, and non-canonical base64 never reach the ledger
+  ---
+  duration_ms: 0.305697
+  type: 'test'
+  ...
+# Subtest: run enforces the accepted deadline from the trusted clock
+ok 143 - run enforces the accepted deadline from the trusted clock
+  ---
+  duration_ms: 0.21104
+  type: 'test'
+  ...
+# Subtest: one millisecond inside the accepted deadline still runs
+ok 144 - one millisecond inside the accepted deadline still runs
+  ---
+  duration_ms: 0.143323
+  type: 'test'
+  ...
+# Subtest: a caller job object is not execution authority
+ok 145 - a caller job object is not execution authority
+  ---
+  duration_ms: 0.311395
+  type: 'test'
+  ...
+# Subtest: the mandatory read-grant scope case reports the public refusal
+ok 146 - the mandatory read-grant scope case reports the public refusal
+  ---
+  duration_ms: 2.701401
+  type: 'test'
+  ...
+# Subtest: an implicit run propagates the accepted actor to grant authorization
+ok 147 - an implicit run propagates the accepted actor to grant authorization
+  ---
+  duration_ms: 0.332679
+  type: 'test'
+  ...
+# Subtest: accepted metadata is private: a mutated handle cannot change output, identity or warnings
+ok 148 - accepted metadata is private: a mutated handle cannot change output, identity or warnings
+  ---
+  duration_ms: 0.382614
+  type: 'test'
+  ...
+# Subtest: serialize consumes the accepted model content, not a reference label
+ok 149 - serialize consumes the accepted model content, not a reference label
+  ---
+  duration_ms: 0.401571
+  type: 'test'
+  ...
+# Subtest: a model handle replaced, rescoped or mutated in place after acceptance cannot change committed bytes
+ok 150 - a model handle replaced, rescoped or mutated in place after acceptance cannot change committed bytes
+  ---
+  duration_ms: 1.104662
+  type: 'test'
+  ...
+# Subtest: copied jobs and expired grants stay rejected before consume or commit on a model serialize
+ok 151 - copied jobs and expired grants stay rejected before consume or commit on a model serialize
+  ---
+  duration_ms: 0.368451
+  type: 'test'
+  ...
+# Subtest: an injected engine edit result is what a later serialize commits
+ok 152 - an injected engine edit result is what a later serialize commits
+  ---
+  duration_ms: 0.437875
+  type: 'test'
+  ...
+# Subtest: the default fake engine commits the edit transform, not the opened upload
+ok 153 - the default fake engine commits the edit transform, not the opened upload
+  ---
+  duration_ms: 0.381388
+  type: 'test'
+  ...
+# Subtest: open registers the produced model bytes, never a reference label
+ok 154 - open registers the produced model bytes, never a reference label
+  ---
+  duration_ms: 0.183329
+  type: 'test'
+  ...
+# Subtest: the fingerprint prefers the MEASURED digest and length over the declared pair
+ok 155 - the fingerprint prefers the MEASURED digest and length over the declared pair
+  ---
+  duration_ms: 0.14597
+  type: 'test'
+  ...
+# Subtest: classify maps an unreachable host to a retryable engine failure, never a success
+ok 156 - classify maps an unreachable host to a retryable engine failure, never a success
+  ---
+  duration_ms: 0.126092
+  type: 'test'
+  ...
+# Subtest: classify reads a refusal from the envelope code, and a 200 with ok:false is still a refusal
+ok 157 - classify reads a refusal from the envelope code, and a 200 with ok:false is still a refusal
+  ---
+  duration_ms: 0.076692
+  type: 'test'
+  ...
+# Subtest: an unparseable or unmapped error is a caller fault, never waved through
+ok 158 - an unparseable or unmapped error is a caller fault, never waved through
+  ---
+  duration_ms: 0.055443
+  type: 'test'
+  ...
+# Subtest: the adapter error map is complete, typed, and uses the contract vocabulary
+ok 159 - the adapter error map is complete, typed, and uses the contract vocabulary
+  ---
+  duration_ms: 0.203378
+  type: 'test'
+  ...
+# Subtest: every adapter code a fault case expects is in the error map
+ok 160 - every adapter code a fault case expects is in the error map
+  ---
+  duration_ms: 0.15015
+  type: 'test'
+  ...
+# Subtest: assertInside refuses a sibling-prefix escape and a traversal, and never writes first
+ok 161 - assertInside refuses a sibling-prefix escape and a traversal, and never writes first
+  ---
+  duration_ms: 0.181685
+  type: 'test'
+  ...
+# Subtest: prepareLab copies only the DOC-003 fixtures it finds, and refuses a lab outside its root
+ok 162 - prepareLab copies only the DOC-003 fixtures it finds, and refuses a lab outside its root
+  ---
+  duration_ms: 3.787445
+  type: 'test'
+  ...
+# Subtest: runAdapterCase compares only the oracle keys and records real_engine_evidence
+ok 163 - runAdapterCase compares only the oracle keys and records real_engine_evidence
+  ---
+  duration_ms: 0.349738
+  type: 'test'
+  ...
+# Subtest: H1: a grantless byte-carrying submit cannot replace an established session model
+ok 164 - H1: a grantless byte-carrying submit cannot replace an established session model
+  ---
+  duration_ms: 0.782651
+  type: 'test'
+  ...
+# Subtest: H1: only run registers a trusted model, and only under a server-minted ref
+ok 165 - H1: only run registers a trusted model, and only under a server-minted ref
+  ---
+  duration_ms: 0.277414
+  type: 'test'
+  ...
+# Subtest: M3: a grant max_output_bytes ceiling refuses an over-size result before any commit
+ok 166 - M3: a grant max_output_bytes ceiling refuses an over-size result before any commit
+  ---
+  duration_ms: 0.293231
+  type: 'test'
+  ...
+# Subtest: M4: a grant whose organization or workspace differs from the job is refused
+ok 167 - M4: a grant whose organization or workspace differs from the job is refused
+  ---
+  duration_ms: 0.348363
+  type: 'test'
+  ...
+# Subtest: M2: the registry pins a STABLE adapter oracle digest, not the volatile evidence file
+ok 168 - M2: the registry pins a STABLE adapter oracle digest, not the volatile evidence file
+  ---
+  duration_ms: 0.157222
+  type: 'test'
+  ...
+# Subtest: P1 --execute is refused outright and the hold surface is named
+ok 169 - P1 --execute is refused outright and the hold surface is named
+  ---
+  duration_ms: 1.382163
+  type: 'test'
+  ...
+# Subtest: P2 an unknown flag is refused by name
+ok 170 - P2 an unknown flag is refused by name
+  ---
+  duration_ms: 0.201168
+  type: 'test'
+  ...
+# Subtest: P3 --max-hold-ms validates and defaults to the bounded four hours
+ok 171 - P3 --max-hold-ms validates and defaults to the bounded four hours
+  ---
+  duration_ms: 0.25323
+  type: 'test'
+  ...
+# Subtest: B1 the real host route table satisfies the required XLSX set
+ok 172 - B1 the real host route table satisfies the required XLSX set
+  ---
+  duration_ms: 0.385011
+  type: 'test'
+  ...
+# Subtest: B2 a ping with no routes list or a missing route fails by name
+ok 173 - B2 a ping with no routes list or a missing route fails by name
+  ---
+  duration_ms: 0.138122
+  type: 'test'
+  ...
+# Subtest: B3 the real createXlsxEngineHandlers map binds every operation and stays on the allowlist
+ok 174 - B3 the real createXlsxEngineHandlers map binds every operation and stays on the allowlist
+  ---
+  duration_ms: 0.444342
+  type: 'test'
+  ...
+# Subtest: B3b an operation outside the allowlist stays an unknown-operation refusal
+ok 175 - B3b an operation outside the allowlist stays an unknown-operation refusal
+  ---
+  duration_ms: 0.519795
+  type: 'test'
+  ...
+# Subtest: B4 a handler outside the shared allowlist is refused by name
+ok 176 - B4 a handler outside the shared allowlist is refused by name
+  ---
+  duration_ms: 0.136955
+  type: 'test'
+  ...
+# Subtest: B5 an incomplete bridge is refused by name
+ok 177 - B5 an incomplete bridge is refused by name
+  ---
+  duration_ms: 0.252599
+  type: 'test'
+  ...
+# Subtest: B6 the fixture pin rejects bytes that are not the pinned fixture
+ok 178 - B6 the fixture pin rejects bytes that are not the pinned fixture
+  ---
+  duration_ms: 0.273893
+  type: 'test'
+  ...
+# Subtest: T1 the accepted plan gives the engine lab and the lab server labDir ONE root
+not ok 179 - T1 the accepted plan gives the engine lab and the lab server labDir ONE root
+  ---
+  duration_ms: 2.80495
+  type: 'test'
+  location: '/workspace/scripts/office-g0/hold-xlsx-lab.test.mjs:338:1'
+  failureType: 'testCodeFailure'
+  error: '[office-g0-xlsx] missing prepared xlsx sidecar binary: /tmp/office-g0-xlsx-hold-n5Opcm/ws-1/bootstrap-source/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    requireExistingFile (file:///workspace/scripts/office-g0/run-xlsx-cycle.mjs:281:11)
+    resolveRunnerPlan (file:///workspace/scripts/office-g0/run-xlsx-cycle.mjs:452:3)
+    resolveHoldPlan (file:///workspace/scripts/office-g0/hold-xlsx-lab.mjs:201:16)
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/hold-xlsx-lab.test.mjs:375:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: L1 the latch latches exactly once and stays cancelled
+ok 180 - L1 the latch latches exactly once and stays cancelled
+  ---
+  duration_ms: 0.119595
+  type: 'test'
+  ...
+# Subtest: L2 cleanup reads ownership at cleanup time, not construction time
+ok 181 - L2 cleanup reads ownership at cleanup time, not construction time
+  ---
+  duration_ms: 0.87641
+  type: 'test'
+  ...
+# Subtest: L3 acquireWithBound bounds an unsettled acquisition, honours cancellation and stays owned
+ok 182 - L3 acquireWithBound bounds an unsettled acquisition, honours cancellation and stays owned
+  ---
+  duration_ms: 75.465075
+  type: 'test'
+  ...
+# Subtest: L4 a listen that settles after the cleanup bound is disposed as a late acquisition
+ok 183 - L4 a listen that settles after the cleanup bound is disposed as a late acquisition
+  ---
+  duration_ms: 70.890754
+  type: 'test'
+  ...
+# Subtest: L5 a listen that REJECTS after the cleanup bound still disposes the registered server
+ok 184 - L5 a listen that REJECTS after the cleanup bound still disposes the registered server
+  ---
+  duration_ms: 40.75053
+  type: 'test'
+  ...
+# Subtest: S1 a confirmed stop is clean and reports no unproven child
+ok 185 - S1 a confirmed stop is clean and reports no unproven child
+  ---
+  duration_ms: 0.20824
+  type: 'test'
+  ...
+# Subtest: S2 an unconfirmed stop is never clean and never fakes descendant proof
+ok 186 - S2 an unconfirmed stop is never clean and never fakes descendant proof
+  ---
+  duration_ms: 0.15916
+  type: 'test'
+  ...
+# Subtest: S3 a failing server close is surfaced, not swallowed
+ok 187 - S3 a failing server close is surfaced, not swallowed
+  ---
+  duration_ms: 0.113375
+  type: 'test'
+  ...
+# Subtest: S4 a late listen is awaited and its socket closed before cleanup decides
+ok 188 - S4 a late listen is awaited and its socket closed before cleanup decides
+  ---
+  duration_ms: 10.830396
+  type: 'test'
+  ...
+# Subtest: S5 a listen that never settles is reported unconfirmed and bounded
+ok 189 - S5 a listen that never settles is reported unconfirmed and bounded
+  ---
+  duration_ms: 41.945698
+  type: 'test'
+  ...
+# Subtest: A1 a successful start wires the real shared root, one owned child and a ready receipt
+ok 190 - A1 a successful start wires the real shared root, one owned child and a ready receipt
+  ---
+  duration_ms: 2.579576
+  type: 'test'
+  ...
+# Subtest: A2 a partial listen failure closes the lab it opened and starts no child
+ok 191 - A2 a partial listen failure closes the lab it opened and starts no child
+  ---
+  duration_ms: 2.620951
+  type: 'test'
+  ...
+# Subtest: A3 a spawn throw releases what the session owned and writes no receipt
+ok 192 - A3 a spawn throw releases what the session owned and writes no receipt
+  ---
+  duration_ms: 0.463188
+  type: 'test'
+  ...
+# Subtest: A4 a ping that never identifies the engine fails closed and stops the child
+ok 193 - A4 a ping that never identifies the engine fails closed and stops the child
+  ---
+  duration_ms: 250.718442
+  type: 'test'
+  ...
+# Subtest: A5 an existing receipt is refused and the failure path still stops the child
+ok 194 - A5 an existing receipt is refused and the failure path still stops the child
+  ---
+  duration_ms: 1.4296
+  type: 'test'
+  ...
+# Subtest: A6 cancellation before acquisition stops before anything is created
+ok 195 - A6 cancellation before acquisition stops before anything is created
+  ---
+  duration_ms: 0.357915
+  type: 'test'
+  ...
+# Subtest: A7 a startup listen that never settles is a bounded named failure with the socket still owned
+ok 196 - A7 a startup listen that never settles is a bounded named failure with the socket still owned
+  ---
+  duration_ms: 101.276477
+  type: 'test'
+  ...
+# Subtest: A8 a signal while the engine ping is pending runs one bounded cleanup and never publishes
+ok 197 - A8 a signal while the engine ping is pending runs one bounded cleanup and never publishes
+  ---
+  duration_ms: 1004.664932
+  type: 'test'
+  ...
+# Subtest: A9 a signal while the listen is pending disposes the late socket it eventually acquires
+ok 198 - A9 a signal while the listen is pending disposes the late socket it eventually acquires
+  ---
+  duration_ms: 95.992288
+  type: 'test'
+  ...
+# Subtest: A10 a signal while the ping is pending with a confirmed cleanup leaves exit code zero
+ok 199 - A10 a signal while the ping is pending with a confirmed cleanup leaves exit code zero
+  ---
+  duration_ms: 1026.495055
+  type: 'test'
+  ...
+# Subtest: A11 a signal during listen whose partial acquisition rejects AFTER cleanup is disposed
+ok 200 - A11 a signal during listen whose partial acquisition rejects AFTER cleanup is disposed
+  ---
+  duration_ms: 65.700088
+  type: 'test'
+  ...
+# Subtest: A12 a startHoldSession listen timeout whose late acquisition rejects still disposes
+ok 201 - A12 a startHoldSession listen timeout whose late acquisition rejects still disposes
+  ---
+  duration_ms: 70.470698
+  type: 'test'
+  ...
+# Subtest: H1 the bounded hold window resolves on the deadline
+ok 202 - H1 the bounded hold window resolves on the deadline
+  ---
+  duration_ms: 40.664321
+  type: 'test'
+  ...
+# Subtest: H2 the bounded hold window resolves immediately on cancellation
+ok 203 - H2 the bounded hold window resolves immediately on cancellation
+  ---
+  duration_ms: 25.664554
+  type: 'test'
+  ...
+# Subtest: H3 runHold acquires then stops through the same idempotent shutdown
+ok 204 - H3 runHold acquires then stops through the same idempotent shutdown
+  ---
+  duration_ms: 41.196096
+  type: 'test'
+  ...
+# Subtest: H4 an unconfirmed owned cleanup at the real hold deadline latches a nonzero process exit
+ok 205 - H4 an unconfirmed owned cleanup at the real hold deadline latches a nonzero process exit
+  ---
+  duration_ms: 40.320673
+  type: 'test'
+  ...
+# Subtest: H5 a confirmed owned cleanup at the real hold deadline leaves exit code zero
+ok 206 - H5 a confirmed owned cleanup at the real hold deadline leaves exit code zero
+  ---
+  duration_ms: 40.875827
+  type: 'test'
+  ...
+# Subtest: H6 a deadline cleanup that THROWS is reported unconfirmed and latches a nonzero exit
+ok 207 - H6 a deadline cleanup that THROWS is reported unconfirmed and latches a nonzero exit
+  ---
+  duration_ms: 41.228934
+  type: 'test'
+  ...
+# Subtest: S6 the signal guard runs one cleanup with the same signal and re-raises it
+ok 208 - S6 the signal guard runs one cleanup with the same signal and re-raises it
+  ---
+  duration_ms: 39.848611
+  type: 'test'
+  ...
+# Subtest: S7 an unconfirmed stop at signal time latches a nonzero exit code
+ok 209 - S7 an unconfirmed stop at signal time latches a nonzero exit code
+  ---
+  duration_ms: 20.484408
+  type: 'test'
+  ...
+# Subtest: R3 the receipt separates the holder stop target from the owned engine child
+ok 210 - R3 the receipt separates the holder stop target from the owned engine child
+  ---
+  duration_ms: 0.488076
+  type: 'test'
+  ...
+# Subtest: R1 persistReceipt writes once with the exclusive-create flag
+ok 211 - R1 persistReceipt writes once with the exclusive-create flag
+  ---
+  duration_ms: 0.223912
+  type: 'test'
+  ...
+# Subtest: R2 the receipt records the actual URLs, pins, routes and no-Playwright claims
+ok 212 - R2 the receipt records the actual URLs, pins, routes and no-Playwright claims
+  ---
+  duration_ms: 0.421625
+  type: 'test'
+  ...
+# Subtest: save and distinct reopen preserve exact UTF8 source and required local assets
+ok 213 - save and distinct reopen preserve exact UTF8 source and required local assets
+  ---
+  duration_ms: 22.578946
+  type: 'test'
+  ...
+# Subtest: preview permits styles only from its own asset prefix
+ok 214 - preview permits styles only from its own asset prefix
+  ---
+  duration_ms: 0.217105
+  type: 'test'
+  ...
+# Subtest: view ownership and traversal reject cross-view and escaped output writes
+ok 215 - view ownership and traversal reject cross-view and escaped output writes
+  ---
+  duration_ms: 5.159753
+  type: 'test'
+  ...
+# Subtest: stylesheet discovery ignores inert markup and preserves first attribute semantics
+ok 216 - stylesheet discovery ignores inert markup and preserves first attribute semantics
+  ---
+  duration_ms: 0.495608
+  type: 'test'
+  ...
+# Subtest: HTML CSS support cannot copy arbitrary types or traversal and does not extend Markdown
+ok 217 - HTML CSS support cannot copy arbitrary types or traversal and does not extend Markdown
+  ---
+  duration_ms: 9.956129
+  type: 'test'
+  ...
+# Subtest: the real manifest passes validation with checksums checked
+ok 218 - the real manifest passes validation with checksums checked
+  ---
+  duration_ms: 11.042266
+  type: 'test'
+  ...
+# Subtest: every declared fixture exists on disk with the recorded bytes
+ok 219 - every declared fixture exists on disk with the recorded bytes
+  ---
+  duration_ms: 4.072812
+  type: 'test'
+  ...
+# Subtest: fixture ids are unique and every capability row points at a declared fixture
+ok 220 - fixture ids are unique and every capability row points at a declared fixture
+  ---
+  duration_ms: 0.27338
+  type: 'test'
+  ...
+# Subtest: every fixture references at least one capability and every capability has at least one case
+ok 221 - every fixture references at least one capability and every capability has at least one case
+  ---
+  duration_ms: 0.25379
+  type: 'test'
+  ...
+# Subtest: every fixture is referenced by at least one capability row
+ok 222 - every fixture is referenced by at least one capability row
+  ---
+  duration_ms: 0.19841
+  type: 'test'
+  ...
+# Subtest: each fixture lists capabilities that point back at it
+ok 223 - each fixture lists capabilities that point back at it
+  ---
+  duration_ms: 0.213606
+  type: 'test'
+  ...
+# Subtest: every proven cell binds an accepted PASS browser-real register row
+ok 224 - every proven cell binds an accepted PASS browser-real register row
+  ---
+  duration_ms: 0.304319
+  type: 'test'
+  ...
+# Subtest: a proven cell without a PASS browser-real register row is refused
+ok 225 - a proven cell without a PASS browser-real register row is refused
+  ---
+  duration_ms: 1.514283
+  type: 'test'
+  ...
+# Subtest: source is refused when it is not the pinned commit
+ok 226 - source is refused when it is not the pinned commit
+  ---
+  duration_ms: 4.531283
+  type: 'test'
+  ...
+# Subtest: checksums are refused when the file on disk is not the recorded one
+ok 227 - checksums are refused when the file on disk is not the recorded one
+  ---
+  duration_ms: 4.410875
+  type: 'test'
+  ...
+# Subtest: a path outside the fixture set is refused
+ok 228 - a path outside the fixture set is refused
+  ---
+  duration_ms: 10.23035
+  type: 'test'
+  ...
+# Subtest: a fixture without an expected result is refused
+ok 229 - a fixture without an expected result is refused
+  ---
+  duration_ms: 2.366801
+  type: 'test'
+  ...
+# Subtest: a capability claimed as supported without a case is refused
+ok 230 - a capability claimed as supported without a case is refused
+  ---
+  duration_ms: 1.223416
+  type: 'test'
+  ...
+# Subtest: a lab fixture may not carry a committed checksum
+ok 231 - a lab fixture may not carry a committed checksum
+  ---
+  duration_ms: 2.175595
+  type: 'test'
+  ...
+# Subtest: a lab fixture must declare where it will live and how large it is
+ok 232 - a lab fixture must declare where it will live and how large it is
+  ---
+  duration_ms: 3.111593
+  type: 'test'
+  ...
+# Subtest: a lab record naming an undeclared fixture is refused
+ok 233 - a lab record naming an undeclared fixture is refused
+  ---
+  duration_ms: 0.257423
+  type: 'test'
+  ...
+# Subtest: a lab record whose labPath disagrees with the manifest is refused
+ok 234 - a lab record whose labPath disagrees with the manifest is refused
+  ---
+  duration_ms: 0.124726
+  type: 'test'
+  ...
+# Subtest: a lab record whose file is missing is refused
+ok 235 - a lab record whose file is missing is refused
+  ---
+  duration_ms: 0.097253
+  type: 'test'
+  ...
+# Subtest: the recorded package workspace closure is checked against the pinned package.json
+ok 236 - the recorded package workspace closure is checked against the pinned package.json # SKIP
+  ---
+  duration_ms: 0.029605
+  type: 'test'
+  ...
+# Subtest: the recorded app runtime closure is checked against the pinned package.json, not read as prose
+ok 237 - the recorded app runtime closure is checked against the pinned package.json, not read as prose # SKIP
+  ---
+  duration_ms: 0.027265
+  type: 'test'
+  ...
+# Subtest: pin-anchored reads use the pinned commit object, not a drifted HEAD
+ok 238 - pin-anchored reads use the pinned commit object, not a drifted HEAD
+  ---
+  duration_ms: 36.047682
+  type: 'test'
+  ...
+# Subtest: a capability that cites a path missing from the pin is refused
+ok 239 - a capability that cites a path missing from the pin is refused # SKIP
+  ---
+  duration_ms: 0.045867
+  type: 'test'
+  ...
+# Subtest: the real lab record agrees with the manifest when it exists on this machine
+ok 240 - the real lab record agrees with the manifest when it exists on this machine # SKIP
+  ---
+  duration_ms: 0.027155
+  type: 'test'
+  ...
+# Subtest: a lab record generated far below the declared Q9 band is refused
+ok 241 - a lab record generated far below the declared Q9 band is refused
+  ---
+  duration_ms: 0.226017
+  type: 'test'
+  ...
+# Subtest: a lab record with no recorded generation size is refused
+ok 242 - a lab record with no recorded generation size is refused
+  ---
+  duration_ms: 0.180366
+  type: 'test'
+  ...
+# Subtest: a lab record generated at the declared Q9 band is accepted on the band check
+ok 243 - a lab record generated at the declared Q9 band is accepted on the band check
+  ---
+  duration_ms: 0.162473
+  type: 'test'
+  ...
+# Subtest: the capability matrix is the rendering of the current data, not a stale copy
+ok 244 - the capability matrix is the rendering of the current data, not a stale copy
+  ---
+  duration_ms: 0.768849
+  type: 'test'
+  ...
+# Subtest: the matrix keeps every status cell at chưa thử
+ok 245 - the matrix keeps every status cell at chưa thử
+  ---
+  duration_ms: 0.205374
+  type: 'test'
+  ...
+# Subtest: the licence bundle ships with the copied fixtures and matches its record
+ok 246 - the licence bundle ships with the copied fixtures and matches its record
+  ---
+  duration_ms: 0.270748
+  type: 'test'
+  ...
+# Subtest: every copied fixture names a licence or a third-party notice
+ok 247 - every copied fixture names a licence or a third-party notice
+  ---
+  duration_ms: 0.091045
+  type: 'test'
+  ...
+# Subtest: a licence bundle entry with a wrong checksum is refused
+ok 248 - a licence bundle entry with a wrong checksum is refused
+  ---
+  duration_ms: 1.454148
+  type: 'test'
+  ...
+# Subtest: the trial source plan refuses the ee/ tree, node_modules, target/ and environment files
+ok 249 - the trial source plan refuses the ee/ tree, node_modules, target/ and environment files
+  ---
+  duration_ms: 0.703575
+  type: 'test'
+  ...
+# Subtest: a produced copy audit flags an ee/ directory, node_modules and an environment file
+ok 250 - a produced copy audit flags an ee/ directory, node_modules and an environment file
+  ---
+  duration_ms: 1.021665
+  type: 'test'
+  ...
+# Subtest: an allowlist that mentions ee/ is refused
+ok 251 - an allowlist that mentions ee/ is refused
+  ---
+  duration_ms: 1.542567
+  type: 'test'
+  ...
+# Subtest: inspectSource reports the pinned commit and tree when the checkout is present
+ok 252 - inspectSource reports the pinned commit and tree when the checkout is present # SKIP
+  ---
+  duration_ms: 0.099483
+  type: 'test'
+  ...
+# Subtest: the negative self-test cases are all rejected and the control passes
+ok 253 - the negative self-test cases are all rejected and the control passes
+  ---
+  duration_ms: 80.901565
+  type: 'test'
+  ...
+# (node:31435) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/scripts/office-g0/markdown-source-buffer.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: source bytes, failed saves and edits during save remain recoverable
+ok 254 - source bytes, failed saves and edits during save remain recoverable
+  ---
+  duration_ms: 0.712767
+  type: 'test'
+  ...
+# Subtest: relative images and attachment links resolve without including code or external authorities
+ok 255 - relative images and attachment links resolve without including code or external authorities
+  ---
+  duration_ms: 1.203126
+  type: 'test'
+  ...
+# Subtest: disk save and distinct reopen preserve exact UTF-8, attachments and reject cross-view/path writes
+not ok 256 - disk save and distinct reopen preserve exact UTF-8, attachments and reject cross-view/path writes
+  ---
+  duration_ms: 0.353197
+  type: 'test'
+  location: '/workspace/scripts/office-g0/markdown-cycle.test.mjs:40:1'
+  failureType: 'testCodeFailure'
+  error: 'The "path" argument must be of type string. Received undefined'
+  code: 'ERR_INVALID_ARG_TYPE'
+  name: 'TypeError'
+  stack: |-
+    join (node:path:1354:7)
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/markdown-cycle.test.mjs:41:30)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: first grant fans out to every delegated document and only to the changed account
+ok 257 - first grant fans out to every delegated document and only to the changed account
+  ---
+  duration_ms: 9.404051
+  type: 'test'
+  ...
+# Subtest: edit -> view still fans out to both delegated documents, and to no one else
+ok 258 - edit -> view still fans out to both delegated documents, and to no one else
+  ---
+  duration_ms: 0.938016
+  type: 'test'
+  ...
+# Subtest: view -> edit still fans out to both delegated documents
+ok 259 - view -> edit still fans out to both delegated documents
+  ---
+  duration_ms: 0.515652
+  type: 'test'
+  ...
+# Subtest: a repeated same-level set emits nothing: no duplicate for an unchanged level
+ok 260 - a repeated same-level set emits nothing: no duplicate for an unchanged level
+  ---
+  duration_ms: 0.375801
+  type: 'test'
+  ...
+# Subtest: clear still emits an id-only removal and a later grant fans out again
+ok 261 - clear still emits an id-only removal and a later grant fans out again
+  ---
+  duration_ms: 0.703149
+  type: 'test'
+  ...
+# Subtest: the fan-out names no other owner's document, no direct-ACL document, and keeps org/ws scope
+ok 262 - the fan-out names no other owner's document, no direct-ACL document, and keeps org/ws scope
+  ---
+  duration_ms: 0.459514
+  type: 'test'
+  ...
+# Subtest: each owner-level change moves what the changed account can actually open
+ok 263 - each owner-level change moves what the changed account can actually open
+  ---
+  duration_ms: 0.452177
+  type: 'test'
+  ...
+# Subtest: all sixteen valid level/floor comparisons follow the declared order
+ok 264 - all sixteen valid level/floor comparisons follow the declared order
+  ---
+  duration_ms: 1.229014
+  type: 'test'
+  ...
+# Subtest: set accepts view, the rank-zero level, and stores every level
+ok 265 - set accepts view, the rank-zero level, and stores every level
+  ---
+  duration_ms: 0.78442
+  type: 'test'
+  ...
+# Subtest: set refuses every non-level value without mutating existing grants
+ok 266 - set refuses every non-level value without mutating existing grants
+  ---
+  duration_ms: 0.624835
+  type: 'test'
+  ...
+# Subtest: a refused level leaves the ACL byte-for-byte as it was
+ok 267 - a refused level leaves the ACL byte-for-byte as it was
+  ---
+  duration_ms: 5.316489
+  type: 'test'
+  ...
+# Subtest: an invalid held level or floor can never grant access
+ok 268 - an invalid held level or floor can never grant access
+  ---
+  duration_ms: 0.251872
+  type: 'test'
+  ...
+# Subtest: has agrees with levelAtLeast for a grant, an absent account and a bad floor
+ok 269 - has agrees with levelAtLeast for a grant, an absent account and a bad floor
+  ---
+  duration_ms: 0.090206
+  type: 'test'
+  ...
+# Subtest: delete removes exactly one grant, tolerates an absent account and keeps the rest
+ok 270 - delete removes exactly one grant, tolerates an absent account and keeps the rest
+  ---
+  duration_ms: 0.150222
+  type: 'test'
+  ...
+# Subtest: entries is a sorted, complete membership snapshot
+ok 271 - entries is a sorted, complete membership snapshot
+  ---
+  duration_ms: 0.122924
+  type: 'test'
+  ...
+# Subtest: isElevation flags a carried level above the source and ignores a missing carry
+ok 272 - isElevation flags a carried level above the source and ignores a missing carry
+  ---
+  duration_ms: 0.237185
+  type: 'test'
+  ...
+# Subtest: isElevation fails closed on an unrankable level instead of allowing it
+ok 273 - isElevation fails closed on an unrankable level instead of allowing it
+  ---
+  duration_ms: 0.289667
+  type: 'test'
+  ...
+# Subtest: S256 is the only method and it is BASE64URL, not hex
+ok 274 - S256 is the only method and it is BASE64URL, not hex
+  ---
+  duration_ms: 0.999475
+  type: 'test'
+  ...
+# Subtest: a generated verifier is RFC-shaped and its challenge round-trips
+ok 275 - a generated verifier is RFC-shaped and its challenge round-trips
+  ---
+  duration_ms: 2.479057
+  type: 'test'
+  ...
+# Subtest: every permitted character is reachable and the length is honoured
+ok 276 - every permitted character is reachable and the length is honoured
+  ---
+  duration_ms: 4.977662
+  type: 'test'
+  ...
+# Subtest: states are opaque, unique and unpadded
+ok 277 - states are opaque, unique and unpadded
+  ---
+  duration_ms: 0.943381
+  type: 'test'
+  ...
+# Subtest: base64url is padding-free and URL-safe
+ok 278 - base64url is padding-free and URL-safe
+  ---
+  duration_ms: 0.173681
+  type: 'test'
+  ...
+# Subtest: malformed input is not silently turned into a challenge
+ok 279 - malformed input is not silently turned into a challenge
+  ---
+  duration_ms: 0.082519
+  type: 'test'
+  ...
+# file:///workspace/scripts/office-g0/pptx-image-evidence.test.mjs:52
+#   throw new Error(
+#         ^
+# Error: OFFICE_G0_PPTX_FIXTURE_DEPS must name the prepared source holding node_modules (e.g. .uniwork-dev/office-g0/bootstrap-source)
+#     at file:///workspace/scripts/office-g0/pptx-image-evidence.test.mjs:52:9
+#     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+#     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+#     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+# Node.js v22.23.3
+# Subtest: scripts/office-g0/pptx-image-evidence.test.mjs
+not ok 17 - scripts/office-g0/pptx-image-evidence.test.mjs
+  ---
+  duration_ms: 31.988224
+  type: 'test'
+  location: '/workspace/scripts/office-g0/pptx-image-evidence.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# fatal: path 'NOTICE-absent' does not exist in '4bf9b441c0d48cb75084e7cb8d5c0b59a5ec16d4'
+# fatal: path 'not-a-lockfile.json' does not exist in '4bf9b441c0d48cb75084e7cb8d5c0b59a5ec16d4'
+# source: 4bf9b441c0d4, tree 142f4c338e0e, dirty (bytes come from the pinned commit)
+# planned: 8 files, 159 bytes -> /tmp/uniwork-g0-suite-rQA5YA/ws-8/.uniwork-dev/office-g0/trial-source
+# excluded: 6 tracked file(s) under exclude/excludedSets/neverCopy
+# prepare-source: wrote 8 files to /tmp/uniwork-g0-suite-rQA5YA/ws-8/.uniwork-dev/office-g0/trial-source
+# prepare-source: record at /tmp/uniwork-g0-suite-rQA5YA/ws-8/.uniwork-dev/office-g0/trial-source/prepare-record.json
+# source: 4bf9b441c0d4, tree 142f4c338e0e, clean
+# planned: 8 files, 159 bytes -> /tmp/uniwork-g0-suite-rQA5YA/ws-9/.uniwork-dev/office-g0/trial-source
+# excluded: 6 tracked file(s) under exclude/excludedSets/neverCopy
+# prepare-source: wrote 8 files to /tmp/uniwork-g0-suite-rQA5YA/ws-9/.uniwork-dev/office-g0/trial-source
+# prepare-source: record at /tmp/uniwork-g0-suite-rQA5YA/ws-9/.uniwork-dev/office-g0/trial-source/prepare-record.json
+# source: 4bf9b441c0d4, tree 142f4c338e0e, clean
+# planned: 8 files, 159 bytes -> /tmp/uniwork-g0-suite-rQA5YA/ws-9/.uniwork-dev/office-g0/trial-source
+# excluded: 6 tracked file(s) under exclude/excludedSets/neverCopy
+# prepare-source: destination /tmp/uniwork-g0-suite-rQA5YA/ws-9/.uniwork-dev/office-g0/trial-source already exists; pass --replace to rebuild a copy this script produced
+# source: 4bf9b441c0d4, tree 142f4c338e0e, clean
+# planned: 8 files, 159 bytes -> /tmp/uniwork-g0-suite-rQA5YA/ws-9/.uniwork-dev/office-g0/trial-source
+# excluded: 6 tracked file(s) under exclude/excludedSets/neverCopy
+# prepare-source: wrote 8 files to /tmp/uniwork-g0-suite-rQA5YA/ws-9/.uniwork-dev/office-g0/trial-source
+# prepare-source: record at /tmp/uniwork-g0-suite-rQA5YA/ws-9/.uniwork-dev/office-g0/trial-source/prepare-record.json
+# source: 4bf9b441c0d4, tree 142f4c338e0e, clean
+# planned: 8 files, 159 bytes -> /tmp/uniwork-g0-suite-rQA5YA/ws-10/.uniwork-dev/office-g0/trial-source
+# excluded: 6 tracked file(s) under exclude/excludedSets/neverCopy
+# prepare-source: destination /tmp/uniwork-g0-suite-rQA5YA/ws-10/.uniwork-dev/office-g0/trial-source has no prepare-record.json; refusing to replace it
+# prepare-source: source HEAD is 4bf9b441c0d48cb75084e7cb8d5c0b59a5ec16d4 but the fixture manifest pins 0000000000000000000000000000000000000000
+# prepare-source: lockfile package-lock.json has pinned bytes F25E7D293543B03D1A2CAB20F9827739FD644AF8400382BC4F6A5124E46AEAD0 but the source manifest records BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+# prepare-source: lockfile package-lock.json is 22 bytes but the source manifest records 1
+# prepare-source: license file LICENSE has pinned bytes 79DBC05F6C03FA8A083912DDECF23E8796CD668AC8E256DAC951045F4B0D6653 but the source manifest records AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+# source: 4bf9b441c0d4, tree 142f4c338e0e, clean
+# planned: 8 files, 159 bytes -> /tmp/uniwork-g0-suite-rQA5YA/outside-14/trial-source
+# excluded: 6 tracked file(s) under exclude/excludedSets/neverCopy
+# prepare-source: lab directory /tmp/uniwork-g0-suite-rQA5YA/outside-14 is not inside its workspace /tmp/uniwork-g0-suite-rQA5YA/ws-14
+# prepare-source: lab directory /tmp/uniwork-g0-suite-rQA5YA/outside-14 is not the configured lab /tmp/uniwork-g0-suite-rQA5YA/ws-14/.uniwork-dev/office-g0 nor inside it
+# source: 4bf9b441c0d4, tree 142f4c338e0e, clean
+# planned: 8 files, 159 bytes -> /tmp/uniwork-g0-suite-rQA5YA/ws-15/.uniwork-dev/office-g0/trial-source
+# excluded: 6 tracked file(s) under exclude/excludedSets/neverCopy
+# prepare-source: dry run only; nothing was written
+# {"commit":"4bf9b441c0d48cb75084e7cb8d5c0b59a5ec16d4","tree":"142f4c338e0ec0e25b96f87e7e010312fad257c4","files":[".gitignore","LICENSE","NOTICE","apps/docs/src/index.ts","apps/sheets/package.json","docs/notes.md","package-lock.json","packages/ui/tee/keep.ts"],"refused":[{"path":"apps/docs/.env.local","reason":"names an environment file"},{"path":"apps/sheets/target/debug/build.bin","reason":"names a Rust target directory"},{"path":"apps/shell/release/artifact.zip","reason":"matches exclude/excludedSet apps/*/release"},{"path":"packages/docx-engine/fixtures/generated/big.docx","reason":"matches excludedSet **/fixtures/generated"},{"path":"packages/ui/dist/bundle.js","reason":"matches exclude/excludedSet **/dist"},{"path":"packages/ui/tsconfig.tsbuildinfo","reason":"matches exclude/excludedSet **/*.tsbuildinfo"}],"unmatched":[]}
+# prepare-source: trialSource.producedDirName "../escaped" contains a path separator
+# prepare-source: trialSource.producedDirName ".." is a traversal segment
+# prepare-source: trialSource.producedDirName "." is a traversal segment
+# prepare-source: trialSource.producedDirName "" is empty
+# prepare-source: trialSource.producedDirName "nested/child" contains a path separator
+# prepare-source: trialSource.producedDirName "C:\\\\\\\\Windows" contains a path separator
+# prepare-source: trialSource.producedDirName "/abs" contains a path separator
+# prepare-source: trialSource.producedDirName "a\\\\\\\\b" contains a path separator
+# source: 0fd2be786313, tree 142f4c338e0e, clean
+# planned: 8 files, 159 bytes -> /tmp/uniwork-g0-suite-rQA5YA/ws-20/.uniwork-dev/office-g0/trial-source
+# excluded: 6 tracked file(s) under exclude/excludedSets/neverCopy
+# prepare-source: wrote 8 files to /tmp/uniwork-g0-suite-rQA5YA/ws-20/.uniwork-dev/office-g0/trial-source
+# prepare-source: record at /tmp/uniwork-g0-suite-rQA5YA/ws-20/.uniwork-dev/office-g0/trial-source/prepare-record.json
+# Subtest: planCopy keeps only allowlisted tracked files and refuses exclude, excludedSets, neverCopy and unsafe names
+ok 281 - planCopy keeps only allowlisted tracked files and refuses exclude, excludedSets, neverCopy and unsafe names
+  ---
+  duration_ms: 19.317043
+  type: 'test'
+  ...
+# Subtest: untracked, ignored and dirty files never enter the plan, because the plan comes from the pinned tree
+ok 282 - untracked, ignored and dirty files never enter the plan, because the plan comes from the pinned tree
+  ---
+  duration_ms: 17.158389
+  type: 'test'
+  ...
+# Subtest: refuseReason and normalizeRel reject absolute, traversal, backslash, ee/ and unsafe names
+ok 283 - refuseReason and normalizeRel reject absolute, traversal, backslash, ee/ and unsafe names
+  ---
+  duration_ms: 0.262293
+  type: 'test'
+  ...
+# Subtest: a glob matches path segments, not substrings, so a name that merely resembles one is kept
+ok 284 - a glob matches path segments, not substrings, so a name that merely resembles one is kept
+  ---
+  duration_ms: 0.099937
+  type: 'test'
+  ...
+# Subtest: an include entry that matches nothing in the pinned tree is reported, not silently dropped
+ok 285 - an include entry that matches nothing in the pinned tree is reported, not silently dropped
+  ---
+  duration_ms: 17.289769
+  type: 'test'
+  ...
+# Subtest: a malicious allowlist cannot escape the tree, use a drive path or smuggle ee/ in
+ok 286 - a malicious allowlist cannot escape the tree, use a drive path or smuggle ee/ in
+  ---
+  duration_ms: 15.415293
+  type: 'test'
+  ...
+# Subtest: readTreeEntries reads modes and object ids from the object store, not from the working tree
+ok 287 - readTreeEntries reads modes and object ids from the object store, not from the working tree
+  ---
+  duration_ms: 20.004824
+  type: 'test'
+  ...
+# Subtest: a symlink in the pinned tree is refused rather than followed
+ok 288 - a symlink in the pinned tree is refused rather than followed
+  ---
+  duration_ms: 24.702155
+  type: 'test'
+  ...
+# Subtest: the licence and lockfile checks refuse bytes that do not match the pinned commit
+ok 289 - the licence and lockfile checks refuse bytes that do not match the pinned commit
+  ---
+  duration_ms: 42.345906
+  type: 'test'
+  ...
+# Subtest: containment refuses prefix siblings, the lab root, an ancestor and any overlap with the repository or source
+ok 290 - containment refuses prefix siblings, the lab root, an ancestor and any overlap with the repository or source
+  ---
+  duration_ms: 1.479279
+  type: 'test'
+  ...
+# Subtest: a junctioned ancestor is resolved, so a link cannot widen the destination
+ok 291 - a junctioned ancestor is resolved, so a link cannot widen the destination
+  ---
+  duration_ms: 0.415004
+  type: 'test'
+  ...
+# Subtest: an existing target is refused without --replace, and one this script did not write is never replaced
+ok 292 - an existing target is refused without --replace, and one this script did not write is never replaced
+  ---
+  duration_ms: 1.131576
+  type: 'test'
+  ...
+# Subtest: cleanupStaging removes only its own staging directory and refuses the lab, the target and the source
+ok 293 - cleanupStaging removes only its own staging directory and refuses the lab, the target and the source
+  ---
+  duration_ms: 0.573742
+  type: 'test'
+  ...
+# Subtest: an interrupted promotion leaves a complete copy: the previous one is restored, never half-written
+ok 294 - an interrupted promotion leaves a complete copy: the previous one is restored, never half-written
+  ---
+  duration_ms: 0.744983
+  type: 'test'
+  ...
+# Subtest: verifyProducedCopy rejects a missing file, an extra file, wrong bytes, a link and a wrong lockfile
+ok 295 - verifyProducedCopy rejects a missing file, an extra file, wrong bytes, a link and a wrong lockfile
+  ---
+  duration_ms: 2.191199
+  type: 'test'
+  ...
+# Subtest: verifyProducedCopy flags a link in the produced copy
+ok 296 - verifyProducedCopy flags a link in the produced copy
+  ---
+  duration_ms: 0.375249
+  type: 'test'
+  ...
+# Subtest: auditProducedCopy flags ee/, node_modules, an environment file and a link in a produced copy
+ok 297 - auditProducedCopy flags ee/, node_modules, an environment file and a link in a produced copy
+  ---
+  duration_ms: 1.03533
+  type: 'test'
+  ...
+# Subtest: the pinned extraction writes the pinned bytes and marks the copy as managed
+ok 298 - the pinned extraction writes the pinned bytes and marks the copy as managed
+  ---
+  duration_ms: 44.55577
+  type: 'test'
+  ...
+# Subtest: a second run without --replace refuses and leaves the first copy untouched; --replace rebuilds it
+ok 299 - a second run without --replace refuses and leaves the first copy untouched; --replace rebuilds it
+  ---
+  duration_ms: 94.693036
+  type: 'test'
+  ...
+# Subtest: an unmarked directory at the destination is never deleted, even with --replace
+ok 300 - an unmarked directory at the destination is never deleted, even with --replace
+  ---
+  duration_ms: 40.704509
+  type: 'test'
+  ...
+# Subtest: a source whose HEAD is not the pinned commit is refused and nothing is written
+ok 301 - a source whose HEAD is not the pinned commit is refused and nothing is written
+  ---
+  duration_ms: 28.273614
+  type: 'test'
+  ...
+# Subtest: a wrong lockfile hash or a wrong licence hash is refused and nothing is written
+ok 302 - a wrong lockfile hash or a wrong licence hash is refused and nothing is written
+  ---
+  duration_ms: 76.003832
+  type: 'test'
+  ...
+# Subtest: a destination outside the configured lab is refused even when --work-dir names it
+ok 303 - a destination outside the configured lab is refused even when --work-dir names it
+  ---
+  duration_ms: 48.363081
+  type: 'test'
+  ...
+# Subtest: a dry run and --print-plan report the plan without writing anything
+ok 304 - a dry run and --print-plan report the plan without writing anything
+  ---
+  duration_ms: 44.535676
+  type: 'test'
+  ...
+# Subtest: --print-plan reports the resolved plan and writes nothing
+ok 305 - --print-plan reports the resolved plan and writes nothing
+  ---
+  duration_ms: 37.808025
+  type: 'test'
+  ...
+# Subtest: the default destination is the configured lab plus the manifest producedDirName
+ok 306 - the default destination is the configured lab plus the manifest producedDirName
+  ---
+  duration_ms: 14.476471
+  type: 'test'
+  ...
+# Subtest: parseArgs keeps the CLI compatible: flags parse, --force is gone and unknown flags are refused
+ok 307 - parseArgs keeps the CLI compatible: flags parse, --force is gone and unknown flags are refused
+  ---
+  duration_ms: 0.239671
+  type: 'test'
+  ...
+# Subtest: the real source checkout matches the pinned commit, tree and allowlist when it is present
+ok 308 - the real source checkout matches the pinned commit, tree and allowlist when it is present # SKIP
+  ---
+  duration_ms: 0.03692
+  type: 'test'
+  ...
+# Subtest: readBlobsBatch returns the pinned bytes for many blobs, verified against their object ids
+ok 309 - readBlobsBatch returns the pinned bytes for many blobs, verified against their object ids
+  ---
+  duration_ms: 20.518258
+  type: 'test'
+  ...
+# Subtest: readTreeEntries reports the size of every entry from the object store, not from the working tree
+ok 310 - readTreeEntries reports the size of every entry from the object store, not from the working tree
+  ---
+  duration_ms: 17.064599
+  type: 'test'
+  ...
+# Subtest: the real pinned source extracts byte for byte into a lab, with a complete managed record
+ok 311 - the real pinned source extracts byte for byte into a lab, with a complete managed record # SKIP
+  ---
+  duration_ms: 0.047264
+  type: 'test'
+  ...
+# Subtest: a hostile producedDirName cannot escape the lab: the basename is validated and stays inside
+ok 312 - a hostile producedDirName cannot escape the lab: the basename is validated and stays inside
+  ---
+  duration_ms: 45.395502
+  type: 'test'
+  ...
+# Subtest: producedDirNameProblem accepts one plain segment and refuses separators, traversal and drives
+ok 313 - producedDirNameProblem accepts one plain segment and refuses separators, traversal and drives
+  ---
+  duration_ms: 0.120693
+  type: 'test'
+  ...
+# Subtest: a junction at the configured lab root cannot widen the workspace boundary
+ok 314 - a junction at the configured lab root cannot widen the workspace boundary
+  ---
+  duration_ms: 0.396973
+  type: 'test'
+  ...
+# Subtest: a junction at .uniwork-dev cannot widen the workspace boundary either
+ok 315 - a junction at .uniwork-dev cannot widen the workspace boundary either
+  ---
+  duration_ms: 0.466411
+  type: 'test'
+  ...
+# Subtest: a real lab inside its real workspace is still accepted, and a nested worktree layout is preserved
+ok 316 - a real lab inside its real workspace is still accepted, and a nested worktree layout is preserved
+  ---
+  duration_ms: 0.481545
+  type: 'test'
+  ...
+# Subtest: an excludedSet path glob is enforced in the plan with no duplicate exclude entry
+ok 317 - an excludedSet path glob is enforced in the plan with no duplicate exclude entry
+  ---
+  duration_ms: 16.951875
+  type: 'test'
+  ...
+# Subtest: a literal excludedSet directory, a glob excludedSet descendant and an excludedSets[].glob are all flagged by the audit
+ok 318 - a literal excludedSet directory, a glob excludedSet descendant and an excludedSets[].glob are all flagged by the audit
+  ---
+  duration_ms: 0.62208
+  type: 'test'
+  ...
+# Subtest: a linked or directory marker never authorizes replacement
+ok 319 - a linked or directory marker never authorizes replacement
+  ---
+  duration_ms: 0.492158
+  type: 'test'
+  ...
+# Subtest: the registered callback is the one exact string
+ok 320 - the registered callback is the one exact string
+  ---
+  duration_ms: 0.464626
+  type: 'test'
+  ...
+# Subtest: the exact callback passes, every near miss fails
+ok 321 - the exact callback passes, every near miss fails
+  ---
+  duration_ms: 0.552849
+  type: 'test'
+  ...
+# Subtest: parsing keeps code and state verbatim
+ok 322 - parsing keeps code and state verbatim
+  ---
+  duration_ms: 0.113857
+  type: 'test'
+  ...
+# Subtest: RT-02 evidence, document and register pins match the actual source bytes
+not ok 323 - RT-02 evidence, document and register pins match the actual source bytes
+  ---
+  duration_ms: 3.304072
+  type: 'test'
+  location: '/workspace/scripts/office-g0/rt02-reconciliation.test.mjs:16:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    docs/office/g0/engine-contract.md
+    + actual - expected
+    
+    + 'e294d063a72e2b2ef41ff5739226d12f3e6aeda62a72c79118f3544dc69effd1'
+    - '0e7e728a973f87d7933b91c38dc45e814cca9cdafae69d1c09743790332fd3c5'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '0e7e728a973f87d7933b91c38dc45e814cca9cdafae69d1c09743790332fd3c5'
+  actual: 'e294d063a72e2b2ef41ff5739226d12f3e6aeda62a72c79118f3544dc69effd1'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/rt02-reconciliation.test.mjs:39:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: eleven loopback cases and six separate fault cases match their original records
+ok 324 - eleven loopback cases and six separate fault cases match their original records
+  ---
+  duration_ms: 3.488428
+  type: 'test'
+  ...
+# Subtest: six case-bound register rows reproduce the real-engine records without claiming product placement
+ok 325 - six case-bound register rows reproduce the real-engine records without claiming product placement
+  ---
+  duration_ms: 9.903881
+  type: 'test'
+  ...
+# Subtest: every mandatory fault case from the plan exists exactly once
+ok 326 - every mandatory fault case from the plan exists exactly once
+  ---
+  duration_ms: 1.164762
+  type: 'test'
+  ...
+# Subtest: the plan's verbatim mandatory list is still covered
+ok 327 - the plan's verbatim mandatory list is still covered
+  ---
+  duration_ms: 0.105345
+  type: 'test'
+  ...
+# Subtest: the review findings of the previous artifact are pinned by their own cases
+ok 328 - the review findings of the previous artifact are pinned by their own cases
+  ---
+  duration_ms: 0.117083
+  type: 'test'
+  ...
+# Subtest: every fault case passes against its literal oracle
+ok 329 - every fault case passes against its literal oracle
+  ---
+  duration_ms: 52.152957
+  type: 'test'
+  ...
+# Subtest: the legacy BeginIdempotent gap is a MODELED comparison, not a run claim
+ok 330 - the legacy BeginIdempotent gap is a MODELED comparison, not a run claim
+  ---
+  duration_ms: 72.924547
+  type: 'test'
+  ...
+# Subtest: draft persistence is real and the store never sees a caller's ACL
+ok 331 - draft persistence is real and the store never sees a caller's ACL
+  ---
+  duration_ms: 2.766358
+  type: 'test'
+  ...
+# Subtest: the accepted store fails loudly and the model names a locked recovery
+ok 332 - the accepted store fails loudly and the model names a locked recovery
+  ---
+  duration_ms: 2.292735
+  type: 'test'
+  ...
+# Subtest: a draft is only removed by explicit discard or a confirmed commit
+ok 333 - a draft is only removed by explicit discard or a confirmed commit
+  ---
+  duration_ms: 0.487846
+  type: 'test'
+  ...
+# Subtest: no draft API returns a payload without recovery
+ok 334 - no draft API returns a payload without recovery
+  ---
+  duration_ms: 0.35802
+  type: 'test'
+  ...
+# Subtest: every modeled error carries a status and a class the client can switch on
+ok 335 - every modeled error carries a status and a class the client can switch on
+  ---
+  duration_ms: 0.340318
+  type: 'test'
+  ...
+# Subtest: the evidence records the modeled-authorization limits
+ok 336 - the evidence records the modeled-authorization limits
+  ---
+  duration_ms: 28.332644
+  type: 'test'
+  ...
+# Subtest: the model refuses an unknown session instead of inventing one
+ok 337 - the model refuses an unknown session instead of inventing one
+  ---
+  duration_ms: 0.203787
+  type: 'test'
+  ...
+# Subtest: the PKCE helper matches RFC 7636 Appendix B and uses base64url
+ok 338 - the PKCE helper matches RFC 7636 Appendix B and uses base64url
+  ---
+  duration_ms: 0.150774
+  type: 'test'
+  ...
+# Subtest: only the exact uniwork-office callback is registered
+ok 339 - only the exact uniwork-office callback is registered
+  ---
+  duration_ms: 0.477282
+  type: 'test'
+  ...
+# Subtest: each case runs in its own directory so drafts cannot cross
+ok 340 - each case runs in its own directory so drafts cannot cross
+  ---
+  duration_ms: 24.085346
+  type: 'test'
+  ...
+# Subtest: a failure before replacement is refused and loses no bytes
+ok 341 - a failure before replacement is refused and loses no bytes
+  ---
+  duration_ms: 3.803627
+  type: 'test'
+  ...
+# Subtest: the runner declares the docs app, its own spec/config/report and its own ports
+ok 342 - the runner declares the docs app, its own spec/config/report and its own ports
+  ---
+  duration_ms: 1.080409
+  type: 'test'
+  ...
+# Subtest: the spec and config the runner targets really exist and declare the table cycle
+ok 343 - the spec and config the runner targets really exist and declare the table cycle
+  ---
+  duration_ms: 0.553798
+  type: 'test'
+  ...
+# Subtest: the fixture pin accepts the authored fixture and rejects a changed one
+ok 344 - the fixture pin accepts the authored fixture and rejects a changed one
+  ---
+  duration_ms: 0.514085
+  type: 'test'
+  ...
+# Subtest: a skipped/fixme/todo test is refused before any browser starts
+ok 345 - a skipped/fixme/todo test is refused before any browser starts
+  ---
+  duration_ms: 0.177398
+  type: 'test'
+  ...
+# Subtest: the manifest gate requires the expected hash, pin, single app and untouched source
+ok 346 - the manifest gate requires the expected hash, pin, single app and untouched source
+  ---
+  duration_ms: 0.446601
+  type: 'test'
+  ...
+# Subtest: every caller-supplied path must stay inside the workspace
+ok 347 - every caller-supplied path must stay inside the workspace
+  ---
+  duration_ms: 0.237153
+  type: 'test'
+  ...
+# Subtest: runner args default the pin and refuse a missing required flag
+ok 348 - runner args default the pin and refuse a missing required flag
+  ---
+  duration_ms: 0.655272
+  type: 'test'
+  ...
+# Subtest: an earlier evidence prefix is never reused
+ok 349 - an earlier evidence prefix is never reused
+  ---
+  duration_ms: 0.159744
+  type: 'test'
+  ...
+# Subtest: discovery and the run report must both prove a clean two-browser pass
+ok 350 - discovery and the run report must both prove a clean two-browser pass
+  ---
+  duration_ms: 1.057092
+  type: 'test'
+  ...
+# Subtest: the child environment pins the lab origin, report target and TEMP inside the prefix
+ok 351 - the child environment pins the lab origin, report target and TEMP inside the prefix
+  ---
+  duration_ms: 0.342979
+  type: 'test'
+  ...
+# Subtest: evidence refs hash the spec, config, oracle and fixture this run used
+ok 352 - evidence refs hash the spec, config, oracle and fixture this run used
+  ---
+  duration_ms: 0.577555
+  type: 'test'
+  ...
+# Subtest: a busy port this runner did not mint is refused
+ok 353 - a busy port this runner did not mint is refused
+  ---
+  duration_ms: 6.717845
+  type: 'test'
+  ...
+# Subtest: a child wait that outlives its bound fails by name instead of hanging
+ok 354 - a child wait that outlives its bound fails by name instead of hanging
+  ---
+  duration_ms: 20.373691
+  type: 'test'
+  ...
+# Subtest: stopping an already-exited child is honest and a fabricated pid never reaches a real kill
+not ok 355 - stopping an already-exited child is honest and a fabricated pid never reaches a real kill
+  ---
+  duration_ms: 0.377398
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-docx-table-cycle.test.mjs:288:1'
+  failureType: 'testCodeFailure'
+  error: 'child.kill is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    stopChildTree (file:///workspace/scripts/office-g0/run-docx-table-cycle.mjs:569:9)
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-docx-table-cycle.test.mjs:300:26)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cleanup violations and finalization keep a failure instead of reporting success
+ok 356 - cleanup violations and finalization keep a failure instead of reporting success
+  ---
+  duration_ms: 0.264197
+  type: 'test'
+  ...
+# Subtest: the finalization seam writes exactly one record and a write failure forces a failure
+ok 357 - the finalization seam writes exactly one record and a write failure forces a failure
+  ---
+  duration_ms: 0.409292
+  type: 'test'
+  ...
+# Subtest: the Playwright CLI resolves from the candidate e2e dependency tree
+ok 358 - the Playwright CLI resolves from the candidate e2e dependency tree
+  ---
+  duration_ms: 1.110986
+  type: 'test'
+  ...
+# Subtest: source and work are required, and are never inferred from a sibling lane
+ok 359 - source and work are required, and are never inferred from a sibling lane
+  ---
+  duration_ms: 1.412228
+  type: 'test'
+  ...
+# Subtest: an unknown flag is refused instead of silently ignored
+ok 360 - an unknown flag is refused instead of silently ignored
+  ---
+  duration_ms: 0.122171
+  type: 'test'
+  ...
+# Subtest: a value that starts with dashes is data, not an unknown flag
+ok 361 - a value that starts with dashes is data, not an unknown flag
+  ---
+  duration_ms: 0.091138
+  type: 'test'
+  ...
+# Subtest: the engine port defaults to the historical lab port and is range-checked
+ok 362 - the engine port defaults to the historical lab port and is range-checked
+  ---
+  duration_ms: 0.182796
+  type: 'test'
+  ...
+# Subtest: an unusable readiness timeout is refused rather than becoming an unbounded wait
+ok 363 - an unusable readiness timeout is refused rather than becoming an unbounded wait
+  ---
+  duration_ms: 0.204221
+  type: 'test'
+  ...
+# Subtest: --help needs no work directory and starts nothing
+ok 364 - --help needs no work directory and starts nothing
+  ---
+  duration_ms: 0.084724
+  type: 'test'
+  ...
+# Subtest: the work directory must live under the workspace root
+not ok 365 - the work directory must live under the workspace root
+  ---
+  duration_ms: 0.559579
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:157:1'
+  failureType: 'testCodeFailure'
+  error: '[uni668-lab] no workspace root (a directory holding .uniwork-dev) above /workspace'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    assertWorkInsideWorkspace (file:///workspace/scripts/office-g0/run-engine-contract-lab.mjs:366:11)
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:159:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: isInside is ancestry, not a string prefix
+ok 366 - isInside is ancestry, not a string prefix
+  ---
+  duration_ms: 0.164586
+  type: 'test'
+  ...
+# Subtest: isReallyInside resolves junctions, so a physical escape cannot pass as contained
+ok 367 - isReallyInside resolves junctions, so a physical escape cannot pass as contained
+  ---
+  duration_ms: 0.548183
+  type: 'test'
+  ...
+# Subtest: M2: an absent child of a junction that leaves the workspace is still refused
+ok 368 - M2: an absent child of a junction that leaves the workspace is still refused
+  ---
+  duration_ms: 0.418672
+  type: 'test'
+  ...
+# Subtest: M5: a run interrupted at ANY stage is a refusal, never a green pass
+ok 369 - M5: a run interrupted at ANY stage is a refusal, never a green pass
+  ---
+  duration_ms: 0.431065
+  type: 'test'
+  ...
+# Subtest: --work is refused when it overlaps the workspace root
+ok 370 - --work is refused when it overlaps the workspace root # SKIP no shared workspace root (.uniwork-dev) is present above this checkout
+  ---
+  duration_ms: 0.053988
+  type: 'test'
+  ...
+# Subtest: a refused --work leaves no evidence record and creates nothing
+ok 371 - a refused --work leaves no evidence record and creates nothing # SKIP no shared workspace root (.uniwork-dev) is present above this checkout
+  ---
+  duration_ms: 0.0378
+  type: 'test'
+  ...
+# Subtest: N4: --work must not adopt another run managed tree
+not ok 372 - N4: --work must not adopt another run managed tree
+  ---
+  duration_ms: 0.680266
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:219:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /--work is not fresh: it already holds a lab tree/. Input:
+    
+    'Error: [uni668-lab] no workspace root (a directory holding .uniwork-dev) above /workspace'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: '[uni668-lab] no workspace root (a directory holding .uniwork-dev) above /workspace'
+  stack: |-
+    assertWorkInsideWorkspace (file:///workspace/scripts/office-g0/run-engine-contract-lab.mjs:366:11)
+    file:///workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:225:23
+    getActual (node:assert:609:5)
+    Function.throws (node:assert:757:24)
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:225:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:225:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a work dir holding only caller inputs is still accepted (freshness is about our trees)
+not ok 373 - a work dir holding only caller inputs is still accepted (freshness is about our trees)
+  ---
+  duration_ms: 0.249791
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:231:1'
+  failureType: 'testCodeFailure'
+  error: '[uni668-lab] no workspace root (a directory holding .uniwork-dev) above /workspace'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    assertWorkInsideWorkspace (file:///workspace/scripts/office-g0/run-engine-contract-lab.mjs:366:11)
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:235:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: discovery: a shared lab root wins over a NEARER checkout-local office-g0 stub
+ok 374 - discovery: a shared lab root wins over a NEARER checkout-local office-g0 stub
+  ---
+  duration_ms: 0.159379
+  type: 'test'
+  ...
+# Subtest: discovery: a lone checkout-local office-g0 root is still selected
+ok 375 - discovery: a lone checkout-local office-g0 root is still selected
+  ---
+  duration_ms: 0.086429
+  type: 'test'
+  ...
+# Subtest: discovery: with no office-g0 above, the nearest .uniwork-dev ancestor is the fallback
+ok 376 - discovery: with no office-g0 above, the nearest .uniwork-dev ancestor is the fallback
+  ---
+  duration_ms: 0.103166
+  type: 'test'
+  ...
+# Subtest: discovery: a linked worktree own .uniwork-dev does not beat the shared ancestor root
+ok 377 - discovery: a linked worktree own .uniwork-dev does not beat the shared ancestor root
+  ---
+  duration_ms: 0.852144
+  type: 'test'
+  ...
+# Subtest: discovery: the real integration layout resolves to the shared root (real filesystem)
+not ok 378 - discovery: the real integration layout resolves to the shared root (real filesystem)
+  ---
+  duration_ms: 0.828003
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:296:1'
+  failureType: 'testCodeFailure'
+  error: '[uni668-lab] --work overlaps this git checkout and must be a separate fresh directory: /workspace/.uniwork-dev/uni-668-lab-test/discovery-shared-HBDnup/.uniwork-dev/uni-668-lab-test/default-layout-run'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    assertWorkInsideWorkspace (file:///workspace/scripts/office-g0/run-engine-contract-lab.mjs:390:13)
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:316:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: discovery: preferring the shared root does NOT widen --work ownership
+ok 379 - discovery: preferring the shared root does NOT widen --work ownership
+  ---
+  duration_ms: 0.521936
+  type: 'test'
+  ...
+# Subtest: a missing dependency is named exactly and refuses the run before any spawn
+ok 380 - a missing dependency is named exactly and refuses the run before any spawn
+  ---
+  duration_ms: 0.436569
+  type: 'test'
+  ...
+# Subtest: the pin is verified against the manifest, the lockfile and the frozen adapter
+not ok 381 - the pin is verified against the manifest, the lockfile and the frozen adapter
+  ---
+  duration_ms: 1.777481
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:351:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    ["the source lockfile is not the pinned one: expected de782e49a1006fac7287a41c748c696efd9fb3c3038eae893ef82dfca57f9fe5, observed be55f2423bd00bdf053fb4114f1ad50552d58e31d6467844b64209947f234c7f"]
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:353:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a wrong --expected-pin is refused and names expected versus manifest
+ok 382 - a wrong --expected-pin is refused and names expected versus manifest
+  ---
+  duration_ms: 0.500354
+  type: 'test'
+  ...
+# Subtest: an adapter whose declared upstream pin differs from the manifest is refused
+ok 383 - an adapter whose declared upstream pin differs from the manifest is refused
+  ---
+  duration_ms: 0.36117
+  type: 'test'
+  ...
+# Subtest: a lockfile that is not the pinned one is refused
+ok 384 - a lockfile that is not the pinned one is refused
+  ---
+  duration_ms: 0.464231
+  type: 'test'
+  ...
+# Subtest: M1: the prepared source is verified against the manifest recorded bytes
+ok 385 - M1: the prepared source is verified against the manifest recorded bytes # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.042314
+  type: 'test'
+  ...
+# Subtest: M1: a tampered license or root package is refused, not waved through
+ok 386 - M1: a tampered license or root package is refused, not waved through # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.030314
+  type: 'test'
+  ...
+# Subtest: M1: an absent upstream checkout is recorded as unproven, never claimed as verified
+ok 387 - M1: an absent upstream checkout is recorded as unproven, never claimed as verified
+  ---
+  duration_ms: 0.324343
+  type: 'test'
+  ...
+# Subtest: M1: an upstream checkout at the wrong commit or tree is refused
+ok 388 - M1: an upstream checkout at the wrong commit or tree is refused # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.043238
+  type: 'test'
+  ...
+# Subtest: the manifest supported node range is enforced before any spawn
+ok 389 - the manifest supported node range is enforced before any spawn
+  ---
+  duration_ms: 0.332943
+  type: 'test'
+  ...
+# Subtest: M1: the host node executable and version must match the manifest runtime identity
+ok 390 - M1: the host node executable and version must match the manifest runtime identity # SKIP the pinned node executable is not present in this checkout
+  ---
+  duration_ms: 0.035482
+  type: 'test'
+  ...
+# Subtest: normal termination: a cooperative signal is recorded and stops the run, never swallowed
+ok 391 - normal termination: a cooperative signal is recorded and stops the run, never swallowed
+  ---
+  duration_ms: 0.538919
+  type: 'test'
+  ...
+# Subtest: normal termination: an interrupt makes the run fail nonzero instead of continuing to spawn
+ok 392 - normal termination: an interrupt makes the run fail nonzero instead of continuing to spawn
+  ---
+  duration_ms: 0.142307
+  type: 'test'
+  ...
+# Subtest: an occupied port fails safely and never signals the foreign owner
+ok 393 - an occupied port fails safely and never signals the foreign owner
+  ---
+  duration_ms: 7.777869
+  type: 'test'
+  ...
+# Subtest: a free port is accepted and released back for real
+ok 394 - a free port is accepted and released back for real
+  ---
+  duration_ms: 0.68077
+  type: 'test'
+  ...
+# Subtest: waitForPortRelease is bounded when the port never frees
+ok 395 - waitForPortRelease is bounded when the port never frees
+  ---
+  duration_ms: 399.544206
+  type: 'test'
+  ...
+# Subtest: a child that already exited with no observed descendant is an honest unknown, never fabricated tree proof
+ok 396 - a child that already exited with no observed descendant is an honest unknown, never fabricated tree proof
+  ---
+  duration_ms: 0.398143
+  type: 'test'
+  ...
+# Subtest: descendantPids resolves the whole captured tree, not just direct children
+ok 397 - descendantPids resolves the whole captured tree, not just direct children
+  ---
+  duration_ms: 0.1388
+  type: 'test'
+  ...
+# Subtest: a captured parent that exited on its own is PROVEN when every observed descendant is gone
+ok 398 - a captured parent that exited on its own is PROVEN when every observed descendant is gone
+  ---
+  duration_ms: 0.145972
+  type: 'test'
+  ...
+# Subtest: a captured descendant still alive keeps the tree unproven, never a pass
+ok 399 - a captured descendant still alive keeps the tree unproven, never a pass
+  ---
+  duration_ms: 0.362178
+  type: 'test'
+  ...
+# Subtest: an unavailable process enumeration is an honest unknown, never a guessed clean tree
+ok 400 - an unavailable process enumeration is an honest unknown, never a guessed clean tree
+  ---
+  duration_ms: 0.085686
+  type: 'test'
+  ...
+# [uni668-lab] failed at work-ownership: [uni668-lab] --work overlaps this git checkout and must be a separate fresh directory: /workspace/.uniwork-dev/uni-668-lab-test/missing-source-ZVL5xo
+# Subtest: the taskkill not-found race is proven by observation, not refused as a leaked tree
+ok 401 - the taskkill not-found race is proven by observation, not refused as a leaked tree
+  ---
+  duration_ms: 0.861768
+  type: 'test'
+  ...
+# Subtest: captureOwnedChildDescendants reports an unobservable tree instead of an empty one
+ok 402 - captureOwnedChildDescendants reports an unobservable tree instead of an empty one
+  ---
+  duration_ms: 0.242516
+  type: 'test'
+  ...
+# Subtest: liveCapturedPids distinguishes a surviving descendant from a released one
+ok 403 - liveCapturedPids distinguishes a surviving descendant from a released one
+  ---
+  duration_ms: 0.122831
+  type: 'test'
+  ...
+# Subtest: an unowned child is a clean no-op
+ok 404 - an unowned child is a clean no-op
+  ---
+  duration_ms: 0.05353
+  type: 'test'
+  ...
+# Subtest: a crashed child is an honest failure, not a retry
+ok 405 - a crashed child is an honest failure, not a retry
+  ---
+  duration_ms: 0.112535
+  type: 'test'
+  ...
+# Subtest: identity must match this exact source, lab and prebundle
+ok 406 - identity must match this exact source, lab and prebundle
+  ---
+  duration_ms: 0.222063
+  type: 'test'
+  ...
+# Subtest: a host that answers with the wrong lab is refused, not accepted
+ok 407 - a host that answers with the wrong lab is refused, not accepted
+  ---
+  duration_ms: 300.630318
+  type: 'test'
+  ...
+# Subtest: readiness needs a real route answer, not merely a listener
+ok 408 - readiness needs a real route answer, not merely a listener
+  ---
+  duration_ms: 0.199574
+  type: 'test'
+  ...
+# Subtest: cleanup reports what actually happened and cannot claim a clean release it did not prove
+ok 409 - cleanup reports what actually happened and cannot claim a clean release it did not prove
+  ---
+  duration_ms: 0.321408
+  type: 'test'
+  ...
+# Subtest: a cleanup that throws is reported as a failure, never as a success
+ok 410 - a cleanup that throws is reported as a failure, never as a success
+  ---
+  duration_ms: 0.292313
+  type: 'test'
+  ...
+# Subtest: an unproven descendant tree cannot carry exit 0 unless the operator opts in
+ok 411 - an unproven descendant tree cannot carry exit 0 unless the operator opts in
+  ---
+  duration_ms: 0.241764
+  type: 'test'
+  ...
+# Subtest: a failure record keeps the run kind and the stage that failed
+ok 412 - a failure record keeps the run kind and the stage that failed
+  ---
+  duration_ms: 0.235077
+  type: 'test'
+  ...
+# Subtest: the host command names the pinned node, tsx, host entry, lab, prebundle and port
+ok 413 - the host command names the pinned node, tsx, host entry, lab, prebundle and port
+  ---
+  duration_ms: 0.271752
+  type: 'test'
+  ...
+# Subtest: an occupied engine port makes the launcher fail nonzero before it boots anything
+ok 414 - an occupied engine port makes the launcher fail nonzero before it boots anything # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.026797
+  type: 'test'
+  ...
+# Subtest: a stub host that crashes immediately is bounded and fails nonzero
+ok 415 - a stub host that crashes immediately is bounded and fails nonzero # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.021636
+  type: 'test'
+  ...
+# Subtest: a stub host that never listens times out on a bounded wait and leaves no port held
+ok 416 - a stub host that never listens times out on a bounded wait and leaves no port held # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.016958
+  type: 'test'
+  ...
+# Subtest: a missing prepared source refuses the run and still writes a truthful failure record
+not ok 417 - a missing prepared source refuses the run and still writes a truthful failure record
+  ---
+  duration_ms: 1.085139
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:812:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'work-ownership'
+    - 'dependencies'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'dependencies'
+  actual: 'work-ownership'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-engine-contract-lab.test.mjs:820:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a wrong pin refuses the run before it boots anything
+ok 418 - a wrong pin refuses the run before it boots anything # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.036182
+  type: 'test'
+  ...
+# Subtest: a delivered SIGINT is honored: nonzero, named, bounded, and the owned port is released
+ok 419 - a delivered SIGINT is honored: nonzero, named, bounded, and the owned port is released # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.061302
+  type: 'test'
+  ...
+# Subtest: the launcher boots the real pinned host and the frozen adapter passes with no unavailable rows
+ok 420 - the launcher boots the real pinned host and the frozen adapter passes with no unavailable rows # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.0297
+  type: 'test'
+  ...
+# Subtest: a second run over the same port after a clean first run still passes (no leaked owner)
+ok 421 - a second run over the same port after a clean first run still passes (no leaked owner) # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.020921
+  type: 'test'
+  ...
+# Subtest: a real run with caller-supplied fixtures is recorded as declared, not generated
+ok 422 - a real run with caller-supplied fixtures is recorded as declared, not generated # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.063706
+  type: 'test'
+  ...
+# Subtest: M1: a source whose recorded identity was tampered with is refused before any boot
+ok 423 - M1: a source whose recorded identity was tampered with is refused before any boot # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.037202
+  type: 'test'
+  ...
+# Subtest: M1: a run with --upstream-checkout records the pinned-commit verification
+ok 424 - M1: a run with --upstream-checkout records the pinned-commit verification # SKIP the prepared pinned source tree is not present in this checkout
+  ---
+  duration_ms: 0.068063
+  type: 'test'
+  ...
+# Subtest: --work inside a shared tree or a sibling lane is refused
+ok 425 - --work inside a shared tree or a sibling lane is refused # SKIP no shared workspace root (.uniwork-dev) is present above this checkout
+  ---
+  duration_ms: 0.017795
+  type: 'test'
+  ...
+# Subtest: manifest: the approved single-slides manifest validates and reports its hash
+ok 426 - manifest: the approved single-slides manifest validates and reports its hash
+  ---
+  duration_ms: 1.09743
+  type: 'test'
+  ...
+# Subtest: manifest: hash mismatch, wrong app, wrong pin and mutated source all fail
+ok 427 - manifest: hash mismatch, wrong app, wrong pin and mutated source all fail
+  ---
+  duration_ms: 0.67028
+  type: 'test'
+  ...
+# Subtest: evidence boundary: a NEW prefix is required and no target may already exist
+ok 428 - evidence boundary: a NEW prefix is required and no target may already exist
+  ---
+  duration_ms: 0.211402
+  type: 'test'
+  ...
+# Subtest: workspace boundary: outside paths are refused with a named error
+ok 429 - workspace boundary: outside paths are refused with a named error
+  ---
+  duration_ms: 0.283174
+  type: 'test'
+  ...
+# Subtest: runner args: all explicit inputs are required and stay inside the workspace
+ok 430 - runner args: all explicit inputs are required and stay inside the workspace
+  ---
+  duration_ms: 1.039069
+  type: 'test'
+  ...
+# Subtest: runner args: the spec set defaults to the full matrix and an unknown name is refused
+ok 431 - runner args: the spec set defaults to the full matrix and an unknown name is refused
+  ---
+  duration_ms: 1.011033
+  type: 'test'
+  ...
+# Subtest: hash helpers reject malformed digests
+ok 432 - hash helpers reject malformed digests
+  ---
+  duration_ms: 0.182344
+  type: 'test'
+  ...
+# Subtest: required inputs: every missing path is named at once
+ok 433 - required inputs: every missing path is named at once
+  ---
+  duration_ms: 0.24922
+  type: 'test'
+  ...
+# Subtest: fixture pin: the pinned identity is enforced from bytes, not from caller trust
+ok 434 - fixture pin: the pinned identity is enforced from bytes, not from caller trust
+  ---
+  duration_ms: 0.543076
+  type: 'test'
+  ...
+# Subtest: the frozen text spec is pinned BY NAME, so the image lane cannot outlive a drifted accepted spec
+ok 435 - the frozen text spec is pinned BY NAME, so the image lane cannot outlive a drifted accepted spec
+  ---
+  duration_ms: 0.602938
+  type: 'test'
+  ...
+# Subtest: spec: a skipped or fixme required test is refused, and a clean spec passes
+ok 436 - spec: a skipped or fixme required test is refused, and a clean spec passes
+  ---
+  duration_ms: 0.311385
+  type: 'test'
+  ...
+# Subtest: discovery: zero tests or a missing installed browser project is a failure
+ok 437 - discovery: zero tests or a missing installed browser project is a failure
+  ---
+  duration_ms: 0.29005
+  type: 'test'
+  ...
+# Subtest: discovery parsing: the list reporter output yields a real total and projects
+ok 438 - discovery parsing: the list reporter output yields a real total and projects
+  ---
+  duration_ms: 0.158898
+  type: 'test'
+  ...
+# Subtest: engine plan: the prepared tsx launch resolves the real prepared engine entry, not a build
+ok 439 - engine plan: the prepared tsx launch resolves the real prepared engine entry, not a build
+  ---
+  duration_ms: 0.15088
+  type: 'test'
+  ...
+# Subtest: shared runtime root: the engine --lab argument and the lab server root are one directory
+ok 440 - shared runtime root: the engine --lab argument and the lab server root are one directory
+  ---
+  duration_ms: 0.189977
+  type: 'test'
+  ...
+# Subtest: playwright plan: discovery and the real run differ only by --list
+ok 441 - playwright plan: discovery and the real run differ only by --list
+  ---
+  duration_ms: 0.168809
+  type: 'test'
+  ...
+# Subtest: an explicit image spec set names only the image spec; the default keeps the full matrix
+ok 442 - an explicit image spec set names only the image spec; the default keeps the full matrix
+  ---
+  duration_ms: 0.337995
+  type: 'test'
+  ...
+# Subtest: discovery coverage names every spec of the selected set, so a dropped spec cannot pass
+ok 443 - discovery coverage names every spec of the selected set, so a dropped spec cannot pass
+  ---
+  duration_ms: 0.877279
+  type: 'test'
+  ...
+# Subtest: the image fixture and replacement pins are distinct from the text fixture
+ok 444 - the image fixture and replacement pins are distinct from the text fixture
+  ---
+  duration_ms: 0.18198
+  type: 'test'
+  ...
+# Subtest: workspace discovery walks up to the owner of .uniwork-dev
+ok 445 - workspace discovery walks up to the owner of .uniwork-dev
+  ---
+  duration_ms: 0.235142
+  type: 'test'
+  ...
+# Subtest: engine bindings: only allowlisted, routed operations bind, and a missing capability fails explicitly
+ok 446 - engine bindings: only allowlisted, routed operations bind, and a missing capability fails explicitly
+  ---
+  duration_ms: 0.320536
+  type: 'test'
+  ...
+# Subtest: run outcome: clean two-browser JSON passes, and every skip/unexpected/interrupt/todo/retry fails
+ok 447 - run outcome: clean two-browser JSON passes, and every skip/unexpected/interrupt/todo/retry fails
+  ---
+  duration_ms: 0.813962
+  type: 'test'
+  ...
+# Subtest: run outcome: the executed count must match the discovery total exactly
+ok 448 - run outcome: the executed count must match the discovery total exactly
+  ---
+  duration_ms: 0.163681
+  type: 'test'
+  ...
+# Subtest: evidence boundary: the run JSON and pinned temp targets are prefix-derived and refused when taken
+ok 449 - evidence boundary: the run JSON and pinned temp targets are prefix-derived and refused when taken
+  ---
+  duration_ms: 0.105271
+  type: 'test'
+  ...
+# Subtest: child env: temp, run JSON and the owned preview URL are pinned under the evidence prefix
+ok 450 - child env: temp, run JSON and the owned preview URL are pinned under the evidence prefix
+  ---
+  duration_ms: 0.136913
+  type: 'test'
+  ...
+# Subtest: child cleanup: an owned child tree is stopped and an unrelated live PID is never the target
+not ok 451 - child cleanup: an owned child tree is stopped and an unrelated live PID is never the target
+  ---
+  duration_ms: 55.160626
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-pptx-cycle.test.mjs:562:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    an observed exit must be reported as exited
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-pptx-cycle.test.mjs:584:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: timeout: withTimeout rejects a stalled wait with its named code and resolves a real one
+ok 452 - timeout: withTimeout rejects a stalled wait with its named code and resolves a real one
+  ---
+  duration_ms: 26.201053
+  type: 'test'
+  ...
+# Subtest: cleanup evidence: an already-exited child is not owned, and an unproven stop carries a bounded error
+ok 453 - cleanup evidence: an already-exited child is not owned, and an unproven stop carries a bounded error
+  ---
+  duration_ms: 68.683416
+  type: 'test'
+  ...
+# Subtest: finalization: a clean cleanup keeps success, and any cleanup failure becomes a failed record
+ok 454 - finalization: a clean cleanup keeps success, and any cleanup failure becomes a failed record
+  ---
+  duration_ms: 0.355757
+  type: 'test'
+  ...
+# Subtest: finalization seam: a signal during normal finalize is recorded, guards dispose last, one write
+ok 455 - finalization seam: a signal during normal finalize is recorded, guards dispose last, one write
+  ---
+  duration_ms: 0.492503
+  type: 'test'
+  ...
+# Subtest: finalization seam: throwing persistence forces nonzero and preserves the primary failure separately
+ok 456 - finalization seam: throwing persistence forces nonzero and preserves the primary failure separately
+  ---
+  duration_ms: 0.305744
+  type: 'test'
+  ...
+# Subtest: finalization seam: rejected cleanup with a primary error yields one failed record carrying both
+ok 457 - finalization seam: rejected cleanup with a primary error yields one failed record carrying both
+  ---
+  duration_ms: 0.223672
+  type: 'test'
+  ...
+# Subtest: cleanup seam: a fabricated pid is handed only to the injected killer, never a real spawn
+ok 458 - cleanup seam: a fabricated pid is handed only to the injected killer, never a real spawn
+  ---
+  duration_ms: 0.081086
+  type: 'test'
+  ...
+# Subtest: finalization seam: a primary failure and a late signal both survive cleanup and a failed write
+ok 459 - finalization seam: a primary failure and a late signal both survive cleanup and a failed write
+  ---
+  duration_ms: 0.18462
+  type: 'test'
+  ...
+# Subtest: pinned constants match the wave2 contract
+ok 460 - pinned constants match the wave2 contract
+  ---
+  duration_ms: 1.080949
+  type: 'test'
+  ...
+# Subtest: parseRunnerArgs fails on every missing input and defaults to discovery
+ok 461 - parseRunnerArgs fails on every missing input and defaults to discovery
+  ---
+  duration_ms: 0.536719
+  type: 'test'
+  ...
+# Subtest: assertManifest rejects a bad pin, a wrong app set, an untouched-flag miss and a hash mismatch
+ok 462 - assertManifest rejects a bad pin, a wrong app set, an untouched-flag miss and a hash mismatch
+  ---
+  duration_ms: 0.785261
+  type: 'test'
+  ...
+# Subtest: evidence targets are fresh-only: an existing suffix fails and never gets deleted
+ok 463 - evidence targets are fresh-only: an existing suffix fails and never gets deleted
+  ---
+  duration_ms: 0.396952
+  type: 'test'
+  ...
+# Subtest: a NEW evidence target is proven through its deepest existing parent
+ok 464 - a NEW evidence target is proven through its deepest existing parent
+  ---
+  duration_ms: 0.56739
+  type: 'test'
+  ...
+# Subtest: requireExistingFile fails by name on a missing file and resolves an existing one
+ok 465 - requireExistingFile fails by name on a missing file and resolves an existing one
+  ---
+  duration_ms: 0.366664
+  type: 'test'
+  ...
+# Subtest: assertInsideWorkspace rejects an outside path
+ok 466 - assertInsideWorkspace rejects an outside path
+  ---
+  duration_ms: 0.464101
+  type: 'test'
+  ...
+# Subtest: assertInsideWorkspace proves canonical containment and accepts an in-workspace dependency link
+ok 467 - assertInsideWorkspace proves canonical containment and accepts an in-workspace dependency link
+  ---
+  duration_ms: 0.469748
+  type: 'test'
+  ...
+# Subtest: findWorkspaceRoot walks up to the .uniwork-dev ancestor only
+ok 468 - findWorkspaceRoot walks up to the .uniwork-dev ancestor only
+  ---
+  duration_ms: 1.015608
+  type: 'test'
+  ...
+# Subtest: resolveRunnerPlan fails on each missing required input file
+not ok 469 - resolveRunnerPlan fails on each missing required input file
+  ---
+  duration_ms: 2.253788
+  type: 'test'
+  location: '/workspace/scripts/office-g0/run-xlsx-cycle.test.mjs:231:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /missing xlsx fixture/. Input:
+    
+    'Error: [office-g0-xlsx] missing prepared xlsx sidecar binary: /tmp/office-g0-xlsx-runner-2GO9hR/ws3/source/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: '[office-g0-xlsx] missing prepared xlsx sidecar binary: /tmp/office-g0-xlsx-runner-2GO9hR/ws3/source/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar'
+  stack: |-
+    requireExistingFile (file:///workspace/scripts/office-g0/run-xlsx-cycle.mjs:281:11)
+    resolveRunnerPlan (file:///workspace/scripts/office-g0/run-xlsx-cycle.mjs:452:3)
+    file:///workspace/scripts/office-g0/run-xlsx-cycle.test.mjs:249:23
+    getActual (node:assert:609:5)
+    Function.throws (node:assert:757:24)
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-xlsx-cycle.test.mjs:249:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///workspace/scripts/office-g0/run-xlsx-cycle.test.mjs:249:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: engine handlers translate lab payloads onto the real xlsx routes
+ok 470 - engine handlers translate lab payloads onto the real xlsx routes
+  ---
+  duration_ms: 1.794434
+  type: 'test'
+  ...
+# Subtest: discovery list parsing yields project/file/title identities
+ok 471 - discovery list parsing yields project/file/title identities
+  ---
+  duration_ms: 0.649081
+  type: 'test'
+  ...
+# Subtest: assertDiscoveryComplete refuses duplicates, an unknown spec, a wrong project and a short list
+ok 472 - assertDiscoveryComplete refuses duplicates, an unknown spec, a wrong project and a short list
+  ---
+  duration_ms: 0.62915
+  type: 'test'
+  ...
+# Subtest: report gate requires the exact slice, both projects, real passes and no extras
+ok 473 - report gate requires the exact slice, both projects, real passes and no extras
+  ---
+  duration_ms: 0.84596
+  type: 'test'
+  ...
+# Subtest: stopOwnedChild only proves cleanup when the owned tree kill is observed
+ok 474 - stopOwnedChild only proves cleanup when the owned tree kill is observed
+  ---
+  duration_ms: 0.098551
+  type: 'test'
+  ...
+# Subtest: assertDistinctPorts refuses invalid or colliding lane ports
+ok 475 - assertDistinctPorts refuses invalid or colliding lane ports
+  ---
+  duration_ms: 0.112956
+  type: 'test'
+  ...
+# Subtest: stopOwnedChild never coerces a signalled kill to exit 0 and never touches an exited PID
+ok 476 - stopOwnedChild never coerces a signalled kill to exit 0 and never touches an exited PID
+  ---
+  duration_ms: 0.119401
+  type: 'test'
+  ...
+# Subtest: waitForEngineIdentity rejects a death racing a stalled ping request or body
+ok 477 - waitForEngineIdentity rejects a death racing a stalled ping request or body
+  ---
+  duration_ms: 21.858969
+  type: 'test'
+  ...
+# Subtest: runOwnedChild races a real deadline, bounds a hung kill and keeps a racing exit
+ok 478 - runOwnedChild races a real deadline, bounds a hung kill and keeps a racing exit
+  ---
+  duration_ms: 226.372159
+  type: 'test'
+  ...
+# Subtest: an unconfirmed cleanup can never be erased by a later success
+ok 479 - an unconfirmed cleanup can never be erased by a later success
+  ---
+  duration_ms: 0.219914
+  type: 'test'
+  ...
+# Subtest: runOwnedChild hands the live child to the cancellation seam at spawn and releases it after cleanup
+ok 480 - runOwnedChild hands the live child to the cancellation seam at spawn and releases it after cleanup
+  ---
+  duration_ms: 5.820985
+  type: 'test'
+  ...
+# Subtest: runOwnedChild reports an immediate spawn failure with a structured cleanup and no exit event
+ok 481 - runOwnedChild reports an immediate spawn failure with a structured cleanup and no exit event
+  ---
+  duration_ms: 0.219421
+  type: 'test'
+  ...
+# Subtest: waitForEngineIdentity bounds a hung ping even when the child never exits
+ok 482 - waitForEngineIdentity bounds a hung ping even when the child never exits
+  ---
+  duration_ms: 550.980174
+  type: 'test'
+  ...
+# Subtest: a signal that lands during finalization is latched into the single structured result
+ok 483 - a signal that lands during finalization is latched into the single structured result
+  ---
+  duration_ms: 0.181056
+  type: 'test'
+  ...
+# Subtest: the production ownership hooks keep the live child until cleanup confirms it stopped
+ok 484 - the production ownership hooks keep the live child until cleanup confirms it stopped
+  ---
+  duration_ms: 5.73111
+  type: 'test'
+  ...
+# Subtest: an unconfirmed cleanup keeps the live child owned so finalize still reaches it
+ok 485 - an unconfirmed cleanup keeps the live child owned so finalize still reaches it
+  ---
+  duration_ms: 50.757088
+  type: 'test'
+  ...
+# Subtest: a thrown onSpawn never releases the live child it just registered
+ok 486 - a thrown onSpawn never releases the live child it just registered
+  ---
+  duration_ms: 0.322057
+  type: 'test'
+  ...
+# Subtest: a throwing result writer never yields success and never writes a success artifact
+ok 487 - a throwing result writer never yields success and never writes a success artifact
+  ---
+  duration_ms: 0.219851
+  type: 'test'
+  ...
+# Subtest: the writer latches on the successful write only and never writes a success twice
+ok 488 - the writer latches on the successful write only and never writes a success twice
+  ---
+  duration_ms: 0.167665
+  type: 'test'
+  ...
+# Subtest: a preexisting result path is refused with a non-zero outcome and its bytes are preserved
+ok 489 - a preexisting result path is refused with a non-zero outcome and its bytes are preserved
+  ---
+  duration_ms: 0.191014
+  type: 'test'
+  ...
+# Subtest: a signal rejection exits non-zero and keeps both errors even when the writer throws
+ok 490 - a signal rejection exits non-zero and keeps both errors even when the writer throws
+  ---
+  duration_ms: 0.105552
+  type: 'test'
+  ...
+# Subtest: finalizeOwnedChildren stops every owned child under ONE bound and keeps the rest owned
+ok 491 - finalizeOwnedChildren stops every owned child under ONE bound and keeps the rest owned
+  ---
+  duration_ms: 71.668274
+  type: 'test'
+  ...
+# Subtest: createRunFinalizer finalizes and persists ONCE through the production wiring
+ok 492 - createRunFinalizer finalizes and persists ONCE through the production wiring
+  ---
+  duration_ms: 0.778817
+  type: 'test'
+  ...
+# Subtest: an unconfirmed sweep result keeps the live child owned after finalize
+ok 493 - an unconfirmed sweep result keeps the live child owned after finalize
+  ---
+  duration_ms: 29.876767
+  type: 'test'
+  ...
+# Subtest: the engine host is spawned as an owned child through the production seam
+ok 494 - the engine host is spawned as an owned child through the production seam
+  ---
+  duration_ms: 0.161558
+  type: 'test'
+  ...
+# Subtest: a signal that lands AFTER the commit boundary is recorded separately and never flips the file
+ok 495 - a signal that lands AFTER the commit boundary is recorded separately and never flips the file
+  ---
+  duration_ms: 19.747888
+  type: 'test'
+  ...
+# Subtest: a signal finalizer invokes stop() for every owned child before it exits, even when an earlier stop never settles
+ok 496 - a signal finalizer invokes stop() for every owned child before it exits, even when an earlier stop never settles
+  ---
+  duration_ms: 150.394205
+  type: 'test'
+  ...
+# file:///workspace/scripts/office-g0/sheets-save-formula-values.test.mjs:53
+#     throw new Error('managed copy of save-formula-values.ts not found; set OFFICE_G0_XLSX_MANAGED_COPY')
+#           ^
+# Error: managed copy of save-formula-values.ts not found; set OFFICE_G0_XLSX_MANAGED_COPY
+#     at managedModulePath (file:///workspace/scripts/office-g0/sheets-save-formula-values.test.mjs:53:11)
+#     at loadManagedModule (file:///workspace/scripts/office-g0/sheets-save-formula-values.test.mjs:62:16)
+#     at file:///workspace/scripts/office-g0/sheets-save-formula-values.test.mjs:77:23
+#     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+#     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+#     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+# Node.js v22.23.3
+# Subtest: scripts/office-g0/sheets-save-formula-values.test.mjs
+not ok 26 - scripts/office-g0/sheets-save-formula-values.test.mjs
+  ---
+  duration_ms: 282.134797
+  type: 'test'
+  location: '/workspace/scripts/office-g0/sheets-save-formula-values.test.mjs:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: default refuses an ordinary or nested discovered parent outside authorization before mkdir
+ok 498 - default refuses an ordinary or nested discovered parent outside authorization before mkdir
+  ---
+  duration_ms: 0.983536
+  type: 'test'
+  ...
+# Subtest: a discovered workspace inside explicit authorization has an in-root default scratch path
+ok 499 - a discovered workspace inside explicit authorization has an in-root default scratch path
+  ---
+  duration_ms: 0.830717
+  type: 'test'
+  ...
+# Subtest: a paired explicit scratch override must remain beneath its authorized owner
+ok 500 - a paired explicit scratch override must remain beneath its authorized owner
+  ---
+  duration_ms: 0.556194
+  type: 'test'
+  ...
+# Subtest: real junction and lexical escapes are refused; an authorized child remains valid
+ok 501 - real junction and lexical escapes are refused; an authorized child remains valid
+  ---
+  duration_ms: 1.739935
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a sufficient G0 register reaches go=true while pilot stays pending
+ok 502 - synthetic fixture: a sufficient G0 register reaches go=true while pilot stays pending
+  ---
+  duration_ms: 12.668302
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a Chrome-only core row set cannot satisfy the Orca browser pair
+ok 503 - synthetic fixture: a Chrome-only core row set cannot satisfy the Orca browser pair
+  ---
+  duration_ms: 5.17479
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a macOS/Safari-only core set does not satisfy a Windows gate
+ok 504 - synthetic fixture: a macOS/Safari-only core set does not satisfy a Windows gate
+  ---
+  duration_ms: 5.543682
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a retargeted format or operation is reported and does not satisfy the gate
+ok 505 - synthetic fixture: a retargeted format or operation is reported and does not satisfy the gate
+  ---
+  duration_ms: 9.843696
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a viewer/annotation PDF does not qualify
+ok 506 - synthetic fixture: a viewer/annotation PDF does not qualify
+  ---
+  duration_ms: 4.809668
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: XLSX without a numeric recalc assertion fails
+ok 507 - synthetic fixture: XLSX without a numeric recalc assertion fails
+  ---
+  duration_ms: 4.662606
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: the registry JSON cannot be a cycle output artifact
+ok 508 - synthetic fixture: the registry JSON cannot be a cycle output artifact
+  ---
+  duration_ms: 4.807566
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a missing or failed required case cannot hide behind a bundle PASS
+ok 509 - synthetic fixture: a missing or failed required case cannot hide behind a bundle PASS
+  ---
+  duration_ms: 9.311215
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a model row cannot pose as the real DOC-004 adapter
+ok 510 - synthetic fixture: a model row cannot pose as the real DOC-004 adapter
+  ---
+  duration_ms: 4.420244
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a tampered artifact is rejected
+ok 511 - synthetic fixture: a tampered artifact is rejected
+  ---
+  duration_ms: 7.103256
+  type: 'test'
+  ...
+# Subtest: an honest pending register is valid, INCOMPLETE and NO-GO, with Q1-B reported separately
+ok 512 - an honest pending register is valid, INCOMPLETE and NO-GO, with Q1-B reported separately
+  ---
+  duration_ms: 2.827436
+  type: 'test'
+  ...
+# Subtest: a complete honest NO-GO register is valid and still fails --require-go
+ok 513 - a complete honest NO-GO register is valid and still fails --require-go
+  ---
+  duration_ms: 2.284926
+  type: 'test'
+  ...
+# Subtest: reversed macOS/Safari deferrals stay valid
+ok 514 - reversed macOS/Safari deferrals stay valid
+  ---
+  duration_ms: 2.981834
+  type: 'test'
+  ...
+# Subtest: a stale decision is reported in findings, counts and text
+ok 515 - a stale decision is reported in findings, counts and text
+  ---
+  duration_ms: 5.210488
+  type: 'test'
+  ...
+# Subtest: an unknown status, level, duplicate id or gate row is rejected
+ok 516 - an unknown status, level, duplicate id or gate row is rejected
+  ---
+  duration_ms: 10.913429
+  type: 'test'
+  ...
+# Subtest: a gate must enumerate the canonical cases and reject unknown ones
+ok 517 - a gate must enumerate the canonical cases and reject unknown ones
+  ---
+  duration_ms: 4.812094
+  type: 'test'
+  ...
+# Subtest: a required gate cannot demand product E2E at G0
+ok 518 - a required gate cannot demand product E2E at G0
+  ---
+  duration_ms: 2.489897
+  type: 'test'
+  ...
+# Subtest: pilot readiness cannot be declared ready without a ready status and basis
+ok 519 - pilot readiness cannot be declared ready without a ready status and basis
+  ---
+  duration_ms: 2.456882
+  type: 'test'
+  ...
+# Subtest: unknown and conflicting provenance are rejected
+ok 520 - unknown and conflicting provenance are rejected
+  ---
+  duration_ms: 5.968571
+  type: 'test'
+  ...
+# Subtest: a browser launch cannot satisfy an editor cycle
+ok 521 - a browser launch cannot satisfy an editor cycle
+  ---
+  duration_ms: 2.569026
+  type: 'test'
+  ...
+# Subtest: only the approved macOS/Safari deferral is possible
+ok 522 - only the approved macOS/Safari deferral is possible
+  ---
+  duration_ms: 2.537111
+  type: 'test'
+  ...
+# Subtest: isContained refuses a sibling directory that shares a name prefix
+ok 523 - isContained refuses a sibling directory that shares a name prefix
+  ---
+  duration_ms: 0.099367
+  type: 'test'
+  ...
+# Subtest: an absent artifact withdraws acceptance
+ok 524 - an absent artifact withdraws acceptance
+  ---
+  duration_ms: 5.325217
+  type: 'test'
+  ...
+# Subtest: an absolute path and a traversal escape are refused
+ok 525 - an absolute path and a traversal escape are refused
+  ---
+  duration_ms: 4.599284
+  type: 'test'
+  ...
+# Subtest: runCli returns 0 for a valid NO-GO report but 1 under --require-go
+ok 526 - runCli returns 0 for a valid NO-GO report but 1 under --require-go
+  ---
+  duration_ms: 5.096148
+  type: 'test'
+  ...
+# Subtest: runCli returns 1 for an invalid register and 2 for a bad invocation
+ok 527 - runCli returns 1 for an invalid register and 2 for a bad invocation
+  ---
+  duration_ms: 4.615647
+  type: 'test'
+  ...
+# Subtest: the shipped register validates as GO on attributable core rows while the recorded decision stays human-owned
+ok 528 - the shipped register validates as GO on attributable core rows while the recorded decision stays human-owned
+  ---
+  duration_ms: 4.604341
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a gate and its rows cannot lower the DOC-004 canonical adapter floor
+ok 529 - synthetic fixture: a gate and its rows cannot lower the DOC-004 canonical adapter floor
+  ---
+  duration_ms: 3.555206
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: adapter none on a required contract gate is illegal
+ok 530 - synthetic fixture: adapter none on a required contract gate is illegal
+  ---
+  duration_ms: 2.690621
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: an omitted operation-evidence floor cannot be lowered by rows
+ok 531 - synthetic fixture: an omitted operation-evidence floor cannot be lowered by rows
+  ---
+  duration_ms: 2.72795
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: one DOC-004 row cannot bundle every canonical case
+ok 532 - synthetic fixture: one DOC-004 row cannot bundle every canonical case
+  ---
+  duration_ms: 2.664128
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: one DOC-005 row cannot bundle every canonical case
+ok 533 - synthetic fixture: one DOC-005 row cannot bundle every canonical case
+  ---
+  duration_ms: 2.493007
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: a canonical case needs a row bound to that case's artifacts
+ok 534 - synthetic fixture: a canonical case needs a row bound to that case's artifacts
+  ---
+  duration_ms: 4.035055
+  type: 'test'
+  ...
+# Subtest: synthetic fixture: individually bound case rows keep the contract gates satisfied
+ok 535 - synthetic fixture: individually bound case rows keep the contract gates satisfied
+  ---
+  duration_ms: 3.985969
+  type: 'test'
+  ...
+# Subtest: H4: a core row whose artifact refs name another fixture does not satisfy its gate
+ok 536 - H4: a core row whose artifact refs name another fixture does not satisfy its gate
+  ---
+  duration_ms: 4.103144
+  type: 'test'
+  ...
+# Subtest: H4: a DOCX row cannot close its gate on XLSX cycle bytes
+ok 537 - H4: a DOCX row cannot close its gate on XLSX cycle bytes
+  ---
+  duration_ms: 5.164027
+  type: 'test'
+  ...
+# Subtest: H4: two browser rows may not attest one set of cycle files
+ok 538 - H4: two browser rows may not attest one set of cycle files
+  ---
+  duration_ms: 4.176756
+  type: 'test'
+  ...
+# Subtest: H4: two independent deterministic runs with identical bytes in their own files still pass
+ok 539 - H4: two independent deterministic runs with identical bytes in their own files still pass
+  ---
+  duration_ms: 4.217113
+  type: 'test'
+  ...
+# Subtest: H4: two rows may not reach one on-disk file through different path spellings
+ok 540 - H4: two rows may not reach one on-disk file through different path spellings
+  ---
+  duration_ms: 4.214954
+  type: 'test'
+  ...
+# Subtest: H4: a core row without an immutable input, report or independent evidence does not satisfy
+ok 541 - H4: a core row without an immutable input, report or independent evidence does not satisfy
+  ---
+  duration_ms: 13.313939
+  type: 'test'
+  ...
+# Subtest: H6: DOC-005 cannot pass with model-only draft persistence
+ok 542 - H6: DOC-005 cannot pass with model-only draft persistence
+  ---
+  duration_ms: 3.844589
+  type: 'test'
+  ...
+# Subtest: H4: two accepted contract rows may not attest one on-disk artifact file
+ok 543 - H4: two accepted contract rows may not attest one on-disk artifact file
+  ---
+  duration_ms: 3.813894
+  type: 'test'
+  ...
+# Subtest: H6: a persistence case without the fresh-store recovery assertion is rejected
+ok 544 - H6: a persistence case without the fresh-store recovery assertion is rejected
+  ---
+  duration_ms: 3.793363
+  type: 'test'
+  ...
+# Subtest: H6: an authorization-only case must declare its modeled provenance
+ok 545 - H6: an authorization-only case must declare its modeled provenance
+  ---
+  duration_ms: 4.352555
+  type: 'test'
+  ...
+# Subtest: H6: an authorization-only case cannot claim a real adapter
+ok 546 - H6: an authorization-only case cannot claim a real adapter
+  ---
+  duration_ms: 4.37141
+  type: 'test'
+  ...
+# Subtest: scoped PPTX: accepted image evidence remains valid and cannot fill the full core gate
+ok 547 - scoped PPTX: accepted image evidence remains valid and cannot fill the full core gate
+  ---
+  duration_ms: 5.713807
+  type: 'test'
+  ...
+# Subtest: scoped PPTX: promotion cannot bypass kind, operation, assertion and protocol requirements
+ok 548 - scoped PPTX: promotion cannot bypass kind, operation, assertion and protocol requirements
+  ---
+  duration_ms: 8.587576
+  type: 'test'
+  ...
+# Subtest: scoped PPTX: each input, saved, reopened, render, extraction and report role is required without a gate
+ok 549 - scoped PPTX: each input, saved, reopened, render, extraction and report role is required without a gate
+  ---
+  duration_ms: 24.509487
+  type: 'test'
+  ...
+# Subtest: scoped PPTX: swapped artifact paths or cross-browser refs are refused
+ok 550 - scoped PPTX: swapped artifact paths or cross-browser refs are refused
+  ---
+  duration_ms: 11.938239
+  type: 'test'
+  ...
+# Subtest: scoped PPTX: shared identities and aliases are refused within or across nongate rows
+ok 551 - scoped PPTX: shared identities and aliases are refused within or across nongate rows
+  ---
+  duration_ms: 13.064541
+  type: 'test'
+  ...
+# Subtest: scoped PPTX: missing files, unknown roles and source/browser downgrades are refused
+ok 552 - scoped PPTX: missing files, unknown roles and source/browser downgrades are refused
+  ---
+  duration_ms: 20.357963
+  type: 'test'
+  ...
+# Subtest: scoped PPTX: distinct saved and reopened files may hold identical bytes
+ok 553 - scoped PPTX: distinct saved and reopened files may hold identical bytes
+  ---
+  duration_ms: 4.329202
+  type: 'test'
+  ...
+# Subtest: scoped PPTX: actual CLI returns INCOMPLETE/NO-GO and require-go exits 1
+ok 554 - scoped PPTX: actual CLI returns INCOMPLETE/NO-GO and require-go exits 1
+  ---
+  duration_ms: 8.8275
+  type: 'test'
+  ...
+# Subtest: scoped XLSX: missing independently reopened bytes cannot be accepted
+ok 555 - scoped XLSX: missing independently reopened bytes cannot be accepted
+  ---
+  duration_ms: 4.240788
+  type: 'test'
+  ...
+# Subtest: scoped XLSX: native input cycle is accepted without satisfying a core gate
+ok 556 - scoped XLSX: native input cycle is accepted without satisfying a core gate
+  ---
+  duration_ms: 5.066156
+  type: 'test'
+  ...
+# Subtest: scoped XLSX: every input/output/reopen/render/extraction/report role is required
+ok 557 - scoped XLSX: every input/output/reopen/render/extraction/report role is required
+  ---
+  duration_ms: 24.470083
+  type: 'test'
+  ...
+# Subtest: scoped XLSX: refs and within/across-row artifact identities remain exclusive
+ok 558 - scoped XLSX: refs and within/across-row artifact identities remain exclusive
+  ---
+  duration_ms: 11.810463
+  type: 'test'
+  ...
+# Subtest: scoped XLSX: output identity pins and distinct page/view provenance are mandatory
+ok 559 - scoped XLSX: output identity pins and distinct page/view provenance are mandatory
+  ---
+  duration_ms: 45.353526
+  type: 'test'
+  ...
+# Subtest: scoped XLSX: Orca cannot be relabeled as installed browser, modeled or core evidence
+ok 560 - scoped XLSX: Orca cannot be relabeled as installed browser, modeled or core evidence
+  ---
+  duration_ms: 36.837791
+  type: 'test'
+  ...
+# Subtest: scoped checksum: accepted reference evidence cannot replace a canonical real-adapter fault row
+ok 561 - scoped checksum: accepted reference evidence cannot replace a canonical real-adapter fault row
+  ---
+  duration_ms: 6.70208
+  type: 'test'
+  ...
+# Subtest: scoped checksum: store/auth/commit and controlled fault must remain labeled
+ok 562 - scoped checksum: store/auth/commit and controlled fault must remain labeled
+  ---
+  duration_ms: 23.54438
+  type: 'test'
+  ...
+# Subtest: scoped checksum: zero-put acceptance requires the positive control and refusal assertions
+ok 563 - scoped checksum: zero-put acceptance requires the positive control and refusal assertions
+  ---
+  duration_ms: 3.884209
+  type: 'test'
+  ...
+# Subtest: scoped checksum: absent, retargeted and shared artifacts are refused without a gate
+ok 564 - scoped checksum: absent, retargeted and shared artifacts are refused without a gate
+  ---
+  duration_ms: 23.125707
+  type: 'test'
+  ...
+# Subtest: orca rule: a core row in the Orca embedded browser satisfies the gate browser coverage
+ok 565 - orca rule: a core row in the Orca embedded browser satisfies the gate browser coverage
+  ---
+  duration_ms: 3.738578
+  type: 'test'
+  ...
+# Subtest: orca rule: a core row without an Orca application version cannot satisfy the gate
+ok 566 - orca rule: a core row without an Orca application version cannot satisfy the gate
+  ---
+  duration_ms: 3.729957
+  type: 'test'
+  ...
+# Subtest: orca rule: an empty, invented or unimplemented protocol string is an error
+ok 567 - orca rule: an empty, invented or unimplemented protocol string is an error
+  ---
+  duration_ms: 12.012808
+  type: 'test'
+  ...
+# Subtest: orca rule: a legacy scoped Chrome/Edge row still validates unchanged and closes no gate
+ok 568 - orca rule: a legacy scoped Chrome/Edge row still validates unchanged and closes no gate
+  ---
+  duration_ms: 4.291768
+  type: 'test'
+  ...
+# Subtest: browser deferrals: a malformed entry is an error and an unused deferral only warns
+ok 569 - browser deferrals: a malformed entry is an error and an unused deferral only warns
+  ---
+  duration_ms: 7.288363
+  type: 'test'
+  ...
+# Subtest: browser deferrals: a gate that still demands a deferred browser is an error
+ok 570 - browser deferrals: a gate that still demands a deferred browser is an error
+  ---
+  duration_ms: 4.856673
+  type: 'test'
+  ...
+# Subtest: register scope agreement: a stale declared requiredBrowsers list only warns
+ok 571 - register scope agreement: a stale declared requiredBrowsers list only warns
+  ---
+  duration_ms: 3.73067
+  type: 'test'
+  ...
+# Subtest: resolves the real fixture sheet through workbook relationships and reads A1
+ok 572 - resolves the real fixture sheet through workbook relationships and reads A1
+  ---
+  duration_ms: 6.825006
+  type: 'test'
+  ...
+# Subtest: reads shared-string, string, numeric and inline forms and decodes entities
+ok 573 - reads shared-string, string, numeric and inline forms and decodes entities
+  ---
+  duration_ms: 2.028526
+  type: 'test'
+  ...
+# Subtest: rejects unsupported cell encodings instead of guessing
+ok 574 - rejects unsupported cell encodings instead of guessing
+  ---
+  duration_ms: 0.522226
+  type: 'test'
+  ...
+# Subtest: fails malformed, empty, truncated and ambiguous packages
+ok 575 - fails malformed, empty, truncated and ambiguous packages
+  ---
+  duration_ms: 0.339317
+  type: 'test'
+  ...
+# Subtest: negative: wrong sheet, wrong cell, stale bytes, lost marker and unstable reopen fail
+ok 576 - negative: wrong sheet, wrong cell, stale bytes, lost marker and unstable reopen fail
+  ---
+  duration_ms: 5.167288
+  type: 'test'
+  ...
+# Subtest: verifyXlsxOutput: throws on a stale/wrong fixture pin and on unproven gates
+ok 577 - verifyXlsxOutput: throws on a stale/wrong fixture pin and on unproven gates
+  ---
+  duration_ms: 1.681462
+  type: 'test'
+  ...
+# Subtest: verifyXlsxOutput: passes on the pinned fixture with a real reopen and returns the three hashes
+ok 578 - verifyXlsxOutput: passes on the pinned fixture with a real reopen and returns the three hashes
+  ---
+  duration_ms: 1.991502
+  type: 'test'
+  ...
+# Subtest: verifyXlsxOutput: rejects bad input shapes before reading bytes
+ok 579 - verifyXlsxOutput: rejects bad input shapes before reading bytes
+  ---
+  duration_ms: 0.280389
+  type: 'test'
+  ...
+# Subtest: negative: duplicate cell ref is rejected, not find()-selected
+ok 580 - negative: duplicate cell ref is rejected, not find()-selected
+  ---
+  duration_ms: 0.535159
+  type: 'test'
+  ...
+# Subtest: negative: malformed/unclosed outer XML throws before parsing
+ok 581 - negative: malformed/unclosed outer XML throws before parsing
+  ---
+  duration_ms: 0.572258
+  type: 'test'
+  ...
+# Subtest: negative: changed B1 value/formula or changed sheet list fails preserved structure
+ok 582 - negative: changed B1 value/formula or changed sheet list fails preserved structure
+  ---
+  duration_ms: 0.483163
+  type: 'test'
+  ...
+# Subtest: F1: markup inside comments/CDATA/PIs is rejected, never read as a cell, sheet or relationship
+ok 583 - F1: markup inside comments/CDATA/PIs is rejected, never read as a cell, sheet or relationship
+  ---
+  duration_ms: 1.270901
+  type: 'test'
+  ...
+# Subtest: F1p: normal declaration, plain comment and markup-free CDATA/PI are accepted
+ok 584 - F1p: normal declaration, plain comment and markup-free CDATA/PI are accepted
+  ---
+  duration_ms: 0.327011
+  type: 'test'
+  ...
+# Subtest: F2: changed or deleted non-target parts and other worksheets fail preservation
+ok 585 - F2: changed or deleted non-target parts and other worksheets fail preservation
+  ---
+  duration_ms: 7.095736
+  type: 'test'
+  ...
+# Subtest: F2-multi: only Data/A1 is edited; a changed other sheet fails
+ok 586 - F2-multi: only Data/A1 is edited; a changed other sheet fails
+  ---
+  duration_ms: 1.731322
+  type: 'test'
+  ...
+# Subtest: G1: marker echo without a real A1 change fails; a real edit passes
+ok 587 - G1: marker echo without a real A1 change fails; a real edit passes
+  ---
+  duration_ms: 3.096655
+  type: 'test'
+  ...
+# Subtest: R4: a declared recalculated dependent cell is verified by value+formula, never assumed
+ok 588 - R4: a declared recalculated dependent cell is verified by value+formula, never assumed
+  ---
+  duration_ms: 2.628457
+  type: 'test'
+  ...
+# Subtest: G2: authored defined names survive reserialization and reject deletion, retarget, duplicates
+ok 589 - G2: authored defined names survive reserialization and reject deletion, retarget, duplicates
+  ---
+  duration_ms: 3.138091
+  type: 'test'
+  ...
+1..589
+# tests 593
+# suites 0
+# pass 554
+# fail 15
+# cancelled 0
+# skipped 24
+# todo 0
+# duration_ms 12618.997401
+OFFICE_G0_EXIT=1
