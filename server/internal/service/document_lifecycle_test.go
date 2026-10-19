@@ -526,6 +526,51 @@ func TestDocumentPurge(t *testing.T) {
 		f.liveArchived(t, recent.ID)
 	})
 
+	// DOC-07: a document's access requests go with it. No foreign key, so the
+	// purge transaction is the only thing that deletes them.
+	t.Run("access requests go with the purged document", func(t *testing.T) {
+		f.svc.SetFiles(&releaseSpy{})
+		past := time.Now().Add(-time.Hour)
+		dead := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID,
+			createdBy: tn.aclOwner.ID, archived: true, purgeAfter: past})
+		alive := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		seedRequest := func(t *testing.T, doc db.Document, status string) {
+			t.Helper()
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO document_access_requests (
+				id, organization_id, workspace_id, document_id, created_by, created_by_kind,
+				requested_level, status, expires_at) VALUES ($1, $2, $3, $4, $5, 'human', 'view', $6, now() + interval '30 days')`,
+				util.NewID(), doc.OrganizationID, doc.WorkspaceID, doc.ID, tn.member.ID, status); err != nil {
+				t.Fatal(err)
+			}
+		}
+		seedRequest(t, dead, "pending")
+		seedRequest(t, dead, "declined")
+		seedRequest(t, alive, "pending")
+
+		rep, err := f.svc.PurgeExpired(f.ctx, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rep.Purged != 1 {
+			t.Fatalf("purge = %+v, want the dead row", rep)
+		}
+		count := func(id string) int {
+			t.Helper()
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM document_access_requests WHERE document_id = $1`, id).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			return n
+		}
+		if n := count(dead.ID); n != 0 {
+			t.Fatalf("%d access requests survived the purge", n)
+		}
+		if n := count(alive.ID); n != 1 {
+			t.Fatalf("the surviving document's request row count = %d, want 1", n)
+		}
+	})
+
 	t.Run("owner-service documents are not the public sweep's business", func(t *testing.T) {
 		f.svc.SetFiles(&releaseSpy{})
 		past := time.Now().Add(-time.Hour)

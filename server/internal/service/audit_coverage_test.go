@@ -1228,6 +1228,9 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionDocumentEditRequestCreated: func(t *testing.T, f *auditFixture) {
 			f.documentEditRequest(t)
 		},
+		audit.ActionDocumentAccessRequested: func(t *testing.T, f *auditFixture) {
+			f.documentAccessRequest(t)
+		},
 		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
 			svc, docID, req := f.documentEditRequest(t)
 			if _, err := svc.AnswerDocumentEditRequest(f.ctx, Human(f.owner.ID), docID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "decline", LockID: req.Request.LockID}); err != nil {
@@ -1797,6 +1800,7 @@ func auditActions() []string {
 		audit.ActionDocumentEditRequestCreated,
 		audit.ActionDocumentEditRequestAnswered,
 		audit.ActionDocumentEditRequestCanceled,
+		audit.ActionDocumentAccessRequested,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentCommitIntentRenewed,
@@ -2081,6 +2085,23 @@ func (f *auditFixture) documentEditHold(t *testing.T) (*DocumentService, string,
 		t.Fatal(err)
 	}
 	return svc, docID, l.Lock.ID, sid
+}
+
+// documentAccessRequest is a restricted document the member cannot read and
+// the request they sent its ACL owner (DOC-07).
+func (f *auditFixture) documentAccessRequest(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	f.addMember(t)
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET visibility = 'restricted' WHERE id = $1", docID); err != nil {
+		t.Fatalf("make audit document restricted: %v", err)
+	}
+	if _, err := svc.CreateDocumentAccessRequest(f.ctx, Human(f.member.ID), docID, DocumentAccessRequestInput{
+		RequestedLevel: "view", Message: "kiểm tra theo yêu cầu kiểm toán",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID
 }
 
 // documentEditRequest is a document the owner holds and the member asked
