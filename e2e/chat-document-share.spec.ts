@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { e2eApiUrl } from "./api-url";
 import { loginFolderUser, seedFolderWorkspace } from "./documents-folders-fixtures";
 
@@ -132,4 +132,100 @@ test("staff sends a docx in a DM at comment level; the manager comments and staf
   await expect(staffPane).toBeVisible({ timeout: 30_000 });
   await staffPane.getByRole("tab", { name: /^(Thảo luận|Discussion)$/ }).click();
   await expect(staffPane.getByText(COMMENT_TEXT).first()).toBeVisible({ timeout: 30_000 });
+});
+
+const DOCX_V2_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-vietnamese.docx");
+
+/**
+ * A DM with a plain docx file message the sender already holds — the shape
+ * share-as-document converts (UNI-1966 §2.2): the file went out the old way,
+ * before any share level was picked. Only the setup uses the API.
+ */
+async function seedDmWithPlainDocx(page: Page, slug: string, fileName: string) {
+  const ws = await seedFolderWorkspace(page, slug, { withMemberB: true });
+  const sender = ws.owner;
+  const peer = ws.member;
+  expect(peer, "seedFolderWorkspace with member B").toBeTruthy();
+  const auth = { authorization: `Bearer ${sender.token}` };
+
+  const dm = await page.request.post(`${e2eApiUrl}/api/v1/workspaces/${ws.wsId}/chat/dm`, {
+    headers: { ...auth, "content-type": "application/json" },
+    data: { user_id: peer!.id },
+  });
+  expect(dm.ok(), `resolve dm: ${dm.status()} ${await dm.text()}`).toBeTruthy();
+  const roomId = ((await dm.json()) as { room: { id: string } }).room.id;
+
+  const sent = await page.request.post(`${e2eApiUrl}/api/v1/workspaces/${ws.wsId}/chat/rooms/${roomId}/messages/file`, {
+    headers: auth,
+    multipart: {
+      file: { name: fileName, mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) },
+      client_msg_id: `msg-old-docx-${stamp}-${slug}`,
+    },
+  });
+  expect(sent.ok(), `send file: ${sent.status()} ${await sent.text()}`).toBeTruthy();
+  const messageId = ((await sent.json()) as { message: { id: string } }).message.id;
+  expect(messageId).toBeTruthy();
+  return { ws, sender, roomId, messageId, auth };
+}
+
+test("the sender turns an old file message into a document card in place", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const name = `bien-ban-cu-${stamp}.docx`;
+  const { ws, sender, roomId, messageId } = await seedDmWithPlainDocx(page, `docold${stamp}`, name);
+
+  await loginFolderUser(page, sender.email);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/chat?room=${roomId}`);
+
+  // The old message is still a file card: no document title button yet, and
+  // the sender (only the sender) has the conversion action.
+  const row = page.locator(`article#chat-msg-${messageId}`);
+  await expect(row).toBeVisible({ timeout: 60_000 });
+  await expect(row.getByRole("button", { name: /^Mở trong Tài liệu:/ })).toHaveCount(0);
+  await row.getByRole("button", { name: "Chia sẻ dạng tài liệu" }).click();
+  await page.getByRole("menuitem", { name: "Nhận xét", exact: true }).click();
+
+  // The same message turns into the document card — same article, no second
+  // row for the file.
+  await expect(row.getByRole("button", { name: /^Mở trong Tài liệu:/ })).toBeVisible({ timeout: 60_000 });
+  await expect(row.getByText("Nhận xét")).toBeVisible({ timeout: 30_000 });
+  await expect(row.getByRole("button", { name: "Chia sẻ dạng tài liệu" })).toHaveCount(0);
+  await expect(page.locator('article[id^="chat-msg-"]').filter({ hasText: name })).toHaveCount(1);
+});
+
+test("a new version uploaded from the card writes a version line into the conversation", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const name = `bien-ban-v2-${stamp}.docx`;
+  const { ws, sender, roomId, messageId, auth } = await seedDmWithPlainDocx(page, `docver${stamp}`, name);
+
+  // The card exists through the API (the conversion is the previous test's
+  // subject); this one starts from the document card the DM holds.
+  const shared = await page.request.post(
+    `${e2eApiUrl}/api/v1/workspaces/${ws.wsId}/chat/rooms/${roomId}/messages/${messageId}/share-as-document`,
+    {
+      headers: { ...auth, "content-type": "application/json" },
+      data: { share_level: "comment", client_msg_id: `share-old-docx-${stamp}` },
+    },
+  );
+  expect(shared.ok(), `share as document: ${shared.status()} ${await shared.text()}`).toBeTruthy();
+
+  await loginFolderUser(page, sender.email);
+  await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/chat?room=${roomId}`);
+  const card = page.locator(`article#chat-msg-${messageId}`);
+  await expect(card.getByRole("button", { name: /^Mở trong Tài liệu:/ })).toBeVisible({ timeout: 60_000 });
+
+  await card.getByRole("button", { name: "Tải lên phiên bản mới" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible({ timeout: 15_000 });
+  // Different bytes: an identical upload is refused as "nothing changed".
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: `v2-${name}`,
+    mimeType: DOCX_MIME,
+    buffer: readFileSync(DOCX_V2_FIXTURE),
+  });
+  await dialog.getByRole("button", { name: "Tải lên", exact: true }).click();
+  await expect(dialog).toBeHidden({ timeout: 60_000 });
+
+  // The compact system line: "{name} đã tải lên phiên bản {n}".
+  const line = page.locator('article[id^="chat-msg-"]').filter({ hasText: /đã tải lên phiên bản \d+/ });
+  await expect(line).toHaveCount(1, { timeout: 60_000 });
 });
