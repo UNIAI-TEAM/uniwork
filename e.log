@@ -1,0 +1,171 @@
+$ for c in FQ-22 FQ-24 FQ-40 FQ-41 FQ-42 FQ-43 FQ-44; do HARNESS_RUN_DIR="$PWD/.harness-run-fqs1" OFFICE_FORK_SHA=1d5b68400 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case $c --run-dir .harness-run-fqs1; echo "APP_CASE_${c//-/_}_EXIT=$?"; done; for f in .harness-run-fqs1/fault/FQ-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:41271 app_api=http://127.0.0.1:38687 proxy_upstream=http://127.0.0.1:41271
+FQ-22: running
+dbus-daemon[21090]: [session uid=1000 pid=21090] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=21126 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[21090]: [session uid=1000 pid=21090] Successfully activated service 'org.a11y.Bus'
+FQ-22: FAIL (predicted OQ-F11)
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-19T17:00:59.974Z ∅ -> queued
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-19T17:01:00.012Z queued -> paused_offline code=network
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-19T17:01:52.423Z queued -> validating
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-19T17:01:52.423Z validating -> uploading
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-19T17:01:52.423Z uploading -> committing
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] trace 2026-10-19T17:01:52.423Z committing -> committed http=200
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] proxy 2026-10-19T17:00:59.992Z upload POST 201 key=b76320796af6 rule=-
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] proxy 2026-10-19T17:01:00.009Z commit POST dropped key=b76320796af6 rule=lose-commit-answer
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] proxy 2026-10-19T17:01:52.436Z upload POST 201 key=b76320796af6 rule=-
+  FQ-22 [timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới] proxy 2026-10-19T17:01:52.444Z commit POST 200 key=b76320796af6 rule=-
+FQ-22 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-fqs1/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_22_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:41271 app_api=http://127.0.0.1:34751 proxy_upstream=http://127.0.0.1:41271
+FQ-24: running
+dbus-daemon[21301]: [session uid=1000 pid=21301] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=21338 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[21301]: [session uid=1000 pid=21301] Successfully activated service 'org.a11y.Bus'
+FQ-24: FAIL (predicted F4)
+  FQ-24 [claim upload hết hạn trước khi thiết bị online: resume theo logical intent, chỉ re-upload sau khi attempt cũ bị fence, một version] trace 2026-10-19T17:02:32.949Z ∅ -> queued
+  FQ-24 [claim upload hết hạn trước khi thiết bị online: resume theo logical intent, chỉ re-upload sau khi attempt cũ bị fence, một version] proxy 2026-10-19T17:02:32.969Z upload POST 201 key=d7cb6eb04af3 rule=-
+  FQ-24 [claim upload hết hạn trước khi thiết bị online: resume theo logical intent, chỉ re-upload sau khi attempt cũ bị fence, một version] proxy 2026-10-19T17:02:33.462Z commit POST 409 key=d7cb6eb04af3 rule=hold-before-commit
+FQ-24 (G5-A06): FAIL predicted F4
+/workspace/.harness-run-fqs1/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_24_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:41271 app_api=http://127.0.0.1:34011 proxy_upstream=http://127.0.0.1:41271
+FQ-40 [1/5] reconciling → committed: running
+dbus-daemon[21533]: [session uid=1000 pid=21533] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=21569 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[21533]: [session uid=1000 pid=21533] Successfully activated service 'org.a11y.Bus'
+FQ-40 [2/5] reconciling → queued (attempt mới): running
+FQ-40 [3/5] reconciling → paused_admin: running
+APP_CASE_FQ_40_EXIT=124
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:41271 app_api=http://127.0.0.1:45143 proxy_upstream=http://127.0.0.1:41271
+FQ-41: running
+dbus-daemon[22098]: [session uid=1000 pid=22098] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=22135 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[22098]: [session uid=1000 pid=22098] Successfully activated service 'org.a11y.Bus'
+FQ-40 [4/5] reconciling → paused_offline: running
+FQ-40 [5/5] reconciling ở lại (in_flight): running
+FQ-40: FAIL (predicted OQ-F11)
+  FQ-40 [reconciling → committed] trace 2026-10-19T17:06:13.953Z ∅ -> queued
+  FQ-40 [reconciling → committed] trace 2026-10-19T17:06:13.980Z queued -> paused_offline code=network
+  FQ-40 [reconciling → committed] trace 2026-10-19T17:07:06.388Z queued -> validating
+  FQ-40 [reconciling → committed] trace 2026-10-19T17:07:06.388Z validating -> uploading
+  FQ-40 [reconciling → committed] trace 2026-10-19T17:07:06.388Z uploading -> committing
+  FQ-40 [reconciling → committed] trace 2026-10-19T17:07:06.388Z committing -> committed http=200
+  FQ-40 [reconciling → committed] proxy 2026-10-19T17:06:13.966Z upload POST 201 key=fe0a251b6a0e rule=-
+  FQ-40 [reconciling → committed] proxy 2026-10-19T17:06:13.977Z commit POST dropped key=fe0a251b6a0e rule=lose-commit-answer
+  FQ-40 [reconciling → committed] proxy 2026-10-19T17:07:06.403Z upload POST 201 key=fe0a251b6a0e rule=-
+  FQ-40 [reconciling → committed] proxy 2026-10-19T17:07:06.410Z commit POST 200 key=fe0a251b6a0e rule=-
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T17:07:45.522Z ∅ -> queued
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T17:07:45.551Z queued -> paused_offline code=network
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T17:08:37.984Z queued -> validating
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T17:08:37.984Z validating -> uploading
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T17:08:37.984Z uploading -> committing
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T17:08:37.984Z committing -> committed http=200
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-19T17:07:45.536Z upload POST 201 key=3046b7e6274c rule=-
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-19T17:07:45.547Z commit POST dropped key=3046b7e6274c rule=lose-commit-answer
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-19T17:08:37.997Z upload POST 201 key=3046b7e6274c rule=-
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-19T17:08:38.002Z commit POST 200 key=3046b7e6274c rule=-
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T17:10:26.512Z ∅ -> queued
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T17:10:26.536Z queued -> paused_offline code=network
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T17:11:18.944Z queued -> validating
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T17:11:18.944Z validating -> uploading
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T17:11:18.944Z uploading -> committing
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T17:11:18.944Z committing -> committed http=200
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-19T17:10:26.525Z upload POST 201 key=406e0d4c34d5 rule=-
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-19T17:10:26.533Z commit POST dropped key=406e0d4c34d5 rule=lose-commit-answer
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-19T17:11:18.958Z upload POST 201 key=406e0d4c34d5 rule=-
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-19T17:11:18.967Z commit POST 200 key=406e0d4c34d5 rule=-
+FQ-40 (G5-A06): FAIL predicted OQ-F11 — reconciling → paused_offline: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling ở lại (in_flight): no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring)
+/workspace/.harness-run-fqs1/fault
+FQ-41: FAIL (predicted OQ-F11)
+  FQ-41 [reconciling → reconciling-stuck] trace 2026-10-19T17:13:13.950Z ∅ -> queued
+  FQ-41 [reconciling → reconciling-stuck] trace 2026-10-19T17:13:13.971Z queued -> paused_offline code=network
+  FQ-41 [reconciling → reconciling-stuck] trace 2026-10-19T17:14:06.415Z queued -> validating
+  FQ-41 [reconciling → reconciling-stuck] trace 2026-10-19T17:14:06.415Z validating -> uploading
+  FQ-41 [reconciling → reconciling-stuck] trace 2026-10-19T17:14:06.415Z uploading -> committing
+  FQ-41 [reconciling → reconciling-stuck] trace 2026-10-19T17:14:06.415Z committing -> committed http=200
+  FQ-41 [reconciling → reconciling-stuck] proxy 2026-10-19T17:13:13.968Z upload POST 201 key=adebb8bca559 rule=-
+  FQ-41 [reconciling → reconciling-stuck] proxy 2026-10-19T17:13:13.969Z commit POST dropped key=adebb8bca559 rule=drop-commit
+  FQ-41 [reconciling → reconciling-stuck] proxy 2026-10-19T17:14:06.426Z upload POST 201 key=adebb8bca559 rule=-
+  FQ-41 [reconciling → reconciling-stuck] proxy 2026-10-19T17:14:06.439Z commit POST 200 key=adebb8bca559 rule=-
+FQ-41 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-fqs1/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_41_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:41271 app_api=http://127.0.0.1:33587 proxy_upstream=http://127.0.0.1:41271
+FQ-42: running
+dbus-daemon[22476]: [session uid=1000 pid=22476] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=22512 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[22476]: [session uid=1000 pid=22476] Successfully activated service 'org.a11y.Bus'
+FQ-42: FAIL (predicted OQ-F11)
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] trace 2026-10-19T17:17:14.879Z ∅ -> queued
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] trace 2026-10-19T17:17:14.900Z queued -> paused_offline code=network
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] trace 2026-10-19T17:18:07.340Z queued -> validating
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] trace 2026-10-19T17:18:07.340Z validating -> uploading
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] trace 2026-10-19T17:18:07.340Z uploading -> committing
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] trace 2026-10-19T17:18:07.340Z committing -> committed http=200
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] proxy 2026-10-19T17:17:14.895Z upload POST 201 key=da8cb4d5f234 rule=-
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] proxy 2026-10-19T17:17:14.896Z commit POST dropped key=da8cb4d5f234 rule=drop-commit
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] proxy 2026-10-19T17:18:07.352Z upload POST 201 key=da8cb4d5f234 rule=-
+  FQ-42 [reconciling → reconciling-stuck (hết giờ)] proxy 2026-10-19T17:18:07.364Z commit POST 200 key=da8cb4d5f234 rule=-
+FQ-42 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-fqs1/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_42_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:41271 app_api=http://127.0.0.1:41519 proxy_upstream=http://127.0.0.1:41271
+FQ-43 [1/9] reconciling → blocked session_expired: running
+dbus-daemon[22702]: [session uid=1000 pid=22702] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=22738 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[22702]: [session uid=1000 pid=22702] Successfully activated service 'org.a11y.Bus'
+FQ-43 [2/9] reconciling → blocked organization_suspended: running
+FQ-43 [3/9] reconciling → blocked member_deactivated: running
+APP_CASE_FQ_43_EXIT=124
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:41271 app_api=http://127.0.0.1:34861 proxy_upstream=http://127.0.0.1:41271
+FQ-44 [1/3] reconciling-stuck → committed: running
+dbus-daemon[23244]: [session uid=1000 pid=23244] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=23281 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[23244]: [session uid=1000 pid=23244] Successfully activated service 'org.a11y.Bus'
+FQ-43 [4/9] reconciling → blocked document_archived: running
+FQ-43 [5/9] reconciling → blocked permission_revoked: running
+FQ-43 [6/9] reconciling → blocked document_deleted: running
+FQ-43 [7/9] real: reconciling → blocked organization_suspended: running
+FQ-43 [8/9] real: reconciling → blocked member_deactivated: running
+FQ-43 [9/9] real: reconciling → blocked document_deleted: running
+FQ-43: FAIL (predicted OQ-F11)
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:21:55.940Z ∅ -> queued
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:21:55.972Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:22:48.344Z queued -> validating
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:22:48.344Z validating -> uploading
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:22:48.344Z uploading -> committing
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:22:48.344Z committing -> committed http=200
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T17:21:55.957Z upload POST 201 key=19812c99ca41 rule=-
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T17:21:55.969Z commit POST dropped key=19812c99ca41 rule=lose-commit-answer
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T17:22:48.357Z upload POST 201 key=19812c99ca41 rule=-
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T17:22:48.364Z commit POST 200 key=19812c99ca41 rule=-
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:24:45.631Z ∅ -> queued
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:24:45.662Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:25:38.059Z queued -> validating
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:25:38.059Z validating -> uploading
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:25:38.059Z uploading -> committing
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:25:38.059Z committing -> committed http=200
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T17:24:45.648Z upload POST 201 key=7a7de65a38df rule=-
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T17:24:45.658Z commit POST dropped key=7a7de65a38df rule=lose-commit-answer
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T17:25:38.076Z upload POST 201 key=7a7de65a38df rule=-
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T17:25:38.083Z commit POST 200 key=7a7de65a38df rule=-
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T17:27:35.360Z ∅ -> queued
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T17:27:35.390Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked member_deactivated] proxy 2026-10-19T17:27:35.375Z upload POST 201 key=aa45970c821c rule=-
+  FQ-43 [reconciling → blocked member_deactivated] proxy 2026-10-19T17:27:35.387Z commit POST dropped key=aa45970c821c rule=lose-commit-answer
+FQ-43 (G5-A06): FAIL predicted OQ-F11 — reconciling → blocked document_archived: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling → blocked permission_revoked: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling → blocked document_deleted: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked organization_suspended: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked member_deactivated: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked document_deleted: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring)
+/workspace/.harness-run-fqs1/fault
+FQ-44 [2/3] reconciling-stuck → blocked: running
+APP_CASE_FQ_44_EXIT=124
+FQ-22 FAIL OQ-F11  client_path: expected "* → reconciling → committed" actual "queued → paused_offline → validating → uploading → committing → committed" | exactly_one_commit_post: expected 1 actual 2 | lookup_after_lost_answer: expected ">= 1" actual 0 | lookup_answered: expected 200 actual "none"
+FQ-24 FAIL F4  client_path: expected "* → reconciling → queued → * → committed" actual "queued" | settled_committed: expected "committed" actual "never" | reuploaded_after_fence: expected ">= 2" actual 1 | commit_200_after_reupload: expected "a 200 commit after the last upload" actual "409" | version_delta: expected 1 actual 0
+FQ-40 FAIL OQ-F11 reconciling → paused_offline: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling ở lại (in_flight): no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring) client_path: expected "* → reconciling → committed" actual "queued → paused_offline → validating → uploading → committing → committed" | device_b_commit_200: expected 200 actual 423 | lookup_answered_by_server: expected 200 actual "none" | reconciling_to_queued: expected "reconciling → queued" actual "never" | lookup_held: expected "held" actual "never" | reconciling_to_paused_admin: expected "reconciling → paused_admin" actual "never" | no_commit_while_paused: expected 0 actual 2
+FQ-41 FAIL OQ-F11  client_path: expected "* → reconciling → reconciling-stuck" actual "queued → paused_offline → validating → uploading → committing → committed" | stuck: expected "reconciling-stuck" actual "never" | unknown_lookup: expected "reconciling-stuck:commit_intent_unknown" actual "(never entered)" | lookup_410_from_server: expected 410 actual "none" | version_delta: expected 0 actual 1
+FQ-42 FAIL OQ-F11  client_path: expected "* → reconciling → * → reconciling-stuck" actual "queued → paused_offline → validating → uploading → committing → committed" | stuck_after_the_knob: expected ">= 19000 ms in reconciling" actual null | only_the_first_commit_post: expected 1 actual 2 | last_state_stuck: expected "reconciling-stuck" actual "committed" | version_delta: expected 0 actual 1
+FQ-43 FAIL OQ-F11 reconciling → blocked document_archived: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling → blocked permission_revoked: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling → blocked document_deleted: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked organization_suspended: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked member_deactivated: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked document_deleted: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring) client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:session_expired" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:organization_suspended" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline" | blocked_reason: expected "blocked:member_deactivated" actual "(never entered)"

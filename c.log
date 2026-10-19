@@ -1,0 +1,2147 @@
+$ node --test scripts/office/g5g6g7/fault/*.test.mjs; echo "FAULT_UNIT_EXIT=$?"
+TAP version 13
+# Subtest: every ready app row's expect is sound and resolves a version delta for every run
+ok 1 - every ready app row's expect is sound and resolves a version delta for every run
+  ---
+  duration_ms: 2.116721
+  ...
+# Subtest: every app row, ready and pending, resolves an integer versionDelta for every run and exit
+ok 2 - every app row, ready and pending, resolves an integer versionDelta for every run and exit
+  ---
+  duration_ms: 0.746643
+  ...
+# Subtest: a {run: count} map is not a versionDelta
+ok 3 - a {run: count} map is not a versionDelta
+  ---
+  duration_ms: 0.453619
+  ...
+# Subtest: deltaAssertion expects the run's expect.server.versionDelta and fails when the measured delta differs
+ok 4 - deltaAssertion expects the run's expect.server.versionDelta and fails when the measured delta differs
+  ---
+  duration_ms: 1.277632
+  ...
+# Subtest: a row whose expect.server.versionDelta changes changes what the driver expects
+ok 5 - a row whose expect.server.versionDelta changes changes what the driver expects
+  ---
+  duration_ms: 0.217823
+  ...
+# Subtest: the shared assertions take their numbers from ctx.expect
+ok 6 - the shared assertions take their numbers from ctx.expect
+  ---
+  duration_ms: 0.486533
+  ...
+# Subtest: no app driver compares a number of its own
+ok 7 - no app driver compares a number of its own
+  ---
+  duration_ms: 0.510487
+  ...
+# Subtest: every machine-readable expectation an app row carries is read by an app driver
+ok 8 - every machine-readable expectation an app row carries is read by an app driver
+  ---
+  duration_ms: 2.566605
+  ...
+# Subtest: parseExitRange reads a-b and n, and refuses everything else
+ok 9 - parseExitRange reads a-b and n, and refuses everything else
+  ---
+  duration_ms: 1.232977
+  ...
+# Subtest: selectExitRange keeps the range and skips the rest, numbering by position
+ok 10 - selectExitRange keeps the range and skips the rest, numbering by position
+  ---
+  duration_ms: 2.021063
+  ...
+# Subtest: a skipped exit prints its own line, never a verdict
+ok 11 - a skipped exit prints its own line, never a verdict
+  ---
+  duration_ms: 0.976745
+  ...
+# Subtest: a sliced row is never PASS: the worst of the exits it ran, with exitRange recorded
+ok 12 - a sliced row is never PASS: the worst of the exits it ran, with exitRange recorded
+  ---
+  duration_ms: 1.186947
+  ...
+# Subtest: without --exits nothing changes: every exit runs and no result is rewritten
+ok 13 - without --exits nothing changes: every exit runs and no result is rewritten
+  ---
+  duration_ms: 1.852915
+  ...
+# Subtest: parseAppCasesArgs reads --exits and refuses it without --case
+ok 14 - parseAppCasesArgs reads --exits and refuses it without --case
+  ---
+  duration_ms: 0.49739
+  ...
+# Subtest: app-cases.mjs --exits: a bad range exits 2, and a pending row still reports BLOCKED
+ok 15 - app-cases.mjs --exits: a bad range exits 2, and a pending row still reports BLOCKED
+  ---
+  duration_ms: 252.350382
+  ...
+# Subtest: FQ-51 carries both rules and renders them with no fault rewritten
+ok 16 - FQ-51 carries both rules and renders them with no fault rewritten
+  ---
+  duration_ms: 0.93294
+  ...
+# Subtest: the matrix row names FQ-51's dead refresh and the re-auth precondition
+ok 17 - the matrix row names FQ-51's dead refresh and the re-auth precondition
+  ---
+  duration_ms: 0.768725
+  ...
+# Subtest: the member deactivate/reactivate calls carry the organization SLUG, not its id
+ok 18 - the member deactivate/reactivate calls carry the organization SLUG, not its id
+  ---
+  duration_ms: 1.199824
+  ...
+# Subtest: signOut answers the G5-11 S3 prompt the way the product's UI does
+ok 19 - signOut answers the G5-11 S3 prompt the way the product's UI does
+  ---
+  duration_ms: 0.265061
+  ...
+# Subtest: a sliced row's exits keep their row ordinal, a whole row and a one-exit row unchanged (review r6 R6-1)
+ok 20 - a sliced row's exits keep their row ordinal, a whole row and a one-exit row unchanged (review r6 R6-1)
+  ---
+  duration_ms: 0.699593
+  ...
+# Subtest: the signed-out facts probe reports a missing sync center instead of throwing
+ok 21 - the signed-out facts probe reports a missing sync center instead of throwing
+  ---
+  duration_ms: 0.20017
+  ...
+# Subtest: FQ-51's signed-out exits assert the surfaces that carry the signed_out reason
+ok 22 - FQ-51's signed-out exits assert the surfaces that carry the signed_out reason
+  ---
+  duration_ms: 0.103984
+  ...
+# Subtest: FQ-53's fill reaches the G5-11 store budget (1 GiB), not the G5-04 one (256 MiB)
+ok 23 - FQ-53's fill reaches the G5-11 store budget (1 GiB), not the G5-04 one (256 MiB)
+  ---
+  duration_ms: 0.167466
+  ...
+# Subtest: FQ-50's exits carry OQ-F12 on 1/4/5 and OQ-F6 on 2/3 (Advisor qa-fault_local:46)
+ok 24 - FQ-50's exits carry OQ-F12 on 1/4/5 and OQ-F6 on 2/3 (Advisor qa-fault_local:46)
+  ---
+  duration_ms: 1.86837
+  ...
+# Subtest: the OQ-F12 exits are the ones that lift a real condition; the OQ-F6 ones meet the 403
+ok 25 - the OQ-F12 exits are the ones that lift a real condition; the OQ-F6 ones meet the 403
+  ---
+  duration_ms: 0.17747
+  ...
+# Subtest: FQ-51 gains no tag: the reading fix is what its session_expired exit needs (qa-fault_local:46)
+ok 26 - FQ-51 gains no tag: the reading fix is what its session_expired exit needs (qa-fault_local:46)
+  ---
+  duration_ms: 0.124184
+  ...
+# Subtest: the matrix FQ-50 row and the OQ-F6 / OQ-F12 paragraphs name the tags and the decision id
+ok 27 - the matrix FQ-50 row and the OQ-F6 / OQ-F12 paragraphs name the tags and the decision id
+  ---
+  duration_ms: 0.593101
+  ...
+# Subtest: with every FQ-50 exit tagged, a FAIL on one exit never blocks the exits after it
+ok 28 - with every FQ-50 exit tagged, a FAIL on one exit never blocks the exits after it
+  ---
+  duration_ms: 0.30544
+  ...
+# Subtest: (a) the r13/r14 FQ-51 exit-1 shape passes client_path, expectation unchanged
+ok 29 - (a) the r13/r14 FQ-51 exit-1 shape passes client_path, expectation unchanged
+  ---
+  duration_ms: 0.345833
+  ...
+# Subtest: (b) a real queue-machine blocked followed by validating still fails client_path
+ok 30 - (b) a real queue-machine blocked followed by validating still fails client_path
+  ---
+  duration_ms: 0.176635
+  ...
+# Subtest: only the hook's signed-out render is a lift: its own code AND the record staying put
+ok 31 - only the hook's signed-out render is a lift: its own code AND the record staying put
+  ---
+  duration_ms: 0.116022
+  ...
+# Subtest: (c) FQ-50 and FQ-51 keep their expectations; the reading does not loosen FQ-50
+ok 32 - (c) FQ-50 and FQ-51 keep their expectations; the reading does not loosen FQ-50
+  ---
+  duration_ms: 0.220035
+  ...
+# Subtest: the matrix FQ-51 row and the §6 clientPath line name the hook-lift reading and the decision id
+ok 33 - the matrix FQ-51 row and the §6 clientPath line name the hook-lift reading and the decision id
+  ---
+  duration_ms: 0.438032
+  ...
+# Subtest: the r14 shape (clean park, lockedCount 0) passes the reading the exits 2-3 use
+ok 34 - the r14 shape (clean park, lockedCount 0) passes the reading the exits 2-3 use
+  ---
+  duration_ms: 0.515945
+  ...
+# Subtest: a snapshot with no locked row still FAILs when the exit truly expects a held item
+ok 35 - a snapshot with no locked row still FAILs when the exit truly expects a held item
+  ---
+  duration_ms: 0.169216
+  ...
+# Subtest: a snapshot with no signed-out summary always FAILs: the surface must exist
+ok 36 - a snapshot with no signed-out summary always FAILs: the surface must exist
+  ---
+  duration_ms: 0.284078
+  ...
+# Subtest: the probe feeds the reading: a snapshot without signedOut is a FAIL, one with it is read
+ok 37 - the probe feeds the reading: a snapshot without signedOut is a FAIL, one with it is read
+  ---
+  duration_ms: 0.645485
+  ...
+# Subtest: the FQ-51 driver reads the summary and never demands a locked item for this path
+ok 38 - the FQ-51 driver reads the summary and never demands a locked item for this path
+  ---
+  duration_ms: 0.138237
+  ...
+# Subtest: the matrix FQ-51 row records the R7-1 reading and the fork citations it rests on
+ok 39 - the matrix FQ-51 row records the R7-1 reading and the fork citations it rests on
+  ---
+  duration_ms: 0.279172
+  ...
+# Subtest: FQ-50 permission_revoked: prepare restricts the document and shares it at edit
+ok 40 - FQ-50 permission_revoked: prepare restricts the document and shares it at edit
+  ---
+  duration_ms: 26.783621
+  ...
+# Subtest: FQ-50 permission_revoked: set downgrades the same share to view, lift restores edit
+ok 41 - FQ-50 permission_revoked: set downgrades the same share to view, lift restores edit
+  ---
+  duration_ms: 8.95556
+  ...
+# Subtest: FQ-50's other exits keep their own conditions and carry the fix17 per-exit tags
+ok 42 - FQ-50's other exits keep their own conditions and carry the fix17 per-exit tags
+  ---
+  duration_ms: 0.182097
+  ...
+# Subtest: the matrix row names FQ-50's permission downgrade and the 403 it produces
+ok 43 - the matrix row names FQ-50's permission downgrade and the 403 it produces
+  ---
+  duration_ms: 0.687115
+  ...
+# Subtest: FL-01: the registered driver runs on its real cases.json row and a correct product passes every assertion
+ok 44 - FL-01: the registered driver runs on its real cases.json row and a correct product passes every assertion
+  ---
+  duration_ms: 8.796989
+  ...
+# Subtest: FL-03: the registered driver runs on its real cases.json row and a correct product passes every assertion
+ok 45 - FL-03: the registered driver runs on its real cases.json row and a correct product passes every assertion
+  ---
+  duration_ms: 6.002122
+  ...
+# Subtest: FL-07: the registered driver runs on its real cases.json row and a correct product passes every assertion
+ok 46 - FL-07: the registered driver runs on its real cases.json row and a correct product passes every assertion
+  ---
+  duration_ms: 3.922337
+  ...
+# Subtest: FL-08: the registered driver runs on its real cases.json row and a correct product passes every assertion
+ok 47 - FL-08: the registered driver runs on its real cases.json row and a correct product passes every assertion
+  ---
+  duration_ms: 3.319499
+  ...
+# Subtest: every driver builds its S3/S11 shots as assertions, and a declared shot that is missing from the row artifacts does not exist
+ok 48 - every driver builds its S3/S11 shots as assertions, and a declared shot that is missing from the row artifacts does not exist
+  ---
+  duration_ms: 13.540514
+  ...
+# Subtest: FL-01: a product that reads ready over the cut download fails never_ready_while_faulted
+ok 49 - FL-01: a product that reads ready over the cut download fails never_ready_while_faulted
+  ---
+  duration_ms: 46.293701
+  ...
+# Subtest: FL-01: a cut that never reached the proxy is not evidence of the fault (the rule's own log line is required)
+ok 50 - FL-01: a cut that never reached the proxy is not evidence of the fault (the rule's own log line is required)
+  ---
+  duration_ms: 2.724072
+  ...
+# Subtest: FL-01: the faulted store reading is taken while the rule is armed and written beside before/after
+ok 51 - FL-01: the faulted store reading is taken while the rule is armed and written beside before/after
+  ---
+  duration_ms: 2.814948
+  ...
+# Subtest: FL-03: a product that serves the tampered cache (open ok, row ready) fails never_served and open_refused_as_corrupt
+ok 52 - FL-03: a product that serves the tampered cache (open ok, row ready) fails never_served and open_refused_as_corrupt
+  ---
+  duration_ms: 4.278232
+  ...
+# Subtest: FL-03: no offlineOpen API, a thrown call or an unrelated code is not a corrupt refusal (R1-5)
+ok 53 - FL-03: no offlineOpen API, a thrown call or an unrelated code is not a corrupt refusal (R1-5)
+  ---
+  duration_ms: 10.943263
+  ...
+# Subtest: FL-03: the tamper hits ciphertext, the open meets the cache only through the cut route, and the refusal is the verification's
+ok 54 - FL-03: the tamper hits ciphertext, the open meets the cache only through the cut route, and the refusal is the verification's
+  ---
+  duration_ms: 3.629428
+  ...
+# Subtest: FL-03: recovery is its own claim - a row that stays corrupt after the retry fails row_recovered
+ok 55 - FL-03: recovery is its own claim - a row that stays corrupt after the retry fails row_recovered
+  ---
+  duration_ms: 48.009788
+  ...
+# Subtest: FL-03: an online open that never meets the cache (the route not cut) cannot pass for a refusal
+ok 56 - FL-03: an online open that never meets the cache (the route not cut) cannot pass for a refusal
+  ---
+  duration_ms: 7.540257
+  ...
+# Subtest: FL-03: a snapshot that cannot answer while the app is alive is a FAIL assertion, never an empty library
+ok 57 - FL-03: a snapshot that cannot answer while the app is alive is a FAIL assertion, never an empty library
+  ---
+  duration_ms: 89.546164
+  ...
+# Subtest: FL-03: an empty pre-store (the pin wrote no record) fails pre_store_has_the_pinned_copy
+ok 58 - FL-03: an empty pre-store (the pin wrote no record) fails pre_store_has_the_pinned_copy
+  ---
+  duration_ms: 2.59951
+  ...
+# Subtest: FL-03: a relaunch that is not account A fails relaunched_as_account_a
+ok 59 - FL-03: a relaunch that is not account A fails relaunched_as_account_a
+  ---
+  duration_ms: 4.303735
+  ...
+# Subtest: FL-03: a failed S11 capture fails the row's shot assertion; S3 and S11 are asserted separately
+ok 60 - FL-03: a failed S11 capture fails the row's shot assertion; S3 and S11 are asserted separately
+  ---
+  duration_ms: 3.464632
+  ...
+# Subtest: FL-07: it declares the S3 shot only (signed-out S3 is the surface; no S11 lock path exists without a session)
+ok 61 - FL-07: it declares the S3 shot only (signed-out S3 is the surface; no S11 lock path exists without a session)
+  ---
+  duration_ms: 2.449886
+  ...
+# Subtest: FL-07: an empty pre-store cannot make the wipe vacuously true
+ok 62 - FL-07: an empty pre-store cannot make the wipe vacuously true
+  ---
+  duration_ms: 1.482111
+  ...
+# Subtest: FL-07: a sign-in that lands on the wrong account fails signed_in_as_account_b
+ok 63 - FL-07: a sign-in that lands on the wrong account fails signed_in_as_account_b
+  ---
+  duration_ms: 2.433905
+  ...
+# Subtest: FL-07: a missing snapshot is a FAIL assertion for the signed-out and the B reading, not zero rows
+ok 64 - FL-07: a missing snapshot is a FAIL assertion for the signed-out and the B reading, not zero rows
+  ---
+  duration_ms: 2.746914
+  ...
+# Subtest: FL-07: a sign-out that leaves A's ciphertext in the store fails account_a_scope_wiped
+ok 65 - FL-07: a sign-out that leaves A's ciphertext in the store fails account_a_scope_wiped
+  ---
+  duration_ms: 2.652181
+  ...
+# Subtest: FL-07: B seeing A's row fails the zero-row claims
+ok 66 - FL-07: B seeing A's row fails the zero-row claims
+  ---
+  duration_ms: 44.406342
+  ...
+# Subtest: FL-08: an env deployment that the app does not honor (a saved profile wins) fails deployment_b_is_effective
+ok 67 - FL-08: an env deployment that the app does not honor (a saved profile wins) fails deployment_b_is_effective
+  ---
+  duration_ms: 2.507328
+  ...
+# Subtest: FL-08: a saved deployment profile in userData fails deployment_b_is_effective even when the env matches
+ok 68 - FL-08: a saved deployment profile in userData fails deployment_b_is_effective even when the env matches
+  ---
+  duration_ms: 2.542078
+  ...
+# Subtest: FL-08: an unanswered snapshot on B is a FAIL, not an empty library
+ok 69 - FL-08: an unanswered snapshot on B is a FAIL, not an empty library
+  ---
+  duration_ms: 2.415257
+  ...
+# Subtest: FL-08: a change in any registered store of A's scope (a feed cursor) fails deployment_a_scope_unchanged
+ok 70 - FL-08: a change in any registered store of A's scope (a feed cursor) fails deployment_a_scope_unchanged
+  ---
+  duration_ms: 2.553687
+  ...
+# Subtest: FL-08: deployment B's copies are counted over B's own deployment folder
+ok 71 - FL-08: deployment B's copies are counted over B's own deployment folder
+  ---
+  duration_ms: 2.649554
+  ...
+# Subtest: FL-01: an app that dies during the run is BLOCKED, never a product FAIL
+ok 72 - FL-01: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 43.050229
+  ...
+# Subtest: FL-01: an app that never comes up is BLOCKED, never a product FAIL
+ok 73 - FL-01: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 1.149604
+  ...
+# Subtest: FL-03: an app that dies during the run is BLOCKED, never a product FAIL
+ok 74 - FL-03: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 43.364565
+  ...
+# Subtest: FL-03: an app that never comes up is BLOCKED, never a product FAIL
+ok 75 - FL-03: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 0.989471
+  ...
+# Subtest: FL-07: an app that dies during the run is BLOCKED, never a product FAIL
+ok 76 - FL-07: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 42.757149
+  ...
+# Subtest: FL-07: an app that never comes up is BLOCKED, never a product FAIL
+ok 77 - FL-07: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 1.00115
+  ...
+# Subtest: FL-08: an app that dies during the run is BLOCKED, never a product FAIL
+ok 78 - FL-08: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 43.612736
+  ...
+# Subtest: FL-08: an app that never comes up is BLOCKED, never a product FAIL
+ok 79 - FL-08: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 0.968826
+  ...
+# Subtest: FL-01: a product error while the app stays alive is re-thrown as the product's own failure, not BLOCKED
+ok 80 - FL-01: a product error while the app stays alive is re-thrown as the product's own failure, not BLOCKED
+  ---
+  duration_ms: 1.237961
+  ...
+# Subtest: libraryStoreDir is the fork's scope path the fake writes to, so the collector reads real records
+ok 81 - libraryStoreDir is the fork's scope path the fake writes to, so the collector reads real records
+  ---
+  duration_ms: 2.294761
+  ...
+# Subtest: the W2 drivers are exactly the rows cases.json ships as ready with dependency none
+ok 82 - the W2 drivers are exactly the rows cases.json ships as ready with dependency none
+  ---
+  duration_ms: 2.222693
+  ...
+# Subtest: FL-02: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+ok 83 - FL-02: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+  ---
+  duration_ms: 12.28667
+  ...
+# Subtest: FL-02: the shots it asserts are exactly the shots cases.json declares
+ok 84 - FL-02: the shots it asserts are exactly the shots cases.json declares
+  ---
+  duration_ms: 4.497586
+  ...
+# Subtest: FL-02: an app that dies during the run is BLOCKED, never a product FAIL
+ok 85 - FL-02: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 44.433319
+  ...
+# Subtest: FL-02: an app that never comes up is BLOCKED, never a product FAIL
+ok 86 - FL-02: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 1.408637
+  ...
+# Subtest: FL-02: the organization capability that cannot be switched on is BLOCKED with the override's own line
+ok 87 - FL-02: the organization capability that cannot be switched on is BLOCKED with the override's own line
+  ---
+  duration_ms: 1.189023
+  ...
+# Subtest: FL-04a: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+ok 88 - FL-04a: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+  ---
+  duration_ms: 4.340808
+  ...
+# Subtest: FL-04a: the shots it asserts are exactly the shots cases.json declares
+ok 89 - FL-04a: the shots it asserts are exactly the shots cases.json declares
+  ---
+  duration_ms: 4.105369
+  ...
+# Subtest: FL-04a: an app that dies during the run is BLOCKED, never a product FAIL
+ok 90 - FL-04a: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 43.717329
+  ...
+# Subtest: FL-04a: an app that never comes up is BLOCKED, never a product FAIL
+ok 91 - FL-04a: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 1.431444
+  ...
+# Subtest: FL-04a: the organization capability that cannot be switched on is BLOCKED with the override's own line
+ok 92 - FL-04a: the organization capability that cannot be switched on is BLOCKED with the override's own line
+  ---
+  duration_ms: 1.487553
+  ...
+# Subtest: FL-05: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+ok 93 - FL-05: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+  ---
+  duration_ms: 5.091967
+  ...
+# Subtest: FL-05: the shots it asserts are exactly the shots cases.json declares
+ok 94 - FL-05: the shots it asserts are exactly the shots cases.json declares
+  ---
+  duration_ms: 3.472723
+  ...
+# Subtest: FL-05: an app that dies during the run is BLOCKED, never a product FAIL
+ok 95 - FL-05: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 42.824487
+  ...
+# Subtest: FL-05: an app that never comes up is BLOCKED, never a product FAIL
+ok 96 - FL-05: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 1.043158
+  ...
+# Subtest: FL-05: the organization capability that cannot be switched on is BLOCKED with the override's own line
+ok 97 - FL-05: the organization capability that cannot be switched on is BLOCKED with the override's own line
+  ---
+  duration_ms: 0.973857
+  ...
+# Subtest: FL-06: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+ok 98 - FL-06: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+  ---
+  duration_ms: 3.80768
+  ...
+# Subtest: FL-06: the shots it asserts are exactly the shots cases.json declares
+ok 99 - FL-06: the shots it asserts are exactly the shots cases.json declares
+  ---
+  duration_ms: 3.474579
+  ...
+# Subtest: FL-06: an app that dies during the run is BLOCKED, never a product FAIL
+ok 100 - FL-06: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 43.234417
+  ...
+# Subtest: FL-06: an app that never comes up is BLOCKED, never a product FAIL
+ok 101 - FL-06: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 1.089157
+  ...
+# Subtest: FL-06: the organization capability that cannot be switched on is BLOCKED with the override's own line
+ok 102 - FL-06: the organization capability that cannot be switched on is BLOCKED with the override's own line
+  ---
+  duration_ms: 0.890683
+  ...
+# Subtest: FL-09: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+ok 103 - FL-09: the registered driver runs on its real cases.json row and a correct product on a VM that has the tool passes every assertion
+  ---
+  duration_ms: 3.582488
+  ...
+# Subtest: FL-09: the shots it asserts are exactly the shots cases.json declares
+ok 104 - FL-09: the shots it asserts are exactly the shots cases.json declares
+  ---
+  duration_ms: 3.06196
+  ...
+# Subtest: FL-09: an app that dies during the run is BLOCKED, never a product FAIL
+ok 105 - FL-09: an app that dies during the run is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 42.913757
+  ...
+# Subtest: FL-09: an app that never comes up is BLOCKED, never a product FAIL
+ok 106 - FL-09: an app that never comes up is BLOCKED, never a product FAIL
+  ---
+  duration_ms: 1.115378
+  ...
+# Subtest: FL-09: the organization capability that cannot be switched on is BLOCKED with the override's own line
+ok 107 - FL-09: the organization capability that cannot be switched on is BLOCKED with the override's own line
+  ---
+  duration_ms: 0.930495
+  ...
+# Subtest: FL-02: with sudo mount available the userData is a real tmpfs, filled to leave diskLeaveBytes, and the mechanism is reported
+ok 108 - FL-02: with sudo mount available the userData is a real tmpfs, filled to leave diskLeaveBytes, and the mechanism is reported
+  ---
+  duration_ms: 4.099022
+  ...
+# Subtest: FL-02: no sudo mount -> the sparse fallback crosses the layer budget of the row, and the report says sparse and why
+ok 109 - FL-02: no sudo mount -> the sparse fallback crosses the layer budget of the row, and the report says sparse and why
+  ---
+  duration_ms: 4.147912
+  ...
+# Subtest: FL-02: a mount that fails after the probe falls back to sparse and names the mount line
+ok 110 - FL-02: a mount that fails after the probe falls back to sparse and names the mount line
+  ---
+  duration_ms: 4.840361
+  ...
+# Subtest: FL-02: no tmpfs and a sparse fallback that cannot be written is BLOCKED with both lines, never a FAIL
+ok 111 - FL-02: no tmpfs and a sparse fallback that cannot be written is BLOCKED with both lines, never a FAIL
+  ---
+  duration_ms: 2.610099
+  ...
+# Subtest: FL-02: a fill that leaves the disk free is not a fault - fault_really_happened fails
+ok 112 - FL-02: a fill that leaves the disk free is not a fault - fault_really_happened fails
+  ---
+  duration_ms: 3.379727
+  ...
+# Subtest: FL-02: a product that reads B ready on a full disk fails b_row_faulted and b_never_ready_while_faulted
+ok 113 - FL-02: a product that reads B ready on a full disk fails b_row_faulted and b_never_ready_while_faulted
+  ---
+  duration_ms: 44.764774
+  ...
+# Subtest: FL-02: a partial blob left in the store while the disk is full fails nothing_partial_in_the_store
+ok 114 - FL-02: a partial blob left in the store while the disk is full fails nothing_partial_in_the_store
+  ---
+  duration_ms: 3.872204
+  ...
+# Subtest: FL-02: a full disk that destroys the older pinned copy fails kept_old_copy
+ok 115 - FL-02: a full disk that destroys the older pinned copy fails kept_old_copy
+  ---
+  duration_ms: 3.965038
+  ...
+# Subtest: FL-02: freeing the space does not heal a product whose retry stays disk-full (b_recovered_after_free_space fails)
+ok 116 - FL-02: freeing the space does not heal a product whose retry stays disk-full (b_recovered_after_free_space fails)
+  ---
+  duration_ms: 45.983154
+  ...
+# Subtest: FL-02: the tmpfs is unmounted and the filler released even when the run dies
+ok 117 - FL-02: the tmpfs is unmounted and the filler released even when the run dies
+  ---
+  duration_ms: 1.119619
+  ...
+# Subtest: renderCaseRules keeps a rewrite_json rule's patch, so the row's own short-lease rule validates
+ok 118 - renderCaseRules keeps a rewrite_json rule's patch, so the row's own short-lease rule validates
+  ---
+  duration_ms: 0.79745
+  ...
+# Subtest: FL-04a: the short lease comes from the row's own rewrite rule, and its log line is the evidence it was served
+ok 119 - FL-04a: the short lease comes from the row's own rewrite rule, and its log line is the evidence it was served
+  ---
+  duration_ms: 2.871084
+  ...
+# Subtest: FL-04a: a rewrite rule the proxy never applied is not evidence - lease_expiry_rewritten fails
+ok 120 - FL-04a: a rewrite rule the proxy never applied is not evidence - lease_expiry_rewritten fails
+  ---
+  duration_ms: 135.6212
+  ...
+# Subtest: FL-04a: a lease that never lapses fails row_lease_expired (the wait is the row's TTL plus the state timeout)
+ok 121 - FL-04a: a lease that never lapses fails row_lease_expired (the wait is the row's TTL plus the state timeout)
+  ---
+  duration_ms: 135.441106
+  ...
+# Subtest: FL-04a: an expired lease that still opens the content fails the refusal and content_not_served
+ok 122 - FL-04a: an expired lease that still opens the content fails the refusal and content_not_served
+  ---
+  duration_ms: 3.090899
+  ...
+# Subtest: FL-04a: the wrong lock reason on an expired row fails row_names_the_lock_reason
+ok 123 - FL-04a: the wrong lock reason on an expired row fails row_names_the_lock_reason
+  ---
+  duration_ms: 2.867012
+  ...
+# Subtest: FL-04a: a copy that does not open BEFORE the expiry fails open_served_before_expiry
+ok 124 - FL-04a: a copy that does not open BEFORE the expiry fails open_served_before_expiry
+  ---
+  duration_ms: 2.879893
+  ...
+# Subtest: R2-7: FL-04a and FL-06 make no draft-retention claim (no checkpoint is seeded, so none is measured)
+ok 125 - R2-7: FL-04a and FL-06 make no draft-retention claim (no checkpoint is seeded, so none is measured)
+  ---
+  duration_ms: 5.536669
+  ...
+# Subtest: FL-05: the second launch carries the row's skew in the libfaketime env and the third runs on the real clock
+ok 126 - FL-05: the second launch carries the row's skew in the libfaketime env and the third runs on the real clock
+  ---
+  duration_ms: 3.164239
+  ...
+# Subtest: FL-05: a VM without libfaketime is BLOCKED with the exact install line and nothing was launched
+ok 127 - FL-05: a VM without libfaketime is BLOCKED with the exact install line and nothing was launched
+  ---
+  duration_ms: 0.960349
+  ...
+# Subtest: FL-05: a launch that ignored the faketime env is not a moved clock - wall_clock_moved_back fails
+ok 128 - FL-05: a launch that ignored the faketime env is not a moved clock - wall_clock_moved_back fails
+  ---
+  duration_ms: 45.560085
+  ...
+# Subtest: FL-05: a product that opens with the clock back fails the refusal, the lock reason and content_not_served
+ok 129 - FL-05: a product that opens with the clock back fails the refusal, the lock reason and content_not_served
+  ---
+  duration_ms: 45.011829
+  ...
+# Subtest: FL-05: a product that extends the lease while the clock is back fails never_extends_lease
+ok 130 - FL-05: a product that extends the lease while the clock is back fails never_extends_lease
+  ---
+  duration_ms: 46.05723
+  ...
+# Subtest: FL-05: a plaintext copy materialized while the clock is back fails no_plaintext_copy_materialized
+ok 131 - FL-05: a plaintext copy materialized while the clock is back fails no_plaintext_copy_materialized
+  ---
+  duration_ms: 3.371398
+  ...
+# Subtest: FL-05: a rollback lock that never lifts after the real clock returns fails row_recovered_after_real_clock
+ok 132 - FL-05: a rollback lock that never lifts after the real clock returns fails row_recovered_after_real_clock
+  ---
+  duration_ms: 42.982445
+  ...
+# Subtest: FL-06: the org revoke runs while the network is cut and the next renewal is refused with the row's status
+ok 133 - FL-06: the org revoke runs while the network is cut and the next renewal is refused with the row's status
+  ---
+  duration_ms: 2.737243
+  ...
+# Subtest: FL-06: a revoke CLI that fails is BLOCKED with its line, not a FAIL
+ok 134 - FL-06: a revoke CLI that fails is BLOCKED with its line, not a FAIL
+  ---
+  duration_ms: 1.944253
+  ...
+# Subtest: FL-06: a revoke that never took effect (renewal still 200) fails renew_refused_after_revoke
+ok 135 - FL-06: a revoke that never took effect (renewal still 200) fails renew_refused_after_revoke
+  ---
+  duration_ms: 46.802343
+  ...
+# Subtest: FL-06: a product that still opens a revoked copy fails the refusal
+ok 136 - FL-06: a product that still opens a revoked copy fails the refusal
+  ---
+  duration_ms: 3.313874
+  ...
+# Subtest: FL-06: a revoked row that leaves a plaintext copy fails no_plaintext_copy_left
+ok 137 - FL-06: a revoked row that leaves a plaintext copy fails no_plaintext_copy_left
+  ---
+  duration_ms: 3.377183
+  ...
+# Subtest: FL-09: the keyring is locked after the first launch, unlocked afterwards, and the recovery is in-app when the process can retry
+ok 138 - FL-09: the keyring is locked after the first launch, unlocked afterwards, and the recovery is in-app when the process can retry
+  ---
+  duration_ms: 3.369396
+  ...
+# Subtest: FL-09: a process that keeps its failed keyring state is recovered by a relaunch, and the path is named
+ok 139 - FL-09: a process that keeps its failed keyring state is recovered by a relaunch, and the path is named
+  ---
+  duration_ms: 45.205004
+  ...
+# Subtest: FL-09: a VM whose runner was not started in keyring control mode is BLOCKED with the exact line and nothing was launched
+ok 140 - FL-09: a VM whose runner was not started in keyring control mode is BLOCKED with the exact line and nothing was launched
+  ---
+  duration_ms: 1.097853
+  ...
+# Subtest: FL-09: a lock the wrapper refuses is BLOCKED with the wrapper's answer
+ok 141 - FL-09: a lock the wrapper refuses is BLOCKED with the wrapper's answer
+  ---
+  duration_ms: 1.935173
+  ...
+# Subtest: FL-09: a product that opens content with the keystore locked fails the refusal
+ok 142 - FL-09: a product that opens content with the keystore locked fails the refusal
+  ---
+  duration_ms: 2.849244
+  ...
+# Subtest: FL-09: a store write while the keystore is locked fails nothing_decrypted
+ok 143 - FL-09: a store write while the keystore is locked fails nothing_decrypted
+  ---
+  duration_ms: 2.96298
+  ...
+# Subtest: FL-09: a content download that REACHED the server while locked fails nothing_decrypted (a reset attempt does not)
+ok 144 - FL-09: a content download that REACHED the server while locked fails nothing_decrypted (a reset attempt does not)
+  ---
+  duration_ms: 2.897951
+  ...
+# Subtest: FL-09: the keyring is unlocked again even when the run throws while it is locked
+ok 145 - FL-09: the keyring is unlocked again even when the run throws while it is locked
+  ---
+  duration_ms: 2.036377
+  ...
+# Subtest: R2-4: FL-02 carries the fork's layer budget (2 GiB + 256 MiB + 16 MiB = 2432696320), not 2415919104
+ok 146 - R2-4: FL-02 carries the fork's layer budget (2 GiB + 256 MiB + 16 MiB = 2432696320), not 2415919104
+  ---
+  duration_ms: 1.768033
+  ...
+# Subtest: R2-4: FL-02 on the sparse fallback measures scope usage + the intended write against the budget
+ok 147 - R2-4: FL-02 on the sparse fallback measures scope usage + the intended write against the budget
+  ---
+  duration_ms: 11.064195
+  ...
+# Subtest: R2-4: FL-02 a filler sized to the OLD budget (16 MiB under the real one) is no fault - fault_really_happened fails
+ok 148 - R2-4: FL-02 a filler sized to the OLD budget (16 MiB under the real one) is no fault - fault_really_happened fails
+  ---
+  duration_ms: 4.313779
+  ...
+# Subtest: R2-5: FL-02 pins B and reserves FIRST, holds its content download, THEN fills, then the content write meets the fault
+ok 149 - R2-5: FL-02 pins B and reserves FIRST, holds its content download, THEN fills, then the content write meets the fault
+  ---
+  duration_ms: 8.89964
+  ...
+# Subtest: R2-5: a reservation-phase store_full (refused before any fill) is BLOCKED(harness order), never a product FAIL
+ok 150 - R2-5: a reservation-phase store_full (refused before any fill) is BLOCKED(harness order), never a product FAIL
+  ---
+  duration_ms: 8.704029
+  ...
+# Subtest: R2-5: B's pin row missing while its content download is held is BLOCKED(harness order)
+ok 151 - R2-5: B's pin row missing while its content download is held is BLOCKED(harness order)
+  ---
+  duration_ms: 2.621806
+  ...
+# Subtest: R2-5: evidence must come from the content write phase - no upstream content answer after the fill fails fault_hit_the_content_write
+ok 152 - R2-5: evidence must come from the content write phase - no upstream content answer after the fill fails fault_hit_the_content_write
+  ---
+  duration_ms: 3.565942
+  ...
+# Subtest: R2-6: FL-04a expects lease-expiring for the short lease (the fork's < 4 h rule) and proves leaseUntil = the rewritten expiry
+ok 153 - R2-6: FL-04a expects lease-expiring for the short lease (the fork's < 4 h rule) and proves leaseUntil = the rewritten expiry
+  ---
+  duration_ms: 5.231503
+  ...
+# Subtest: R2-6: FL-04a a short lease the product shows as ready is not the state the fork projects - short_lease_granted fails
+ok 154 - R2-6: FL-04a a short lease the product shows as ready is not the state the fork projects - short_lease_granted fails
+  ---
+  duration_ms: 46.017447
+  ...
+# Subtest: R2-6: FL-04a a rewrite that only LOGGED a hit (the app still holds a 24 h lease) fails lease_until_is_the_rewritten_expiry
+ok 155 - R2-6: FL-04a a rewrite that only LOGGED a hit (the app still holds a 24 h lease) fails lease_until_is_the_rewritten_expiry
+  ---
+  duration_ms: 3.589951
+  ...
+# Subtest: R2-6: FL-04a recovery keeps a full-TTL ready: a renewal that grants another short lease fails recovered_lease_is_full_ttl
+ok 156 - R2-6: FL-04a recovery keeps a full-TTL ready: a renewal that grants another short lease fails recovered_lease_is_full_ttl
+  ---
+  duration_ms: 4.204313
+  ...
+# Subtest: R2-7: FL-04a the ALREADY-OPEN copy locks in place (S11 + reason, tab still open) BEFORE any reopen
+ok 157 - R2-7: FL-04a the ALREADY-OPEN copy locks in place (S11 + reason, tab still open) BEFORE any reopen
+  ---
+  duration_ms: 3.277533
+  ...
+# Subtest: R2-7: FL-04a a product whose open tab keeps showing the content after expiry fails open_tab_locks_in_place even though a REOPEN is refused
+ok 158 - R2-7: FL-04a a product whose open tab keeps showing the content after expiry fails open_tab_locks_in_place even though a REOPEN is refused
+  ---
+  duration_ms: 3.383846
+  ...
+# Subtest: R2-7: FL-04a a copy that was never open (the row reports no open tab) fails copy_is_open_before_expiry
+ok 159 - R2-7: FL-04a a copy that was never open (the row reports no open tab) fails copy_is_open_before_expiry
+  ---
+  duration_ms: 3.322529
+  ...
+# Subtest: R2-8: FL-05 a persisted clock_rollback latch (the lease record is rewritten) is NOT an extension
+ok 160 - R2-8: FL-05 a persisted clock_rollback latch (the lease record is rewritten) is NOT an extension
+  ---
+  duration_ms: 4.058373
+  ...
+# Subtest: R2-8: FL-05 a lease whose expiry moves later while the clock is back fails never_extends_lease
+ok 161 - R2-8: FL-05 a lease whose expiry moves later while the clock is back fails never_extends_lease
+  ---
+  duration_ms: 3.278253
+  ...
+# Subtest: R2-8: FL-05 a committed version that changes while the clock is back fails never_extends_lease
+ok 162 - R2-8: FL-05 a committed version that changes while the clock is back fails never_extends_lease
+  ---
+  duration_ms: 3.593749
+  ...
+# Subtest: R2-8: FL-05 a row that reports no expiry before the fault cannot make the lease claim vacuous
+ok 163 - R2-8: FL-05 a row that reports no expiry before the fault cannot make the lease claim vacuous
+  ---
+  duration_ms: 4.717722
+  ...
+# Subtest: R2-9: FL-06 grants a SHORT lease first, waits until the renewal is due, and the due renewal meets the exact revoke code
+ok 164 - R2-9: FL-06 grants a SHORT lease first, waits until the renewal is due, and the due renewal meets the exact revoke code
+  ---
+  duration_ms: 3.395521
+  ...
+# Subtest: R2-9: FL-06 the fake's downloadNow does not lease-PUT a fresh lease (no renewal is due), only a due one
+ok 165 - R2-9: FL-06 the fake's downloadNow does not lease-PUT a fresh lease (no renewal is due), only a due one
+  ---
+  duration_ms: 2.09462
+  ...
+# Subtest: R2-9 (fix2): FL-06 a driver that never lets the renewal come due sees no lease PUT - BLOCKED "fork did not renew", not a FAIL
+ok 166 - R2-9 (fix2): FL-06 a driver that never lets the renewal come due sees no lease PUT - BLOCKED "fork did not renew", not a FAIL
+  ---
+  duration_ms: 2.168027
+  ...
+# Subtest: R2-9: FL-06 a 403 that is not offline_lease_revoked (access_denied) is not the revoke
+ok 167 - R2-9: FL-06 a 403 that is not offline_lease_revoked (access_denied) is not the revoke
+  ---
+  duration_ms: 43.474397
+  ...
+# Subtest: R2-9: FL-06 a revoke CLI line for ANOTHER organization, or that revoked nothing, fails revoke_cli_hit_this_org
+ok 168 - R2-9: FL-06 a revoke CLI line for ANOTHER organization, or that revoked nothing, fails revoke_cli_hit_this_org
+  ---
+  duration_ms: 5.859781
+  ...
+# Subtest: R2-9: FL-06 the row carries the short-lease rule, the exact refusal code and no draft claim
+ok 169 - R2-9: FL-06 the row carries the short-lease rule, the exact refusal code and no draft claim
+  ---
+  duration_ms: 0.782692
+  ...
+# Subtest: R2-11: withOwnedResources runs every cleanup (last first), checks each result and keeps the body's own error
+ok 170 - R2-11: withOwnedResources runs every cleanup (last first), checks each result and keeps the body's own error
+  ---
+  duration_ms: 0.579062
+  ...
+# Subtest: R2-11: FL-02 an unmount that cannot be proven is BLOCKED with the line and a cleanupFailure, whatever the row measured
+ok 171 - R2-11: FL-02 an unmount that cannot be proven is BLOCKED with the line and a cleanupFailure, whatever the row measured
+  ---
+  duration_ms: 4.135899
+  ...
+# Subtest: R2-11: FL-02 a filler whose removal cannot be read back is BLOCKED (and the row never retries on a still-full disk)
+ok 172 - R2-11: FL-02 a filler whose removal cannot be read back is BLOCKED (and the row never retries on a still-full disk)
+  ---
+  duration_ms: 2.729097
+  ...
+# Subtest: R2-11: FL-02 a fill that throws AFTER its path was named is still released by the owner, and the row is BLOCKED with the fill's error
+ok 173 - R2-11: FL-02 a fill that throws AFTER its path was named is still released by the owner, and the row is BLOCKED with the fill's error
+  ---
+  duration_ms: 2.609729
+  ...
+# Subtest: R2-11: FL-02 a broken release of a partial filler on top of a failed fill is BLOCKED + cleanupFailure
+ok 174 - R2-11: FL-02 a broken release of a partial filler on top of a failed fill is BLOCKED + cleanupFailure
+  ---
+  duration_ms: 2.405601
+  ...
+# Subtest: R2-11: FL-09 a final unlock that is refused is BLOCKED + cleanupFailure even though every assertion passed
+ok 175 - R2-11: FL-09 a final unlock that is refused is BLOCKED + cleanupFailure even though every assertion passed
+  ---
+  duration_ms: 3.568917
+  ...
+# Subtest: R2-11: FL-09 a lock whose reply was lost but that took effect is undone by the owned unlock
+ok 176 - R2-11: FL-09 a lock whose reply was lost but that took effect is undone by the owned unlock
+  ---
+  duration_ms: 2.043602
+  ...
+# Subtest: R2-11: an unproven cleanup stops every later row through the shared guard, naming the reason
+ok 177 - R2-11: an unproven cleanup stops every later row through the shared guard, naming the reason
+  ---
+  duration_ms: 0.18475
+  ...
+# Subtest: R2-9 amendment: FL-06 asserts the regrant - none without the live session, then one fresh grant under the NEW epoch from the CLI line
+ok 178 - R2-9 amendment: FL-06 asserts the regrant - none without the live session, then one fresh grant under the NEW epoch from the CLI line
+  ---
+  duration_ms: 2.723688
+  ...
+# Subtest: R2-9 amendment: FL-06 a regrant stamped with the OLD epoch is not the new epoch - regrant_records_new_epoch fails
+ok 179 - R2-9 amendment: FL-06 a regrant stamped with the OLD epoch is not the new epoch - regrant_records_new_epoch fails
+  ---
+  duration_ms: 2.655943
+  ...
+# Subtest: R2-9 amendment: FL-06 a product that cannot take the one fresh grant (no regrant) fails regrant_records_new_epoch and regrant_row_usable
+ok 180 - R2-9 amendment: FL-06 a product that cannot take the one fresh grant (no regrant) fails regrant_records_new_epoch and regrant_row_usable
+  ---
+  duration_ms: 44.832327
+  ...
+# Subtest: R2-9 amendment: FL-06 the renewal of the OLD-epoch lease is still refused with the exact code before the regrant
+ok 181 - R2-9 amendment: FL-06 the renewal of the OLD-epoch lease is still refused with the exact code before the regrant
+  ---
+  duration_ms: 2.74616
+  ...
+# Subtest: R2-1: FL-03 a retry that marks the row ready with no download and no blob fails the recovery assertions
+ok 182 - R2-1: FL-03 a retry that marks the row ready with no download and no blob fails the recovery assertions
+  ---
+  duration_ms: 9.680708
+  ...
+# Subtest: R2-1: FL-03 a retry that downloads but commits no replacement blob fails recovered_committed_pin_and_blob
+ok 183 - R2-1: FL-03 a retry that downloads but commits no replacement blob fails recovered_committed_pin_and_blob
+  ---
+  duration_ms: 4.618561
+  ...
+# Subtest: R2-1: FL-03 a download BEFORE the retry boundary (the initial pin) is not the recovery's
+ok 184 - R2-1: FL-03 a download BEFORE the retry boundary (the initial pin) is not the recovery's
+  ---
+  duration_ms: 3.543701
+  ...
+# Subtest: R2-1: FL-03 a correct product passes the recovery assertions (a download after the boundary and a replacement blob)
+ok 185 - R2-1: FL-03 a correct product passes the recovery assertions (a download after the boundary and a replacement blob)
+  ---
+  duration_ms: 4.143739
+  ...
+# Subtest: R2-2: FL-07 a {} offline slice fails snapshot_shape and every zero-row claim that leans on it
+ok 186 - R2-2: FL-07 a {} offline slice fails snapshot_shape and every zero-row claim that leans on it
+  ---
+  duration_ms: 4.706461
+  ...
+# Subtest: R2-2: FL-08 a {} offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+ok 187 - R2-2: FL-08 a {} offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+  ---
+  duration_ms: 3.084675
+  ...
+# Subtest: R2-2: FL-07 a array offline slice fails snapshot_shape and every zero-row claim that leans on it
+ok 188 - R2-2: FL-07 a array offline slice fails snapshot_shape and every zero-row claim that leans on it
+  ---
+  duration_ms: 2.709124
+  ...
+# Subtest: R2-2: FL-08 a array offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+ok 189 - R2-2: FL-08 a array offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+  ---
+  duration_ms: 2.690861
+  ...
+# Subtest: R2-2: FL-07 a rows: null offline slice fails snapshot_shape and every zero-row claim that leans on it
+ok 190 - R2-2: FL-07 a rows: null offline slice fails snapshot_shape and every zero-row claim that leans on it
+  ---
+  duration_ms: 4.368546
+  ...
+# Subtest: R2-2: FL-08 a rows: null offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+ok 191 - R2-2: FL-08 a rows: null offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+  ---
+  duration_ms: 2.81597
+  ...
+# Subtest: R2-2: FL-07 a rows of non-objects offline slice fails snapshot_shape and every zero-row claim that leans on it
+ok 192 - R2-2: FL-07 a rows of non-objects offline slice fails snapshot_shape and every zero-row claim that leans on it
+  ---
+  duration_ms: 2.878454
+  ...
+# Subtest: R2-2: FL-08 a rows of non-objects offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+ok 193 - R2-2: FL-08 a rows of non-objects offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+  ---
+  duration_ms: 2.511713
+  ...
+# Subtest: R2-2: FL-07 a a row without a state offline slice fails snapshot_shape and every zero-row claim that leans on it
+ok 194 - R2-2: FL-07 a a row without a state offline slice fails snapshot_shape and every zero-row claim that leans on it
+  ---
+  duration_ms: 3.156224
+  ...
+# Subtest: R2-2: FL-08 a a row without a state offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+ok 195 - R2-2: FL-08 a a row without a state offline slice on deployment B fails snapshot_shape and deployment_b_library_empty
+  ---
+  duration_ms: 2.550556
+  ...
+# Subtest: R2-3: a tab whose selection never takes fails s3_tab_selected and s3_shot even with the panel still present
+ok 196 - R2-3: a tab whose selection never takes fails s3_tab_selected and s3_shot even with the panel still present
+  ---
+  duration_ms: 6.212432
+  ...
+# Subtest: R2-3: a panel that is not visible right before the capture fails s3_tab_selected
+ok 197 - R2-3: a panel that is not visible right before the capture fails s3_tab_selected
+  ---
+  duration_ms: 3.64006
+  ...
+# Subtest: R2-3: a selected tab with its visible panel passes s3_tab_selected
+ok 198 - R2-3: a selected tab with its visible panel passes s3_tab_selected
+  ---
+  duration_ms: 2.709329
+  ...
+# Subtest: R2-10: FL-07 observing a leaked A document under B reports count + sha256 only, never the name
+ok 199 - R2-10: FL-07 observing a leaked A document under B reports count + sha256 only, never the name
+  ---
+  duration_ms: 43.921881
+  ...
+# Subtest: R2-14: FL-01 an illicit committed blob while faulted plus an unrelated sync addition after the retry fails no_ready_copy_while_faulted
+ok 200 - R2-14: FL-01 an illicit committed blob while faulted plus an unrelated sync addition after the retry fails no_ready_copy_while_faulted
+  ---
+  duration_ms: 2.951732
+  ...
+# Subtest: R2-14: FL-01 a retry that adds only an unrelated sync record (no target blob) fails recovery_adds_target_records
+ok 201 - R2-14: FL-01 a retry that adds only an unrelated sync record (no target blob) fails recovery_adds_target_records
+  ---
+  duration_ms: 2.493413
+  ...
+# Subtest: R2-14: FL-01 a correct product has no blob while faulted and gains the target records on recovery
+ok 202 - R2-14: FL-01 a correct product has no blob while faulted and gains the target records on recovery
+  ---
+  duration_ms: 2.38628
+  ...
+# Subtest: G703-R3-1 fork-shaped double: the fix1 sequence (downloadNow + a second pin) causes NO lease PUT, so it cannot be the renewal
+ok 203 - G703-R3-1 fork-shaped double: the fix1 sequence (downloadNow + a second pin) causes NO lease PUT, so it cannot be the renewal
+  ---
+  duration_ms: 6.265677
+  ...
+# Subtest: G703-R3-1 fork-shaped double: the online pass (the driver's wait) is what renews a due lease and meets the revoke, with the in-call regrant
+ok 204 - G703-R3-1 fork-shaped double: the online pass (the driver's wait) is what renews a due lease and meets the revoke, with the in-call regrant
+  ---
+  duration_ms: 2.64032
+  ...
+# Subtest: G703-R3-1: FL-06 causes the renewal with the online pass only - one pin, no downloadNow, and the window is [403 offline_lease_revoked, 200 policy_epoch = the CLI epoch]
+ok 205 - G703-R3-1: FL-06 causes the renewal with the online pass only - one pin, no downloadNow, and the window is [403 offline_lease_revoked, 200 policy_epoch = the CLI epoch]
+  ---
+  duration_ms: 6.941063
+  ...
+# Subtest: G703-R3-1: no lease PUT in the window is BLOCKED "fork did not renew" (the online pass never ran), never a product FAIL
+ok 206 - G703-R3-1: no lease PUT in the window is BLOCKED "fork did not renew" (the online pass never ran), never a product FAIL
+  ---
+  duration_ms: 2.70733
+  ...
+# Subtest: G703-R3-1: the second window with no lease PUT is BLOCKED too, naming the window
+ok 207 - G703-R3-1: the second window with no lease PUT is BLOCKED too, naming the window
+  ---
+  duration_ms: 2.956195
+  ...
+# Subtest: G703-R3-1: a 200 with the OLD epoch where the new one is owed is a FAIL (regrant_records_new_epoch)
+ok 208 - G703-R3-1: a 200 with the OLD epoch where the new one is owed is a FAIL (regrant_records_new_epoch)
+  ---
+  duration_ms: 4.414913
+  ...
+# Subtest: G703-R3-1: a first answer that is a 200 (the renewal was not refused) fails renew_refused_after_revoke
+ok 209 - G703-R3-1: a first answer that is a 200 (the renewal was not refused) fails renew_refused_after_revoke
+  ---
+  duration_ms: 44.255901
+  ...
+# Subtest: G703-R3-1: a 403 with any other code is a FAIL, and the window-A FAIL is reported even when window B cannot run
+ok 210 - G703-R3-1: a 403 with any other code is a FAIL, and the window-A FAIL is reported even when window B cannot run
+  ---
+  duration_ms: 45.163995
+  ...
+# Subtest: G703-R3-1: a 200 while the network was cut (a grant without the live session) fails regrant_needs_live_session
+ok 211 - G703-R3-1: a 200 while the network was cut (a grant without the live session) fails regrant_needs_live_session
+  ---
+  duration_ms: 3.794693
+  ...
+# Subtest: G703-R3-1: the regrant needs the live session - a refused regrant (the person's access is gone) leaves regrant_records_new_epoch and regrant_row_usable FAILing
+ok 212 - G703-R3-1: the regrant needs the live session - a refused regrant (the person's access is gone) leaves regrant_records_new_epoch and regrant_row_usable FAILing
+  ---
+  duration_ms: 44.995095
+  ...
+# Subtest: G703-R3-1: S11 permission_revoked is observed only in the window where grant() cannot run - the second PUT is the proxy's refusal, no 200, row revoked
+ok 213 - G703-R3-1: S11 permission_revoked is observed only in the window where grant() cannot run - the second PUT is the proxy's refusal, no 200, row revoked
+  ---
+  duration_ms: 3.069463
+  ...
+# Subtest: G703-R3-1: a window B whose regrant was NOT refused by the rule (a 200 grant) fails s11_window_renew_refused
+ok 214 - G703-R3-1: a window B whose regrant was NOT refused by the rule (a 200 grant) fails s11_window_renew_refused
+  ---
+  duration_ms: 44.22623
+  ...
+# Subtest: G703-R4-1: a second revoke that fails AFTER window A already failed keeps window A's FAIL, not BLOCKED
+ok 215 - G703-R4-1: a second revoke that fails AFTER window A already failed keeps window A's FAIL, not BLOCKED
+  ---
+  duration_ms: 7.258973
+  ...
+# Subtest: G703-R4-1: a second revoke that fails after a CLEAN window A stays BLOCKED with its line
+ok 216 - G703-R4-1: a second revoke that fails after a CLEAN window A stays BLOCKED with its line
+  ---
+  duration_ms: 3.21837
+  ...
+# Subtest: G703-R4-2: window B answered 403 server_error is not the revoke - row_revoked and open_refused_permission_revoked FAIL
+ok 217 - G703-R4-2: window B answered 403 server_error is not the revoke - row_revoked and open_refused_permission_revoked FAIL
+  ---
+  duration_ms: 47.243234
+  ...
+# Subtest: G703-R4-2: window B answered with another status (500) is not the revoke either
+ok 218 - G703-R4-2: window B answered with another status (500) is not the revoke either
+  ---
+  duration_ms: 45.90323
+  ...
+# Subtest: G703-R4-2: window B answered 200 is a grant - no revoked row, s11_window_renew_refused FAILs
+ok 219 - G703-R4-2: window B answered 200 is a grant - no revoked row, s11_window_renew_refused FAILs
+  ---
+  duration_ms: 44.743881
+  ...
+# Subtest: G703-R4-2 control: the configured 403 offline_lease_revoked still revokes the copy
+ok 220 - G703-R4-2 control: the configured 403 offline_lease_revoked still revokes the copy
+  ---
+  duration_ms: 3.678546
+  ...
+# Subtest: G703-R4-3: window B is labelled an INJECTED refusal in the driver assertion, cases.json and matrix.md
+ok 221 - G703-R4-3: window B is labelled an INJECTED refusal in the driver assertion, cases.json and matrix.md
+  ---
+  duration_ms: 4.87818
+  ...
+# Subtest: the nine runnable FL rows are ready and carry a driver; FL-04b and FL-04c are reported not run with their reason
+ok 222 - the nine runnable FL rows are ready and carry a driver; FL-04b and FL-04c are reported not run with their reason
+  ---
+  duration_ms: 2.222271
+  ...
+# Subtest: each FL row's expect resolves the keys its driver reads, and none is a leftover
+ok 223 - each FL row's expect resolves the keys its driver reads, and none is a leftover
+  ---
+  duration_ms: 1.325296
+  ...
+# Subtest: the collector lists record names, sizes and the sha256 of the ciphertext, and never a plaintext byte
+ok 224 - the collector lists record names, sizes and the sha256 of the ciphertext, and never a plaintext byte
+  ---
+  duration_ms: 1.812134
+  ...
+# Subtest: the plaintext copies listing hashes the folder and file names, and never the bytes (review r1 R1-12)
+ok 225 - the plaintext copies listing hashes the folder and file names, and never the bytes (review r1 R1-12)
+  ---
+  duration_ms: 1.438011
+  ...
+# Subtest: listStoreRecords ignores a missing directory and every non-record file
+ok 226 - listStoreRecords ignores a missing directory and every non-record file
+  ---
+  duration_ms: 0.857419
+  ...
+# Subtest: the tamper flips ciphertext blobs only: the index and the pin rows survive
+ok 227 - the tamper flips ciphertext blobs only: the index and the pin rows survive
+  ---
+  duration_ms: 1.414114
+  ...
+# Subtest: storeDelta reports added, removed, changed and unchanged records by name
+ok 228 - storeDelta reports added, removed, changed and unchanged records by name
+  ---
+  duration_ms: 0.339398
+  ...
+# Subtest: storeDelta keys every record by its store, so a registered sync store is visible to the delta (review r1 R1-8)
+ok 229 - storeDelta keys every record by its store, so a registered sync store is visible to the delta (review r1 R1-8)
+  ---
+  duration_ms: 0.126447
+  ...
+# Subtest: offlineSnapshot answers the offline slice and null when the app cannot answer
+ok 230 - offlineSnapshot answers the offline slice and null when the app cannot answer
+  ---
+  duration_ms: 0.435379
+  ...
+# Subtest: watchRowStates samples the states in order and stops on the wanted one
+ok 231 - watchRowStates samples the states in order and stops on the wanted one
+  ---
+  duration_ms: 4.753399
+  ...
+# Subtest: a wait that never satisfies while the app is alive is null: the driver FAILs on it
+ok 232 - a wait that never satisfies while the app is alive is null: the driver FAILs on it
+  ---
+  duration_ms: 506.725831
+  ...
+# Subtest: a snapshot that cannot answer while the app is alive is a product FAIL, not BLOCKED
+ok 233 - a snapshot that cannot answer while the app is alive is a product FAIL, not BLOCKED
+  ---
+  duration_ms: 501.110758
+  ...
+# Subtest: a wait whose app died is BLOCKED, never FAIL: the harness is the precondition
+ok 234 - a wait whose app died is BLOCKED, never FAIL: the harness is the precondition
+  ---
+  duration_ms: 500.350913
+  ...
+# Subtest: appAlive is false for a dead app, so the split picks BLOCKED
+ok 235 - appAlive is false for a dead app, so the split picks BLOCKED
+  ---
+  duration_ms: 501.211265
+  ...
+# Subtest: the offline assertions read their numbers from expect, never a literal
+ok 236 - the offline assertions read their numbers from expect, never a literal
+  ---
+  duration_ms: 1.138649
+  ...
+# Subtest: the S3 tab and the S11 lock panel are addressed by constants, and FL-08's B deployment is a valid store segment
+ok 237 - the S3 tab and the S11 lock panel are addressed by constants, and FL-08's B deployment is a valid store segment
+  ---
+  duration_ms: 0.175797
+  ...
+# Subtest: the driver module registers the W1 rows and reads no store file of its own
+ok 238 - the driver module registers the W1 rows and reads no store file of its own
+  ---
+  duration_ms: 0.481341
+  ...
+# Subtest: fix13: FL-09 with no tablist after the S11 lock passes, S11 then the keystore-locked pane shot
+ok 239 - fix13: FL-09 with no tablist after the S11 lock passes, S11 then the keystore-locked pane shot
+  ---
+  duration_ms: 9.858115
+  ...
+# Subtest: fix13: FL-09 fails when a selectable offline tab is shown with the keystore locked
+ok 240 - fix13: FL-09 fails when a selectable offline tab is shown with the keystore locked
+  ---
+  duration_ms: 4.498438
+  ...
+# Subtest: fix13: FL-09 fails when the locked pane names the document
+ok 241 - fix13: FL-09 fails when the locked pane names the document
+  ---
+  duration_ms: 3.436324
+  ...
+# Subtest: fix13: FL-09 fails when the locked pane shows only the fixture's file name (G703-R11-5)
+ok 242 - fix13: FL-09 fails when the locked pane shows only the fixture's file name (G703-R11-5)
+  ---
+  duration_ms: 3.534994
+  ...
+# Subtest: fix13: FL-09 fails (not passes) when the pane never shows
+ok 243 - fix13: FL-09 fails (not passes) when the pane never shows
+  ---
+  duration_ms: 311.80113
+  ...
+# Subtest: fix13: s11 + s3Hidden shoots S11 first, dismisses the lock panels, and only then reads and shoots the pane
+ok 244 - fix13: s11 + s3Hidden shoots S11 first, dismisses the lock panels, and only then reads and shoots the pane
+  ---
+  duration_ms: 0.595134
+  ...
+# Subtest: fix13: s3Hidden without s11 (FL-07/08) never dismisses or reloads
+ok 245 - fix13: s3Hidden without s11 (FL-07/08) never dismisses or reloads
+  ---
+  duration_ms: 0.30033
+  ...
+# Subtest: CL1-1: a new app document is shared with the app account at edit level right after creation (SH-S1 creates it private)
+ok 246 - CL1-1: a new app document is shared with the app account at edit level right after creation (SH-S1 creates it private)
+  ---
+  duration_ms: 27.269657
+  ...
+# Subtest: CL1-1: a failed create shares nothing, a failed share is raised (the row never opens a document the app cannot see)
+ok 247 - CL1-1: a failed create shares nothing, a failed share is raised (the row never opens a document the app cannot see)
+  ---
+  duration_ms: 0.453101
+  ...
+# Subtest: CL1-1: ctx.newDocument of the runner goes through createAppDocument, not the bare upload
+ok 248 - CL1-1: ctx.newDocument of the runner goes through createAppDocument, not the bare upload
+  ---
+  duration_ms: 0.331576
+  ...
+# Subtest: CL1-2: a declared shot that did not capture while the app is alive reads 'not captured', not 'the app died'
+ok 249 - CL1-2: a declared shot that did not capture while the app is alive reads 'not captured', not 'the app died'
+  ---
+  duration_ms: 0.335215
+  ...
+# Subtest: CL1-2: the same capture on a dead app is still BLOCKED, never a FAIL
+ok 250 - CL1-2: the same capture on a dead app is still BLOCKED, never a FAIL
+  ---
+  duration_ms: 0.221242
+  ...
+# Subtest: CL1-3: FL-07 asserts the offline tab is absent with no session and keeps the sync center pane as the shot
+ok 251 - CL1-3: FL-07 asserts the offline tab is absent with no session and keeps the sync center pane as the shot
+  ---
+  duration_ms: 8.766835
+  ...
+# Subtest: CL1-3: FL-07 fails when the product shows an offline tab with no session
+ok 252 - CL1-3: FL-07 fails when the product shows an offline tab with no session
+  ---
+  duration_ms: 2.888131
+  ...
+# Subtest: CL1-3: FL-07 fails when the signed-out pane names the document
+ok 253 - CL1-3: FL-07 fails when the signed-out pane names the document
+  ---
+  duration_ms: 2.902652
+  ...
+# Subtest: CL1-3: FL-07 fails (not passes) when the pane never shows, with the shot missing too
+ok 254 - CL1-3: FL-07 fails (not passes) when the pane never shows, with the shot missing too
+  ---
+  duration_ms: 311.901962
+  ...
+# Subtest: CL1-3: FL-08 asserts the offline tab is absent with no session and keeps the sync center pane as the shot
+ok 255 - CL1-3: FL-08 asserts the offline tab is absent with no session and keeps the sync center pane as the shot
+  ---
+  duration_ms: 3.417881
+  ...
+# Subtest: CL1-3: FL-08 fails when the product shows an offline tab with no session
+ok 256 - CL1-3: FL-08 fails when the product shows an offline tab with no session
+  ---
+  duration_ms: 2.604231
+  ...
+# Subtest: CL1-3: FL-08 fails when the signed-out pane names the document
+ok 257 - CL1-3: FL-08 fails when the signed-out pane names the document
+  ---
+  duration_ms: 2.860103
+  ...
+# Subtest: CL1-3: FL-08 fails (not passes) when the pane never shows, with the shot missing too
+ok 258 - CL1-3: FL-08 fails (not passes) when the pane never shows, with the shot missing too
+  ---
+  duration_ms: 310.02262
+  ...
+# Subtest: CL3-2: a row that shoots S11 then S3 dismisses the lock layer in between, so the offline tab opens and is selected
+ok 259 - CL3-2: a row that shoots S11 then S3 dismisses the lock layer in between, so the offline tab opens and is selected
+  ---
+  duration_ms: 1.375139
+  ...
+# Subtest: CL3-2: a row without S11 (FL-01/FL-02) never dismisses or reloads, and an S11-only shot leaves the panel up
+ok 260 - CL3-2: a row without S11 (FL-01/FL-02) never dismisses or reloads, and an S11-only shot leaves the panel up
+  ---
+  duration_ms: 0.445289
+  ...
+# Subtest: CL3-2: a lock layer that survives the dismiss is reported, and the S3 reading then fails honestly (never a faked selection)
+ok 261 - CL3-2: a lock layer that survives the dismiss is reported, and the S3 reading then fails honestly (never a faked selection)
+  ---
+  duration_ms: 306.849849
+  ...
+# Subtest: CL3-1: the unlock prompt is answered on the SECOND launch only; the first launch (unlocked keyring) raised none
+ok 262 - CL3-1: the unlock prompt is answered on the SECOND launch only; the first launch (unlocked keyring) raised none
+  ---
+  duration_ms: 10.67072
+  ...
+# Subtest: CL3-1: the row claims nothing about the prompt UI - the prompt is a recorded fact, never an assertion
+ok 263 - CL3-1: the row claims nothing about the prompt UI - the prompt is a recorded fact, never an assertion
+  ---
+  duration_ms: 3.877031
+  ...
+# Subtest: CL3-1: a wrapper without its prompt stub is BLOCKED with the exact line and nothing was launched (the launch would stall 90 s)
+ok 264 - CL3-1: a wrapper without its prompt stub is BLOCKED with the exact line and nothing was launched (the launch would stall 90 s)
+  ---
+  duration_ms: 1.211722
+  ...
+# Subtest: CL3-1: keyringPrompts counts only the prompts the stub answered, and reads no file as 'not available'
+ok 265 - CL3-1: keyringPrompts counts only the prompts the stub answered, and reads no file as 'not available'
+  ---
+  duration_ms: 0.371046
+  ...
+# Subtest: CL3-1: the wrapper starts the stub in control mode only, stops it with the daemon, and the stub never unlocks or sees a password
+ok 266 - CL3-1: the wrapper starts the stub in control mode only, stops it with the daemon, and the stub never unlocks or sees a password
+  ---
+  duration_ms: 0.279353
+  ...
+# Subtest: CL3-6: the signed-out sync center pane is read although the first settings events were lost (Home mounts late)
+ok 267 - CL3-6: the signed-out sync center pane is read although the first settings events were lost (Home mounts late)
+  ---
+  duration_ms: 21.419113
+  ...
+# Subtest: CL3-6: the offline tab is opened although the first settings events were lost
+ok 268 - CL3-6: the offline tab is opened although the first settings events were lost
+  ---
+  duration_ms: 21.422728
+  ...
+# Subtest: CL3-6: a pane that never shows is still read as 'not showing' once the wait ran out (the fault stays a FAIL)
+ok 269 - CL3-6: a pane that never shows is still read as 'not showing' once the wait ran out (the fault stays a FAIL)
+  ---
+  duration_ms: 304.453369
+  ...
+# Subtest: CL3-5: B's lease record (granted before the content download, manager.ts:918-937) is not a partial write while faulted
+ok 270 - CL3-5: B's lease record (granted before the content download, manager.ts:918-937) is not a partial write while faulted
+  ---
+  duration_ms: 5.234985
+  ...
+# Subtest: CL3-4: the startup pass's online renewal under the rolled-back clock (a lease PUT 200 before the cut, fork lease/clock.ts:100-111) does not fail never_extends_lease
+ok 271 - CL3-4: the startup pass's online renewal under the rolled-back clock (a lease PUT 200 before the cut, fork lease/clock.ts:100-111) does not fail never_extends_lease
+  ---
+  duration_ms: 4.358025
+  ...
+# Subtest: CL3-4: an expiry that moves later with NO lease PUT on the wire (the rolled-back clock extending it) still fails
+ok 272 - CL3-4: an expiry that moves later with NO lease PUT on the wire (the rolled-back clock extending it) still fails
+  ---
+  duration_ms: 4.197144
+  ...
+# Subtest: CL3-4: a lease PUT answered 200 after the cut still fails (nothing may get through once the rule is set)
+ok 273 - CL3-4: a lease PUT answered 200 after the cut still fails (nothing may get through once the rule is set)
+  ---
+  duration_ms: 44.646255
+  ...
+# Subtest: G703-R6-1 / G703-R6-6: a startup renewal followed by a local post-cut extension fails never_extends_lease
+ok 274 - G703-R6-1 / G703-R6-6: a startup renewal followed by a local post-cut extension fails never_extends_lease
+  ---
+  duration_ms: 5.087462
+  ...
+# Subtest: R2-1: a run whose only failure is run_execution (unreachable) is a FAIL with infraFailure and never predicted
+ok 275 - R2-1: a run whose only failure is run_execution (unreachable) is a FAIL with infraFailure and never predicted
+  ---
+  duration_ms: 1.115701
+  ...
+# Subtest: R2-1: a product assertion FAIL on FQ-22 is still predicted OQ-F11 and carries no infraFailure
+ok 276 - R2-1: a product assertion FAIL on FQ-22 is still predicted OQ-F11 and carries no infraFailure
+  ---
+  duration_ms: 0.472828
+  ...
+# Subtest: R2-1: a run with both a product and an infra failure is a product FAIL (the tag stays); harness_started is infra too
+ok 277 - R2-1: a run with both a product and an infra failure is a product FAIL (the tag stays); harness_started is infra too
+  ---
+  duration_ms: 0.16083
+  ...
+# Subtest: R2-1: an unpredicted infra FAIL does not hide another run's predicted FAIL tag, nor the reverse
+ok 278 - R2-1: an unpredicted infra FAIL does not hide another run's predicted FAIL tag, nor the reverse
+  ---
+  duration_ms: 0.128446
+  ...
+# Subtest: R2-1: a BLOCKED row has no infraFailure and the harness guard keeps none on a BLOCKED row
+ok 279 - R2-1: a BLOCKED row has no infraFailure and the harness guard keeps none on a BLOCKED row
+  ---
+  duration_ms: 0.16881
+  ...
+# Subtest: R2-5: run_execution.actual carries the cause clause once for an unreachable TenantError
+ok 280 - R2-5: run_execution.actual carries the cause clause once for an unreachable TenantError
+  ---
+  duration_ms: 25.080749
+  ...
+# Subtest: R2-5: an Error that is not a TenantError gets its fetch cause once, a plain Error nothing
+ok 281 - R2-5: an Error that is not a TenantError gets its fetch cause once, a plain Error nothing
+  ---
+  duration_ms: 0.595684
+  ...
+# Subtest: R2-6: runnerApiOrigin maps localhost, [::1] and bare ::1 to the IPv4 loopback and leaves other hosts alone
+ok 282 - R2-6: runnerApiOrigin maps localhost, [::1] and bare ::1 to the IPv4 loopback and leaves other hosts alone
+  ---
+  duration_ms: 0.282014
+  ...
+# Subtest: R2-6: the precondition reason names the origin it probed, and the published API_ORIGIN when it differs
+ok 283 - R2-6: the precondition reason names the origin it probed, and the published API_ORIGIN when it differs
+  ---
+  duration_ms: 0.271181
+  ...
+# Subtest: N-1: after an exit FAILs, each later exit is BLOCKED 'earlier exit <x> failed'; a clean row is untouched
+ok 284 - N-1: after an exit FAILs, each later exit is BLOCKED 'earlier exit <x> failed'; a clean row is untouched
+  ---
+  duration_ms: 0.516031
+  ...
+# Subtest: N-1: a complete PASS stays PASS, and a BLOCKED exit alone does not stop the row
+ok 285 - N-1: a complete PASS stays PASS, and a BLOCKED exit alone does not stop the row
+  ---
+  duration_ms: 0.15773
+  ...
+# Subtest: R3-1: FQ-40 exit 1 is a predicted FAIL (OQ-F11): exits 2..5 still run, and the row stays FAIL
+ok 286 - R3-1: FQ-40 exit 1 is a predicted FAIL (OQ-F11): exits 2..5 still run, and the row stays FAIL
+  ---
+  duration_ms: 1.265797
+  ...
+# Subtest: R3-1: a predicted FAIL followed by a non-predicted FAIL blocks what comes after the second
+ok 287 - R3-1: a predicted FAIL followed by a non-predicted FAIL blocks what comes after the second
+  ---
+  duration_ms: 0.324816
+  ...
+# Subtest: R3-1: a non-predicted FAIL first blocks every later exit of FQ-40, and the row is FAIL
+ok 288 - R3-1: a non-predicted FAIL first blocks every later exit of FQ-40, and the row is FAIL
+  ---
+  duration_ms: 0.190128
+  ...
+# Subtest: R3-1: an infra FAIL on a predicted exit still blocks the rest (runResult drops the tag from it)
+ok 289 - R3-1: an infra FAIL on a predicted exit still blocks the rest (runResult drops the tag from it)
+  ---
+  duration_ms: 0.215746
+  ...
+# Subtest: R3-3a: FQ-20's app_process_tree_killed says '0 pids: <cause>' and is not ok when the crash killed nothing
+ok 290 - R3-3a: FQ-20's app_process_tree_killed says '0 pids: <cause>' and is not ok when the crash killed nothing
+  ---
+  duration_ms: 5.509372
+  ...
+# Subtest: R3-3a: runAppCases with the server dead before seeding returns BLOCKED rows, the HARNESS_DOWN line and 77
+ok 291 - R3-3a: runAppCases with the server dead before seeding returns BLOCKED rows, the HARNESS_DOWN line and 77
+  ---
+  duration_ms: 14.832825
+  ...
+# Subtest: R4-1: a multi-exit row's `predicted FAIL X` note tags none of its exits, so N-1 still blocks after an untagged FAIL
+ok 292 - R4-1: a multi-exit row's `predicted FAIL X` note tags none of its exits, so N-1 still blocks after an untagged FAIL
+  ---
+  duration_ms: 1.150262
+  ...
+# Subtest: R4-1: a per-exit tag on a multi-exit row still applies to that exit only, with the row note present
+ok 293 - R4-1: a per-exit tag on a multi-exit row still applies to that exit only, with the row note present
+  ---
+  duration_ms: 0.216801
+  ...
+# Subtest: R4-1: a single-exit row keeps its note tag
+ok 294 - R4-1: a single-exit row keeps its note tag
+  ---
+  duration_ms: 0.145481
+  ...
+# Subtest: R4-2: infraFailureOf names a run with no assertion at all as infra
+ok 295 - R4-2: infraFailureOf names a run with no assertion at all as infra
+  ---
+  duration_ms: 0.831966
+  ...
+# Subtest: R4-2: a predicted exit that FAILs with no assertion is an infra FAIL, carries no tag and blocks the rest of the row
+ok 296 - R4-2: a predicted exit that FAILs with no assertion is an infra FAIL, carries no tag and blocks the rest of the row
+  ---
+  duration_ms: 0.268791
+  ...
+# Subtest: R4-2: a BLOCKED run with no assertion stays BLOCKED, with no infraFailure
+ok 297 - R4-2: a BLOCKED run with no assertion stays BLOCKED, with no infraFailure
+  ---
+  duration_ms: 0.083061
+  ...
+# Subtest: exactly these exits of FQ-40..FQ-44 carry OQ-F11: every run of every one of the five rows
+ok 298 - exactly these exits of FQ-40..FQ-44 carry OQ-F11: every run of every one of the five rows
+  ---
+  duration_ms: 1.099969
+  ...
+# Subtest: the OQ-F11 tag is the exit's own field, never a row note on a multi-exit row
+ok 299 - the OQ-F11 tag is the exit's own field, never a row note on a multi-exit row
+  ---
+  duration_ms: 0.20405
+  ...
+# Subtest: FQ-22 and FQ-24 tags are unchanged, FQ-50 carries its fix17 tags; no other row gains a tag
+ok 300 - FQ-22 and FQ-24 tags are unchanged, FQ-50 carries its fix17 tags; no other row gains a tag
+  ---
+  duration_ms: 0.301292
+  ...
+# Subtest: a predicted FAIL on an earlier exit no longer blocks FQ-40's later exits or FQ-43's: every exit runs
+ok 301 - a predicted FAIL on an earlier exit no longer blocks FQ-40's later exits or FQ-43's: every exit runs
+  ---
+  duration_ms: 1.043958
+  ...
+# Subtest: selectAppCases runs the ready app rows and reports the rest with their reason
+ok 302 - selectAppCases runs the ready app rows and reports the rest with their reason
+  ---
+  duration_ms: 2.729405
+  ...
+# Subtest: every ready app row has a driver and every driver serves a ready row
+ok 303 - every ready app row has a driver and every driver serves a ready row
+  ---
+  duration_ms: 1.106595
+  ...
+# Subtest: the client assertions of every app row read the trace hook
+ok 304 - the client assertions of every app row read the trace hook
+  ---
+  duration_ms: 0.916538
+  ...
+# Subtest: FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight
+ok 305 - FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight
+  ---
+  duration_ms: 0.875008
+  ...
+# Subtest: parseTraceText keeps allow-listed keys and counts torn or foreign lines
+ok 306 - parseTraceText keeps allow-listed keys and counts torn or foreign lines
+  ---
+  duration_ms: 0.331369
+  ...
+# Subtest: an app row's intent-log.jsonl carries the documented keys on every line, mapped from the trace (matrix §4)
+ok 307 - an app row's intent-log.jsonl carries the documented keys on every line, mapped from the trace (matrix §4)
+  ---
+  duration_ms: 0.732527
+  ...
+# Subtest: intent-log attempt counts dispatch runs per intent; keyTag is null without exactly one commit key; empty trace -> empty files
+ok 308 - intent-log attempt counts dispatch runs per intent; keyTag is null without exactly one commit key; empty trace -> empty files
+  ---
+  duration_ms: 0.229784
+  ...
+# Subtest: the server rows' intent-log entries carry the same documented keys as the app rows' (one schema)
+ok 309 - the server rows' intent-log entries carry the same documented keys as the app rows' (one schema)
+  ---
+  duration_ms: 0.32075
+  ...
+# Subtest: matrix §4 documents the intent-log keys the runners write, and the app-trace artifact
+ok 310 - matrix §4 documents the intent-log keys the runners write, and the app-trace artifact
+  ---
+  duration_ms: 0.73992
+  ...
+# Subtest: filterTrace keeps one document, in order, optionally since a timestamp
+ok 311 - filterTrace keeps one document, in order, optionally since a timestamp
+  ---
+  duration_ms: 0.357182
+  ...
+# Subtest: statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation
+ok 312 - statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation
+  ---
+  duration_ms: 0.314448
+  ...
+# Subtest: transition assertions report the expected and the actual path
+ok 313 - transition assertions report the expected and the actual path
+  ---
+  duration_ms: 0.283261
+  ...
+# Subtest: proxy log helpers split commit, lookup and upload traffic per document
+ok 314 - proxy log helpers split commit, lookup and upload traffic per document
+  ---
+  duration_ms: 0.297754
+  ...
+# Subtest: expandExits runs each exit once; a row without exits is one run
+ok 315 - expandExits runs each exit once; a row without exits is one run
+  ---
+  duration_ms: 1.012189
+  ...
+# Subtest: runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS
+ok 316 - runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS
+  ---
+  duration_ms: 0.422336
+  ...
+# Subtest: runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)
+ok 317 - runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)
+  ---
+  duration_ms: 0.098438
+  ...
+# Subtest: predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL
+ok 318 - predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL
+  ---
+  duration_ms: 0.863032
+  ...
+# Subtest: every exit of FQ-40 is the predicted FAIL OQ-F11, tagged per exit (Advisor qa-fault_local:10 and :23)
+ok 319 - every exit of FQ-40 is the predicted FAIL OQ-F11, tagged per exit (Advisor qa-fault_local:10 and :23)
+  ---
+  duration_ms: 0.908055
+  ...
+# Subtest: a case is reported predicted only when every FAIL run is: an unpredicted FAIL is never hidden
+ok 320 - a case is reported predicted only when every FAIL run is: an unpredicted FAIL is never hidden
+  ---
+  duration_ms: 0.212651
+  ...
+# Subtest: app-cases.mjs --case <pending row>: exit 77, result.json written, the artifact directory is the last line
+ok 321 - app-cases.mjs --case <pending row>: exit 77, result.json written, the artifact directory is the last line
+  ---
+  duration_ms: 191.898278
+  ...
+# Subtest: app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree
+ok 322 - app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree
+  ---
+  duration_ms: 0.79727
+  ...
+# Subtest: parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result
+ok 323 - parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result
+  ---
+  duration_ms: 0.272212
+  ...
+# Subtest: deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI
+ok 324 - deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI
+  ---
+  duration_ms: 30.818614
+  ...
+# Subtest: authedRequest renews an expired session once on a 401 and retries once
+ok 325 - authedRequest renews an expired session once on a 401 and retries once
+  ---
+  duration_ms: 6.238785
+  ...
+# Subtest: authedRequest never loops: a second 401 is returned after one renewal
+ok 326 - authedRequest never loops: a second 401 is returned after one renewal
+  ---
+  duration_ms: 4.075725
+  ...
+# Subtest: a session older than the renew window is renewed before the request; a stub without password never is
+ok 327 - a session older than the renew window is renewed before the request; a stub without password never is
+  ---
+  duration_ms: 4.65127
+  ...
+# Subtest: totpCode matches the RFC 6238 SHA-1 vectors
+ok 328 - totpCode matches the RFC 6238 SHA-1 vectors
+  ---
+  duration_ms: 0.556328
+  ...
+# Subtest: login completes the MFA step with the enrolled secret; enrollTotp confirms with a live code
+ok 329 - login completes the MFA step with the enrolled secret; enrollTotp confirms with a live code
+  ---
+  duration_ms: 10.703443
+  ...
+# Subtest: expireStagedClaims reports the aged row count and BLOCKS a setup that aged nothing
+ok 330 - expireStagedClaims reports the aged row count and BLOCKS a setup that aged nothing
+  ---
+  duration_ms: 1.94646
+  ...
+# Subtest: a run's evidence carries the full trace and every sync request; FAIL runs print them
+ok 331 - a run's evidence carries the full trace and every sync request; FAIL runs print them
+  ---
+  duration_ms: 0.49649
+  ...
+# Subtest: dRequest reports the fetch cause for a closed port without leaking the token
+ok 332 - dRequest reports the fetch cause for a closed port without leaking the token
+  ---
+  duration_ms: 2.721065
+  ...
+# Subtest: runnerApiOrigin maps localhost to the IPv4 loopback and leaves other hosts alone
+ok 333 - runnerApiOrigin maps localhost to the IPv4 loopback and leaves other hosts alone
+  ---
+  duration_ms: 0.26811
+  ...
+# Subtest: app-keyring.sh parses
+ok 334 - app-keyring.sh parses
+  ---
+  duration_ms: 2.340324
+  ...
+# Subtest: CL1-5: the keyring wrapper locks and unlocks twice over its control channel, and the stored secret survives
+ok 335 - CL1-5: the keyring wrapper locks and unlocks twice over its control channel, and the stored secret survives
+  ---
+  duration_ms: 1397.825878
+  ...
+# Subtest: the tmpfs probe names the exact runner line when it cannot mount
+ok 336 - the tmpfs probe names the exact runner line when it cannot mount
+  ---
+  duration_ms: 1.155714
+  ...
+# Subtest: mountTmpfs mounts a size-capped, user-owned, private tmpfs through sudo -n, and reports the mount line on failure
+ok 337 - mountTmpfs mounts a size-capped, user-owned, private tmpfs through sudo -n, and reports the mount line on failure
+  ---
+  duration_ms: 1.630135
+  ...
+# Subtest: fillToLeave writes real bytes until only leaveBytes are free, and releaseFill frees them
+ok 338 - fillToLeave writes real bytes until only leaveBytes are free, and releaseFill frees them
+  ---
+  duration_ms: 1.899868
+  ...
+# Subtest: sparseFill sizes one sparse file from the scope's MEASURED usage so the scope sits leave bytes under the budget
+ok 339 - sparseFill sizes one sparse file from the scope's MEASURED usage so the scope sits leave bytes under the budget
+  ---
+  duration_ms: 0.848001
+  ...
+# Subtest: R2-11: the filler path is handed to the caller BEFORE the first byte, and a fill that throws removes its own partial file
+ok 340 - R2-11: the filler path is handed to the caller BEFORE the first byte, and a fill that throws removes its own partial file
+  ---
+  duration_ms: 0.713353
+  ...
+# Subtest: R2-11: releaseFill answers the READ-BACK: gone = ok, a path it cannot remove = a named failure
+ok 341 - R2-11: releaseFill answers the READ-BACK: gone = ok, a path it cannot remove = a named failure
+  ---
+  duration_ms: 0.554298
+  ...
+# Subtest: findFaketime answers the library path, or the install line naming every place it looked
+ok 342 - findFaketime answers the library path, or the install line naming every place it looked
+  ---
+  duration_ms: 0.251164
+  ...
+# Subtest: faketimeEnv moves the wall clock back N minutes and leaves the monotonic clock alone
+ok 343 - faketimeEnv moves the wall clock back N minutes and leaves the monotonic clock alone
+  ---
+  duration_ms: 0.158401
+  ...
+# Subtest: keyringControl without the wrapper's channel is BLOCKED with the exact way to start it
+ok 344 - keyringControl without the wrapper's channel is BLOCKED with the exact way to start it
+  ---
+  duration_ms: 0.338312
+  ...
+# Subtest: keyringControl sends one command line to <ctl>.in and reads one answer from <ctl>.out
+ok 345 - keyringControl sends one command line to <ctl>.in and reads one answer from <ctl>.out
+  ---
+  duration_ms: 0.346634
+  ...
+# Subtest: REAL_VM.keyring.available names the BLOCKED line while the wrapper's channel is missing
+ok 346 - REAL_VM.keyring.available names the BLOCKED line while the wrapper's channel is missing
+  ---
+  duration_ms: 0.166091
+  ...
+# Subtest: app-keyring.sh: control mode is additive, off by default, keeps the password in a variable and parses as bash
+ok 347 - app-keyring.sh: control mode is additive, off by default, keeps the password in a variable and parses as bash
+  ---
+  duration_ms: 4.583325
+  ...
+# Subtest: revokeOrgOfflineLeases runs uniwork-admin revoke-offline-leases for the run's org, or names why it could not
+ok 348 - revokeOrgOfflineLeases runs uniwork-admin revoke-offline-leases for the run's org, or names why it could not
+  ---
+  duration_ms: 0.778045
+  ...
+# Subtest: a run that never enabled the capability lifts nothing: no DELETE on an FQ row
+ok 349 - a run that never enabled the capability lifts nothing: no DELETE on an FQ row
+  ---
+  duration_ms: 1.074157
+  ...
+# Subtest: enable then lift: switched on, lifted, read back, and the tenant is clean
+ok 350 - enable then lift: switched on, lifted, read back, and the tenant is clean
+  ---
+  duration_ms: 0.268684
+  ...
+# Subtest: a run that threw after enabling still lifts it (enable-then-throw)
+ok 351 - a run that threw after enabling still lifts it (enable-then-throw)
+  ---
+  duration_ms: 0.782289
+  ...
+# Subtest: a PUT that threw may still have created the override, so the run owns it and lifts it
+ok 352 - a PUT that threw may still have created the override, so the run owns it and lifts it
+  ---
+  duration_ms: 0.440568
+  ...
+# Subtest: a DELETE that answers but changes nothing is a lift failure: the read-back catches it and later rows are BLOCKED
+ok 353 - a DELETE that answers but changes nothing is a lift failure: the read-back catches it and later rows are BLOCKED
+  ---
+  duration_ms: 0.189254
+  ...
+# Subtest: a rejected DELETE is a lift failure, named, even when the read-back then shows the override gone
+ok 354 - a rejected DELETE is a lift failure, named, even when the read-back then shows the override gone
+  ---
+  duration_ms: 0.129537
+  ...
+# Subtest: a lift whose read-back cannot be read is a failure, not a silent success
+ok 355 - a lift whose read-back cannot be read is a failure, not a silent success
+  ---
+  duration_ms: 0.206081
+  ...
+# Subtest: an FL run clears an in-process leftover override of the same tenant at start, then enables its own
+ok 356 - an FL run clears an in-process leftover override of the same tenant at start, then enables its own
+  ---
+  duration_ms: 0.113249
+  ...
+# Subtest: the failure of one lift is visible to the guard shared by every run of the process
+ok 357 - the failure of one lift is visible to the guard shared by every run of the process
+  ---
+  duration_ms: 0.287433
+  ...
+# Subtest: parsePsTable reads pid, ppid and pgid, and tolerates a two-column ps
+ok 358 - parsePsTable reads pid, ppid and pgid, and tolerates a two-column ps
+  ---
+  duration_ms: 1.180856
+  ...
+# Subtest: harnessPidsFromFile reads stop.sh's `<name> <pid> <port>` lines
+ok 359 - harnessPidsFromFile reads stop.sh's `<name> <pid> <port>` lines
+  ---
+  duration_ms: 0.127909
+  ...
+# Subtest: crashTargets is the launched Electron's tree, deepest first, the root last
+ok 360 - crashTargets is the launched Electron's tree, deepest first, the root last
+  ---
+  duration_ms: 0.396414
+  ...
+# Subtest: crashTargets never includes a pid outside the launched tree
+ok 361 - crashTargets never includes a pid outside the launched tree
+  ---
+  duration_ms: 0.320384
+  ...
+# Subtest: crashTargets refuses a root that is not the runner's own child (gone or reused pid)
+ok 362 - crashTargets refuses a root that is not the runner's own child (gone or reused pid)
+  ---
+  duration_ms: 0.710441
+  ...
+# Subtest: crashTargets drops a descendant in a harness group or in the runner's own group
+ok 363 - crashTargets drops a descendant in a harness group or in the runner's own group
+  ---
+  duration_ms: 0.314695
+  ...
+# Subtest: ownGroupTarget signals only the group of a real spawned pid
+ok 364 - ownGroupTarget signals only the group of a real spawned pid
+  ---
+  duration_ms: 0.109575
+  ...
+# Subtest: serverShutdownOf finds the last shutdown line and its signal
+ok 365 - serverShutdownOf finds the last shutdown line and its signal
+  ---
+  duration_ms: 0.218397
+  ...
+# Subtest: harnessDownReason: null while /healthz is ok, else the BLOCKED reason with the kill time
+ok 366 - harnessDownReason: null while /healthz is ok, else the BLOCKED reason with the kill time
+  ---
+  duration_ms: 0.413105
+  ...
+# Subtest: guardCaseResult leaves every result alone while the server is up
+ok 367 - guardCaseResult leaves every result alone while the server is up
+  ---
+  duration_ms: 0.325555
+  ...
+# Subtest: guardCaseResult turns a FAIL against a dead server into BLOCKED with the reason, dropping the predicted tag
+ok 368 - guardCaseResult turns a FAIL against a dead server into BLOCKED with the reason, dropping the predicted tag
+  ---
+  duration_ms: 0.140972
+  ...
+# Subtest: guardCaseResult keeps a complete PASS, blocks a PASS cut short, and keeps a BLOCKED row
+ok 369 - guardCaseResult keeps a complete PASS, blocks a PASS cut short, and keeps a BLOCKED row
+  ---
+  duration_ms: 0.106787
+  ...
+# Subtest: FIX-6-2: a BLOCKED downgrade leaves no predicted tag at the case level or on any exit; a kept result keeps its tags
+ok 370 - FIX-6-2: a BLOCKED downgrade leaves no predicted tag at the case level or on any exit; a kept result keeps its tags
+  ---
+  duration_ms: 0.153713
+  ...
+# Subtest: FIX-6-4: a server already dead before seeding gives the guard's reason and never calls seed
+ok 371 - FIX-6-4: a server already dead before seeding gives the guard's reason and never calls seed
+  ---
+  duration_ms: 0.12793
+  ...
+# Subtest: FIX-6-4: a failing seed against a server that died meanwhile is BLOCKED; with the server up it is rethrown
+ok 372 - FIX-6-4: a failing seed against a server that died meanwhile is BLOCKED; with the server up it is rethrown
+  ---
+  duration_ms: 0.416364
+  ...
+# Subtest: FIX-6-3: crashZeroCause names why a crash had no target, and is null when it has one
+ok 373 - FIX-6-3: crashZeroCause names why a crash had no target, and is null when it has one
+  ---
+  duration_ms: 0.271881
+  ...
+# Subtest: FIX-6-3: crash() with a stale pid kills 0, records the cause, and an already closed session says so
+ok 374 - FIX-6-3: crash() with a stale pid kills 0, records the cause, and an already closed session says so
+  ---
+  duration_ms: 3.189021
+  ...
+# Subtest: case ids are unique and carry the card prefix
+ok 375 - case ids are unique and carry the card prefix
+  ---
+  duration_ms: 0.746803
+  ...
+# Subtest: the card AC lists in the file match the plan cards
+ok 376 - the card AC lists in the file match the plan cards
+  ---
+  duration_ms: 0.512414
+  ...
+# Subtest: every AC a card lists appears in at least one of its rows
+ok 377 - every AC a card lists appears in at least one of its rows
+  ---
+  duration_ms: 0.236481
+  ...
+# Subtest: the version delta in the matrix row is the version delta in cases.json expect
+ok 378 - the version delta in the matrix row is the version delta in cases.json expect
+  ---
+  duration_ms: 5.018816
+  ...
+# Subtest: a row lists only AC rows of its own card
+ok 379 - a row lists only AC rows of its own card
+  ---
+  duration_ms: 0.265746
+  ...
+# Subtest: every row has a layer, an expectation, artifacts and a status
+ok 380 - every row has a layer, an expectation, artifacts and a status
+  ---
+  duration_ms: 1.522124
+  ...
+# Subtest: pending rows name a dependency and ready rows have none
+ok 381 - pending rows name a dependency and ready rows have none
+  ---
+  duration_ms: 0.183599
+  ...
+# Subtest: the G7-03b rows carry no G5-D1 gate: ready, W2-pending, SUPERSEDED or BLOCKED(owner)
+ok 382 - the G7-03b rows carry no G5-D1 gate: ready, W2-pending, SUPERSEDED or BLOCKED(owner)
+  ---
+  duration_ms: 0.179648
+  ...
+# Subtest: a row runs on a fixture every one of its AC rows declares
+ok 383 - a row runs on a fixture every one of its AC rows declares
+  ---
+  duration_ms: 0.349809
+  ...
+# Subtest: proxy rules follow the proxy contract
+ok 384 - proxy rules follow the proxy contract
+  ---
+  duration_ms: 0.558875
+  ...
+# Subtest: proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+ok 385 - proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+  ---
+  duration_ms: 35.115774
+  ...
+# Subtest: proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+ok 386 - proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+  ---
+  duration_ms: 95.193985
+  ...
+# Subtest: proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+ok 387 - proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+  ---
+  duration_ms: 8.897668
+  ...
+# Subtest: proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+ok 388 - proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+  ---
+  duration_ms: 44.306792
+  ...
+# Subtest: collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+ok 389 - collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+  ---
+  duration_ms: 9.099416
+  ...
+# Subtest: rewrite_json patches a matched JSON response, resolves now_plus_ms, and passes non-JSON or non-matching traffic through untouched
+ok 390 - rewrite_json patches a matched JSON response, resolves now_plus_ms, and passes non-JSON or non-matching traffic through untouched
+  ---
+  duration_ms: 10.142208
+  ...
+# Subtest: the proxy log names the error code of a JSON 4xx answer (never the body) so a row can tell offline_lease_revoked from any other 403
+ok 391 - the proxy log names the error code of a JSON 4xx answer (never the body) so a row can tell offline_lease_revoked from any other 403
+  ---
+  duration_ms: 8.742663
+  ...
+# Subtest: the proxy log records policy_epoch of a 200 lease PUT answer and nothing else of the body (R2-9 regrant)
+ok 392 - the proxy log records policy_epoch of a 200 lease PUT answer and nothing else of the body (R2-9 regrant)
+  ---
+  duration_ms: 4.573573
+  ...
+# Subtest: a rewrite_json rule keeps the log's error code and policy_epoch: the short-lease row can still tell a 403 offline_lease_revoked from any other and read a re-grant's epoch (G703-R3-1)
+ok 393 - a rewrite_json rule keeps the log's error code and policy_epoch: the short-lease row can still tell a 403 offline_lease_revoked from any other and read a re-grant's epoch (G703-R3-1)
+  ---
+  duration_ms: 7.034205
+  ...
+# Subtest: stripQuery removes query strings and fragments and normalizes full URLs
+ok 394 - stripQuery removes query strings and fragments and normalizes full URLs
+  ---
+  duration_ms: 0.581658
+  ...
+# Subtest: validateRule and validateRules accept all seven action types and reject malformed rules
+ok 395 - validateRule and validateRules accept all seven action types and reject malformed rules
+  ---
+  duration_ms: 1.335559
+  ...
+# Subtest: rewrite_json normalizes its patch, deep-copies it, and leaves other action types untouched
+ok 396 - rewrite_json normalizes its patch, deep-copies it, and leaves other action types untouched
+  ---
+  duration_ms: 0.439702
+  ...
+# Subtest: first matching rule wins and once rules disarm after the first hit
+ok 397 - first matching rule wins and once rules disarm after the first hit
+  ---
+  duration_ms: 0.367069
+  ...
+# Subtest: nth (1-based) triggers only on the nth matching request
+ok 398 - nth (1-based) triggers only on the nth matching request
+  ---
+  duration_ms: 0.218171
+  ...
+# Subtest: hold action blocks until release(ruleId) is called
+ok 399 - hold action blocks until release(ruleId) is called
+  ---
+  duration_ms: 15.719224
+  ...
+# Subtest: selectServerCases selects all 13 ready server rows or a single --case row
+ok 400 - selectServerCases selects all 13 ready server rows or a single --case row
+  ---
+  duration_ms: 1.273466
+  ...
+# Subtest: parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+ok 401 - parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+  ---
+  duration_ms: 0.257471
+  ...
+# Subtest: renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+ok 402 - renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+  ---
+  duration_ms: 1.048646
+  ...
+# Subtest: evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+ok 403 - evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+  ---
+  duration_ms: 0.748138
+  ...
+# Subtest: runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+ok 404 - runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+  ---
+  duration_ms: 28.121287
+  ...
+# Subtest: every expectation of a server row in cases.json is asserted by its driver: the version delta of every row, every other value mutated
+ok 405 - every expectation of a server row in cases.json is asserted by its driver: the version delta of every row, every other value mutated
+  ---
+  duration_ms: 178.807557
+  ...
+# Subtest: every expect.proxyLog key of a server row is its own proxy_log.<key> assertion, and a mutated key fails only that one
+ok 406 - every expect.proxyLog key of a server row is its own proxy_log.<key> assertion, and a mutated key fails only that one
+  ---
+  duration_ms: 66.036705
+  ...
+# Subtest: a driver reading an expectation its row lacks throws instead of falling back to a number of its own
+ok 407 - a driver reading an expectation its row lacks throws instead of falling back to a number of its own
+  ---
+  duration_ms: 0.481569
+  ...
+# Subtest: case-result.json carries {case, ac, result, assertions: [{name, expected, actual, ok}]} (matrix §4)
+ok 408 - case-result.json carries {case, ac, result, assertions: [{name, expected, actual, ok}]} (matrix §4)
+  ---
+  duration_ms: 21.548072
+  ...
+# Subtest: runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+ok 409 - runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+  ---
+  duration_ms: 2.578085
+  ...
+# Subtest: server-cases.mjs --case <id>: exit 77 without a harness, the artifact directory is the last line; --verify-result rereads it
+ok 410 - server-cases.mjs --case <id>: exit 77 without a harness, the artifact directory is the last line; --verify-result rereads it
+  ---
+  duration_ms: 176.061954
+  ...
+# Subtest: SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+ok 411 - SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+  ---
+  duration_ms: 0.079505
+  ...
+# Subtest: readVerificationCode reads the run's server.env, then the process env, then the harness default
+ok 412 - readVerificationCode reads the run's server.env, then the process env, then the harness default
+  ---
+  duration_ms: 0.444847
+  ...
+# Subtest: registerAndVerifyUser accepts register 200 and sends the run's verification code
+ok 413 - registerAndVerifyUser accepts register 200 and sends the run's verification code
+  ---
+  duration_ms: 0.612757
+  ...
+# Subtest: registerAndVerifyUser names the step and both statuses when the server answers otherwise
+ok 414 - registerAndVerifyUser names the step and both statuses when the server answers otherwise
+  ---
+  duration_ms: 0.186138
+  ...
+# Subtest: seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+ok 415 - seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+  ---
+  duration_ms: 0.587955
+  ...
+# Subtest: revisions go on the wire as decimal strings and are never a Number (sdi.CommitDocumentVersionSDI.base_revision)
+ok 416 - revisions go on the wire as decimal strings and are never a Number (sdi.CommitDocumentVersionSDI.base_revision)
+  ---
+  duration_ms: 0.216958
+  ...
+# Subtest: revisionGreater compares decimal strings exactly past 2^53
+ok 417 - revisionGreater compares decimal strings exactly past 2^53
+  ---
+  duration_ms: 0.068493
+  ...
+# Subtest: the fake server refuses a numeric base_revision like the real commit handler (400 invalid_request)
+ok 418 - the fake server refuses a numeric base_revision like the real commit handler (400 invalid_request)
+  ---
+  duration_ms: 0.209036
+  ...
+# Subtest: commit requests carry upload_id and a string base_revision, and the Idempotency-Key header
+ok 419 - commit requests carry upload_id and a string base_revision, and the Idempotency-Key header
+  ---
+  duration_ms: 0.203597
+  ...
+# Subtest: a lookup 410 is parsed from the real envelope {error:{code,fields}} and a 200 from CommitIntentSDO
+ok 420 - a lookup 410 is parsed from the real envelope {error:{code,fields}} and a 200 from CommitIntentSDO
+  ---
+  duration_ms: 0.273787
+  ...
+# Subtest: describeResponse names the error code of every refusal, not `undefined`
+ok 421 - describeResponse names the error code of every refusal, not `undefined`
+  ---
+  duration_ms: 0.06978
+  ...
+# Subtest: a conflict reads fields.current_revision from the envelope as a string revision
+ok 422 - a conflict reads fields.current_revision from the envelope as a string revision
+  ---
+  duration_ms: 0.298978
+  ...
+# Subtest: the AI turn sends {messages:[{role:user}]} and continues with the X-UniWork-AI-Conversation header
+ok 423 - the AI turn sends {messages:[{role:user}]} and continues with the X-UniWork-AI-Conversation header
+  ---
+  duration_ms: 0.256854
+  ...
+# Subtest: restore then move sends a string revision and parent_id, a folder is created with kind folder
+ok 424 - restore then move sends a string revision and parent_id, a folder is created with kind folder
+  ---
+  duration_ms: 0.193208
+  ...
+# Subtest: FQ-13 expects 403 document_archived for a commit on an archived document (G5-07 F6), not 410 document_deleted
+ok 425 - FQ-13 expects 403 document_archived for a commit on an archived document (G5-07 F6), not 410 document_deleted
+  ---
+  duration_ms: 0.200727
+  ...
+# Subtest: workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204
+ok 426 - workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204
+  ---
+  duration_ms: 0.082796
+  ...
+# Subtest: createWireContext builds each upload as a multipart file with the Idempotency-Key header
+ok 427 - createWireContext builds each upload as a multipart file with the Idempotency-Key header
+  ---
+  duration_ms: 1.128494
+  ...
+1..427
+# tests 427
+# suites 0
+# pass 427
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3914.413355
+FAULT_UNIT_EXIT=0
