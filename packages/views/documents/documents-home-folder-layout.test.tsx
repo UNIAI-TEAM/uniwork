@@ -310,6 +310,38 @@ describe("folder layout (Folder.dc)", () => {
     expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
   });
 
+  it("gives up space in order on the header row: search first, ancestors next, the folder name last (UNI-1977 fix)", async () => {
+    route({
+      ...folderRoutes(),
+      detail: (id) =>
+        id === "fo1"
+          ? folderDetail({ breadcrumbs: [{ id: "fa", title: "Khách hàng" }, { id: "fo1", title: "Dự án CCB" }] })
+          : null,
+    });
+    renderView(`/acme/doi/documents?folder=fo1`);
+    const heading = await screen.findByRole("heading", { level: 1, name: "Dự án CCB" });
+    const crumb = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+    const ancestor = within(crumb).getByRole("button", { name: "Khách hàng" });
+
+    // Ancestors shrink with a far higher factor than the leaf, so the leaf keeps its
+    // width until the ancestors are at their minimum (jsdom has no layout: pin the classes).
+    expect(ancestor.parentElement).toHaveClass("min-w-0", "shrink-[100]");
+    expect(ancestor).toHaveClass("min-w-0", "truncate");
+    expect(heading.parentElement).not.toHaveClass("shrink-[100]");
+    expect(heading).toHaveClass("min-w-0", "truncate");
+
+    // From lg the breadcrumb, search and actions share one non-wrapping row; the
+    // search box yields before the breadcrumb does.
+    const box = crumb.parentElement as HTMLElement;
+    const row = box.parentElement as HTMLElement;
+    expect(row).toHaveClass("flex-wrap", "lg:flex-nowrap");
+    expect(box).toHaveClass("lg:flex-auto");
+    const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
+    expect(search).toHaveClass("lg:shrink-[100]", "lg:min-w-32");
+    const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
+    expect(create.closest(".shrink-0")?.parentElement).toBe(row);
+  });
+
   it("lists subfolders as cards under their own section, and documents under Tài liệu", async () => {
     route(folderRoutes());
     renderView(`/acme/doi/documents?folder=fo1`);
