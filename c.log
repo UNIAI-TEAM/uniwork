@@ -1,0 +1,29 @@
+$ mkdir -p .harness-run-fqs2a && cp .env /tmp/fqs2a.env && printf '\nAI_PROVIDER=fake\nAI_CONVERSATION_KEY=YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=\nFF_OFFICE_AI_UNIWORK=true\nFF_OFFICE_AI_UNIWORK_DOCX=true\n' >> /tmp/fqs2a.env && HARNESS_RUN_DIR="$PWD/.harness-run-fqs2a" ENV_FILE=/tmp/fqs2a.env OFFICE_FORK_SHA=1d5b68400 timeout -k 15 420 bash scripts/office/g5g6g7/harness/start.sh; echo "HARNESS_START_EXIT=$?"; git -C "$(ls -d ~/.cache/*fork* 2>/dev/null | head -1)" rev-parse --short=9 HEAD 2>/dev/null; true
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /workspace/.harness-run-fqs2a
+harness: D server  http://localhost:40279 (metrics 127.0.0.1:44589)
+harness: D web     http://localhost:39671
+harness: fork      1d5b68400
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:40279 ...
+harness: cloning the fork at 1d5b68400...
+harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)...
+harness: fetching the Electron binary (node /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-1d5b68400/node_modules/electron/install.js)...
+harness: building the fork apps (this is the slow step)...
+harness: starting the fork Electron app under xvfb...
+harness: app on :99 (pid 20326)
+harness: up
+  D server  http://localhost:40279
+  D web     http://localhost:39671
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-1d5b68400 @ 1d5b68400
+  pids      /workspace/.harness-run-fqs2a/pids
+  next      OFFICE_FORK_SHA=1d5b68400 HARNESS_RUN_DIR=/workspace/.harness-run-fqs2a node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /workspace/.harness-run-fqs2a
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=1d5b68400 HARNESS_RUN_DIR=/workspace/.harness-run-fqs2a \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /workspace/.harness-run-fqs2a
+HARNESS_START_EXIT=0
+5975d8f9e
