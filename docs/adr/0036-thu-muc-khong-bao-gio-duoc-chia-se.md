@@ -1,4 +1,4 @@
-# 0035 — Thư mục không bao giờ được chia sẻ; chỉ tài liệu được chia sẻ
+# 0036 — Thư mục không bao giờ được chia sẻ; chỉ tài liệu được chia sẻ
 
 **Trạng thái:** accepted (2026-10-19) — người dùng chốt trong UNI-1974 (FOLDER-SHARE-OFF): "tắt share
 folder đi, tạm thời chỉ share doc thôi; doc share từ My Folder thì cũng không gắn vào folder nào ở phía
