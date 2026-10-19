@@ -1,0 +1,50 @@
+$ tail -40 /tmp/cds-web.log; tail -40 /tmp/cds-server.log; true
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.3.8
+- Local:         http://localhost:3000
+- Network:       http://172.30.0.2:3000
+✓ Ready in 135ms
+✓ Running next.config.mjs took 127ms
+17:15:55.044 INF http request method=POST path=/api/v1/rum status=204 duration=420µs request_id=cursor/Zt7eIlLgev-000198 correlation_id=bda728c2d85aa555014aee6327d8bdc3 trace_id=bda728c2d85aa555014aee6327d8bdc3 span_id=77278b69d2cda4ee
+17:15:56.408 INF http request method=OPTIONS path=/api/v1/config status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000199 correlation_id=6c315b8ab8be6577df369c5b67ae4c0a trace_id=6c315b8ab8be6577df369c5b67ae4c0a span_id=f0466f08b119254f
+17:15:56.409 INF http request method=GET path=/api/v1/config status=200 duration=365µs request_id=cursor/Zt7eIlLgev-000200 correlation_id=e137951f4ec50e76b093a2edfec51a9d trace_id=e137951f4ec50e76b093a2edfec51a9d span_id=a8872ea137cb8e26
+17:15:56.680 INF http request method=OPTIONS path=/api/v1/rum status=200 duration=18µs request_id=cursor/Zt7eIlLgev-000201 correlation_id=96f17fd3d10d80a18907582b2e0a5ced trace_id=96f17fd3d10d80a18907582b2e0a5ced span_id=ef9aec5b62cdcc2a
+17:15:56.682 INF http request method=POST path=/api/v1/rum status=204 duration=442µs request_id=cursor/Zt7eIlLgev-000202 correlation_id=95362a43d046fc0373f3ea5f264d9943 trace_id=95362a43d046fc0373f3ea5f264d9943 span_id=19e76e8c9c707653
+17:15:57.817 INF http request method=OPTIONS path=/api/v1/config status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000203 correlation_id=c232e0127dbc382bbf67346af7067561 trace_id=c232e0127dbc382bbf67346af7067561 span_id=f55be907ac1405d9
+17:15:57.818 INF http request method=GET path=/api/v1/config status=200 duration=357µs request_id=cursor/Zt7eIlLgev-000204 correlation_id=bfc549acd6ee58ab68957c88eeeb383f trace_id=bfc549acd6ee58ab68957c88eeeb383f span_id=d20d514479dcf66b
+17:15:59.279 INF http request method=OPTIONS path=/api/v1/config status=200 duration=15µs request_id=cursor/Zt7eIlLgev-000205 correlation_id=d8091de17222a986bb91665cca85ee09 trace_id=d8091de17222a986bb91665cca85ee09 span_id=e9f983d14200b0a6
+17:15:59.281 INF http request method=GET path=/api/v1/config status=200 duration=337µs request_id=cursor/Zt7eIlLgev-000206 correlation_id=028ab06c99575816836b1f5488866dd1 trace_id=028ab06c99575816836b1f5488866dd1 span_id=93c5e2278077ce1a
+17:15:59.602 INF http request method=OPTIONS path=/api/v1/rum status=200 duration=15µs request_id=cursor/Zt7eIlLgev-000207 correlation_id=71c726c0a65334c81240f55007f8cb1a trace_id=71c726c0a65334c81240f55007f8cb1a span_id=32d0f91d448c6434
+17:15:59.603 INF http request method=POST path=/api/v1/rum status=204 duration=470µs request_id=cursor/Zt7eIlLgev-000208 correlation_id=f6db086ee7e49f34295f9b469a4711a0 trace_id=f6db086ee7e49f34295f9b469a4711a0 span_id=f36ed8c66ba43f21
+17:16:00.414 INF http request method=OPTIONS path=/api/v1/config status=200 duration=14µs request_id=cursor/Zt7eIlLgev-000209 correlation_id=e8bc71851486a8b64a56f5befc0758c9 trace_id=e8bc71851486a8b64a56f5befc0758c9 span_id=e0dd31ba1a6403fb
+17:16:00.416 INF http request method=GET path=/api/v1/config status=200 duration=605µs request_id=cursor/Zt7eIlLgev-000210 correlation_id=8f0233f2de8b5d552ed4c6c8ae9e5f77 trace_id=8f0233f2de8b5d552ed4c6c8ae9e5f77 span_id=c3773fbf6fc0475d
+17:16:08.085 INF http request method=OPTIONS path=/api/v1/config status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000211 correlation_id=47f79515ea69b913f2604871580dcdec trace_id=47f79515ea69b913f2604871580dcdec span_id=1fbb0af412a78ef7
+17:16:08.087 INF http request method=GET path=/api/v1/config status=200 duration=367µs request_id=cursor/Zt7eIlLgev-000212 correlation_id=c3a1e6cc059f505a3d1b5fb5030f5164 trace_id=c3a1e6cc059f505a3d1b5fb5030f5164 span_id=388a50695483772e
+17:16:14.737 INF http request method=OPTIONS path=/api/v1/config status=200 duration=14µs request_id=cursor/Zt7eIlLgev-000213 correlation_id=62f7caa3feef9eed14647656ccf439da trace_id=62f7caa3feef9eed14647656ccf439da span_id=447b292dcf9e8123
+17:16:14.739 INF http request method=GET path=/api/v1/config status=200 duration=318µs request_id=cursor/Zt7eIlLgev-000214 correlation_id=f149ccddd7f2e5d39d352ef5015eb57d trace_id=f149ccddd7f2e5d39d352ef5015eb57d span_id=37b36c95a11138f2
+17:16:26.536 INF http request method=OPTIONS path=/api/v1/config status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000215 correlation_id=8fa2c92abe0a47dc3a4ac30980949760 trace_id=8fa2c92abe0a47dc3a4ac30980949760 span_id=6f719b6e204253c9
+17:16:26.537 INF http request method=GET path=/api/v1/config status=200 duration=689µs request_id=cursor/Zt7eIlLgev-000216 correlation_id=5ddfa0c9a7d26467740aea2166576953 trace_id=5ddfa0c9a7d26467740aea2166576953 span_id=508998ee12e6c294
+17:16:27.056 INF http request method=OPTIONS path=/api/v1/rum status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000217 correlation_id=ba4703d6edc26d7ea5be37b802f39a7a trace_id=ba4703d6edc26d7ea5be37b802f39a7a span_id=2b99d65df6886c7e
+17:16:27.058 INF http request method=POST path=/api/v1/rum status=204 duration=368µs request_id=cursor/Zt7eIlLgev-000218 correlation_id=ce8fb0065e69d70c27d1e1fb6b58c95f trace_id=ce8fb0065e69d70c27d1e1fb6b58c95f span_id=5aee7d138c447594
+17:16:33.714 INF http request method=OPTIONS path=/api/v1/config status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000219 correlation_id=2e7bceb1decee3abbcbcd99fd68ec13e trace_id=2e7bceb1decee3abbcbcd99fd68ec13e span_id=0d35e834180a2d20
+17:16:33.715 INF http request method=GET path=/api/v1/config status=200 duration=344µs request_id=cursor/Zt7eIlLgev-000220 correlation_id=2bfc9ad47465b22e11ee8bd8618fcc26 trace_id=2bfc9ad47465b22e11ee8bd8618fcc26 span_id=1c4e2fcdf1917fc6
+17:16:35.231 INF http request method=OPTIONS path=/api/v1/config status=200 duration=16µs request_id=cursor/Zt7eIlLgev-000221 correlation_id=5e52c142cd8f304ea4c87fdd0ccd02e4 trace_id=5e52c142cd8f304ea4c87fdd0ccd02e4 span_id=4f1ab2ab791e82d8
+17:16:35.233 INF http request method=GET path=/api/v1/config status=200 duration=437µs request_id=cursor/Zt7eIlLgev-000222 correlation_id=0f7241dd0d55192bfb798b0e5d666b29 trace_id=0f7241dd0d55192bfb798b0e5d666b29 span_id=f8bb2de63b2318ab
+17:16:58.349 INF http request method=OPTIONS path=/api/v1/config status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000223 correlation_id=96f6431ad779d4ff95b772c10085fb0b trace_id=96f6431ad779d4ff95b772c10085fb0b span_id=3b0848dd630b8ecd
+17:16:58.352 INF http request method=GET path=/api/v1/config status=200 duration=1.623ms request_id=cursor/Zt7eIlLgev-000224 correlation_id=2715364faa849eaba487818eeb154cf0 trace_id=2715364faa849eaba487818eeb154cf0 span_id=84655ebc980aadfa
+17:17:21.592 INF http request method=OPTIONS path=/api/v1/config status=200 duration=15µs request_id=cursor/Zt7eIlLgev-000225 correlation_id=d69b1675cb26b85162e85b88c98c4921 trace_id=d69b1675cb26b85162e85b88c98c4921 span_id=3e1269d59a98852d
+17:17:21.594 INF http request method=GET path=/api/v1/config status=200 duration=695µs request_id=cursor/Zt7eIlLgev-000226 correlation_id=0c72bc06507fec326a6b1692977d2d23 trace_id=0c72bc06507fec326a6b1692977d2d23 span_id=a4f2c4f4c077d252
+17:17:47.049 INF http request method=OPTIONS path=/api/v1/config status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000227 correlation_id=2812842f3f26114259bf967a5bb5f2f6 trace_id=2812842f3f26114259bf967a5bb5f2f6 span_id=3c20dcc1064d8d74
+17:17:47.051 INF http request method=GET path=/api/v1/config status=200 duration=1.133ms request_id=cursor/Zt7eIlLgev-000228 correlation_id=fc82f7b9684ff85c65787ec47da15583 trace_id=fc82f7b9684ff85c65787ec47da15583 span_id=1f6cf0a6198369f7
+17:18:14.230 INF http request method=OPTIONS path=/api/v1/config status=200 duration=15µs request_id=cursor/Zt7eIlLgev-000229 correlation_id=3d01ff40613ad0d260f394c9524cbb92 trace_id=3d01ff40613ad0d260f394c9524cbb92 span_id=de39b4ce4c482b87
+17:18:14.232 INF http request method=GET path=/api/v1/config status=200 duration=439µs request_id=cursor/Zt7eIlLgev-000230 correlation_id=2b5e54d349c3dc4f37ed14536fd72ced trace_id=2b5e54d349c3dc4f37ed14536fd72ced span_id=31d4a7c17ece5b14
+17:18:21.410 INF http request method=OPTIONS path=/api/v1/config status=200 duration=16µs request_id=cursor/Zt7eIlLgev-000231 correlation_id=c21787c4dd15b5f550150c68f02d8ce3 trace_id=c21787c4dd15b5f550150c68f02d8ce3 span_id=5160d022d47418c5
+17:18:21.412 INF http request method=GET path=/api/v1/config status=200 duration=761µs request_id=cursor/Zt7eIlLgev-000232 correlation_id=9f3109852e8da1c8ac940b8c0b7b1187 trace_id=9f3109852e8da1c8ac940b8c0b7b1187 span_id=b1e6674d4d152dd8
+17:18:22.654 INF http request method=OPTIONS path=/api/v1/config status=200 duration=16µs request_id=cursor/Zt7eIlLgev-000233 correlation_id=d0194eaee1d3a343ebb3515957fe3c0d trace_id=d0194eaee1d3a343ebb3515957fe3c0d span_id=6269e2e2200a6b86
+17:18:22.656 INF http request method=GET path=/api/v1/config status=200 duration=486µs request_id=cursor/Zt7eIlLgev-000234 correlation_id=cf6c2433c256bf213c771c6d734956c0 trace_id=cf6c2433c256bf213c771c6d734956c0 span_id=d183a7aa1a3ed981
+17:18:23.092 INF http request method=OPTIONS path=/api/v1/rum status=200 duration=13µs request_id=cursor/Zt7eIlLgev-000235 correlation_id=d931a2cfb6f965dc9a3f7d76f202c977 trace_id=d931a2cfb6f965dc9a3f7d76f202c977 span_id=638164683f85a501
+17:18:23.093 INF http request method=POST path=/api/v1/rum status=204 duration=419µs request_id=cursor/Zt7eIlLgev-000236 correlation_id=99fbfcc9d9f2d801d48734c3554819da trace_id=99fbfcc9d9f2d801d48734c3554819da span_id=1e3c8f7cd8a1afc1
+17:18:23.094 INF http request method=POST path=/api/v1/rum status=204 duration=364µs request_id=cursor/Zt7eIlLgev-000237 correlation_id=a26af3596ab9413b199e4cc5ed6cf4a2 trace_id=a26af3596ab9413b199e4cc5ed6cf4a2 span_id=366dd1339961f134
