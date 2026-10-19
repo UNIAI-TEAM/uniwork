@@ -8,7 +8,7 @@ import (
 
 // Fake is the Provider for tests and for AI_PROVIDER=fake in development and
 // E2E. Reply decides the answer from the request; nil Reply echoes the last
-// user message. Err is returned as is, so a test injects a vendor rate limit
+// user message. Err is returned as is (with Reply's answer when both are set), so a test injects a vendor rate limit
 // with &StatusError{Status: 429, RetryAfter: …}. Delay makes Complete wait
 // before answering and hands back the context's error when the wait is cut
 // short, so a deadline is testable without a network. It never talks to the
@@ -35,15 +35,17 @@ func (f *Fake) Complete(ctx context.Context, req CompletionRequest) (CompletionR
 			return CompletionResponse{}, ctx.Err()
 		}
 	}
-	if f.Err != nil {
-		return CompletionResponse{}, f.Err
-	}
 	if f.Reply != nil {
 		resp := f.Reply(req)
 		if resp.Model == "" {
 			resp.Model = req.Model
 		}
-		return resp, nil
+		// Both set: the answer comes back with the error, like a refusal
+		// or truncation that still spent tokens.
+		return resp, f.Err
+	}
+	if f.Err != nil {
+		return CompletionResponse{}, f.Err
 	}
 	// Tool loop, scripted (spike G6-02): with tools offered and no result in
 	// the history yet, ask for the first tool; once a result is present,

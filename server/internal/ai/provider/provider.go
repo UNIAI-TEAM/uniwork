@@ -95,6 +95,11 @@ type Message struct {
 	// ToolCallID pairs a Role "tool" message with the call it answers;
 	// Content is that call's result. Empty on every other role.
 	ToolCallID string
+	// Raw is the provider-native assistant turn exactly as that provider
+	// returned it (CompletionResponse.Raw). The provider that produced it
+	// replays it verbatim, so thinking blocks and their signatures survive a
+	// tool loop; it takes the place of Content and ToolCalls on the wire.
+	Raw json.RawMessage
 }
 
 // Part is one media input: raw bytes and their MIME type.
@@ -113,6 +118,9 @@ type ToolSpec struct {
 	Name        string
 	Description string
 	Schema      json.RawMessage
+	// Strict asks the vendor to hold the model to Schema. The schema must
+	// already be strict-safe: every property required, no extra properties.
+	Strict bool
 }
 
 // ToolCall is what the model asked for. The gateway validates it against
@@ -137,6 +145,9 @@ type CompletionRequest struct {
 	// by the caller; the gateway validates the output either way.
 	JSONSchema json.RawMessage
 	Tools      []ToolSpec
+	// Effort is "", "low", "medium" or "high". An adapter sends it only to a
+	// model that takes it; "" leaves the vendor default.
+	Effort string
 }
 
 type CompletionResponse struct {
@@ -150,6 +161,13 @@ type CompletionResponse struct {
 	OutputTokens int
 	Model        string
 	StopReason   string
+	// CacheReadTokens and CacheWriteTokens are prompt-cache tokens, reported
+	// apart from InputTokens by vendors that cache.
+	CacheReadTokens  int
+	CacheWriteTokens int
+	// Raw is the assistant turn in the vendor's own shape, to be sent back
+	// as Message.Raw on the next request. Nil when the adapter has none.
+	Raw json.RawMessage
 }
 
 type EmbedRequest struct {

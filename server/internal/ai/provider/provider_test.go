@@ -465,3 +465,38 @@ func TestOllamaRefusalIsExplicit(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+func TestOpenAISendsStrictTool(t *testing.T) {
+	var bodies []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies = append(bodies, body)
+		_, _ = w.Write([]byte(`{"model":"m","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+	for _, strict := range []bool{true, false} {
+		_, err := NewOpenAI(srv.URL, "", time.Second).Complete(context.Background(), CompletionRequest{Model: "m",
+			Messages: []Message{{Role: "user", Content: "q"}},
+			Tools:    []ToolSpec{{Name: "t", Schema: json.RawMessage(`{"type":"object"}`), Strict: strict}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	on := bodies[0]["tools"].([]any)[0].(map[string]any)["function"].(map[string]any)
+	if on["strict"] != true {
+		t.Fatalf("function = %v", on)
+	}
+	off := bodies[1]["tools"].([]any)[0].(map[string]any)["function"].(map[string]any)
+	if _, ok := off["strict"]; ok {
+		t.Fatalf("non-strict function carried strict: %v", off)
+	}
+}
+
+func TestFakeReplyAndErrReturnTogether(t *testing.T) {
+	f := &Fake{Reply: func(CompletionRequest) CompletionResponse { return CompletionResponse{Text: "x", UsagePresent: true} }, Err: ErrRefused}
+	resp, err := f.Complete(context.Background(), CompletionRequest{Model: "m"})
+	if !errors.Is(err, ErrRefused) || resp.Text != "x" || !resp.UsagePresent {
+		t.Fatalf("resp %+v err %v", resp, err)
+	}
+}

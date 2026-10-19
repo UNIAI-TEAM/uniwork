@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -28,7 +29,7 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		MaxTokens: int64(req.MaxTokens),
 	}
 	if req.System != "" {
-		params.System = []anthropic.TextBlockParam{{Text: req.System}}
+		params.System = []anthropic.TextBlockParam{{Text: req.System, CacheControl: anthropic.NewCacheControlEphemeralParam()}}
 	}
 	// Temperature 0 is a value, not "unset": the policy asks for it on every
 	// structured capability, so it is sent whenever the model takes sampling
@@ -41,11 +42,20 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 	// the answer is the JSON object itself rather than prose around one.
 	// Tools and a schema are never sent together (gateway.Complete).
 	if format, ok := anthropicOutputFormat(req.Model, req.JSONSchema); ok {
-		params.OutputConfig = anthropic.OutputConfigParam{Format: format}
+		params.OutputConfig.Format = format
+	}
+	if req.Effort != "" && anthropicAcceptsEffort(req.Model) {
+		params.OutputConfig.Effort = anthropic.OutputConfigEffort(req.Effort)
 	}
 	for i, m := range req.Messages {
 		block := anthropic.NewTextBlock(m.Content)
 		switch {
+		case m.Role == "assistant" && len(m.Raw) > 0:
+			var turn anthropic.MessageParam
+			if err := json.Unmarshal(m.Raw, &turn); err != nil {
+				return CompletionResponse{}, fmt.Errorf("anthropic: replay assistant turn: %w", err)
+			}
+			params.Messages = append(params.Messages, turn)
 		case m.Role == "assistant":
 			// Replay the call before its result: the Messages API needs the
 			// tool_use block (with its id) in the assistant turn that produced
@@ -88,7 +98,20 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 			Description: param.NewOpt(t.Description),
 			InputSchema: anthropic.ToolInputSchemaParam{Properties: props, Required: required},
 		}
+		if t.Strict {
+			tool.Strict = param.NewOpt(true)
+			tool.InputSchema.ExtraFields = map[string]any{"additionalProperties": false}
+		}
 		params.Tools = append(params.Tools, anthropic.ToolUnionParam{OfTool: &tool})
+	}
+	// One breakpoint on the newest block caches the whole prefix before it,
+	// so each tool-loop round re-reads the last one instead of re-billing it.
+	if n := len(params.Messages); n > 0 {
+		if blocks := params.Messages[n-1].Content; len(blocks) > 0 {
+			if cc := blocks[len(blocks)-1].GetCacheControl(); cc != nil {
+				*cc = anthropic.NewCacheControlEphemeralParam()
+			}
+		}
 	}
 	resp, err := a.client.Messages.New(ctx, params)
 	if err != nil {
@@ -102,9 +125,6 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		}
 		return CompletionResponse{}, err
 	}
-	if resp.StopReason == anthropic.StopReasonRefusal {
-		return CompletionResponse{}, ErrRefused
-	}
 	out := CompletionResponse{
 		Model:      string(resp.Model),
 		StopReason: string(resp.StopReason),
@@ -114,7 +134,11 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		UsagePresent: resp.JSON.Usage.Valid(),
 		InputTokens:  int(resp.Usage.InputTokens),
 		OutputTokens: int(resp.Usage.OutputTokens),
+
+		CacheReadTokens:  int(resp.Usage.CacheReadInputTokens),
+		CacheWriteTokens: int(resp.Usage.CacheCreationInputTokens),
 	}
+	out.Raw, _ = json.Marshal(resp.ToParam())
 	var text strings.Builder
 	for _, block := range resp.Content {
 		switch b := block.AsAny().(type) {
@@ -125,6 +149,10 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		}
 	}
 	out.Text = text.String()
+	// A refusal still spent tokens: out carries the usage the gateway settles.
+	if resp.StopReason == anthropic.StopReasonRefusal {
+		return out, ErrRefused
+	}
 	// An answer cut at max_tokens is half a JSON object that no parse can
 	// save, so it is a failed call; out still carries the usage the gateway
 	// settles. Free-text turns keep the partial answer, as before.
@@ -144,6 +172,21 @@ func anthropicAcceptsSampling(model string) bool {
 		"claude-haiku-4-5",
 		"claude-sonnet-4-", // 4.0 (dated), 4.5 and 4.6
 		"claude-opus-4-0", "claude-opus-4-1", "claude-opus-4-2", "claude-opus-4-5", "claude-opus-4-6",
+	} {
+		if strings.HasPrefix(model, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// anthropicAcceptsEffort reports whether a model takes output_config.effort.
+// Others answer 400, so only the named families get it.
+func anthropicAcceptsEffort(model string) bool {
+	for _, p := range []string{
+		"claude-opus-5", "claude-sonnet-5", "claude-haiku-5", "claude-fable-5",
+		"claude-opus-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8",
+		"claude-sonnet-4-6",
 	} {
 		if strings.HasPrefix(model, p) {
 			return true
