@@ -601,7 +601,11 @@
       "email_all": "Email cho mọi loại phù hợp",
       "push_unavailable_server": "Máy chủ này chưa bật thông báo đẩy, nên thông báo đến hộp việc và email.",
       "push_unavailable_browser": "Trình duyệt này không nhận được thông báo đẩy, nên thông báo đến hộp việc và email.",
-      "browser_banners_allow": "Cho phép báo tin nhắn mới khi tab UniWork đang ẩn"
+      "browser_banners_allow": "Cho phép báo tin nhắn mới khi tab UniWork đang ẩn",
+      "desktop_section": "Thông báo trên máy tính",
+      "desktop_description": "UniChat báo tin nhắn mới bằng thông báo của hệ điều hành. Không thấy thì gửi thử, rồi kiểm tra cài đặt thông báo của máy.",
+      "desktop_row": "Máy tính này",
+      "desktop_test": "Gửi thử"
     },
     "page": {
       "title": "Cài đặt",
@@ -5425,6 +5429,14 @@
     "group_unread": "Chưa đọc",
     "group_today": "Hôm nay",
     "group_yesterday": "Hôm qua",
+    "desktop": {
+      "prompt": "Bật thông báo để không bỏ lỡ tin nhắn mới.",
+      "enable": "Bật thông báo",
+      "check": "Khi macOS hỏi, chọn Cho phép. Không thấy thông báo thử thì bật UniChat trong cài đặt thông báo của máy.",
+      "open_settings": "Mở cài đặt thông báo",
+      "test_title": "Thông báo đã bật",
+      "test_body": "Tin nhắn mới sẽ hiện ở đây."
+    },
     "group_week": "7 ngày qua",
     "group_older": "Cũ hơn",
     "merged_other_one": "và {{count}} thay đổi khác",

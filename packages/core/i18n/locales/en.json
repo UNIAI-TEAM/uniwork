@@ -602,7 +602,11 @@
       "email_all": "Email for every eligible kind",
       "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
       "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
-      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden"
+      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden",
+      "desktop_section": "Desktop notifications",
+      "desktop_description": "UniChat shows new messages as system notifications. If you don't see them, send a test, then check your computer's notification settings.",
+      "desktop_row": "This computer",
+      "desktop_test": "Send a test"
     },
     "page": {
       "title": "Settings",
@@ -5429,6 +5433,14 @@
     "group_unread": "Unread",
     "group_today": "Today",
     "group_yesterday": "Yesterday",
+    "desktop": {
+      "prompt": "Turn on notifications so you don't miss new messages.",
+      "enable": "Turn on notifications",
+      "check": "When macOS asks, choose Allow. If no test notification appeared, turn UniChat on in your computer's notification settings.",
+      "open_settings": "Open notification settings",
+      "test_title": "Notifications are on",
+      "test_body": "New messages will show up here."
+    },
     "group_week": "Last 7 days",
     "group_older": "Older",
     "merged_other_one": "and {{count}} more change",

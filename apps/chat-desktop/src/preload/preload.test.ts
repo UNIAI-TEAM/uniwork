@@ -33,7 +33,7 @@ describe("preload desktopAPI", () => {
   it("exposes exactly the DesktopBridge surface and nothing from electron", async () => {
     const api = await loadPreload();
     expect(Object.keys(api).sort()).toEqual(
-      ["app", "appInfo", "session", "setBadgeCount", "isFocused", "onFocusChange", "focusWindow", "openExternal", "downloadURL", "onDeepLink"].sort(),
+      ["app", "appInfo", "session", "setBadgeCount", "isFocused", "onFocusChange", "focusWindow", "openExternal", "downloadURL", "openNotificationSettings", "onDeepLink"].sort(),
     );
     expect(Object.keys(api.session).sort()).toEqual(["login", "getAccessToken", "refresh", "logout", "onChange"].sort());
     expect(api.app).toBe("unichat");
@@ -76,12 +76,14 @@ describe("preload desktopAPI", () => {
     api.focusWindow();
     await api.openExternal("https://x.example/");
     await api.downloadURL("https://x.example/f.pdf", "f.pdf");
+    await api.openNotificationSettings?.();
     expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
       ["app:set-badge", 3],
       ["app:is-focused"],
       ["app:focus-window"],
       ["shell:open-external", "https://x.example/"],
       ["shell:download-url", "https://x.example/f.pdf"],
+      ["shell:open-notification-settings"],
     ]);
   });
 

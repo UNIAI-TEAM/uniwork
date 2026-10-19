@@ -30,6 +30,8 @@ export interface DesktopBridge {
   focusWindow(): void;
   openExternal(url: string): Promise<void>;
   downloadURL(url: string, name?: string): Promise<void>;
+  /** Opens the OS page where this app's notifications are turned on; absent in shells built before it. */
+  openNotificationSettings?(): Promise<void>;
   /** `uniworkchat://open?url=<path>` or an https URL of this app. */
   onDeepLink(cb: (url: string) => void): () => void;
 }
