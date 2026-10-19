@@ -706,7 +706,8 @@ WHERE d.organization_id = $5
            -- UNI-1973: show only the topmost shared item. A row whose sharing is
            -- just the workspace visibility copied from its parent at create time
            -- (same level, no live share of its own) is hidden when that parent is
-           -- a live row the caller owns, shared the same way.
+           -- a live non-folder row the caller owns, shared the same way (children of a
+           -- folder always show: folders are not shareable, UNI-1974).
            AND NOT (d.visibility = 'workspace'
                     AND NOT EXISTS (
                          SELECT 1 FROM document_shares ow
@@ -723,6 +724,7 @@ WHERE d.organization_id = $5
                            AND sp.archived_at IS NULL
                            AND sp.shelved_at IS NULL
                            AND sp.system_kind IS NULL
+                           AND sp.kind <> 'folder'
                            AND sp.acl_owner_id = d.acl_owner_id
                            AND sp.visibility = 'workspace'
                            AND sp.workspace_level = d.workspace_level))))
@@ -1267,7 +1269,8 @@ WHERE d.organization_id = $1
            -- UNI-1973: show only the topmost shared item. A row whose sharing is
            -- just the workspace visibility copied from its parent at create time
            -- (same level, no live share of its own) is hidden when that parent is
-           -- a live row the caller owns, shared the same way.
+           -- a live non-folder row the caller owns, shared the same way (children of a
+           -- folder always show: folders are not shareable, UNI-1974).
            AND NOT (d.visibility = 'workspace'
                     AND NOT EXISTS (
                          SELECT 1 FROM document_shares ow
@@ -1283,6 +1286,7 @@ WHERE d.organization_id = $1
                            AND sp.owner_id IS NULL
                            AND sp.archived_at IS NULL
                            AND sp.system_kind IS NULL
+                           AND sp.kind <> 'folder'
                            AND sp.acl_owner_id = d.acl_owner_id
                            AND sp.visibility = 'workspace'
                            AND sp.workspace_level = d.workspace_level))))
