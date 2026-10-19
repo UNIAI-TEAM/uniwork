@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI v2: agent làm việc như ClickUp Brain
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-16; kế hoạch P0: `docs/superpowers/plans/2026-10-16-ask-uni-p0.md`; issue UNI-1818.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-16; kế hoạch P0: `docs/superpowers/plans/2026-10-16-ask-uni-p0.md` (issue UNI-1818, đã merge, chờ ghi mức nền); kế hoạch P1: `docs/superpowers/plans/2026-10-19-ask-uni-p1.md` (issue UNI-1962, chờ duyệt).
 
 **Ngày:** 2026-10-16
 **Issue:** UNI-1818 (P0; sub-issue UNI-1819…1823).
