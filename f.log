@@ -1,0 +1,541 @@
+$ export E2E_BASE_URL=http://localhost:14000 NEXT_PUBLIC_APP_URL=http://localhost:14000 NEXT_PUBLIC_API_URL=http://localhost:19080; export SEO_BASE_URL=http://localhost:14000; pnpm seo:check; echo "SEO_EXIT=$?"
+
+> uniwork@ seo:check /workspace
+> node scripts/seo-smoke.mjs
+
+{
+  "checked": 74,
+  "publicPages": [
+    {
+      "path": "/apps",
+      "locale": "en",
+      "bytes": 149974,
+      "canonical": "http://localhost:14000/apps"
+    },
+    {
+      "path": "/",
+      "locale": "en",
+      "bytes": 868442,
+      "canonical": "http://localhost:14000"
+    },
+    {
+      "path": "/vi",
+      "locale": "vi",
+      "bytes": 931245,
+      "canonical": "http://localhost:14000/vi"
+    },
+    {
+      "path": "/vi/apps",
+      "locale": "vi",
+      "bytes": 160731,
+      "canonical": "http://localhost:14000/vi/apps"
+    },
+    {
+      "path": "/apps/unichat",
+      "locale": "en",
+      "bytes": 175240,
+      "canonical": "http://localhost:14000/apps/unichat"
+    },
+    {
+      "path": "/vi/apps/office",
+      "locale": "vi",
+      "bytes": 188878,
+      "canonical": "http://localhost:14000/vi/apps/office"
+    },
+    {
+      "path": "/apps/office",
+      "locale": "en",
+      "bytes": 177536,
+      "canonical": "http://localhost:14000/apps/office"
+    },
+    {
+      "path": "/vi/apps/unichat",
+      "locale": "vi",
+      "bytes": 186817,
+      "canonical": "http://localhost:14000/vi/apps/unichat"
+    },
+    {
+      "path": "/features",
+      "locale": "en",
+      "bytes": 316535,
+      "canonical": "http://localhost:14000/features"
+    },
+    {
+      "path": "/vi/features",
+      "locale": "vi",
+      "bytes": 347777,
+      "canonical": "http://localhost:14000/vi/features"
+    },
+    {
+      "path": "/features/dashboard",
+      "locale": "en",
+      "bytes": 502463,
+      "canonical": "http://localhost:14000/features/dashboard"
+    },
+    {
+      "path": "/vi/features/dashboard",
+      "locale": "vi",
+      "bytes": 554681,
+      "canonical": "http://localhost:14000/vi/features/dashboard"
+    },
+    {
+      "path": "/features/tasks",
+      "locale": "en",
+      "bytes": 593438,
+      "canonical": "http://localhost:14000/features/tasks"
+    },
+    {
+      "path": "/vi/features/tasks",
+      "locale": "vi",
+      "bytes": 645828,
+      "canonical": "http://localhost:14000/vi/features/tasks"
+    },
+    {
+      "path": "/features/projects",
+      "locale": "en",
+      "bytes": 537208,
+      "canonical": "http://localhost:14000/features/projects"
+    },
+    {
+      "path": "/vi/features/projects",
+      "locale": "vi",
+      "bytes": 589117,
+      "canonical": "http://localhost:14000/vi/features/projects"
+    },
+    {
+      "path": "/features/today",
+      "locale": "en",
+      "bytes": 525375,
+      "canonical": "http://localhost:14000/features/today"
+    },
+    {
+      "path": "/vi/features/today",
+      "locale": "vi",
+      "bytes": 577286,
+      "canonical": "http://localhost:14000/vi/features/today"
+    },
+    {
+      "path": "/features/calendar",
+      "locale": "en",
+      "bytes": 528747,
+      "canonical": "http://localhost:14000/features/calendar"
+    },
+    {
+      "path": "/vi/features/calendar",
+      "locale": "vi",
+      "bytes": 580747,
+      "canonical": "http://localhost:14000/vi/features/calendar"
+    },
+    {
+      "path": "/features/workflows",
+      "locale": "en",
+      "bytes": 504113,
+      "canonical": "http://localhost:14000/features/workflows"
+    },
+    {
+      "path": "/vi/features/workflows",
+      "locale": "vi",
+      "bytes": 556091,
+      "canonical": "http://localhost:14000/vi/features/workflows"
+    },
+    {
+      "path": "/features/meetings",
+      "locale": "en",
+      "bytes": 571110,
+      "canonical": "http://localhost:14000/features/meetings"
+    },
+    {
+      "path": "/vi/features/meetings",
+      "locale": "vi",
+      "bytes": 623141,
+      "canonical": "http://localhost:14000/vi/features/meetings"
+    },
+    {
+      "path": "/features/chat",
+      "locale": "en",
+      "bytes": 652403,
+      "canonical": "http://localhost:14000/features/chat"
+    },
+    {
+      "path": "/vi/features/chat",
+      "locale": "vi",
+      "bytes": 704725,
+      "canonical": "http://localhost:14000/vi/features/chat"
+    },
+    {
+      "path": "/features/email",
+      "locale": "en",
+      "bytes": 656716,
+      "canonical": "http://localhost:14000/features/email"
+    },
+    {
+      "path": "/vi/features/email",
+      "locale": "vi",
+      "bytes": 711459,
+      "canonical": "http://localhost:14000/vi/features/email"
+    },
+    {
+      "path": "/features/outputs",
+      "locale": "en",
+      "bytes": 501184,
+      "canonical": "http://localhost:14000/features/outputs"
+    },
+    {
+      "path": "/vi/features/outputs",
+      "locale": "vi",
+      "bytes": 553121,
+      "canonical": "http://localhost:14000/vi/features/outputs"
+    },
+    {
+      "path": "/features/documents",
+      "locale": "en",
+      "bytes": 588662,
+      "canonical": "http://localhost:14000/features/documents"
+    },
+    {
+      "path": "/vi/features/documents",
+      "locale": "vi",
+      "bytes": 640705,
+      "canonical": "http://localhost:14000/vi/features/documents"
+    },
+    {
+      "path": "/features/approvals",
+      "locale": "en",
+      "bytes": 499126,
+      "canonical": "http://localhost:14000/features/approvals"
+    },
+    {
+      "path": "/features/knowledge",
+      "locale": "en",
+      "bytes": 504922,
+      "canonical": "http://localhost:14000/features/knowledge"
+    },
+    {
+      "path": "/vi/features/approvals",
+      "locale": "vi",
+      "bytes": 551086,
+      "canonical": "http://localhost:14000/vi/features/approvals"
+    },
+    {
+      "path": "/vi/features/knowledge",
+      "locale": "vi",
+      "bytes": 557154,
+      "canonical": "http://localhost:14000/vi/features/knowledge"
+    },
+    {
+      "path": "/features/ask",
+      "locale": "en",
+      "bytes": 599217,
+      "canonical": "http://localhost:14000/features/ask"
+    },
+    {
+      "path": "/vi/features/ask",
+      "locale": "vi",
+      "bytes": 651902,
+      "canonical": "http://localhost:14000/vi/features/ask"
+    },
+    {
+      "path": "/features/agents",
+      "locale": "en",
+      "bytes": 498848,
+      "canonical": "http://localhost:14000/features/agents"
+    },
+    {
+      "path": "/vi/features/agents",
+      "locale": "vi",
+      "bytes": 550724,
+      "canonical": "http://localhost:14000/vi/features/agents"
+    },
+    {
+      "path": "/features/automation",
+      "locale": "en",
+      "bytes": 501129,
+      "canonical": "http://localhost:14000/features/automation"
+    },
+    {
+      "path": "/features/organization",
+      "locale": "en",
+      "bytes": 524478,
+      "canonical": "http://localhost:14000/features/organization"
+    },
+    {
+      "path": "/vi/features/automation",
+      "locale": "vi",
+      "bytes": 553316,
+      "canonical": "http://localhost:14000/vi/features/automation"
+    },
+    {
+      "path": "/vi/features/organization",
+      "locale": "vi",
+      "bytes": 576065,
+      "canonical": "http://localhost:14000/vi/features/organization"
+    },
+    {
+      "path": "/features/audit",
+      "locale": "en",
+      "bytes": 488887,
+      "canonical": "http://localhost:14000/features/audit"
+    },
+    {
+      "path": "/vi/features/audit",
+      "locale": "vi",
+      "bytes": 540574,
+      "canonical": "http://localhost:14000/vi/features/audit"
+    },
+    {
+      "path": "/solutions",
+      "locale": "en",
+      "bytes": 229669,
+      "canonical": "http://localhost:14000/solutions"
+    },
+    {
+      "path": "/vi/solutions",
+      "locale": "vi",
+      "bytes": 259014,
+      "canonical": "http://localhost:14000/vi/solutions"
+    },
+    {
+      "path": "/solutions/product",
+      "locale": "en",
+      "bytes": 244779,
+      "canonical": "http://localhost:14000/solutions/product"
+    },
+    {
+      "path": "/vi/solutions/product",
+      "locale": "vi",
+      "bytes": 273937,
+      "canonical": "http://localhost:14000/vi/solutions/product"
+    },
+    {
+      "path": "/solutions/operations",
+      "locale": "en",
+      "bytes": 243947,
+      "canonical": "http://localhost:14000/solutions/operations"
+    },
+    {
+      "path": "/learn",
+      "locale": "en",
+      "bytes": 284513,
+      "canonical": "http://localhost:14000/learn"
+    },
+    {
+      "path": "/vi/solutions/operations",
+      "locale": "vi",
+      "bytes": 272979,
+      "canonical": "http://localhost:14000/vi/solutions/operations"
+    },
+    {
+      "path": "/vi/why-uniwork",
+      "locale": "vi",
+      "bytes": 285361,
+      "canonical": "http://localhost:14000/vi/why-uniwork"
+    },
+    {
+      "path": "/vi/learn",
+      "locale": "vi",
+      "bytes": 314612,
+      "canonical": "http://localhost:14000/vi/learn"
+    },
+    {
+      "path": "/why-uniwork",
+      "locale": "en",
+      "bytes": 255193,
+      "canonical": "http://localhost:14000/why-uniwork"
+    },
+    {
+      "path": "/vi/pricing",
+      "locale": "vi",
+      "bytes": 258666,
+      "canonical": "http://localhost:14000/vi/pricing"
+    },
+    {
+      "path": "/pricing",
+      "locale": "en",
+      "bytes": 229529,
+      "canonical": "http://localhost:14000/pricing"
+    },
+    {
+      "path": "/enterprise",
+      "locale": "en",
+      "bytes": 235604,
+      "canonical": "http://localhost:14000/enterprise"
+    },
+    {
+      "path": "/vi/enterprise",
+      "locale": "vi",
+      "bytes": 264974,
+      "canonical": "http://localhost:14000/vi/enterprise"
+    },
+    {
+      "path": "/request-demo",
+      "locale": "en",
+      "bytes": 116886,
+      "canonical": "http://localhost:14000/request-demo"
+    },
+    {
+      "path": "/vi/request-demo",
+      "locale": "vi",
+      "bytes": 127239,
+      "canonical": "http://localhost:14000/vi/request-demo"
+    },
+    {
+      "path": "/about",
+      "locale": "en",
+      "bytes": 120848,
+      "canonical": "http://localhost:14000/about"
+    },
+    {
+      "path": "/changelog",
+      "locale": "en",
+      "bytes": 197035,
+      "canonical": "http://localhost:14000/changelog"
+    },
+    {
+      "path": "/vi/changelog",
+      "locale": "vi",
+      "bytes": 221074,
+      "canonical": "http://localhost:14000/vi/changelog"
+    },
+    {
+      "path": "/security",
+      "locale": "en",
+      "bytes": 123020,
+      "canonical": "http://localhost:14000/security"
+    },
+    {
+      "path": "/vi/about",
+      "locale": "vi",
+      "bytes": 132126,
+      "canonical": "http://localhost:14000/vi/about"
+    },
+    {
+      "path": "/vi/security",
+      "locale": "vi",
+      "bytes": 135208,
+      "canonical": "http://localhost:14000/vi/security"
+    },
+    {
+      "path": "/learn/start-with-tasks",
+      "locale": "en",
+      "bytes": 122964,
+      "canonical": "http://localhost:14000/learn/start-with-tasks"
+    },
+    {
+      "path": "/vi/learn/start-with-tasks",
+      "locale": "vi",
+      "bytes": 134468,
+      "canonical": "http://localhost:14000/vi/learn/start-with-tasks"
+    },
+    {
+      "path": "/learn/office-files-and-ai",
+      "locale": "en",
+      "bytes": 134497,
+      "canonical": "http://localhost:14000/learn/office-files-and-ai"
+    },
+    {
+      "path": "/learn/meetings-to-tasks",
+      "locale": "en",
+      "bytes": 124304,
+      "canonical": "http://localhost:14000/learn/meetings-to-tasks"
+    },
+    {
+      "path": "/vi/learn/meetings-to-tasks",
+      "locale": "vi",
+      "bytes": 135999,
+      "canonical": "http://localhost:14000/vi/learn/meetings-to-tasks"
+    },
+    {
+      "path": "/vi/learn/office-files-and-ai",
+      "locale": "vi",
+      "bytes": 146865,
+      "canonical": "http://localhost:14000/vi/learn/office-files-and-ai"
+    }
+  ],
+  "privateRoutes": "noindex",
+  "invalidRoutes": "404",
+  "sitemap": "valid",
+  "crawlerChecks": [
+    {
+      "userAgent": "Googlebot",
+      "path": "/learn/office-files-and-ai",
+      "status": 200
+    },
+    {
+      "userAgent": "Googlebot",
+      "path": "/vi/learn/office-files-and-ai",
+      "status": 200
+    },
+    {
+      "userAgent": "Googlebot",
+      "path": "/security",
+      "status": 200
+    },
+    {
+      "userAgent": "Googlebot",
+      "path": "/vi/security",
+      "status": 200
+    },
+    {
+      "userAgent": "bingbot",
+      "path": "/learn/office-files-and-ai",
+      "status": 200
+    },
+    {
+      "userAgent": "bingbot",
+      "path": "/vi/learn/office-files-and-ai",
+      "status": 200
+    },
+    {
+      "userAgent": "bingbot",
+      "path": "/security",
+      "status": 200
+    },
+    {
+      "userAgent": "bingbot",
+      "path": "/vi/security",
+      "status": 200
+    },
+    {
+      "userAgent": "OAI-SearchBot",
+      "path": "/learn/office-files-and-ai",
+      "status": 200
+    },
+    {
+      "userAgent": "OAI-SearchBot",
+      "path": "/vi/learn/office-files-and-ai",
+      "status": 200
+    },
+    {
+      "userAgent": "OAI-SearchBot",
+      "path": "/security",
+      "status": 200
+    },
+    {
+      "userAgent": "OAI-SearchBot",
+      "path": "/vi/security",
+      "status": 200
+    },
+    {
+      "userAgent": "PerplexityBot",
+      "path": "/learn/office-files-and-ai",
+      "status": 200
+    },
+    {
+      "userAgent": "PerplexityBot",
+      "path": "/vi/learn/office-files-and-ai",
+      "status": 200
+    },
+    {
+      "userAgent": "PerplexityBot",
+      "path": "/security",
+      "status": 200
+    },
+    {
+      "userAgent": "PerplexityBot",
+      "path": "/vi/security",
+      "status": 200
+    }
+  ],
+  "crawlerCheckScope": "HTTP User-Agent simulation; does not verify real crawler IP access at the CDN/WAF"
+}
+SEO_EXIT=0
