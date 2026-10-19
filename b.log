@@ -1,0 +1,17 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler -race -run "TestDocumentAccessRequest|TestIsolation|TestEveryBodyIDField|TestUniformAnswer|TestDocumentShare|TestDocumentAccess" -count=1 -timeout 60m -v > /tmp/hdl.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/hdl.log | tail -20; grep -E "^--- (PASS|FAIL): (TestIsolationMatrix|TestIsolationRealtime|TestUniformAnswer|TestEveryBodyIDField|TestDocumentAccessRequest)" /tmp/hdl.log; grep -c "ISO_ONLY" /tmp/hdl.log; echo; echo "TEST_HDL_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	586.644s
+--- PASS: TestDocumentAccessRequestCreateIsUniform202 (0.23s)
+--- PASS: TestDocumentAccessRequestCreateHidesExistence (0.26s)
+--- PASS: TestDocumentAccessRequestCreateRejectsBadBody (0.27s)
+--- PASS: TestDocumentAccessRequestCreateSecondSendIsPending409 (0.27s)
+--- PASS: TestDocumentAccessRequestCreateCooldownCarriesRetryAfter (0.25s)
+--- PASS: TestDocumentAccessRequestPendingCountOnShares (0.30s)
+--- PASS: TestIsolationMatrix (572.21s)
+--- PASS: TestIsolationRealtime (4.76s)
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.02s)
+--- PASS: TestUniformAnswerComparisonIsNotATautology (0.00s)
+0
+
+TEST_HDL_EXIT=0

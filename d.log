@@ -1,0 +1,3 @@
+$ (pnpm --filter @uniwork/core typecheck > /tmp/tc.log 2>&1 && pnpm --filter @uniwork/views typecheck >> /tmp/tc.log 2>&1 && pnpm --filter @uniwork/web typecheck >> /tmp/tc.log 2>&1); rc=$?; grep -E "error TS" /tmp/tc.log | head -10; echo; echo "TYPECHECK_EXIT=$rc"
+
+TYPECHECK_EXIT=0
