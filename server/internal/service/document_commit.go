@@ -609,7 +609,10 @@ func (s *DocumentService) commitClaimedFileVersion(
 				return err
 			}
 		}
-		chatLineRoom, chatLineMsg = s.insertChatDocumentVersionLineInTx(ctx, q, actor, locked, res.Version, in.ChatRoomID)
+		chatLineRoom, chatLineMsg, err = s.insertChatDocumentVersionLineInTx(ctx, q, actor, locked, res.Version, in.ChatRoomID)
+		if err != nil {
+			return err
+		}
 		if claim != nil {
 			if err := s.markCommitIntentCommitted(ctx, q, locked, *claim, res); err != nil {
 				return err
@@ -860,38 +863,44 @@ func (s *DocumentService) chatForVersionLine() *ChatService {
 
 // insertChatDocumentVersionLineInTx writes one document_version message in
 // chatRoomID inside the commit transaction when the caller may send in that
-// room and the room holds a live document card for doc (UNI-1966 §4.4, L7). Any
-// other outcome (unknown or foreign room, caller cannot send, no card) is
-// ignored so a card affordance never fails a save.
+// room and the room holds a live document card for doc (UNI-1966 §4.4, L7). The
+// guard outcomes (unknown or foreign room, caller cannot send, no card) are
+// ignored so a card affordance never fails a save: they are pool reads and
+// cannot touch the transaction. A SQL error on the transaction is returned and
+// fails the save with its real cause, because Postgres has already aborted the
+// transaction by then and swallowing it would only move the failure to COMMIT.
 func (s *DocumentService) insertChatDocumentVersionLineInTx(
 	ctx context.Context, q *db.Queries, actor Actor, doc db.Document, version db.DocumentVersion, chatRoomID string,
-) (db.ChatRoom, *db.ChatMessage) {
+) (db.ChatRoom, *db.ChatMessage, error) {
 	roomID := strings.TrimSpace(chatRoomID)
 	if roomID == "" || actor.Kind != audit.KindHuman {
-		return db.ChatRoom{}, nil
+		return db.ChatRoom{}, nil, nil
 	}
 	chat := s.chatForVersionLine()
 	room, err := chat.authorizeRoom(ctx, actor.ID, doc.WorkspaceID, roomID)
 	if err != nil {
-		return db.ChatRoom{}, nil
+		return db.ChatRoom{}, nil, nil
 	}
 	if err := chat.requireCanSendInRoom(ctx, actor.ID, room.ID, room); err != nil {
-		return db.ChatRoom{}, nil
+		return db.ChatRoom{}, nil, nil
 	}
 	hasCard, err := q.ChatRoomHasDocumentMessage(ctx, db.ChatRoomHasDocumentMessageParams{
 		RoomID:      room.ID,
 		WorkspaceID: roomAnchorWorkspaceID(room),
 		DocumentID:  doc.ID,
 	})
-	if err != nil || !hasCard {
-		return db.ChatRoom{}, nil
+	if err != nil {
+		return db.ChatRoom{}, nil, err
+	}
+	if !hasCard {
+		return db.ChatRoom{}, nil, nil
 	}
 	meta, err := json.Marshal(map[string]string{
 		"document_id": doc.ID,
 		"version_id":  version.ID,
 	})
 	if err != nil {
-		return db.ChatRoom{}, nil
+		return db.ChatRoom{}, nil, err
 	}
 	msg, err := q.CreateChatKindMessage(ctx, db.CreateChatKindMessageParams{
 		ID:             util.NewID(),
@@ -905,7 +914,7 @@ func (s *DocumentService) insertChatDocumentVersionLineInTx(
 		OrganizationID: room.OrganizationID,
 	})
 	if err != nil {
-		return db.ChatRoom{}, nil
+		return db.ChatRoom{}, nil, err
 	}
-	return room, &msg
+	return room, &msg, nil
 }
