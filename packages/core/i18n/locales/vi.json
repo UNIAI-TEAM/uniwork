@@ -3814,7 +3814,10 @@
       "rate_limited": "Bạn thao tác quá nhanh. Chờ một chút rồi thử lại.",
       "idempotency_in_flight": "Yêu cầu trước vẫn đang xử lý. Thử lại sau giây lát.",
       "network": "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.",
-      "internal": "Máy chủ gặp lỗi. Thử lại sau."
+      "internal": "Máy chủ gặp lỗi. Thử lại sau.",
+      "share_batch_too_large": "Cuộc trò chuyện có quá nhiều người để chia sẻ tài liệu. Hãy chia sẻ từ trang Tài liệu.",
+      "document_quota_exceeded": "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói.",
+      "document_format": "Định dạng tệp này chưa được hỗ trợ."
     },
     "media_unavailable": "Không tải được {{name}}",
     "media_image": "Hình ảnh",
@@ -3939,6 +3942,9 @@
     "composer_more": "Thêm",
     "composer_more_menu": "Thêm tùy chọn",
     "composer_stickers": "Nhãn dán",
+    "composer_send_as_document": "Gửi dạng tài liệu",
+    "composer_send_as_file": "Chỉ gửi tệp",
+    "composer_share_level": "Quyền cho mọi người trong cuộc trò chuyện",
     "expression_picker_open": "Sticker, emoji và GIF",
     "expression_picker_tabs": "Loại biểu cảm",
     "expression_tab_sticker": "Nhãn dán",

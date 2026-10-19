@@ -67,6 +67,7 @@ export function ChatPageContent({
   onSendMedia,
   onSendVoice,
   onSendFile,
+  onSendDocument, canSendDocument,
   groupSettingsOpen,
   onGroupSettingsOpenChange,
   dmSettingsOpen,
@@ -468,14 +469,10 @@ export function ChatPageContent({
                   onSendMedia={onSendMedia}
                   onSendVoice={onSendVoice}
                   onSendFile={onSendFile}
+                  onSendDocument={onSendDocument}
+                  canSendDocument={canSendDocument}
                   disabled={showLoading || !activeRoomId || dmBlocked || chatSendRestricted}
-                  mentionCandidates={
-                    target.kind === "workspace" ||
-                    target.kind === "group" ||
-                    target.kind === "channel"
-                      ? mentionCandidates
-                      : undefined
-                  }
+                  mentionCandidates={target.kind === "dm" ? undefined : mentionCandidates}
                   memberAvatarByUserId={memberAvatarByUserId}
                   placeholder={chatComposerPlaceholder(t, {
                     dmBlocked,

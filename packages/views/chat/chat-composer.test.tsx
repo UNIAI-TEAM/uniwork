@@ -304,3 +304,98 @@ describe("ChatComposer", () => {
     expect(toast.error).toHaveBeenCalled();
   });
 });
+
+describe("ChatComposer document share picker", () => {
+  const docx = () =>
+    new File(["pk"], "ke-hoach.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+  const renderComposer = (over: Record<string, unknown> = {}) =>
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendFile={vi.fn()}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+          {...over}
+        />,
+      ),
+    );
+
+  it("shows the picker for an allowlisted file when the room allows documents", async () => {
+    const onSendDocument = vi.fn();
+    renderComposer({ canSendDocument: true, onSendDocument });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [docx()] } });
+    expect(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    // The default is Nhận xét.
+    await waitFor(() => expect(onSendDocument).toHaveBeenCalledExactlyOnceWith(expect.any(File), "comment"));
+  });
+
+  it("hides the picker when the room does not allow documents", async () => {
+    const onSendDocument = vi.fn();
+    const onSendFile = vi.fn();
+    renderComposer({ canSendDocument: false, onSendDocument, onSendFile });
+    // A file on BOTH allowlists: it stages as a plain chat file and the
+    // absence of the picker is the flag's doing, not a refused staging.
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [new File(["%PDF"], "bao-cao.pdf", { type: "application/pdf" })] },
+    });
+    expect(screen.queryByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(onSendFile).toHaveBeenCalledWith(expect.any(File)));
+    expect(onSendDocument).not.toHaveBeenCalled();
+  });
+
+
+
+  it("stages document-only kinds only when the room allows documents", () => {
+    const onSendDocument = vi.fn();
+    const { unmount } = renderComposer({ canSendDocument: true, onSendDocument });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [new File(["x"], "ghi-chu.md", { type: "text/markdown" })] },
+    });
+    // .md is not chat-attachable, but the document allowlist takes it.
+    expect(screen.getByText("ghi-chu.md")).toBeInTheDocument();
+    expect(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).toBeInTheDocument();
+    unmount();
+
+    renderComposer({ canSendDocument: false, onSendDocument });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [new File(["x"], "ghi-chu.md", { type: "text/markdown" })] },
+    });
+    expect(screen.queryByText("ghi-chu.md")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).not.toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  it("sends each level through the document route and 'Chỉ gửi tệp' through the file route", async () => {
+    const onSendDocument = vi.fn();
+    const onSendFile = vi.fn();
+    for (const [label, level] of [
+      ["Chỉ xem", "view"],
+      ["Nhận xét", "comment"],
+      ["Chỉnh sửa", "edit"],
+    ] as const) {
+      const { unmount } = renderComposer({ canSendDocument: true, onSendDocument, onSendFile });
+      fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [docx()] } });
+      fireEvent.click(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện"));
+      fireEvent.click(await screen.findByRole("menuitemradio", { name: label }));
+      fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+      await waitFor(() => expect(onSendDocument).toHaveBeenLastCalledWith(expect.any(File), level));
+      unmount();
+    }
+    const { unmount } = renderComposer({ canSendDocument: true, onSendDocument, onSendFile });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [docx()] } });
+    fireEvent.click(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Chỉ gửi tệp" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(onSendFile).toHaveBeenCalledWith(expect.any(File)));
+    expect(onSendDocument).toHaveBeenCalledTimes(3);
+    unmount();
+  });
+});

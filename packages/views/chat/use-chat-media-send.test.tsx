@@ -2,8 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api";
-import { CHAT_FILE_MAX_BYTES } from "./chat-file-accept";
-import { useChatMediaSend } from "./use-chat-media-send";
+import { CHAT_DOCUMENT_MAX_BYTES, CHAT_FILE_MAX_BYTES } from "./chat-file-accept";
 
 initI18n();
 
@@ -17,6 +16,7 @@ vi.mock("@uniwork/core/chat/client-msg-id", () => ({
 
 import { toast } from "sonner";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
+import { useChatMediaSend } from "./use-chat-media-send";
 
 describe("useChatMediaSend", () => {
   const ensureRoom = { mutateAsync: vi.fn() };
@@ -162,5 +162,79 @@ describe("useChatMediaSend", () => {
       await result.current.handleSendFile(new File(["x"], "note.pdf", { type: "application/pdf" }));
     });
     expect(toast.error).toHaveBeenCalledWith("Tệp lớn hơn mức cho phép. Dung lượng tối đa là 25 MB.");
+  });
+
+  const sendDocumentMessage = { mutateAsync: vi.fn() };
+
+  it("sends a document at the picked share level and clears reply", async () => {
+    const { result } = setup({ sendDocumentMessage });
+    await act(async () => {
+      await result.current.handleSendDocument(new File(["x"], "plan.docx"), "comment");
+    });
+    expect(sendDocumentMessage.mutateAsync).toHaveBeenCalledWith({
+      roomId: "room1",
+      file: expect.any(File),
+      filename: "plan.docx",
+      share_level: "comment",
+      client_msg_id: "client-msg-1",
+      reply_to_message_id: "reply1",
+    });
+    expect(clearReply).toHaveBeenCalled();
+  });
+
+  it("a document over the chat cap but under the document cap still sends", async () => {
+    const { result } = setup({ sendDocumentMessage });
+    const file = new File([new Uint8Array(1)], "deck.pptx", { type: "application/vnd.ms-powerpoint" });
+    Object.defineProperty(file, "size", { value: CHAT_FILE_MAX_BYTES + 1 });
+    await act(async () => {
+      await result.current.handleSendDocument(file, "view");
+    });
+    expect(sendDocumentMessage.mutateAsync).toHaveBeenCalled();
+  });
+
+  it("refuses a document over the document cap before uploading", async () => {
+    const { result } = setup({ sendDocumentMessage });
+    const file = new File([new Uint8Array(1)], "deck.pptx", { type: "application/vnd.ms-powerpoint" });
+    Object.defineProperty(file, "size", { value: CHAT_DOCUMENT_MAX_BYTES + 1 });
+    await act(async () => {
+      await result.current.handleSendDocument(file, "view");
+    });
+    expect(sendDocumentMessage.mutateAsync).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Tệp lớn hơn mức cho phép. Dung lượng tối đa là 200 MB.");
+  });
+
+  it("maps the document send refusal codes to their own sentences", async () => {
+    const cases: Array<[ApiError, string]> = [
+      [new ApiError("quota", "quota_exceeded", 403), "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói."],
+      [new ApiError("batch", "share_batch_too_large", 422), "Cuộc trò chuyện có quá nhiều người để chia sẻ tài liệu. Hãy chia sẻ từ trang Tài liệu."],
+      [new ApiError("fmt", "unsupported_media_type", 415, undefined, { reason: "format" }), "Định dạng tệp này chưa được hỗ trợ."],
+    ];
+    for (const [err, text] of cases) {
+      sendDocumentMessage.mutateAsync.mockRejectedValueOnce(err);
+      const { result } = setup({ sendDocumentMessage });
+      await act(async () => {
+        await result.current.handleSendDocument(new File(["x"], "a.pdf"), "edit");
+      });
+      expect(toast.error).toHaveBeenLastCalledWith(text);
+      expect(clearReply).not.toHaveBeenCalled();
+    }
+  });
+
+  it("falls back to the generic send copy for other failures", async () => {
+    sendDocumentMessage.mutateAsync.mockRejectedValueOnce(new Error("fail"));
+    const { result } = setup({ sendDocumentMessage });
+    await act(async () => {
+      await result.current.handleSendDocument(new File(["x"], "a.pdf"), "view");
+    });
+    expect(toast.error).toHaveBeenCalledWith("Không gửi được tệp. Thử lại.");
+  });
+
+  it("toasts and returns when document send has no room", async () => {
+    const { result } = setup({ activeRoomId: null, targetKind: "group", sendDocumentMessage });
+    await act(async () => {
+      await result.current.handleSendDocument(new File(["x"], "a.pdf"), "view");
+    });
+    expect(toast.error).toHaveBeenCalled();
+    expect(sendDocumentMessage.mutateAsync).not.toHaveBeenCalled();
   });
 });

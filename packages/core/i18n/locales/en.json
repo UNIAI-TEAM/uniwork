@@ -3815,7 +3815,10 @@
       "rate_limited": "You're going too fast. Wait a moment and try again.",
       "idempotency_in_flight": "The previous request is still being processed. Try again shortly.",
       "network": "Couldn't reach the server. Check your connection and try again.",
-      "internal": "The server ran into a problem. Try again later."
+      "internal": "The server ran into a problem. Try again later.",
+      "share_batch_too_large": "The conversation is too large to grant access to everyone. Share it from Documents instead.",
+      "document_quota_exceeded": "Your organization is out of storage space. Free up space or upgrade your plan.",
+      "document_format": "This file format is not supported."
     },
     "media_unavailable": "Couldn't load {{name}}",
     "media_image": "Image",
@@ -3940,6 +3943,9 @@
     "composer_more": "More",
     "composer_more_menu": "More options",
     "composer_stickers": "Stickers",
+    "composer_send_as_document": "Send as document",
+    "composer_send_as_file": "Send as file",
+    "composer_share_level": "Access for everyone in the conversation",
     "expression_picker_open": "Stickers, emoji, and GIFs",
     "expression_picker_tabs": "Expression types",
     "expression_tab_sticker": "Sticker",
