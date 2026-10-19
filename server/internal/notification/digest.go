@@ -26,6 +26,7 @@ const (
 type DigestScheduler struct {
 	q        *db.Queries
 	members  MemberChecker
+	orgs     OrgMemberChecker
 	renderer mail.Renderer
 	mail     mail.Enqueuer
 	metrics  Metrics
@@ -44,6 +45,9 @@ func NewDigestScheduler(q *db.Queries, members MemberChecker, renderer mail.Rend
 // no longer read instead of mailing the title List deliberately drops.
 // Unwired, every document row is treated as access_lost (fail closed).
 func (s *DigestScheduler) SetDocumentReaders(d DocumentPageChecker) { s.docs = d }
+
+// SetOrgMembers wires the organization membership gate for digest filtering.
+func (s *DigestScheduler) SetOrgMembers(o OrgMemberChecker) { s.orgs = o }
 
 // SetMetrics attaches counters.
 func (s *DigestScheduler) SetMetrics(m Metrics) { s.metrics = m }

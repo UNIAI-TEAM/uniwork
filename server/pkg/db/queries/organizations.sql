@@ -146,7 +146,6 @@ WHERE m.user_id = $1 AND m.deactivated_at IS NULL AND m.organization_id <> $2
   AND o.status IN ('active', 'suspended');
 
 -- name: FilterActiveOrganizationMemberUserIDs :many
--- tenant: self
 SELECT m.user_id::text AS user_id
 FROM organization_members m
 JOIN organizations o ON o.id = m.organization_id

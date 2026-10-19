@@ -107,6 +107,7 @@ func TestDigestOncePerDay(t *testing.T) {
 
 	out := &fakeOutbox{}
 	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
+	s.SetOrgMembers(service.NewOrganizationService(f.pool, f.q))
 	// 01:05 UTC is 08:05 in Asia/Ho_Chi_Minh, the default zone.
 	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC)
 	for i := 0; i < 3; i++ {
@@ -209,6 +210,7 @@ func TestDigestAppliesTheDocumentReadGate(t *testing.T) {
 	out := &fakeOutbox{}
 	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
 	s.SetDocumentReaders(f.docs)
+	s.SetOrgMembers(service.NewOrganizationService(f.pool, f.q))
 	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC) // 08:05 in Asia/Ho_Chi_Minh.
 	if n, err := s.RunOnce(f.ctx, at); err != nil || n != 1 {
 		t.Fatalf("readable digest = %d, %v", n, err)
@@ -273,9 +275,9 @@ func TestDigestSkipsRowsTheReaderLostAccessTo(t *testing.T) {
 
 	out := &fakeOutbox{}
 	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
-	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC)
-
 	orgs := service.NewOrganizationService(f.pool, f.q)
+	s.SetOrgMembers(orgs)
+	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC)
 	orgMembers := service.NewOrganizationMemberService(f.pool, f.q, orgs)
 	if _, err := orgMembers.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
 		t.Fatal(err)

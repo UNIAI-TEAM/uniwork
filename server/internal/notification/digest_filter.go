@@ -31,11 +31,33 @@ func (s *DigestScheduler) filterDigestRows(ctx context.Context, userID string, w
 			roomOf[m.ID] = m.RoomID
 		}
 	}
+	orgOK := map[string]bool{}
 	wsOK := map[string]bool{}
 	roomOK := map[string]bool{}
 	out := make([]db.Notification, 0, len(wanted))
 	for _, n := range wanted {
-		if n.WorkspaceID.Valid {
+		if n.OrganizationID != "" && s.orgs != nil {
+			orgID := n.OrganizationID
+			ok, seen := orgOK[orgID]
+			if !seen {
+				_, err := s.orgs.RequireMember(ctx, orgID, userID)
+				if err != nil {
+					if refused(err) {
+						orgOK[orgID] = false
+						continue
+					}
+					return nil, err
+				}
+				orgOK[orgID] = true
+				ok = true
+			}
+			if !ok {
+				continue
+			}
+		}
+		// Document access is share- or workspace-scoped; the digest build applies
+		// the same read gate as Service.List (R1-2), not workspace membership.
+		if n.WorkspaceID.Valid && n.ResourceType != "document" && s.members != nil {
 			ws := n.WorkspaceID.String
 			ok, seen := wsOK[ws]
 			if !seen {

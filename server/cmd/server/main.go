@@ -500,6 +500,7 @@ func main() {
 	// recipient may no longer read is dropped from the mail instead of
 	// shipping the title the inbox withholds.
 	digest.SetDocumentReaders(documentSvc)
+	digest.SetOrgMembers(orgSvc)
 	dispatcher.RegisterLane(outbox.LaneNotify, notifConsumer)
 	// Work Graph (C-11): the marker rides the realtime lane (one upsert per
 	// event); the worker projects dirty nodes. The graph flag is read per
