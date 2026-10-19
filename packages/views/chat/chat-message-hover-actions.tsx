@@ -161,7 +161,12 @@ export function ChatMessageHoverActions({
       className={cn(
         "pointer-events-none z-10 flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-surface-raised p-0.5 opacity-0 shadow-[var(--menu-shadow)]",
         forceOpen && "pointer-events-auto opacity-100",
-        "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
+        // Keyboard focus (not a tap's focus) and, from sm up, hover reveal the
+        // bar. On a phone the bar overlays the bubble's top edge, so a tap on
+        // the card (focus-within, or a hover a mouse leaves at 390 px) must not
+        // reveal it over the card's own title: only a long press (forceOpen)
+        // or keyboard focus does.
+        "transition-opacity duration-(--duration-fast) group-has-[:focus-visible]/message:pointer-events-auto group-has-[:focus-visible]/message:opacity-100 sm:group-hover/message:pointer-events-auto sm:group-hover/message:opacity-100",
         "max-sm:absolute max-sm:-top-2",
         isOwn ? "max-sm:right-0" : "max-sm:left-0",
         "sm:relative sm:top-auto sm:mt-0.5",
