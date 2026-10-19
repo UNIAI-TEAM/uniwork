@@ -254,12 +254,6 @@ func (s *ChatService) documentGrantRecipients(ctx context.Context, senderID stri
 	return out, nil
 }
 
-// chatDocumentMessageKind reports whether a kind is a document share, so a
-// caller can decide whether a message needs the resolver at all.
-func chatDocumentMessageKind(kind string) bool {
-	return kind == chatMessageKindDocument || kind == chatMessageKindDocumentVersion
-}
-
 // chatDocumentMIMEType reports whether a verified content type may be shared
 // as a chat document (L8). The set is files.ChatDocumentMIMETypes - the ten
 // editor formats, without the UNI-1232 image/css/js assets.
