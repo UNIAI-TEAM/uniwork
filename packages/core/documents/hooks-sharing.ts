@@ -1,32 +1,36 @@
 "use client";
+import { useMemo } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDocumentLink,
   getDocumentSettings,
   getDocumentShares,
   listDocumentAccessLogs,
+  listShareCandidates,
   revokeDocumentLink,
   revokeDocumentShare,
   setDocumentPublicLinks,
   shareDocument,
   shareDocumentBatch,
+  updateDocumentAccess,
   type ListDocumentAccessLogsOpts,
   type ShareDocumentBatchBody,
   type ShareDocumentBody,
+  type UpdateDocumentAccessBody,
 } from "../api/endpoints/documents-sharing";
 import { documentKeys } from "./keys";
 import {
+  requireVerifiableAccessUpdate,
   requireVerifiableLink,
   requireVerifiableSettings,
   requireVerifiableShare,
   requireVerifiableShareBatch,
 } from "./verify";
 
-// Documents sharing hooks (C-01 §5.3/§5.4; UNI-679, G1-05b): the access
-// overview, grant/revoke, link create/revoke, the access log and the
-// organization public-links switch. Token-bearing answers are verified before
-// they may count as success, so a malformed link create never shows a URL the
-// server did not mint.
+// Documents sharing hooks (C-01 §5.3/§5.4; UNI-679, G1-05b; SH-W1 UNI-1784):
+// the access overview, unified access update + preview, candidate search,
+// grant/revoke, link create/revoke, the access log and the organization
+// public-links switch.
 
 const ACCESS_LOG_PAGE_SIZE = 50;
 
@@ -36,6 +40,48 @@ export function useDocumentShares(wsId: string, documentId: string, opts?: { ena
     queryKey: documentKeys.shares(wsId, documentId),
     queryFn: ({ signal }) => getDocumentShares(documentId, signal),
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
+  });
+}
+
+/** Share-picker candidates (people, workspaces, organization) with existing
+ *  direct levels (SH-W1). The server pages them users -> workspaces ->
+ *  organization, so later groups are reachable only by following `next_cursor`
+ *  (`fetchNextPage`); `items` is every loaded page, flattened in server order. */
+export function useDocumentShareCandidates(
+  wsId: string,
+  documentId: string,
+  opts?: { q?: string; limit?: number; enabled?: boolean },
+) {
+  const q = opts?.q?.trim() ?? "";
+  const query = useInfiniteQuery({
+    queryKey: documentKeys.shareCandidates(wsId, documentId, q),
+    queryFn: ({ pageParam, signal }) =>
+      listShareCandidates(documentId, { q, cursor: pageParam || undefined, limit: opts?.limit }, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
+  });
+  const pages = query.data?.pages;
+  const items = useMemo(() => pages?.flatMap((page) => page.items) ?? [], [pages]);
+  return { ...query, items };
+}
+
+/** Unified batch grant/update/revoke with optional dry_run impact preview (SH-W1).
+ *  When `dry_run` is true, no queries are invalidated; on a real write,
+ *  `shares`, `detail` (including `shareCandidates`), and `listRoot` invalidate. */
+export function useUpdateDocumentAccess(wsId: string, documentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: UpdateDocumentAccessBody) =>
+      requireVerifiableAccessUpdate(await updateDocumentAccess(documentId, body), body),
+    onSuccess: (_data, variables) => {
+      if (variables.dry_run) return;
+      return Promise.all([
+        qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
+        qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
+        qc.invalidateQueries({ queryKey: documentKeys.listRoot(wsId) }),
+      ]);
+    },
   });
 }
 
@@ -52,16 +98,25 @@ export function useDocumentSettings(orgId: string, opts?: { enabled?: boolean })
   });
 }
 
-/** Grant (or move) one principal's level on a document. */
-export function useShareDocument(wsId: string, documentId: string) {
+/** Grant (or move) one principal's level on a document. A share naming the
+ *  document's own workspace - `documentWorkspaceId`, which may differ from the
+ *  route/cache `wsId` - is merged into its home row (SH-S1), so that answer
+ *  carries no share id and still counts as the write it is; both keys
+ *  invalidate as for a visibility move. An empty `documentWorkspaceId` never
+ *  falls back to `wsId`: every answer without a row identity then throws. */
+export function useShareDocument(wsId: string, documentId: string, documentWorkspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: ShareDocumentBody) =>
-      requireVerifiableShare(await shareDocument(documentId, body)),
+      requireVerifiableShare(await shareDocument(documentId, body), documentWorkspaceId),
     onSuccess: () =>
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
+        // UNI-1851 F2: the grant lands the document in the caller's Shared by
+        // me list; refresh its root (prefix of every filtered key) without
+        // waiting for the document.shared frame.
+        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
       ]),
   });
 }
@@ -78,6 +133,7 @@ export function useShareDocumentBatch(wsId: string, documentId: string) {
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
+        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
       ]),
   });
 }
@@ -91,6 +147,9 @@ export function useRevokeDocumentShare(wsId: string, documentId: string) {
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
+        // UNI-1851 F2: the revoked grant can drop the document from the
+        // caller's Shared by me list before document.share_revoked arrives.
+        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
       ]),
   });
 }

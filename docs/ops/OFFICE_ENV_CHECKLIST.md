@@ -47,16 +47,19 @@ The server reads `OFFICE_INSTALLER_<CHANNEL>_URLS` ([`desktop-packaging.md`](../
 | 4 | Set the value in the server's config and restart; check `GET /api/v1/config`: `office_installers.<channel>` lists the expected `platform`, `url`, `version`, `unsigned: true` | [ ] |
 | 5 | `OFFICE_INSTALLER_STABLE_URLS` stays empty (signing is parked) | [ ] |
 
-## 3. Bucket CORS (only if browsers call the bucket directly)
+## 3. Bucket CORS and lifecycle (browsers write large document uploads straight to the bucket)
 
-Background and evidence: [`bucket-cors.md`](../office/g3g4/bucket-cors.md). Web upload and download go through
-the API today, so this is a safeguard for presigned URLs read or written from the browser.
+Background and evidence: [`bucket-cors.md`](../office/g3g4/bucket-cors.md). Uploads up to 20 MiB and all downloads go through
+the API. Document uploads above 20 MiB (BIGUP-S1) `PUT` each part straight to a presigned bucket URL and read its
+`ETag`, so on any store with multipart + presign these rows are required, not a safeguard. Runbook:
+`RUNBOOK_DOCUMENTS.md` › Phiên tải lên tệp lớn.
 
 | # | Item | Done |
 | --- | --- | --- |
 | 1 | Real S3 / the production object store: apply `deploy/app/storage-cors.example.json` with the production origins (`FRONTEND_ORIGIN`, `PREVIEW_ORIGIN`; exact scheme + host + port, no `*`) and verify with a preflight `OPTIONS` from each origin. Only MinIO `bitnamilegacy/minio` 2025.7.23 was exercised in this repo | [ ] |
 | 2 | MinIO: per-bucket CORS is not implemented there; set the global `MINIO_API_CORS_ALLOW_ORIGIN` to the same origins and recreate the container. Re-check after a MinIO upgrade: newer releases were not exercised | [ ] |
 | 3 | Preflight answers `Allow-Origin` equal to the requesting origin, allows `PUT`/`GET`/`HEAD`, `Content-Type`/`Content-MD5`/`Range`, and exposes `ETag` | [ ] |
+| 4 | Lifecycle rule `AbortIncompleteMultipartUpload` after 2 days on the environment's FileService prefix `<S3_KEY_PREFIX>v1/` (backstop for multipart parts the session GC could not abort). On MinIO, check that the running release supports this lifecycle action before relying on it; if it does not, write the gap down here | [ ] |
 
 ## 4. First installer build (not run yet)
 

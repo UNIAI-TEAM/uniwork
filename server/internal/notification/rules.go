@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
@@ -78,6 +81,14 @@ type Draft struct {
 	// Claim is set on mention drafts: the rule only reads mention rows, the
 	// consumer's write() claims the row in the notification's own tx.
 	Claim *MentionClaim
+	// OncePerGroup is set on drafts that may never write a second row for
+	// the same (user, kind, group_key) - the open-row merge upsert alone
+	// does not cover a first row already read or archived (BE-TN-3). The
+	// consumer takes a transaction-scoped advisory lock on the group and then
+	// checks for an existing row inside the notification's own transaction,
+	// so a concurrent event of the same group waits and treats the committed
+	// row as already delivered (BE-TN-9).
+	OncePerGroup bool
 }
 
 // CallRingChecker says whether a chat call still rings for a user: live, and
@@ -112,17 +123,28 @@ var rules = map[string]rule{
 	// table (contract-collab section 8.3, G8-05).
 	"document.comment_updated":  ruleDocumentCommentUpdated,
 	"document.comment_resolved": ruleDocumentCommentResolved,
+	// The edit lock (UNI-1645): the holder, the requester and the previous
+	// holder each get one notification, addressed by payload.user_id.
+	"document.edit_requested":        ruleDocumentEditRequested,
+	"document.edit_request_answered": ruleDocumentEditRequestAnswered,
+	"document.lock_taken_over":       ruleDocumentEditTakenOver,
 	// DOC-05 (UNI-1628): an admin opened emergency view access to a
 	// restricted document; the owner must hear about it.
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
-	"participant.invited":          ruleParticipantInvited,
-	"member.joined":                ruleMemberJoined,
-	"member.role_changed":          ruleRoleChanged,
-	"audit.exported":               ruleAuditExported,
-	"chat.follow_up.created":       ruleChatFollowUpCreated,
-	"chat.reminder.due":            ruleChatReminderDue,
-	"email_hub.new_mail":           ruleEmailHubNewMail,
-	"meeting.ended":                ruleMeetingEnded,
+	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
+	// effective level on the document.
+	"document.shared": ruleDocumentShared,
+	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
+	// document; the ACL owner hears once per archive batch.
+	"document.archived":      ruleDocumentTrashed,
+	"participant.invited":    ruleParticipantInvited,
+	"member.joined":          ruleMemberJoined,
+	"member.role_changed":    ruleRoleChanged,
+	"audit.exported":         ruleAuditExported,
+	"chat.follow_up.created": ruleChatFollowUpCreated,
+	"chat.reminder.due":      ruleChatReminderDue,
+	"email_hub.new_mail":     ruleEmailHubNewMail,
+	"meeting.ended":          ruleMeetingEnded,
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
@@ -636,6 +658,183 @@ func ruleDocumentBreakGlassGranted(ctx context.Context, e env, ev outbox.Row, p 
 	return r.drafts(doc.OrganizationID, KindDocumentBreakGlass, "document:"+doc.ID+":break_glass:"+p["grant_id"], "document", doc.ID, params)
 }
 
+// ruleDocumentShared notifies a person when a direct user share raised their
+// effective level on the document (SH-S3, UNI-1782; addendum §8, §10 Q-S2).
+// The mutation transaction stamps notify_user_id on the event only when that
+// rise holds; this rule re-checks CanReadDocument at delivery time so a grant
+// revoked before the consumer runs sends nothing.
+func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid := p["notify_user_id"]
+	if e.docs == nil || p["document_id"] == "" || p["share_id"] == "" || uid == "" {
+		return nil, nil
+	}
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	var level string
+	sh, err := e.q.GetLiveDocumentShareByID(ctx, db.GetLiveDocumentShareByIDParams{
+		ID: p["share_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	switch {
+	case err == nil:
+		if sh.PrincipalType != "user" || sh.PrincipalID != uid {
+			return nil, nil
+		}
+		level = sh.Level
+	case errors.Is(err, pgx.ErrNoRows):
+		// The grant was revoked before delivery. Recover the ORIGINAL level
+		// from the share row the event names - revoked history included -
+		// never from an audit row keyed by correlation/action/document/time,
+		// which cannot tell one batch recipient from another (SH-S3 R1-09).
+		revoked, err := e.q.GetDocumentShareByID(ctx, db.GetDocumentShareByIDParams{
+			ID: p["share_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if revoked.PrincipalType != "user" || revoked.PrincipalID != uid {
+			return nil, nil
+		}
+		level = revoked.Level
+	default:
+		return nil, err
+	}
+	return []Draft{{
+		UserID:         uid,
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Kind:           KindDocumentShared,
+		GroupKey:       "document:" + doc.ID + ":shared",
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		ActorKind:      actorKindOf(ev),
+		ActorID:        ev.ActorID.String,
+		Params: map[string]string{
+			"actor":       actorName(ctx, e.q, ev),
+			"document":    doc.Title,
+			"document_id": doc.ID,
+			"level":       level,
+		},
+	}}, nil
+}
+
+// ruleDocumentTrashed tells the ACL owners of an archive batch's documents
+// that somebody else moved their work to the trash (TRASH-NOTIFY-01, addendum
+// §4 N-2/N-3). One document.archived row lands per node, all sharing
+// archive_batch_id, while the person wants one row per batch: the rule
+// answers with a draft only on the event whose document is the recipient's
+// top-most node of the batch - the owned node with the fewest ancestors also
+// in the batch, the smaller id breaking a tie. The group key carries
+// recipient and batch, and OncePerGroup makes the write path treat any
+// existing row of the group - read, archived or still open - as the claim
+// already taken, so a re-elected top after a restore or purge can never
+// produce a second row nor bump the merge count (BE-TN-3). The batch read
+// itself is the narrow ACL projection: one event per node would otherwise
+// re-read a full Document row, content included, for every sibling
+// (BE-TN-7); only the elected top's title is fetched, once per owner.
+// A node restored or purged before the event is consumed dropped its batch
+// id and leaves the read; an archived event arriving after the batch was
+// purged reads an empty batch and emits nothing, and purge itself emits
+// document.deleted, which has no rule (N-5).
+func ruleDocumentTrashed(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	docID, batchID, wsID := p["document_id"], p["archive_batch_id"], p["workspace_id"]
+	if wsID == "" && ev.WorkspaceID.Valid {
+		wsID = ev.WorkspaceID.String
+	}
+	if docID == "" || batchID == "" || wsID == "" {
+		return nil, nil
+	}
+	orgID, err := orgOf(ctx, e.q, ev, wsID)
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := e.q.ListDocumentArchiveBatchAcl(ctx, db.ListDocumentArchiveBatchAclParams{
+		OrganizationID: orgID, WorkspaceID: wsID, ArchiveBatchID: pgtype.Text{String: batchID, Valid: true},
+	})
+	if err != nil || len(nodes) == 0 {
+		return nil, err
+	}
+	inBatch := make(map[string]db.ListDocumentArchiveBatchAclRow, len(nodes))
+	for _, d := range nodes {
+		inBatch[d.ID] = d
+	}
+	depth := func(d db.ListDocumentArchiveBatchAclRow) (n int) {
+		for p := d.ParentID; p.Valid && inBatch[p.String].ID != ""; p = inBatch[p.String].ParentID {
+			n++
+		}
+		return n
+	}
+	byOwner := map[string][]db.ListDocumentArchiveBatchAclRow{}
+	purgeAfter := ""
+	for _, d := range nodes {
+		if !d.ArchivedAt.Valid {
+			continue
+		}
+		if purgeAfter == "" && d.PurgeAfter.Valid {
+			purgeAfter = d.PurgeAfter.Time.Format(time.RFC3339)
+		}
+		if d.AclOwnerID.Valid {
+			byOwner[d.AclOwnerID.String] = append(byOwner[d.AclOwnerID.String], d)
+		}
+	}
+	var out []Draft
+	for owner, docs := range byOwner {
+		top := docs[0]
+		for _, d := range docs[1:] {
+			if dt, tt := depth(d), depth(top); dt < tt || (dt == tt && d.ID < top.ID) {
+				top = d
+			}
+		}
+		if top.ID != docID {
+			continue // this owner's draft rides the event of their top node
+		}
+		// The elected node's title is the one full-row read: the batch
+		// projection carries no content columns, and a node purged between
+		// the two reads means the batch is gone and no notice is owed (N-5).
+		doc, err := e.q.GetDocumentByID(ctx, top.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		r := newRecipients(ctx, e, ev, wsID)
+		r.add(owner)
+		params := map[string]string{
+			"actor": actorName(ctx, e.q, ev), "document": doc.Title, "date": purgeAfter,
+			"document_id": top.ID, "archive_batch_id": batchID, "count": strconv.Itoa(len(docs) - 1),
+		}
+		ds, err := r.drafts(orgID, KindDocumentTrashedByOther,
+			"document:"+batchID+":trashed:"+owner, "document", top.ID, params)
+		if err != nil {
+			return nil, err
+		}
+		for i := range ds {
+			ds[i].OncePerGroup = true
+		}
+		out = append(out, ds...)
+	}
+	return out, nil
+}
+
 func ruleParticipantInvited(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 	part, err := e.q.GetMeetingParticipant(ctx, p["participant_id"])
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !part.UserID.Valid) {
@@ -822,6 +1021,31 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 	if err != nil {
 		return nil, err
 	}
+	params := map[string]string{"body": snippet(msg.Body)}
+	groupKey := "chat_reminder:" + msg.ID
+	// Workspace channels share one workspace id for every member; batch the
+	// membership gate instead of RequireMember per recipient (UNI-1727).
+	if wsID := room.WorkspaceID.String; wsID != "" && room.Kind != "dm" && room.Kind != "group" {
+		eligible, err := e.q.FilterActiveWorkspaceMemberUserIDs(ctx, db.FilterActiveWorkspaceMemberUserIDsParams{
+			WorkspaceID: wsID, UserIds: members,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out := make([]Draft, 0, len(eligible))
+		for _, uid := range eligible {
+			if ev.ActorKind.String == string(audit.KindHuman) && ev.ActorID.String == uid {
+				continue
+			}
+			out = append(out, Draft{
+				UserID: uid, OrganizationID: msg.OrganizationID, WorkspaceID: wsID,
+				Kind: KindChatReminder, GroupKey: groupKey,
+				ResourceType: "chat_message", ResourceID: msg.ID,
+				ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+			})
+		}
+		return out, nil
+	}
 	var out []Draft
 	for _, uid := range members {
 		wsID, err := chatRecipientWorkspace(ctx, e, room, uid)
@@ -833,8 +1057,8 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 		}
 		r := newRecipients(ctx, e, ev, wsID)
 		r.add(uid)
-		ds, err := r.drafts(msg.OrganizationID, KindChatReminder, "chat_reminder:"+msg.ID,
-			"chat_message", msg.ID, map[string]string{"body": snippet(msg.Body)})
+		ds, err := r.drafts(msg.OrganizationID, KindChatReminder, groupKey,
+			"chat_message", msg.ID, params)
 		if err != nil {
 			return nil, err
 		}

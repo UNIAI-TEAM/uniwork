@@ -46,6 +46,10 @@ export async function toggleReaction(qc: QueryClient, wsId: string, roomId: stri
   applyChatMessageResponse(qc, wsId, roomId, await chatApi.toggleReaction(wsId, roomId, messageId, emoji), false);
 }
 
+export async function togglePin(qc: QueryClient, wsId: string, roomId: string, messageId: string): Promise<void> {
+  applyChatMessageResponse(qc, wsId, roomId, await chatApi.togglePin(wsId, roomId, messageId), false);
+}
+
 export async function editMessage(qc: QueryClient, wsId: string, roomId: string, messageId: string, body: string): Promise<void> {
   applyChatMessageResponse(qc, wsId, roomId, await chatApi.editMessage(wsId, roomId, messageId, body), false);
   void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
@@ -121,8 +125,12 @@ export async function sendReminder(
   void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
 }
 
+export const FOLLOW_UP_HOURS = 2;
+const FOLLOW_UP_DUE_MS = FOLLOW_UP_HOURS * 60 * 60 * 1000;
+
 const FOLLOW_UP_COMMANDS = {
-  create: (wsId: string, id: string) => chatApi.createFollowUp(wsId, id),
+  // MobileActions board: "Theo dõi sau · 2 giờ nữa" — the follow-up comes due in two hours.
+  create: (wsId: string, id: string) => chatApi.createFollowUp(wsId, id, { due_at: new Date(Date.now() + FOLLOW_UP_DUE_MS).toISOString() }),
   complete: (wsId: string, id: string) => chatApi.patchFollowUp(wsId, id, { completed: true }),
   remove: (wsId: string, id: string) => chatApi.deleteFollowUp(wsId, id),
 };

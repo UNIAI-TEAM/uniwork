@@ -3,6 +3,11 @@
   "exclude": [
     "catalog"
   ],
+  "ignoreIssues": {
+    "packages/core/office/docs-frame-protocol.ts": [
+      "duplicates"
+    ]
+  },
   "workspaces": {
     ".": {
       "ignore": [
@@ -43,6 +48,8 @@
     },
     "apps/chat-mobile": {
       "ignoreDependencies": [
+        "@expo-google-fonts/inter",
+        "@expo-google-fonts/plus-jakarta-sans",
         "@rn-primitives/avatar",
         "@rn-primitives/switch",
         "expo-updates",

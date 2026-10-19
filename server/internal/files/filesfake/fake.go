@@ -67,6 +67,8 @@ type Options struct {
 	// NewID is the id source, for a test that wants readable ids. Default: a
 	// fresh ULID.
 	NewID func() string
+	// DocumentMaxBytes overrides the document_file policy cap when positive.
+	DocumentMaxBytes int64
 }
 
 // Fake is an in-memory files.Service. It is safe for concurrent use, so a
@@ -106,7 +108,8 @@ type entry struct {
 	written     bool
 	writtenType string
 
-	operationID string
+	operationID    string
+	idempotencyKey string
 }
 
 // uploadAttempt is one idempotency key: the command it was bound to and what
@@ -135,7 +138,7 @@ func New(opts Options) *Fake {
 		newID = func() string { return ulid.Make().String() }
 	}
 
-	specs := files.DefaultSpecs()
+	specs := files.SpecsWithDocumentMaxBytes(opts.DocumentMaxBytes)
 	for i := range specs {
 		specs[i].Disabled = false
 	}
@@ -317,4 +320,16 @@ func (f *Fake) Restore(s Snapshot) {
 		f.operations[operation] = id
 	}
 	f.storageDown = s.storageDown
+}
+
+// UploadOrigin returns the purpose, scope, actor and idempotency key of an
+// upload staged through Upload, or ok=false if the file was not staged.
+func (f *Fake) UploadOrigin(id files.FileID) (purpose files.UploadPurpose, scope files.Scope, actor audit.Actor, idemKey string, ok bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, found := f.entries[id]
+	if !found || e.idempotencyKey == "" {
+		return purpose, scope, actor, "", false
+	}
+	return e.spec.Purpose, e.scope, e.actor, e.idempotencyKey, true
 }

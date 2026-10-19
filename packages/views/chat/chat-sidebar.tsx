@@ -14,13 +14,13 @@ import { StartDmDialog } from "./start-dm-dialog";
 import type { ChatSidebarProps } from "./chat-sidebar-types";
 import {
   buildUnifiedSidebarEntries,
-  CHAT_SIDEBAR_TABS,
+  CHAT_SIDEBAR_TABS_BY_SCOPE,
   chatSidebarTabCounts,
   chatSidebarTabFilters,
   type ChatSidebarTab,
 } from "./chat-sidebar-unified";
 import { ChatSidebarList } from "./chat-sidebar-list";
-import { SidebarHeader, SidebarSearch } from "./chat-sidebar-header";
+import { ChatScopeSwitch, SidebarHeader, SidebarSearch } from "./chat-sidebar-header";
 import { typingNameByUserIdFromContext } from "./chat-sidebar-typing";
 import {
   SidebarEmpty,
@@ -38,6 +38,8 @@ const EMPTY_NICKNAMES: Record<string, string> = {};
 const EMPTY_CHANNELS: NonNullable<ChatSidebarProps["channels"]> = [];
 const EMPTY_MEMBER_AVATARS: NonNullable<ChatSidebarProps["memberAvatarByUserId"]> = {};
 const EMPTY_PEOPLE: NonNullable<ChatSidebarProps["knownPeople"]> = [];
+const EMPTY_GROUPS: ChatSidebarProps["groups"] = [];
+const EMPTY_CONTACTS: ChatSidebarProps["contacts"] = [];
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
@@ -57,6 +59,7 @@ const TAB_COUNT =
  * signal, and none of that reaches the list unless its own props moved.
  */
 export const ChatSidebar = memo(function ChatSidebar({
+  scope,
   currentUserId,
   workspaceId,
   target,
@@ -87,8 +90,12 @@ export const ChatSidebar = memo(function ChatSidebar({
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [filterQuery, setFilterQuery] = useState("");
-  const [tab, setTab] = useState<ChatSidebarTab>("all");
+  const [chosenTab, setTab] = useState<ChatSidebarTab>("all");
+  const tabs = CHAT_SIDEBAR_TABS_BY_SCOPE[scope];
+  // A kind tab the other scope does not have falls back to "All".
+  const tab = tabs.includes(chosenTab) ? chosenTab : "all";
   const { kindFilter, activityFilter } = chatSidebarTabFilters(tab);
+  const messages = scope === "messages";
   const [startDmOpen, setStartDmOpen] = useState(false);
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [channelDirectoryOpen, setChannelDirectoryOpen] = useState(false);
@@ -117,22 +124,20 @@ export const ChatSidebar = memo(function ChatSidebar({
   const tabCounts = useMemo(
     () =>
       chatSidebarTabCounts({
-        roomIds: [
-          workspaceRoomId ?? "",
-          ...channels.map((channel) => channel.id),
-          ...groups.map((group) => group.room_id),
-          ...contacts.map((contact) => contact.dm_room_id ?? ""),
-        ],
+        roomIds: messages
+          ? [...groups.map((group) => group.room_id), ...contacts.map((contact) => contact.dm_room_id ?? "")]
+          : [workspaceRoomId ?? "", ...channels.map((channel) => channel.id)],
         unreadByRoomId,
         mentionUnreadByRoomId,
         mutedRoomIds,
       }),
-    [workspaceRoomId, channels, groups, contacts, unreadByRoomId, mentionUnreadByRoomId, mutedRoomIds],
+    [messages, workspaceRoomId, channels, groups, contacts, unreadByRoomId, mentionUnreadByRoomId, mutedRoomIds],
   );
 
   const entries = useMemo(
     () =>
       buildUnifiedSidebarEntries({
+        scope,
         kindFilter,
         activityFilter,
         filterText,
@@ -148,6 +153,7 @@ export const ChatSidebar = memo(function ChatSidebar({
         mentionUnreadByRoomId,
       }),
     [
+      scope,
       kindFilter,
       activityFilter,
       filterText,
@@ -181,15 +187,16 @@ export const ChatSidebar = memo(function ChatSidebar({
       onQuickCatchUp
         ? pickQuickCatchUp({
             unreadByRoomId,
-            workspaceRoomId,
+            // Only what this scope lists: the busiest room of the other one is a click away.
+            workspaceRoomId: messages ? null : workspaceRoomId,
             workspaceTitle,
-            channels,
-            groups,
-            contacts,
+            channels: messages ? EMPTY_CHANNELS : channels,
+            groups: messages ? groups : EMPTY_GROUPS,
+            contacts: messages ? contacts : EMPTY_CONTACTS,
             nicknamesByUserId,
           })
         : null,
-    [channels, contacts, groups, nicknamesByUserId, onQuickCatchUp, unreadByRoomId, workspaceRoomId, workspaceTitle],
+    [messages, channels, contacts, groups, nicknamesByUserId, onQuickCatchUp, unreadByRoomId, workspaceRoomId, workspaceTitle],
   );
 
   const handleCreateGroup = (members: ChatContact[], name: string, avatar: File | null) => {
@@ -229,7 +236,9 @@ export const ChatSidebar = memo(function ChatSidebar({
           embedded ? "h-full min-w-0 flex-1 border-r border-border" : "rounded-lg border border-border",
         )}
       >
+        <ChatScopeSwitch scope={scope} />
         <SidebarHeader
+          scope={scope}
           onOpenFollowUps={onOpenFollowUps}
           onCollapse={onCollapse}
           onStartDm={openStartDm}
@@ -237,7 +246,7 @@ export const ChatSidebar = memo(function ChatSidebar({
           onCreateChannel={() => setCreateChannelOpen(true)}
           onBrowseChannels={() => setChannelDirectoryOpen(true)}
         />
-        <SidebarSearch value={filterQuery} onChange={setFilterQuery} />
+        <SidebarSearch scope={scope} value={filterQuery} onChange={setFilterQuery} />
         {/* Registry toggle group: arrow keys move between tabs (roving focus). */}
         <ToggleGroup
           value={[tab]}
@@ -249,7 +258,7 @@ export const ChatSidebar = memo(function ChatSidebar({
           spacing={0.5}
           className="no-scrollbar flex w-full shrink-0 overflow-x-auto rounded-none border-b border-border px-2.5"
         >
-          {CHAT_SIDEBAR_TABS.map((value) => {
+          {tabs.map((value) => {
             const count = tabCount(value);
             return (
               <ToggleGroupItem key={value} value={value} className={TAB}>
@@ -284,6 +293,9 @@ export const ChatSidebar = memo(function ChatSidebar({
           ) : null}
           {loading && !loadError && entries.length <= 1 ? (
             <SidebarSkeleton />
+          ) : entries.length === 0 && messages && !filtering ? (
+            // No DM or group yet: the two ways to start one.
+            <SidebarStarter onStartDm={openStartDm} onCreateGroup={openCreateGroup} />
           ) : entries.length === 0 ? (
             <SidebarEmpty
               searching={filterText.length > 0}
@@ -302,6 +314,11 @@ export const ChatSidebar = memo(function ChatSidebar({
             />
           ) : (
             <ChatSidebarList
+              sectionAfterFirst={
+                !messages && !filtering && entries[0]?.kind === "workspace" ? (
+                  <ChannelsSectionHeading onBrowse={() => setChannelDirectoryOpen(true)} />
+                ) : undefined
+              }
               entries={entries}
               target={target}
               onTargetChange={onTargetChange}
@@ -321,9 +338,6 @@ export const ChatSidebar = memo(function ChatSidebar({
               peerReadAtByRoomId={peerReadAtByRoomId}
             />
           )}
-          {!loading && !loadError && !filtering && entries.length === 1 && entries[0]?.kind === "workspace" ? (
-            <SidebarStarter onStartDm={openStartDm} onCreateGroup={openCreateGroup} />
-          ) : null}
         </nav>
       </aside>
 
@@ -372,3 +386,22 @@ export const ChatSidebar = memo(function ChatSidebar({
     </>
   );
 });
+
+/** "KÊNH · Duyệt kênh" under the workspace's own room (canvas "Workspace"). */
+function ChannelsSectionHeading({ onBrowse }: { onBrowse: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center justify-between pt-3 pr-1.5 pb-1 pl-3">
+      <h3 className="text-caption font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+        {t("chat.channel.section_title")}
+      </h3>
+      <button
+        type="button"
+        onClick={onBrowse}
+        className="flex h-11 items-center rounded-md px-2 text-label font-semibold text-brand hover:underline"
+      >
+        {t("chat.channel.directory_title")}
+      </button>
+    </div>
+  );
+}

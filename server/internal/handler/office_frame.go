@@ -2,8 +2,9 @@ package handler
 
 import (
 	"context"
-	"errors"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,11 @@ import (
 
 type officeFrameCtxKey struct{}
 
+// officeFrameSourceCtxKey carries the source claims of an
+// /api/v1/office-frame/sources/* request. It is a distinct key, never mixed
+// with officeFrameCtxKey: the two claim types are not interchangeable.
+type officeFrameSourceCtxKey struct{}
+
 // officeFrameAuth is the only credential check of /api/v1/office-frame/*: the
 // frame token as Bearer, or on an image GET the ?sig= of a URL signed for
 // exactly that asset; a sibling file (.../linked/{id}) takes the ?sig= alone.
@@ -37,6 +43,12 @@ func (h *handlers) officeFrameAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if h.OfficeFrame == nil {
 			respondError(w, http.StatusNotFound, "not_found", "not found")
+			return
+		}
+		// The source subtree (UNI-1869): a source token (ofs1.), never a
+		// document token, a session or a signature.
+		if chi.URLParam(r, "sourceFileID") != "" {
+			h.officeFrameSourceAuth(next, w, r)
 			return
 		}
 		documentID := chi.URLParam(r, "documentID")
@@ -77,13 +89,47 @@ func (h *handlers) officeFrameAuth(next http.Handler) http.Handler {
 		telemetry.SetActor(r.Context(), claims.UserID, string(audit.KindHuman), platform)
 		ctx := middleware.WithUserID(r.Context(), claims.UserID)
 		ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: claims.UserID, WorkspaceID: claims.WorkspaceID, OrganizationID: claims.OrganizationID})
-		if !officeFrameModuleEnabled(ctx, h.FeatureFlags, claims) {
+		if !officeFrameModuleEnabled(ctx, h.FeatureFlags, claims.ModuleName(), claims.UserID, claims.WorkspaceID, claims.OrganizationID) {
 			respondError(w, http.StatusNotFound, "feature_disabled", "feature is disabled")
 			return
 		}
 		ctx = context.WithValue(ctx, officeFrameCtxKey{}, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// officeFrameSourceAuth is the source half of officeFrameAuth: the frame
+// presents a source token as Bearer, and nothing else — no ?sig=, no session.
+// The path's {sourceFileID} must equal the token's source, read the way the
+// wire sends it (sourceFileIDParam, the download route's own unescape); an id
+// that does not decode, or names another source, answers 404 like a missing
+// one. The flag of the token's module is evaluated here, as for a document.
+func (h *handlers) officeFrameSourceAuth(next http.Handler, w http.ResponseWriter, r *http.Request) {
+	token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !bearer || token == "" {
+		officeFrameUnauthorized(w)
+		return
+	}
+	claims, err := h.OfficeFrame.VerifySource(token)
+	if err != nil {
+		officeFrameUnauthorized(w)
+		return
+	}
+	want, err := sourceFileIDParam(r)
+	if err != nil || want != claims.SourceID {
+		respondError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	platform, _, _ := middleware.ClientMetadataFromContext(r.Context())
+	telemetry.SetActor(r.Context(), claims.UserID, string(audit.KindHuman), platform)
+	ctx := middleware.WithUserID(r.Context(), claims.UserID)
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: claims.UserID, WorkspaceID: claims.WorkspaceID, OrganizationID: claims.OrganizationID})
+	if !officeFrameModuleEnabled(ctx, h.FeatureFlags, claims.ModuleName(), claims.UserID, claims.WorkspaceID, claims.OrganizationID) {
+		respondError(w, http.StatusNotFound, "feature_disabled", "feature is disabled")
+		return
+	}
+	ctx = context.WithValue(ctx, officeFrameSourceCtxKey{}, claims)
+	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
 func officeFrameUnauthorized(w http.ResponseWriter) {
@@ -94,6 +140,48 @@ func officeFrameUnauthorized(w http.ResponseWriter) {
 func officeFrameClaims(r *http.Request) service.OfficeFrameClaims {
 	c, _ := r.Context().Value(officeFrameCtxKey{}).(service.OfficeFrameClaims)
 	return c
+}
+
+func officeFrameSourceClaims(r *http.Request) service.OfficeFrameSourceClaims {
+	c, _ := r.Context().Value(officeFrameSourceCtxKey{}).(service.OfficeFrameSourceClaims)
+	return c
+}
+
+// officeFrameSourceTokenSDO is the mint answer: can_edit is always false and
+// readonly always true — a source frame is view-only by construction. There is
+// no AI grant block: source frames get no /ai/* access.
+func officeFrameSourceTokenSDO(t service.OfficeFrameSourceToken, now time.Time) sdo.OfficeFrameSourceTokenSDO {
+	return sdo.OfficeFrameSourceTokenSDO{
+		Token: t.Token, TokenType: "Bearer", ExpiresAt: t.ExpiresAt.UTC().Format(time.RFC3339),
+		ExpiresIn: max(0, int(t.ExpiresAt.Sub(now).Seconds())),
+		SourceID:  t.Claims.SourceID, ParentKind: t.Claims.ParentKind, ParentID: t.Claims.ParentID,
+		WorkspaceID: t.Claims.WorkspaceID, OrganizationID: t.Claims.OrganizationID,
+		CanEdit: false, Module: t.Claims.ModuleName(), ReadOnly: true,
+	}
+}
+
+// officeFrameSourceSDO is the frame's open view of its source file: the same
+// field names the frame client reads on a document (title, revision, module,
+// file, download_url), with source_id and principal in place of document_id
+// (the source is not a Document, OQ-1).
+func officeFrameSourceSDO(claims service.OfficeFrameSourceClaims, item service.DocumentSourceItem) sdo.OfficeFrameSourceSDO {
+	out := sdo.OfficeFrameSourceSDO{
+		SourceID: claims.SourceID, Principal: "source",
+		WorkspaceID: claims.WorkspaceID, OrganizationID: claims.OrganizationID,
+		Title: item.Name, Revision: "0", Module: claims.ModuleName(),
+		CanEdit: false, ReadOnly: true,
+		Parent: sdo.DocumentSourceParentDTO{
+			Kind: item.Parent.Kind, ID: item.Parent.ID, Title: item.Parent.Title, MessageID: item.Parent.MessageID,
+		},
+		File: sdo.OfficeFrameSourceFileDTO{
+			Version: 1, Filename: item.Name, MimeType: item.MimeType, SizeBytes: item.SizeBytes,
+		},
+		DownloadURL: "/api/v1/office-frame/sources/" + url.PathEscape(item.ID) + "/content",
+	}
+	if !item.UpdatedAt.IsZero() {
+		out.UpdatedAt = item.UpdatedAt.UTC().Format(time.RFC3339)
+	}
+	return out
 }
 
 func officeFrameTokenSDO(t service.OfficeFrameToken, now time.Time) sdo.OfficeFrameTokenSDO {
@@ -127,16 +215,7 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	t, err := h.OfficeFrame.Mint(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"))
-	if errors.Is(err, service.ErrOfficeFrameTooLarge) && !officeFrameModuleEnabled(r.Context(), h.FeatureFlags, t.Claims) {
-		// The flag answers first: off is 403 whatever the size.
-		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
-		return
-	}
-	if errors.Is(err, service.ErrOfficeFrameTooLarge) {
-		// Over the module's size cap (Sheets, GO-D3): the host shows the too-large notice instead.
-		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "document is too large for the web frame")
-		return
-	}
+
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -148,7 +227,8 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 	// nothing a non-member could not already see.
 	// 403 feature_disabled, not 404: the host must tell "the frame is off for
 	// this organization" (the unavailable notice) from "no such document".
-	if !officeFrameModuleEnabled(r.Context(), h.FeatureFlags, t.Claims) {
+	if !officeFrameModuleEnabled(r.Context(), h.FeatureFlags,
+		t.Claims.ModuleName(), t.Claims.UserID, t.Claims.WorkspaceID, t.Claims.OrganizationID) {
 		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
 		return
 	}
@@ -157,11 +237,13 @@ func (h *handlers) mintOfficeFrameToken(w http.ResponseWriter, r *http.Request) 
 	respondOfficeJSON(w, http.StatusCreated, out)
 }
 
-// officeFrameModuleEnabled evaluates the flag of the token's module
+// officeFrameModuleEnabled evaluates the flag of a frame token's module
 // (office_docs_web for a token without m) for the user, workspace and
-// organization the token is bound to. A token naming no known module is off.
-func officeFrameModuleEnabled(ctx context.Context, flags *featureflag.Service, claims service.OfficeFrameClaims) bool {
-	key, ok := service.OfficeFrameModuleFlag(claims.ModuleName())
+// organization the token is bound to. A module that is not one of the web
+// modules is off. Both claims types (a document's and a source's) reach it
+// through their ModuleName.
+func officeFrameModuleEnabled(ctx context.Context, flags *featureflag.Service, module, userID, workspaceID, organizationID string) bool {
+	key, ok := service.OfficeFrameModuleFlag(module)
 	if !ok {
 		return false
 	}
@@ -169,7 +251,7 @@ func officeFrameModuleEnabled(ctx context.Context, flags *featureflag.Service, c
 	if f, ok := featureflags.Lookup(key); ok {
 		def = f.Default
 	}
-	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: claims.UserID, WorkspaceID: claims.WorkspaceID, OrganizationID: claims.OrganizationID})
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, WorkspaceID: workspaceID, OrganizationID: organizationID})
 	return flags.IsEnabled(ctx, key, def)
 }
 
@@ -196,6 +278,115 @@ func (h *handlers) getOfficeFrameContent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	h.downloadDocument(w, r)
+}
+
+// mintSourceOfficeFrameToken is POST
+// /workspaces/{workspaceID}/documents/sources/{sourceFileID}/office/frame-token:
+// the host page, with its session, asks for a view-only source frame token.
+// The module flag is organization-scoped and only the source names its
+// organization and format, so it is evaluated here once the mint found them
+// (as the document mint does).
+func (h *handlers) mintSourceOfficeFrameToken(w http.ResponseWriter, r *http.Request) {
+	if h.OfficeFrame == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "office frame is not configured")
+		return
+	}
+	sourceFileID, err := sourceFileIDParam(r)
+	if err != nil {
+		h.mapServiceError(w, service.ErrNotFound)
+		return
+	}
+	t, err := h.OfficeFrame.MintSource(r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"), sourceFileID)
+	flagOn := func(c service.OfficeFrameSourceClaims) bool {
+		return officeFrameModuleEnabled(r.Context(), h.FeatureFlags, c.ModuleName(), c.UserID, c.WorkspaceID, c.OrganizationID)
+	}
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	// Mint only signs: nothing is written or audited, and a caller the source
+	// gate refuses never reaches here. 403 feature_disabled, not 404: the host
+	// must tell "the frame is off for this organization" from "no such file".
+	if !flagOn(t.Claims) {
+		respondError(w, http.StatusForbidden, "feature_disabled", "feature is disabled")
+		return
+	}
+	respondOfficeJSON(w, http.StatusCreated, officeFrameSourceTokenSDO(t, time.Now()))
+}
+
+// openOfficeFrameSource is GET /office-frame/sources/{sourceFileID}: the
+// frame's view of its source file, rechecked as the token's user.
+func (h *handlers) openOfficeFrameSource(w http.ResponseWriter, r *http.Request) {
+	claims := officeFrameSourceClaims(r)
+	_, item, err := h.OfficeFrame.AuthorizeSource(r.Context(), claims)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondOfficeJSON(w, http.StatusOK, officeFrameSourceSDO(claims, item))
+}
+
+// getOfficeFrameSourceContent is GET|HEAD
+// /office-frame/sources/{sourceFileID}/content: the source's bytes, as the
+// token's user. HEAD runs the lookup only (email's Open refetches over IMAP)
+// and promises Content-Length only when the source measures its own length;
+// GET streams Open's bytes and uses its exact decoded size.
+func (h *handlers) getOfficeFrameSourceContent(w http.ResponseWriter, r *http.Request) {
+	claims := officeFrameSourceClaims(r)
+	if r.Method == http.MethodHead {
+		_, item, err := h.OfficeFrame.AuthorizeSource(r.Context(), claims)
+		if err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		h.setOfficeFrameSourceHeaders(w, item.MimeType, item.Name, officeFrameSourceHeadsLength(item))
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	f, err := h.OfficeFrame.OpenSource(r.Context(), claims)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	defer f.Body.Close()
+	h.setOfficeFrameSourceHeaders(w, f.Item.MimeType, f.Item.Name, f.Size)
+	w.WriteHeader(http.StatusOK)
+	n, err := io.Copy(w, f.Body)
+	if (err != nil || (f.Size >= 0 && n != f.Size)) && r.Context().Err() == nil && h.Log != nil {
+		h.Log.Warn("office frame source content interrupted", "source", f.Item.Source, "source_file_id", f.Item.ID,
+			"bytes_sent", n, "bytes_expected", f.Size, "err", err)
+	}
+}
+
+// officeFrameSourceHeadsLength is the length a HEAD may promise: the stored
+// size for chat/task/meeting (their FileService size is exact), nothing for
+// email (its size_bytes is the IMAP encoded length, not the decoded one).
+func officeFrameSourceHeadsLength(item service.DocumentSourceItem) int64 {
+	if item.Source == service.DocumentSourceEmail || item.SizeBytes < 0 {
+		return -1
+	}
+	return item.SizeBytes
+}
+
+// setOfficeFrameSourceHeaders writes the shared source byte-route headers: the
+// same sandbox CSP, nosniff and no-store every Documents byte route sets, with
+// Content-Disposition by content type (inline for safe types). Content-Length
+// is set only when length is known (>= 0).
+func (h *handlers) setOfficeFrameSourceHeaders(w http.ResponseWriter, mime, filename string, length int64) {
+	contentType := mime
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	header := w.Header()
+	header.Set("Content-Type", contentType)
+	header.Set("Content-Disposition", storage.ContentDisposition(contentType, filename))
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("Cache-Control", "private, no-store")
+	header.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+	if length >= 0 {
+		header.Set("Content-Length", strconv.FormatInt(length, 10))
+	}
 }
 
 // uploadOfficeFrameFile is POST /office-frame/documents/{documentID}/uploads:
@@ -231,6 +422,8 @@ func (h *handlers) commitOfficeFrameVersion(w http.ResponseWriter, r *http.Reque
 		UploadID:       strings.TrimSpace(in.UploadID),
 		BaseRevision:   base,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		EditLockID:     strings.TrimSpace(in.EditLockID),
+		Frame:          true,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -274,12 +467,12 @@ func (h *handlers) listOfficeFrameRecents(w http.ResponseWriter, r *http.Request
 // uploadOfficeFrameAsset is POST /office-frame/documents/{documentID}/assets.
 func (h *handlers) uploadOfficeFrameAsset(w http.ResponseWriter, r *http.Request) {
 	claims := officeFrameClaims(r)
-	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap)
+	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap, documentAssetMaxBytes)
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 10 << 20}
+	part := &cappedDocumentPart{r: file, max: documentAssetMaxBytes}
 	asset, err := h.OfficeFrame.UploadAsset(r.Context(), claims, service.DocumentUploadInput{
 		Filename:       file.FileName(),
 		Body:           part,

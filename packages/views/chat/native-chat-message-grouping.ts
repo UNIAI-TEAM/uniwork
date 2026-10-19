@@ -56,7 +56,8 @@ function isAlbumPhoto(message: ChatMessage): boolean {
   if (message.kind !== "file" || !file || message.deliveryStatus) return false;
   const contentType = resolveChatFileContentType(file);
   if (contentType === "image/gif" || !isChatImageContentType(contentType, file.filename)) return false;
-  return !message.replyToEventId && !message.replyCount && Object.keys(message.reactions).length === 0;
+  // A forwarded photo keeps its own row, under its "Chuyển tiếp từ" label.
+  return !message.replyToEventId && !message.replyCount && !message.forwardedFrom && Object.keys(message.reactions).length === 0;
 }
 
 /**

@@ -55,8 +55,8 @@ function firstName(nodes: DocumentTreeNode[]): string | null {
  * `staleTime: 0`), locks confirmation until the counts arrive, replaces the
  * confirm button when `too_large` is true, and surfaces 403/404 as the subtree
  * permission message. For non-folder documents, the subtree is read as before.
- * Restore explains the batch rule: exactly the group one archive moved comes
- * back, and a child whose parent stays in the trash returns to the workspace root.
+ * Restore explains the per-item rule (RESTORE-01): the item and the children
+ * inside it the viewer manages come back; the rest stay in the trash.
  *
  * Both commands await a verifiable answer; a failure keeps the dialog and its
  * message, and nothing on screen moves until the server has answered.

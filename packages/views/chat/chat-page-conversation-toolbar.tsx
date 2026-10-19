@@ -9,7 +9,7 @@ import { AppLink } from "../navigation";
 import { paths } from "@uniwork/core/paths";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { WorkspaceIcon } from "../layout/workspace-icon";
-import { workspaceTint } from "../layout/workspace-rail";
+import { initialsOf as workspaceInitials, workspaceTint } from "../layout/workspace-rail";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { ChatConversationIntro } from "./chat-conversation-intro";
 import { initialsOf } from "./chat-initials";
@@ -42,7 +42,6 @@ export function ChatPageConversationToolbar({
   activeChannel,
   workspaceMemberIds,
   channelMemberIds,
-  roomWorkspaceId,
   nicknamesByUserId,
   memberAvatarByUserId,
   onSearch,
@@ -58,13 +57,11 @@ export function ChatPageConversationToolbar({
   workspaceMemberIds: readonly string[];
   /** The open channel's roster (loaded for its mentions); a channel record carries only a count. */
   channelMemberIds: readonly string[];
-  /** The workspace the room lives in; DMs and groups follow the person into every workspace. */
-  roomWorkspaceId?: string;
   nicknamesByUserId: Record<string, string>;
   memberAvatarByUserId: MemberAvatarUrlMap;
 }) {
   const { t } = useTranslation();
-  const common = { ...rest, titleAddon: <ChatRoomWorkspaceChip workspaceId={roomWorkspaceId} /> };
+  const common = rest;
   const peopleIds =
     target.kind === "workspace"
       ? workspaceMemberIds
@@ -85,7 +82,12 @@ export function ChatPageConversationToolbar({
         {...common}
         avatar={<ChatRoomFace name={headerTitle} icon={House} tint="blue" size="header" />}
         title={headerTitle}
-        subtitle={chatMembersLine(t, workspaceMemberIds.length, shownOnline)}
+        subtitle={
+          <InThisWorkspace
+            of={(name) => t("chat.scope.room_of", { name })}
+            members={chatMembersLine(t, workspaceMemberIds.length, shownOnline)}
+          />
+        }
         panelAriaLabel={t("chat.info_panel.title_workspace")}
         onSearch={onSearch}
         onCatchUp={onCatchUp}
@@ -102,7 +104,7 @@ export function ChatPageConversationToolbar({
           <ChatRoomFace name={headerTitle} tint={identityTint(activeGroup.id)} imageUrl={activeGroup.avatar_url} size="header" />
         }
         title={headerTitle}
-        subtitle={chatMembersLine(t, activeGroup.member_user_ids.length + 1, shownOnline)}
+        subtitle={`${t("chat.scope.group_line")} · ${chatMembersLine(t, activeGroup.member_user_ids.length + 1, shownOnline)}`}
         panelAriaLabel={t("chat.info_panel.title_group")}
         onSearch={onSearch}
       />
@@ -121,7 +123,12 @@ export function ChatPageConversationToolbar({
           />
         }
         title={headerTitle}
-        subtitle={chatMembersLine(t, activeChannel.member_count, shownOnline)}
+        subtitle={
+          <InThisWorkspace
+            of={(name) => t("chat.scope.channel_of", { name })}
+            members={chatMembersLine(t, activeChannel.member_count, shownOnline)}
+          />
+        }
         panelAriaLabel={t("chat.info_panel.title_channel")}
         onSearch={onSearch}
       />
@@ -145,7 +152,15 @@ export function ChatPageConversationToolbar({
         }
         title={label}
         subtitle={
-          online > 0 ? <span className="text-success">{t("chat.presence_online")}</span> : t("chat.dm_direct_message")
+          <>
+            {t("chat.dm_direct_message")}
+            {online > 0 ? (
+              <>
+                {" · "}
+                <span className="text-success">{t("chat.presence_online")}</span>
+              </>
+            ) : null}
+          </>
         }
         panelAriaLabel={t("chat.info_panel.title_dm")}
       />
@@ -155,21 +170,22 @@ export function ChatPageConversationToolbar({
 }
 
 /**
- * "TT Truyền thông": the chip beside a room's name when it lives in another
- * workspace than the one open (a DM or group seen from a second workspace).
+ * "[TT] Kênh của Truyền thông · 11 thành viên": a channel and the workspace
+ * room say whose they are, in the workspace's own tile, since only DMs and
+ * groups are shared across workspaces.
  */
-function ChatRoomWorkspaceChip({ workspaceId }: { workspaceId?: string }) {
-  const open = useOptionalWorkspace()?.workspace;
-  const { data: workspaces = [] } = useWorkspaces(Boolean(workspaceId && open && workspaceId !== open.id));
-  const home = workspaceId && open && workspaceId !== open.id ? workspaces.find((w) => w.id === workspaceId) : undefined;
-  if (!home) return null;
+function InThisWorkspace({ of, members }: { of: (workspaceName: string) => string; members: string }) {
+  const workspace = useOptionalWorkspace()?.workspace;
+  const { data: workspaces = [] } = useWorkspaces();
+  if (!workspace) return <>{members}</>;
   return (
-    <span className="inline-flex h-5.5 shrink-0 items-center gap-1.25 rounded-full bg-muted pr-2 pl-0.75 text-caption font-semibold text-foreground">
+    <span className="inline-flex max-w-full min-w-0 items-center gap-1.5 align-bottom">
       <WorkspaceIcon
-        workspace={home}
-        className={cn("size-4 rounded-[5px] text-micro font-bold", tintSolidClass[workspaceTint(workspaces, home.id)])}
+        workspace={workspace}
+        fallback={workspaceInitials(workspace.name)}
+        className={cn("size-4 shrink-0 rounded-[5px] text-micro font-bold", tintSolidClass[workspaceTint(workspaces, workspace.id)])}
       />
-      {home.name}
+      <span className="truncate">{`${of(workspace.name)} · ${members}`}</span>
     </span>
   );
 }

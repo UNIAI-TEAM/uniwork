@@ -63,6 +63,16 @@ describe("useNativeVoiceCall", () => {
   });
 
   it("stops ringing an incoming call after the ring timeout without hanging up", async () => {
+    pendingInvites = [
+      {
+        room_id: "room-dm",
+        call_id: "c1",
+        caller_id: "peer",
+        caller_name: "Long",
+        call_kind: "dm",
+        invited_at: new Date().toISOString(),
+      },
+    ];
     const { result } = renderCall();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -70,12 +80,11 @@ describe("useNativeVoiceCall", () => {
         room_id: "room-dm",
         call_id: "c1",
         caller_id: "peer",
-        caller_name: "Long",
         target_user_id: "me",
-        call_kind: "dm",
       });
+      await vi.advanceTimersByTimeAsync(0);
     });
-    expect(result.current.voiceCall.status).toBe("incoming");
+    expect(result.current.voiceCall).toMatchObject({ status: "incoming", peerName: "Long" });
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(VOICE_CALL_RING_TIMEOUT_MS);
@@ -135,7 +144,6 @@ describe("useNativeVoiceCall", () => {
         call_id: "second",
         caller_id: "someone",
         target_user_id: "me",
-        call_kind: "dm",
       });
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -183,7 +191,17 @@ describe("useNativeVoiceCall", () => {
     expect(result.current.voiceCall).toMatchObject({ status: "ended", reason: "connect_failed" });
   });
 
-  async function ringIn(roomId: string, callId: string, callKind: string) {
+  async function ringIn(roomId: string, callId: string, callKind: "dm" | "group") {
+    pendingInvites = [
+      {
+        room_id: roomId,
+        call_id: callId,
+        caller_id: "peer",
+        caller_name: "Long",
+        call_kind: callKind,
+        invited_at: new Date().toISOString(),
+      },
+    ];
     const hook = renderCall();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -191,24 +209,22 @@ describe("useNativeVoiceCall", () => {
         room_id: roomId,
         call_id: callId,
         caller_id: "peer",
-        caller_name: "Long",
         target_user_id: callKind === "dm" ? "me" : undefined,
-        call_kind: callKind,
       });
+      await vi.advanceTimersByTimeAsync(0);
     });
     expect(hook.result.current.voiceCall.status).toBe("incoming");
     return hook;
   }
 
   // Our own frame, as another tab of ours sent it: it names the caller as target.
-  async function ownFrame(event: string, roomId: string, callId: string, callKind: string) {
+  async function ownFrame(event: string, roomId: string, callId: string, callKind: "dm" | "group") {
     await act(async () => {
       wsHandlers.get(event)?.({
         room_id: roomId,
         call_id: callId,
         user_id: "me",
         target_user_id: callKind === "dm" ? "peer" : undefined,
-        call_kind: callKind,
       });
       await vi.advanceTimersByTimeAsync(VOICE_CALL_RING_TIMEOUT_MS);
     });
@@ -243,7 +259,6 @@ describe("useNativeVoiceCall", () => {
         call_id: "other-call",
         user_id: "me",
         target_user_id: "peer",
-        call_kind: "dm",
       });
     });
     expect(result.current.voiceCall).toMatchObject({ status: "incoming", callId: "c1" });

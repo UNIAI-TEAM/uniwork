@@ -10,6 +10,8 @@ import type { UseDocumentsSearchResult } from "./use-documents-search";
 export interface DocumentsSearchBoxProps {
   search: UseDocumentsSearchResult;
   className?: string;
+  /** Inside a folder the board narrows the placeholder ("Tìm trong thư mục này"); the query still covers the workspace. */
+  folderPlaceholder?: boolean;
 }
 
 /**
@@ -17,7 +19,7 @@ export interface DocumentsSearchBoxProps {
  * the header). Ignores intermediate IME composition keystrokes and clears on
  * Escape or the clear button.
  */
-export function DocumentsSearchBox({ search, className }: DocumentsSearchBoxProps) {
+export function DocumentsSearchBox({ search, className, folderPlaceholder = false }: DocumentsSearchBoxProps) {
   const { t } = useTranslation();
   return (
     <div className={cn("relative flex min-w-0 items-center", className)}>
@@ -36,7 +38,7 @@ export function DocumentsSearchBox({ search, className }: DocumentsSearchBoxProp
         onCompositionStart={search.onCompositionStart}
         onCompositionEnd={search.onCompositionEnd}
         onKeyDown={search.onKeyDown}
-        placeholder={t("documents.home.search.placeholder")}
+        placeholder={folderPlaceholder ? t("documents.home.search.placeholder_folder") : t("documents.home.search.placeholder")}
         aria-label={t("documents.home.search.label")}
         autoComplete="off"
         className={cn(

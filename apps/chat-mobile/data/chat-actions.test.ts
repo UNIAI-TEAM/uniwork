@@ -174,7 +174,9 @@ describe("chat actions", () => {
     await followUpCommand(qc, "w1", "create", "m1");
     await expect(followUpCommand(qc, "w1", "complete", "f1")).rejects.toThrow("chat_follow_up_failed");
     await followUpCommand(qc, "w1", "remove", "f1");
-    expect(create).toHaveBeenCalledWith("w1", "m1");
+    expect(create).toHaveBeenCalledWith("w1", "m1", { due_at: expect.any(String) });
+    const due = Date.parse((create.mock.calls[0]![2] as { due_at: string }).due_at);
+    expect(Math.round((due - Date.now()) / 3_600_000)).toBe(2);
     expect(patch).toHaveBeenCalledWith("w1", "f1", { completed: true });
     expect(remove).toHaveBeenCalledWith("w1", "f1");
     expect(invalidate.mock.calls.map(([f]) => f?.queryKey)).toEqual([chatKeys.followUps("w1"), chatKeys.followUps("w1")]);

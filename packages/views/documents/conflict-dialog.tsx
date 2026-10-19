@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { FileExclamationPoint, RotateCcwClock } from "lucide-react";
+import { useRef, useState } from "react";
+import { Download, FileExclamationPoint, RotateCcwClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -13,7 +13,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@uniwork/ui/components/ui/alert-dialog";
 import { ConfirmDialog } from "../common/form-dialog";
+import { lostCopyKey } from "./edit-lock-copy";
 
 export interface DocumentConflictDialogProps {
   open: boolean;
@@ -215,6 +224,68 @@ export function DocumentConflictDialog({
         onConfirm={() => {
           setConfirmLoad(false);
           onLoadServer();
+        }}
+      />
+    </>
+  );
+}
+
+export interface DocumentLockLostDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** `edit_lock_lost.fields.reason` (or what a 423 implied); unknown reads generic. */
+  reason: string | null;
+  /** Who took over or received the lock, for the sentences that name them. */
+  byName: string;
+  /** Save the unsaved page as a file; the editor keeps it too. */
+  onDownload: () => void;
+  /** Drop the unsaved changes and show the newest server copy (asked once more first). */
+  onReload: () => void;
+}
+
+/**
+ * The `locked` variant of the conflict dialog (addendum §9, §11.3): the lock
+ * is gone while the page holds unsaved changes. Nothing can be written over
+ * anyone, so there is no "keep mine" or "overwrite" — only take the bytes
+ * away as a file, or reload after confirming they are dropped. The content
+ * stays in the (read-only) editor until one is chosen. Focus starts on the
+ * safe choice, the download.
+ */
+export function DocumentLockLostDialog({ open, onOpenChange, reason, byName, onDownload, onReload }: DocumentLockLostDialogProps) {
+  const { t } = useTranslation();
+  const [confirmReload, setConfirmReload] = useState(false);
+  const downloadRef = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <AlertDialog open={open} onOpenChange={onOpenChange}>
+        <AlertDialogContent initialFocus={downloadRef} data-testid="edit-lock-lost-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("documents.editLock.lostTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(lostCopyKey(reason), { name: byName || t("documents.editLock.lostSomeone") })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirmReload(true)}>
+              <RotateCcwClock aria-hidden data-icon="inline-start" />
+              {t("documents.editLock.lostReload")}
+            </Button>
+            <Button ref={downloadRef} type="button" onClick={onDownload}>
+              <Download aria-hidden data-icon="inline-start" />
+              {t("documents.editLock.lostDownload")}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <ConfirmDialog
+        open={confirmReload}
+        onOpenChange={setConfirmReload}
+        title={t("documents.editLock.lostReload")}
+        description={t("documents.editLock.lostReloadConfirm")}
+        confirmLabel={t("documents.editLock.lostReload")}
+        onConfirm={() => {
+          setConfirmReload(false);
+          onReload();
         }}
       />
     </>

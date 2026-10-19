@@ -127,6 +127,45 @@ func (q *Queries) CarryOverChatRoomMemberSendRestricted(ctx context.Context, arg
 	return err
 }
 
+const countChatMentionUnreadForMember = `-- name: CountChatMentionUnreadForMember :one
+SELECT COUNT(*)::int AS mention_unread_count
+FROM (
+  SELECT 1
+  FROM chat_messages m
+  INNER JOIN chat_rooms r ON r.id = $1
+  INNER JOIN chat_room_members mem
+    ON mem.room_id = r.id
+   AND mem.user_id = $2
+   AND mem.status IN ('invited', 'active')
+  WHERE m.room_id = r.id
+    AND m.workspace_id = r.workspace_id
+    AND m.deleted_at IS NULL
+    AND m.thread_root_id IS NULL
+    AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
+    AND m.sender_id != $2
+    AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
+    AND (
+      m.metadata -> 'mentioned_user_ids' ? $2::text
+      OR m.metadata @> '{"mentions_all": true}'
+    )
+  LIMIT 100
+) mentioned
+`
+
+type CountChatMentionUnreadForMemberParams struct {
+	RoomID string `json:"room_id"`
+	UserID string `json:"user_id"`
+}
+
+// Same capped badge as ListChatRoomsForMember / ListChatChannelsMine.
+// tenant: parent room_id
+func (q *Queries) CountChatMentionUnreadForMember(ctx context.Context, arg CountChatMentionUnreadForMemberParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countChatMentionUnreadForMember, arg.RoomID, arg.UserID)
+	var mention_unread_count int32
+	err := row.Scan(&mention_unread_count)
+	return mention_unread_count, err
+}
+
 const createChatFileMessage = `-- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
@@ -520,7 +559,7 @@ func (q *Queries) DropChatThreadReplyStats(ctx context.Context, arg DropChatThre
 }
 
 const getActiveChatRoomMember = `-- name: GetActiveChatRoomMember :one
-SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
+SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, last_delivered_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 LIMIT 1
 `
@@ -543,6 +582,7 @@ type GetActiveChatRoomMemberRow struct {
 	JoinedAt           pgtype.Timestamptz `json:"joined_at"`
 	LeftAt             pgtype.Timestamptz `json:"left_at"`
 	LastReadAt         pgtype.Timestamptz `json:"last_read_at"`
+	LastDeliveredAt    pgtype.Timestamptz `json:"last_delivered_at"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
@@ -564,6 +604,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 		&i.JoinedAt,
 		&i.LeftAt,
 		&i.LastReadAt,
+		&i.LastDeliveredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1043,7 +1084,9 @@ INSERT INTO chat_room_members (
   id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
-) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted
+)
+ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING
+RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted, last_delivered_at
 `
 
 type InsertChatRoomMemberParams struct {
@@ -1083,6 +1126,7 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 		&i.SendRestricted,
 		&i.OrganizationID,
 		&i.NotificationsMuted,
+		&i.LastDeliveredAt,
 	)
 	return i, err
 }
@@ -1919,6 +1963,7 @@ SELECT
   m.role,
   m.send_restricted,
   m.last_read_at,
+  m.last_delivered_at,
   u.email,
   u.display_name
 FROM chat_room_members m
@@ -1928,12 +1973,13 @@ ORDER BY m.created_at, m.user_id
 `
 
 type ListChatRoomMembersRow struct {
-	UserID         string             `json:"user_id"`
-	Role           string             `json:"role"`
-	SendRestricted bool               `json:"send_restricted"`
-	LastReadAt     pgtype.Timestamptz `json:"last_read_at"`
-	Email          string             `json:"email"`
-	DisplayName    string             `json:"display_name"`
+	UserID          string             `json:"user_id"`
+	Role            string             `json:"role"`
+	SendRestricted  bool               `json:"send_restricted"`
+	LastReadAt      pgtype.Timestamptz `json:"last_read_at"`
+	LastDeliveredAt pgtype.Timestamptz `json:"last_delivered_at"`
+	Email           string             `json:"email"`
+	DisplayName     string             `json:"display_name"`
 }
 
 // tenant: parent room_id
@@ -1951,6 +1997,7 @@ func (q *Queries) ListChatRoomMembers(ctx context.Context, roomID string) ([]Lis
 			&i.Role,
 			&i.SendRestricted,
 			&i.LastReadAt,
+			&i.LastDeliveredAt,
 			&i.Email,
 			&i.DisplayName,
 		); err != nil {
@@ -2020,6 +2067,7 @@ SELECT
   COALESCE(peer.email, '') AS peer_email,
   COALESCE(peer.display_name, '') AS peer_display_name,
   peer.last_read_at AS peer_last_read_at,
+  peer.last_delivered_at AS peer_last_delivered_at,
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
@@ -2051,8 +2099,8 @@ LEFT JOIN LATERAL (
 ) last_msg ON true
 LEFT JOIN LATERAL (
   -- A DM's peer comes from its member set, so it survives the peer leaving;
-  -- their read cursor only while they are still in the room.
-  SELECT u.id, u.email, u.display_name, pm.last_read_at
+  -- their read and delivered cursors only while they are still in the room.
+  SELECT u.id, u.email, u.display_name, pm.last_read_at, pm.last_delivered_at
   FROM users u
   LEFT JOIN chat_room_members pm
     ON pm.room_id = r.id AND pm.user_id = u.id AND pm.status IN ('invited', 'active')
@@ -2100,6 +2148,7 @@ type ListChatRoomsForMemberRow struct {
 	PeerEmail              string             `json:"peer_email"`
 	PeerDisplayName        string             `json:"peer_display_name"`
 	PeerLastReadAt         pgtype.Timestamptz `json:"peer_last_read_at"`
+	PeerLastDeliveredAt    pgtype.Timestamptz `json:"peer_last_delivered_at"`
 	LastMessageBody        string             `json:"last_message_body"`
 	LastMessageKind        string             `json:"last_message_kind"`
 	LastMessageSenderID    string             `json:"last_message_sender_id"`
@@ -2137,6 +2186,7 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.PeerEmail,
 			&i.PeerDisplayName,
 			&i.PeerLastReadAt,
+			&i.PeerLastDeliveredAt,
 			&i.LastMessageBody,
 			&i.LastMessageKind,
 			&i.LastMessageSenderID,
@@ -2450,6 +2500,16 @@ func (q *Queries) ListDefaultChatRoomMissingMembers(ctx context.Context, workspa
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockChatRoom = `-- name: LockChatRoom :exec
+SELECT id FROM chat_rooms WHERE id = $1 FOR UPDATE
+`
+
+// tenant: by-id
+func (q *Queries) LockChatRoom(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, lockChatRoom, id)
+	return err
 }
 
 const markChatThreadRead = `-- name: MarkChatThreadRead :exec
@@ -2982,7 +3042,7 @@ func (q *Queries) UpdateChatMessageMetadata(ctx context.Context, arg UpdateChatM
 
 const updateChatRoomMemberLastRead = `-- name: UpdateChatRoomMemberLastRead :exec
 UPDATE chat_room_members
-SET last_read_at = GREATEST(last_read_at, $3), updated_at = now()
+SET last_read_at = GREATEST(last_read_at, $3), last_delivered_at = GREATEST(last_delivered_at, $3), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 `
 
@@ -2993,6 +3053,7 @@ type UpdateChatRoomMemberLastReadParams struct {
 }
 
 // tenant: parent room_id
+// A read implies delivered: the delivered cursor never trails the read one.
 func (q *Queries) UpdateChatRoomMemberLastRead(ctx context.Context, arg UpdateChatRoomMemberLastReadParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberLastRead, arg.RoomID, arg.UserID, arg.LastReadAt)
 	return err

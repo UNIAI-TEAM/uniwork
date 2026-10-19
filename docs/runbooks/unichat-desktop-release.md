@@ -17,7 +17,7 @@ Chỉ cắt stable khi bản mac/Windows đã có chữ ký (UNI-1838).
    `<kênh>-mac.yml`, `<kênh>-linux.yml`, `SHA256SUMS`, `installer-urls.env`.
 4. Release cuộn `chat-desktop-feed` nhận ba file `<kênh>*.yml` (URL tuyệt đối tới release vừa tạo). App đã cài đọc
    feed này (`apps/chat-desktop/electron-builder.ts`, `UPDATE_FEED_URL`) lúc mở và mỗi 6 giờ.
-5. Trang tải `/unichat`: chép dòng trong `installer-urls.env` (`UNICHAT_INSTALLER_<KÊNH>_URLS={…}`, cũng in ở run
+5. Trang tải `/apps/unichat`: chép dòng trong `installer-urls.env` (`UNICHAT_INSTALLER_<KÊNH>_URLS={…}`, cũng in ở run
    summary) vào `deploy/app/env/uniwork-be.env` qua PR, như `OFFICE_INSTALLER_*_URLS`, rồi rollout server.
 
 ## Triệu chứng
@@ -26,7 +26,7 @@ Chỉ cắt stable khi bản mac/Windows đã có chữ ký (UNI-1838).
   `assemble` (`no update file …`, `expected 5 installers`, lỗi của `installer-urls.mjs`), `publish` (`gh`).
 - App Windows/Linux đã cài không lên bản mới sau khi mở lại; bản mac không hiện thông báo "Đã có bản UniChat mới".
 - Bản vừa phát hành lỗi (không mở, không đăng nhập được, crash) và đang lan qua auto-update — cần rollback.
-- Trang `/unichat` trỏ tới tệp 404.
+- Trang `/apps/unichat` trỏ tới tệp 404.
 
 ## Kiểm tra
 
@@ -70,4 +70,4 @@ Chỉ cắt stable khi bản mac/Windows đã có chữ ký (UNI-1838).
   ký Windows (UNI-1838).
 - GitHub Releases hoặc Actions sự cố: <https://www.githubstatus.com>; app vẫn chạy bản đang có, chỉ chậm cập nhật.
 - Bản lỗi đã lan và rollback ở mục Khắc phục 3 không đủ (app không mở được để nhận bản sửa): chủ epic UNI-1826,
-  hướng dẫn người dùng gỡ và cài bản tốt từ trang `/unichat`.
+  hướng dẫn người dùng gỡ và cài bản tốt từ trang `/apps/unichat`.

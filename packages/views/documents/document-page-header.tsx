@@ -4,7 +4,8 @@ import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type RefObject
 import { useTranslation } from "react-i18next";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useDocumentComments } from "@uniwork/core/documents/hooks-comments";
-import type { Document } from "@uniwork/core/types/document";
+import { isMyFolder, type Document } from "@uniwork/core/types/document";
+import { DocumentShelvedBadge } from "./document-shelved-banner";
 import { DocumentPageIcon } from "./document-page-icon";
 import { useDocumentPageMetadata, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 
@@ -12,6 +13,8 @@ interface DocumentPageHeaderProps {
   wsId: string;
   doc: Document;
   editable: boolean;
+  /** The document sits in "Lưu trữ": an Archived label stands beside the title. */
+  shelved?: boolean;
   titleRef?: RefObject<HTMLTextAreaElement | null>;
   metadataRef?: RefObject<DocumentPageMetadataHandle | null>;
   onTitleChange: (title: string) => void;
@@ -23,12 +26,14 @@ interface DocumentPageHeaderProps {
   onStatusChange?: (status: DocumentPageMetadataStatus) => void;
 }
 
-export function DocumentPageHeader({ wsId, doc, editable, titleRef, onTitleChange, onFocusBody,
+export function DocumentPageHeader({ wsId, doc, editable, shelved = false, titleRef, onTitleChange, onFocusBody,
   metadataRef, canPersist, getRevision, onPendingChange, onSaved, onStatusChange }: DocumentPageHeaderProps) {
   const { t, i18n } = useTranslation();
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = titleRef ?? ownRef;
-  const metadata = useDocumentPageMetadata(wsId, doc, editable, onTitleChange, { canPersist, getRevision, onPendingChange, onSaved, onStatusChange });
+  const myFolder = isMyFolder(doc);
+  const canEditHeader = editable && !myFolder;
+  const metadata = useDocumentPageMetadata(wsId, doc, canEditHeader, onTitleChange, { canPersist, getRevision, onPendingChange, onSaved, onStatusChange });
   useImperativeHandle(metadataRef, () => ({ flush: metadata.flush, hasUnsavedWork: metadata.hasUnsavedWork }), [metadata.flush, metadata.hasUnsavedWork]);
   const members = useMembers(wsId);
   const comments = useDocumentComments(wsId, doc.id);
@@ -56,10 +61,10 @@ export function DocumentPageHeader({ wsId, doc, editable, titleRef, onTitleChang
     });
     observer.observe(input);
     return () => observer.disconnect();
-  }, [inputRef, metadata.title, editable]);
+  }, [inputRef, metadata.title, canEditHeader]);
 
   useEffect(() => {
-    if (!editable || doc.title !== t("documents.page.new_page")) return;
+    if (!canEditHeader || doc.title !== t("documents.page.new_page")) return;
     inputRef.current?.focus();
     inputRef.current?.select();
     // Select the default title once on arrival, never on a metadata refetch.
@@ -68,9 +73,9 @@ export function DocumentPageHeader({ wsId, doc, editable, titleRef, onTitleChang
 
   return (
     <div className="group mb-8 min-w-0">
-      {editable ? <DocumentPageIcon icon={metadata.icon} onChange={metadata.changeIcon} />
+      {canEditHeader ? <DocumentPageIcon icon={metadata.icon} onChange={metadata.changeIcon} />
         : metadata.icon ? <div className="mb-4 text-display" aria-hidden>{metadata.icon}</div> : null}
-      {editable ? (
+      {canEditHeader ? (
         <textarea ref={inputRef} rows={1} value={metadata.title}
           aria-label={t("documents.page_ui.title_label")} placeholder={t("documents.detail.untitled")}
           aria-busy={metadata.pending || undefined}
@@ -83,9 +88,10 @@ export function DocumentPageHeader({ wsId, doc, editable, titleRef, onTitleChang
             onFocusBody();
           }}
         />
-      ) : <h1 className="break-words text-display-sm font-semibold tracking-tight sm:text-display">{doc.title || t("documents.detail.untitled")}</h1>}
-      {time || comments.data ? (
+      ) : <h1 className="break-words text-display-sm font-semibold tracking-tight sm:text-display">{(myFolder ? t("documents.home.my_folder.label") : doc.title) || t("documents.detail.untitled")}</h1>}
+      {time || comments.data || shelved ? (
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
+          {shelved ? <DocumentShelvedBadge /> : null}
           {time ? <time dateTime={doc.updated_at} title={date?.toLocaleString(i18n.language)}>
             {author ? t("documents.page_ui.updated_by", { time, name: author }) : t("documents.page_ui.updated_at", { time })}
           </time> : null}

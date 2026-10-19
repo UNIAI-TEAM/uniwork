@@ -28,7 +28,9 @@ func TestErrorClassTable(t *testing.T) {
 		"owner_requires_copy":          "conflict",
 		"document_upload_invalid":      "conflict",
 		"folder_name_taken":            "conflict",
+		"my_folder_locked":             "conflict",
 		"document_deleted":             "gone",
+		"document_shelved":             "read_only",
 		"quota_exceeded":               "quota",
 		"forbidden":                    "permission",
 		"member_deactivated":           "permission",
@@ -103,9 +105,26 @@ func TestErrorClassTable(t *testing.T) {
 		// Count limits with no class on purpose: neither a usage meter nor a
 		// conflict to reload (UNI-1641 batch share cap, document link cap).
 		"share_batch_too_large", "document_link_limit",
+		// The document edit lock codes (UNI-1645 §3.3): document_locked must
+		// never read as a conflict (no "Overwrite" while locked), and the
+		// lock/request answers each have their own recovery.
+		"document_locked", "edit_lock_lost", "edit_lock_changed",
+		"edit_lock_free", "edit_lock_held_by_me", "edit_hold_device_required",
+		"edit_hold_cap_reached", "edit_request_to_self", "edit_request_closed",
+		"edit_request_expired", "edit_request_rate_limited",
+		// A share for the document's own workspace at manage (Q-S1, SH-S1):
+		// the home row tops out at edit, so the dialog lowers the level to
+		// fields.max instead of running lost-access or reload recovery.
+		"level_not_allowed",
 		// The access report export's row cap (UNI-1643, 422 fields.max_rows):
 		// the same kind of count limit, the web asks to narrow the filter.
 		"access_report_too_large",
+		// MYFOLDER-01 (UNI-1850, §4): 400 validation refusal when create
+		// names an unknown destination or pairs destination="my_folder" with parent_id.
+		"invalid_destination",
+		// SH-S2 (UNI-1781): per-item semantic refusal on PUT /documents/{id}/access
+		// (422, fields.rejected[]); the dialog highlights the bad rows in place.
+		"document_access_rejected",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
@@ -132,6 +151,7 @@ func TestErrorClassTable(t *testing.T) {
 		"document_permissions.go", "document_shares.go", "document_break_glass.go",
 		"document_files.go", "document_commit.go",
 		"document_access_report.go", "document_access_report_export.go",
+		"document_access_batch.go",
 	} {
 		src, err := os.ReadFile("../../../service/" + name)
 		if errors.Is(err, fs.ErrNotExist) && name == "document_break_glass.go" {
@@ -157,7 +177,7 @@ func TestErrorClassTable(t *testing.T) {
 	// fails here even with the file listed.
 	for _, code := range []string{
 		"document_restricted", "break_glass_required", "document_owned_by_work_product",
-		"access_report_too_large", "unsupported_media_type", "storage_unavailable",
+		"level_not_allowed", "access_report_too_large", "unsupported_media_type", "storage_unavailable",
 	} {
 		if !found[code] {
 			t.Errorf("scan did not find %q: the emission pattern changed, update permissionFileCodes", code)

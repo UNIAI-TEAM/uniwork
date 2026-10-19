@@ -100,10 +100,15 @@ type ChatMessageRow struct {
 	Note              *ChatNoteInfo
 	Post              *ChatPostInfo
 	Priority          string
+	ForwardedFrom     *ChatForwardedFrom
 	EditedAt          *time.Time
 	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
 	// its own queued copy without guessing from body and timestamp.
 	ClientMsgID string
+
+	// ThreadParticipantIDs are a root's three latest distinct repliers,
+	// newest first (attachThreadParticipants); nil on other rows.
+	ThreadParticipantIDs []string
 }
 
 type ListChatMessagesInput struct {
@@ -156,14 +161,20 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return WorkspaceChat{}, err
 	}
-	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return WorkspaceChat{}, ErrNotFound
-	}
 
 	room, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
+		w, wErr := s.q.GetWorkspaceByID(ctx, workspaceID)
+		if wErr != nil {
+			if errors.Is(wErr, pgx.ErrNoRows) {
+				return WorkspaceChat{}, ErrNotFound
+			}
+			return WorkspaceChat{}, wErr
+		}
 		room, err = s.createWorkspaceRoom(ctx, userID, w)
+		if isUniqueViolation(err) {
+			room, err = s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
+		}
 		if err != nil {
 			return WorkspaceChat{}, err
 		}
@@ -287,6 +298,9 @@ func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, room db.
 		Status:         "active",
 		OrganizationID: room.OrganizationID,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
 	return err == nil, err
 }
 
@@ -345,7 +359,9 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID)), nil
+	rows := []ChatMessageRow{s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID))}
+	s.attachThreadParticipants(ctx, room, rows)
+	return rows[0], nil
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.
@@ -396,6 +412,7 @@ func (s *ChatService) listSignedMessages(
 		return nil, err
 	}
 	s.signChatMedia(ctx, room, rows)
+	s.attachThreadParticipants(ctx, room, rows)
 	return rows, nil
 }
 
@@ -600,6 +617,9 @@ func (s *ChatService) sendMessage(
 		return ChatMessageRow{}, err
 	}
 	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", mentions); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := requestChatLinkPreview(ctx, q, userID, room, msg.ID, body); err != nil {
 		return ChatMessageRow{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

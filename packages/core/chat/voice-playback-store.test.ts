@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  cycleChatVoicePlaybackRate,
   seekChatVoicePlayback,
   stopChatVoicePlayback,
   toggleChatVoicePlayback,
@@ -9,6 +10,8 @@ import {
 class FakeAudio {
   static instances: FakeAudio[] = [];
   src = "";
+  playbackRate = 1;
+  defaultPlaybackRate = 1;
   paused = true;
   currentTime = 0;
   duration = Number.NaN;
@@ -84,6 +87,21 @@ describe("voice playback store", () => {
   it("reports a clip that will not load", async () => {
     await toggleChatVoicePlayback("m1", () => Promise.reject(new Error("404")));
     expect(useChatVoicePlaybackStore.getState()).toMatchObject({ activeId: "m1", status: "error" });
+  });
+
+  it("steps the speed 1× → 1,5× → 2× → 1× and keeps it for the next message", async () => {
+    await toggleChatVoicePlayback("m1", signed("m1"));
+    cycleChatVoicePlaybackRate();
+    expect(useChatVoicePlaybackStore.getState().rate).toBe(1.5);
+    expect(player()?.playbackRate).toBe(1.5);
+    cycleChatVoicePlaybackRate();
+    // A new source and a stop leave the chosen speed in place.
+    await toggleChatVoicePlayback("m2", signed("m2"));
+    stopChatVoicePlayback();
+    await toggleChatVoicePlayback("m3", signed("m3"));
+    expect(player()?.playbackRate).toBe(2);
+    cycleChatVoicePlaybackRate();
+    expect(useChatVoicePlaybackStore.getState().rate).toBe(1);
   });
 
   it("stops everything when the room is left", async () => {

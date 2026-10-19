@@ -45,8 +45,16 @@ export function pinChatScrollToBottom(
   apply();
   // measureElement grows the spacer after paint; keep pinning for two frames.
   requestAnimationFrame(() => {
+    if (!stickToBottomRef.current) {
+      programmaticScrollRef.current = false;
+      return;
+    }
     apply();
     requestAnimationFrame(() => {
+      if (!stickToBottomRef.current) {
+        programmaticScrollRef.current = false;
+        return;
+      }
       apply();
       programmaticScrollRef.current = false;
     });
@@ -123,11 +131,6 @@ export function VirtualChatMessageList({
 
   const lastMessageId = messages[messages.length - 1]?.id;
   const hadMessagesRef = useRef(false);
-  // Read by the first-paint pin: a list that opens on a jump target is scrolled to it, not to the bottom.
-  const jumpTargetLoadedRef = useRef(false);
-  jumpTargetLoadedRef.current = Boolean(
-    highlightMessageId && messages.some((message) => message.id === highlightMessageId),
-  );
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -135,17 +138,10 @@ export function VirtualChatMessageList({
       hadMessagesRef.current = false;
       return;
     }
-    const firstPaint = !hadMessagesRef.current;
     hadMessagesRef.current = true;
-    // First page for this mount / after empty → land on newest, unless it
-    // opens on a message to jump to (a deep link, or a search that answered first).
-    const jumping = jumpTargetLoadedRef.current;
-    if ((firstPaint && !jumping) || stickToBottomRef.current) {
-      pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef, {
-        force: firstPaint && !jumping,
-      });
-    }
-  }, [messages.length, lastMessageId, scrollRef, stickToBottomRef, programmaticScrollRef]);
+    if (highlightMessageId || !stickToBottomRef.current) return;
+    pinChatScrollToBottom(el, stickToBottomRef, programmaticScrollRef);
+  }, [highlightMessageId, messages.length, lastMessageId, scrollRef, stickToBottomRef, programmaticScrollRef]);
 
   // Row measures + header ("load older") change height after layout.
   useEffect(() => {

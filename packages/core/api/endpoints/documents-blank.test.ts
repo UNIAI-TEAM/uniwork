@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
-import { BLANK_DOCUMENT_FORMATS, createBlankDocumentFile } from "./documents-blank";
+import {
+  BLANK_DOCUMENT_FORMATS,
+  DOCUMENT_DESTINATIONS,
+  createBlankDocumentFile,
+  type CreateBlankDocumentBody,
+} from "./documents-blank";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -57,6 +62,32 @@ describe("documents-blank endpoint", () => {
     expect(out?.id).toBe("d1");
   });
 
+  it("posts destination: my_folder without parent_id", async () => {
+    expect(DOCUMENT_DESTINATIONS).toEqual(["my_folder"]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ parent_id: "mf1" }) }, 201));
+    const out = await createBlankDocumentFile("w1", {
+      format: "docx",
+      title: "Tài liệu mới",
+      destination: "my_folder",
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      format: "docx",
+      title: "Tài liệu mới",
+      destination: "my_folder",
+    });
+    expect(out?.parent_id).toBe("mf1");
+
+    // @ts-expect-error destination and parent_id are mutually exclusive
+    const badBlankBody: CreateBlankDocumentBody = {
+      format: "docx",
+      title: "x",
+      destination: "my_folder",
+      parent_id: "p1",
+    };
+    expect(badBlankBody).toBeDefined();
+  });
+
   it("omits the header without a key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody() }, 201));
     await createBlankDocumentFile("w1", { format: "md", title: "t" });
@@ -72,5 +103,22 @@ describe("documents-blank endpoint", () => {
   it("still parses a drifted kind enum", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "future_kind" }) }, 201));
     expect((await createBlankDocumentFile("w1", { format: "docx", title: "t" }))?.id).toBe("d1");
+  });
+
+  it("posts visibility and no workspace_level when sharing with workspace on create", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ visibility: "workspace" }) }, 201),
+    );
+    await createBlankDocumentFile("w1", {
+      format: "docx",
+      title: "Tài liệu",
+      visibility: "workspace",
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      format: "docx",
+      title: "Tài liệu",
+      visibility: "workspace",
+    });
   });
 });

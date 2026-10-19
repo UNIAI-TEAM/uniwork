@@ -30,6 +30,7 @@ import {
   type TaskTableDisplayRow,
 } from "./table-view-model";
 import { useDebouncedValue } from "./use-debounced-value";
+import { useStatusLabel } from "../pickers/status-catalog";
 
 const EMPTY_TASKS: Task[] = [];
 const NO_PARENTS: TableParentRef[] = [];
@@ -79,6 +80,7 @@ export function useTableViewData({
   properties?: ReadonlyMap<string, TaskProperty>;
 }): UseTableViewDataResult {
   const { t } = useTranslation();
+  const statusLabel = useStatusLabel();
   const tableGrouping = useViewStore((s) => s.tableGrouping);
   const setTableGrouping = useViewStore((s) => s.setTableGrouping);
   const tableCollapsedGroups = useViewStore((s) => s.tableCollapsedGroups);
@@ -173,7 +175,7 @@ export function useTableViewData({
         return text === key ? fallback : text;
       };
       return groupLabelFromDescriptor(group.key, group.value, {
-        translateStatus: (status) => translated(`tasks.status_${status}`, status),
+        translateStatus: statusLabel,
         translatePriority: (priority) => translated(`tasks.priority_${priority}`, priority),
         unassigned: t("tasks.unassigned"),
         noProject: t("tasks.table.no_project"),
@@ -183,7 +185,7 @@ export function useTableViewData({
         resolveAssignee: (id) => assigneeNames?.get(id),
       });
     },
-    [assigneeNames, t],
+    [assigneeNames, statusLabel, t],
   );
 
   const groupColor = useCallback(

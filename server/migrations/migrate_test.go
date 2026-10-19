@@ -178,12 +178,16 @@ func emptyPublicTables(t *testing.T, pool *pgxpool.Pool) {
 
 // clearRowsDownGuardsRefuse deletes the leftover rows that a down migration
 // refuses on purpose, and nothing else. The isolation matrix leaves FileService
-// attachments (no object_key) on purpose, 969's down refuses them, and the
-// recording file_id columns are guarded the same way by 972, so which package
-// ran first decided whether a long rollback passed. It must not truncate: the
-// shared test DB holds rows that later migrations seed (the billing plans), and
-// a rollback that stops above them never puts them back for the packages that
-// run afterwards.
+// attachments (no object_key) on purpose, 969's down refuses them, the
+// recording file_id columns are guarded the same way by 972, and 0004's down
+// rebuilds the pre-system_kind folder-name unique index (a single-statement
+// CONCURRENTLY file) before 0001 drops system_kind, which refuses the root My
+// Folder rows (system_kind = 'my_folder', title = 'My Folder') that
+// EnsureMyFolder tests leave behind — so which package ran first decided
+// whether a long rollback passed. It must not truncate: the shared test DB
+// holds rows that later migrations seed (the billing plans), and a rollback
+// that stops above them never puts them back for the packages that run
+// afterwards.
 func clearRowsDownGuardsRefuse(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
@@ -191,6 +195,7 @@ func clearRowsDownGuardsRefuse(t *testing.T, pool *pgxpool.Pool) {
 		`DELETE FROM attachments WHERE object_key IS NULL`,
 		`DELETE FROM meeting_recordings WHERE file_id IS NOT NULL`,
 		`DELETE FROM chat_voice_recordings WHERE file_id IS NOT NULL`,
+		`DELETE FROM documents WHERE system_kind IS NOT NULL`,
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)
@@ -668,5 +673,51 @@ func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE organization_members SET role='owner' WHERE organization_id=$1 AND user_id=$2`,
 		"01ORGA00000000000000000011", "01USER00000000000000000012"); err == nil {
 		t.Fatal("expected the single-owner unique index to refuse a second owner")
+	}
+}
+
+// Rolling back the notice column hands the rows to a binary that replays every
+// assistant row as a turn, and a provider refuses an empty one: the down
+// migration gives a notice row the text that binary stored. It runs inside a
+// transaction that is rolled back, so the schema is left as it was.
+func TestAiMessagesNoticeDownFillsNoticeRows(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, notice) VALUES
+		('01NOTICEDOWN00000000000001', 'org', 'conv', 'assistant', '', 'no_sources'),
+		('01NOTICEDOWN00000000000002', 'org', 'conv', 'assistant', 'Câu trả lời', NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, readMigration(t, "9991792125342925_ai_messages_notice.down.sql")); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"01NOTICEDOWN00000000000001": "Chưa đủ dữ liệu trong workspace để trả lời.",
+		"01NOTICEDOWN00000000000002": "Câu trả lời",
+	}
+	for id, content := range want {
+		var got string
+		if err := tx.QueryRow(ctx, `SELECT content FROM ai_messages WHERE id = $1`, id).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != content {
+			t.Errorf("%s content after down = %q, want %q", id, got, content)
+		}
 	}
 }

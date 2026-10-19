@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -51,6 +52,81 @@ func TestMarkRoomReadReportsAStoreFailure(t *testing.T) {
 	}
 	if len(msgs) == 0 {
 		t.Fatal("want messages despite read pointer failure")
+	}
+}
+
+func assertVoiceEventMatchesCatalogue(t *testing.T, ev Event) {
+	t.Helper()
+	if !strings.HasPrefix(ev.Type, "chat.voice.") {
+		return
+	}
+	def, ok := outbox.Lookup(ev.Type)
+	if !ok {
+		t.Fatalf("catalogue missing %s", ev.Type)
+	}
+	allowed := map[string]bool{}
+	for _, k := range def.Payload {
+		allowed[k] = true
+	}
+	for k := range ev.Payload {
+		if !allowed[k] {
+			t.Errorf("%s payload key %q not in catalogue %v", ev.Type, k, def.Payload)
+		}
+	}
+}
+
+func TestVoiceSignalFramesCarryOnlyCatalogueKeys(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	uc, err := q.CreateUser(ctx, db.CreateUserParams{
+		ID: util.NewID(), Email: "voice-catalogue-c@example.com", DisplayName: "C", Locale: "vi",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addOrgMember(t, q, w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, q, w.ID, uc.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
+		Name: "Voice", MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pub.events = nil
+	pub.sent = nil
+
+	runCall := func(roomID, callID, callerID, calleeID string) {
+		t.Helper()
+		if err := s.SignalVoiceInvite(ctx, callerID, w.ID, roomID, callID, false); err != nil {
+			t.Fatalf("invite %s: %v", callID, err)
+		}
+		if err := s.SignalVoiceAccept(ctx, calleeID, w.ID, roomID, callID); err != nil {
+			t.Fatalf("accept %s: %v", callID, err)
+		}
+		if err := s.SignalVoiceHangup(ctx, callerID, w.ID, roomID, callID); err != nil {
+			t.Fatalf("hangup %s: %v", callID, err)
+		}
+	}
+	runCall(dm.ID, "cat-dm", ua.ID, ub.ID)
+	runCall(group.ID, "cat-group", ua.ID, uc.ID)
+
+	for _, ev := range pub.events {
+		assertVoiceEventMatchesCatalogue(t, ev)
+	}
+	for _, typ := range []string{"chat.voice.invite", "chat.voice.accept", "chat.voice.hangup"} {
+		for _, dest := range pub.sentTo(typ) {
+			if strings.HasPrefix(dest, "chat:") {
+				t.Errorf("%s was published to %s", typ, dest)
+			}
+		}
 	}
 }
 

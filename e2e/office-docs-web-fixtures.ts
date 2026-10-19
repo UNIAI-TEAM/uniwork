@@ -37,6 +37,15 @@ export async function seedDocx(page: Page, baseUrl: string, tag: string): Promis
   return seedDocument(page, baseUrl, tag, { name: "docs-web.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) });
 }
 
+/**
+ * A fresh account with one never-saved blank Office document (UNI-1847): the
+ * server stores it as `untitled.docx` at file version 1 - exactly what the
+ * first-save naming gate looks for.
+ */
+export async function seedUntitledDocx(page: Page, baseUrl: string, tag: string): Promise<SeededDocx> {
+  return seedDocument(page, baseUrl, tag, { name: "untitled.docx", mimeType: DOCX_MIME, buffer: readFileSync(DOCX_FIXTURE) });
+}
+
 /** A fresh account with one file document of any format (the module frame specs, UNI-1014). */
 export async function seedDocument(page: Page, baseUrl: string, tag: string, file: { name: string; mimeType: string; buffer: Buffer }): Promise<SeededDocx> {
   const account = await createRecordingAccount(page, e2eApiUrl, tag);
@@ -111,3 +120,46 @@ export async function versionEntries(request: APIRequestContext, token: string, 
   expect(response.ok(), `download v${version}: HTTP ${response.status()}`).toBeTruthy();
   return Object.keys((await JSZip.loadAsync(await response.body())).files);
 }
+
+const heldEditLocks = new Map<string, string>();
+
+/**
+ * Opens `seeded.documentUrl`, captures the page's `POST /api/v1/documents/{id}/edit-lock`
+ * `lock_id` answer (UNI-1645), and records it so `releaseSeededEditLock` (and
+ * `seededEditLockId` for `commitElsewhere`) can use it.
+ */
+export async function openSeededDocument(page: Page, seeded: SeededDocx): Promise<string> {
+  const expectedPath = `/api/v1/documents/${seeded.documentId}/edit-lock`;
+  const acquired = page.waitForResponse(
+    (r) => r.request().method() === "POST" && new URL(r.url()).pathname === expectedPath,
+  );
+  await page.goto(seeded.documentUrl);
+  const response = await acquired;
+  expect(response.ok(), `acquire edit lock: HTTP ${response.status()} ${await response.text()}`).toBeTruthy();
+  const { lock_id } = (await response.json()) as { lock_id: string };
+  expect(lock_id, "edit-lock response missing lock_id").toBeTruthy();
+  heldEditLocks.set(seeded.documentId, lock_id);
+  return lock_id;
+}
+
+/** The edit-lock tenure id recorded when `seeded` was opened in the current test. */
+export function seededEditLockId(seeded: SeededDocx): string | undefined {
+  return heldEditLocks.get(seeded.documentId);
+}
+
+/**
+ * Releases the edit lock recorded for `seeded` via `DELETE /api/v1/documents/{id}/edit-lock/{lockId}`
+ * (idempotent 204), so the next test reusing the seeded document can acquire its own tenure.
+ */
+export async function releaseSeededEditLock(request: APIRequestContext, seeded: SeededDocx | undefined): Promise<void> {
+  if (!seeded) return;
+  const lockId = heldEditLocks.get(seeded.documentId);
+  if (!lockId) return;
+  heldEditLocks.delete(seeded.documentId);
+  const response = await request.delete(
+    `${e2eApiUrl}/api/v1/documents/${encodeURIComponent(seeded.documentId)}/edit-lock/${encodeURIComponent(lockId)}`,
+    { headers: { authorization: `Bearer ${seeded.account.token}` } },
+  );
+  expect(response.ok(), `release edit lock: HTTP ${response.status()} ${await response.text()}`).toBeTruthy();
+}
+

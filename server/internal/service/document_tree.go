@@ -108,7 +108,7 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	if err != nil {
 		return DocumentView{}, err
 	}
-	if access.Level == DocumentLevelNone {
+	if access.Level == DocumentLevelNone && !access.AdminScope {
 		// Nothing readable at all is not found - the owned refusal below
 		// must never confirm an id to a caller who cannot see it.
 		return DocumentView{}, ErrNotFound
@@ -117,6 +117,9 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 		// §13: a work-product-owned document has no tree slot; the owner
 		// service archives and removes it through the internal seam.
 		return DocumentView{}, errDocumentOwned()
+	}
+	if isMyFolder(doc) {
+		return DocumentView{}, errMyFolderLocked()
 	}
 	if err := decideDocumentAccess(doc, access, DocumentLevelEdit); err != nil {
 		return DocumentView{}, err
@@ -128,6 +131,11 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	}
 	if doc.ArchivedAt.Valid {
 		return DocumentView{}, errDocumentDeleted()
+	}
+	// A shelved document is read-only: it cannot move, and a shelved
+	// destination cannot take it (checked on the locked parent below).
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentView{}, err
 	}
 	if in.Revision != doc.Revision {
 		return DocumentView{}, errRevisionConflict(doc.Revision)
@@ -198,6 +206,12 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 			return DocumentView{}, err
 		}
 		if err := decideDocumentAccess(parent, paccess, DocumentLevelEdit); err != nil {
+			return DocumentView{}, err
+		}
+		// A shelved destination is read-only: named only to a caller who
+		// already passed its edit gate, so the 409 leaks nothing the refusal
+		// would hide.
+		if err := requireNotShelved(parent); err != nil {
 			return DocumentView{}, err
 		}
 		// After the access gate, like lockPageParent: a parent the caller
@@ -337,13 +351,18 @@ func positionFingerprint(p *float64) string {
 // never reveals a restricted page's place in the forest (the flat list
 // still shows the node itself when the actor may read it).
 type DocumentTreeNode struct {
-	ID       string             `json:"id"`
-	ParentID string             `json:"parent_id,omitempty"`
-	Title    string             `json:"title"`
-	Icon     string             `json:"icon,omitempty"`
-	Kind     string             `json:"kind"`
-	Position float64            `json:"position"`
-	Children []DocumentTreeNode `json:"children"`
+	ID         string             `json:"id"`
+	ParentID   string             `json:"parent_id,omitempty"`
+	Title      string             `json:"title"`
+	Icon       string             `json:"icon,omitempty"`
+	Kind       string             `json:"kind"`
+	SystemKind string             `json:"system_kind,omitempty"`
+	Position   float64            `json:"position"`
+	Children   []DocumentTreeNode `json:"children"`
+	// EditLock is who is editing this node's document right now, when a live
+	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
+	// carries the tenure id.
+	EditLock *DocumentEditLockSummary `json:"edit_lock,omitempty"`
 }
 
 // DocumentTree returns the visible subtree under rootID ("" = the roots) as
@@ -359,9 +378,11 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	}
 	rows, err := s.q.ListTreeDocuments(ctx, db.ListTreeDocumentsParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
+		MaxLevel: subtreeMaxLevel(),
+		SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
 		AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
-		AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
+		AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
+		ShareWorkspaces: scope.shareWorkspaces,
 	})
 	if err != nil {
 		return nil, err
@@ -388,6 +409,7 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 			}
 		}
 	}
+	var nodes []DocumentTreeNode
 	if rootID == "" {
 		var roots []db.Document
 		for _, d := range rows {
@@ -398,25 +420,28 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 				roots = append(roots, d)
 			}
 		}
-		return buildTreeNodes(roots, children, 1), nil
+		nodes = buildTreeNodes(roots, children, 1)
+	} else {
+		if _, ok := byID[rootID]; !ok {
+			return nil, ErrNotFound
+		}
+		nodes = buildTreeNodes(children[rootID], children, 1)
 	}
-	if _, ok := byID[rootID]; !ok {
-		return nil, ErrNotFound
-	}
-	return buildTreeNodes(children[rootID], children, 1), nil
+	return nodes, s.attachTreeEditLocks(ctx, actor, scope.organizationID, nodes)
 }
 
 func buildTreeNodes(docs []db.Document, children map[string][]db.Document, depth int) []DocumentTreeNode {
 	nodes := make([]DocumentTreeNode, 0, len(docs))
 	for _, d := range docs {
 		node := DocumentTreeNode{
-			ID:       d.ID,
-			ParentID: d.ParentID.String,
-			Title:    d.Title,
-			Icon:     d.Icon.String,
-			Kind:     d.Kind,
-			Position: d.Position,
-			Children: []DocumentTreeNode{},
+			ID:         d.ID,
+			ParentID:   d.ParentID.String,
+			Title:      d.Title,
+			Icon:       d.Icon.String,
+			Kind:       d.Kind,
+			SystemKind: d.SystemKind.String,
+			Position:   d.Position,
+			Children:   []DocumentTreeNode{},
 		}
 		if depth < maxDocumentDepth {
 			node.Children = buildTreeNodes(children[d.ID], children, depth+1)

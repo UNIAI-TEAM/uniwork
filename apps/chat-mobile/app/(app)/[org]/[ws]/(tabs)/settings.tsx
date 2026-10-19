@@ -5,9 +5,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
+import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { DevicesSection } from "@/components/settings/devices-section";
 import { PushSection } from "@/components/settings/push-section";
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
 import { Text } from "@/components/ui/text";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
+import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
 import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
 import { unregisterPushToken } from "@/data/push";
@@ -92,13 +95,14 @@ function OptionGroup<T extends string>({
 
 export default function SettingsTab() {
   const { t } = useTranslation();
-  const { org, ws } = useLocalSearchParams<{ org: string; ws: string }>();
+  const { org = "", ws = "" } = useWorkspaceSlugs();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { colorScheme, preference, setPreference } = useColorScheme();
   const { locale, setLocale } = useLocalePreference();
   const { data: workspaces } = useQuery(workspaceListOptions());
   const workspace = workspaces?.find((w) => w.organization_slug === org && w.slug === ws);
+  const [switchOpen, setSwitchOpen] = useState(false);
   const name = user?.display_name.trim() || user?.email || "";
 
   const onLogout = async () => {
@@ -117,9 +121,9 @@ export default function SettingsTab() {
           className="flex-row items-center gap-3.5 rounded-xl bg-card p-4"
           style={continuousCorners}
         >
-          <PersonAvatar name={name} avatarUrl={user?.avatar_url} size={56} />
+          <PersonAvatar name={name} avatarUrl={user?.avatar_url} size={56} seed={user?.id} />
           <View className="flex-1 gap-0.5">
-            <Text numberOfLines={1} className="text-lg font-bold text-foreground">
+            <Text numberOfLines={1} className="text-lg font-display font-bold text-foreground">
               {name}
             </Text>
             <Text numberOfLines={1} className="text-sm text-muted-foreground">
@@ -130,12 +134,12 @@ export default function SettingsTab() {
 
         <SettingsSection title={t("mobile.settings.workspace")}>
           <Pressable
-            onPress={() => router.push("/select-workspace")}
+            onPress={() => setSwitchOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel={t("mobile.settings.switch_workspace")}
+            accessibilityLabel={`${t("mobile.settings.switch_workspace")}, ${t("chat.mobile.workspace_at", { name: workspace?.name ?? ws })}`}
             className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-3.5 active:bg-secondary"
           >
-            <WorkspaceAvatar name={workspace?.name ?? ws} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} size={40} />
+            <WorkspaceAvatar name={workspace?.name ?? ws} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} size={40} seed={workspace?.id} />
             <View className="flex-1">
               <Text numberOfLines={1} className="text-base font-semibold text-foreground">
                 {workspace?.name ?? ws}
@@ -156,6 +160,7 @@ export default function SettingsTab() {
             className="h-12 rounded-full bg-destructive-solid active:opacity-90 sm:h-12 dark:bg-destructive-solid"
             onPress={() => void onLogout()}
           >
+            <Ionicons name="log-out-outline" size={18} color={THEME.light.primaryForeground} />
             <Text className="text-base font-semibold">{t("auth.logout")}</Text>
           </Button>
           <Text className="text-center text-xs text-muted-foreground">
@@ -163,6 +168,7 @@ export default function SettingsTab() {
           </Text>
         </View>
       </ScrollView>
+      <WorkspaceSwitchSheet visible={switchOpen} onClose={() => setSwitchOpen(false)} currentWsId={workspace?.id ?? ""} />
     </View>
   );
 }

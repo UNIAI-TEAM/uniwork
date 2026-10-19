@@ -6,6 +6,7 @@ import {
 } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
+import JSZip from "jszip";
 import { e2eApiUrl } from "./api-url";
 import { VERIFICATION_CODE } from "./auth-nav";
 import {
@@ -17,7 +18,9 @@ import {
 /**
  * Locates the table row (`tbody tr`) in the Documents library / folder content table
  * (`packages/views/documents/documents-library-list.tsx:135` `aria-label="Tài liệu"`)
- * containing the exact title text.
+ * containing the exact title text. The table lists documents only: at home and
+ * inside a folder each folder is a card in the "Thư mục"/"Thư mục con" section
+ * (`folderCard`), never a row.
  */
 export function contentRow(page: Page, title: string): Locator {
   return page
@@ -31,6 +34,22 @@ export function contentRow(page: Page, title: string): Locator {
  */
 export function contentRowOpen(page: Page, title: string): Locator {
   return contentRow(page, title).getByRole("button").first();
+}
+
+/**
+ * Locates a folder card (`li`) in the "Thư mục" (home) or "Thư mục con" (open
+ * folder) section (`packages/views/documents/documents-folders-grid.tsx:63-122`).
+ * The section is a region named by its h2 (`section aria-labelledby`, :182-187).
+ * The card's open button and its ⋯ "Thao tác cho <title>" trigger live in the
+ * same `li`, so `folderCard(page, t).getByRole("button", { name: "Thao tác cho
+ * " + t, exact: true })` opens the card menu; the open button is the first
+ * `button` inside.
+ */
+export function folderCard(page: Page, title: string): Locator {
+  return page
+    .getByRole("region", { name: /^Thư mục/ })
+    .getByRole("listitem")
+    .filter({ has: page.getByText(title, { exact: true }) });
 }
 
 const repoRoot =
@@ -261,7 +280,7 @@ const FOLDER_USER_PASSWORD = "password123";
  * /auth/register shares a 60/min per-IP credential limit with every parallel
  * worker, and A12 registers several extra members per run.
  */
-async function registerFolderUser(
+export async function registerFolderUser(
   page: Page,
   tag: string,
 ): Promise<{ token: string; email: string }> {
@@ -377,7 +396,41 @@ export async function apiCreateDocument(
       data: input,
     }),
   );
-  return parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
+  const parsed = await parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
+  if (parsed.ok && parsed.data && !input.parent_id && input.visibility !== "restricted") {
+    return { ...parsed, data: await openRootDocumentToWorkspace(page, token, wsId, parsed.data.id) };
+  }
+  return parsed;
+}
+
+/**
+ * A root document is private at create since U-SH2 (SH-S1, 1cd4497d9) and a
+ * named "workspace" opens it at view only. These specs seed what they mean
+ * by a plain create: a document every workspace member may edit, the
+ * pre-SH-S1 default. The workspace share writes the home row at edit; a
+ * child created under it inherits both, so only roots need the call. The
+ * share bumps the revision, so the returned document is read again: the
+ * callers pass its revision to move and rename.
+ */
+async function openRootDocumentToWorkspace(
+  page: Page,
+  token: string,
+  wsId: string,
+  docId: string,
+): Promise<DocumentDTO> {
+  const res = await requestWithRetry429(() =>
+    page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/shares`, {
+      headers: { ...authHeaders(token), "content-type": "application/json" },
+      data: { principal_type: "workspace", principal_id: wsId, level: "edit" },
+    }),
+  );
+  expect(
+    res.ok(),
+    `open ${docId} to the workspace failed: ${res.status()} ${await res.text()}`,
+  ).toBeTruthy();
+  const fresh = await getDocument(page, token, docId);
+  expect(fresh.ok && fresh.data, `getDocument(${docId}): ${fresh.status}`).toBeTruthy();
+  return fresh.data!;
 }
 
 export async function createFolder(
@@ -472,6 +525,9 @@ export async function uploadFixtureFile(
     `uploadFixtureFile(${fixtureId}) failed: ${res.status()} ${rawText}`,
   ).toBeTruthy();
   const body = JSON.parse(rawText) as { document: DocumentDTO };
+  if (!options?.parentId) {
+    return openRootDocumentToWorkspace(page, token, wsId, body.document.id);
+  }
   return body.document;
 }
 
@@ -577,6 +633,8 @@ export function expectLaterUpdatedAt(
  * Asserts the rows of the Documents content table appear in this top-to-bottom
  * order. Rows are located through `contentRow` (table role + title text) and
  * compared by their rendered position, so the check reads what the viewer sees.
+ * The table holds documents only; folder cards order by tree position
+ * (`expectCardOrder`).
  */
 export async function expectRowOrder(
   page: Page,
@@ -594,6 +652,31 @@ export async function expectRowOrder(
   const rendered = titles
     .map((title, i) => ({ title, top: tops[i]! }))
     .sort((a, b) => a.top - b.top)
+    .map((r) => r.title);
+  expect(rendered).toEqual(titles);
+}
+
+/**
+ * Asserts the folder cards of the "Thư mục"/"Thư mục con" section appear in this
+ * left-to-right, top-to-bottom order. Cards render in tree order (the toolbar
+ * sort does not reorder them, documents-folders-grid.tsx:205-208); the check
+ * compares the rendered y (then x) positions of `folderCard` locators.
+ */
+export async function expectCardOrder(
+  page: Page,
+  titles: string[],
+): Promise<void> {
+  const boxes: { title: string; x: number; y: number }[] = [];
+  for (const title of titles) {
+    const card = folderCard(page, title);
+    await expect(card, `card ${title} is listed`).toHaveCount(1);
+    await expect(card).toBeVisible();
+    const box = await card.boundingBox();
+    expect(box, `card ${title} has a box`).toBeTruthy();
+    boxes.push({ title, x: box!.x, y: box!.y });
+  }
+  const rendered = boxes
+    .sort((a, b) => a.y - b.y || a.x - b.x)
     .map((r) => r.title);
   expect(rendered).toEqual(titles);
 }
@@ -831,6 +914,12 @@ export async function seedDocumentArtifacts(
     // server/internal/service/document_versions.go:67-69 & server/internal/handler/documents.go:259-320:
     // file documents create version 1 on upload and subsequent versions via /uploads + /versions/commit.
     const meta = FIXTURE_FILES["fx-docx-report-vi"];
+    // Different bytes from the uploaded v1: an identical file makes no new version
+    // (VERSION-DEDUP, UNI-1900). A zip comment keeps the DOCX itself unchanged.
+    const v2Bytes = await (await JSZip.loadAsync(readFileSync(meta.path))).generateAsync({
+      type: "nodebuffer",
+      comment: `e2e version 2 ${Date.now()}`,
+    });
     const upKey = `up-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const upRes = await requestWithRetry429(() =>
       page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/uploads`, {
@@ -839,7 +928,7 @@ export async function seedDocumentArtifacts(
           file: {
             name: meta.name,
             mimeType: meta.mimeType,
-            buffer: readFileSync(meta.path),
+            buffer: v2Bytes,
           },
         },
       }),

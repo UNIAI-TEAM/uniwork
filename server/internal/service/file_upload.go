@@ -79,9 +79,14 @@ func (s *FileService) Upload(ctx context.Context, in files.UploadInput) (files.U
 	}
 	defer spool.close()
 
-	contentType := spec.Policy.Canonical(files.DetectContentType(spool.head, in.Filename))
+	contentType := spec.Policy.Canonical(files.DetectBodyContentType(spool.head, in.Filename, spool.file, spool.size))
 	if !spec.Policy.Allows(contentType) {
 		return files.Upload{}, s.refuseAttempt(ctx, att, files.TypeRejected(contentType))
+	}
+	if in.Check != nil {
+		if err := in.Check(ctx, spool.file, spool.size, contentType); err != nil {
+			return files.Upload{}, s.refuseAttemptWith(ctx, att, files.CodeTypeRejected, err)
+		}
 	}
 
 	if s.quota != nil && in.Scope.OrganizationID != "" {
@@ -288,6 +293,10 @@ func (s *FileService) insertIntentFile(ctx context.Context, q *db.Queries, spec 
 // command replay it from the record (T1-Q8). Nothing was stored, so the file
 // fails and its reconcile job is voided; no bytes need cleaning.
 func (s *FileService) refuseAttempt(ctx context.Context, att uploadAttempt, refusal *files.Error) error {
+	return s.refuseAttemptWith(ctx, att, refusal.Code, refusal)
+}
+
+func (s *FileService) refuseAttemptWith(ctx context.Context, att uploadAttempt, code string, cause error) error {
 	err := s.inTx(ctx, func(q *db.Queries) error {
 		now := s.now()
 		if held, err := s.stillHolds(ctx, q, att); err != nil || !held {
@@ -295,7 +304,7 @@ func (s *FileService) refuseAttempt(ctx context.Context, att uploadAttempt, refu
 			return err
 		}
 		if _, err := q.RefuseUploadSession(ctx, db.RefuseUploadSessionParams{
-			ID: att.session.ID, FailureCode: fileText(refusal.Code), ClosedAt: fileTime(now),
+			ID: att.session.ID, FailureCode: fileText(code), ClosedAt: fileTime(now),
 		}); err != nil {
 			return err
 		}
@@ -308,9 +317,9 @@ func (s *FileService) refuseAttempt(ctx context.Context, att uploadAttempt, refu
 	if err != nil {
 		// The refusal still stands for this call; the reconcile job that is
 		// left behind finds the failed intent later.
-		return errors.Join(refusal, err)
+		return errors.Join(cause, err)
 	}
-	return refusal
+	return cause
 }
 
 // abandonAttempt gives the lease back after a transient failure. The session

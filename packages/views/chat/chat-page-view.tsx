@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useOptionalWorkspace } from "../layout/workspace-context";
+import { useChatScope } from "./chat-scope";
 import {
   mergeActiveDmContact,
   sidebarFromChatRooms,
@@ -41,12 +42,8 @@ import type { ChatMessage } from "./chat-messages";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { useChatReminderNotifications } from "./use-chat-reminder-notify";
 import { chatErrorMessage } from "./chat-error-message";
-import {
-  applySelfAvatarToNameContext,
-  buildMemberAvatarUrlMap,
-  withSelfAvatarFromUser,
-} from "./chat-member-avatar";
-import { buildChatNameContext, chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
+import { chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
+import { useChatPageNames } from "./use-chat-page-names";
 import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
@@ -54,6 +51,7 @@ import { ChatPageAuthLoading } from "./chat-page-auth-loading";
 import { givenNameOf } from "./chat-initials";
 import { ChatPageContent } from "./chat-page-content";
 import { ChatSeenByProvider, useChatSeenBy } from "./chat-seen-by";
+import { useChatDeliveredAt } from "./chat-delivered";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useUrlRoomPending } from "./use-chat-page-panels";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
@@ -89,7 +87,6 @@ export function ChatPageView({
   const workspaceName = useOptionalWorkspace()?.workspace.name;
   useChatReminderNotifications(workspaceId);
   const authReady = useAuthStore((s) => s.status === "authed");
-  const authUser = useAuthStore((s) => (s.status === "authed" ? s.user : null));
   const { data: rooms = NO_ROOMS, isError, refetch, isSuccess: roomsLoaded } = useChatRooms(workspaceId);
   const { data: nicknamesByUserId = NO_NICKNAMES } = useChatNicknames(workspaceId);
   const { data: workspaceMembers = NO_MEMBERS } = useMembers(workspaceId);
@@ -193,7 +190,8 @@ export function ChatPageView({
 
   // `?room=` from a reload or a link: no room opens (or is marked read) until that one does.
   const urlRoomPending = useUrlRoomPending({ targetKind: target.kind, workspaceRoomId, roomsLoaded, channels, groups, contacts: roomContacts });
-  const activeRoomId = urlRoomPending
+  const { scope, mismatch: scopeMismatch } = useChatScope({ target, setTarget, rooms, roomsReady: roomsLoaded, contacts: roomContacts, groups });
+  const activeRoomId = urlRoomPending || scopeMismatch
     ? null
     : target.kind === "workspace"
       ? workspaceRoomId
@@ -261,10 +259,11 @@ export function ChatPageView({
   const showLoading =
     !authReady ||
     urlRoomPending ||
-    (target.kind === "workspace" && ensureRoom.isPending && !workspaceRoomId) ||
-    (target.kind === "dm" && !activeRoomId && (resolveDM.isPending || !roomsLoaded)) ||
-    (target.kind === "group" && !activeRoomId) ||
-    (target.kind === "channel" && !activeRoomId);
+    (!scopeMismatch &&
+      ((target.kind === "workspace" && ensureRoom.isPending && !workspaceRoomId) ||
+        (target.kind === "dm" && !activeRoomId && (resolveDM.isPending || !roomsLoaded)) ||
+        (target.kind === "group" && !activeRoomId) ||
+        (target.kind === "channel" && !activeRoomId)));
 
   const { groupMemberProfiles, clearGroupMemberProfiles } = useNativeGroupMemberProfiles({
     workspaceId,
@@ -342,33 +341,12 @@ export function ChatPageView({
     nicknamesByUserId,
     channels,
   );
-  const memberAvatarByUserId = useMemo(
-    () =>
-      withSelfAvatarFromUser(
-        buildMemberAvatarUrlMap(workspaceMembers),
-        authUser?.id,
-        authUser?.avatar_url,
-      ),
-    [workspaceMembers, authUser?.avatar_url, authUser?.id],
-  );
-  const nameContext = useMemo(
-    () =>
-      applySelfAvatarToNameContext(
-        buildChatNameContext(
-          contacts,
-          activeContact,
-          activeGroup,
-          groupMemberProfiles,
-          workspaceMembers,
-          nicknamesByUserId,
-        ),
-        authUser?.id,
-        authUser?.avatar_url,
-      ),
-    [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId, authUser?.avatar_url, authUser?.id],
+  const { memberAvatarByUserId, nameContext } = useChatPageNames(
+    contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId,
   );
   const seenBy = useChatSeenBy(activeRoomRecord, activeRoomMembers, nameContext, currentUserId);
   const peerLastReadAt = target.kind === "dm" ? (activeRoomRecord?.peer_last_read_at ?? null) : seenBy.lastReadAt;
+  const deliveredAt = useChatDeliveredAt(activeRoomRecord, activeRoomMembers, currentUserId);
   const roomPreviewsByRoomId = useMemo(
     () => applyKnownPeopleToRoomPreviews(rawRoomPreviews, nameContext),
     [nameContext, rawRoomPreviews],
@@ -438,8 +416,9 @@ export function ChatPageView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ChatSeenByProvider value={seenBy.value}>
+      <ChatSeenByProvider value={seenBy.value} deliveredAt={deliveredAt}>
         <ChatPageContent
+          scope={scope}
           target={target}
           setTarget={setTarget}
           currentUserId={currentUserId}

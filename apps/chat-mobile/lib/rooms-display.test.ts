@@ -9,6 +9,9 @@ import {
   compareRoomPreviewRecency,
   displayLabelForChatContact,
   formatChatSidebarPreviewText,
+  givenNameOf,
+  isMissedCallPreview,
+  splitChatSidebarPreviewPrefix,
   formatChatSidebarTime,
   resolveChatNicknameForUser,
   sidebarEntryRoomId,
@@ -143,6 +146,42 @@ describe("buildUnifiedSidebarEntries", () => {
 });
 
 describe("chat-sidebar-preview", () => {
+  // packages/views/chat/chat-sidebar-preview.test.ts › missed calls, voice length, photos
+  it("marks a missed call, lengths a voice note and names a photo (web parity)", () => {
+    const base = { senderId: "caller", senderName: "Châu", createdAt: "2026-03-26T10:00:00Z" };
+    const options = {
+      currentUserId: "me",
+      isGroup: false,
+      youLabel: "Bạn",
+      voiceCallLabel: "Cuộc gọi thoại",
+      voiceMessageLabel: "Tin nhắn thoại",
+      missedCallLabel: "Cuộc gọi nhỡ",
+      mediaLabels: { sticker: "Nhãn dán", gif: "GIF", image: "Ảnh" },
+    };
+    const call = { ...base, body: "", kind: "voice_call_log", callOutcome: "unanswered" };
+    expect(isMissedCallPreview(call, "me")).toBe(true);
+    expect(formatChatSidebarPreviewText(call, options)).toBe("Cuộc gọi nhỡ");
+    expect(isMissedCallPreview(call, "CALLER")).toBe(false);
+    expect(formatChatSidebarPreviewText({ ...call, callOutcome: "completed" }, options)).toBe("Cuộc gọi thoại");
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice", durationMs: 41200 }, options)).toBe("Tin nhắn thoại · 0:42");
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice" }, options)).toBe("Tin nhắn thoại");
+    expect(formatChatSidebarPreviewText({ ...base, body: "IMG_0042.JPG", kind: "file" }, options)).toBe("Ảnh");
+    expect(formatChatSidebarPreviewText({ ...base, body: "bao-gia.pdf", kind: "file" }, options)).toBe("bao-gia.pdf");
+  });
+
+  it("prefixes a group line with the sender's given name and splits it back off", () => {
+    const preview = { body: "xem giúp", kind: "text", senderId: "u2", senderName: "Bùi Minh Quân", createdAt: "2026-03-26T10:00:00Z" };
+    const options = { currentUserId: "me", isGroup: true, youLabel: "Bạn", voiceCallLabel: "Cuộc gọi" };
+    const group = formatChatSidebarPreviewText(preview, options);
+    const body = formatChatSidebarPreviewText(preview, { ...options, isGroup: false });
+    expect(group).toBe("Quân: xem giúp");
+    expect(splitChatSidebarPreviewPrefix(group, body)).toEqual({ prefix: "Quân: ", body: "xem giúp" });
+    expect(splitChatSidebarPreviewPrefix("xem giúp", "xem giúp")).toEqual({ prefix: null, body: "xem giúp" });
+    expect(splitChatSidebarPreviewPrefix(null, null)).toEqual({ prefix: null, body: null });
+    expect(givenNameOf("Phòng HC")).toBe("Phòng HC");
+    expect(givenNameOf("Hà")).toBe("Hà");
+  });
+
   it("formats group preview with sender prefix", () => {
     const text = formatChatSidebarPreviewText(
       {
@@ -510,7 +549,7 @@ describe("chat-sidebar-preview", () => {
         youLabel: "Bạn",
         voiceCallLabel: "Cuộc gọi",
       }),
-    ).toBe("Trà My Đào: @Trà My Đào xem giúp");
+    ).toBe("Đào: @Trà My Đào xem giúp");
   });
 
   it("shows a sticker as words, never as its markdown", () => {
@@ -674,6 +713,7 @@ describe("canSendInRoom (web use-resolved-room-permissions parity)", () => {
     allow_create_notes: true,
     allow_create_polls: true,
     allow_send_messages: false,
+    allow_forward: true,
   };
 
   it("sends by default, and not when the room closes sending or the caller is restricted", () => {

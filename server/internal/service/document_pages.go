@@ -74,6 +74,7 @@ type DocumentView struct {
 type CreatePageInput struct {
 	Kind           string
 	ParentID       string
+	Destination    string
 	Title          string
 	Icon           string
 	Visibility     string
@@ -90,6 +91,9 @@ type UpdateDocumentInput struct {
 	Icon       *string
 	Visibility *string
 	Content    json.RawMessage
+	// EditLockID is the caller's edit lock tenure (UNI-1645 §2); empty means
+	// "not holding a lock". Only a patch with Content is gated by it.
+	EditLockID string
 }
 
 // errRevisionConflict is the page-conflict answer of the contract samples
@@ -124,6 +128,38 @@ func validDocumentVisibility(v string) error {
 	return nil
 }
 
+// createHomeRow resolves the visibility and the workspace level a document is
+// created with (SH-S1, U-SH2). The default is private: an empty request at the
+// root stores restricted, and a document that is not workspace-visible has no
+// home row (BR-10) even though the level column keeps a value.
+//
+// An empty request under a parent inherits the parent's pair - visibility and
+// level together, read off the parent row locked in the transaction (C-01 §4;
+// the inheritance is fixed at create, a later move leaves both columns alone).
+//
+// A request that names a visibility is stored as sent. The level is the one
+// the document would grant if that visibility were workspace: the parent's
+// level when the parent is workspace-visible (under a restricted parent there
+// is no home row to read, so view), and view at the root - Q-S3: turning
+// "share with workspace" on at create grants view, the owner raises it from
+// the share dialog.
+func createHomeRow(requested string, parent *db.Document) (visibility, level string) {
+	visibility = requested
+	if parent != nil && visibility == "" {
+		visibility, level = parent.Visibility, parent.WorkspaceLevel
+	}
+	if visibility == "" {
+		visibility = documentVisibilityRestricted
+	}
+	if level == "" {
+		level = string(DocumentLevelView)
+		if parent != nil && parent.Visibility == documentVisibilityWorkspace {
+			level = parent.WorkspaceLevel
+		}
+	}
+	return visibility, level
+}
+
 // sanitizedPage is page JSON after the closed schema ran over it.
 type sanitizedPage struct {
 	content []byte
@@ -144,6 +180,9 @@ func sanitizePage(raw json.RawMessage) (sanitizedPage, error) {
 func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspaceID string, in CreatePageInput) (DocumentView, error) {
 	if actor.Kind != audit.KindHuman || !validActor(actor) {
 		return DocumentView{}, ErrForbidden
+	}
+	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
+		return DocumentView{}, err
 	}
 	kind := in.Kind
 	switch kind {
@@ -206,6 +245,9 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		// a retry in flight across a deploy was claimed with.
 		parts = append(parts, kind)
 	}
+	if in.Destination != "" {
+		parts = append(parts, "destination:"+in.Destination)
+	}
 	opts := IdempotencyOptions{
 		Fingerprint:        IdempotencyFingerprint(parts...),
 		RequireFingerprint: true,
@@ -223,22 +265,27 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentView{}, err
 	}
-	visibility := in.Visibility
-	if in.ParentID != "" {
-		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID, kind)
+	parentID := in.ParentID
+	if in.Destination == DocumentSystemKindMyFolder {
+		mf, _, err := s.ensureMyFolderInTx(ctx, tx, q, actor, w.OrganizationID, workspaceID)
 		if err != nil {
 			return DocumentView{}, err
 		}
-		if visibility == "" {
-			// Inherited at create only; a later move leaves visibility alone.
-			visibility = parent.Visibility
+		parentID = mf.ID
+	}
+	var parent *db.Document
+	if parentID != "" {
+		p, err := s.lockPageParent(ctx, q, actor, parentID, w.OrganizationID, workspaceID, kind)
+		if err != nil {
+			return DocumentView{}, err
 		}
+		parent = &p
 	}
-	if visibility == "" {
-		visibility = documentVisibilityWorkspace
-	}
+	// U-SH2: private at the root unless the request opens the home row; a
+	// child inherits its parent's pair.
+	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
 	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
-		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(in.ParentID),
+		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
 	})
 	if err != nil {
 		return DocumentView{}, err
@@ -249,7 +296,7 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		// serialized with every other naming writer; the index of PR 2 is the
 		// safety net behind it.
 		if err := s.requireFreeFolderName(ctx, q, documentNameScope{
-			OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: in.ParentID, Kind: kind,
+			OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: parentID, Kind: kind,
 		}, title); err != nil {
 			return DocumentView{}, err
 		}
@@ -262,11 +309,12 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		ID:             docID,
 		OrganizationID: w.OrganizationID,
 		WorkspaceID:    workspaceID,
-		ParentID:       nullText(in.ParentID),
+		ParentID:       nullText(parentID),
 		Kind:           kind,
 		Title:          title,
 		Icon:           icon,
 		Visibility:     visibility,
+		WorkspaceLevel: workspaceLevel,
 		Content:        page.content,
 		ContentText:    page.text,
 		SearchText:     documentSearchText(title, page.text),
@@ -283,8 +331,8 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		return DocumentView{}, documentTitleWriteError(kind, err)
 	}
 	created := map[string]any{"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility}
-	if in.ParentID != "" {
-		created["parent_id"] = in.ParentID
+	if parentID != "" {
+		created["parent_id"] = parentID
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
@@ -365,6 +413,11 @@ func (s *DocumentService) authorizeParentIn(ctx context.Context, actor Actor, pa
 	if parent.WorkspaceID != workspaceID || parent.OwnerKind.Valid {
 		return ErrNotFound
 	}
+	// A shelved parent is read-only: the create under it is refused here as
+	// it will be under the row lock (lockPageParent).
+	if err := requireNotShelved(parent); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -401,6 +454,11 @@ func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, act
 	// The trash is not a place to create in, whoever may restore it.
 	if parent.ArchivedAt.Valid {
 		return db.Document{}, ErrNotFound
+	}
+	// A shelved parent is read-only too (addendum §3): create under it is a
+	// write on the parent, refused after its access gate.
+	if err := requireNotShelved(parent); err != nil {
+		return db.Document{}, err
 	}
 	if !childKindAllowed(parent.Kind, childKind) {
 		return db.Document{}, errDocumentParentKind()
@@ -550,13 +608,16 @@ func (s *DocumentService) documentBreadcrumbs(ctx context.Context, q *db.Queries
 //
 // Audit is metadata only - the changed metadata fields, the new revision and
 // whether (not what) the content changed - never the page JSON. The
-// document.updated frame goes out only when title, icon or visibility moved
+// document.updated frame goes out only when title or icon moved
 // (C-01 §5.1/§6.1): an autosave does not fan out to the workspace, and no
-// frame carries a revision (ADR 0015 opens that to task.updated only).
+// frame carries a revision (ADR 0015 opens that to task.updated only). A
+// visibility move is the home row's own event instead
+// (document.workspace_access_changed, SH-S1).
 func (s *DocumentService) UpdateDocument(ctx context.Context, actor Actor, documentID string, in UpdateDocumentInput) (DocumentView, error) {
 	started := time.Now()
 	view, err := s.updateDocument(ctx, actor, documentID, in)
 	s.recordDocumentSave(documentMetricKindPage, err, time.Since(started))
+	s.countEditLockRefused(DocumentEditLockRoutePatch, err)
 	return view, err
 }
 
@@ -609,7 +670,10 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 	// The outer gate admits an AdminScope caller (DOC-05) so they can narrow
 	// visibility; every content field still needs edit, and an admin-only
 	// caller is told the content is restricted.
-	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+		if isMyFolder(doc) {
+			return errMyFolderLocked()
+		}
 		if in.Title != nil || in.Icon != nil || in.Content != nil {
 			if access.Level == DocumentLevelNone && access.AdminScope {
 				return errDocumentRestricted()
@@ -642,6 +706,15 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 		if in.Content != nil && doc.Kind != DocumentKindPage {
 			return Invalid("tài liệu file không nhận content")
 		}
+		if in.Content != nil {
+			// A content write needs the edit lock when one is live (§2); a
+			// rename, icon or visibility patch does not (Q5). 423 comes
+			// before the revision check: a locked caller never reaches the
+			// conflict / overwrite path (contract §4).
+			if err := s.checkDocumentEditLock(ctx, q, actor, doc, in.EditLockID); err != nil {
+				return err
+			}
+		}
 		if in.Revision != doc.Revision {
 			return errRevisionConflict(doc.Revision)
 		}
@@ -659,7 +732,13 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 
 		next := db.UpdateDocumentFieldsParams{
 			Title: doc.Title, Icon: doc.Icon, Visibility: doc.Visibility,
-			Content: doc.Content, ContentText: doc.ContentText, ContentBytes: doc.ContentBytes,
+			// The home row is not part of this fields write (SH-S1): a PATCH
+			// that moves visibility leaves the row at its stored value here
+			// and moves it through writeDocumentHomeRow below, the one
+			// writer, so the audit row, the frame and the legacy-share merge
+			// are a share command's too.
+			WorkspaceLevel: doc.WorkspaceLevel,
+			Content:        doc.Content, ContentText: doc.ContentText, ContentBytes: doc.ContentBytes,
 		}
 		before, after := map[string]any{}, map[string]any{}
 		if in.Title != nil && title != doc.Title {
@@ -670,63 +749,84 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			before["icon"], after["icon"] = textOrNil(doc.Icon), textOrNil(icon)
 			next.Icon = icon
 		}
-		if in.Visibility != nil && *in.Visibility != doc.Visibility {
-			before["visibility"], after["visibility"] = doc.Visibility, *in.Visibility
-			next.Visibility = *in.Visibility
-		}
+		// The home row (SH-S1) moves only visibility; the stored level
+		// survives the toggle.
+		homeChanged := in.Visibility != nil && *in.Visibility != doc.Visibility
 		contentChanged := in.Content != nil && !sameJSON(page.content, doc.Content)
 		if contentChanged {
 			next.Content, next.ContentText, next.ContentBytes = page.content, page.text, int32(len(page.content))
 		}
 		metaChanged := len(after) > 0
-		if !metaChanged && !contentChanged {
+		if !metaChanged && !contentChanged && !homeChanged {
 			view, err := s.documentView(ctx, q, actor, doc)
 			out = view
 			return err
 		}
-		next.SearchText = documentSearchText(next.Title, next.ContentText)
-		next.UpdatedBy, next.UpdatedByKind = actor.ID, string(actor.Kind)
-		next.ContentChanged = contentChanged
-		next.ID, next.OrganizationID, next.WorkspaceID = doc.ID, doc.OrganizationID, doc.WorkspaceID
-		next.ExpectedRevision = doc.Revision
-		if contentChanged {
-			if err := s.consumePageBytes(ctx, q, actor, doc, int64(next.ContentBytes)-int64(doc.ContentBytes)); err != nil {
+		updated := doc
+		if metaChanged || contentChanged {
+			next.SearchText = documentSearchText(next.Title, next.ContentText)
+			next.UpdatedBy, next.UpdatedByKind = actor.ID, string(actor.Kind)
+			next.ContentChanged = contentChanged
+			next.ID, next.OrganizationID, next.WorkspaceID = doc.ID, doc.OrganizationID, doc.WorkspaceID
+			next.ExpectedRevision = doc.Revision
+			if contentChanged {
+				if err := s.consumePageBytes(ctx, q, actor, doc, int64(next.ContentBytes)-int64(doc.ContentBytes)); err != nil {
+					return err
+				}
+			}
+			row, err := q.UpdateDocumentFields(ctx, next)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return errRevisionConflict(doc.Revision)
+			}
+			if err != nil {
+				return documentTitleWriteError(doc.Kind, err)
+			}
+			updated = row
+			if contentChanged {
+				if err := syncDocumentAssetRefs(ctx, q, updated); err != nil {
+					return err
+				}
+			}
+			// One row per write for the metadata half (title/icon moves and
+			// the content autosave); the home-row move below writes its own,
+			// so one command writes at most one row per fact. The frame still
+			// follows a metadata move only: an autosave audits metadata and
+			// does not fan out (C-01 §5.1).
+			var emit []audit.Event
+			if metaChanged {
+				emit = append(emit, audit.Event{Topic: "document.updated", Payload: map[string]string{
+					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+				}})
+			}
+			if err := auditRecorder.Record(ctx, q, audit.Entry{
+				OrganizationID: updated.OrganizationID,
+				WorkspaceID:    updated.WorkspaceID,
+				Actor:          actor,
+				Action:         audit.ActionDocumentUpdated,
+				ResourceType:   "document",
+				ResourceID:     updated.ID,
+				Changes:        audit.Diff(before, after),
+				Metadata: map[string]any{
+					"revision":        strconv.FormatInt(updated.Revision, 10),
+					"content_changed": contentChanged,
+					"content_bytes":   updated.ContentBytes,
+				},
+			}, emit...); err != nil {
 				return err
 			}
 		}
-		updated, err := q.UpdateDocumentFields(ctx, next)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return errRevisionConflict(doc.Revision)
-		}
-		if err != nil {
-			return documentTitleWriteError(doc.Kind, err)
-		}
-		if contentChanged {
-			if err := syncDocumentAssetRefs(ctx, q, updated); err != nil {
+		if homeChanged {
+			if updated, err = writeDocumentHomeRow(ctx, q, actor, updated, documentHomeRowMove{
+				Visibility: *in.Visibility, WorkspaceLevel: doc.WorkspaceLevel,
+				// One successful PATCH bumps the revision once (C-01 §9.1
+				// item 3): the fields write above already moved it when it
+				// ran, so the home row joins that revision instead of adding
+				// a second bump. A visibility-only PATCH has no fields write
+				// and leaves the bump to this move.
+				KeepRevision: metaChanged || contentChanged,
+			}); err != nil {
 				return err
 			}
-		}
-		var emit []audit.Event
-		if metaChanged {
-			emit = append(emit, audit.Event{Topic: "document.updated", Payload: map[string]string{
-				"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
-			}})
-		}
-		if err := auditRecorder.Record(ctx, q, audit.Entry{
-			OrganizationID: updated.OrganizationID,
-			WorkspaceID:    updated.WorkspaceID,
-			Actor:          actor,
-			Action:         audit.ActionDocumentUpdated,
-			ResourceType:   "document",
-			ResourceID:     updated.ID,
-			Changes:        audit.Diff(before, after),
-			Metadata: map[string]any{
-				"revision":        strconv.FormatInt(updated.Revision, 10),
-				"content_changed": contentChanged,
-				"content_bytes":   updated.ContentBytes,
-			},
-		}, emit...); err != nil {
-			return err
 		}
 		view, err := s.documentView(ctx, q, actor, updated)
 		out = view

@@ -7,20 +7,31 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
+import type { Member } from "@uniwork/core/types/workspace";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryGroupSpans, libraryLadder, type LibraryColumnId } from "./library-columns";
-import { rowTypeKey, type RowGroup } from "./library-rows";
+import { ShelvedRowView, type ShelvedRowActions } from "./documents-shelved-row";
+import { libraryGroupSpans, libraryLadder, shelvedLadder, type LibraryColumnId } from "./library-columns";
+import type { RowGroup } from "./library-rows";
 
 const COLUMN_LABEL: Record<LibraryColumnId, string> = {
   name: "documents.home.columns.name",
-  type: "documents.home.columns.type",
-  source: "documents.home.columns.source",
+  access: "documents.home.columns.access",
   editor: "documents.home.columns.editor",
   updated: "documents.home.columns.updated",
   size: "documents.home.columns.size",
-  access: "documents.home.columns.my_access",
-  visibility: "documents.home.columns.visibility",
   actions: "documents.home.columns.actions",
+  // Shelved-only columns: the base map must still satisfy Record<LibraryColumnId, string>.
+  shelved_by: "documents.shelved_list.columns.shelved_by",
+  shelved_at: "documents.shelved_list.columns.shelved_at",
+};
+
+// The Lưu trữ table reads its own header keys (documents.shelved_list.columns.*)
+// for every column; it shares the shell, the group spanners and the states only.
+const SHELVED_COLUMN_LABEL: Record<LibraryColumnId, string> = {
+  ...COLUMN_LABEL,
+  name: "documents.shelved_list.columns.name",
+  access: "documents.shelved_list.columns.access",
+  actions: "documents.shelved_list.columns.actions",
 };
 
 export interface DocumentsLibraryListProps {
@@ -29,18 +40,29 @@ export interface DocumentsLibraryListProps {
   loading: boolean;
   /** The query failed and no rows are cached; `permission` is a 403 tab. */
   failure: "error" | "permission" | null;
-  /** The rows are empty because a filter is on, not because the library is. */
-  filtered: boolean;
+  /** The rows are empty because a filter is on, not because the library is.
+   *  "server" (default when set): the server already filtered the list, so
+   *  the empty line says simply "no matches". "client": the filter ran over
+   *  only what has loaded (merged source rows, starred, the sources view), so
+   *  while the server has more the copy says so and offers the next page. */
+  filteredBy?: "server" | "client" | null;
   /** The access filter (not only the type chip) is on, so the empty line names access, not file type. */
   accessFiltered?: boolean;
   /** The type chip is on too: with both on, the empty line names the filters, not one of them. */
   typeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
-  /** Show the archive badge on every row (the archive tab). */
-  archived?: boolean;
-  /** Show the Type column (`documents.home.columns.type`) when an open folder is displayed. */
-  showType?: boolean;
+  /** The Lưu trữ layout (ARCHIVE-01 U-2): the shelved ladder and
+   *  ShelvedRowView with its own columns and per-row commands. */
+  shelved?: {
+    actions: ShelvedRowActions;
+    /** The workspace member list by user id, feeding the Lưu trữ bởi column. */
+    members: ReadonlyMap<string, Member>;
+    membersReady: boolean;
+  };
+  /** The no-matches copy of the open view when it is not the generic library
+   *  wording (the shelved list names its own empty-filtered line). */
+  emptyFiltered?: { title: string; description: string };
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -61,12 +83,12 @@ export function DocumentsLibraryList({
   groups,
   loading,
   failure,
-  filtered,
+  filteredBy = null,
   accessFiltered = false,
   typeFiltered = false,
   cardsShown = false,
-  archived = false,
-  showType = false,
+  shelved,
+  emptyFiltered,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -107,28 +129,33 @@ export function DocumentsLibraryList({
 
   const total = groups.reduce((sum, group) => sum + group.rows.length, 0);
   if (total === 0) {
-    if (filtered) {
-      // The type filter runs on the pages already loaded; while the server has
-      // more, "no matches" is not an answer yet, so offer the next page.
+    if (filteredBy) {
+      // "no matches" copy (UNI-1868): the server filtered the list already, so
+      // the plain line stands. Only a client-filtered view may honestly say
+      // "no matches in what is loaded" while more pages wait.
+      const clientFiltered = filteredBy === "client";
       return (
         <CollectionPageState
           icon={Search}
-          title={t("documents.library.no_matches_title")}
-          description={t(
-            accessFiltered && typeFiltered
-              ? hasMore
-                ? "documents.home.no_matches_filters_more_description"
-                : "documents.home.no_matches_filters_description"
-              : accessFiltered
-                ? hasMore
-                  ? "documents.home.no_matches_access_more_description"
-                  : "documents.home.no_matches_access_description"
-                : hasMore
-                  ? "documents.home.no_matches_more_description"
-                  : cardsShown
-                    ? "documents.home.no_matches_description"
-                    : "documents.home.no_matches_plain_description",
-          )}
+          title={emptyFiltered?.title ?? t("documents.library.no_matches_title")}
+          description={
+            emptyFiltered?.description ??
+            t(
+              accessFiltered && typeFiltered
+                ? clientFiltered && hasMore
+                  ? "documents.home.no_matches_filters_more_description"
+                  : "documents.home.no_matches_filters_description"
+                : accessFiltered
+                  ? clientFiltered && hasMore
+                    ? "documents.home.no_matches_access_more_description"
+                    : "documents.home.no_matches_access_description"
+                  : clientFiltered && hasMore
+                    ? "documents.home.no_matches_more_description"
+                    : cardsShown
+                      ? "documents.home.no_matches_description"
+                      : "documents.home.no_matches_plain_description",
+            )
+          }
           role="status"
           actions={
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -151,14 +178,16 @@ export function DocumentsLibraryList({
   const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
   const groupTitle = (group: RowGroup): string => {
     if (group.title) return group.title;
+    if (group.key === "folders") return t("documents.home.groups.type.folder");
     if (group.key === "unfiled") return t("documents.home.groups.unfiled");
     if (group.key.startsWith("origin:")) return t(`documents.home.origin.${group.key.slice(7)}`);
     if (group.key.startsWith("type:")) return t(`documents.home.groups.type.${group.key.slice(5)}`, { defaultValue: t("documents.home.groups.type.other") });
     return "";
   };
 
-  const ladder = libraryLadder(showType);
+  const ladder = shelved ? shelvedLadder() : libraryLadder();
   const groupSpans = libraryGroupSpans(ladder);
+  const columnLabel = shelved ? SHELVED_COLUMN_LABEL : COLUMN_LABEL;
 
   return (
     <div className="@container/library flex flex-col">
@@ -182,7 +211,7 @@ export function DocumentsLibraryList({
             <tr className="border-b border-border text-caption text-muted-foreground">
               {ladder.columns.map((column) => (
                 <th key={column.id} scope="col" className={cn("px-3 py-2 font-medium", column.cell)}>
-                  {column.id === "actions" ? <span className="sr-only">{t(COLUMN_LABEL[column.id])}</span> : t(COLUMN_LABEL[column.id])}
+                  {column.id === "actions" ? <span className="sr-only">{t(columnLabel[column.id])}</span> : t(columnLabel[column.id])}
                 </th>
               ))}
             </tr>
@@ -201,14 +230,19 @@ export function DocumentsLibraryList({
                 </tr>
               ) : null}
               {group.rows.map((row) => (
-                <LibraryRowView
-                  key={row.id}
-                  row={row}
-                  handlers={handlers}
-                  archived={archived}
-                  ladder={ladder}
-                  typeCell={showType ? t(rowTypeKey(row)) : undefined}
-                />
+                shelved ? (
+                  <ShelvedRowView
+                    key={row.id}
+                    row={row}
+                    members={shelved.members}
+                    membersReady={shelved.membersReady}
+                    ladder={ladder}
+                    shelved={shelved.actions}
+                    onOpen={handlers.onOpen}
+                  />
+                ) : (
+                  <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} />
+                )
               ))}
             </tbody>
           ))}

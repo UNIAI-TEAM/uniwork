@@ -242,7 +242,8 @@ func TestNotificationDocumentFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/documents", owner, map[string]any{"title": "Kế hoạch", "kind": "page"})
+	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/documents", owner, map[string]any{
+		"title": "Kế hoạch", "kind": "page", "visibility": "workspace"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create document: %d %v", res.StatusCode, out)
 	}

@@ -101,6 +101,14 @@ export function canUpdateWorkspaceSettings(ctx: PermissionContext): Decision {
   return deny("not_admin_role", "Only workspace owners and admins can update workspace settings.");
 }
 
+/** Mirror workspace.go requireActorWorkspaceAdmin, the gate on task status and label writes. */
+export function canManageTaskCatalog(ctx: PermissionContext): Decision {
+  const gate = requireWorkspaceMember(ctx);
+  if (gate) return gate;
+  if (isAdminLike(ctx.wsRole)) return ALLOW;
+  return deny("not_admin_role", "Only workspace owners and admins can manage task statuses and labels.");
+}
+
 // ---- Organization ---------------------------------------------------------
 
 /**

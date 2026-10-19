@@ -25,7 +25,10 @@ const (
 )
 
 // Outcome vocabulary. A conflict is a lost base race; the quota, invalid,
-// gone and unavailable buckets each name one client-visible answer.
+// gone, archived and unavailable buckets each name one client-visible answer.
+// forbidden is every permission refusal, the DOC-05 document_restricted gate
+// for an admin without a read level included; archived is the trash, which is
+// not lost access and stays its own operator signal.
 const (
 	documentOutcomeOK          = "ok"
 	documentOutcomeConflict    = "conflict"
@@ -33,10 +36,19 @@ const (
 	documentOutcomeForbidden   = "forbidden"
 	documentOutcomeNotFound    = "not_found"
 	documentOutcomeGone        = "gone"
+	documentOutcomeArchived    = "archived"
 	documentOutcomeInvalid     = "invalid"
 	documentOutcomeUnavailable = "unavailable"
 	documentOutcomeError       = "error"
 )
+
+// documentOutcomeUnchanged is a file commit whose bytes equal the current
+// version (UNI-1900): 200 with that version, not a new one and not an error.
+const documentOutcomeUnchanged = "unchanged"
+
+// documentOutcomeLocked is a save refused by the edit lock (423
+// document_locked, UNI-1645): not a lost base race, never a conflict.
+const documentOutcomeLocked = "locked"
 
 // documentConflictCodes are the two answers that mean "another save moved the
 // base first" (C-01 §7 matrix "hai save cùng base"). Other conflict-class
@@ -61,6 +73,11 @@ type DocumentMetrics interface {
 	IncDocumentQuotaRejected(kind string)
 	ObserveDocumentWorkerSweep(worker, result string, seconds float64)
 	AddDocumentWorkerRowsFailed(worker string, n int)
+	// The edit lock (UNI-1645): op, route and request outcome are closed
+	// label sets, never ids.
+	IncDocumentEditLockOp(op string)
+	IncDocumentEditLockRefused(route string)
+	IncDocumentEditRequest(op string)
 }
 
 type nopDocumentMetrics struct{}
@@ -72,6 +89,9 @@ func (nopDocumentMetrics) IncDocumentConflict(string, string)                 {}
 func (nopDocumentMetrics) IncDocumentQuotaRejected(string)                    {}
 func (nopDocumentMetrics) ObserveDocumentWorkerSweep(string, string, float64) {}
 func (nopDocumentMetrics) AddDocumentWorkerRowsFailed(string, int)            {}
+func (nopDocumentMetrics) IncDocumentEditLockOp(string)                       {}
+func (nopDocumentMetrics) IncDocumentEditLockRefused(string)                  {}
+func (nopDocumentMetrics) IncDocumentEditRequest(string)                      {}
 
 // SetMetrics wires the operational counters. Unwired, every call is a nop.
 func (s *DocumentService) SetMetrics(m DocumentMetrics) {
@@ -99,6 +119,8 @@ func documentSaveResult(err error) (outcome, conflictCode string) {
 			return documentOutcomeGone, ""
 		case "storage_unavailable":
 			return documentOutcomeUnavailable, ""
+		case "document_locked":
+			return documentOutcomeLocked, ""
 		}
 	}
 	var ve ValidationError
@@ -108,7 +130,9 @@ func documentSaveResult(err error) (outcome, conflictCode string) {
 	switch {
 	case errors.Is(err, ErrQuotaExceeded):
 		return documentOutcomeQuota, ""
-	case errors.Is(err, ErrMemberDeactivated), errors.Is(err, ErrOrganizationSuspended), errors.Is(err, ErrOrganizationDeletionScheduled), errors.Is(err, ErrDocumentArchived), errors.Is(err, ErrForbidden):
+	case errors.Is(err, ErrDocumentArchived):
+		return documentOutcomeArchived, ""
+	case errors.Is(err, ErrMemberDeactivated), errors.Is(err, ErrOrganizationSuspended), errors.Is(err, ErrOrganizationDeletionScheduled), errors.Is(err, ErrForbidden), errors.Is(err, ErrDocumentRestricted):
 		return documentOutcomeForbidden, ""
 	case errors.Is(err, ErrNotFound):
 		return documentOutcomeNotFound, ""

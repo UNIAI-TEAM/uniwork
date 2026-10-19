@@ -30,10 +30,10 @@ export function roomHeaderMark(room: ChatRoomRecord, title: string, online: bool
   if (isDefaultWorkspaceChannel(room)) return { kind: "workspace" };
   switch (room.kind) {
     case "dm":
-      return { kind: "dm", label: title, online };
+      return room.peer_user_id ? { kind: "dm", label: title, online, userId: room.peer_user_id } : { kind: "dm", label: title, online };
     case "channel":
       return { kind: room.visibility === "private" ? "private-channel" : "channel" };
     default:
-      return { kind: "group" };
+      return title ? { kind: "group", label: title } : { kind: "group" };
   }
 }

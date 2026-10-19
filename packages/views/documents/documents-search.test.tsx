@@ -531,24 +531,54 @@ describe("Documents unified search (FD-10)", () => {
     expect(screen.queryByText("Tài liệu Hợp đồng")).toBeNull();
   });
 
-  it("renders a single search box inside the header that wraps to a full-width row below sm and sits in the actions row from sm up (V-F1, V-F3)", () => {
+  it("renders a single search box in the home header row that wraps to a full-width row below sm and sits beside the title from sm up (V-F1, V-F3, TRASH-A3)", () => {
     requestMock.mockResolvedValue({ documents: [], next_cursor: null });
     renderSearchView();
 
-    const heading = screen.getByRole("heading", { level: 1, name: t("documents.page.title") });
-    const header = heading.closest("header")!;
+    // The home board has its own header row (no collection header).
+    const heading = screen.getByRole("heading", { level: 1, name: t("documents.home.sidebar.home") });
+    const row = heading.parentElement!.parentElement!.parentElement!;
+    expect(screen.getAllByRole("searchbox")).toHaveLength(1);
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     const searchBox = searchInput.parentElement!;
 
-    expect(header.contains(searchBox)).toBe(true);
-    expect(header.className).toContain("flex-wrap");
-    expect(header.className).toContain("[&>div:last-child]:contents");
-    expect(header.className).toContain("sm:[&>div:last-child]:flex");
+    expect(row.contains(searchBox)).toBe(true);
+    expect(row.className).toContain("flex-wrap");
     expect(searchBox.className).toContain("order-last");
     expect(searchBox.className).toContain("basis-full");
-    expect(searchBox.className).toContain("sm:order-first");
-    expect(searchBox.className).toContain("sm:w-48");
+    expect(searchBox.className).toContain("sm:order-none");
+    expect(searchBox.className).toContain("sm:w-56");
     expect(searchBox.className).toContain("md:w-64");
   });
 });
 
+
+// ARCHIVE-01 (UNI-1845) U-6 + UI-AR8: a shelved search hit wears the "Đã lưu
+// trữ" badge beside its name; the order is the server's.
+describe("shelved search results (U-6)", () => {
+  it("badges a shelved hit and leaves un-shelved hits unmarked", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        return Promise.resolve({
+          documents: [
+            summary({ id: "d1", kind: "file", title: "Hợp đồng cũ.docx", shelved_at: "2026-10-10T03:00:00Z", shelved_by: "u2", path: [] }),
+            summary({ id: "d2", kind: "file", title: "Hợp đồng mới.docx", path: [] }),
+          ],
+          next_cursor: null,
+        });
+      }
+      if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+    renderSearchView();
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "hop dong" } });
+
+    const old = await screen.findByText("Hợp đồng cũ.docx");
+    const row = old.closest("li");
+    expect(row && within(row as HTMLElement).getByText(t("documents.shelved_list.badge"))).toBeTruthy();
+    const fresh = await screen.findByText("Hợp đồng mới.docx");
+    const freshRow = fresh.closest("li");
+    expect(freshRow && within(freshRow as HTMLElement).queryByText(t("documents.shelved_list.badge"))).toBeNull();
+  });
+});

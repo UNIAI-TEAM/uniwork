@@ -9,6 +9,7 @@ import {
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import { compareRoomPreviewRecency } from "./chat-sidebar-preview";
 import { foldedIncludes } from "./chat-search-fold";
+import type { ChatScope } from "./chat-scope";
 
 export type ChatSidebarKindFilter = "all" | "workspace" | "channel" | "group" | "dm";
 
@@ -27,6 +28,17 @@ export type UnifiedSidebarEntry =
  */
 export const CHAT_SIDEBAR_TABS = ["all", "unread", "mentions", "dm", "group", "channel"] as const;
 export type ChatSidebarTab = (typeof CHAT_SIDEBAR_TABS)[number];
+
+/** Each scope's tabs: a kind tab only where the scope holds two kinds to tell apart. */
+export const CHAT_SIDEBAR_TABS_BY_SCOPE: Record<ChatScope, readonly ChatSidebarTab[]> = {
+  messages: ["all", "unread", "mentions", "dm", "group"],
+  workspace: ["all", "unread", "mentions"],
+};
+
+/** The kinds of room each scope lists (chat-scope.ts says why they are apart). */
+export function kindInScope(scope: ChatScope, kind: UnifiedSidebarEntry["kind"]): boolean {
+  return scope === "messages" ? kind === "dm" || kind === "group" : kind === "workspace" || kind === "channel";
+}
 
 /** A tab is one kind filter and one read-state filter. */
 export function chatSidebarTabFilters(tab: ChatSidebarTab): {
@@ -92,6 +104,8 @@ function passesActivityFilter(
 }
 
 export function buildUnifiedSidebarEntries(input: {
+  /** Absent: every kind, as before scopes. */
+  scope?: ChatScope;
   kindFilter: ChatSidebarKindFilter;
   activityFilter?: ChatSidebarActivityFilter;
   filterText: string;
@@ -107,6 +121,7 @@ export function buildUnifiedSidebarEntries(input: {
   mentionUnreadByRoomId?: Record<string, number>;
 }): UnifiedSidebarEntry[] {
   const {
+    scope,
     kindFilter,
     activityFilter = "all",
     filterText,
@@ -124,8 +139,8 @@ export function buildUnifiedSidebarEntries(input: {
 
   const entries: UnifiedSidebarEntry[] = [];
 
-  const include = (kind: ChatSidebarKindFilter) =>
-    kindFilter === "all" || kindFilter === kind;
+  const include = (kind: Exclude<ChatSidebarKindFilter, "all">) =>
+    (kindFilter === "all" || kindFilter === kind) && (!scope || kindInScope(scope, kind));
 
   if (include("workspace") && matchesText(workspaceTitle, filterText)) {
     entries.push({
@@ -188,6 +203,10 @@ export function buildUnifiedSidebarEntries(input: {
         );
 
   return filtered.sort((a, b) => {
+    // A workspace's own room heads its channels (canvas "Workspace").
+    if (scope === "workspace" && (a.kind === "workspace") !== (b.kind === "workspace")) {
+      return a.kind === "workspace" ? -1 : 1;
+    }
     const pinOrder = comparePinnedRoomOrder(a.sortRoomId, b.sortRoomId, pinnedByRoomId);
     if (pinOrder !== 0) return pinOrder;
     return compareRoomPreviewRecency(

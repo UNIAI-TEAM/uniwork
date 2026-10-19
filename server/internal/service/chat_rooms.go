@@ -43,6 +43,9 @@ type ChatRoomSummary struct {
 	PeerDisplayName    string
 	// PeerLastReadAt is the DM peer's read cursor (nil for non-DM or never read).
 	PeerLastReadAt *time.Time
+	// PeerLastDeliveredAt is how far the DM peer's devices acknowledged
+	// holding the room (nil for non-DM or never acknowledged).
+	PeerLastDeliveredAt *time.Time
 	// LastReadAt is the caller's own read cursor (nil if never read): where
 	// the client draws "new messages" and starts a catch-up summary.
 	LastReadAt            *time.Time
@@ -168,6 +171,7 @@ func (s *ChatService) directRooms(ctx context.Context, userID, orgID, workspaceI
 			t := row.PeerLastReadAt.Time
 			summary.PeerLastReadAt = &t
 		}
+		summary.PeerLastDeliveredAt = timePtr(row.PeerLastDeliveredAt)
 		applyLastMessagePreview(&summary, lastMessagePreviewFromListRow(
 			row.LastMessageBody, row.LastMessageKind, row.LastMessageSenderID,
 			row.LastMessageSenderName, row.LastMessageCallOutcome, int(row.LastMessageDurationMs), row.LastMessageAt,
@@ -256,6 +260,13 @@ func (s *ChatService) ResolveDM(ctx context.Context, userID, workspaceID, target
 			name = peer.Email
 		}
 		room, err = s.createChatRoom(ctx, userID, w.OrganizationID, workspaceID, chatRoomKindDM, name, key, []string{userID, targetUserID})
+		if isUniqueViolation(err) {
+			room, err = s.q.GetChatRoomByKindAndMemberSet(ctx, db.GetChatRoomByKindAndMemberSetParams{
+				OrganizationID: w.OrganizationID,
+				Kind:           chatRoomKindDM,
+				MemberSetKey:   pgtype.Text{String: key, Valid: true},
+			})
+		}
 		if err != nil {
 			return ChatRoomSummary{}, err
 		}
@@ -295,10 +306,8 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 	if len(allIDs) > maxChatGroupMembers {
 		return ChatRoomSummary{}, errChatGroupTooLarge()
 	}
-	for _, id := range memberIDs {
-		if err := s.requireOrgPeer(ctx, w.OrganizationID, id); err != nil {
-			return ChatRoomSummary{}, err
-		}
+	if err := s.requireOrgPeers(ctx, w.OrganizationID, memberIDs); err != nil {
+		return ChatRoomSummary{}, err
 	}
 	if len(allIDs) < 3 {
 		return ChatRoomSummary{}, Invalid("nhóm cần ít nhất 2 thành viên khác bạn")
@@ -327,6 +336,13 @@ func (s *ChatService) CreateGroup(ctx context.Context, userID, workspaceID strin
 			name = defaultGroupNameFromUsers(ctx, s.q, memberIDs)
 		}
 		room, err = s.createChatRoom(ctx, userID, w.OrganizationID, workspaceID, chatRoomKindGroup, name, key, allIDs)
+		if isUniqueViolation(err) && key != "" {
+			room, err = s.q.GetChatRoomByKindAndMemberSet(ctx, db.GetChatRoomByKindAndMemberSetParams{
+				OrganizationID: w.OrganizationID,
+				Kind:           chatRoomKindGroup,
+				MemberSetKey:   pgtype.Text{String: key, Valid: true},
+			})
+		}
 		if err != nil {
 			return ChatRoomSummary{}, err
 		}
@@ -359,16 +375,13 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	if len(ids) > chatInviteMaxIDs {
 		return ChatRoomSummary{}, Invalid("mời tối đa 100 thành viên mỗi lần")
 	}
-	var size int // the group's member count once the invite lands
+	var size int // approximate until LockChatRoom recounts inside the invite tx
 	if room.Kind == chatRoomKindGroup {
 		current, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
 		if err != nil {
 			return ChatRoomSummary{}, err
 		}
 		size = len(uniqueUserIDs(append(slices.Clip(current), ids...)))
-		if size > maxChatGroupMembers {
-			return ChatRoomSummary{}, errChatGroupTooLarge()
-		}
 	}
 	// Every added member is an event fanned out to every member. A channel's
 	// moderators decide who joins it; in a group anyone may add people while
@@ -401,6 +414,19 @@ func (s *ChatService) InviteGroupMembers(ctx context.Context, userID, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if room.Kind == chatRoomKindGroup {
+		if err := q.LockChatRoom(ctx, roomID); err != nil {
+			return ChatRoomSummary{}, err
+		}
+		current, err := q.ListChatRoomMemberUserIDs(ctx, room.ID)
+		if err != nil {
+			return ChatRoomSummary{}, err
+		}
+		size = len(uniqueUserIDs(append(slices.Clip(current), ids...)))
+		if size > maxChatGroupMembers {
+			return ChatRoomSummary{}, errChatGroupTooLarge()
+		}
+	}
 	// One event for the whole invite, on the first member's audit row: the
 	// consumer reads the room's members when it delivers, so each member hears
 	// it once instead of once per person added.
@@ -543,14 +569,8 @@ func (s *ChatService) createChatRoom(
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
-	for _, id := range uniqueUserIDs(allMemberIDs) {
-		role := "member"
-		if id == creatorID {
-			role = "admin"
-		}
-		if err := s.ensureRoomMemberTx(ctx, q, room, anchorWorkspaceID, id, role); err != nil {
-			return db.ChatRoom{}, err
-		}
+	if err := insertChatRoomMembers(ctx, q, room, anchorWorkspaceID, creatorID, allMemberIDs); err != nil {
+		return db.ChatRoom{}, err
 	}
 	// Only room administration is audited; message traffic is not
 	// (OPEN_QUESTIONS A4). The realtime notice now leaves through the outbox,
@@ -602,7 +622,7 @@ func (s *ChatService) authorizeRoomMember(ctx context.Context, userID, workspace
 }
 
 func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspaceID, roomID string, requireMember bool) (db.ChatRoom, error) {
-	w, err := s.workspaceForChat(ctx, userID, workspaceID)
+	wsMember, err := s.ws.RequireMember(ctx, workspaceID, userID)
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
@@ -622,7 +642,7 @@ func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspace
 			return db.ChatRoom{}, ErrNotFound
 		}
 	default:
-		if room.OrganizationID != w.OrganizationID {
+		if room.OrganizationID != wsMember.OrganizationID {
 			return db.ChatRoom{}, ErrNotFound
 		}
 	}
@@ -671,7 +691,7 @@ func (s *ChatService) roomSummary(
 		}
 	}
 	sort.Strings(memberIDs)
-	mentionUnread, err := s.roomMentionUnread(ctx, userID, roomID, anchorWorkspaceID)
+	mentionUnread, err := s.roomMentionUnread(ctx, userID, roomID)
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
@@ -704,9 +724,9 @@ func (s *ChatService) roomSummary(
 			}
 			if member, mErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 				RoomID: roomID, UserID: peerID,
-			}); mErr == nil && member.LastReadAt.Valid {
-				t := member.LastReadAt.Time
-				out.PeerLastReadAt = &t
+			}); mErr == nil {
+				out.PeerLastReadAt = timePtr(member.LastReadAt)
+				out.PeerLastDeliveredAt = timePtr(member.LastDeliveredAt)
 			}
 		}
 	}
@@ -816,12 +836,12 @@ func normalizeUserIDs(userIDs []string) []string {
 }
 
 func defaultGroupNameFromUsers(ctx context.Context, q *db.Queries, memberIDs []string) string {
-	names := make([]string, 0, len(memberIDs))
-	for _, id := range memberIDs {
-		u, err := q.GetUserByID(ctx, id)
-		if err != nil {
-			continue
-		}
+	rows, err := q.GetUsersByIDs(ctx, uniqueUserIDs(memberIDs))
+	if err != nil {
+		return "Group"
+	}
+	names := make([]string, 0, len(rows))
+	for _, u := range rows {
 		label := strings.TrimSpace(u.DisplayName)
 		if label == "" {
 			label = u.Email

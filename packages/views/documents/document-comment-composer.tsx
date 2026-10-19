@@ -152,7 +152,8 @@ export function DocumentCommentComposer({
     }
   };
 
-  const mention = useMentionWarning({ wsId, documentId, onShareView, sendNow: executeSend });
+  const documentWorkspaceId = doc?.workspace_id ?? "";
+  const mention = useMentionWarning({ wsId, documentId, documentWorkspaceId, onShareView, sendNow: executeSend });
   const { resetShared } = mention;
 
   useEffect(() => {
@@ -299,6 +300,7 @@ export function DocumentCommentComposer({
         <PostSendMentionNotice
           wsId={wsId}
           documentId={documentId}
+          documentWorkspaceId={documentWorkspaceId}
           items={postSendItems}
           body={lastSentBody}
           onShareView={onShareView}

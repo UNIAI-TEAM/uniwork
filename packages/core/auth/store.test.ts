@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { heldEditLocks, registerHeldEditLock } from "../documents/edit-lock-registry";
+import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { getCurrentSlug, getCurrentWsId, setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
 
@@ -166,6 +168,76 @@ describe("auth store", () => {
     const a = useAuthStore.getState().user;
     const b = useAuthStore.getState().user;
     expect(a).toBe(b);
+  });
+
+  // UNI-1645 edge 10: sign-out releases this tab's edit locks while the token
+  // still works, waits at most 1 s, and never fails because of them.
+  describe("logout and held edit locks", () => {
+    beforeEach(() => configureRuntime({ apiUrl: "http://api.test" }));
+    afterEach(() => {
+      resetRuntimeConfig();
+      vi.useRealTimers();
+    });
+
+    it("logout releases held edit locks first, with the token and keepalive", async () => {
+      setAccessToken("tok");
+      useAuthStore.getState().setUser(user);
+      registerHeldEditLock("d1", "L1");
+      const seen: unknown[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: RequestInfo | URL, init: RequestInit = {}) => {
+          seen.push({
+            url: String(url),
+            method: init.method,
+            keepalive: init.keepalive,
+            auth: (init.headers as Record<string, string>).Authorization,
+            status: useAuthStore.getState().status,
+            loggedOut: vi.mocked(auth.logout).mock.calls.length > 0,
+          });
+          return new Response(null, { status: 204 });
+        }),
+      );
+      await useAuthStore.getState().logout();
+      expect(seen).toEqual([
+        {
+          url: "http://api.test/api/v1/documents/d1/edit-lock/L1",
+          method: "DELETE",
+          keepalive: true,
+          auth: "Bearer tok",
+          status: "authed",
+          loggedOut: false,
+        },
+      ]);
+      expect(auth.logout).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().status).toBe("anon");
+      expect(heldEditLocks()).toEqual([]);
+    });
+
+    it("a hanging release delays sign-out by at most 1 s", async () => {
+      vi.useFakeTimers();
+      setAccessToken("tok");
+      useAuthStore.getState().setUser(user);
+      registerHeldEditLock("d1", "L1");
+      vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+      const done = useAuthStore.getState().logout();
+      await vi.advanceTimersByTimeAsync(999);
+      expect(auth.logout).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await done;
+      expect(auth.logout).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().status).toBe("anon");
+    });
+
+    it("a failed release still signs out", async () => {
+      setAccessToken("tok");
+      useAuthStore.getState().setUser(user);
+      registerHeldEditLock("d1", "L1");
+      vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("offline"))));
+      await useAuthStore.getState().logout();
+      expect(auth.logout).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().status).toBe("anon");
+    });
   });
 });
 

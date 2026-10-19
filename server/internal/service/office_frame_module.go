@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
@@ -20,46 +19,23 @@ const (
 	OfficeFrameModuleSheets   = "sheets"
 )
 
-// OfficeFrameSheetsMaxBytes is the largest stored xlsx the Sheets frame opens
-// (GO-D3 = C, CONTRACT C11: the engine runs in WASM in the browser, cap 10 MiB).
-// Measured with the SH2 incremental index (fork docs/web-modules/sheets-sidecar.md):
-// 2.2M dense cells = ~10.3 MB file, ~2.3 s to first paint, ~0.8 GB renderer peak.
-// A larger workbook shows the too-large notice (open in UniWork Office or
-// download). The web host checks the same
-// number (packages/core/office/office-modules.ts) before it asks.
-const OfficeFrameSheetsMaxBytes = 10 * 1024 * 1024
-
-// ErrOfficeFrameTooLarge is a mint for a document over its module's size cap;
-// the handler answers 413 too_large and the host shows the too-large notice.
-var ErrOfficeFrameTooLarge = errors.New("office_frame_too_large")
-
-// officeFrameModules maps each module to the stored format it opens, the
-// organization-scoped flag that turns it on and the largest stored file it
-// opens (0 = no cap of its own). A format not listed here (xls, odt, anything
-// else) has no web frame. packages/core/office/office-modules.ts tables the
-// same rows for the page; scripts/office-modules.test.mjs fails when they differ.
+// officeFrameModules maps each module to the stored format it opens and the
+// organization-scoped flag that turns it on. All modules share the single
+// DOCUMENT_MAX_BYTES ceiling (SIZE-S1 / UNI-1859). A format not listed here
+// (xls, odt, anything else) has no web frame. packages/core/office/office-modules.ts
+// tables the same rows for the page; scripts/office-modules.test.mjs fails
+// when they differ.
 var officeFrameModules = []struct {
-	module   string
-	format   office.Format
-	flag     string
-	maxBytes int64
+	module string
+	format office.Format
+	flag   string
 }{
-	{OfficeFrameModuleDocs, office.FormatDOCX, "office_docs_web", 0},
-	{OfficeFrameModulePDF, office.FormatPDF, "office_pdf_web", 0},
-	{OfficeFrameModuleMarkdown, office.FormatMD, "office_markdown_web", 0},
-	{OfficeFrameModuleHTML, office.FormatHTML, "office_html_web", 0},
-	{OfficeFrameModuleSlides, office.FormatPPTX, "office_slides_web", 0},
-	{OfficeFrameModuleSheets, office.FormatXLSX, "office_sheets_web", OfficeFrameSheetsMaxBytes},
-}
-
-// officeFrameModuleMaxBytes is the module's size cap, 0 for none.
-func officeFrameModuleMaxBytes(module string) int64 {
-	for _, m := range officeFrameModules {
-		if m.module == module {
-			return m.maxBytes
-		}
-	}
-	return 0
+	{OfficeFrameModuleDocs, office.FormatDOCX, "office_docs_web"},
+	{OfficeFrameModulePDF, office.FormatPDF, "office_pdf_web"},
+	{OfficeFrameModuleMarkdown, office.FormatMD, "office_markdown_web"},
+	{OfficeFrameModuleHTML, office.FormatHTML, "office_html_web"},
+	{OfficeFrameModuleSlides, office.FormatPPTX, "office_slides_web"},
+	{OfficeFrameModuleSheets, office.FormatXLSX, "office_sheets_web"},
 }
 
 // OfficeFrameModuleFlag is the flag key that gates module; false for a name

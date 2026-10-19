@@ -180,7 +180,7 @@ test("readFramePin reads apps/web/platform/office-frame/<editor>.pin.json at run
   // the LIVE pin moves with every re-pin: read the expectation from the file the helper reads, and pin only the shape
   const live = JSON.parse(readFileSync(join(REPO_ROOT, "apps/web/platform/office-frame/sheets.pin.json"), "utf8"));
   const pin = readFramePin(REPO_ROOT, "xlsx");
-  assert.equal(pin.gitSha, live.gitSha);
+  assert.equal(pin.gitSha, live.gitSha, "the real pin file is read as written, whatever the current pin is");
   assert.equal(pin.version, live.version);
   assert.match(pin.gitSha, /^[0-9a-f]{7}$/);
   assert.equal(pin.version, `0.1.0-${pin.gitSha}`);

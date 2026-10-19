@@ -171,6 +171,9 @@ func (s *DocumentService) openAccessReport(ctx context.Context, q *db.Queries, a
 		if doc.WorkspaceID != workspaceID || doc.Kind != DocumentKindFolder || doc.ArchivedAt.Valid || doc.OwnerKind.Valid {
 			return nil, ErrNotFound
 		}
+		if err := s.refuseAdminForeignMyFolderScope(ctx, q, scope, workspaceID, doc); err != nil {
+			return nil, err
+		}
 		run.folder = &doc
 	}
 	if in.PersonID != "" {
@@ -181,6 +184,52 @@ func (s *DocumentService) openAccessReport(ctx context.Context, q *db.Queries, a
 		run.person = p
 	}
 	return run, nil
+}
+
+// refuseAdminForeignMyFolderScope answers not-found for a see_all caller
+// whose folder lives in another member's My Folder and who has no real
+// access of their own (ACL owner, workspace-visible at a member-admitted
+// level, or a live share). An ordinary restricted folder the admin
+// administers stays; CountDocumentAccessReportSubtree never sees a refused
+// root.
+func (s *DocumentService) refuseAdminForeignMyFolderScope(ctx context.Context, q *db.Queries, scope documentListScope, workspaceID string, doc db.Document) error {
+	if !scope.seeAll {
+		return nil
+	}
+	if doc.AclOwnerID.Valid && doc.AclOwnerID.String == scope.actorID {
+		return nil
+	}
+	if doc.Visibility == documentVisibilityWorkspace {
+		for _, l := range shareLevelsFor(DocumentLevelView) {
+			if doc.WorkspaceLevel == l {
+				return nil
+			}
+		}
+	}
+	if scope.allowShares {
+		rows, err := q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
+			OrganizationID: scope.organizationID, WorkspaceID: workspaceID, DocumentIds: []string{doc.ID},
+		})
+		if err != nil {
+			return err
+		}
+		for _, sh := range rows {
+			if listShareApplies(scope, sh, doc) {
+				return nil
+			}
+		}
+	}
+	inSet, err := q.DocumentInForeignMyFolder(ctx, db.DocumentInForeignMyFolderParams{
+		ActorID: scope.actorID, OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
+		MaxLevel: subtreeMaxLevel(), DocumentID: doc.ID,
+	})
+	if err != nil {
+		return err
+	}
+	if inSet {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // userScope is one person's list scope in this workspace, resolved once per
@@ -267,7 +316,9 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 	if r.folder != nil {
 		rows, err := r.q.ListDocumentAccessReportSubtreeCandidates(ctx, db.ListDocumentAccessReportSubtreeCandidatesParams{
 			OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, RootID: r.folder.ID,
-			MaxLevel: subtreeMaxLevel(), Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
+			SeeAll: r.scope.seeAll, ActorID: r.scope.actorID, MaxLevel: subtreeMaxLevel(),
+			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: r.scope.shareWorkspaces,
+			Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
 		})
 		if err != nil {
 			return out, err
@@ -279,6 +330,8 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 	} else {
 		rows, err := r.q.ListDocumentAccessReportWorkspaceCandidates(ctx, db.ListDocumentAccessReportWorkspaceCandidatesParams{
 			OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID,
+			SeeAll: r.scope.seeAll, ActorID: r.scope.actorID, MaxLevel: subtreeMaxLevel(),
+			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: r.scope.shareWorkspaces,
 			Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
 		})
 		if err != nil {
@@ -374,7 +427,8 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 func accessReportCandidate(r db.ListDocumentAccessReportSubtreeCandidatesRow) db.Document {
 	return db.Document{
 		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
-		Kind: r.Kind, Title: r.Title, Visibility: r.Visibility, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
+		Kind: r.Kind, Title: r.Title, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
 		AclOwnerID: r.AclOwnerID, ArchivedAt: r.ArchivedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -437,7 +491,7 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 		item.Rows = append(item.Rows, DocumentAccessReportRow{
 			Source: AccessReportSourceWorkspace, Via: string(DocumentViaMember),
 			PrincipalType: DocumentPrincipalWorkspace, PrincipalID: doc.WorkspaceID,
-			Level:          string(DocumentLevelEdit),
+			Level:          string(DocumentLevel(doc.WorkspaceLevel)),
 			EffectiveLevel: accessReportLevel(groupLevel(DocumentPrincipalWorkspace, doc.WorkspaceID)), Active: true,
 		})
 	}
@@ -534,13 +588,14 @@ func (r *accessReportRun) rowReachesPerson(doc db.Document, row DocumentAccessRe
 
 // groupFloorLevel is the level every member of a workspace or organization
 // principal gets from one document: the highest active row that reaches all
-// of them - its own shares, the organization share, and edit for the
-// document's own workspace on a workspace-visible document (resolveLevel's
-// member path). One member may hold more through their own rows.
+// of them - its own shares, the organization share, and the home row's stored
+// level for the document's own workspace on a workspace-visible document
+// (resolveLevel's member path). One member may hold more through their own
+// rows.
 func groupFloorLevel(doc db.Document, principalType, principalID string, shares []db.ListLiveDocumentSharesForReportRow, active []bool) DocumentLevel {
 	best := DocumentLevelNone
 	if principalType == DocumentPrincipalWorkspace && principalID == doc.WorkspaceID && doc.Visibility != documentVisibilityRestricted {
-		best = DocumentLevelEdit
+		best = DocumentLevel(doc.WorkspaceLevel)
 	}
 	for i, sh := range shares {
 		if !active[i] {

@@ -62,11 +62,13 @@ func (f *mcpFlagFake) IsEnabled(ctx context.Context, key string, def bool) bool 
 	return def
 }
 
-// withDocs wires a DocumentService into the world and creates one page.
+// withDocs wires a DocumentService into the world and creates one
+// workspace-visible page (SH-S1 creates root pages private by default, while
+// the connector's fixture world means a page every workspace member reads).
 func (x *mcpToolWorld) withDocs(t *testing.T, title, content string) (*DocumentService, DocumentView) {
 	t.Helper()
 	docs := x.docs(t)
-	v, err := docs.CreatePage(context.Background(), Human(x.ua.ID), x.w.ID, CreatePageInput{Title: title, Content: json.RawMessage(content)})
+	v, err := docs.CreatePage(context.Background(), Human(x.ua.ID), x.w.ID, CreatePageInput{Title: title, Visibility: documentVisibilityWorkspace, Content: json.RawMessage(content)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -520,13 +522,13 @@ func TestMcpGetDocumentReadsTextFiles(t *testing.T) {
 	}
 
 	// A file that is not text is not read: name, type and the reason.
-	pdf := x.textFile(t, "bao-cao.pdf", []byte("%PDF-1.7\n% bao cao\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"))
+	pdf := x.textFile(t, "tai-lieu.pdf", []byte("%PDF-1.7\n% bao cao\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"))
 	d = x.getDoc(t, pdf)
-	if d.Format != "" || d.Content != "" || d.Truncated || d.Filename != "bao-cao.pdf" || d.MimeType != "application/pdf" || !strings.Contains(d.Note, "not a text file") {
+	if d.Format != "" || d.Content != "" || d.Truncated || d.Filename != "tai-lieu.pdf" || d.MimeType != "application/pdf" || !strings.Contains(d.Note, "not a text file") {
 		t.Fatalf("pdf = %+v", d)
 	}
 	// A file is found by its name, not by what its bytes say.
-	if ids := x.searchIDs(t, x.p, "bao-cao.pdf"); len(ids) != 1 || ids[0] != pdf {
+	if ids := x.searchIDs(t, x.p, "tai-lieu.pdf"); len(ids) != 1 || ids[0] != pdf {
 		t.Errorf("a file is found by its name: %v", ids)
 	}
 }
@@ -805,7 +807,7 @@ func TestMcpCreateDocument(t *testing.T) {
 		t.Fatalf("create_document = %s", raw)
 	}
 	onlyKeys(t, "create_document item", item, "kind", "id", "workspace_id", "title", "url", "doc_kind", "revision", "parent_id")
-	if row.Kind != DocumentKindPage || row.Visibility != documentVisibilityWorkspace || row.CreatedBy != x.ua.ID || row.CreatedByKind != "human" || row.ParentID.Valid || row.Title != "Biên bản" {
+	if row.Kind != DocumentKindPage || row.Visibility != documentVisibilityRestricted || row.CreatedBy != x.ua.ID || row.CreatedByKind != "human" || row.ParentID.Valid || row.Title != "Biên bản" {
 		t.Errorf("stored row = %+v", row)
 	}
 	if n := x.count(t, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'document.created'`, id); n != 1 {
@@ -879,7 +881,7 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
 	docs := x.docs(t)
-	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục"})
+	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục", Visibility: documentVisibilityWorkspace})
 	if err != nil {
 		t.Fatal(err)
 	}

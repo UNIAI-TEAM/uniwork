@@ -286,12 +286,18 @@ func New(d Deps, h Routes) http.Handler {
 			registerChatThreads(authed, h, chatWriteLimit)
 			registerChatLinks(authed, h, chatWriteLimit)
 			registerChatFollowUps(authed, h, chatWriteLimit)
+			registerChatDelivery(authed, h)
+			registerChatForward(authed, h, chatWriteLimit)
+			registerChatVoiceTranscript(authed, h, chatWriteLimit)
 			registerFiles(authed, h)
 			// The `documents` gate evaluates at the organization the path acts
 			// in, so an organization override closes these routes like it
 			// closes public links and MCP tools (UNI-1800).
 			docs := authed.With(mw.FlagOrganization(d.DocumentOrganization))
-			registerDocuments(docs, h, d.FeatureFlags)
+			// Edit requests (UNI-1645 R8) ping the holder: 20/min per signed-in
+			// person across every document, beside the per-hour database cap,
+			// refused with the same code and fields.retry_after_s as that cap.
+			registerDocuments(docs, h, d.FeatureFlags, mw.RateLimitByIdentityBucketRetryAfter(d.Redis, "document-edit-request", 20, time.Minute, proxies, bearerUser(d.Minter), "edit_request_rate_limited"))
 			registerDocumentSources(docs, h, d.FeatureFlags)
 			registerSignatures(authed, h)
 			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).

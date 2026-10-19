@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import * as auth from "../api/endpoints/auth";
 import { getAccessToken, setAccessToken, subscribe as subscribeToToken } from "../api/session";
+import { releaseHeldEditLocks } from "../documents/edit-lock-registry";
 import { endOfficeDraftSession } from "../office/draft-session-key";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
@@ -114,6 +115,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    // Release this tab's document edit locks while the token still works
+    // (UNI-1645 edge 10): best effort, at most 1 s; the server releases them
+    // on session.revoked anyway.
+    await releaseHeldEditLocks(1_000);
     clearSession();
     const provider = getSessionProvider();
     if (provider) {

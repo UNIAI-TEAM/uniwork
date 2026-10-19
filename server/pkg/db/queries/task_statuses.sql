@@ -15,27 +15,37 @@ WHERE organization_id = $1 AND workspace_id = $2 AND id = $3;
 -- name: CreateTaskStatus :one
 INSERT INTO task_statuses (
   id, organization_id, workspace_id, key, name, description, category,
-  color, is_system, position, created_by, created_by_kind
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+  color, is_system, position, created_by, created_by_kind, icon
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 RETURNING *;
 
--- name: MaxTaskStatusPositionInCategory :one
-SELECT COALESCE(MAX(position), -1)::float8 AS max_position
-FROM task_statuses
-WHERE organization_id = $1 AND workspace_id = $2 AND category = $3
-  AND archived_at IS NULL;
+-- name: ListActiveTaskStatusesInCategories :many
+SELECT * FROM task_statuses
+WHERE organization_id = $1 AND workspace_id = $2
+  AND category = ANY(sqlc.arg('categories')::text[])
+  AND archived_at IS NULL
+ORDER BY position, key;
+
+-- name: SetTaskStatusPosition :one
+-- Built-ins included: a group's statuses are ordered as a whole.
+UPDATE task_statuses SET position = $4, updated_at = now()
+WHERE organization_id = $1 AND workspace_id = $2 AND id = $3
+  AND archived_at IS NULL
+RETURNING *;
 
 -- name: UpdateTaskStatus :one
 UPDATE task_statuses SET
   name = COALESCE(sqlc.narg('name'), name),
   description = COALESCE(sqlc.narg('description'), description),
   color = COALESCE(sqlc.narg('color'), color),
+  icon = COALESCE(sqlc.narg('icon'), icon),
+  category = COALESCE(sqlc.narg('category'), category),
   position = COALESCE(sqlc.narg('position'), position),
+  customized = TRUE,
   updated_at = now()
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
   AND id = sqlc.arg('id')
-  AND is_system = FALSE
   AND archived_at IS NULL
 RETURNING *;
 
@@ -47,10 +57,3 @@ WHERE organization_id = $1 AND workspace_id = $2 AND id = $3
   AND is_system = FALSE
   AND archived_at IS NULL
 RETURNING *;
-
--- name: ListActiveCustomTaskStatusesInCategory :many
-SELECT * FROM task_statuses
-WHERE organization_id = $1 AND workspace_id = $2 AND category = $3
-  AND is_system = FALSE
-  AND archived_at IS NULL
-ORDER BY position, key;

@@ -46,11 +46,29 @@ export function useDeleteTaskStatus(workspaceId: string) {
   });
 }
 
+/** Puts a whole status group (built-ins included) in the given order. */
+export function useReorderTaskStatuses(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { group: string; ids: string[] }) =>
+      catalog.reorderTaskStatuses(workspaceId, body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.statuses(workspaceId) }),
+  });
+}
+
 export function useTaskLabels(workspaceId: string) {
   return useQuery({
     queryKey: taskKeys.labels(workspaceId),
     queryFn: () => catalog.listTaskLabels(workspaceId),
     enabled: !!workspaceId,
+  });
+}
+
+export function useTaskLabelLinks(workspaceId: string, enabled = true) {
+  return useQuery({
+    queryKey: taskKeys.labelLinks(workspaceId),
+    queryFn: () => catalog.listTaskLabelLinks(workspaceId),
+    enabled: !!workspaceId && enabled,
   });
 }
 

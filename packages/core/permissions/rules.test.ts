@@ -25,6 +25,7 @@ import {
   canViewBilling,
   canManageMembers,
   canReadAuditLog,
+  canManageTaskCatalog,
   canRemoveMember,
   canTransferOwnership,
   canUpdateWorkspaceSettings,
@@ -109,6 +110,17 @@ describe("canUpdateWorkspaceSettings — mirrors workspace invite admin gate", (
   });
   it("denies a plain member", () => {
     expect(canUpdateWorkspaceSettings(ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
+  });
+});
+
+describe("canManageTaskCatalog — mirrors workspace.go requireActorWorkspaceAdmin", () => {
+  it("allows workspace owners and admins", () => {
+    expect(canManageTaskCatalog(ctx({ wsRole: "owner" })).allowed).toBe(true);
+    expect(canManageTaskCatalog(ctx({ wsRole: "admin" })).allowed).toBe(true);
+  });
+  it("denies a plain member and a non-member", () => {
+    expect(canManageTaskCatalog(ctx({ wsRole: "member" })).reason).toBe("not_admin_role");
+    expect(canManageTaskCatalog(ctx({ wsRole: null })).allowed).toBe(false);
   });
 });
 

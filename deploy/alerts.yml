@@ -256,12 +256,12 @@ groups:
           description: "Thay đổi tài liệu cũ nhất mà change feed chưa giao đã {{ $value | humanizeDuration }}: app và frame nhận bản mới chậm. Thường do một transaction dài giữ xmin."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/OfficeChangeFeedLagHigh.md
 
-      # G7-D1 pending. A manual save conflicts only when two writers share a base; 20% over 30 minutes with a 20-save floor is a systematic stale base, not two people editing.
+      # G7-D1 pending. A manual save conflicts only when two writers share a base; 20% over 30 minutes with a 20-save floor is a systematic stale base, not two people editing. outcome="unchanged" (UNI-1900: a Save whose bytes equal the current version, answered 200) is excluded from both sides, so a run of identical saves cannot dilute the ratio below the threshold and hide a conflict spike.
       - alert: OfficeCommitConflictSpike
         expr: |
           sum(increase(uniwork_document_conflicts_total{kind="file", code="document_version_conflict"}[30m]))
-            / clamp_min(sum(increase(uniwork_document_saves_total{kind="file"}[30m])), 1) > 0.2
-          and sum(increase(uniwork_document_saves_total{kind="file"}[30m])) >= 20
+            / clamp_min(sum(increase(uniwork_document_saves_total{kind="file", outcome!="unchanged"}[30m])), 1) > 0.2
+          and sum(increase(uniwork_document_saves_total{kind="file", outcome!="unchanged"}[30m])) >= 20
         for: 0m
         labels:
           severity: "3"

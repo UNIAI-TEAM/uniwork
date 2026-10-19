@@ -5,7 +5,9 @@ export const MARKETING_FEATURE_KEYS = ["dashboard", "tasks", "projects", "today"
 export const MARKETING_GUIDE_KEYS = ["start-with-tasks", "office-files-and-ai", "meetings-to-tasks"] as const;
 export type MarketingGuideKey = typeof MARKETING_GUIDE_KEYS[number];
 export const MARKETING_ROUTES = [
-  { path: "/", key: "home" }, { path: "/office", key: "office" }, { path: "/unichat", key: "unichat" },
+  { path: "/", key: "home" },
+  // Every app of the ecosystem lives under one reserved slug (UNI-1913); /office and /unichat redirect here.
+  { path: "/apps", key: "apps" }, { path: "/apps/office", key: "office" }, { path: "/apps/unichat", key: "unichat" },
   { path: "/features", key: "features" },
   ...MARKETING_FEATURE_KEYS.map(key => ({ path: `/features/${key}`, key })),
   { path: "/solutions", key: "solutions" },

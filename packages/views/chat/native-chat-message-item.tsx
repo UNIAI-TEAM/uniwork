@@ -34,6 +34,8 @@ export type NativeChatMessageActions = {
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
+  /** Absent when the room turned forwarding off for the viewer (the hover menu reads it through ChatForwardContext). */
+  onForward?: (message: ChatMessage) => void;
 };
 
 /** What every row in one room shares; built once per change, not per row. */
@@ -275,7 +277,7 @@ function MessageBody({
   };
 
   if (message.kind === "voice" && message.voice) {
-    return <ChatVoiceMessageRow {...common} lastOfRun={layout.lastOfRun} />;
+    return <ChatVoiceMessageRow {...common} lastOfRun={layout.lastOfRun} highlighted={highlighted} />;
   }
   if (layout.album) {
     const { message: _head, ...rest } = common;
@@ -288,6 +290,7 @@ function MessageBody({
         replyToMessage={layout.replyTarget}
         replyToSenderLabel={layout.replySenderLabel}
         onJumpToMessage={actions.onJumpToMessage}
+        highlighted={highlighted}
       />
     );
   }

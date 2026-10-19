@@ -8,7 +8,6 @@ import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
 import { useChatSendOutboxStore } from "@uniwork/core/chat/send-outbox-store";
 import { selectSidebarTypingUserIds, useSidebarTypingStore } from "@uniwork/core/chat/sidebar-typing-store";
 import { stopChatVoicePlayback } from "@uniwork/core/chat/voice-playback-store";
-import { listChatRoomMessagesAround } from "@uniwork/core/api/endpoints/chat";
 import {
   useChatRoomMessageLinks,
   useChatRoomMessages,
@@ -28,12 +27,13 @@ import type { ChatMessageLinkRecord } from "@uniwork/core/api/endpoints/chat-lin
 import type { ChatMessage } from "./chat-messages";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
 import { ChatMessageLinksProvider } from "./chat-message-links-context";
+import { ChatLinkPreviewsProvider } from "./chat-link-preview-card";
+import { ChatForwardContext } from "./chat-forward-context";
 import { ChatPeerReadAtContext } from "./chat-message-parts";
 import { CHAT_WALL } from "./chat-wall";
 import { toastChatError } from "./chat-error-message";
 import { VirtualChatMessageList, updateStickToBottomFromScroll, useReaderScrollAt } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
-import { toChatMessage } from "./native-chat-message-mapping";
 import { NativeChatLiveRegion } from "./native-chat-live-region";
 import { ChatTypingBubble } from "./native-chat-typing-bubble";
 import {
@@ -43,7 +43,8 @@ import {
 } from "./native-chat-message-item";
 import { buildMainTimelineMessages, buildThreadViewMessages, countNewSince } from "./native-chat-message-timeline";
 import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
-import { focusChatMessage, useNativeChatMessageActions } from "./use-native-chat-message-actions";
+import { useNativeChatMessageActions } from "./use-native-chat-message-actions";
+import { useAnchorWindowLoad, useChatHighlightFlash, useOwnSendFollowsLatest, useTypingKeepsPinned } from "./use-chat-anchor-follow";
 
 const EMPTY_LINKS: ReadonlyMap<string, ChatMessageLinkRecord[]> = new Map();
 
@@ -143,6 +144,7 @@ export function NativeChatMessagePanel({
   const {
     data: latestRows = [],
     isPending: latestPending,
+    isRefetching: latestRefetching = false,
     hasNextPage: roomHasMore,
     isFetchingNextPage: roomLoadingOlder,
     fetchNextPage: fetchOlderRoomPage,
@@ -174,18 +176,19 @@ export function NativeChatMessagePanel({
   const typingUserIds = useSidebarTypingStore(useShallow((state) => selectSidebarTypingUserIds(state, roomId)));
   const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(workspaceId, roomTitle ?? threadSubtitle);
 
-  const allMessages = useMemo(
+  const latestMessages = useMemo(
     () =>
       buildMainTimelineMessages({
-        anchorMessages,
+        anchorMessages: null,
         latestRows,
         pendingEntries,
         outboxEntries,
         currentUserId,
         threadsEnabled,
       }),
-    [anchorMessages, currentUserId, latestRows, outboxEntries, pendingEntries, threadsEnabled],
+    [currentUserId, latestRows, outboxEntries, pendingEntries, threadsEnabled],
   );
+  const allMessages = anchorMessages ?? latestMessages;
 
   const messages = useMemo(() => {
     if (!threadRoot || !threadsEnabled) return allMessages;
@@ -260,6 +263,7 @@ export function NativeChatMessagePanel({
     taskLinkActions,
     onFollowUp,
     onEditMessage,
+    canModerate,
   });
 
   useEffect(() => {
@@ -273,26 +277,27 @@ export function NativeChatMessagePanel({
     onActiveThreadRootIdChange?.(threadRoot?.id ?? null);
   }, [onActiveThreadRootIdChange, threadRoot?.id]);
 
-  // The typing bubble grows the timeline under the newest row: stay pinned to it.
-  const someoneTyping = typingUserIds.length > 0;
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (someoneTyping && el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
-  }, [someoneTyping]);
+  const onClearAnchorRef = useRef(onClearAnchor);
+  onClearAnchorRef.current = onClearAnchor;
 
-  // Own optimistic / pending sends must keep the viewport on the newest row.
-  const lastTimelineMessage = messages[messages.length - 1];
-  useEffect(() => {
-    if (!lastTimelineMessage) return;
-    if (
-      lastTimelineMessage.deliveryStatus === "sending" ||
-      lastTimelineMessage.deliveryStatus === "queued" ||
-      isPendingChatMessageId(lastTimelineMessage.id) ||
-      lastTimelineMessage.sender === currentUserId
-    ) {
-      stickToBottomRef.current = true;
-    }
-  }, [currentUserId, lastTimelineMessage]);
+  // The latest page replaces the anchor window; re-sticking lets the list pin
+  // it to the bottom and the room be marked read, as scrollToLatest does.
+  const clearAnchor = useCallback(() => {
+    stickToBottomRef.current = true;
+    programmaticScrollRef.current = false;
+    setAwayFromLatest(false);
+    setAnchorMessages(null);
+    setHighlightMessageId(null);
+    setLocalAnchor(null);
+    if (anchorMessageId) onClearAnchorRef.current?.();
+  }, [anchorMessageId]);
+
+  useTypingKeepsPinned(typingUserIds.length > 0, scrollRef, stickToBottomRef);
+
+  useOwnSendFollowsLatest({
+    timelineMessages: threadRoot && threadsEnabled ? messages : latestMessages, anchored: Boolean(anchorMessages),
+    roomId, activeAnchorId, currentUserId, latestRefetching, clearAnchor, stickToBottomRef,
+  });
 
   useEffect(() => {
     stickToBottomRef.current = true;
@@ -310,43 +315,12 @@ export function NativeChatMessagePanel({
     };
   }, [roomId, onReplyToChange, onActiveThreadRootIdChange, sideThreadPanel]);
 
-  useEffect(() => {
-    if (!activeAnchorId) {
-      setAnchorMessages(null);
-      setHighlightMessageId(null);
-      setLoadingAnchor(false);
-      return;
-    }
-    let cancelled = false;
-    setLoadingAnchor(true);
-    void listChatRoomMessagesAround(workspaceId, roomId, activeAnchorId)
-      .then((rows) => {
-        if (cancelled) return;
-        setAnchorMessages(rows.map(toChatMessage));
-        setHighlightMessageId(activeAnchorId);
-        stickToBottomRef.current = false;
-      })
-      .catch((err: unknown) => {
-        // The message is gone or unreachable: say so instead of doing nothing.
-        if (cancelled) return;
-        setLocalAnchor(null);
-        toastChatError(err, t, t("chat.message_list.jump_failed"));
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingAnchor(false);
-      });
-    return () => {
-      // A superseded or cleared request must not leave the spinner behind.
-      cancelled = true;
-      setLoadingAnchor(false);
-    };
-  }, [activeAnchorId, roomId, t, workspaceId]);
+  useAnchorWindowLoad({
+    workspaceId, roomId, activeAnchorId, stickToBottomRef, programmaticScrollRef, onClearAnchorRef,
+    setAnchorMessages, setHighlightMessageId, setLoadingAnchor, setAwayFromLatest, setLocalAnchor,
+  });
 
-  useEffect(() => {
-    if (!highlightMessageId) return;
-    const timer = window.setTimeout(() => setHighlightMessageId(null), 2500);
-    return () => window.clearTimeout(timer);
-  }, [highlightMessageId]);
+  const handleHighlightShown = useChatHighlightFlash(highlightMessageId, setHighlightMessageId);
 
   const loadOlder = useCallback(async () => {
     if (loadingOlder || !hasMore || (!threadRoot && anchorMessages)) return;
@@ -455,15 +429,6 @@ export function NativeChatMessagePanel({
     el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
   };
 
-  // The latest page replaces the anchor window; re-sticking lets the list pin
-  // it to the bottom and the room be marked read, as scrollToLatest does.
-  const clearAnchor = () => {
-    stickToBottomRef.current = true;
-    setAwayFromLatest(false);
-    setLocalAnchor(null);
-    if (anchorMessageId) onClearAnchor?.();
-  };
-
   // Older history loads in the message's own shape. When more exists, a
   // button offers it too — scrolling up is not the only way to ask.
   const canLoadOlder = hasMore && (!!threadRoot || !anchorMessages);
@@ -498,7 +463,9 @@ export function NativeChatMessagePanel({
           }}
         />
       ) : null}
-      {activeAnchorId && (onClearAnchor || localAnchorId) ? <ChatAnchorBar onBackToLatest={clearAnchor} /> : null}
+      {anchorMessages && activeAnchorId && (onClearAnchor || localAnchorId) ? (
+        <ChatAnchorBar onBackToLatest={clearAnchor} />
+      ) : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* A log, but a silent one: the virtual list mounts rows as it
             scrolls, and a live log would read each of them out. What is new
@@ -516,28 +483,32 @@ export function NativeChatMessagePanel({
         >
           {/* One readable column however wide the window is; the side thread is narrower (canvas). */}
           <div className={sideThreadPanel ? "w-full p-4" : "mx-auto w-full max-w-195 px-3 pt-5 pb-3 sm:px-7"}>
-            <ChatMessageLinksProvider value={linksValue}>
-              <ChatPeerReadAtContext.Provider value={receiptReadAt}>
-                <VirtualChatMessageList
-                  key={roomId}
-                  messages={messages}
-                  scrollRef={scrollRef}
-                  stickToBottomRef={stickToBottomRef}
-                  programmaticScrollRef={programmaticScrollRef}
-                  highlightMessageId={highlightMessageId}
-                  onHighlightShown={focusChatMessage}
-                  header={listHeader}
-                  empty={
-                    latestPending ? (
-                      <ChatMessagesSkeleton className="px-0" />
-                    ) : (
-                      (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
-                    )
-                  }
-                  renderMessage={renderMessage}
-                />
-              </ChatPeerReadAtContext.Provider>
-            </ChatMessageLinksProvider>
+            <ChatLinkPreviewsProvider workspaceId={workspaceId} roomId={roomId} messages={messages}>
+              <ChatMessageLinksProvider value={linksValue}>
+                <ChatPeerReadAtContext.Provider value={receiptReadAt}>
+                  <ChatForwardContext.Provider value={actions.onForward ?? null}>
+                    <VirtualChatMessageList
+                      key={roomId}
+                      messages={messages}
+                      scrollRef={scrollRef}
+                      stickToBottomRef={stickToBottomRef}
+                      programmaticScrollRef={programmaticScrollRef}
+                      highlightMessageId={highlightMessageId}
+                      onHighlightShown={handleHighlightShown}
+                      header={listHeader}
+                      empty={
+                        latestPending ? (
+                          <ChatMessagesSkeleton className="px-0" />
+                        ) : (
+                          (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
+                        )
+                      }
+                      renderMessage={renderMessage}
+                    />
+                  </ChatForwardContext.Provider>
+                </ChatPeerReadAtContext.Provider>
+              </ChatMessageLinksProvider>
+            </ChatLinkPreviewsProvider>
             {threadRoot || anchorMessages ? null : <ChatTypingBubble userIds={typingUserIds} nameContext={nameContext} />}
           </div>
         </div>

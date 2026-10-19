@@ -347,7 +347,7 @@
       "shareTasks": "Your tasks and tasks in your workspaces, with comments",
       "shareProjects": "Projects and their tasks",
       "shareMeetings": "Meetings and their AI summaries, without transcripts",
-      "shareDocuments": "Documents you can see: pages and text files in full, other files by name",
+      "shareDocuments": "Documents you can see: UniNotes and text files in full, other files by name",
       "shareNot": "Never chat messages or email",
       "allowWrite": "Allow create and edit",
       "allowWriteHint": "Many AI apps ask before each change, but UniWork cannot check that. Each change is recorded with your name and the app's, and can be undone.",
@@ -602,6 +602,9 @@
         "document_discussion_mentioned": "Mentioned in a discussion",
         "document_discussion_replied": "Reply in a discussion",
         "document_comment_resolved": "Comment resolved",
+        "document_edit_requested": "Edit request on a document",
+        "document_edit_request_answered": "Answer to your edit request",
+        "document_edit_taken_over": "Editing taken over",
         "document_break_glass": "Emergency access to a document",
         "chat_mentioned": "Mentioned in chat",
         "chat_dm": "Direct messages",
@@ -609,13 +612,20 @@
         "chat_call_incoming": "Incoming calls",
         "document_access_requested": "Document access requests",
         "document_access_approved": "Document access granted",
-        "document_access_declined": "Document access request declined"
+        "document_access_declined": "Document access request declined",
+        "document_shared": "Documents shared with you",
+        "document_trashed_by_other": "Your document moved to the trash"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
+      "email_all": "Email for every eligible kind",
       "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
       "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
-      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden"
+      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden",
+      "desktop_section": "Desktop notifications",
+      "desktop_description": "UniChat shows new messages as system notifications. If you don't see them, send a test, then check your computer's notification settings.",
+      "desktop_row": "This computer",
+      "desktop_test": "Send a test"
     },
     "page": {
       "title": "Settings",
@@ -637,7 +647,9 @@
         "security": "Security",
         "shortcuts": "Keyboard shortcuts",
         "connectedApps": "AI apps",
-        "aiAccess": "AI access"
+        "aiAccess": "AI access",
+        "taskStatuses": "Task statuses",
+        "taskLabels": "Labels"
       },
       "nav_label": "Settings sections",
       "section_picker": "Choose a settings section",
@@ -1160,7 +1172,7 @@
       "loading": "Loading…",
       "export": {
         "title": "Export data",
-        "description": "The zip holds organization.json, manifest.json and one JSONL file per table. Attachment bytes are not included, and the activity log and invoices are left out.",
+        "description": "The zip holds organization.json, manifest.json and one JSONL file per table. Attachment bytes are not included, and the activity log and invoices are left out. The export includes every member's My Folder documents.",
         "submit": "Create export",
         "empty": "No exports yet.",
         "download": "Download",
@@ -1592,6 +1604,106 @@
       "label": "correlation id",
       "copy": "Copy {{label}}",
       "copied": "Copied {{label}}"
+    },
+    "catalogColor": {
+      "label": "Colour",
+      "hint": "Pick from the palette or type a hex code.",
+      "invalid": "Use a 6-digit hex code, like #3b82f6.",
+      "tint_gray": "Gray",
+      "tint_red": "Red",
+      "tint_orange": "Orange",
+      "tint_yellow": "Yellow",
+      "tint_green": "Green",
+      "tint_teal": "Teal",
+      "tint_blue": "Blue",
+      "tint_violet": "Violet",
+      "tint_pink": "Pink",
+      "open": "Pick a colour: {{hex}}",
+      "palette": "Colour palette",
+      "area": "Saturation and brightness",
+      "area_value": "Saturation {{s}}%, brightness {{v}}%",
+      "hue": "Hue",
+      "hex": "Hex code",
+      "eyedropper": "Pick a colour from the screen",
+      "presets": "Presets",
+      "random": "Random"
+    },
+    "catalogItem": {
+      "name": "Name",
+      "name_required": "Enter a name.",
+      "name_taken": "This name is already used in the workspace. Pick another.",
+      "description": "Description",
+      "description_placeholder": "When to use it, e.g. waiting on the client",
+      "saving": "Saving…"
+    },
+    "taskStatuses": {
+      "description": "Drag within a group to reorder the board, lists and menus.",
+      "description_read_only": "Drag within a group to reorder the board, lists and menus. Only workspace owners and admins can add, edit or reorder statuses.",
+      "load_error": "Couldn't load task statuses.",
+      "add_in": "Add a status: {{name}}",
+      "system_backlog": "Parked, not planned yet.",
+      "system_todo": "Planned, waiting to start.",
+      "system_in_progress": "Being worked on.",
+      "system_in_review": "Work done, waiting for review.",
+      "system_done": "Completed.",
+      "system_blocked": "Stuck on an outside dependency.",
+      "system_cancelled": "Decided not to do.",
+      "actions": "Actions for {{name}}",
+      "move_up": "Move up",
+      "move_down": "Move down",
+      "edit": "Edit",
+      "archive": "Archive",
+      "create_title": "New status",
+      "edit_title": "Edit status",
+      "created": "Status created",
+      "updated": "Status saved",
+      "archived": "Status archived",
+      "archive_title": "Archive the {{name}} status?",
+      "archive_body": "Tasks already in this status keep it, but it can no longer be picked for other tasks.",
+      "group_not_started": "Not started",
+      "group_started": "Started",
+      "group_completed": "Completed",
+      "group_closed": "Closed",
+      "category": "Group",
+      "category_locked": "A built-in status stays in this group: the system relies on it.",
+      "icon": "Icon",
+      "icon_default": "Default",
+      "icon_option": "{{name}} icon",
+      "workspace_chip": "Workspace {{name}}",
+      "drag": "Reorder {{name}}",
+      "system_locked": "Built-in statuses can't be archived or moved to another group. You can still rename, recolour, re-icon and reorder them.",
+      "group_hint_not_started": "Work not started yet or waiting.",
+      "group_hint_started": "Work in progress, in review or blocked.",
+      "group_hint_completed": "Finished work.",
+      "group_hint_closed": "Work stopped, not to be done."
+    },
+    "taskLabels": {
+      "description": "Labels sort and filter tasks across the workspace.",
+      "description_read_only": "Labels sort and filter tasks across the workspace. Only workspace owners and admins can create or edit them.",
+      "add": "New label",
+      "count_one": "{{count}} label",
+      "count_other": "{{count}} labels",
+      "filter": "Filter labels",
+      "filter_placeholder": "Filter by name or description",
+      "load_error": "Couldn't load labels.",
+      "no_match": "No label matches \"{{query}}\".",
+      "empty_admin": "No labels yet. Create the first one.",
+      "empty_member": "No labels yet.",
+      "usage_one": "{{count}} task",
+      "usage_other": "{{count}} tasks",
+      "actions": "Actions for {{name}}",
+      "edit": "Edit",
+      "create_title": "New label",
+      "edit_title": "Edit label",
+      "create": "Create label",
+      "created": "Label created",
+      "updated": "Label saved",
+      "deleted": "Label deleted",
+      "delete_title": "Delete the {{name}} label?",
+      "delete_body_one": "The label comes off {{count}} task. This can't be undone.",
+      "delete_body_other": "The label comes off {{count}} tasks. This can't be undone.",
+      "delete_body_unused": "No task carries this label yet. This can't be undone.",
+      "updated_on": "Updated {{date}}"
     }
   },
   "email_hub": {
@@ -2333,8 +2445,7 @@
       "card_dueDate": "Due date",
       "card_project": "Project",
       "card_childProgress": "Sub-task progress",
-      "card_labels": "Labels",
-      "labels_unavailable": "The task list does not return label relations yet."
+      "card_labels": "Labels"
     },
     "card": {
       "child_progress": "Sub-task progress",
@@ -3745,6 +3856,24 @@
     "search_hide_weekends": "Hide weekends"
   },
   "chat": {
+    "scope": {
+      "messages_title": "Messages",
+      "messages_hint": "Direct and group, shared by every workspace",
+      "channels_tab": "Channels",
+      "channels_hint": "This workspace's channels",
+      "search_channels": "Search channels and messages in {{name}}…",
+      "workspace_overline": "{{org}} · Workspace",
+      "switch_aria": "Messages or channels",
+      "create_channel_in": "Create a channel in {{name}}",
+      "channel_of": "Channel in {{name}}",
+      "room_of": "{{name}}'s shared room",
+      "group_line": "Group",
+      "rail_label": "Messages, direct and group",
+      "rail_tooltip": "Messages · direct and group, shared by every workspace",
+      "intro_title": "Direct messages and groups live here now",
+      "intro_body": "They're shared by every {{org}} workspace. Each workspace now keeps just its channels.",
+      "intro_dismiss": "Got it"
+    },
     "message_list": {
       "gifs_failed": "Couldn't load GIFs.",
       "search_results_total_one": "{{count}} result",
@@ -3761,6 +3890,15 @@
       "file_download_named": "Download {{name}}",
       "pdf_preview_show": "Show preview",
       "pdf_preview_hide": "Hide preview",
+      "pdf_preview_unavailable": "No preview. Click to open the file.",
+      "pdf_pages_one": "{{count}} page",
+      "pdf_pages_other": "{{count}} pages",
+      "pdf_page_of": "Page {{page}} / {{count}}",
+      "pdf_page_alt_one": "First page of the PDF, {{count}} page",
+      "pdf_page_alt_other": "First page of the PDF, {{count}} pages",
+      "file_downloading": "Downloading · {{progress}}",
+      "file_downloading_named": "Downloading {{name}}",
+      "file_download_cancel_named": "Cancel downloading {{name}}",
       "voice_seek": "Playback position",
       "voice_position": "{{position}} of {{duration}}",
       "card_label": "{{kind}} by {{sender}}, {{time}}",
@@ -4059,7 +4197,6 @@
     "file_drop_hint": "Drop a file to send",
     "file_drop_detail": "Images, PDF, Word, Excel or text · up to {{max}} each",
     "file_type_unsupported": "Unsupported file type. Use an image, PDF, or plain text.",
-    "file_pdf_preview": "PDF preview",
     "voice_record_failed": "Could not record audio. Check microphone access and try again.",
     "info_panel": {
       "title_group": "Group info",
@@ -4104,6 +4241,18 @@
     "voice_play": "Play voice message",
     "voice_pause": "Pause voice message",
     "voice_load_failed": "Could not load the voice message. Try again.",
+    "voice_speed": "{{rate}}×",
+    "voice_speed_label": "Playback speed, now {{rate}}×",
+    "voice_transcript_show": "Show transcript",
+    "voice_transcript_hide": "Hide transcript",
+    "voice_transcript_loading": "Transcribing…",
+    "voice_transcript_empty": "No speech was heard in this message.",
+    "voice_transcript_failed": "Couldn't transcribe this voice message.",
+    "voice_transcript_quota": "Your organization has used this month's AI quota.",
+    "voice_transcript_unavailable": "Transcription isn't set up on this server.",
+    "voice_transcript_disabled": "AI isn't turned on for this server.",
+    "voice_transcript_pending": "Still transcribing this message. Try again in a few minutes.",
+    "voice_transcript_retry": "Try again",
     "composer_poll": "Poll",
     "composer_location": "Location",
     "composer_coming_soon": "This feature is coming soon.",
@@ -4240,6 +4389,7 @@
     "retry": "Retry",
     "read_receipt": "Seen",
     "receipt_sent": "Sent",
+    "receipt_delivered": "Delivered",
     "seen_by_count_one": "Seen by {{count}} person",
     "seen_by_count_other": "Seen by {{count}} people",
     "presence_online": "Active now",
@@ -4307,6 +4457,40 @@
     "replying_to": "Replying to: {{preview}}",
     "replying_to_name": "Replying to {{name}}",
     "cancel_reply": "Cancel",
+    "forward": {
+      "action": "Forward",
+      "title": "Forward message",
+      "description": "Recipients see who wrote it, not which conversation it came from.",
+      "search_label": "Send to",
+      "search_placeholder": "Search people, groups or channels",
+      "recent": "Recent conversations",
+      "results": "Results",
+      "loading": "Loading conversations…",
+      "empty": "No conversation matches.",
+      "none": "You have no conversations yet.",
+      "kind_group_one": "Group · {{count}} member",
+      "kind_group_other": "Group · {{count}} members",
+      "kind_channel_one": "Channel · {{count}} member",
+      "kind_channel_other": "Channel · {{count}} members",
+      "kind_workspace": "Workspace channel",
+      "limit_hint": "Pick up to {{max}} conversations at a time.",
+      "comment_label": "Add a note",
+      "comment_placeholder": "Optional",
+      "pick_hint": "Pick at least one conversation",
+      "selected": "{{count}}/{{max}} selected",
+      "submit_one": "Send to {{count}} conversation",
+      "submit_other": "Send to {{count}} conversations",
+      "submit_empty": "Send",
+      "sending": "Sending…",
+      "done": "Forwarded to {{names}}",
+      "done_more": "Forwarded to {{names}} and {{count}} more",
+      "failed": "Couldn't forward the message. Try again.",
+      "target_refused": "Couldn't send to {{name}}, so no conversation received it.",
+      "disabled": "This conversation doesn't allow forwarding messages.",
+      "kind_refused": "This kind of message can't be forwarded.",
+      "from": "Forwarded from {{name}}",
+      "from_unknown": "Forwarded message"
+    },
     "follow_up": {
       "group_overdue": "Overdue",
       "group_upcoming": "Upcoming",
@@ -4483,6 +4667,7 @@
       "default_visibility_locked": "The default workspace channel stays public.",
       "add_members": "Add members",
       "add_members_title": "Invite to channel",
+      "permissions_title": "Allow channel members to:",
       "add_members_description": "Invite people to #{{name}}. Private channels stay invite-only.",
       "add_to_channel": "Add",
       "already_member": "Already in channel",
@@ -4551,6 +4736,7 @@
     "settings_perm_allow_create_notes": "Create notes and reminders",
     "settings_perm_allow_create_polls": "Create polls",
     "settings_perm_allow_send_messages": "Send messages",
+    "settings_perm_allow_forward": "Forward messages to other conversations",
     "settings_permissions_saved": "Member permissions updated",
     "settings_permissions_save_failed": "Could not update permissions. Try again.",
     "room_rename_title": "Rename room",
@@ -5266,6 +5452,14 @@
   },
   "notifications": {
     "title": "Inbox",
+    "desktop": {
+      "prompt": "Turn on notifications so you don't miss new messages.",
+      "enable": "Turn on notifications",
+      "check": "When macOS asks, choose Allow. If no test notification appeared, turn UniChat on in your computer's notification settings.",
+      "open_settings": "Open notification settings",
+      "test_title": "Notifications are on",
+      "test_body": "New messages will show up here."
+    },
     "filter": "Filter",
     "filter_all": "All",
     "filter_unread": "Unread",
@@ -5288,6 +5482,8 @@
     "group_older": "Older",
     "merged_other_one": "and {{count}} more change",
     "merged_other_other": "and {{count}} more changes",
+    "trashed_more_one": "and {{count}} more",
+    "trashed_more_other": "and {{count}} more",
     "deleted": "deleted",
     "unread_dot": "Unread",
     "unread_elsewhere": "Unread notifications in another workspace",
@@ -5341,6 +5537,10 @@
       "document_discussion_replied_untitled": "{{actor}} replied to your discussion post in a document.",
       "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
       "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
+      "document_edit_requested": "{{actor}} wants to edit “{{document}}”",
+      "document_edit_request_answered": "{{actor}} handed you editing of “{{document}}”",
+      "document_edit_request_answered_declined": "{{actor}} is still editing “{{document}}”",
+      "document_edit_taken_over": "{{actor}} took over editing of “{{document}}”. Your unsaved changes are still in the open document.",
       "document_break_glass": "{{actor}} opened emergency view access (24h) to “{{document}}”.",
       "document_break_glass_untitled": "{{actor}} opened emergency view access (24h) to a document.",
       "chat_mentioned": "{{actor}} mentioned you in {{room}}",
@@ -5351,7 +5551,15 @@
       "document_access_requested_untitled": "{{actor}} requested access to a document.",
       "document_access_approved": "{{actor}} gave you access to “{{document}}”.",
       "document_access_approved_untitled": "{{actor}} gave you access to a document.",
-      "document_access_declined": "Your request to access a document was declined."
+      "document_access_declined": "Your request to access a document was declined.",
+      "document_shared": "{{actor}} shared “{{document}}” with you ({{level}}).",
+      "document_shared_untitled": "{{actor}} shared a document with you ({{level}}).",
+      "document_shared_nolevel": "{{actor}} shared “{{document}}” with you.",
+      "document_shared_untitled_nolevel": "{{actor}} shared a document with you.",
+      "document_trashed_by_other": "{{actor}} moved your document to trash. Restore it before {{date}}",
+      "document_trashed_by_other_untitled": "{{actor}} moved one of your documents to trash. Restore it before {{date}}",
+      "document_trashed_by_other_nodate": "{{actor}} moved your document to trash",
+      "document_trashed_by_other_untitled_nodate": "{{actor}} moved one of your documents to trash"
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
@@ -5362,7 +5570,9 @@
       "document_break_glass": "Emergency access to document",
       "document_access_requested": "Document access request",
       "document_access_approved": "Access granted",
-      "document_access_declined": "Request declined"
+      "document_access_declined": "Request declined",
+      "document_shared": "Document shared",
+      "document_trashed_by_other": "Your document was moved to trash"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",
@@ -5394,13 +5604,19 @@
     "you": "You",
     "uni": "UNI",
     "usage_tokens": "{{in}} in · {{out}} out",
+    "notice": {
+      "no_sources": "Nothing you can see in this workspace matches this question yet.",
+      "unavailable": "UNI couldn't answer this one."
+    },
     "errors": {
       "ai_quota_exceeded": "The organization has used its AI token quota for this month.",
       "ai_rate_limited": "You are asking too fast; try again in a minute.",
       "ai_disabled": "AI is not configured on this server.",
       "ai_context_forbidden": "You do not have access to this data.",
       "ai_output_invalid": "UNI answered in an unexpected format; please ask again.",
-      "ai_provider_error": "Could not reach the AI provider. Check the API key/model and try again.",
+      "ai_provider_error": "The AI service isn't responding. Try again in a few minutes.",
+      "ai_provider_timeout": "UNI took too long to answer. Try again.",
+      "ai_tool_not_allowed": "UNI tried something it isn't allowed to do. Ask again.",
       "default": "Could not ask right now; try again later."
     },
     "close": "Close",
@@ -6374,7 +6590,7 @@
         "description": "Explore organization structure, permissions and the activity log."
       },
       "office": {
-        "title": "UniWork Office — the AI office app",
+        "title": "UniOffice — the AI office app",
         "description": "Office apps for macOS, Windows and Linux: documents, spreadsheets, slides, PDF, HTML and Markdown with AI, sharing your UniWork account and workspace."
       },
       "demo": {
@@ -7459,6 +7675,24 @@
           "label": "Activity log",
           "description": "Review actors, changes and trace IDs.",
           "availability": "Append-only audit logging and event tracing exist. Visibility depends on access scope."
+        },
+        "dashboard": {
+          "label": "Dashboard"
+        },
+        "tasks": {
+          "label": "Tasks"
+        },
+        "today": {
+          "label": "Today"
+        },
+        "meetings": {
+          "label": "Online meetings"
+        },
+        "chat": {
+          "label": "Chat"
+        },
+        "email": {
+          "label": "Email Hub"
         }
       }
     },
@@ -7809,9 +8043,7 @@
       "closeMenu": "Close menu",
       "solutions": "Solutions",
       "why": "Why UniWork",
-      "office": "Office",
-      "unichat": "UniChat",
-      "unichatDescription": "Chat for work, on desktop and mobile."
+      "apps": "Apps"
     },
     "cta": {
       "start": "Get started",
@@ -8696,7 +8928,7 @@
       },
       "hero": {
         "kicker": "The UniWork office app",
-        "title": "UniWork Office",
+        "title": "UniOffice",
         "sub": "Create documents, spreadsheets and presentations with AI. Connected to your UniWork workspace.",
         "explore": "Explore the editors",
         "trial": "Download trial",
@@ -8718,7 +8950,7 @@
         "title": "Six editors. One workspace.",
         "formats": "Works with DOCX, XLSX, PPTX, PDF, HTML and Markdown",
         "tabs": "Editors",
-        "imageAlt": "UniWork Office: {{editor}} with the AI panel",
+        "imageAlt": "UniOffice: {{editor}} with the AI panel",
         "imageCaption": "Illustrative interface",
         "imageUnavailable": "The preview image could not load. Reload the page to try again.",
         "docs": {
@@ -8801,7 +9033,7 @@
       },
       "ai": {
         "title": "AI built in, your files stay in your team's workspace",
-        "sub": "UniWork Office shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
+        "sub": "UniOffice shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
         "account": {
           "title": "AI through your UniWork account",
           "description": "Cloud AI tools run through UniWork under your organization’s configuration and plan. On the web, requests using your own API key still pass through UniWork to your chosen provider. Desktop has its own configuration; check the application before sending content."
@@ -8843,7 +9075,7 @@
       },
       "faq": {
         "title": "Frequently asked questions",
-        "q1": "Does UniWork Office cost anything?",
+        "q1": "Does UniOffice cost anything?",
         "a1": "The app comes with your UniWork account. Cloud AI follows your organization's UniWork plan; see the Pricing page for the plans on offer.",
         "q2": "Which formats can I open?",
         "a2": "DOCX, XLSX, PPTX, PDF, HTML and Markdown. For older Office formats, open the file from Documents on the web and UniWork converts it.",
@@ -8857,7 +9089,7 @@
         "a6": "In Documents, choose Open in app on the file you need, or press Open UniWork Office to just launch the app. If it isn't installed, UniWork walks you through the download."
       },
       "download": {
-        "title": "Download UniWork Office",
+        "title": "Download UniOffice",
         "version": "Version {{version}}",
         "requirements": "Requires: {{value}}",
         "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
@@ -8885,48 +9117,160 @@
     },
     "unichat": {
       "hero": {
-        "title": "UniChat",
-        "sub": "Chat for work. Your team's messages, channels and calls sit next to the work in UniWork, on desktop and mobile.",
-        "download": "Download UniChat"
+        "line1": "Chat built for work.",
+        "line2": "On your desktop and phone.",
+        "sub": "Messages become tasks, channels link to projects, calls come with summaries. Same account and messages as UniWork.",
+        "download": "Download UniChat",
+        "web": "Open chat on the web",
+        "also": "Also for {{list}}.",
+        "allBuilds": "See every build"
       },
-      "points": {
-        "title": "When the conversation ends, the work has a place",
-        "sub": "UniChat is your UniWork workspace chat in its own app: the same account, the same messages, the same tasks.",
+      "stage": {
+        "label": "UniChat on desktop and phone. Khánh Vy asks who will take the onboarding design, Mai An takes it, and the message becomes task DEMO-111, in progress; the phone updates at the same time.",
+        "replay": "Replay",
+        "caption": "Fictional demo data · No customer records",
+        "chats": "Chat",
+        "search": "Search",
+        "tabs": {
+          "all": "All",
+          "direct": "Direct",
+          "groups": "Groups",
+          "channels": "Channels"
+        },
+        "filters": {
+          "all": "Any",
+          "unread": "Unread",
+          "mentions": "Mentions"
+        },
+        "catchUp": {
+          "title": "Quick catch-up",
+          "body": "You're all caught up. UNI will summarise new messages."
+        },
+        "channel": "onboarding-launch",
+        "design": "design",
+        "members": "6 members",
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "monday": "Mon",
+        "you": "You",
+        "messages": {
+          "review": "Let's lock the design review for Monday morning.",
+          "ask": "The onboarding design needs to be ready by Friday so the team can review it. Who can take it?",
+          "reply": "I'll take it. Making it a task so everyone can follow."
+        },
+        "previews": {
+          "reply": "I'll take it.",
+          "ask": "The onboarding design needs…",
+          "review": "Let's lock the design review…",
+          "file": "Sending you the feedback file",
+          "poll": "Poll: Monday review time?",
+          "voice": "Voice message",
+          "calendar": "Next week's meetings are updated",
+          "thanks": "Thanks, I'll send the rest tomorrow",
+          "missed": "Missed call"
+        },
+        "createTask": "Create task",
+        "task": "Prepare the onboarding design for the team to review.",
+        "taskStatus": "In progress",
+        "read": "Seen",
+        "composer": "Type a message…",
+        "phoneTabs": {
+          "chats": "Chat",
+          "calls": "Calls",
+          "contacts": "People",
+          "settings": "Settings"
+        }
+      },
+      "story": {
+        "title": "Every conversation ends up as work.",
+        "sub": "No more copying messages onto a task board, no more asking \"who's on this?\".",
         "task": {
           "title": "Messages become tasks",
-          "description": "Create a task from a message or link an existing one. The task card shows under the message and leads back to the conversation."
+          "body": "Create a task from a message or link an existing one. The task card shows under the message and leads back to the conversation."
         },
         "project": {
           "title": "Channels linked to projects",
-          "description": "Link a channel to a project so the conversation and the project's work sit side by side."
+          "body": "Link a channel to a project so the conversation and the project's work sit side by side."
         },
         "followUp": {
           "title": "Follow-ups and reminders",
-          "description": "Mark a message to follow up later, or set a reminder that posts in the channel at the time you pick."
+          "body": "Mark a message to follow up later, or set a reminder that posts in the channel at the time you pick."
         },
         "call": {
           "title": "Calls with recording and summary",
-          "description": "Start a voice or video call from the conversation. A recorded call can be summarized by AI for the team to read later."
+          "body": "Start a voice or video call from the conversation. A recorded call can be summarized by AI for the team to read later."
         },
-        "preview": "See the chat interface in UniWork"
+        "stage": {
+          "dialogTitle": "Create task from message",
+          "titleField": "Title",
+          "projectField": "Project (optional)",
+          "project": "Onboarding 2.0",
+          "cancel": "Cancel",
+          "create": "Create task",
+          "projectTasks": "Project tasks",
+          "t108": "Lock the 4-step sign-up flow",
+          "t111": "Prepare the onboarding design",
+          "t114": "Write the welcome email",
+          "done": "Done",
+          "doing": "In progress",
+          "todo": "To do",
+          "reminder": "Reminder · 4:00 PM today",
+          "reminderBody": "Finalize the pilot user list before the welcome email goes out.",
+          "followUps": "Follow-ups",
+          "fu1": "Resend last week's sign-up numbers",
+          "fu1When": "Today",
+          "fu2": "Feedback on the welcome screen",
+          "fu2When": "Monday",
+          "call": "Voice call · 18 min",
+          "callMeta": "Recorded · 4 participants",
+          "summary": "Call summary",
+          "summaryMeta": "Generated from the recording · 10:42",
+          "s1": "Lock the 4-step sign-up flow and drop the plan picker.",
+          "s2": "Mai An sends the design before Friday.",
+          "s3": "Khánh Vy reviews on Monday morning."
+        },
+        "also": {
+          "label": "And more",
+          "voice": "Voice messages",
+          "poll": "Polls",
+          "stickers": "Stickers and GIFs",
+          "threads": "Threaded replies",
+          "pins": "Pinned messages",
+          "search": "Search in a conversation"
+        }
       },
+      "devices": {
+        "title": "Read on your phone, reply on your desktop.",
+        "body": "The same chat whether you open it on the web or in UniChat. UniChat focuses on chat; tasks, meetings and documents still open in full on the web.",
+        "web": "Web",
+        "webBody": "Chat in UniWork, nothing to install",
+        "desktop": "Desktop",
+        "desktopBody": "macOS, Windows and Linux",
+        "phone": "Phone",
+        "phoneBody": "iPhone and Android, with push notifications"
+      },
+      "data": {
+        "title": "Messages stay in your team's workspace.",
+        "body": "Stored in your team's UniWork workspace under your organization's permissions, just as when you chat on the web.",
+        "account": "One UniWork account",
+        "accountBody": "Sign in through the browser, no separate account",
+        "workspace": "Only your workspaces",
+        "workspaceBody": "You see just the workspaces you belong to",
+        "revoke": "Access ends with membership",
+        "revokeBody": "Deactivated members can no longer get in"
+      },
+      "closing": "Bring your team's conversations next to the work.",
       "download": {
         "title": "Download UniChat",
         "version": "Desktop version {{version}}",
         "requirements": "Requires: {{value}}",
         "unsigned": "This build is not code-signed, so your operating system may warn you the first time you open it.",
-        "unavailable": "UniChat for desktop is not released yet. Meanwhile, you can chat with your team on the web in UniWork."
+        "unavailable": "UniChat for desktop is not released yet. Meanwhile, you can chat with your team on the web in UniWork.",
+        "sub": "Sign in with your UniWork account and see exactly the workspaces you belong to."
       },
       "installersError": "Couldn't load the installer list. Check your connection and try again.",
       "retry": "Try again",
       "mobile": {
-        "ios": "iPhone",
-        "android": "Android",
-        "appStore": "App Store",
-        "googlePlay": "Google Play",
-        "testflight": "TestFlight",
-        "playInternal": "Google Play (testing)",
-        "pilot": "Test build: only people invited to the test group can install it.",
         "unavailable": "UniChat for mobile is not released yet."
       },
       "faq": {
@@ -8940,8 +9284,163 @@
         "q4": "How do I install UniChat on my phone?",
         "a4": "When the mobile app is released, App Store and Google Play buttons appear under Download UniChat. During testing, only invited people can install it through TestFlight or Google Play."
       },
-      "security": "See how UniWork handles data and access",
-      "closing": "Bring your team's conversations next to the work."
+      "security": "See how UniWork handles data and access"
+    },
+    "apps": {
+      "menu": {
+        "title": "UniWork apps · one account",
+        "all": "All apps and downloads",
+        "device": "Your device · {{os}}",
+        "download": "Download",
+        "phones": "UniChat for iPhone and Android",
+        "web": "Nothing to install: open UniWork on the web"
+      },
+      "catalog": {
+        "web": {
+          "name": "UniWork",
+          "kicker": "On the web",
+          "description": "Tasks, projects, meetings, documents and chat in one place.",
+          "tagline": "Tasks, projects, meetings, documents, chat and AI in one workspace.",
+          "point1": "Nothing to install, runs in the browser",
+          "point2": "Where the other apps connect",
+          "strip": "Tasks, projects, meetings and documents in the browser.",
+          "open": "Open UniWork",
+          "more": "See features"
+        },
+        "office": {
+          "name": "UniOffice",
+          "kicker": "Desktop",
+          "description": "Write documents, spreadsheets and presentations with AI, connected to your workspace.",
+          "tagline": "Create documents, spreadsheets and presentations with AI. Connected to your UniWork workspace.",
+          "point1": "Docs, Sheets, Slides, PDF, HTML, Markdown",
+          "point2": "Edit files on your computer without a connection",
+          "strip": "Documents, spreadsheets and slides with AI on your computer.",
+          "phoneSub": "On your phone, open and edit files in UniWork's Documents."
+        },
+        "unichat": {
+          "name": "UniChat",
+          "kicker": "Desktop and phone",
+          "description": "Chat for work, on desktop and mobile.",
+          "tagline": "Chat for work: messages become tasks, channels link to projects, calls come with summaries.",
+          "point1": "The same messages as chat on the web",
+          "point2": "Voice and video calls right in the conversation",
+          "strip": "Chat for work, on desktop and mobile.",
+          "pilot": "iPhone and Android builds"
+        },
+        "personal": {
+          "name": "Office for Personal",
+          "description": "An edition for individual use."
+        }
+      },
+      "status": {
+        "pilot": "Pilot",
+        "phonePilot": "Phones: pilot",
+        "development": "In development"
+      },
+      "platform": {
+        "web": "Browser",
+        "macos": "macOS",
+        "windows": "Windows",
+        "linux": "Linux",
+        "ios": "iPhone",
+        "android": "Android"
+      },
+      "learn": "Learn more",
+      "downloadFor": "Download for {{os}}",
+      "bar": {
+        "apps": "Apps",
+        "label": "On the {{app}} page",
+        "overview": "Overview",
+        "features": "Features",
+        "editors": "Editors",
+        "download": "Download",
+        "faq": "FAQ",
+        "all": "All apps",
+        "short": "Get",
+        "sections": "Page sections"
+      },
+      "download": {
+        "device": "Your device",
+        "title": "{{app}} for {{os}}",
+        "macHelp": "Not sure which chip your Mac has? Open the Apple menu › About This Mac.",
+        "pilotSub": "A pilot build, for people invited to the test group.",
+        "storeSub": "Sign in with your UniWork account after installing.",
+        "open": "Open {{store}}",
+        "noBuild": "{{app}} isn't available for {{os}} yet",
+        "openWeb": "Open UniWork on the web",
+        "others": "Other platforms",
+        "webInstead": "Meanwhile, you can use it on the web in UniWork.",
+        "phonePilot": "Test build: only people invited to the test group can install it.",
+        "phoneUnavailable": "UniChat for mobile is not released yet.",
+        "error": "Couldn't load the installer list. Check your connection and try again.",
+        "retry": "Try again"
+      },
+      "base": {
+        "title": "One UniWork underneath",
+        "sub": "Every app reads from the same place.",
+        "account": "One account",
+        "workspace": "The same workspaces",
+        "permissions": "Your organization's permissions",
+        "data": "Your team's data"
+      },
+      "other": {
+        "eyebrow": "The UniWork ecosystem",
+        "title": "Same account, more to use",
+        "all": "All apps"
+      },
+      "hub": {
+        "eyebrow": "UniWork apps",
+        "title1": "One account.",
+        "title2": "Everywhere you work.",
+        "sub": "UniWork runs on the web. The apps take it to your desktop and phone, with the same account, workspaces and permissions.",
+        "cta": "See downloads for {{os}}",
+        "ctaAny": "See downloads",
+        "web": "Open UniWork on the web",
+        "cardsEyebrow": "The apps",
+        "cardsTitle": "Pick where you work. The work stays one.",
+        "downloadEyebrow": "Downloads",
+        "downloadTitle": "Every build, one table.",
+        "phoneTitle": "For this {{os}}",
+        "device": "Your device: {{os}}",
+        "matrix": {
+          "caption": "Each app's builds by operating system",
+          "app": "App",
+          "web": "Web",
+          "none": "No build",
+          "webOnly": "Nothing to install. Open it in the browser on desktop and phone.",
+          "officeWeb": "Open files in Documents",
+          "chatWeb": "Chat in UniWork",
+          "loading": "Loading the builds"
+        },
+        "phone": {
+          "webSub": "Nothing to install. Open it in the browser.",
+          "desktop": "Desktop builds"
+        },
+        "note": "Versions, system requirements and install notes are on each app's page. An empty cell means the app has no build for that system yet.",
+        "pilotNote": "The phone builds are in pilot: only people invited to the test group can install them.",
+        "faq": {
+          "eyebrow": "FAQ",
+          "title": "Frequently asked questions",
+          "q1": "Do I have to install anything?",
+          "a1": "No. Everything runs on the web in UniWork. Install UniOffice if you write documents, spreadsheets or slides on your computer; install UniChat if you want your team's chat in an app of its own on desktop and phone.",
+          "q2": "Does each app need its own account?",
+          "a2": "No. They all use your UniWork account, sign in through the browser and show exactly the workspaces you belong to.",
+          "q3": "Where does the data live?",
+          "a3": "Your team's documents, messages and tasks live in its UniWork workspace, under your organization's permissions. Files you open from your computer in UniOffice stay on your computer.",
+          "q4": "Is there a phone app yet?",
+          "a4": "UniChat has iPhone and Android builds in pilot: only invited people can install them through TestFlight or Google Play. On a phone you can still open UniWork in the browser."
+        },
+        "closing1": "Start on the web.",
+        "closing2": "Take it everywhere.",
+        "open": "Open UniWork",
+        "downloads": "See downloads"
+      },
+      "store": {
+        "appStore": "App Store",
+        "testflight": "TestFlight",
+        "googlePlay": "Google Play",
+        "playInternal": "Google Play (testing)"
+      }
     }
   },
   "documents": {
@@ -8953,12 +9452,12 @@
       "md": "Markdown document",
       "html": "HTML document",
       "file": "File",
-      "page": "UniWork page",
+      "page": "UniNote",
       "folder": "Folder"
     },
     "page": {
       "title": "Documents",
-      "new_page": "New page",
+      "new_page": "New UniNote",
       "off_title": "Documents are off",
       "off_description": "Documents are not enabled for this workspace.",
       "checking_title": "Checking whether documents are available…",
@@ -8975,12 +9474,12 @@
       "error_title": "Could not load the document list",
       "error_description": "Check your connection and try again.",
       "retry": "Try again",
-      "permission_title": "Manage access is required to view the archive",
-      "permission_description": "The archive is only open to document managers.",
+      "permission_title": "Manage access is required to view the trash",
+      "permission_description": "The trash is only open to document managers.",
       "load_more": "Load more",
       "loading_more": "Loading more…",
       "clear_filters": "Clear filters",
-      "archived_badge": "Archived"
+      "archived_badge": "In trash"
     },
     "tree": {
       "aria_label": "Document tree",
@@ -9093,7 +9592,13 @@
       "readonly_title": "You have view access only",
       "readonly_description": "You can read and download the committed copy, but not edit it. Editing needs the edit level.",
       "revoked_title": "You no longer have access to this document",
-      "revoked_description": "Its content is hidden under your current access. Ask for access again if you need it."
+      "revoked_description": "Its content is hidden under your current access. Ask for access again if you need it.",
+      "archived_banner": "This document is in the trash — read-only.",
+      "first_save": {
+        "title": "Name the document",
+        "hint": "You can rename it later from the folder.",
+        "submit": "Save"
+      }
     },
     "save": {
       "status_label": "Save status",
@@ -9127,6 +9632,59 @@
       "confirm_load": "Load the new copy",
       "cancel": "Later"
     },
+    "editLock": {
+      "bannerOther": "{{name}} has been editing since {{time}}. You’re viewing read‑only.",
+      "bannerOfflineHold": "{{name}} is keeping editing offline until {{time}}.",
+      "bannerSelfElsewhere": "You’re editing this document in another window.",
+      "editHere": "Edit here",
+      "bannerFree": "No one is editing this document now.",
+      "editNow": "Edit now",
+      "acquiring": "Getting editing access…",
+      "acquireFailed": "Couldn’t get editing access. Try again in a few minutes.",
+      "takeOver": "Take over editing",
+      "takeOverTitle": "Take over editing from {{name}}?",
+      "takeOverBody": "{{name}} will switch to read-only. Their unsaved changes aren’t deleted and they can still download them.",
+      "takeOverConfirm": "Take over",
+      "cancel": "Cancel",
+      "takeOverChanged": "Someone else is editing now. Check and try again.",
+      "takeOverRereading": "Checking who is editing…",
+      "takeOverFailed": "Couldn’t take over editing. Try again.",
+      "request": "Request to edit",
+      "requestSent": "Request sent to {{name}}. It expires at {{time}}.",
+      "requestCancel": "Cancel request",
+      "requestNotReleased": "{{name}} is still editing.",
+      "requestAgain": "Ask again",
+      "requestRateLimited": "You’ve asked several times. Try again in {{minutes}} min.",
+      "requestFailed": "Couldn’t send the request. Try again.",
+      "incomingTitle": "{{name}} wants to edit this document",
+      "incomingJustNow": "Just now",
+      "incomingCaption": "Just now · expires in {{minutes}} minutes",
+      "incomingCaptionAged": "{{age}} · expires in {{minutes}} minutes",
+      "incomingAccept": "Save and hand over",
+      "incomingDecline": "Decline",
+      "incomingSaveFailed": "Couldn’t save, so editing wasn’t handed over. Try again.",
+      "handedToYou": "{{name}} handed editing to you.",
+      "lostTitle": "You’re no longer editing",
+      "lostTakenOver": "{{name}} took over editing. Your unsaved changes are still here.",
+      "lostExpired": "Editing expired because we couldn’t reach the server for a while (no network or the device slept). Your unsaved changes are still here.",
+      "lostHandedOver": "You handed editing to {{name}}. Your unsaved changes are still here.",
+      "lostMovedHere": "You’re now editing this document in another window. The unsaved changes in this window are still here.",
+      "lostAccessLost": "You no longer have permission to edit this document. Your unsaved changes are still here.",
+      "lostGeneric": "You’re no longer editing. Your unsaved changes are still here.",
+      "lostSomeone": "Someone",
+      "lostDownload": "Download my copy",
+      "lostReload": "Reload latest version",
+      "lostReloadConfirm": "Reloading discards the unsaved changes on this page. Continue?",
+      "reloadFailed": "Could not load the latest version. Your unsaved changes are still here.",
+      "myCopyName": "{{title}} (my copy)",
+      "holdStart": "Keep editing offline",
+      "holdActive": "Editing kept until {{time}}",
+      "holdEnd": "Stop keeping editing",
+      "holdCapReached": "Maximum hold reached. Reconnect to keep editing.",
+      "rowEditing": "editing",
+      "rowEditingOffline": "editing · offline until {{time}}",
+      "rowEditingLabel": "{{name}} is editing"
+    },
     "leave": {
       "title": "Unsaved changes",
       "description": "This document has unsaved changes. Save them before leaving?",
@@ -9138,15 +9696,32 @@
     },
     "upload": {
       "title": "Upload a file",
-      "description": "The file becomes a new document in this workspace.",
+      "description": "The file becomes a new document in My Folder (visible only to you).",
+      "description_folder": "The file becomes a new document in this folder.",
       "version_title": "Upload a new version",
       "version_description": "The new file becomes the working copy; the open version stays in history.",
       "pick": "Choose a file",
       "selected": "Selected {{name}}",
-      "size_hint": "Up to 50 MiB per file.",
+      "no_file": "No file chosen",
+      "size_hint": "Up to {{max}} per file.",
+      "too_large_named": "{{name}} is {{size}}, which is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "unsupported_format": "The format of {{name}} is not supported.",
+      "unreadable_file": "Couldn't read {{name}}. The file may be damaged.",
       "submit": "Upload",
       "submitting": "Uploading…",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "pause": "Pause",
+      "resume": "Resume",
+      "checking": "Checking file…",
+      "resume_hint": "Continuing upload from last time.",
+      "progress_status": "Uploading {{name}}",
+      "drop_progress": "Uploading {{name}} · {{percent}}%",
+      "paused_status": "Paused",
+      "failed_resumable": "The upload did not finish. Your progress was saved — click Upload to continue.",
+      "drop_queued": "Waiting to upload {{name}}",
+      "document_locked": "Someone else is editing this document. Wait until they finish or take over editing, then try again.",
+      "document_locked_by_me": "You are editing this document in another window. Save or close it there, then try again.",
+      "no_change": "No changes — kept the current version"
     },
     "file": {
       "metadata_title": "File details",
@@ -9203,7 +9778,7 @@
       "done": "Created the copy \"{{title}}\"",
       "consent_required": "An explicit confirmation is required before copying.",
       "owner_requires_copy": "This document belongs to a Work Product: copy it through the owning screen.",
-      "page_not_supported": "Only file documents can be copied at this step. Page copies come later.",
+      "page_not_supported": "Only file documents can be copied at this step. UniNote copies come later.",
       "unavailable": "This deployment does not have the copy feature yet."
     },
     "actions": {
@@ -9214,7 +9789,7 @@
       "share": "Share",
       "access_log": "Access log",
       "copy": "Create a copy",
-      "archive": "Archive",
+      "archive": "Move to trash",
       "restore": "Restore"
     },
     "versions": {
@@ -9226,6 +9801,7 @@
       "empty": "No versions yet. Create the first checkpoint from the working copy.",
       "load_more": "Load more",
       "row_version": "Version {{no}}",
+      "author_system": "System",
       "current_badge": "Current",
       "view": "View content",
       "preview_title": "Content of version {{no}}",
@@ -9251,13 +9827,16 @@
     },
     "share": {
       "title": "Share document",
+      "title_named": "Share “{{title}}”",
+      "stored_in": "Stored in: Workspace {{workspace}}",
+      "home_badge": "Home workspace",
       "description": "Grant access to people, workspaces or the organization. The list below is the access that actually exists.",
       "manage_only": "You need manage access to share this document.",
       "loading": "Loading access…",
       "error": "Could not load the access list.",
       "retry": "Retry",
       "access_title": "People and groups with access",
-      "my_level": "Your level: {{level}}",
+      "my_level": "Your access: {{level}}",
       "acl_owner": "Owner",
       "owner": {
         "transfer_button": "Transfer ownership",
@@ -9276,16 +9855,21 @@
         "failed": "Couldn't transfer ownership. Try again.",
         "owned_by_work_product": "This document belongs to a work product, so its owner can't be changed."
       },
+      "via_owner": "owner",
       "via_member": "workspace member",
       "via_share": "direct share",
       "via_link": "public link",
       "via_ai_context": "AI context",
+      "via_organization": "organization",
+      "via_workspace_named": "Workspace {{name}}",
+      "via_organization_named": "Organization {{name}}",
       "level_view": "View",
       "level_comment": "Comment",
       "level_edit": "Edit",
       "level_manage": "Manage",
+      "level_other": "Other level",
       "inactive": "No longer effective",
-      "effective": "Effective level: {{level}}",
+      "effective": "Effective access: {{level}}",
       "revoke": "Revoke",
       "revoke_pending": "Revoking…",
       "revoke_failed": "Could not revoke this grant.",
@@ -9298,17 +9882,63 @@
       "principal_placeholder": "Pick a principal",
       "principal_search": "Search by name",
       "principal_empty": "No matching principal.",
+      "candidate_search": "Search by name, email or group",
+      "candidate_has_access": "Has access: {{level}}",
+      "candidate_workspace_sub": "Every member of this workspace",
+      "candidate_organization_sub": "Every member in the organization",
+      "selected_count": "{{count}} selected",
+      "custom_levels_toggle": "Set individual access",
+      "custom_levels_summary": "{{summary}}",
+      "apply_all_button": "Apply to all",
+      "apply_all_confirm": "Set all {{count}} principals to {{level}}?",
+      "apply_all_accept": "Apply",
+      "apply_all_cancel": "Cancel",
+      "on_existing_keep": "Keep {{level}}",
+      "on_existing_update": "Update to {{level}}",
+      "shared_toast": "Shared with {{count}} principals",
+      "updated_toast": "Updated {{name}}'s access to {{level}}",
+      "confirm_accept": "Confirm",
+      "confirm_cancel": "Cancel",
+      "warning_wide_scope_workspace": "Share with Workspace {{name}} ({{count}} members) at {{level}}",
+      "warning_wide_scope_organization": "Share with all of Organization {{name}} ({{count}} members) at {{level}}",
+      "warning_direct_below_group": "{{name}} still has {{effectiveLevel}} access via {{source}}",
+      "warning_downgrade_person": "Change {{name}}'s access from {{before}} to {{after}}",
+      "warning_downgrade_group": "Change {{name}}'s access from {{before}} to {{after}} ({{count}} members affected)",
+      "revoke_confirm_lose": "Revoke {{name}}'s access? {{name}} will no longer be able to open this document.",
+      "revoke_confirm_keep": "Revoke {{name}}'s direct access? {{name}} still has {{level}} access via {{source}}.",
+      "revoke_confirm_group": "Revoke {{name}}'s access ({{memberCount}} members)? {{losingCount}} members will lose access to open this document.",
+      "warning_generic": "This change affects {{name}}'s access",
+      "warning_generic_done": "Changed {{name}}'s access",
+      "warning_wide_scope_workspace_done": "Shared with Workspace {{name}} ({{count}} members) at {{level}}",
+      "warning_wide_scope_organization_done": "Shared with all of Organization {{name}} ({{count}} members) at {{level}}",
+      "warning_direct_below_group_done": "Updated {{name}}'s access. {{name}} still has {{effectiveLevel}} access via {{source}}.",
+      "warning_downgrade_person_done": "Changed {{name}}'s access from {{before}} to {{after}}",
+      "warning_downgrade_group_done": "Changed {{name}}'s access from {{before}} to {{after}} ({{count}} members affected)",
+      "revoke_done_lose": "Revoked {{name}}'s access. {{name}} can no longer open this document.",
+      "revoke_done_keep": "Revoked {{name}}'s direct access. {{name}} still has {{level}} access via {{source}}.",
+      "revoke_done_group": "Revoked {{name}}'s access ({{memberCount}} members). {{losingCount}} members can no longer open this document.",
+      "rejected_unknown": "Can't be shared with this recipient",
+      "level_manage_capped_hint": "The home workspace and the organization top out at Edit, so they will get Edit.",
+      "candidates_more": "Load more",
+      "candidates_error": "Could not load the candidates.",
+      "rejected_not_in_org": "Not in this organization",
+      "rejected_level_not_allowed": "Access level is not allowed for this principal",
+      "rejected_duplicate": "Duplicate principal in selection",
+      "rejected_break_glass": "Emergency access is required before changing access",
+      "access_filter_placeholder": "Filter people and groups with access",
+      "access_filter_label": "Filter access list",
+      "sources_toggle": "Access sources ({{count}})",
+      "source_item": "{{level}} via {{source}}",
       "people_placeholder": "Search by name or email",
       "people_empty": "No matching members.",
       "people_loading": "Loading members…",
       "person_unknown": "Unknown member",
+      "workspace_unknown": "Another workspace",
       "members_error_first": "Could not load the members.",
       "members_error_partial": "Not every member loaded, so some people may be missing.",
       "members_error_limit": "Only part of a very large member list is shown.",
       "people_already_shared": "Has access",
       "people_chosen": "Selected people",
-      "people_selected_one": "{{count}} person selected",
-      "people_selected_other": "{{count}} people selected",
       "people_limit": "Up to {{max}} people per share. Remove someone to add another.",
       "people_remove": "Remove {{name}}",
       "people_removed": "Removed {{name}}",
@@ -9320,16 +9950,12 @@
       "submitting": "Sharing…",
       "submit_failed": "Could not share. Check the principal and the level.",
       "grant_added": "Access updated.",
-      "visibility_title": "Visibility",
       "visibility_workspace": "Whole workspace",
-      "visibility_workspace_hint": "Every workspace member can read the document.",
       "visibility_restricted": "Restricted",
-      "visibility_restricted_hint": "Only shared people and managers can read it.",
-      "visibility_save": "Save visibility",
-      "visibility_saving": "Saving…",
-      "visibility_failed": "Could not change the visibility.",
       "links_title": "Public links",
       "links_description": "Anyone with the URL can read it, no sign-in needed.",
+      "links_policy_enabled": "Your organization allows public links",
+      "links_policy_disabled": "Your organization does not allow public links",
       "links_empty": "No links yet.",
       "links_off": "Public links are turned off for the organization.",
       "links_off_action": "Open document settings",
@@ -9465,28 +10091,29 @@
       "menu_workspace": "Workspace access report"
     },
     "archive": {
-      "archive_title": "Archive document",
-      "archive_description": "The document and its whole subtree move to the trash. They can be restored later.",
+      "archive_title": "Move document to trash?",
+      "archive_description": "The document and its whole subtree will stay in the trash for 30 days before permanent deletion. Managers can restore them during this window.",
       "impact_title": "Impact",
       "impact_loading": "Reading the subtree…",
-      "impact_error": "Could not read the subtree. Retry before archiving.",
-      "impact_count_one": "1 document will be archived.",
-      "impact_count_other": "{{count}} documents will be archived.",
+      "impact_error": "Could not read the subtree. Retry before moving to trash.",
+      "impact_count_one": "1 document will move to the trash.",
+      "impact_count_other": "{{count}} documents will move to the trash.",
       "impact_more": "…and {{count}} more.",
       "impact_empty": "This document has no subtree.",
       "retry": "Retry",
-      "archive_confirm": "Archive",
-      "archive_submitting": "Archiving…",
-      "archive_failed": "Could not archive. Nothing changed.",
+      "archive_confirm": "Move to trash",
+      "archive_submitting": "Moving to trash…",
+      "archive_failed": "Could not move to trash. Nothing changed.",
+      "archive_toast": "Moved to trash",
       "archive_forbidden": "A child you cannot manage blocks the whole group from the trash.",
       "restore_title": "Restore document",
-      "restore_description": "Only the documents archived in the same batch come back together. A child whose parent stays archived returns to the workspace root.",
+      "restore_description": "Restores this item and the items inside it that you manage. It lands back in its old folder if the folder is still there, otherwise at the workspace root.",
       "restore_confirm": "Restore",
       "restore_submitting": "Restoring…",
       "restore_failed": "Could not restore. Nothing changed.",
       "restore_not_archived": "This document is not in the trash.",
-      "archive_folder_title": "Archive folder",
-      "archive_folder_description": "The folder and everything in it (subfolders, pages, files) go to the trash together. You can restore them later.",
+      "archive_folder_title": "Move folder to trash",
+      "archive_folder_description": "The folder and everything in it (subfolders, UniNotes, files) go to the trash together. You can restore them later.",
       "delete_title": "Delete folder",
       "delete_subfolders_one": "{{count}} subfolder",
       "delete_subfolders_other": "{{count}} subfolders",
@@ -9499,6 +10126,93 @@
       "delete_confirm": "Delete",
       "delete_submitting": "Deleting…",
       "delete_failed": "Couldn't delete. Nothing changed."
+    },
+    "trash": {
+      "title": "Trash",
+      "subtitle": "Deleted items are kept for 30 days before permanent deletion. You can restore items you manage; items you can only edit are shown as read-only.",
+      "note": "Per-item restore: documents return to their previous folder if it still exists, otherwise to the workspace root. Restoring a folder only brings back child items you manage. Document owners are notified when someone else moves their document to the trash.",
+      "columns": {
+        "name": "Name",
+        "deleted_by": "Deleted by",
+        "deleted_at": "Deleted at",
+        "purge_in": "Deleted forever in",
+        "actions": "Actions"
+      },
+      "focus_further": "The item you opened may be further down. Select Load more to see it.",
+      "deleted_by_unknown": "Former member",
+      "read_only": "View only · a manager restores",
+      "restore": "Restore",
+      "purge": "Delete forever",
+      "restore_item": "Restore {{title}}",
+      "purge_item": "Delete {{title}} forever",
+      "purge_title": "Delete {{title}} forever?",
+      "purge_description": "This item will be permanently deleted and cannot be undone.",
+      "purge_folder_description": "This folder will be permanently deleted and cannot be undone. Items inside it that you do not manage stay in the trash.",
+      "purging": "Deleting forever…",
+      "purged": "{{title}} deleted forever",
+      "purge_failed": "Could not delete. Nothing changed.",
+      "purge_days_one": "{{count}} day left",
+      "purge_days_other": "{{count}} days left",
+      "purge_today": "Deleted today",
+      "purge_expired": "Past due",
+      "restore_failed": "Could not restore. Nothing changed.",
+      "not_in_trash": "This item is no longer in the trash.",
+      "too_large": "The folder holds too many items to delete in one go. Delete what's inside in parts first.",
+      "no_permission": "You do not manage this item.",
+      "row_in_folder": "In folder “{{folder}}”",
+      "row_from_root": "From Workspace documents",
+      "toast": {
+        "restored": "Restored {{title}}",
+        "restored_root": "Restored {{title}} to the workspace root",
+        "restored_folder": "Restored {{title}} to {{folder}}",
+        "left_in_trash": "Some children stay in the trash."
+      }
+    },
+    "shelved_list": {
+      "title": "Archive",
+      "intro": "Finished documents are put away here: kept forever, read-only, no comments. Unarchiving an item restores it as before. Anyone who can see an item still opens and finds it (labelled “Archived”). Archiving a folder archives the whole tree; it needs Manage access.",
+      "badge": "Archived",
+      "shelve": "Archive",
+      "unshelve": "Unarchive",
+      "undo": "Undo",
+      "unshelve_item": "Unarchive {{title}}",
+      "no_permission": "You do not manage this item.",
+      "unshelve_failed": "Could not unarchive. Nothing changed.",
+      "shelve_failed": "Could not archive. Nothing changed.",
+      "too_large": "The folder holds too many items to archive in one go. Archive what's inside in parts first.",
+      "filter_by_label": "Archived by",
+      "filter_by_any": "Anyone",
+      "filter_loaded_only": "Filters what is loaded — load more to widen it.",
+      "shelved_by_former": "Former member",
+      "shelved_by_system": "System",
+      "sort_shelved_desc": "Archived most recently",
+      "columns": {
+        "name": "Name",
+        "access": "Access",
+        "shelved_by": "Archived by",
+        "shelved_at": "Archived at",
+        "actions": "Actions"
+      },
+      "empty_title": "No documents archived yet",
+      "empty_description": "Items a manager moves to Archive show up here.",
+      "no_matches_title": "Nothing matches",
+      "no_matches_description": "Nothing matches the filters in what has loaded.",
+      "shelve_title": "Archive this folder?",
+      "shelve_folder_body": "The whole folder and everything inside becomes read-only: {{subfolders}} and {{documents}}.",
+      "shelve_subfolders_one": "{{count}} subfolder",
+      "shelve_subfolders_other": "{{count}} subfolders",
+      "shelve_documents_one": "{{count}} document",
+      "shelve_documents_other": "{{count}} documents",
+      "shelve_loading": "Reading what is inside…",
+      "shelve_confirm": "Archive",
+      "shelve_submitting": "Archiving…",
+      "shelve_forbidden": "You do not manage every item in this folder.",
+      "toast": {
+        "shelved": "Archived {{title}}",
+        "unshelved": "Unarchived {{title}}",
+        "left_shelved": "Some children stay in Archive.",
+        "restored_to_shelved": "Restored {{title}} into Archive"
+      }
     },
     "public": {
       "loading": "Loading the document…",
@@ -9658,6 +10372,10 @@
         "html": "Untitled HTML page.html",
         "pdf": "Untitled PDF.pdf"
       },
+      "my_folder": {
+        "label": "My Folder",
+        "open_failed": "Could not open My Folder. Try again."
+      },
       "folders": {
         "default_name": "New folder",
         "create_failed": "Could not create the folder. Try again.",
@@ -9689,85 +10407,99 @@
         "name_too_long": "A document name is at most {{max}} characters.",
         "failed": "Could not rename the document. Try again."
       },
-      "greeting": {
-        "morning": "Good morning. What would you like to create today?",
-        "morning_named": "Good morning, {{name}}. What would you like to create today?",
-        "afternoon": "Good afternoon. What would you like to create today?",
-        "afternoon_named": "Good afternoon, {{name}}. What would you like to create today?",
-        "evening": "Good evening. What would you like to create today?",
-        "evening_named": "Good evening, {{name}}. What would you like to create today?",
-        "hint_root": "New files go to the workspace root and open straight in the editor.",
-        "hint_folder": "New files go to the {{folder}} folder and open straight in the editor.",
-        "morning_read_only": "Good morning.",
-        "morning_read_only_named": "Good morning, {{name}}.",
-        "afternoon_read_only": "Good afternoon.",
-        "afternoon_read_only_named": "Good afternoon, {{name}}.",
-        "evening_read_only": "Good evening.",
-        "evening_read_only_named": "Good evening, {{name}}.",
-        "hint_read_only": "You can only view the {{folder}} folder: open files to read them, not to create or edit.",
-        "hint_read_only_plain": "You can only view this folder: open files to read them, not to create or edit."
+      "quick_create": {
+        "hint_root": "New and uploaded files here go to My Folder (only you can see it) and open straight in the editor.",
+        "label": "Quick create"
       },
       "create": {
-        "label": "Create",
         "menu": "New",
-        "ai_badge": "AI",
         "unavailable_hint": "Not available on this server yet",
         "page": {
-          "card": "Page",
-          "hint": "UniWork page with tasks and mentions",
-          "menu": "Page",
+          "chip": "UniNote",
+          "hint": "A private or shared UniNote with tasks and mentions",
+          "menu": "UniNote",
           "ext": "UniWork"
         },
         "docx": {
-          "card": "AI Docs",
+          "chip": "Document",
           "hint": ".docx",
           "menu": "Docs document",
           "ext": ".docx"
         },
         "xlsx": {
-          "card": "AI Sheets",
+          "chip": "Spreadsheet",
           "hint": ".xlsx",
           "menu": "Sheets spreadsheet",
           "ext": ".xlsx"
         },
         "pptx": {
-          "card": "AI Slides",
+          "chip": "Presentation",
           "hint": ".pptx",
           "menu": "Slides presentation",
           "ext": ".pptx"
         },
         "md": {
-          "card": "AI Markdown",
+          "chip": "Markdown file",
           "hint": ".md",
           "menu": "Markdown",
           "ext": ".md"
         },
         "html": {
-          "card": "AI HTML",
+          "chip": "HTML",
           "hint": ".html",
           "menu": "HTML",
           "ext": ".html"
         },
         "pdf": {
-          "card": "AI PDF",
+          "chip": "PDF",
           "hint": ".pdf",
           "menu": "PDF",
           "ext": ".pdf"
         },
         "upload": {
-          "card": "Upload file",
-          "hint": "docx, xlsx, pptx, pdf, md, html, images"
+          "button": "Upload"
         },
         "folder": {
           "menu": "Folder"
-        }
+        },
+        "share_workspace_toggle": "Share with workspace",
+        "share_workspace_hint": "Everyone in this workspace can {{level}} new documents",
+        "share_workspace_inherited": "This folder is shared with the workspace, so new documents are too",
+        "share_workspace_level_view": "view"
+      },
+      "sections": {
+        "folders": "Folders",
+        "subfolders": "Subfolders",
+        "documents": "Documents"
+      },
+      "folder": {
+        "info_banner": "New and uploaded files here will be placed in “{{folder}}”. Drag and drop files into the list to upload.",
+        "menu": "Folder actions"
+      },
+      "folder_card": {
+        "folders_one": "{{count}} folder",
+        "folders_other": "{{count}} folders"
+      },
+      "filters": {
+        "type": "Type",
+        "editor": "Edited by",
+        "updated": "Updated",
+        "editor_any": "Any",
+        "editor_me": "Me",
+        "updated_any": "Any time",
+        "updated_today": "Today",
+        "updated_7d": "Past 7 days",
+        "updated_30d": "Past 30 days"
       },
       "sidebar": {
         "label": "Documents navigation",
-        "home": "Documents home",
+        "home": "Workspace documents",
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
+        "shared_by_me": "Shared by me",
+        "shelved": "Archive",
+        "trash": "Trash",
         "folders": "Folders",
         "elsewhere": "From elsewhere",
         "open": "Browse"
@@ -9786,24 +10518,18 @@
         "recent": "Recent",
         "starred": "Starred",
         "shared": "Shared with me",
-        "archived": "Archive",
+        "shared_by_me": "Shared by me",
+        "archived": "Trash",
         "sources": "From elsewhere",
         "chat": "Chat",
         "task": "Tasks",
         "meeting": "Meetings",
         "email": "Email"
       },
-      "scope_label": "Scope",
-      "scope": {
-        "home": "All",
-        "recent": "Recent",
-        "shared": "Shared",
-        "archived": "Archive"
-      },
       "chips_label": "Filter by type",
       "chips": {
         "all": "All",
-        "page": "Pages",
+        "page": "UniNote",
         "docx": "Docs",
         "xlsx": "Sheets",
         "pptx": "Slides",
@@ -9820,14 +10546,12 @@
         "restricted": "Restricted"
       },
       "access": {
-        "view": "View",
+        "view": "View only",
         "comment": "Comment",
-        "edit": "Edit",
-        "manage": "Manage"
-      },
-      "visibility": {
-        "workspace": "Whole workspace",
-        "restricted": "Restricted"
+        "edit": "Can edit",
+        "manage": "Manage",
+        "owner": "Owner",
+        "you_prefix": "You: {{level}}"
       },
       "group_by": {
         "label": "Group by",
@@ -9839,7 +10563,7 @@
       "groups": {
         "unfiled": "Not in a folder",
         "type": {
-          "page": "Pages",
+          "page": "UniNote",
           "folder": "Folders",
           "docx": "Docs",
           "xlsx": "Sheets",
@@ -9852,8 +10576,9 @@
       },
       "columns": {
         "name": "Name",
+        "access": "Access",
         "source": "Source",
-        "editor": "Edited by",
+        "editor": "Last edited by",
         "updated": "Updated",
         "size": "Size",
         "actions": "Actions",
@@ -9866,17 +10591,23 @@
         "open_web": "Open on the web",
         "open_app": "Open in UniWork Office",
         "star": "Star",
+        "starred": "Starred",
         "unstar": "Remove star",
-        "go_to_source": "Go to the original",
+        "go_to_source": "View where attached",
+        "go_to_source_named": "View where attached: {{title}}",
+        "preview_loading": "Loading image…",
+        "preview_failed": "Could not open the file. Try again.",
+        "preview_close": "Close",
+        "view_only_notice": "View only · changes will not be saved",
         "download": "Download",
         "save_to_folder": "Save to folder",
         "menu": "Actions for {{title}}",
         "download_failed": "Could not download the file. Try again.",
         "star_failed": "Could not update the star. Try again.",
         "move": "Move",
-        "archive": "Archive",
-        "open_chat": "Open Chat",
+        "archive": "Move to trash",
         "open_email": "Open Email",
+        "open_email_named": "Open Email: {{title}}",
         "new_subfolder": "New subfolder",
         "rename": "Rename"
       },
@@ -9891,8 +10622,10 @@
         "starred_description": "Star a document from a row's ⋯ menu to find it again quickly.",
         "shared_title": "Nothing has been shared with you yet",
         "shared_description": "Documents others share with you show up here.",
-        "archived_title": "The archive is empty",
-        "archived_description": "Archived documents show up here and can be restored.",
+        "shared_by_me_title": "You haven't shared any documents yet",
+        "shared_by_me_description": "Documents and folders you own and share with others or the workspace show up here.",
+        "archived_title": "The trash is empty",
+        "archived_description": "Deleted documents sit here for 30 days.",
         "sources_title": "No files yet",
         "sources_description": "Files from chat, tasks, meetings and email that you can read show up here."
       },
@@ -9947,6 +10680,7 @@
       "breadcrumb_more": "Hidden levels",
       "search": {
         "placeholder": "Search folders and documents",
+        "placeholder_folder": "Search in this folder",
         "label": "Search Documents",
         "clear": "Clear search",
         "filter_label": "Filter results",
@@ -9962,14 +10696,49 @@
         "error_description": "Check your connection and try again."
       }
     },
+    "scope": {
+      "private": "Private",
+      "people_one": "{{count}} person",
+      "people_other": "{{count}} people",
+      "workspace": "Workspace",
+      "workspaces_one": "{{count}} workspace",
+      "workspaces_other": "{{count}} workspaces",
+      "organization": "Organization",
+      "multiple": "Multiple scopes",
+      "public_link": "Public link",
+      "tooltip_home_workspace": "Workspace {{name}}",
+      "tooltip_other_workspaces_one": "{{count}} other workspace",
+      "tooltip_other_workspaces_other": "{{count}} other workspaces"
+    },
     "errors": {
-      "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; pages and files sit in a page or a folder.",
+      "document_parent_kind": "It can't go here: a folder sits at the root or in another folder; UniNotes and files sit in a UniNote or a folder.",
       "document_cycle": "An item can't move into itself or into something inside it.",
       "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
-      "folder_too_large": "The folder holds more than 1,000 items, so it can't be archived in one go. Archive what is inside in parts first.",
+      "folder_too_large": "The folder holds more than 1,000 items, so it can't move to the trash in one go. Move what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
-      "folder_name_taken": "A folder with this name already exists here. Choose another name."
+      "folder_name_taken": "A folder with this name already exists here. Choose another name.",
+      "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
+      "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
+      "my_folder_locked": "My Folder is a personal system folder — it can't be renamed, shared, moved or moved to the trash.",
+      "unsupported_media_type": "This file format is not supported.",
+      "upload_sessions_exhausted": "You have too many uploads open at once. Finish or cancel one, then try again.",
+      "upload_session_expired": "The upload session expired. Choose the file again to start a new upload.",
+      "upload_parts_invalid": "The uploaded parts were incomplete or did not match. Try uploading again.",
+      "upload_size_mismatch": "The file size changed while uploading. Choose the file again and retry.",
+      "upload_probe_mismatch": "The file content does not match the selected format. Check the file and try again.",
+      "quota_exceeded": "Your organization is out of storage space. Free up space or upgrade your plan."
+    },
+    "shelved_doc": {
+      "label": "Archived",
+      "banner": "This document is archived: read-only, no comments.",
+      "unshelve": "Unarchive",
+      "unshelved": "Unarchived {{title}}",
+      "unshelve_failed": "Could not unarchive this document.",
+      "write_blocked": "This document is archived and read-only.",
+      "frame_save_blocked": "The document is archived, so it can't be saved.",
+      "comments_status": "This document is archived: comments are read-only.",
+      "share_note": "Archived document: you can only revoke access, not grant more."
     }
   },
   "squads": {
@@ -10128,6 +10897,7 @@
         "description": "Your document is still opening. This can happen on a slow connection."
       },
       "mine_file_name": "{{title}} (my version)",
+      "remote_author_you": "you",
       "failure": {
         "unavailable": {
           "title": "This document cannot open on the web yet",
@@ -10158,6 +10928,8 @@
       "errors": {
         "unauthorized": "Your editing session expired. Try again.",
         "forbidden": "You do not have permission to do that in this document.",
+        "read_only_source": "This file is view-only and can't be saved.",
+        "read_only_source_export": "This file is view-only and can't be exported.",
         "not_found": "This document no longer exists or was moved.",
         "conflict": "Someone saved a newer version. Reopen the document to see it before saving.",
         "too_large": "The file is too large to upload.",
@@ -10171,11 +10943,20 @@
       }
     },
     "too_large": {
-      "title": "File is too large to edit on the web",
-      "description": "This {{format}} file exceeds the browser size limit. Open it in the UniWork Office desktop app to keep working — the app has no file size limit.",
-      "description_download_only": "This {{format}} file exceeds the browser size limit. Download it to keep working.",
+      "title": "Can’t open this file on the web",
+      "description": "This {{format}} file is too large for the browser to open. Open it in the UniWork Office desktop app to keep working.",
+      "description_download_only": "This {{format}} file is too large for the browser to open. Download it to keep working.",
+      "engine_out_of_memory": "The browser ran out of memory opening this {{format}} file. Open it in the UniWork Office desktop app to keep working.",
+      "engine_out_of_memory_download_only": "The browser ran out of memory opening this {{format}} file. Download it to keep working.",
+      "too_complex": "This {{format}} file has more content than the browser can handle. Open it in the UniWork Office desktop app to keep working.",
+      "too_complex_download_only": "This {{format}} file has more content than the browser can handle. Download it to keep working.",
       "download": "Download",
       "download_failed": "The file could not be downloaded. Try again."
+    },
+    "lag_banner": {
+      "body": "This file is large and may run slowly in the browser. Open it in the UniWork Office app for a better experience.",
+      "open_app": "Open in app",
+      "continue": "Continue on web"
     },
     "shell": {
       "save": "Save",
@@ -10378,6 +11159,15 @@
       "loading": "Loading editor…",
       "capability_unavailable": "This editor is unavailable",
       "editor_pending": "{{format}} editing is not available yet."
+    },
+    "size": {
+      "warn_chip": "Approaching the {{max}} limit (currently {{size}}).",
+      "save_blocked": {
+        "title": "Couldn’t save to UniWork",
+        "body": "This document is over {{max}}. Your changes are still here. Download your copy to your computer, then reduce image sizes or split the document.",
+        "download": "Download my copy",
+        "close": "Close"
+      }
     }
   },
   "officeDesktop": {

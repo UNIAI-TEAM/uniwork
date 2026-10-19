@@ -4,7 +4,8 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
-import { useDeleteChatMessage, useToggleChatMessagePin, useToggleChatReaction } from "@uniwork/core/chat";
+import { useChatRooms, useDeleteChatMessage, useToggleChatMessagePin, useToggleChatReaction } from "@uniwork/core/chat";
+import { mergeRoomMemberPermissions } from "@uniwork/core/chat/room-permissions-utils";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import {
   AlertDialog,
@@ -19,6 +20,7 @@ import {
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
+import { ChatForwardDialog } from "./chat-forward-dialog";
 import { toastChatError } from "./chat-error-message";
 import { formatMessageTime } from "./chat-message-time";
 import { replyPreviewLabel } from "./chat-reply-quote";
@@ -56,6 +58,7 @@ export function useNativeChatMessageActions({
   taskLinkActions,
   onFollowUp,
   onEditMessage,
+  canModerate = false,
 }: {
   workspaceId: string;
   roomId: string;
@@ -74,6 +77,8 @@ export function useNativeChatMessageActions({
   onFollowUp?: (message: ChatMessage) => void;
   /** Puts the composer into edit mode for the message. */
   onEditMessage: (message: ChatMessage) => void;
+  /** Room moderator: forwards even when the room turned allow_forward off (chat_forward.go). */
+  canModerate?: boolean;
 }): { actions: NativeChatMessageActions; dialogs: ReactNode } {
   const { t, i18n } = useTranslation();
   // mutateAsync is stable across renders; the mutation objects are not.
@@ -81,6 +86,9 @@ export function useNativeChatMessageActions({
   const deleteMessage = useDeleteChatMessage(workspaceId);
   const togglePinAsync = useToggleChatMessagePin(workspaceId).mutateAsync;
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
+  const [forwarding, setForwarding] = useState<ChatMessage | null>(null);
+  const room = useChatRooms(workspaceId).data?.find((entry) => entry.id === roomId);
+  const mayForward = canModerate || mergeRoomMemberPermissions(room?.member_permissions).allow_forward;
 
   // Handlers read the latest list and reply target through refs, so the
   // action object stays the same between renders and memoised rows skip.
@@ -158,8 +166,9 @@ export function useNativeChatMessageActions({
       onCreateTask: taskLinkActions?.onCreateTask,
       onLinkTask: taskLinkActions?.onLinkTask,
       onFollowUp,
+      onForward: mayForward ? setForwarding : undefined,
     }),
-    [onCopy, onEditMessage, onFollowUp, onJumpToMessage, onPin, onReply, onThread, react, taskLinkActions, threadsEnabled],
+    [mayForward, onCopy, onEditMessage, onFollowUp, onJumpToMessage, onPin, onReply, onThread, react, taskLinkActions, threadsEnabled],
   );
 
   const confirmDelete = async () => {
@@ -192,47 +201,56 @@ export function useNativeChatMessageActions({
         .join(" · ")
     : "";
   const dialogs = (
-    <AlertDialog
-      open={deleting != null}
-      onOpenChange={(open) => {
-        if (!open && !pending) setDeleting(null);
-      }}
-    >
-      <AlertDialogContent className={cn(CHAT_CONFIRM_CLASS, "sm:max-w-100")}>
-        <AlertDialogHeader>
-          <IconTile icon={Trash2} tone="destructive" className="mb-2.5" />
-          <AlertDialogTitle>{t("chat.message_list.delete_confirm_title")}</AlertDialogTitle>
-          <AlertDialogDescription>{t("chat.message_list.delete_confirm_description")}</AlertDialogDescription>
-        </AlertDialogHeader>
-        {deleting ? (
-          <blockquote className="min-w-0 rounded-[10px] border-l-3 border-brand/30 bg-muted px-3 py-2 text-body text-foreground">
-            <span className="block text-caption font-semibold text-brand tabular-nums">{quoteMeta}</span>
-            <span className="line-clamp-2 [overflow-wrap:anywhere]">
-              {replyPreviewLabel(deleting, {
-                voice: t("chat.voice_message"),
-                file: t("chat.file_untitled"),
-                media: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
-              })}
-            </span>
-          </blockquote>
-        ) : null}
-        <AlertDialogFooter>
-          {/* aria-disabled, not disabled: both stay in the tab order while it runs (ConfirmDialog's rule). */}
-          <AlertDialogCancel variant="secondary" aria-disabled={pending || undefined}>
-            {t("common.cancel")}
-          </AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructiveSolid"
-            aria-disabled={pending || undefined}
-            aria-busy={pending || undefined}
-            onClick={() => void confirmDelete()}
-          >
-            {pending ? <Spinner data-icon="inline-start" /> : null}
-            {t("chat.action_delete")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <>
+      <ChatForwardDialog
+        workspaceId={workspaceId}
+        message={forwarding}
+        onOpenChange={(open) => {
+          if (!open) setForwarding(null);
+        }}
+      />
+      <AlertDialog
+        open={deleting != null}
+        onOpenChange={(open) => {
+          if (!open && !pending) setDeleting(null);
+        }}
+      >
+        <AlertDialogContent className={cn(CHAT_CONFIRM_CLASS, "sm:max-w-100")}>
+          <AlertDialogHeader>
+            <IconTile icon={Trash2} tone="destructive" className="mb-2.5" />
+            <AlertDialogTitle>{t("chat.message_list.delete_confirm_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("chat.message_list.delete_confirm_description")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleting ? (
+            <blockquote className="min-w-0 rounded-[10px] border-l-3 border-brand/30 bg-muted px-3 py-2 text-body text-foreground">
+              <span className="block text-caption font-semibold text-brand tabular-nums">{quoteMeta}</span>
+              <span className="line-clamp-2 [overflow-wrap:anywhere]">
+                {replyPreviewLabel(deleting, {
+                  voice: t("chat.voice_message"),
+                  file: t("chat.file_untitled"),
+                  media: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
+                })}
+              </span>
+            </blockquote>
+          ) : null}
+          <AlertDialogFooter>
+            {/* aria-disabled, not disabled: both stay in the tab order while it runs (ConfirmDialog's rule). */}
+            <AlertDialogCancel variant="secondary" aria-disabled={pending || undefined}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructiveSolid"
+              aria-disabled={pending || undefined}
+              aria-busy={pending || undefined}
+              onClick={() => void confirmDelete()}
+            >
+              {pending ? <Spinner data-icon="inline-start" /> : null}
+              {t("chat.action_delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 
   return { actions, dialogs };

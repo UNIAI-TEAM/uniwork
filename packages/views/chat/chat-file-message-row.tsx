@@ -6,6 +6,7 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
 import { isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
@@ -39,6 +40,7 @@ function ChatFileMessageRowImpl({
   onCreateTask,
   onLinkTask,
   onFollowUp,
+  highlighted = false,
 }: {
   workspaceId: string;
   roomId: string;
@@ -64,6 +66,8 @@ function ChatFileMessageRowImpl({
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
+  /** A deep link jumped here: ring the row like the text row does. */
+  highlighted?: boolean;
 }) {
   const reveal = useMessageActionsReveal();
   const edgeToEdge = chatFileIsEdgeToEdge(message.file);
@@ -82,10 +86,12 @@ function ChatFileMessageRowImpl({
       aria-labelledby={chatMessageLabelId(message.id)}
       tabIndex={-1}
       className={cn(
-        "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
+        "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
         CHAT_ROW_HOVER,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-0.5" : "mt-3",
+        // A deep link jumped here: the row's brand wash, as the text row's (canvas).
+        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25 hover:before:bg-brand-subtle",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
@@ -135,6 +141,7 @@ function ChatFileMessageRowImpl({
                     {senderLabel}
                   </p>
                 ) : null}
+                <ChatForwardedLabel message={message} isOwn={isOwn} className={photo ? "px-2.25 pt-1" : "px-1"} />
                 {replyToMessage ? (
                   <div className={cn(photo ? "px-1 pt-1" : undefined)}>
                     <ChatReplyQuote
@@ -166,7 +173,7 @@ function ChatFileMessageRowImpl({
                 {gif ? <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall /> : null}
               </div>
               <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
-              <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
+              <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
               <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
             </div>
             <ChatMessageHoverActions

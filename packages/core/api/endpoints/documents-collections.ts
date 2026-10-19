@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   DocumentArchiveImpactSchema,
   DocumentArchiveSchema,
@@ -5,15 +6,21 @@ import {
   DocumentListSchema,
   DocumentTreeSchema,
   type Document,
+  type DocumentAccessFilter,
   type DocumentArchive,
   type DocumentArchiveImpact,
+  type DocumentFileFormat,
   type DocumentKind,
   type DocumentList,
   type DocumentTree,
 } from "../../types/document";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
-import type { DocumentRequestOpts } from "./documents";
+import { ensureMyFolder, type DocumentRequestOpts } from "./documents";
+
+export { ensureMyFolder };
+
+const DocumentPurgeResponseSchema = z.undefined();
 
 // Document collection endpoints (C-01 §5.1; UNI-679, G1-05b): the flat list
 // with filters/search/cursor, recent, shared-with-me and the sidebar tree,
@@ -26,12 +33,22 @@ import type { DocumentRequestOpts } from "./documents";
 const enc = encodeURIComponent;
 
 /** Filters of GET /workspaces/{ws}/documents. `parentId: ""` lists the
- *  workspace roots; leaving it undefined is the flat list. */
-export interface ListDocumentsOpts {
-  parentId?: string;
+ *  workspace roots; leaving it undefined is the flat list. `sharedByMe: true`
+ *  lists documents the caller owns and has shared (`parent_id` + `shared_by_me`
+ *  is rejected with 400 `invalid_filter`, so the union forbids passing both). */
+export interface ListDocumentsBaseOpts {
   q?: string;
   /** "document" is every kind but folder (folders contract v1.0). */
   kind?: DocumentKind | "document";
+  /** The library's type chip: the file format of the row's current version
+   *  (the MIME the server verified, else the title's extension). Folders stay
+   *  in the answer; pages never match; `kind: "page"` together with it is
+   *  refused with 400 `invalid_filter`. */
+  format?: DocumentFileFormat;
+  /** The library's access filter: `manage` the rows the caller manages,
+   *  `edit` those they manage or edit, `restricted` those with restricted
+   *  visibility. On the trash only `restricted` is accepted. */
+  access?: DocumentAccessFilter;
   /** "title" searches the accent-folded title instead of the full text;
    *  left out, the search keeps its old behaviour. */
   match?: "title";
@@ -44,14 +61,24 @@ export interface ListDocumentsOpts {
   limit?: number;
 }
 
-function listQuery(opts?: ListDocumentsOpts): string {
+export type ListDocumentsOpts = ListDocumentsBaseOpts &
+  (
+    | { parentId?: string; sharedByMe?: false | undefined }
+    | { sharedByMe: true; parentId?: never }
+  );
+
+function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean }): string {
   if (!opts) return "";
   const p = new URLSearchParams();
   if (opts.parentId !== undefined) p.set("parent_id", opts.parentId);
+  if (opts.sharedByMe) p.set("shared_by_me", "true");
   if (opts.q) p.set("q", opts.q);
   if (opts.kind) p.set("kind", opts.kind);
+  if (opts.format) p.set("format", opts.format);
+  if (opts.access) p.set("access", opts.access);
   if (opts.match) p.set("match", opts.match);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
+  if (opts.shelved === true) p.set("shelved", "true");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);
   if (opts.updatedFrom) p.set("updated_from", opts.updatedFrom);
   if (opts.updatedTo) p.set("updated_to", opts.updatedTo);
@@ -80,10 +107,11 @@ export async function listDocuments(
 }
 
 /** GET /api/v1/workspaces/{workspaceID}/documents/recent — what the person
- *  opened or last edited. Humans only; an agent token answers 403. */
+ *  opened or last edited. Humans only; an agent token answers 403. Takes the
+ *  same `format`/`access` filters as the flat list. */
 export async function listRecentDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsOpts, "cursor" | "limit">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/recent${listQuery(opts)}`, { signal });
@@ -100,7 +128,7 @@ export async function listRecentDocuments(
  *  the page (default 50, max 100), and a denied candidate never takes a slot. */
 export async function listSharedWithMe(
   wsId: string,
-  opts?: Pick<ListDocumentsOpts, "cursor" | "limit">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -113,6 +141,67 @@ export async function listSharedWithMe(
   if (!parsed) throw new Error("document_list_invalid");
   return parsed;
 }
+
+/**
+ * GET /api/v1/workspaces/{workspaceID}/documents?shared_by_me=true —
+ * non-archived documents in the workspace that the caller owns (`acl_owner_id`)
+ * and has shared (at least one active person/group share or `visibility = 'workspace'`;
+ * public links and My Folder rows are excluded). Uses the same list schema and
+ * keyset cursor pagination as the flat list; never sends `parent_id`.
+ */
+export async function listSharedByMe(
+  wsId: string,
+  cursorOrOpts?: string | Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const opts = typeof cursorOrOpts === "string" ? { cursor: cursorOrOpts } : cursorOrOpts;
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/documents${listQuery({
+      sharedByMe: true,
+      cursor: opts?.cursor,
+      limit: opts?.limit,
+      format: opts?.format,
+      access: opts?.access,
+    })}`,
+    { signal },
+  );
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents?shared_by_me=true",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
+/**
+ * GET /api/v1/workspaces/{workspaceID}/documents?shelved=true — the "Lưu trữ"
+ * list (ARCHIVE-01 §4): a flat keyset-paged view of what the caller may see,
+ * ordered shelved_at DESC. Combines with the LISTFILTER `format`/`access`
+ * chips; never sends `parent_id` or `archived` (shelved+archived answers 400).
+ * Uses the same list schema and cursor contract as the flat list; an
+ * untrusted answer throws rather than render an empty shelf.
+ */
+export async function listShelvedDocuments(
+  wsId: string,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/documents${listQuery({
+      shelved: true,
+      cursor: opts?.cursor,
+      limit: opts?.limit,
+      format: opts?.format,
+      access: opts?.access,
+    })}`,
+    { signal },
+  );
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents?shelved=true",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
 
 /** GET /api/v1/workspaces/{workspaceID}/documents/tree — the sidebar forest
  *  to TREE_MAX_LEVEL levels; root narrows to one branch, foldersOnly drops
@@ -179,8 +268,9 @@ export async function archiveDocument(
   });
 }
 
-/** POST /api/v1/documents/{documentID}/restore — recovers exactly the nodes
- *  one archive batch moved. Null means the restore cannot be proven. */
+/** POST /api/v1/documents/{documentID}/restore — recovers the target trashed
+ *  item and the trashed descendants in its batch that the caller manages. Null
+ *  means the restore cannot be proven. */
 export async function restoreDocument(
   documentId: string,
   opts?: DocumentRequestOpts,
@@ -192,6 +282,60 @@ export async function restoreDocument(
   });
   return parseWithFallback<DocumentArchive | null>(raw, DocumentArchiveSchema, null, {
     endpoint: "POST /api/v1/documents/{id}/restore",
+  });
+}
+
+/** POST /api/v1/documents/{documentID}/shelve — archives the subtree into the
+ *  read-only "Lưu trữ" state in one batch (ARCHIVE-01, addendum §2 S-1).
+ *  Same envelope and Idempotency-Key semantics as archive; null means the
+ *  shelve cannot be proven. */
+export async function shelveDocument(
+  documentId: string,
+  opts?: DocumentRequestOpts,
+): Promise<DocumentArchive | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/shelve`, {
+    method: "POST",
+    headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentArchive | null>(raw, DocumentArchiveSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/shelve",
+  });
+}
+
+/** POST /api/v1/documents/{documentID}/unshelve — brings back the target
+ *  shelved item and the shelved descendants of the same batch the caller
+ *  manages (ARCHIVE-01 §2 S-2). Null means the unshelve cannot be proven. */
+export async function unshelveDocument(
+  documentId: string,
+  opts?: DocumentRequestOpts,
+): Promise<DocumentArchive | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/unshelve`, {
+    method: "POST",
+    headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentArchive | null>(raw, DocumentArchiveSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/unshelve",
+  });
+}
+
+
+/** POST /api/v1/documents/{documentID}/purge — permanently delete a trashed
+ *  item and the trashed descendants in its batch that the caller manages
+ *  (RESTORE-01). The server answers 204 and keeps no purge ledger, so no
+ *  Idempotency-Key is sent; a drifted 2xx JSON body degrades to undefined via
+ *  parseWithFallback. */
+export async function purgeDocument(
+  documentId: string,
+  opts?: Pick<DocumentRequestOpts, "signal">,
+): Promise<void> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/purge`, {
+    method: "POST",
+    signal: opts?.signal,
+  });
+  return parseWithFallback<undefined>(raw, DocumentPurgeResponseSchema, undefined, {
+    endpoint: "POST /api/v1/documents/{id}/purge",
   });
 }
 

@@ -154,6 +154,7 @@ func (s *ChatService) ListRoomMessagesAround(
 		out = append(out, chatMessageRowFromListRow(db.ListChatMessagesByRoomRow(row), userID))
 	}
 	s.signChatMedia(ctx, room, out)
+	s.attachThreadParticipants(ctx, room, out)
 	return out, nil
 }
 

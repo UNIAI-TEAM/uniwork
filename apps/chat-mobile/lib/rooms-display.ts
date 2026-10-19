@@ -180,6 +180,39 @@ export function sidebarEntryRoomId(entry: UnifiedSidebarEntry): string | null {
   }
 }
 
+/** "0:42" — message-display.ts › formatVoiceCallDuration, repeated here because message-display imports this module. */
+function formatVoiceCallDuration(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function sameUser(a: string, b: string): boolean {
+  return a.trim().toUpperCase() === b.trim().toUpperCase();
+}
+
+/** A call that rang for me and nobody answered: the list draws it red, as missed (chat-sidebar-preview.ts). */
+export function isMissedCallPreview(preview: ChatRoomPreview | null | undefined, currentUserId: string): boolean {
+  return preview?.kind === "voice_call_log" && preview.callOutcome === "unanswered" && !sameUser(preview.senderId, currentUserId);
+}
+
+const IMAGE_FILE_NAME = /\.(avif|bmp|gif|heic|heif|jpe?g|png|webp)$/i;
+
+/**
+ * The name a busy list line uses for a person, the given name a Vietnamese
+ * name ends with ("Bùi Minh Quân" → "Quân"). An all-capitals last word is an
+ * acronym, not a given name ("Phòng HC"), so that name stays whole
+ * (packages/views/chat/chat-initials.ts › givenNameOf).
+ */
+export function givenNameOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const last = words[words.length - 1] ?? "";
+  return words.length < 2 || /^\p{Lu}+$/u.test(last) ? name.trim() : last;
+}
+
 export function formatChatSidebarPreviewText(
   preview: ChatRoomPreview | null | undefined,
   options: {
@@ -188,32 +221,52 @@ export function formatChatSidebarPreviewText(
     youLabel: string;
     voiceCallLabel: string;
     voiceMessageLabel?: string;
+    missedCallLabel?: string;
     fileMessageLabel?: string;
     nicknamesByUserId?: Readonly<Record<string, string>>;
     mediaLabels?: ChatMediaLabels;
   },
 ): string | null {
   if (!preview) return null;
-  if (preview.kind === "voice_call_log") return options.voiceCallLabel;
-  if (preview.kind === "voice") return options.voiceMessageLabel ?? options.voiceCallLabel;
-  if (preview.kind === "file") {
-    const name = preview.body.trim();
-    return name || options.fileMessageLabel || null;
+  if (preview.kind === "voice_call_log") {
+    return isMissedCallPreview(preview, options.currentUserId) && options.missedCallLabel ? options.missedCallLabel : options.voiceCallLabel;
   }
-  const media = options.mediaLabels ? describeChatMediaBody(preview.body, options.mediaLabels) : null;
-  const body = media ?? deserializeMessageBodyToComposerDraft(preview.body).trim();
+  let body: string | null;
+  if (preview.kind === "voice") {
+    const label = options.voiceMessageLabel ?? options.voiceCallLabel;
+    // "Tin nhắn thoại · 0:42", rounded up as the voice note itself shows it.
+    const ms = preview.durationMs ?? 0;
+    body = ms > 0 ? `${label} · ${formatVoiceCallDuration(Math.ceil(ms / 1000))}` : label;
+  } else if (preview.kind === "file") {
+    // A photo is sent as a file named after itself: the list says "Ảnh".
+    const name = preview.body.trim();
+    body = name && options.mediaLabels && IMAGE_FILE_NAME.test(name) ? options.mediaLabels.image : name || options.fileMessageLabel || null;
+  } else {
+    const media = options.mediaLabels ? describeChatMediaBody(preview.body, options.mediaLabels) : null;
+    body = media ?? deserializeMessageBodyToComposerDraft(preview.body).trim();
+  }
   if (!body) return null;
   if (options.isGroup) {
-    const isSelf = preview.senderId.trim().toUpperCase() === options.currentUserId.trim().toUpperCase();
+    const isSelf = sameUser(preview.senderId, options.currentUserId);
     const selfNickname = resolveChatNicknameForUser(options.nicknamesByUserId, options.currentUserId);
     const peerNickname = resolveChatNicknameForUser(options.nicknamesByUserId, preview.senderId);
     const peerName = preview.senderName.trim();
     const sender = isSelf
       ? selfNickname || options.youLabel
-      : peerNickname || (peerName && !isPlaceholderChatDisplayName(peerName, preview.senderId) ? peerName : "");
+      : peerNickname || (peerName && !isPlaceholderChatDisplayName(peerName, preview.senderId) ? givenNameOf(peerName) : "");
     return sender ? `${sender}: ${body}` : body;
   }
   return body;
+}
+
+/**
+ * The sender prefix a group row shows bold before the body ("Quân: "), split
+ * off the text formatChatSidebarPreviewText built: the body alone comes from
+ * the same formatter with `isGroup: false`, so the two never disagree.
+ */
+export function splitChatSidebarPreviewPrefix(groupText: string | null, bodyText: string | null): { prefix: string | null; body: string | null } {
+  if (!groupText || !bodyText || groupText === bodyText || !groupText.endsWith(bodyText)) return { prefix: null, body: groupText };
+  return { prefix: groupText.slice(0, groupText.length - bodyText.length), body: bodyText };
 }
 
 type SidebarTimeFormat = "time" | "weekday" | "date";

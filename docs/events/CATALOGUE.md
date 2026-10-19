@@ -72,12 +72,14 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | — | workspace | outbox |
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
 | `file.thumbnail_requested` | 1 | `file_id`, `organization_id` | — | - | outbox |
+| `chat.link_preview.requested` | 1 | `room_id`, `message_id`, `organization_id` | — | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
 | `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id`, `thread_root_id` | — | user | ephemeral |
 | `chat.message` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `chat.message.created` | 1 | `room_id`, `message_id`, `sender_id`, `thread_root_id` | — | chat | ephemeral |
 | `chat.message.deleted` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.message.updated` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
+| `chat.message.preview_ready` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.channel.archived` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |
 | `chat.channel.created` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |
 | `chat.channel.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
@@ -95,18 +97,19 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.voice.invite_received` | 1 | `room_id`, `call_id`, `user_id` | — | - | outbox |
 | `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | — | - | outbox |
 | `chat.reminder.due` | 1 | `room_id`, `message_id` | — | room | outbox |
-| `chat.room.activity` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
+| `chat.room.activity` | 1 | `room_id` | — | room | ephemeral |
 | `chat.room.created` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_added` | 1 | `room_id`, `user_id` | — | room | outbox |
 | `chat.room.members_added` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_removed` | 1 | `room_id`, `user_id` | — | room | outbox |
 | `chat.room.read` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.room.member_read` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
-| `chat.room.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
+| `chat.room.member_delivered` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
+| `chat.room.updated` | 1 | `room_id` | — | room | ephemeral |
 | `chat.typing` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
-| `chat.voice.accept` | 1 | `room_id`, `user_id` | — | user | ephemeral |
-| `chat.voice.hangup` | 1 | `room_id`, `user_id` | — | user | ephemeral |
-| `chat.voice.invite` | 1 | `room_id`, `user_id` | — | user | ephemeral |
+| `chat.voice.accept` | 1 | `room_id`, `call_id`, `user_id`, `target_user_id` | — | room | ephemeral |
+| `chat.voice.hangup` | 1 | `room_id`, `call_id`, `user_id`, `target_user_id` | — | room | ephemeral |
+| `chat.voice.invite` | 1 | `room_id`, `call_id`, `caller_id`, `target_user_id` | — | room | ephemeral |
 | `chat.voice.recording.started` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.recording.stopped` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.call.completed` | 1 | `room_id`, `workspace_id`, `organization_id`, `call_id`, `call_log_message_id`, `caller_id`, `started_at`, `ended_at`, `duration_seconds`, `duration_label`, `participants` | — | - | outbox |
@@ -147,10 +150,11 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `department.archived` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `document.created` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.version_created` | 1 | `document_id`, `version_id`, `workspace_id` | — | workspace | outbox |
-| `document.shared` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
+| `document.shared` | 1 | `document_id`, `workspace_id`, `share_id`, `notify_user_id` | — | workspace | outbox |
 | `document.share_revoked` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
 | `document.break_glass_granted` | 1 | `document_id`, `workspace_id`, `grant_id` | — | workspace | outbox |
 | `document.break_glass_revoked` | 1 | `document_id`, `workspace_id`, `grant_id` | — | workspace | outbox |
+| `document.workspace_access_changed` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.link_created` | 1 | `document_id`, `workspace_id`, `link_id` | — | workspace | outbox |
 | `document.link_revoked` | 1 | `document_id`, `workspace_id`, `link_id` | — | workspace | outbox |
 | `document.comment_added` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
@@ -163,10 +167,16 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.comment_anchors_updated` | 1 | `document_id`, `workspace_id`, `version_id` | — | workspace | outbox |
 | `document.favorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `document.unfavorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
+| `document.lock_changed` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.lock_taken_over` | 1 | `document_id`, `workspace_id`, `user_id` | — | user | outbox |
+| `document.edit_requested` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
+| `document.edit_request_answered` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
 | `document.updated` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.moved` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.archived` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
 | `document.restored` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
+| `document.shelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
+| `document.unshelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
 | `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `office_lease.granted` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
 | `office_lease.renewed` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |

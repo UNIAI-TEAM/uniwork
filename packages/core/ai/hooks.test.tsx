@@ -51,6 +51,27 @@ describe("ai hooks", () => {
     );
   });
 
+  it("useAskUni shows the question and answer before the messages refetch returns", async () => {
+    const { qc, wrapper } = setup();
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        conversation_id: "c1",
+        message: { id: "m1", role: "assistant", content: "ok", citations: [], created_at: "t" },
+      }),
+    );
+    vi.mocked(fetch).mockReturnValue(new Promise(() => undefined)); // the refetch never returns
+    qc.setQueryData(aiKeys.messages("c1"), []);
+    const { result } = renderHook(() => useAskUni("ws1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ question: "hỏi gì" });
+    });
+    const cached = qc.getQueryData<{ role: string; content: string }[]>(aiKeys.messages("c1"));
+    expect(cached?.map((m) => [m.role, m.content])).toEqual([
+      ["user", "hỏi gì"],
+      ["assistant", "ok"],
+    ]);
+  });
+
   it("useAskUni surfaces the server's error code instead of rendering an empty turn", async () => {
     const { wrapper } = setup();
     vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "ai_quota_exceeded", message: "hết" } }, 402));

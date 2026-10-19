@@ -22,7 +22,7 @@ for (const scenario of scenarios) {
     await page.setViewportSize({ width: scenario.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: scenario.theme });
     const configResponse = page.waitForResponse(response => response.url().includes("/api/v1/config") && response.request().method() === "GET");
-    await gotoLanding(page, "/office");
+    await gotoLanding(page, "/apps/office");
     await landingReady(page);
     const config = await (await configResponse).json();
     const published = [config.office_installers?.stable, config.office_installers?.beta, config.office_installers?.dev]
@@ -97,7 +97,7 @@ for (const scenario of scenarios) {
     await expect(page).toHaveURL(/#office-download$/);
     await expect(page.locator("#office-download-title")).toBeInViewport();
     await expect(page.locator("#office-download a[download]")).toHaveCount(published.length);
-    if (published.length === 0) await expect(page.locator("#office-download .office-unavailable")).toBeVisible();
+    if (published.length === 0) await expect(page.locator("#office-download .app-dl-message[role=status]")).toBeVisible();
     const closing = page.locator(".final-compact-demo");
     await expect(closing).toHaveText(scenario.locale === "vi" ? vi.landing.office.hero.explore : en.landing.office.hero.explore);
     await closing.click();
@@ -112,7 +112,7 @@ for (const scenario of scenarios) {
 test("Office images follow an explicit theme change", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await gotoLanding(page, "/office");
+  await gotoLanding(page, "/apps/office");
   await landingReady(page);
   await expect(page.locator(".office-hero-preview img:visible")).toHaveAttribute("data-theme", "light");
   await page.getByRole("button", { name: "Giao diện", exact: true }).click();

@@ -2,8 +2,8 @@
   "header": {
     "kind": "genoffice-tool-schemas",
     "version": 1,
-    "rev": "bf4ff7b07ee799b13375e0b63ad4798ff255ae05",
-    "mechanicalBlockSha256": "9fa75f663a1d97c51db8547716990e8b649faa4a30f429d8e3a9e8b844263677",
+    "rev": "3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b",
+    "mechanicalBlockSha256": "235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95",
     "counts": {
       "docs": 39,
       "sheets": 21,
@@ -618,6 +618,146 @@
           },
           "required": [
             "prompt"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "generate_mindmap",
+        "description": "Render an interactive mind map of the document (or of one focused aspect) as a diagram card in the chat. Call it when the user asks for a mind map / 思维导图 / 脑图 / knowledge structure / overview diagram of the document or a topic. Pass the entire tree in this single call: the root is the document title or the focus topic, its children are the main sections, and so on. Labels must be short phrases in the document's own language and wording — never invent topics the document does not cover. Cite the block index each node summarizes in `block` so the user can jump to the passage. This tool does not modify the document; after it returns, reply with one short sentence.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "focus": {
+              "type": "string",
+              "description": "optional: the aspect the map should center on (e.g. \"risk controls\", \"for beginners\"); omit for a whole-document map"
+            },
+            "root": {
+              "type": "object",
+              "description": "the mind map tree: root node with nested children",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                },
+                "block": {
+                  "type": "integer",
+                  "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                },
+                "children": {
+                  "type": "array",
+                  "description": "sub-topics; 2-5 per node reads best",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                      },
+                      "block": {
+                        "type": "integer",
+                        "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                      },
+                      "children": {
+                        "type": "array",
+                        "description": "sub-topics; 2-5 per node reads best",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                            },
+                            "block": {
+                              "type": "integer",
+                              "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                            },
+                            "children": {
+                              "type": "array",
+                              "description": "sub-topics; 2-5 per node reads best",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "label": {
+                                    "type": "string",
+                                    "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                                  },
+                                  "block": {
+                                    "type": "integer",
+                                    "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                                  },
+                                  "children": {
+                                    "type": "array",
+                                    "description": "sub-topics; 2-5 per node reads best",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "label": {
+                                          "type": "string",
+                                          "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                                        },
+                                        "block": {
+                                          "type": "integer",
+                                          "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                                        },
+                                        "children": {
+                                          "type": "array",
+                                          "description": "sub-topics; 2-5 per node reads best",
+                                          "items": {
+                                            "type": "object",
+                                            "properties": {
+                                              "label": {
+                                                "type": "string",
+                                                "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                                              },
+                                              "block": {
+                                                "type": "integer",
+                                                "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                                              },
+                                              "children": {
+                                                "type": "array",
+                                                "description": "sub-topics; 2-5 per node reads best"
+                                              }
+                                            },
+                                            "required": [
+                                              "label"
+                                            ]
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "label"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "label"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "label"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "label"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "label"
+              ]
+            }
+          },
+          "required": [
+            "root"
           ]
         }
       }
@@ -4537,6 +4677,146 @@
     {
       "type": "function",
       "function": {
+        "name": "generate_mindmap",
+        "description": "Render an interactive mind map of the document (or of one focused aspect) as a diagram card in the chat. Call it when the user asks for a mind map / knowledge structure / overview diagram of the document or a topic. Pass the entire tree in this single call: the root is the document title or the focus topic, its children are the main sections, and so on. Labels must be short phrases in the document's own language and wording — never invent topics the document does not cover. Cite the block index each node summarizes in `block` so the user can jump to the passage. This tool does not modify the document; after it returns, reply with one short sentence.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "focus": {
+              "type": "string",
+              "description": "optional: the aspect the map should center on (e.g. \"risk controls\", \"for beginners\"); omit for a whole-document map"
+            },
+            "root": {
+              "type": "object",
+              "description": "the mind map tree: root node with nested children",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                },
+                "block": {
+                  "type": "integer",
+                  "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                },
+                "children": {
+                  "type": "array",
+                  "description": "sub-topics; 2-5 per node reads best",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                      },
+                      "block": {
+                        "type": "integer",
+                        "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                      },
+                      "children": {
+                        "type": "array",
+                        "description": "sub-topics; 2-5 per node reads best",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                            },
+                            "block": {
+                              "type": "integer",
+                              "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                            },
+                            "children": {
+                              "type": "array",
+                              "description": "sub-topics; 2-5 per node reads best",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "label": {
+                                    "type": "string",
+                                    "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                                  },
+                                  "block": {
+                                    "type": "integer",
+                                    "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                                  },
+                                  "children": {
+                                    "type": "array",
+                                    "description": "sub-topics; 2-5 per node reads best",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "label": {
+                                          "type": "string",
+                                          "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                                        },
+                                        "block": {
+                                          "type": "integer",
+                                          "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                                        },
+                                        "children": {
+                                          "type": "array",
+                                          "description": "sub-topics; 2-5 per node reads best",
+                                          "items": {
+                                            "type": "object",
+                                            "properties": {
+                                              "label": {
+                                                "type": "string",
+                                                "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases"
+                                              },
+                                              "block": {
+                                                "type": "integer",
+                                                "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks"
+                                              },
+                                              "children": {
+                                                "type": "array",
+                                                "description": "sub-topics; 2-5 per node reads best"
+                                              }
+                                            },
+                                            "required": [
+                                              "label"
+                                            ]
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "label"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "label"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "label"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "label"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "label"
+              ]
+            }
+          },
+          "required": [
+            "root"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
         "name": "get_document_context",
         "description": "Refresh the document overview: a numbered list of top-level blocks (index | type | preview) plus the current selection. Call this before index-based edits when in doubt.",
         "parameters": {
@@ -5124,13 +5404,11 @@
       "name": "generate_mindmap",
       "host": "renderer",
       "source": "apps/docs/src/renderer/ai/mind-map.ts",
-      "schemaComplete": false,
+      "schemaComplete": true,
       "descriptionComplete": true,
-      "offered": false,
-      "reason": "identifier:depth",
-      "description": "Render an interactive mind map of the document (or of one focused aspect) as a diagram card in the chat. Call it when the user asks for a mind map / 思维导图 / 脑图 / knowledge structure / overview diagram of the document or a topic. Pass the entire tree in this single call: the root is the document title or the focus topic, its children are the main sections, and so on. Labels must be short phrases in the document's own language and wording — never invent topics the document does not cover. Cite the block index each node summarizes in `block` so the user can jump to the passage. This tool does not modify the document; after it returns, reply with one short sentence.",
-      "inputSchemaSha256": null,
-      "tableHash": "unresolved:identifier:depth"
+      "offered": true,
+      "inputSchemaSha256": "ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0",
+      "tableHash": "ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0"
     },
     {
       "module": "docs",
@@ -5545,13 +5823,11 @@
       "name": "generate_mindmap",
       "host": "renderer",
       "source": "apps/markdown/src/renderer/ai/mind-map.ts",
-      "schemaComplete": false,
+      "schemaComplete": true,
       "descriptionComplete": true,
-      "offered": false,
-      "reason": "identifier:depth",
-      "description": "Render an interactive mind map of the document (or of one focused aspect) as a diagram card in the chat. Call it when the user asks for a mind map / knowledge structure / overview diagram of the document or a topic. Pass the entire tree in this single call: the root is the document title or the focus topic, its children are the main sections, and so on. Labels must be short phrases in the document's own language and wording — never invent topics the document does not cover. Cite the block index each node summarizes in `block` so the user can jump to the passage. This tool does not modify the document; after it returns, reply with one short sentence.",
-      "inputSchemaSha256": null,
-      "tableHash": "unresolved:identifier:depth"
+      "offered": true,
+      "inputSchemaSha256": "ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0",
+      "tableHash": "ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0"
     },
     {
       "module": "markdown",

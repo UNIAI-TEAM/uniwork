@@ -8,7 +8,7 @@ package sdi
 // /api/v1/office-frame/documents/{documentID}/uploads (multipart): the save
 // intent. The staged bytes become a version only through .../versions/commit.
 type UploadOfficeFrameFileSDI struct {
-	File []byte `formData:"file" description:"Byte mới của tài liệu (cùng định dạng với module của token); purpose document_file, ≤ 50 MiB"`
+	File []byte `formData:"file" description:"Byte mới của tài liệu (cùng định dạng với module của token); purpose document_file, ≤ DOCUMENT_MAX_BYTES (mặc định 200 MiB)"`
 }
 
 // CommitOfficeFrameVersionSDI is POST
@@ -19,6 +19,9 @@ type UploadOfficeFrameFileSDI struct {
 type CommitOfficeFrameVersionSDI struct {
 	UploadID     string `json:"upload_id" description:"upload_id do POST .../uploads trả về" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
 	BaseRevision string `json:"base_revision" description:"Revision nền dạng chuỗi thập phân (etag lạc quan); lệch -> 409 document_version_conflict" example:"41"`
+	// EditLockID is added by the host page, which holds the lock through the
+	// bearer routes; the frame token itself never acquires one (UNI-1645 §4).
+	EditLockID string `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645); bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
 }
 
 // UploadOfficeFrameAssetSDI documents POST

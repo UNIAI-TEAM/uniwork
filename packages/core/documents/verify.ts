@@ -4,7 +4,6 @@ import {
   type DocumentArchive,
   type DocumentAsset,
   type DocumentComment,
-  type DocumentFavorite,
   type DocumentLinkEnvelope,
   type DocumentSettings,
   type DocumentShareBatch,
@@ -12,6 +11,11 @@ import {
   type DocumentUpload,
   type DocumentVersionResult,
 } from "../types/document";
+import type { DocumentFavorite } from "../types/document-favorites";
+import type {
+  DocumentAccessUpdate,
+  UpdateDocumentAccessBody,
+} from "../api/endpoints/documents-sharing";
 import type { CommentReaction } from "../types/task-collaboration";
 
 // Identity checks on mutation answers. An endpoint already returns null when
@@ -60,14 +64,27 @@ export function requireVerifiableArchive(res: DocumentArchive | null | undefined
   return res;
 }
 
-/** A grant answer proves the write with the live share row. */
+/** A grant answer proves the write with the live share row. One answer proves
+ *  a write without a row of its own: a share naming the document's own
+ *  workspace is merged into its home row (SH-S1), so the server answers the
+ *  moved home-row grant - the same principal and level - with an empty
+ *  `share.id`. `homeWorkspaceId` is the document's workspace, the one
+ *  principal whose grant may come back that way; every other answer without a
+ *  row identity stays unverifiable. */
 export function requireVerifiableShare(
   res: DocumentShareEnvelope | null | undefined,
+  homeWorkspaceId = "",
 ): DocumentShareEnvelope {
-  if (!res || !res.share?.id || !res.share?.principal_id || !res.share?.level) {
-    throw new DocumentNotVerifiableError();
+  if (!res?.share?.principal_id || !res.share?.level) throw new DocumentNotVerifiableError();
+  if (res.share.id) return res;
+  if (
+    homeWorkspaceId !== "" &&
+    res.share.principal_type === "workspace" &&
+    res.share.principal_id === homeWorkspaceId
+  ) {
+    return res;
   }
-  return res;
+  throw new DocumentNotVerifiableError();
 }
 
 /** A batch grant answer proves the write only when it names at least one
@@ -81,6 +98,25 @@ export function requireVerifiableShareBatch(
     !res.shares.length ||
     !res.shares.every((row) => !!row.id && !!row.principal_id && !!row.level)
   ) {
+    throw new DocumentNotVerifiableError();
+  }
+  return res;
+}
+
+/** A unified access update (SH-W1) proves its result when every requested item
+ *  has a result entry and, on a real write that changed at least one row, the
+ *  server minted a non-empty `batch_id`. */
+export function requireVerifiableAccessUpdate(
+  res: DocumentAccessUpdate | null | undefined,
+  body: UpdateDocumentAccessBody,
+): DocumentAccessUpdate {
+  if (!res || !res.results.length || res.results.length !== body.items.length) {
+    throw new DocumentNotVerifiableError();
+  }
+  const mutated = res.results.some(
+    (r) => r.status === "granted" || r.status === "updated" || r.status === "revoked",
+  );
+  if (!body.dry_run && mutated && !res.batch_id.trim()) {
     throw new DocumentNotVerifiableError();
   }
   return res;

@@ -15,6 +15,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { BoardCardMeta } from "./board-card";
 import { PriorityFlag, StatusIcon } from "./status-pill";
+import { TaskLabelChips } from "./task-label-chips";
 import { useTaskSurfaceSelectionOptional } from "../surface/selection-context";
 import {
   RowActionsContextMenu,
@@ -126,6 +127,9 @@ function TaskListRowContent({
               <FolderKanban className="size-3 shrink-0" aria-hidden />
               <span className="truncate">{projectName}</span>
             </span>
+          ) : null}
+          {cardProperties.labels && meta?.labels ? (
+            <TaskLabelChips labels={meta.labels} className="hidden shrink-0 md:flex" />
           ) : null}
           {cardProperties.startDate && task.start_date ? (
             <span className="hidden shrink-0 items-center gap-1 text-caption tabular-nums text-muted-foreground lg:inline-flex">

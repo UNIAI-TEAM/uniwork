@@ -51,6 +51,7 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
         <ChatHeader
           title={t("chat.thread_title")}
           subtitle={room.title}
+          backLabel={t("chat.mobile.back_to_conversation")}
           avatar={
             <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-tint-blue">
               <Ionicons name="chatbubble-ellipses-outline" size={20} color={THEME[colorScheme].tintBlueForeground} />

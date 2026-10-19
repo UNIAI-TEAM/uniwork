@@ -71,6 +71,9 @@ type TranscribeResponse struct {
 	// Seconds is the audio duration the vendor reported; 0 when unknown.
 	Seconds float64
 	Model   string
+	// Language is the language the vendor detected, as it names it
+	// (whisper's verbose_json says "vietnamese"); "" when it says none.
+	Language string
 }
 
 type Transcriber interface {
@@ -400,6 +403,7 @@ func (o *OpenAITranscriber) Transcribe(ctx context.Context, tr TranscribeRequest
 	var out struct {
 		Text     string  `json:"text"`
 		Duration float64 `json:"duration"`
+		Language string  `json:"language"`
 		Usage    struct {
 			Type    string  `json:"type"`
 			Seconds float64 `json:"seconds"`
@@ -412,7 +416,7 @@ func (o *OpenAITranscriber) Transcribe(ctx context.Context, tr TranscribeRequest
 	if secs == 0 && out.Usage.Type == "duration" {
 		secs = out.Usage.Seconds
 	}
-	return TranscribeResponse{Text: out.Text, Seconds: secs, Model: o.model}, nil
+	return TranscribeResponse{Text: out.Text, Seconds: secs, Model: o.model, Language: out.Language}, nil
 }
 
 type multipartFile struct {
@@ -549,5 +553,5 @@ func (f *FakeTranscriber) Transcribe(_ context.Context, tr TranscribeRequest) (T
 	if f.Err != nil {
 		return TranscribeResponse{}, f.Err
 	}
-	return TranscribeResponse{Text: "Bản ghi thử nghiệm.", Seconds: float64(len(tr.Audio.Data)) / 16384, Model: "fake-transcribe"}, nil
+	return TranscribeResponse{Text: "Bản ghi thử nghiệm.", Seconds: float64(len(tr.Audio.Data)) / 16384, Model: "fake-transcribe", Language: "vietnamese"}, nil
 }

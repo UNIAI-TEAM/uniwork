@@ -69,8 +69,8 @@ describe("buildRoomList", () => {
   it("words titles, marks and previews like the web's rows", () => {
     const rows = Object.fromEntries(buildRoomList(base).map((row) => [row.key, row]));
     expect(rows["dm:u2"]).toMatchObject({ title: "Bình", mark: { kind: "dm", online: true }, subtitle: "@An xem nhé", roomId: "dm1" });
-    expect(rows.workspace).toMatchObject({ title: "Chung", mark: { kind: "workspace" }, subtitle: "Bình: chào" });
-    expect(rows["group:g1"]).toMatchObject({ title: "Thiết kế", subtitle: "Bạn: ok", time: expect.any(String) });
+    expect(rows.workspace).toMatchObject({ title: "Chung", mark: { kind: "workspace" }, prefix: "Bình: ", subtitle: "chào" });
+    expect(rows["group:g1"]).toMatchObject({ title: "Thiết kế", prefix: "Bạn: ", subtitle: "ok", time: expect.any(String) });
     expect(rows["channel:c1"]).toMatchObject({ title: "sales", mark: { kind: "private-channel" }, subtitle: "bao-gia.pdf" });
     expect(rows["channel:c2"]).toMatchObject({ title: "#dev", mark: { kind: "channel" }, subtitle: "Cuộc gọi thoại" });
   });

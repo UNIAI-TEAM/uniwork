@@ -4,13 +4,19 @@ import "testing"
 
 func TestBuiltInTaskStatusesCanonicalOrder(t *testing.T) {
 	got := BuiltInTaskStatuses()
-	want := []string{"backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"}
+	want := []string{"backlog", "todo", "in_progress", "in_review", "blocked", "done", "cancelled"}
 	if len(got) != len(want) {
 		t.Fatalf("len = %d", len(got))
 	}
 	for i := range want {
-		if got[i].Key != want[i] || got[i].Category != want[i] || got[i].Position != float64(i*1024) {
+		if got[i].Key != want[i] || got[i].Category != want[i] {
 			t.Fatalf("status[%d] = %+v", i, got[i])
+		}
+		// Each built-in sits inside its group's band, so the four groups sort
+		// in order (blocked with the started group, before done).
+		group := statusGroupOf[got[i].Key]
+		if base := statusGroupBase[group]; got[i].Position < base || got[i].Position >= base+statusGroupSpan {
+			t.Fatalf("%s at %v is outside the %s band", got[i].Key, got[i].Position, group)
 		}
 	}
 }

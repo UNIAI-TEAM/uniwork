@@ -196,3 +196,10 @@ WHERE w.icon_file_id = ANY(sqlc.arg('file_ids')::text[]);
 SELECT r.avatar_file_id AS file_id, r.organization_id
 FROM chat_rooms r
 WHERE r.avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: FileGCChatLinkPreviewRefTenants :many
+-- tenant: system
+-- chat_link_previews.image_file_id: a link preview's picture (ADR 0035).
+SELECT p.image_file_id AS file_id, p.organization_id
+FROM chat_link_previews p
+WHERE p.image_file_id = ANY(sqlc.arg('file_ids')::text[]);
