@@ -171,41 +171,50 @@ beforeEach(() => {
 });
 
 describe("My Folder sub-nav row", () => {
-  it("sits right after Home, ensures the folder once, opens it as a folder view and marks it current", async () => {
-    route({ post: (path) => (path === MY_FOLDER_URL ? { document: myFolderDoc() } : {}), detail: (id) => (id === "mf1" ? myFolderDoc() : null) });
+  it("stands first under Thư mục until the folder exists, ensures it once, then the tree row takes its place", async () => {
+    let created = false;
+    route({
+      tree: () => (created ? [treeNode({ id: "mf1", title: "My Folder", kind: "folder", system_kind: "my_folder" })] : []),
+      post: (path) => {
+        if (path !== MY_FOLDER_URL) return {};
+        created = true;
+        return { document: myFolderDoc() };
+      },
+      detail: (id) => (id === "mf1" ? myFolderDoc() : null),
+    });
     const nav = renderView();
     const sidebar = await screen.findByRole("navigation", { name: t("documents.home.sidebar.label") });
+    // Not among the collections: the row after Home is Recent.
     const home = within(sidebar).getByRole("button", { name: t("documents.home.sidebar.home") });
+    expect(home.nextElementSibling).toBe(within(sidebar).getByRole("button", { name: t("documents.home.sidebar.recent") }));
     const row = within(sidebar).getByRole("button", { name: label() });
-    expect(home.nextElementSibling).toBe(row);
 
     fireEvent.click(row);
     await waitFor(() => expect(nav.searchParams.get("folder")).toBe("mf1"));
     expect(posts(MY_FOLDER_URL)).toHaveLength(1);
     await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: label() })).toBeInTheDocument());
     expect(screen.getByRole("heading", { level: 1 })).not.toHaveTextContent("My Folder");
-    expect(within(sidebar).getByRole("button", { name: label() })).toHaveAttribute("aria-current", "page");
-    expect(within(sidebar).getByRole("button", { name: t("documents.home.sidebar.home") })).not.toHaveAttribute("aria-current");
 
-    // The id is known now: returning to Home and clicking the row again opens it with no second ensure.
-    fireEvent.click(within(sidebar).getByRole("button", { name: t("documents.home.sidebar.home") }));
-    await waitFor(() => expect(nav.searchParams.get("folder")).toBeNull());
-    fireEvent.click(within(sidebar).getByRole("button", { name: label() }));
-    await waitFor(() => expect(nav.searchParams.get("folder")).toBe("mf1"));
+    // Once it exists, the tree row is the only My Folder entry and it is the current one.
+    const treeRow = await within(sidebar).findByRole("treeitem", { name: new RegExp(label()) });
+    expect(within(sidebar).queryByRole("button", { name: label() })).toBeNull();
+    expect(treeRow).toHaveAttribute("aria-current", "true");
     expect(posts(MY_FOLDER_URL)).toHaveLength(1);
   });
 
-  it("opens straight away when the tree already lists My Folder, with its i18n label", async () => {
+  it("shows My Folder once, as a tree row with the lock glyph and its i18n label, and opens it with no ensure", async () => {
     route({
       tree: () => [treeNode({ id: "mf1", title: "My Folder", kind: "folder", system_kind: "my_folder" })],
       detail: () => myFolderDoc(),
     });
     const nav = renderView();
     // Tree row: the stored English title never shows.
-    expect(await screen.findByRole("treeitem", { name: new RegExp(label()) })).toBeInTheDocument();
+    const treeRow = await screen.findByRole("treeitem", { name: new RegExp(label()) });
     expect(screen.queryByText("My Folder")).toBeNull();
+    expect(treeRow.querySelector("svg.lucide-folder-lock")).not.toBeNull();
     const sidebar = screen.getByRole("navigation", { name: t("documents.home.sidebar.label") });
-    fireEvent.click(within(sidebar).getByRole("button", { name: label() }));
+    expect(within(sidebar).queryByRole("button", { name: label() })).toBeNull();
+    fireEvent.click(treeRow);
     await waitFor(() => expect(nav.searchParams.get("folder")).toBe("mf1"));
     expect(posts(MY_FOLDER_URL)).toHaveLength(0);
   });

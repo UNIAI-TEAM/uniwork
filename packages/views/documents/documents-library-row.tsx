@@ -224,11 +224,12 @@ export function LibraryRowView({
       actions.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
     }
     if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
-      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
+      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words.
+      // Both are the trash command, so both draw the trash icon; Archive belongs to shelve above.
       actions.push(
         folder
           ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }
-          : { id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) },
+          : { id: "archive", label: t("documents.home.row.archive"), icon: Trash2, run: () => handlers.onArchive?.(doc) },
       );
     }
   }
