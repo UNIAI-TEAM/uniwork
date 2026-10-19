@@ -4,6 +4,7 @@ import { memo } from "react";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
+import { ChatShareAsDocumentAction } from "./chat-share-as-document-action";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
@@ -126,6 +127,9 @@ function ChatFileMessageRowImpl({
                   </div>
                 ) : null}
                 <ChatFileAttachment workspaceId={workspaceId} roomId={roomId} message={message} />
+                {message.canShareAsDocument ? (
+                  <ChatShareAsDocumentAction workspaceId={workspaceId} roomId={roomId} message={message} />
+                ) : null}
               </div>
               <div className={cn(edgeToEdge ? "px-1" : undefined)}>
                 <ChatMessageMeta message={message} isOwn={isOwn} showTime />
