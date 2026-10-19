@@ -1,0 +1,37 @@
+$ WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e pdf-web; rc=$?; echo; echo "WEB_E2E_PDF_EXIT=$rc"; exit $rc
+
+Running 27 tests using 1 worker
+
+(node:5681) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/pdf-web.spec.ts:198:7 › pdf module on the web › edit round trip: annotate, fill, save, conflict, reopen, page ops, Save As, print (2.9s)
+  ✓   2 [chromium] › web/e2e/pdf-web.spec.ts:352:7 › pdf module on the web › view-only (no save grant): edit UI disabled, nothing can be saved, print works (948ms)
+  ✓   3 [chromium] › web/e2e/pdf-web.spec.ts:380:7 › pdf module on the web › phone width: the tab row stays on one line and scrolls (359ms)
+  ✓   4 [chromium] › web/e2e/pdf-web.spec.ts:405:7 › pdf module on the web › vi ribbon with the AI panel open: the clipped band shows an overflow cue (396ms)
+  ✓   5 [chromium] › web/e2e/pdf-web.spec.ts:424:7 › pdf module on the web › Sign dialog: the primary button is the brand blue, not black (440ms)
+  ✓   6 [chromium] › web/e2e/pdf-web.spec.ts:439:9 › pdf module on the web › renders sample.pdf with zero CSP violations (1.9s)
+  ✓   7 [chromium] › web/e2e/pdf-web.spec.ts:439:9 › pdf module on the web › renders pdf-scanned.pdf with zero CSP violations (1.9s)
+  ✓   8 [chromium] › web/e2e/pdf-web.spec.ts:439:9 › pdf module on the web › renders pdf-fonts.pdf with zero CSP violations (1.9s)
+  ✓   9 [chromium] › web/e2e/pdf-web.spec.ts:439:9 › pdf module on the web › renders pdf-form.pdf with zero CSP violations (1.9s)
+  ✓  10 [chromium] › web/e2e/pdf-web.spec.ts:449:7 › pdf module on the web › encrypted PDF: password prompt, then it renders (read-only) (728ms)
+  ✓  11 [chromium] › web/e2e/pdf-web.spec.ts:465:7 › pdf module on the web › screenshots: light + dark, vi + en (8.0s)
+  ✓  12 [chromium] › web/e2e/pdf-web.spec.ts:505:9 › pdf module on the web › Insert text draws "Hello": dialog takes the typing, text is placed and saved (779ms)
+  ✓  13 [chromium] › web/e2e/pdf-web.spec.ts:505:9 › pdf module on the web › Insert text draws "Xin chào": dialog takes the typing, text is placed and saved (772ms)
+  ✓  14 [chromium] › web/e2e/pdf-web.spec.ts:597:7 › pdf module on the web: a second Save commits nothing › Save, wait, Save again: the second Save commits nothing (5.8s)
+  ✓  15 [chromium] › web/e2e/pdf-web.spec.ts:615:7 › pdf module on the web: a second Save commits nothing › second Save pressed while the first is still saving commits nothing (6.6s)
+  ✓  16 [chromium] › web/e2e/pdf-web.spec.ts:638:7 › pdf module on the web: a second Save commits nothing › second Save pressed while the saved copy reloads commits nothing (7.7s)
+  ✓  17 [chromium] › web/e2e/pdf-web.spec.ts:667:7 › pdf module on the web: a second Save commits nothing › second Save queued behind a failed Save still writes (4.1s)
+  ✓  18 [chromium] › web/e2e/pdf-web.spec.ts:695:9 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office stays visible and explains (en); no app button without the grant (420ms)
+  ✓  19 [chromium] › web/e2e/pdf-web.spec.ts:695:9 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office stays visible and explains (vi); no app button without the grant (413ms)
+  ✓  20 [chromium] › web/e2e/pdf-web.spec.ts:716:9 › pdf module on the web: use-the-app messages and narrow zoom › Redact stays visible and explains (en); no app button without the grant (456ms)
+  ✓  21 [chromium] › web/e2e/pdf-web.spec.ts:716:9 › pdf module on the web: use-the-app messages and narrow zoom › Redact stays visible and explains (vi); no app button without the grant (448ms)
+  ✓  22 [chromium] › web/e2e/pdf-web.spec.ts:736:7 › pdf module on the web: use-the-app messages and narrow zoom › Redact: Open in app sends one app.open when the host grants desktopOpen (609ms)
+  ✓  23 [chromium] › web/e2e/pdf-web.spec.ts:750:7 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office: Open in app sends one app.open when the host grants desktopOpen (590ms)
+  ✓  24 [chromium] › web/e2e/pdf-web.spec.ts:764:7 › pdf module on the web: use-the-app messages and narrow zoom › a scanned document says OCR is an app feature, once, and OK dismisses it (542ms)
+  ✓  25 [chromium] › web/e2e/pdf-web.spec.ts:782:7 › pdf module on the web: use-the-app messages and narrow zoom › a text document shows no OCR notice (1.9s)
+  ✓  26 [chromium] › web/e2e/pdf-web.spec.ts:789:7 › pdf module on the web: use-the-app messages and narrow zoom › at 390 px the page opens at the 60 % floor, not 26 % (356ms)
+  ✓  27 [chromium] › web/e2e/pdf-web.spec.ts:810:7 › pdf module on the web: narrow slot › at 390 px the 60 % page is inside the slot and any overflow pans inside the page area (426ms)
+
+  27 passed (55.6s)
+
+WEB_E2E_PDF_EXIT=0
