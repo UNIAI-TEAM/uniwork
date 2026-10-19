@@ -59,6 +59,15 @@ type SendChatDocumentMessageSDI struct {
 	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 }
 
+// ShareChatMessageAsDocumentSDI is POST
+// .../chat/rooms/{roomID}/messages/{messageID}/share-as-document (UNI-1966
+// §2.2, S10): converts the caller's existing file attachment message into a
+// shared document in place.
+type ShareChatMessageAsDocumentSDI struct {
+	ShareLevel  string `json:"share_level,omitempty" description:"view, comment, or edit granted to room members (default comment; manage is refused)" example:"comment"`
+	ClientMsgID string `json:"client_msg_id,omitempty" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+}
+
 // CreateChatPollSDI creates a poll in a chat room.
 type CreateChatPollSDI struct {
 	Question string              `json:"question" description:"Poll question" example:"Ăn trưa ở đâu?"`

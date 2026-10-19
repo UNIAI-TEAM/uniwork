@@ -107,8 +107,12 @@ type ChatMessageRow struct {
 	// document_version message (UNI-1966 §5): document_id always, the viewer
 	// fields filled by the batched resolver.
 	Document *DocumentMessageInfo
-	Priority string
-	EditedAt *time.Time
+	// CanShareAsDocument is the viewer-resolved L6 flag on a live file
+	// message: true only for the sender when the attachment is on the chat
+	// document MIME allowlist and has not been converted yet.
+	CanShareAsDocument bool
+	Priority           string
+	EditedAt           *time.Time
 	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
 	// its own queued copy without guessing from body and timestamp.
 	ClientMsgID string

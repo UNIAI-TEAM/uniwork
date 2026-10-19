@@ -32,7 +32,12 @@ func (s *ChatService) SetFiles(f files.Service) { s.files = f }
 // SetTasks precedent: the command is refused with a 501-shaped error until
 // this runs, so a build that forgot the wiring fails closed instead of
 // half-working.
-func (s *ChatService) SetDocuments(docs *DocumentService) { s.docs = docs }
+func (s *ChatService) SetDocuments(docs *DocumentService) {
+	s.docs = docs
+	if docs != nil {
+		docs.chat = s
+	}
+}
 
 // DocumentsService exposes the wired service for handler checks that must
 // refuse before reading a request body.
@@ -153,7 +158,9 @@ func (s *ChatService) sendChatMedia(
 		_ = s.q.TouchChatRoomUpdatedAt(ctx, room.ID)
 		s.publishCreatedChatMessage(ctx, room, msg.ID, msg.SenderID, "")
 	}
-	return s.signChatMediaRow(ctx, room, chatMessageRowFromDB(msg, user.DisplayName)), nil
+	out := []ChatMessageRow{s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, user.DisplayName, userID))}
+	s.resolveChatDocuments(ctx, room, out, userID)
+	return out[0], nil
 }
 
 // commitChatMediaMessage claims the staged file and inserts the message row

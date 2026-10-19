@@ -126,6 +126,83 @@ func (q *Queries) CarryOverChatRoomMemberSendRestricted(ctx context.Context, arg
 	return err
 }
 
+const chatRoomHasDocumentMessage = `-- name: ChatRoomHasDocumentMessage :one
+SELECT EXISTS (
+  SELECT 1
+  FROM chat_messages
+  WHERE room_id = $1
+    AND workspace_id = $2
+    AND kind = 'document'
+    AND deleted_at IS NULL
+    AND metadata->>'document_id' = $3::text
+) AS found
+`
+
+type ChatRoomHasDocumentMessageParams struct {
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+	DocumentID  string `json:"document_id"`
+}
+
+// Reports whether a room holds a live document card for document_id, gating
+// the optional document_version line on a version commit (UNI-1966 §4.4).
+func (q *Queries) ChatRoomHasDocumentMessage(ctx context.Context, arg ChatRoomHasDocumentMessageParams) (bool, error) {
+	row := q.db.QueryRow(ctx, chatRoomHasDocumentMessage, arg.RoomID, arg.WorkspaceID, arg.DocumentID)
+	var found bool
+	err := row.Scan(&found)
+	return found, err
+}
+
+const convertChatFileMessageToDocument = `-- name: ConvertChatFileMessageToDocument :one
+UPDATE chat_messages
+SET kind = 'document', metadata = $4, file_id = NULL
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
+`
+
+type ConvertChatFileMessageToDocumentParams struct {
+	ID          string `json:"id"`
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Metadata    []byte `json:"metadata"`
+}
+
+// Flips an existing file attachment message in place to kind='document' after
+// its bytes are copied into a Document (UNI-1966 §2.2, §3.3); body and
+// client_msg_id stay untouched and file_id is cleared before the caller
+// releases the old chat_attachment reference.
+func (q *Queries) ConvertChatFileMessageToDocument(ctx context.Context, arg ConvertChatFileMessageToDocumentParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, convertChatFileMessageToDocument,
+		arg.ID,
+		arg.RoomID,
+		arg.WorkspaceID,
+		arg.Metadata,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const createChatDocumentMessage = `-- name: CreateChatDocumentMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id,
