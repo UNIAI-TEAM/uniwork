@@ -383,6 +383,7 @@ export function DocumentDetailView({
           source={requestSource}
           onRetryOpen={() => void query.refetch()}
           retrying={query.isFetching}
+          answeredAt={query.errorUpdatedAt}
           onBack={onBackToList}
         />
       );
