@@ -10599,7 +10599,6 @@
         "unstar": "Remove star",
         "go_to_source": "View where attached",
         "go_to_source_named": "View where attached: {{title}}",
-        "preview_loading": "Loading image…",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
         "view_only_notice": "View only · changes will not be saved",

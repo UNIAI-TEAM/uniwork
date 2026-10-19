@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { DocumentComment } from "@uniwork/core/types/document";
@@ -38,5 +38,27 @@ describe("DocumentCommentThread without a document context", () => {
     );
     expect(screen.getByTestId("document-thread-c1")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: t(K.collabResolve) })).toBeNull();
+  });
+});
+
+describe("editing a comment that mentions someone", () => {
+  it("shows @Name in the edit box and saves the token body", async () => {
+    const stored = `Nhờ [@Lan](mention://member/${LAN}) xem`;
+    const edit = vi.fn(() => Promise.resolve(true));
+    const ctx = ctxWithoutDoc({ actions: { ...ctxWithoutDoc().actions, edit } });
+    render(
+      <DocumentCommentThread
+        thread={{ root: root({ author_id: ME, display_name: "Minh", body: stored }), replies: [] }}
+        ctx={ctx}
+        onFocusHandled={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: `${t(K.collabActions)} Minh` }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t(K.collabEdit) }));
+    const box = screen.getByRole("textbox", { name: t(K.collabEdit) });
+    expect(box).toHaveValue("Nhờ @Lan xem");
+    fireEvent.change(box, { target: { value: "Nhờ @Lan xem giúp" } });
+    fireEvent.click(screen.getByRole("button", { name: t(K.collabSave) }));
+    await waitFor(() => expect(edit).toHaveBeenCalledWith("c1", `Nhờ [@Lan](mention://member/${LAN}) xem giúp`));
   });
 });

@@ -14,7 +14,7 @@ import { createDocument, type JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useMembers } from "@uniwork/core/workspaces";
+import { useCurrentMember } from "@uniwork/core/permissions";
 import { sanitizePageContent } from "@uniwork/core/documents/schema";
 import { EditorBubbleMenu } from "../editor/bubble-menu";
 import { createPageDocumentExtensions } from "../editor/extensions";
@@ -23,6 +23,7 @@ import {
   createDocumentAssetUploadExtension,
   type DocumentAssetUploader,
 } from "./document-asset-upload";
+import { fetchBodyMentionItems } from "./document-body-mention-items";
 import { DocumentImageExtension } from "./document-image-extension";
 import { DocumentAssetScopeProvider } from "./document-asset-context";
 import { PageFirstUseHint } from "./page-toolbar/page-first-use-hint";
@@ -108,9 +109,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   ) {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
-    const members = useMembers(wsId);
-    const membersRef = useRef(members.data);
-    membersRef.current = members.data;
+    // `include=no_access` is only offered to callers who may list members (G8-18), like the comment picker.
+    const includeNoAccessRef = useRef(false);
+    includeNoAccessRef.current = useCurrentMember(wsId).role !== null;
     const translateRef = useRef(t);
     translateRef.current = t;
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -155,8 +156,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
             ? "documents.page_ui.empty_placeholder" : "documents.page_ui.line_placeholder"),
           slash: { translate: (key, options) => translateRef.current(key, options), chooseImage: () => imageInputRef.current?.click() },
           mention: {
-            ...createMentionSuggestion(queryClient, { mode: "context", getContextItems: () =>
-              (membersRef.current ?? []).map((member) => ({ id: member.user_id, label: member.display_name, type: "member" as const })) }),
+            ...createMentionSuggestion(queryClient, { mode: "context" }),
+            // Same people and rows as the comment picker (mention candidates).
+            items: ({ query }) => fetchBodyMentionItems(queryClient, {
+              wsId, documentId, query, includeNoAccess: includeNoAccessRef.current,
+            }),
             // Keep the shared typed-trigger guard. Replacing a typed slash
             // with @ preserves its armed anchor; paste and undo stay literal.
             command: ({ editor: instance, range, props }) => {

@@ -82,13 +82,6 @@ describe("sourceOpenAction", () => {
   const file = (over: Partial<Pick<DocumentSourceFile, "mime_type" | "extension" | "name" | "can_open_in_app">> = {}) =>
     ({ name: "f", mime_type: "", extension: "", can_open_in_app: false, ...over }) as DocumentSourceFile;
 
-  it("previews an image by its mime type or extension", () => {
-    expect(sourceOpenAction(file({ mime_type: "image/png" }))).toBe("image");
-    expect(sourceOpenAction(file({ mime_type: "image/jpeg" }))).toBe("image");
-    expect(sourceOpenAction(file({ extension: "webp" }))).toBe("image");
-    expect(sourceOpenAction(file({ name: "ảnh.PNG" }))).toBe("image");
-  });
-
   it("opens an Office format in the view-only frame when the server vouches for it (can_open_in_app)", () => {
     // UNI-1869: a module frame opens the source; the flag alone is not enough —
     // a module must exist for the extension (officeModuleForFormat), so a
@@ -108,8 +101,8 @@ describe("sourceOpenAction", () => {
     ]) {
       expect(sourceOpenAction(f)).toBe("office");
     }
-    // An image the server also marks openable keeps the SRC-02a preview.
-    expect(sourceOpenAction(file({ mime_type: "image/png", can_open_in_app: true }))).toBe("image");
+    // Images are not sources any more (UNI-1967): even a flagged one has no module.
+    expect(sourceOpenAction(file({ mime_type: "image/png", can_open_in_app: true }))).toBe("download");
   });
 
   it("downloads a format no module opens, or when the server does not mark it openable", () => {
@@ -132,20 +125,6 @@ describe("sourceOpenAction", () => {
       file(),
     ]) {
       expect(sourceOpenAction(f)).toBe("download");
-    }
-  });
-
-  it("previews only the mime types a browser can draw; tiff/heic/svg download", () => {
-    for (const f of [
-      file({ mime_type: "image/tiff" }),
-      file({ mime_type: "image/heic" }),
-      file({ mime_type: "image/x-icon" }),
-      file({ mime_type: "image/svg+xml" }),
-      file({ extension: "svg" }),
-      file({ mime_type: "IMAGE/PNG" }),
-    ]) {
-      // The image/ prefix is not enough: only the IMAGE_EXTENSIONS set previews.
-      expect(sourceOpenAction(f)).toBe(f.mime_type === "IMAGE/PNG" ? "image" : "download");
     }
   });
 });

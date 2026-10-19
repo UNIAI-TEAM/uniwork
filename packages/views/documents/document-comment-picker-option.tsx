@@ -26,6 +26,21 @@ function NoAccessBadge({ className, testId }: { className?: string; testId?: str
   );
 }
 
+/** Avatar, name, "Can't view" badge and email of one candidate: the row body of both `@` pickers. */
+export function CandidateIdentity({ candidate }: { candidate: MentionCandidate }) {
+  const label = candidate.display_name || candidate.user_id;
+  return (
+    <>
+      <CommentActorAvatar name={label} avatarUrl={candidate.avatar_url} kind="human" />
+      <span className="min-w-0 truncate font-medium">{label}</span>
+      {candidate.can_view === false ? (
+        <NoAccessBadge testId={`mention-candidate-no-access-${candidate.user_id}`} />
+      ) : null}
+      {candidate.email ? <span className="min-w-0 truncate text-muted-foreground">{candidate.email}</span> : null}
+    </>
+  );
+}
+
 export function PickerOption({
   row,
   active,
@@ -67,12 +82,7 @@ export function PickerOption({
     >
       {row.type === "person" ? (
         <>
-          <CommentActorAvatar name={label} avatarUrl={row.candidate.avatar_url} kind="human" />
-          <span className="min-w-0 truncate font-medium">{label}</span>
-          {row.candidate.can_view === false ? (
-            <NoAccessBadge testId={`mention-candidate-no-access-${row.candidate.user_id}`} />
-          ) : null}
-          {row.candidate.email ? <span className="min-w-0 truncate text-muted-foreground">{row.candidate.email}</span> : null}
+          <CandidateIdentity candidate={row.candidate} />
         </>
       ) : (
         label

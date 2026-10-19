@@ -11,7 +11,7 @@ import { requestMock } from "../test/request-mock";
 import { DocumentCommentBody, mentionNames } from "./document-comment-body";
 import { DocumentCommentComposer, type SendOutcome } from "./document-comment-composer";
 import { K } from "./document-comments-keys";
-import { mentionToken } from "./use-mention-picker";
+import { mentionToken } from "./document-comment-mention-draft";
 
 // The composer and its S14 mention picker, and the §4.2 body renderer.
 
@@ -86,7 +86,7 @@ describe("S14 mention picker", () => {
     fireEvent.keyDown(combo, { key: "ArrowDown" });
     expect(combo).toHaveAttribute("aria-activedescendant", options[1]!.id);
     fireEvent.keyDown(combo, { key: "Enter" });
-    expect(box).toHaveValue(`Nhờ ${mentionToken({ user_id: BINH, display_name: "Bình" })} `);
+    expect(box).toHaveValue("Nhờ @Bình ");
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
