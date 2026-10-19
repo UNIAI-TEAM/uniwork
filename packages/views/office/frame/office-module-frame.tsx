@@ -264,7 +264,8 @@ export function OfficeModuleFrame({
 
   // Ctrl/Cmd+P while focus sits in the page (not the frame) prints the document, not the page.
   // Focus inside the iframe is the frame's own document (UNI-1911): only the frame can hear
-  // Ctrl+P there, and the pinned md/html/sheets builds do not bind it — a fork follow-up.
+  // Ctrl+P there. Since UNI-1920 the Docs and HTML builds bind the key to their own print;
+  // the markdown and sheets builds still do not — a fork follow-up.
   useEffect(() => {
     // The frame's own dialog is modal for the page: the page's shortcuts wait until it closes.
     if (session.status !== "ready" || session.modal || !session.canPrint) return undefined;
