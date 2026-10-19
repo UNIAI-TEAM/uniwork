@@ -11,13 +11,6 @@ import { configureRuntime } from "@uniwork/core/runtime-config";
  * Importing this module applies the configuration; it has no exports on
  * purpose so a caller cannot accidentally defer it past first use.
  */
-configureRuntime({
-  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
-  wsUrl: process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080",
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  chatScopeSubscriptionLimit: parseChatScopeLimit(process.env.NEXT_PUBLIC_CHAT_SCOPE_LIMIT),
-});
-
 const maxChatScopeSubscriptionLimit = 25;
 
 function parseChatScopeLimit(raw: string | undefined): number {
@@ -26,3 +19,10 @@ function parseChatScopeLimit(raw: string | undefined): number {
   if (n > maxChatScopeSubscriptionLimit) return maxChatScopeSubscriptionLimit;
   return n;
 }
+
+configureRuntime({
+  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
+  wsUrl: process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080",
+  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  chatScopeSubscriptionLimit: parseChatScopeLimit(process.env.NEXT_PUBLIC_CHAT_SCOPE_LIMIT),
+});
