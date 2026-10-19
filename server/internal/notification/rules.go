@@ -921,6 +921,7 @@ func ruleDocumentAccessRequestDecided(ctx context.Context, e env, ev outbox.Row,
 		return nil, nil
 	}
 	kind := KindDocumentAccessDeclined
+	groupKey := "document:" + doc.ID + ":access_declined"
 	params := map[string]string{"actor": actorName(ctx, e.q, ev), "document_id": doc.ID}
 	switch req.Status {
 	case "approved":
@@ -935,6 +936,7 @@ func ruleDocumentAccessRequestDecided(ctx context.Context, e env, ev outbox.Row,
 			return nil, err
 		}
 		kind = KindDocumentAccessApproved
+		groupKey = "document:" + doc.ID + ":access_approved"
 		params["document"] = doc.Title
 	case "declined":
 		// No document name, ever: the requester was never allowed to read it
@@ -954,7 +956,7 @@ func ruleDocumentAccessRequestDecided(ctx context.Context, e env, ev outbox.Row,
 	}
 	return []Draft{{
 		UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-		Kind: kind, GroupKey: "document:" + doc.ID + ":access_decided",
+		Kind: kind, GroupKey: groupKey,
 		ResourceType: "document", ResourceID: doc.ID,
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
 	}}, nil

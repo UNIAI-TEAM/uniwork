@@ -474,8 +474,8 @@ Feature flag: không thêm. Tất cả nằm sau cờ `documents` sẵn có.
 | `document_owner_transferred` | `document.owner_transferred` (không có `bulk_id`) | chủ mới | `document:{id}:owner` | tắt |
 | `document_owners_bulk_transferred` | `document.owners_bulk_transferred` | người nhận đợt | `document_owner_bulk:{bulk_id}` | tắt |
 | `document_access_requested` | `document.access_requested` | người quản lý (mục 3.1) | `document:{id}:access_requests` | bật |
-| `document_access_approved` | `document.access_request_decided` (approved) | người xin | `document:{id}:access_decided` | bật |
-| `document_access_declined` | `document.access_request_decided` (declined) | người xin | `document:{id}:access_decided` | tắt |
+| `document_access_approved` | `document.access_request_decided` (approved) | người xin | `document:{id}:access_approved` | bật |
+| `document_access_declined` | `document.access_request_decided` (declined) | người xin | `document:{id}:access_declined` | tắt |
 
 ## 5. Migration
 

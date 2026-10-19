@@ -223,13 +223,9 @@ func TestDocumentAccessDecidedNotifiesTheRequester(t *testing.T) {
 		t.Fatalf("the manager heard their own decline: %v", n)
 	}
 
-	// Ask again and approve: the requester can read now, so the sentence names
-	// the document and the push is on by default. The declined row is marked
-	// read first, because both decisions share one group key (§4.4) and an open
-	// row would merge the approval into it.
-	if _, err := f.pool.Exec(f.ctx, `UPDATE notifications SET read_at = now() WHERE id = $1`, got[0].ID); err != nil {
-		t.Fatal(err)
-	}
+	// Ask again and approve while the decline row is still unread: each
+	// decision kind carries its own group key (§4.4, BE-SD7-9), so the unread
+	// decline does not swallow the approval's kind/title or its push event.
 	if _, err := f.pool.Exec(f.ctx, `UPDATE document_access_requests SET decided_at = now() - interval '2 hours' WHERE id = $1`, reqID); err != nil {
 		t.Fatal(err)
 	}
@@ -244,6 +240,12 @@ func TestDocumentAccessDecidedNotifiesTheRequester(t *testing.T) {
 	approved := f.accessRequestNotifications(t, f.member.ID, KindDocumentAccessApproved)
 	if len(approved) != 1 {
 		t.Fatalf("approved notifications = %v, want one", approved)
+	}
+	if got[0].GroupKey != "document:"+docID+":access_declined" {
+		t.Fatalf("declined group key = %q, want document:%s:access_declined", got[0].GroupKey, docID)
+	}
+	if approved[0].GroupKey != "document:"+docID+":access_approved" || approved[0].TitleKey != TitleKey(KindDocumentAccessApproved) {
+		t.Fatalf("approved row = %+v, want group key document:%s:access_approved and title %s", approved[0], docID, TitleKey(KindDocumentAccessApproved))
 	}
 	ap := decodeNotificationParams(t, approved[0])
 	if ap["document"] != "Hợp đồng mua bán" {
