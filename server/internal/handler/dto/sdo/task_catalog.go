@@ -10,6 +10,7 @@ type TaskStatusDTO struct {
 	Description    string  `json:"description"`
 	Category       string  `json:"category" example:"todo"`
 	Color          string  `json:"color" example:"#6b7280"`
+	Icon           string  `json:"icon" description:"Glyph: rỗng = theo category" example:""`
 	IsSystem       bool    `json:"is_system"`
 	Position       float64 `json:"position"`
 	ArchivedAt     *string `json:"archived_at,omitempty"`
