@@ -1,0 +1,15 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -v ./internal/handler/ -run 'DocumentSource|Sources|OfficeFrameSource' 2>&1 | grep -E "^(--- FAIL|=== RUN)|_test.go:[0-9]+:" | grep -B1 -A6 "FAIL\|_test.go" | head -80; echo "HDL_1967B_EXIT=${PIPESTATUS[0]}"
+=== RUN   TestOfficeFrameSourceTxtOpenGate
+    office_frame_source_test.go:280: flag off: chat:01M59JM560306B0VJHE9AENQ4C can_open_in_app = <nil>, want false
+--- FAIL: TestOfficeFrameSourceTxtOpenGate (0.25s)
+=== RUN   TestOfficeFrameSourceEmailHeadPromisesNoLength
+=== RUN   TestOfficeFrameSourceEscapedIDs
+=== RUN   TestOfficeFrameSourceMintRefusals
+=== RUN   TestOfficeFrameSourceTokenCannotWriteDocuments
+    office_frame_source_test.go:493: source token refused on 31 documents frame routes: [GET /api/v1/office-frame/documents/{documentID} POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/generate POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/messages GET /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/models GET /api/v1/office-frame/documents/{documentID}/ai/cloud POST /api/v1/office-frame/documents/{documentID}/ai/cloud/images POST /api/v1/office-frame/documents/{documentID}/ai/cloud/media/analyze POST /api/v1/office-frame/documents/{documentID}/ai/cloud/search POST /api/v1/office-frame/documents/{documentID}/ai/cloud/transcribe GET /api/v1/office-frame/documents/{documentID}/ai/credentials PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider} DELETE /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider} POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions POST /api/v1/office-frame/documents/{documentID}/assets POST /api/v1/office-frame/documents/{documentID}/assets/resolve POST /api/v1/office-frame/documents/{documentID}/assets/sign GET /api/v1/office-frame/documents/{documentID}/assets/{assetID} HEAD /api/v1/office-frame/documents/{documentID}/assets/{assetID} GET /api/v1/office-frame/documents/{documentID}/content HEAD /api/v1/office-frame/documents/{documentID}/content POST /api/v1/office-frame/documents/{documentID}/export/pdf GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID} HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID} GET /api/v1/office-frame/documents/{documentID}/recents POST /api/v1/office-frame/documents/{documentID}/upload-sessions GET /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID} DELETE /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID} POST /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}/complete POST /api/v1/office-frame/documents/{documentID}/uploads POST /api/v1/office-frame/documents/{documentID}/versions/commit]
+=== RUN   TestOfficeFrameSourceTokenCannotTouchTheEditLock
+=== RUN   TestOfficeFrameSourceModuleFlagGatesTheFrame
+=== RUN   TestOfficeFrameSourceTokenExpiry
+=== RUN   TestOfficeFrameSourceNeedsTheDocumentsFlag
+=== RUN   TestOfficeFrameSourceNeedsSources
+HDL_1967B_EXIT=1

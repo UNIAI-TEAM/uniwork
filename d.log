@@ -1,0 +1,9 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -v ./internal/service/ -run 'TestDocumentSourceListsDocumentFilesOnly$' 2>&1 | grep -vE "^\s*$|WARN http|INFO " | tail -60; echo "SVC_1967B_EXIT=${PIPESTATUS[0]}"
+=== RUN   TestDocumentSourceListsDocumentFilesOnly
+    document_sources_review_test.go:336: type=image: err = type phải là docx, xlsx, pptx, pdf, md hoặc html, want a 400
+    document_sources_review_test.go:336: type=other: err = type phải là docx, xlsx, pptx, pdf, md hoặc html, want a 400
+--- FAIL: TestDocumentSourceListsDocumentFilesOnly (0.78s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	0.800s
+FAIL
+SVC_1967B_EXIT=1
