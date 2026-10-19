@@ -49,11 +49,6 @@ var errChatDocumentsNotConfigured = errors.New("chat: documents service is not c
 // Production never sets it.
 var chatDocumentShareFault func() error
 
-// errChatDocumentType is the Check-hook refusal of a type outside L8's subset:
-// it is raised while the bytes are still in the local spool, so nothing is
-// stored and the upload session records the refusal.
-var errChatDocumentType = errors.New("chat: content type is not shareable as a document")
-
 // documentShareLevelFromInput reads the requested level: empty is comment
 // (§2.1's default), the four real levels are accepted, and manage is refused
 // with a 400 because a chat send hands out read-ish access, never
@@ -165,7 +160,7 @@ func (s *ChatService) SendDocumentMessage(
 		// content type, never the filename.
 		Check: func(_ context.Context, _ io.ReaderAt, _ int64, contentType string) error {
 			if !chatDocumentMIMEType(contentType) {
-				return errChatDocumentType
+				return chatDocumentTypeRefused()
 			}
 			return nil
 		},
@@ -174,6 +169,9 @@ func (s *ChatService) SendDocumentMessage(
 		// The policy refusal and the Check refusal are the same answer to the
 		// client: the §2.3 415 with fields.reason "format".
 		var fe *files.Error
+		if codedIs(err, document.ErrCodeUnsupportedMedia) {
+			return ChatMessageRow{}, err
+		}
 		if errors.As(err, &fe) && fe.Code == files.CodeTypeRejected {
 			return ChatMessageRow{}, chatDocumentTypeRefused()
 		}
@@ -204,9 +202,11 @@ func (s *ChatService) SendDocumentMessage(
 	}
 	row := chatMessageRowFromDBForViewer(msg, user.DisplayName, userID)
 	// The send answer carries the resolved block, so the sender's own card
-	// renders without a refetch.
-	s.resolveChatDocuments(ctx, room, []ChatMessageRow{row}, userID)
-	return row, nil
+	// renders without a refetch. The resolver mutates the slice element, so
+	// the element is what the answer returns.
+	out := []ChatMessageRow{row}
+	s.resolveChatDocuments(ctx, room, out, userID)
+	return out[0], nil
 }
 
 // commitDocumentMessage is step 3.1.e: the replay lookup, the permission

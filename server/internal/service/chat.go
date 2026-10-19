@@ -353,9 +353,9 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	row := s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID))
-	s.resolveChatDocuments(ctx, room, []ChatMessageRow{row}, userID)
-	return row, nil
+	out := []ChatMessageRow{s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID))}
+	s.resolveChatDocuments(ctx, room, out, userID)
+	return out[0], nil
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.

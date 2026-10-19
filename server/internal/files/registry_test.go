@@ -328,3 +328,47 @@ func TestContractDeadlines(t *testing.T) {
 		t.Errorf("MaxResolveURLTTL = %s, want 12h (T1-Q7)", MaxResolveURLTTL)
 	}
 }
+
+// UNI-1966 (L8): the chat document send accepts the ten editor formats and
+// nothing else. The subset must be a real subset of documentMIMETypes - every
+// entry is one documentMIMETypes already holds - and it must leave out the
+// UNI-1232 asset types that exist to sit beside a Markdown/HTML document.
+func TestChatDocumentMIMETypesIsTheEditorSubset(t *testing.T) {
+	inDocument := map[string]bool{}
+	for _, mime := range documentMIMETypes {
+		inDocument[NormalizeContentType(mime)] = true
+	}
+	for _, mime := range ChatDocumentMIMETypes {
+		if !inDocument[NormalizeContentType(mime)] {
+			t.Errorf("ChatDocumentMIMETypes holds %s, which documentMIMETypes does not", mime)
+		}
+	}
+	for _, mime := range []string{
+		"image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+		"text/css", "text/javascript",
+	} {
+		for _, allowed := range ChatDocumentMIMETypes {
+			if NormalizeContentType(allowed) == mime {
+				t.Errorf("ChatDocumentMIMETypes must not hold the asset type %s", mime)
+			}
+		}
+	}
+	for _, mime := range []string{
+		"application/pdf", "text/plain", "text/markdown", "text/html",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.ms-excel",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.ms-powerpoint",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"application/vnd.oasis.opendocument.text",
+	} {
+		found := false
+		for _, allowed := range ChatDocumentMIMETypes {
+			found = found || NormalizeContentType(allowed) == mime
+		}
+		if !found {
+			t.Errorf("ChatDocumentMIMETypes is missing the editor format %s", mime)
+		}
+	}
+}

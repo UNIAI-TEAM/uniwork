@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -272,11 +271,4 @@ func chatDocumentMIMEType(contentType string) bool {
 		}
 	}
 	return false
-}
-
-// documentMessageActorKind keeps the human-only rule of the send in one place
-// (ADR 0010: agents never write documents; the handler refuses before reading
-// the body).
-func documentMessageActorKind(actor Actor) bool {
-	return actor.Kind == audit.KindHuman && validActor(actor)
 }
