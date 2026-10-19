@@ -309,6 +309,63 @@ func TestDocumentAccessRequestDecisionClosed(t *testing.T) {
 		}
 	})
 
+	t.Run("a request that expires while waiting on the request lock is 409 and grants nothing", func(t *testing.T) {
+		var clockMu sync.Mutex
+		clockNow := f.now
+		f.svc.SetClock(func() time.Time {
+			clockMu.Lock()
+			defer clockMu.Unlock()
+			return clockNow
+		})
+		defer f.svc.SetClock(func() time.Time { return f.now })
+
+		doc := f.restrictedDoc(t)
+		reqID := f.seedPending(t, doc, f.tn.member.ID, "view", "sắp hết hạn", clockNow.Add(time.Minute))
+
+		tx, err := f.pool.Begin(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback(f.ctx) }()
+		if _, err := f.q.WithTx(tx).GetDocumentAccessRequestForUpdate(f.ctx, db.GetDocumentAccessRequestForUpdateParams{
+			OrganizationID: doc.OrganizationID, DocumentID: doc.ID, ID: reqID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		done := make(chan struct{})
+		var approveErr error
+		go func() {
+			defer close(done)
+			_, approveErr = f.svc.ApproveDocumentAccessRequest(context.Background(), manager, doc.ID, reqID, "view")
+		}()
+		f.waitLockOrDone(t, done)
+		clockMu.Lock()
+		clockNow = clockNow.Add(2 * time.Minute)
+		clockMu.Unlock()
+		if err := tx.Rollback(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		<-done
+
+		ce := wantCode(t, approveErr, "access_request_closed")
+		if ce.Status != 409 {
+			t.Fatalf("status = %d, want 409", ce.Status)
+		}
+		if row := f.decided(t, reqID); row.Status != AccessRequestStatusPending {
+			t.Fatalf("status = %q, want pending", row.Status)
+		}
+		if len(f.liveShares(t, doc.ID, "")) != 0 {
+			t.Fatal("an expired request gained a share")
+		}
+		if n := len(f.decisionAuditMeta(t, audit.ActionDocumentAccessRequestApproved, doc.ID)); n != 0 {
+			t.Fatalf("approved audit rows = %d, want none", n)
+		}
+		if n := f.countDecidedOutbox(t, doc.ID); n != 0 {
+			t.Fatalf("decided outbox rows = %d, want none", n)
+		}
+	})
+
 	t.Run("an archived document records cancelled and commits before the 409", func(t *testing.T) {
 		doc := f.treeDoc(t, f.tn, treeDocSpec{
 			ws: f.tn.wsA, visibility: "restricted", aclOwner: f.tn.aclOwner.ID, createdBy: f.tn.aclOwner.ID,

@@ -229,7 +229,6 @@ func (s *DocumentService) decideDocumentAccessRequest(ctx context.Context, actor
 			return DocumentAccessRequestDecision{}, err
 		}
 	}
-	now := s.now()
 	// cancelledCommitted carries the one answer that must survive a rollback:
 	// the requester is gone, the request is cancelled, and the caller still
 	// gets the 422. Returning it from inside fn would roll the cancel back.
@@ -241,7 +240,7 @@ func (s *DocumentService) decideDocumentAccessRequest(ctx context.Context, actor
 			// COMMITS it before the 409 goes out, so a later approval cannot
 			// resurrect it - which is why the refusal is raised after fn
 			// returns rather than inside it.
-			if err := s.closeRequestCancelled(ctx, q, doc, requestID, actor, now); err != nil {
+			if err := s.closeRequestCancelled(ctx, q, doc, requestID, actor); err != nil {
 				return err
 			}
 			cancelledCommitted = errAccessRequestClosed()
@@ -258,6 +257,7 @@ func (s *DocumentService) decideDocumentAccessRequest(ctx context.Context, actor
 		if err != nil {
 			return err
 		}
+		now := s.now()
 		if req.Status != AccessRequestStatusPending || !req.ExpiresAt.Valid || !now.Before(req.ExpiresAt.Time) {
 			return errAccessRequestClosed()
 		}
@@ -421,7 +421,7 @@ func (s *DocumentService) recordDeclinedRequest(ctx context.Context, q *db.Queri
 // the 409 is the same answer - so the gate's transaction COMMITS the cancel
 // before the caller raises the refusal. Returning the 409 from here would roll
 // the write back and leave a pending request that can never be answered.
-func (s *DocumentService) closeRequestCancelled(ctx context.Context, q *db.Queries, doc db.Document, requestID string, actor Actor, now time.Time) error {
+func (s *DocumentService) closeRequestCancelled(ctx context.Context, q *db.Queries, doc db.Document, requestID string, actor Actor) error {
 	req, err := q.GetDocumentAccessRequestForUpdate(ctx, db.GetDocumentAccessRequestForUpdateParams{
 		OrganizationID: doc.OrganizationID, DocumentID: doc.ID, ID: requestID,
 	})
@@ -436,7 +436,7 @@ func (s *DocumentService) closeRequestCancelled(ctx context.Context, q *db.Queri
 	if req.Status != AccessRequestStatusPending {
 		return nil
 	}
-	return s.cancelRequestRow(ctx, q, req, actor, now)
+	return s.cancelRequestRow(ctx, q, req, actor, s.now())
 }
 
 // cancelRequestRow closes a pending request as cancelled. It writes no event:
