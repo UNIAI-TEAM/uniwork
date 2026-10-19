@@ -324,6 +324,7 @@ test.describe("open, edit, save", () => {
     }
   });
 });
+
 /**
  * Ctrl/Cmd+P routes one print to the document (UNI-1920): the page's handler
  * answers a press whose focus sits in the page chrome with one `host.print`
@@ -334,39 +335,53 @@ test.describe("open, edit, save", () => {
  * `installPrintProbe` instruments one realm: `windowPrints` counts its
  * window.print() calls (stubbed - a headless run has no dialog and settles
  * the real path with afterprint), `hostPrints` counts host->frame `print`
- * envelopes the realm's postMessage receives. An `appendChild` wrap hands the
- * count of the hidden srcdoc iframe the HTML module prints through back to
- * the module's probe.
+ * envelopes the realm's postMessage receives, and `ctrlP` records each
+ * mod+P keydown's final defaultPrevented (read in a microtask, after every
+ * listener ran), so a binding that forgot preventDefault fails the case even
+ * though headless Playwright would never show the browser dialog. An
+ * `appendChild` wrap hands the count of the hidden srcdoc iframe the HTML
+ * module prints through back to the module's probe, re-stubbing on the
+ * child's `load` so the count survives a Window swap at the srcdoc
+ * navigation.
  */
-interface PrintCounts { windowPrints: number; hostPrints: number }
+interface PrintCounts { windowPrints: number; hostPrints: number; ctrlP: boolean[] }
+
+/** Hold after the print's own settle so a second print has room to show up. */
+const PRINT_SETTLE_MS = 1500;
 
 async function installPrintProbe(scope: Page | FrameLocator): Promise<void> {
   await scope.locator("body").evaluate(() => {
-    interface Probe { windowPrints: number; hostPrints: number }
+    interface Probe { windowPrints: number; hostPrints: number; ctrlP: boolean[] }
     const w = window as unknown as { __uwPrintProbe?: Probe }; // the spec's own counter bag; not on Window
-    w.__uwPrintProbe = { windowPrints: 0, hostPrints: 0 };
+    w.__uwPrintProbe = { windowPrints: 0, hostPrints: 0, ctrlP: [] };
     const probe = w.__uwPrintProbe;
+    const stubPrint = (target: Window | null) => {
+      if (!target) return;
+      target.print = () => {
+        probe.windowPrints += 1;
+        target.setTimeout(() => target.dispatchEvent(new Event("afterprint")), 50);
+      };
+    };
     const append = Element.prototype.appendChild;
     Element.prototype.appendChild = function <T extends Node>(child: T): T {
       append.call(this, child);
       if (child instanceof HTMLIFrameElement) {
         // The HTML module prints through a hidden sandboxed srcdoc iframe: its
-        // win.print() belongs to the module's count.
-        const childWindow = child.contentWindow;
-        if (childWindow) {
-          childWindow.print = () => {
-            probe.windowPrints += 1;
-            childWindow.setTimeout(() => childWindow.dispatchEvent(new Event("afterprint")), 50);
-          };
-        }
+        // win.print() belongs to the module's count. Re-stub on every load in
+        // case the srcdoc navigation swaps the Window, so the count cannot sit
+        // on a discarded about:blank window.
+        child.addEventListener("load", () => stubPrint(child.contentWindow));
+        stubPrint(child.contentWindow);
       }
       // appendChild's result is the appended child itself.
       return child;
     };
-    window.print = () => {
-      probe.windowPrints += 1;
-      window.setTimeout(() => window.dispatchEvent(new Event("afterprint")), 50);
-    };
+    stubPrint(window);
+    // Registered after the module's own binding; the microtask read still
+    // records the final defaultPrevented no matter the listener order.
+    window.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") queueMicrotask(() => probe.ctrlP.push(e.defaultPrevented));
+    }, true);
     // The DOM declares postMessage as overloads; forwarders need the rest-args shape.
     const postMessage = window.postMessage.bind(window) as unknown as (...args: unknown[]) => unknown;
     // Same signature as the native method: the wrapper forwards every form of the call.
@@ -386,7 +401,7 @@ async function installPrintProbe(scope: Page | FrameLocator): Promise<void> {
 async function readPrintCounts(scope: Page | FrameLocator): Promise<PrintCounts> {
   return scope.locator("body").evaluate(() => {
     const w = window as unknown as { __uwPrintProbe?: PrintCounts }; // the spec's own counter bag; not on Window
-    return w.__uwPrintProbe ?? { windowPrints: 0, hostPrints: 0 };
+    return w.__uwPrintProbe ?? { windowPrints: 0, hostPrints: 0, ctrlP: [] };
   });
 }
 
@@ -451,8 +466,12 @@ test.describe("Ctrl/Cmd+P", () => {
     await dialog.locator(".modal-actions button.primary").click();
     await expect(dialog).toBeHidden();
     await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
-    expect((await readPrintCounts(frame)).hostPrints).toBe(0);
-    expect((await readPrintCounts(page)).windowPrints).toBe(0);
+    // The frame's accelerator must have claimed the press: a missing preventDefault
+    // leaves the browser's own print dialog on top of the module print in a real browser.
+    await expect.poll(async () => (await readPrintCounts(frame)).ctrlP).toEqual([true]);
+    await page.waitForTimeout(PRINT_SETTLE_MS);
+    expect(await readPrintCounts(frame)).toEqual({ windowPrints: 1, hostPrints: 0, ctrlP: [true] });
+    expect(await readPrintCounts(page)).toEqual({ windowPrints: 0, hostPrints: 0, ctrlP: [] });
   });
 
   test("Docs: Ctrl+P with the focus in the page sends exactly one host.print request", async ({ page }) => {
@@ -468,7 +487,11 @@ test.describe("Ctrl/Cmd+P", () => {
     await page.keyboard.press("Control+p");
     await expect.poll(async () => (await readPrintCounts(frame)).hostPrints).toBe(1);
     await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
-    expect((await readPrintCounts(page)).windowPrints).toBe(0);
+    // The page's handler claims the press with preventDefault before it sends host.print.
+    await expect.poll(async () => (await readPrintCounts(page)).ctrlP).toEqual([true]);
+    await page.waitForTimeout(PRINT_SETTLE_MS);
+    expect(await readPrintCounts(frame)).toEqual({ windowPrints: 1, hostPrints: 1, ctrlP: [] });
+    expect(await readPrintCounts(page)).toEqual({ windowPrints: 0, hostPrints: 0, ctrlP: [true] });
   });
 
   test("HTML: Ctrl+P inside the frame runs the frame's print, never host.print", async ({ page }) => {
@@ -484,8 +507,12 @@ test.describe("Ctrl/Cmd+P", () => {
     await frame.getByRole("tab").first().click();
     await page.keyboard.press("Control+p");
     await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
-    expect((await readPrintCounts(frame)).hostPrints).toBe(0);
-    expect((await readPrintCounts(page)).windowPrints).toBe(0);
+    // The frame's accelerator must have claimed the press: a missing preventDefault
+    // leaves the browser's own print dialog on top of the module print in a real browser.
+    await expect.poll(async () => (await readPrintCounts(frame)).ctrlP).toEqual([true]);
+    await page.waitForTimeout(PRINT_SETTLE_MS);
+    expect(await readPrintCounts(frame)).toEqual({ windowPrints: 1, hostPrints: 0, ctrlP: [true] });
+    expect(await readPrintCounts(page)).toEqual({ windowPrints: 0, hostPrints: 0, ctrlP: [] });
   });
 
   test("HTML: Ctrl+P with the focus in the page sends exactly one host.print request", async ({ page }) => {
@@ -500,10 +527,13 @@ test.describe("Ctrl/Cmd+P", () => {
     await page.keyboard.press("Control+p");
     await expect.poll(async () => (await readPrintCounts(frame)).hostPrints).toBe(1);
     await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
-    expect((await readPrintCounts(page)).windowPrints).toBe(0);
+    // The page's handler claims the press with preventDefault before it sends host.print.
+    await expect.poll(async () => (await readPrintCounts(page)).ctrlP).toEqual([true]);
+    await page.waitForTimeout(PRINT_SETTLE_MS);
+    expect(await readPrintCounts(frame)).toEqual({ windowPrints: 1, hostPrints: 1, ctrlP: [] });
+    expect(await readPrintCounts(page)).toEqual({ windowPrints: 0, hostPrints: 0, ctrlP: [true] });
   });
 });
-
 
 test.describe("bundle not installed", () => {
   test("a flag-on organization sees the not-set-up notice and no iframe is mounted", async ({ page, browser, request }) => {
