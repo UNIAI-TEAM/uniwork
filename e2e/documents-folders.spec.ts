@@ -856,7 +856,8 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
   ]);
 
   // 3. Two-session realtime update: User A has srcFolder open and a second tab with search results open;
-  // User B (in a second browser context) moves a folder out of srcFolder into dstFolder;
+  // a second session of the same owner (in another browser context) moves a folder out of srcFolder into dstFolder
+  // (a folder is never shared, UNI-1974, so another member cannot edit the owner's folders);
   // User A's tree, open folder content, and open search result list update without reload.
   const liveFolder = await createFolder(
     page,
@@ -884,13 +885,13 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
   const contextB = await browser.newContext();
   try {
     const pageB = await contextB.newPage();
-    await loginFolderUser(pageB, ws.member!.email);
+    await loginFolderUser(pageB, ws.owner.email);
     await pageB.goto(
       `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${srcFolder.id}`,
     );
     const moveResB = await moveDocument(
       pageB,
-      ws.member!.token,
+      ws.owner.token,
       liveFolder.id,
       {
         parent_id: dstFolder.id,
@@ -1478,7 +1479,8 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
     );
   }
 
-  // Unreadable ancestor is omitted from breadcrumb, and forbidden ?folder= shows error state.
+  // A shared document never names the owner's private folder (UNI-1974: a folder is never
+  // shared, so only a page inside it is), and the forbidden ?folder= shows the error state.
   const secretRoot = await createFolder(
     page,
     ws.owner.token,
@@ -1487,13 +1489,13 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
     null,
     "restricted",
   );
-  const sharedChild = await createFolder(
+  const sharedChild = await createPage(
     page,
     ws.owner.token,
     ws.wsId,
-    "Thư mục Con Được Chia Sẻ",
+    "Trang Con Được Chia Sẻ",
     secretRoot.id,
-    "restricted",
+    { visibility: "restricted" },
   );
   await grantDocumentShare(
     page,
@@ -1503,15 +1505,15 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
     "view",
   );
 
-  await loginFolderUser(page, ws.member!.email);
-  await page.goto(
-    `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${sharedChild.id}`,
-  );
-  await expect(
-    breadcrumb.getByText("Thư mục Con Được Chia Sẻ"),
-  ).toHaveAttribute("aria-current", "page");
-  await expect(breadcrumb.getByText("Thư mục Cha Bí Mật")).toHaveCount(0);
+  const memberView = await getDocument(page, ws.member!.token, sharedChild.id);
+  expect(
+    memberView.ok,
+    `getDocument: ${memberView.status} ${JSON.stringify(memberView.error)}`,
+  ).toBe(true);
+  expect(memberView.data?.parent_id ?? null).toBeNull();
+  expect(memberView.data?.breadcrumbs ?? []).toEqual([]);
 
+  await loginFolderUser(page, ws.member!.email);
   await page.goto(
     `/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${secretRoot.id}`,
   );
@@ -1636,7 +1638,8 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
     },
   );
 
-  // Restricted ancestor with a shared child folder to verify search path never leaks unreadable ancestor.
+  // Restricted ancestor with a shared child page (a folder is never shared, UNI-1974) to verify
+  // search path never leaks unreadable ancestor.
   const restrictedParent = await createFolder(
     page,
     ws.owner.token,
@@ -1645,13 +1648,13 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
     null,
     "restricted",
   );
-  const sharedLeaf = await createFolder(
+  const sharedLeaf = await createPage(
     page,
     ws.owner.token,
     ws.wsId,
     "Hợp đồng Chia Sẻ Riêng",
     restrictedParent.id,
-    "restricted",
+    { visibility: "restricted" },
   );
   await grantDocumentShare(
     page,
@@ -2124,12 +2127,13 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   expect(file1.id).not.toBe(file2.id);
 
   // 5. Restricted sibling folder collision: 409 response to User B carries NO id or title of A's restricted folder.
+  // Both sit at the root: a folder is never shared (UNI-1974), so B cannot create inside A's folder at all.
   const restrictedSibling = await createFolder(
     page,
     ws.owner.token,
     ws.wsId,
     "Dự Án Mật Của Owner",
-    parent.id,
+    null,
     "restricted",
   );
   const blindCollision = await apiCreateDocument(
@@ -2139,7 +2143,6 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     {
       title: "dự án mật của owner",
       kind: "folder",
-      parent_id: parent.id,
     },
   );
   expect(
@@ -2180,16 +2183,18 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   );
 });
 
-test("FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403", async ({
+test("FD-A12 a second session archiving and restoring a folder subtree is seen live by the first session, counts items and renames on restore collision", async ({
   page,
   browser,
 }) => {
   test.slow();
-  const ws = await seedFolderWorkspace(page, "fd-a12", { withMemberB: true });
-  const memberB = ws.member!;
+  const ws = await seedFolderWorkspace(page, "fd-a12");
+  // A folder is never shared (UNI-1974), so another member neither sees nor edits the owner's
+  // folders: session B is a second session of the same owner, in its own browser context.
+  const memberB = ws.owner;
 
-  // Session A (owner) watches the workspace; session B (a member) owns and changes the tree
-  // with B's own token, so every change is made by another user than the one watching.
+  // Session A (the owner) watches the workspace; session B changes the tree through its own
+  // page and token, so every change reaches A over the realtime socket, not through A's own page.
   await createFolder(page, ws.owner.token, ws.wsId, "Thư mục Gốc Của A");
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
@@ -2202,7 +2207,6 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
     const pageB = await contextB.newPage();
     await loginFolderUser(pageB, memberB.email);
     await pageB.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
-    const treeB = pageB.getByRole("tree", { name: "Cây tài liệu" });
 
     const rootFolder = await createFolder(
       pageB,
@@ -2333,61 +2337,6 @@ test("FD-A12 another member archiving and restoring a folder subtree is seen liv
     expect(doc1After.data?.parent_id).toBe(sub1.id);
     // server/internal/handler/documents.go:868-871 omits archived_at when doc.ArchivedAt is null.
     expect(doc1After.data?.archived_at).toBeUndefined();
-
-    // Unmanageable descendant: B cannot archive a folder containing A's document (403),
-    // by API and in B's own delete dialog.
-    const folderB = await createFolder(
-      pageB,
-      memberB.token,
-      ws.wsId,
-      "Thư mục Của B",
-    );
-    const childOfA = await createPage(
-      page,
-      ws.owner.token,
-      ws.wsId,
-      "Trang Của A",
-      folderB.id,
-    );
-    const impactB = await getArchiveImpact(pageB, memberB.token, folderB.id);
-    expect(
-      impactB.status,
-      `${impactB.status} ${JSON.stringify(impactB.error)}`,
-    ).toBe(403);
-    const archiveB = await archiveDocument(pageB, memberB.token, folderB.id);
-    expect(
-      archiveB.status,
-      `${archiveB.status} ${JSON.stringify(archiveB.error)}`,
-    ).toBe(403);
-    const childOfAAfter = await getDocument(page, ws.owner.token, childOfA.id);
-    expect(
-      childOfAAfter.ok,
-      `getDocument: ${childOfAAfter.status} ${JSON.stringify(childOfAAfter.error)}`,
-    ).toBe(true);
-    expect(childOfAAfter.data?.archived_at).toBeUndefined();
-
-    await expect(
-      treeB.getByRole("treeitem", { name: "Thư mục Của B" }),
-    ).toBeVisible({ timeout: 15_000 });
-    await treeB
-      .getByRole("button", { name: "Thao tác cho Thư mục Của B", exact: true })
-      .click();
-    await pageB.getByRole("menuitem", { name: "Xóa", exact: true }).click();
-    const blockedDialog = pageB.getByRole("alertdialog", {
-      name: "Xóa thư mục",
-    });
-    await expect(blockedDialog.getByRole("alert")).toContainText(
-      "Có tài liệu con bạn không quản lý được, nên cả nhóm không vào thùng rác.",
-    );
-    await expect(
-      blockedDialog.getByRole("button", { name: "Xóa", exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      blockedDialog.getByRole("button", { name: "Hủy", exact: true }),
-    ).toBeVisible();
-    await expect(
-      blockedDialog.getByRole("button", { name: "Hủy", exact: true }),
-    ).toBeEnabled();
   } finally {
     await searchPageA?.close();
     await contextB.close();
