@@ -349,4 +349,16 @@ describe('O2-B3: a written formula is filled and evaluated as the editor would',
     assert.equal(cell(backend, 'B2'), ' [formula =NOSUCH(A2)]', 'P-B3-UNKNOWN-OVERWRITE');
     assert.equal(cell(backend, 'C2'), ' [formula =1/0]', 'P-B3-ERROR-OVERWRITE');
   });
+
+  it('O2R1-08: ROUND rounds half away from zero for negative and positive values', () => {
+    const backend = createBackend(xlsx, { views: [view()] });
+    backend.execute('propose_operations', { operations: [
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'H2', formula: '=ROUND(-1.5,0)' },
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'H3', formula: '=ROUND(-1.25,1)' },
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'H4', formula: '=ROUND(1.5,0)' },
+    ] });
+    assert.equal(cell(backend, 'H2'), '-2 [formula =ROUND(-1.5,0)]', 'P-B3-NEGATIVE-ROUND');
+    assert.equal(cell(backend, 'H3'), '-1.3 [formula =ROUND(-1.25,1)]');
+    assert.equal(cell(backend, 'H4'), '2 [formula =ROUND(1.5,0)]');
+  });
 });
