@@ -49,6 +49,7 @@ export const K = {
   collabDeleteConfirm: `${D}.comment_delete_confirm`,
   collabDeleted: `${D}.comment_deleted`,
   collabEdited: `${D}.comment_edited_time`,
+  collabEditedMark: `${C}.collabEditedMark`,
   // Kept D keys the catalogue names outside `collab*`: the long-body fold and the empty-body line.
   commentCollapse: `${D}.comment_collapse`,
   commentExpand: `${D}.comment_expand`,

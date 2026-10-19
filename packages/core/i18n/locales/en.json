@@ -10287,6 +10287,7 @@
       "collabSave": "Save",
       "collabCancel": "Cancel",
       "collabDelete": "Delete",
+      "collabEditedMark": "(edited)",
       "collabHistory": "View edit history",
       "collabHistoryTitle": "Edit history",
       "collabHistoryCurrent": "Current version",
