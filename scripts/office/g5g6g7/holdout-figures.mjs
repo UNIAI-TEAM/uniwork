@@ -63,7 +63,8 @@ const CURRENCY_TOKENS = [...UNIT_TOKENS].sort((a, b) => b.length - a.length);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const CURRENCY_ALT = CURRENCY_TOKENS.map(escapeRe).join('|');
 
-const CANDIDATE_RE = /[-+−]?(?:\d{1,3}(?:[  ]\d{3})+(?:[.,]\d+)?|\d[\d.,]*\d|\d)/g;
+// A space-grouped number ends each group at a non-digit (oracle2 O2-F1): "Q1 2026" is "1" and "2026", never "1 202" + "6".
+const CANDIDATE_RE = /[-+−]?(?:\d{1,3}(?:[  ]\d{3}(?!\d))+(?:[.,]\d+)?|\d[\d.,]*\d|\d)/g;
 const MAG_AFTER_RE = new RegExp(`^(?:(${MAGNITUDE_WORDS.join('|')})|[ \\t]+(${MAGNITUDE_WORDS.join('|')}))(?![\\p{L}\\d])`, 'iu');
 const SUFFIX_UNIT_RE = new RegExp(`^[ \\t]*(?:(%)|(${CURRENCY_ALT})(?![\\p{L}]))`, 'iu');
 const PREFIX_UNIT_RE = new RegExp(`(?:^|[^\\p{L}])(${CURRENCY_ALT})[ \\t]*$`, 'iu');
@@ -118,7 +119,80 @@ const CELL_RE = String.raw`\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1
 const ADDRESS_RUN_RE = new RegExp(`(?:'(?:[^']|'')+'|[A-Za-z_][\\w.]*)!${CELL_RE}|\\b${CELL_RE}\\b`, 'g');
 const URL_OR_EMAIL_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"')\]]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gi;
 
-const maskIdentifiers = (text) => text.replace(URL_OR_EMAIL_RE, (m) => ' '.repeat(m.length));
+const maskIdentifiers = (text) => maskFormulas(text.replace(URL_OR_EMAIL_RE, (m) => ' '.repeat(m.length)));
+
+// A spreadsheet formula quoted in prose is copied text, not a figure (oracle2 O2-F2): the literals of a function call
+// written in capitals ("SUBTOTAL(109,B2:B7)", "VLOOKUP(A2,'Sheet'!$A$2:$G$7,7,FALSE)") and of an "=" expression with no
+// space ("=B2*(1-0.1)") are masked. A figure outside the formula stays a figure, and a masked literal credits nothing.
+const FORMULA_CALL_RE = /(?<![\p{L}\d_])[A-Z][A-Z0-9.]+\(/gu;
+const FORMULA_EXPR_RE = /(?<![\w=<>!])=(?=[A-Za-z$(])/g;
+const FORMULA_ATOM_RE = /"(?:[^"\n]|"")*"|((?:(?:'(?:[^'\n]|'')+'|[A-Za-z_][\w.]*)!)?(?:\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3})(?![\p{L}\d_(!])(?:%(?![\p{L}\d_]))?)|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?(?:%(?![\p{L}\d_]))?(?![\p{L}\d_])|(?:TRUE|FALSE)(?![\p{L}\d_])|\.{2,3}|…/uy;
+const FORMULA_OP_RE = /<>|<=|>=|[-+*/^&=<>]/y;
+const SPREADSHEET_FN_RE = /^(?:SUBTOTAL|VLOOKUP|HLOOKUP|XLOOKUP|INDEX|MATCH|OFFSET|SUM|SUMIF|SUMIFS|AVERAGE|AVERAGEIF|AVERAGEIFS|COUNT|COUNTA|COUNTIF|COUNTIFS|MIN|MAX|IF|IFS|IFERROR|IFNA|ROUND|ROUNDUP|ROUNDDOWN)\($/;
+function formulaCallEnd(text, from) {
+  let p = from;
+  let hasArg = false;
+  let hasRef = false;
+  for (let sawSep = false; ; sawSep = true) {
+    while (text[p] === ' ' || text[p] === '\t') p += 1;
+    if (text[p] === ',' || text[p] === ';') { p += 1; continue; }
+    if (sawSep && text[p] === ')') return hasArg ? { end: p + 1, hasRef } : { end: -1, hasRef: false };
+    const next = formulaExprEnd(text, p, true);
+    if (next.end < 0) return { end: -1, hasRef: false };
+    hasArg = true;
+    hasRef = hasRef || next.hasRef;
+    p = next.end;
+    while (text[p] === ' ' || text[p] === '\t') p += 1;
+    if (text[p] === ')') return { end: p + 1, hasRef };
+    if (text[p] !== ',' && text[p] !== ';') return { end: -1, hasRef: false };
+    p += 1;
+  }
+}
+function formulaExprEnd(text, from, inParens) {
+  let i = from;
+  const skipWs = () => { if (inParens) while (text[i] === ' ' || text[i] === '\t') i += 1; };
+  const atomEnd = () => {
+    skipWs();
+    while (text[i] === '+' || text[i] === '-') i += 1;
+    skipWs();
+    if (text[i] === '(') {
+      const inner = formulaExprEnd(text, i + 1, true);
+      return inner.end > 0 && text[inner.end] === ')' ? { end: inner.end + 1, hasRef: inner.hasRef } : { end: -1, hasRef: false };
+    }
+    const call = /[A-Za-z_][A-Za-z0-9_.]*\(/y;
+    call.lastIndex = i;
+    if (call.exec(text)) return formulaCallEnd(text, call.lastIndex);
+    FORMULA_ATOM_RE.lastIndex = i;
+    const atom = FORMULA_ATOM_RE.exec(text);
+    return atom ? { end: FORMULA_ATOM_RE.lastIndex, hasRef: Boolean(atom[1]) } : { end: -1, hasRef: false };
+  };
+  let cur = atomEnd();
+  if (cur.end < 0) return cur;
+  for (;;) {
+    i = cur.end;
+    skipWs();
+    FORMULA_OP_RE.lastIndex = i;
+    if (!FORMULA_OP_RE.exec(text)) return { end: i, hasRef: cur.hasRef };
+    i = FORMULA_OP_RE.lastIndex;
+    const next = atomEnd();
+    if (next.end < 0) return cur;
+    cur = { end: next.end, hasRef: cur.hasRef || next.hasRef };
+  }
+}
+function maskFormulas(text) {
+  // UTF-16 units, masked in place: the text keeps its length, so every later offset still points at the same character.
+  const units = text.split('');
+  const mask = (from, to) => { for (let i = from; i < to; i += 1) if (units[i] !== '\n') units[i] = ' '; };
+  for (const m of text.matchAll(FORMULA_CALL_RE)) {
+    const { end, hasRef } = formulaCallEnd(text, m.index + m[0].length);
+    if (end > 0 && (SPREADSHEET_FN_RE.test(m[0]) || hasRef)) mask(m.index, end);
+  }
+  for (const m of text.matchAll(FORMULA_EXPR_RE)) {
+    const { end } = formulaExprEnd(text, m.index + 1, false);
+    if (end > 0) mask(m.index, end);
+  }
+  return units.join('');
+}
 
 function isAddressAt(text, start, end) {
   const lineStart = text.lastIndexOf('\n', start - 1) + 1;
@@ -475,30 +549,85 @@ export function sheetNamesOf(text) {
 
 // The location nouns of the reply, in ONE table (round j, J-1): an integer right after one is a LOCATION ("slide 3",
 // "trang 2"), the place a value was read, not a figure. The vi "trang" is a page or a slide, "trang chiếu" a slide.
-const LOCATION_KINDS = new Map([['slide', ['slides']], ['page', ['pages']], ['sheet', ['sheets']], ['trang', ['pages', 'slides']], ['trang chieu', ['slides']]]);
-const LOCATION_RE = /(?<![\p{L}\d])(trang\s+chieu|trang|slide|page|sheet)(?:\s*#|\s+no\.?|\s+so)?\s*$/u;
+// oracle2 O2-F3 adds the block of a document ("block 4", vi "khối", 0-based as the frame numbers them) and the row of a
+// sheet ("row 9", "hidden row 6", vi "hàng", "dòng ẩn 6", "dòng dữ liệu 2–7", and a row range "rows 8–9", the plural
+// only before a range). A row is held when a read named that sheet row; vi "dòng" is a sheet row or a document line.
+const LOCATION_KINDS = new Map([
+  ['slide', ['slides']], ['page', ['pages']], ['sheet', ['sheets']], ['trang', ['pages', 'slides']], ['trang chieu', ['slides']],
+  ['block', ['blocks']], ['khoi', ['blocks']],
+  ['row', ['rowNumbers']], ['rows', ['rowNumbers']], ['hang', ['rowNumbers']], ['dong', ['rowNumbers', 'lines']],
+]);
+const LOCATION_RE = /(?<![\p{L}\d])(trang\s+chieu|trang|slide|page|sheet|block|khoi)(?:\s*#|\s+no\.?|\s+so)?\s*$/u;
+const ROW_QUALIFIERS = '(?:an|hidden|du lieu|tong|data|total|tieu de|header)';
+const ROW_RE = new RegExp(`(?<![\\p{L}\\d])(rows?|hang|dong)(?:\\s+${ROW_QUALIFIERS})?(?:\\s+(?:no\\.?|so))?\\s*\x60?\\s*(\\d+\\s*[\u2013\u2014:-]\\s*)?$`, 'u');
+const RANGE_NEXT_RE = /^\s*[\u2013\u2014:-]\s*\d/;
 
 /**
- * The kinds ('slides', 'pages', 'sheets') whose element a prose figure is the ORDINAL of, or null: a plain integer
- * directly after a singular location noun, with nothing between but "#", "no." or "số". The plural is a kind name
- * ("slides: 3"), never a location.
+ * The kinds ('slides', 'pages', 'sheets', 'blocks', 'rowNumbers', 'lines') whose element a prose figure is the ORDINAL
+ * of, or null: a plain integer directly after a singular location noun, with nothing between but "#", "no." or "số"
+ * (a row noun may carry one qualifier word, and either end of a row range is a row). The plural is a kind name
+ * ("slides: 3"), never a location, except a row range ("rows 8–9").
  */
 export function locationKindsOf(text, q) {
-  if (q.unit || q.currency || !/^\d+$/.test(q.raw) || q.readings.length !== 1 || q.readings[0].n < 1) return null;
-  const m = LOCATION_RE.exec(foldAscii(String(text ?? '').slice(Math.max(0, q.start - 40), q.start)));
-  return m ? LOCATION_KINDS.get(m[1].replace(/\s+/g, ' ')) : null;
+  if (q.unit || q.currency || !/^\d+$/.test(q.raw) || q.readings.length !== 1 || q.readings[0].n < 0) return null;
+  const before = foldAscii(String(text ?? '').slice(Math.max(0, q.start - 40), q.start));
+  const m = LOCATION_RE.exec(before);
+  if (m) {
+    const kinds = LOCATION_KINDS.get(m[1].replace(/\s+/g, ' '));
+    return q.readings[0].n >= 1 || kinds.includes('blocks') ? kinds : null;
+  }
+  const row = ROW_RE.exec(before);
+  if (!row || q.readings[0].n < 1) return null;
+  const ranged = Boolean(row[2]) || RANGE_NEXT_RE.test(String(text ?? '').slice(q.end));
+  if (row[1] === 'rows' && !ranged) return null;
+  return LOCATION_KINDS.get(row[1]);
 }
 
 /**
  * Does a successful read of this turn hold the location? A slide or page index is at most the count of that kind in ONE
- * result (slideCount, pageCount, the array length); a sheet index is at most the sheet count, or a sheet is named that
- * way. Nothing else holds a location, and a held location is exempt from the trace only: it credits nothing (J-1).
+ * result (slideCount, pageCount, the array length); a block index (0-based) is below the block count of one result; a
+ * sheet row is one a read named; a sheet index is at most the sheet count, or a sheet is named that way. Nothing else
+ * holds a location, and a held location is exempt from the trace only: it credits nothing (J-1).
  */
 export function heldLocation(kinds, q, ctx) {
   if (!kinds || !Array.isArray(ctx.counts)) return false;
   const index = q.readings[0].n;
+  if (kinds.includes('blocks') && ctx.counts.some((c) => c.kind === 'paragraphs' && c.n > index)) return true;
+  if (kinds.includes('rowNumbers') && ctx.rowNumbers instanceof Set && ctx.rowNumbers.has(index)) return true;
   if (ctx.counts.some((c) => kinds.includes(c.kind) && c.n >= index)) return true;
   return kinds.includes('sheets') && ctx.sheetNames instanceof Set && ctx.sheetNames.has(q.raw);
+}
+
+/** The sheet rows ONE successful result names: `rows[].row`, `hiddenRows`, cell and hit references, a `range`/`dataRange` span. */
+export function rowNumbersOf(text) {
+  let root;
+  try {
+    root = JSON.parse(String(text));
+  } catch {
+    return [];
+  }
+  if (!root || typeof root !== 'object' || Array.isArray(root) || isFailedResultPayload(root)) return [];
+  const out = new Set();
+  const span = (range) => {
+    const m = /^(?:.*!)?\$?[A-Za-z]{1,3}\$?(\d{1,7})(?::\$?[A-Za-z]{1,3}\$?(\d{1,7}))?$/.exec(String(range ?? '').trim());
+    if (!m) return;
+    const a = Number(m[1]);
+    const b = Number(m[2] ?? m[1]);
+    for (let r = Math.min(a, b); r <= Math.max(a, b) && r - Math.min(a, b) < 10000; r += 1) out.add(r);
+  };
+  const ref = (key) => { const m = /(\d{1,7})$/.exec(String(key)); if (m) out.add(Number(m[1])); };
+  const sheetLike = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node.rows)) for (const row of node.rows) if (row && typeof row === 'object' && Number.isInteger(row.row)) out.add(row.row);
+    if (Array.isArray(node.hiddenRows)) for (const r of node.hiddenRows) if (Number.isInteger(r)) out.add(r);
+    if (node.cells && typeof node.cells === 'object' && !Array.isArray(node.cells)) Object.keys(node.cells).forEach(ref);
+    if (Array.isArray(node.hits)) for (const hit of node.hits) if (hit && typeof hit === 'object' && hit.ref) ref(hit.ref);
+    if (typeof node.range === 'string') span(node.range);
+    if (typeof node.dataRange === 'string') span(node.dataRange);
+  };
+  sheetLike(root);
+  if (Array.isArray(root.sheets)) root.sheets.forEach(sheetLike);
+  return [...out];
 }
 
 const SENTENCE_END_RE = /[.!?;\n]/;
