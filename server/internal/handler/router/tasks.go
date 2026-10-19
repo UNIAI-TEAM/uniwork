@@ -237,6 +237,10 @@ func registerTasksSuite(r api, h Routes) {
 			summary: "List task labels", description: "Danh sách nhãn workspace.",
 			tags: []string{"tasks"}, sdo: sdo.TaskLabelListSDO{}, auth: true,
 		})
+		suite.Get("/workspaces/{workspaceID}/task-label-links", h.ListTaskLabelLinks, apiOp{
+			summary: "List task label links", description: "Mọi cặp (task, nhãn đang dùng) trong workspace, để vẽ nhãn trên thẻ.",
+			tags: []string{"tasks"}, sdo: sdo.TaskLabelLinkListSDO{}, auth: true,
+		})
 		suite.Post("/workspaces/{workspaceID}/task-labels", h.CreateTaskLabel, apiOp{
 			summary: "Create task label", description: "Tạo nhãn.",
 			tags: []string{"tasks"}, sdi: sdi.CreateTaskLabelSDI{}, sdo: sdo.TaskLabelSDO{}, auth: true,

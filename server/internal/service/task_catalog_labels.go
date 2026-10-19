@@ -251,6 +251,22 @@ func (s *TaskService) DeleteTaskLabel(ctx context.Context, actor Actor, workspac
 	return tx.Commit(ctx)
 }
 
+// ListTaskLabelLinks returns every (task, active label) pair in the workspace
+// so boards and lists can draw label chips without a query per task. Any
+// member sees every task in a workspace (List), so the links are no wider.
+func (s *TaskService) ListTaskLabelLinks(ctx context.Context, actor Actor, workspaceID string) ([]db.ListWorkspaceTaskLabelLinksRow, error) {
+	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+		return nil, err
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListWorkspaceTaskLabelLinks(ctx, db.ListWorkspaceTaskLabelLinksParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+	})
+}
+
 func (s *TaskService) ListTaskLabelsOnTask(ctx context.Context, actor Actor, taskID string) ([]db.TaskLabel, error) {
 	task, err := s.authorizeActor(ctx, actor, taskID)
 	if err != nil {
