@@ -110,10 +110,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     // sits outside an unfocused read-only editor, so it never reaches the page
     // scroller: the reveal must scroll the mention's DOM node. jsdom has no
     // layout, so the spy proves the call and its target.
-    const scrolled: { el: Element; arg: unknown }[] = [];
-    Element.prototype.scrollIntoView = function scrollIntoView(this: Element, arg?: unknown) {
-      scrolled.push({ el: this, arg });
-    };
+    const scrollSpy = vi.spyOn(Element.prototype, "scrollIntoView");
     function Page({ body }: { body: unknown }) {
       const editorRef = useRef<DocumentEditorHandle | null>(null);
       const { onEditorReady } = useBodyMentionDeepLink({ doc: { kind: "page" } as Document, editorRef });
@@ -132,9 +129,9 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     const selected = document.querySelector(".ProseMirror-selectednode");
     expect(selected).not.toBeNull();
     expect(selected).toHaveClass("is-mention-reveal");
-    expect(scrolled.map((s) => s.el)).toContain(selected);
-    expect(scrolled.find((s) => s.el === selected)?.arg).toMatchObject({ block: "center" });
-    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    const scrolledOnSelected = scrollSpy.mock.calls.findIndex((_, i) => scrollSpy.mock.contexts[i] === selected);
+    expect(scrolledOnSelected).toBeGreaterThanOrEqual(0);
+    expect(scrollSpy.mock.calls[scrolledOnSelected]?.[0]).toMatchObject({ block: "center" });
   });
 
   it("revealMention is a no-op when the reader has no mention in the page", async () => {
@@ -186,5 +183,75 @@ describe("UNI-1968 ?mention=1 deep link", () => {
 
     expect(nav.searchParams.get("comment")).toBe("c1");
     expect(reveal).not.toHaveBeenCalled();
+  });
+
+  describe("the 2 s flash lifecycle (fake timers)", () => {
+    // Only the timers the flash uses are faked, so React and TipTap keep their
+    // real scheduling; the editor is mounted before the clock is swapped.
+    const mountTwo = async () => {
+      const editorRef = { current: null as DocumentEditorHandle | null };
+      const body = content([{ id: ME, label: "An" }, { id: OTHER, label: "Bình" }]);
+      const view = render(editorView(editorRef, body));
+      await screen.findByText("@An");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const nodeOf = (label: string) => screen.getByText(label).closest(".node-mention");
+      return { editorRef, view, nodeOf };
+    };
+
+    afterEach(() => vi.useRealTimers());
+
+    it("drops the flash class once 2 s have passed", async () => {
+      const { editorRef, nodeOf } = await mountTwo();
+      act(() => editorRef.current!.revealMention(ME));
+      expect(nodeOf("@An")).toHaveClass("is-mention-reveal");
+
+      act(() => { vi.advanceTimersByTime(1999); });
+      expect(nodeOf("@An")).toHaveClass("is-mention-reveal");
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(nodeOf("@An")).not.toHaveClass("is-mention-reveal");
+    });
+
+    it("a second reveal 1.5 s later flashes for its own full 2 s, on one node only", async () => {
+      const { editorRef, nodeOf } = await mountTwo();
+      act(() => editorRef.current!.revealMention(ME));
+      act(() => { vi.advanceTimersByTime(1500); });
+      act(() => editorRef.current!.revealMention(OTHER));
+      // The first node stops flashing at once; only the second one does.
+      expect(nodeOf("@An")).not.toHaveClass("is-mention-reveal");
+      expect(nodeOf("@Bình")).toHaveClass("is-mention-reveal");
+      expect(document.querySelectorAll(".is-mention-reveal")).toHaveLength(1);
+
+      // Past the first flash's original end (t = 2 s): the second is still on.
+      act(() => { vi.advanceTimersByTime(1999); });
+      expect(nodeOf("@Bình")).toHaveClass("is-mention-reveal");
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(document.querySelectorAll(".is-mention-reveal")).toHaveLength(0);
+    });
+
+    it("the same mention revealed again restarts its 2 s", async () => {
+      const { editorRef, nodeOf } = await mountTwo();
+      act(() => editorRef.current!.revealMention(ME));
+      act(() => { vi.advanceTimersByTime(1500); });
+      act(() => editorRef.current!.revealMention(ME));
+      // 1.5 s after the second reveal is past the first flash's end; the old
+      // timer must not have cut the new flash short.
+      act(() => { vi.advanceTimersByTime(1500); });
+      expect(nodeOf("@An")).toHaveClass("is-mention-reveal");
+      act(() => { vi.advanceTimersByTime(500); });
+      expect(nodeOf("@An")).not.toHaveClass("is-mention-reveal");
+    });
+
+    it("leaves no flash timer pending after unmount", async () => {
+      const { editorRef, view, nodeOf } = await mountTwo();
+      act(() => editorRef.current!.revealMention(ME));
+      const node = nodeOf("@An")!;
+      expect(node).toHaveClass("is-mention-reveal");
+      view.unmount();
+      // A timer left behind would strip the class when it fires; put it back
+      // by hand and let the full 2 s pass.
+      node.classList.add("is-mention-reveal");
+      act(() => { vi.advanceTimersByTime(2000); });
+      expect(node).toHaveClass("is-mention-reveal");
+    });
   });
 });
