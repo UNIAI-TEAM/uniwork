@@ -25,7 +25,6 @@ import { ShareDialog } from "../documents/share-dialog";
 import { documentUploadValidationMessage } from "../documents/document-error-message";
 import { DocumentUploadDialog } from "../documents/document-upload-dialog";
 import {
-  CHAT_DOCUMENT_ACCESS_REQUESTS_ENABLED,
   ChatDocumentRequestAccess,
   chatDocumentVersionError,
 } from "./chat-document-actions";
@@ -250,9 +249,7 @@ export function ChatDocumentCard({
         <p className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
           {t("chat.document_no_access")}
         </p>
-        {CHAT_DOCUMENT_ACCESS_REQUESTS_ENABLED ? (
-          <ChatDocumentRequestAccess workspaceId={workspaceId} documentId={doc.document_id} />
-        ) : null}
+        <ChatDocumentRequestAccess workspaceId={workspaceId} documentId={doc.document_id} />
       </div>
     );
   }

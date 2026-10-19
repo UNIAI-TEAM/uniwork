@@ -121,10 +121,10 @@ describe("ChatDocumentMessageRow", () => {
   it("renders the locked card for a viewer without access", () => {
     renderCard(documentMessage({ document_id: "doc1", viewer_has_access: false }));
     expect(screen.getByText("Không có quyền truy cập")).toBeInTheDocument();
-    // The block carries nothing else: no title, no actions, no request button
-    // while CHAT_DOCUMENT_ACCESS_REQUESTS_ENABLED is off.
+    // The block carries nothing else: no title and no document actions, only
+    // the request-access button (S-DOC07 is on the base).
     expect(screen.queryByText("Báo cáo Q3")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Yêu cầu quyền truy cập"]);
   });
 
   it("renders the full card and opens the document from the title", () => {

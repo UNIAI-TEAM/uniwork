@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode, errorFields } from "@uniwork/core/api";
@@ -10,14 +11,6 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { chatErrorMessage } from "./chat-error-message";
-
-/**
- * UNI-1966 (L4 / S7): the request-access route lands with S-DOC07 (UNI-1631)
- * ahead of this card in the lane. Until the merged base serves it, the card's
- * no-access state ships the sentence only — the lead flips this to true to
- * reveal the action, per the packet rule "hidden, never inert".
- */
-export const CHAT_DOCUMENT_ACCESS_REQUESTS_ENABLED = false;
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
@@ -38,9 +31,15 @@ export function chatDocumentVersionError(err: unknown, t: TFunction, fallback: s
 }
 
 /**
- * The no-access card's "Yêu cầu quyền truy cập" button. Only mounted when
- * CHAT_DOCUMENT_ACCESS_REQUESTS_ENABLED is true (see the constant): it asks
- * the document's managers for view access and reports the outcome in place.
+ * The no-access card's "Yêu cầu quyền truy cập" button (L4 / S7): it asks the
+ * document's managers for view access through
+ * POST /documents/{id}/access-requests, the same route and copy as the
+ * document page's locked card. The route's 202 is uniform on purpose (it also
+ * answers a document the caller already reads or one that does not exist), so
+ * `sent` is shown as sent; 409 `access_request_pending` reads as "already
+ * waiting". Both replace the button in place, so a second send is not offered;
+ * the refusals (cooldown, limiter, anything else) stay a toast and keep the
+ * button for another try.
  */
 export function ChatDocumentRequestAccess({
   workspaceId,
@@ -51,15 +50,14 @@ export function ChatDocumentRequestAccess({
 }) {
   const { t } = useTranslation();
   const send = useRequestDocumentAccess(workspaceId, documentId);
+  const [done, setDone] = useState<"sent" | "already_pending" | null>(null);
   const run = () => {
     if (send.isPending) return;
     send.mutate(
       { requested_level: "view" },
       {
         onSuccess: (outcome) => {
-          toast.message(
-            t(outcome.state === "sent" ? "documents.access_request.sent" : "documents.access_request.already_pending"),
-          );
+          setDone(outcome.state === "sent" ? "sent" : "already_pending");
         },
         onError: (err) => {
           const outcome = accessRequestOutcome(err);
@@ -74,6 +72,13 @@ export function ChatDocumentRequestAccess({
       },
     );
   };
+  if (done) {
+    return (
+      <p role="status" className="min-w-0 max-w-[60%] text-right text-caption text-muted-foreground">
+        {t(`documents.access_request.${done}`)}
+      </p>
+    );
+  }
   return (
     <Button
       type="button"
