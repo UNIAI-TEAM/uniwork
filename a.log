@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+abb82ea3a4448d3710836e318870f5b19ea34697
+abb82ea3a chore: merge the G5-G7 root 032e0fbb3 into SIZE-OPS1 (UNI-1988)
+380495f89 chore(deploy): size the office engine memory request from the SIZE-OPS1 measurement
+032e0fbb3 chore: merge UNI-1874 FU-G7-12-ORACLE r2 (harness + tests; 8c0148dac) into the G5-G7 root

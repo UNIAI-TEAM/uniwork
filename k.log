@@ -1,0 +1,9 @@
+$ pnpm --filter @uniwork/office-contracts --filter @uniwork/office-engine-app --filter @uniwork/office-engine typecheck; echo "TYPECHECK_EXIT=$?"
+Scope: 3 of 12 workspace projects
+packages/office-contracts typecheck$ tsc --noEmit
+packages/office-contracts typecheck: Done
+packages/office-engine typecheck$ tsc --noEmit
+packages/office-engine typecheck: Done
+apps/office-engine typecheck$ tsc --noEmit
+apps/office-engine typecheck: Done
+TYPECHECK_EXIT=0
