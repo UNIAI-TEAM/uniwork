@@ -1,0 +1,50 @@
+$ for c in FQ-43 FQ-44; do HARNESS_RUN_DIR="$PWD/.harness-run-fqs2c" OFFICE_FORK_SHA=1d5b68400 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case $c --run-dir .harness-run-fqs2c; echo "APP_CASE_${c//-/_}_EXIT=$?"; done; for f in .harness-run-fqs2c/fault/FQ-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:42321 app_api=http://127.0.0.1:45685 proxy_upstream=http://127.0.0.1:42321
+FQ-43 [1/9] reconciling → blocked session_expired: running
+dbus-daemon[20943]: [session uid=1000 pid=20943] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20980 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20943]: [session uid=1000 pid=20943] Successfully activated service 'org.a11y.Bus'
+FQ-43 [2/9] reconciling → blocked organization_suspended: running
+FQ-43 [3/9] reconciling → blocked member_deactivated: running
+APP_CASE_FQ_43_EXIT=124
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:42321 app_api=http://127.0.0.1:44673 proxy_upstream=http://127.0.0.1:42321
+FQ-44 [1/3] reconciling-stuck → committed: running
+dbus-daemon[21464]: [session uid=1000 pid=21464] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=21502 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[21464]: [session uid=1000 pid=21464] Successfully activated service 'org.a11y.Bus'
+FQ-43 [4/9] reconciling → blocked document_archived: running
+FQ-43 [5/9] reconciling → blocked permission_revoked: running
+FQ-43 [6/9] reconciling → blocked document_deleted: running
+FQ-43 [7/9] real: reconciling → blocked organization_suspended: running
+FQ-43 [8/9] real: reconciling → blocked member_deactivated: running
+FQ-43 [9/9] real: reconciling → blocked document_deleted: running
+FQ-43: FAIL (predicted OQ-F11)
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:43:18.086Z ∅ -> queued
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:43:18.124Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:44:10.322Z queued -> validating
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:44:10.322Z validating -> uploading
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:44:10.322Z uploading -> committing
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T17:44:10.322Z committing -> committed http=200
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T17:43:18.105Z upload POST 201 key=06a0afe172a7 rule=-
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T17:43:18.121Z commit POST dropped key=06a0afe172a7 rule=lose-commit-answer
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T17:44:10.336Z upload POST 201 key=06a0afe172a7 rule=-
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T17:44:10.343Z commit POST 200 key=06a0afe172a7 rule=-
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:46:08.073Z ∅ -> queued
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:46:08.112Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:47:00.373Z queued -> validating
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:47:00.373Z validating -> uploading
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:47:00.373Z uploading -> committing
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T17:47:00.373Z committing -> committed http=200
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T17:46:08.094Z upload POST 201 key=acb78e6379fb rule=-
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T17:46:08.108Z commit POST dropped key=acb78e6379fb rule=lose-commit-answer
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T17:47:00.387Z upload POST 201 key=acb78e6379fb rule=-
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T17:47:00.393Z commit POST 200 key=acb78e6379fb rule=-
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T17:48:58.087Z ∅ -> queued
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T17:48:58.127Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked member_deactivated] proxy 2026-10-19T17:48:58.108Z upload POST 201 key=496813c51c7a rule=-
+  FQ-43 [reconciling → blocked member_deactivated] proxy 2026-10-19T17:48:58.124Z commit POST dropped key=496813c51c7a rule=lose-commit-answer
+FQ-43 (G5-A06): FAIL predicted OQ-F11 — reconciling → blocked document_archived: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling → blocked permission_revoked: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling → blocked document_deleted: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked organization_suspended: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked member_deactivated: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked document_deleted: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring)
+/workspace/.harness-run-fqs2c/fault
+FQ-44 [2/3] reconciling-stuck → blocked: running
+APP_CASE_FQ_44_EXIT=124
+FQ-43 FAIL OQ-F11 reconciling → blocked document_archived: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling → blocked permission_revoked: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); reconciling → blocked document_deleted: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked organization_suspended: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked member_deactivated: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring); real: reconciling → blocked document_deleted: no OS keyring for the app (run the runner under app-keyring.sh: dbus-run-session + unlocked gnome-keyring) client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:session_expired" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:organization_suspended" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline" | blocked_reason: expected "blocked:member_deactivated" actual "(never entered)"
