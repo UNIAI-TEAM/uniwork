@@ -34,13 +34,31 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       // The page reveals the comment (use-document-comment-deep-link); an
       // unknown or deleted comment is ignored there, so the id always rides.
       // A discussion post adds its kind: the tab to open when it is gone.
+      // A break-glass notification opens the owner access panel directly on the
+      // active emergency access section.
       const target = documentWorkspace(n, workspace, workspaces);
       const href = paths.workspace(target.organization_slug, target.slug).document(n.resource_id);
+      // The holder's edit request opens the editor with the answer prompt (UNI-1645).
+      if (n.kind === "document_edit_requested" && n.params.request_id) {
+        return `${href}?${new URLSearchParams({ edit_request: n.params.request_id }).toString()}`;
+      }
+      // A manager's request row lands on the share dialog's requests section (DOC-07).
+      if (n.kind === "document_access_requested") return `${href}?access=requests`;
+      if (n.kind === "document_break_glass") return `${href}?access=break_glass`;
+      // Somebody else trashed the reader's document: the reader restores it from the trash.
+      if (n.kind === "document_trashed_by_other") {
+        return paths.workspace(target.organization_slug, target.slug).documentsTrash(n.resource_id);
+      }
       const commentId = n.params.comment_id;
       if (!commentId) return href;
       const query = new URLSearchParams({ comment: commentId });
       if (n.params.kind === "discussion") query.set("kind", "discussion");
       return `${href}?${query.toString()}`;
+    }
+    case "chat_room": {
+      // A ringing call opens its room, as the push does (notification.ResourceURL).
+      const q = new URLSearchParams({ room: n.resource_id });
+      return `${ws.chat()}?${q.toString()}`;
     }
     case "email_account":
       return ws.email();

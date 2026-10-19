@@ -12,6 +12,7 @@ import { Switch } from "@uniwork/ui/components/ui/switch";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
+import { AssistantMark, AssistantMarks } from "./assistant-mark";
 import { CopyAddress } from "./copy-address";
 import {
   SettingsBadge,
@@ -144,7 +145,15 @@ export function AiAccessTab() {
       {state?.available && state.mcp_url ? (
         // Under an organization-level pilot a member's own settings may not
         // show the address yet (Ruling 50), so the admin can hand it over.
-        <SettingsSection title={i18n.t("settings.connectedApps.connectTitle")} description={t("addressBody")}>
+        <SettingsSection
+          title={
+            <span className="flex items-center gap-2">
+              {i18n.t("settings.connectedApps.connectTitle")}
+              <AssistantMarks />
+            </span>
+          }
+          description={t("addressBody")}
+        >
           <SettingsCard>
             <CopyAddress value={state.mcp_url} />
           </SettingsCard>
@@ -167,6 +176,7 @@ export function AiAccessTab() {
             {rows.map((g) => (
               <SettingsListItem
                 key={g.id}
+                leading={<AssistantMark client={g.client_name} verified={g.verified} />}
                 title={g.client_name}
                 badge={
                   <span className="flex items-center gap-1.5">

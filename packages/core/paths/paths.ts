@@ -11,6 +11,8 @@ export const paths = {
   desktopAuthorize: () => "/auth/desktop/authorize",
   /** Consent page an external AI client (MCP connector) sends the browser to (UNI-1308). */
   connectAuthorize: () => "/auth/connect/authorize",
+  /** The UniChat desktop shell's start page; hands over to /login on the client. */
+  unichatStart: () => "/auth/unichat",
   forgotPassword: () => "/forgot-password",
   resetPassword: (token?: string) =>
     token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",
@@ -58,8 +60,15 @@ export const paths = {
   pricing: () => "/pricing",
   enterprise: () => "/enterprise",
   requestDemo: () => "/request-demo",
-  /** Public page of the UniWork Office desktop app (landing menu "Office"). */
-  office: () => "/office",
+  /**
+   * The ecosystem's apps (landing menu "Apps"): the hub with every download,
+   * and one page per app. /office and /unichat permanently redirect here.
+   */
+  apps: {
+    root: () => "/apps",
+    office: () => "/apps/office",
+    unichat: () => "/apps/unichat",
+  },
   about: () => "/about",
   security: () => "/security",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
@@ -100,10 +109,29 @@ export const paths = {
       // A folder is a query on the documents page, not a page of its own
       // (FD-06): consistency.test.ts has no route to match it against.
       documentsFolder: (id: string) => `${base}/documents?folder=${encodeURIComponent(id)}`,
+      // The Thùng rác scope, with one trashed document to scroll to and
+      // highlight (TRASH-NOTIFY-01); an id the list does not hold is ignored.
+      documentsTrash: (focusId?: string) =>
+        focusId
+          ? `${base}/documents?view=archived&focus=${encodeURIComponent(focusId)}`
+          : `${base}/documents?view=archived`,
+      // Who holds which level on the documents the reader manages: the whole
+      // workspace, or one folder and its subfolders (UNI-1643).
+      documentsAccessReport: (folderId?: string) =>
+        folderId
+          ? `${base}/documents/access-report?folder=${encodeURIComponent(folderId)}`
+          : `${base}/documents/access-report`,
       document: (id: string) => `${base}/documents/${id}`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
+      /** Opens a room (and optionally scrolls to a message) on the chat page. */
+      chatConversation: (roomId: string, messageId?: string) => {
+        const params = new URLSearchParams();
+        params.set("room", roomId);
+        if (messageId) params.set("message", messageId);
+        return `${base}/chat?${params.toString()}`;
+      },
       inbox: () => `${base}/inbox`,
       email: () => `${base}/email`,
       members: () => `${base}/members`,
@@ -150,7 +178,10 @@ export const GLOBAL_PREFIXES = [
   "/pricing",
   "/enterprise",
   "/request-demo",
+  "/apps",
+  // The pre-/apps URLs: permanent redirects, still global.
   "/office",
+  "/unichat",
   "/vi",
   "/about",
   "/security",

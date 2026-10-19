@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/http"
 	"slices"
 	"testing"
 	"time"
@@ -75,6 +76,40 @@ func TestChatThreadReplyStaysOffMainTimeline(t *testing.T) {
 		if th.ThreadRootID == root.ID {
 			t.Fatal("muted thread still listed")
 		}
+	}
+}
+
+func TestResendOfADeletedThreadReplyIsGone(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientID := "cmid-thread-deleted-resend"
+	reply, err := s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{
+		Body: "reply", ClientMsgID: clientID,
+	})
+	if err != nil {
+		t.Fatalf("reply: %v", err)
+	}
+	if err := s.DeleteChatMessage(ctx, ub.ID, w.ID, room.RoomID, reply.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	_, err = s.SendThreadReply(ctx, ub.ID, w.ID, room.RoomID, root.ID, SendChatMessageInput{
+		Body: "reply retry", ClientMsgID: clientID,
+	})
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "chat_message_deleted" || ce.Status != http.StatusGone {
+		t.Fatalf("resend after delete: want 410 chat_message_deleted, got %v", err)
 	}
 }
 

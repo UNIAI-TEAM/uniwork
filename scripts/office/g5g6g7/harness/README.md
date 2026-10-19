@@ -91,6 +91,15 @@ and the exact command in `start.sh`'s output.
   `DESKTOP_AUTH_CLIENT_ID` in `server.env` was undone by the checkout's `.env`
   and the server died with `set either DESKTOP_AUTH_CLIENTS or
   DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both` (cloud round 4).
+* The D server gets a **test-only `AI_CREDENTIAL_KEY`** (`HARNESS_AI_CREDENTIAL_KEY` in
+  `lib.mjs`, base64 of a fixed 32-byte string that says so; it guards nothing, the harness
+  database holds no provider key and the run never reaches the dev upstream). Since G6-05k a
+  server without the key answers `ai_credentials_unavailable`, so the web frame token carried
+  `ai:false` and the G7-06 web capture showed no AI chrome (RFE5-201). With the key and the
+  default plan (which carries `office.ai_byok`) a fresh capture organization is granted AI
+  again; the web capture records the grant it saw in `meta.json` (`ai`, `uniworkAi`) and the
+  job fails a web capture without it (RFE5-202). The run owns the name: a key in the VM's
+  `.env` never reaches this server.
 * The Electron app (and the second instance that carries a deep link) gets an
   **allow-listed** environment (`appEnv` in `lib.mjs`): the process basics, the
   locale, the display/session and keyring bus, the D origin, the userData dir and
@@ -423,3 +432,438 @@ Local dry run (a host that already has the daemon, `xvfb-run` and a fork checkou
 `OFFICE_FORK_DIR=<fork checkout> node --test scripts/office/g5g6g7/harness/keyring-probe.test.mjs`
 also runs the fork's real credential module against a fake `safeStorage`.
 
+
+## G7-04 cross-host loop (UNI-1386)
+
+`g7-04/cross-host.mjs` chains the whole cross-host loop on ONE seeded document
+per fixture and records the rows `G7-A01` and `G5-A03` (`acceptance.md` l.87 /
+l.61): a web edit + Save in the web frame, opening the app from web (deep link),
+a desktop offline edit + Save under the harness proxy cut, the reconnect the web
+frame observes (the D host's own `doc.remoteVersion` notice and the frame's
+reload), an AI turn (zero versions) plus its Save (one version), the three-way
+sha256 at the end, and the running version tally (one per user Save, zero per AI
+turn). The dirty editor belongs to G5-A03.3 only (D1-04): that chain drives the
+app's own editor (CDP) to make the document dirty, lands a web Save on top of it
+and requires the app to keep its local bytes; G7-A01 runs no dirty-edit step at
+all, so a fork whose editor control never becomes ready cannot block it.
+
+Reuse, not copies (BE-704-05): the driver imports `harness/app.mjs` (CDP),
+`harness/web.mjs` (Playwright), the `g7-10/tracer.mjs` fixture/seed/HTTP helpers,
+the G8-19 desktop editor action and its plans (`g8-19/anchors.mjs` `runEditPlan` +
+`EDIT_DRIVERS`) and its only redactor is `redactSignInError`
+(`harness/app-steps.mjs`). What stays local is the plan NAMES the record prints
+(`DIRTY_EDIT_PLANS`: insert-row / split-block) and the driver's own record fields.
+Exit codes are the harness's everywhere: `0` PASS, `1` FAIL, `77` BLOCKED.
+
+One invocation writes one evidence line, so run one (row, fixture) per command:
+
+```sh
+for row in G7-A01 G5-A03; do
+  for fixture in fx-xlsx-revenue-xyz fx-docx-report-vi; do
+    OFFICE_FORK_SHA="$OFFICE_FORK_SHA" \
+      node scripts/office/g5g6g7/evidence.mjs run \
+        --req "$row" --fixture "$fixture" --checker tester-cloud -- \
+        node scripts/office/g5g6g7/g7-04/cross-host.mjs --row "$row" --fixture "$fixture"
+  done
+done
+```
+
+| Flag / env | Effect |
+| --- | --- |
+| `--row G7-A01\|G5-A03` | the row whose chain and evidence this run records (required) |
+| `--fixture <id>\|all` | one fixture, or both (refused under the evidence runner: one line per fixture) |
+| `--run-dir <dir>` | the run dir start.sh wrote (`HARNESS_RUN_DIR` by default) |
+| `--timeout-ms <ms>` | per-step bound (else `HARNESS_APP_STEP_TIMEOUT_MS`, else 90000) |
+| `--dry-run` | the start gate and ports.env only: prints the plan, starts nothing, writes no artifact |
+| `HARNESS_ALLOW_REAL_AI_UPSTREAM` | `1` lets the AI step PASS on a real upstream; without it, and under `AI_PROVIDER=fake` or a 503 `ai_disabled`, G7-A01.5 is BLOCKED with `real-AI upstream required, acceptance.md l.87` — never PASS |
+| `HARNESS_LOOP_TIMEOUT_MS` | the row watchdog (default 600000; expiry is FAIL `row watchdog`) |
+
+Rows and what each step proves: `G5-A03.1` web Save → app binding version id +
+working-copy sha256 = the server checksum; `G5-A03.3` a dirty app keeps its local
+bytes and shows the S6 new-version bar while a web Save lands (a reload there is
+a FAIL), then the bar's reload action discards the edit. The step reads the
+fork's own bar wording (`uwRemoteNewerDirty` plus the `uwRemoteReload` action)
+through a probe that is SERIALIZED into the app's page — `readRemoteNewerSurface`
+carries its own matchers, so it cannot depend on the driver's module scope
+(BE-704-201/D3-02) — and re-runs the app's feed nudge, spaced and capped, while
+the bar is missing. That probe matches ONLY a bar naming the version the step is
+waiting for (BE-704-303): another page's bar for an older version is the
+version-specific miss `no new-version bar naming version N on any app page`, never
+"the bar was seen". A probe that cannot run is reported as `the new-version probe
+could not run: <error>`, never as "no new-version bar": a harness crash must not
+read as a product gap; `G5-A03.2`/`G7-A01.4`
+the desktop's reconnect commit is announced to the web frame and reloaded (the
+announced version id must be the desktop's). That announce is read from the
+recorder `addInitScript` installs in EVERY document of the web page — the D host
+posts `doc.remoteVersion` to the frame's window, not to the top page, so a read of
+the top page alone can never see it (D3-01) — and a miss reports what was read:
+how many documents the page had, how many carried the recorder, which protocol
+envelopes the run saw at all, and how many frame reads FAILED (each frame read has
+its own timeout, BE-704-304: `evalFrameBounded`, so a hung renderer is a measured
+miss inside the step bound, never a hang). Those reads now share the step's own
+budget (BE-704-405, `readFrameReports`): the frames of one page are read in ONE
+concurrent wave, each read takes the smaller of its 10 s bound and what is left of
+the poll's deadline (the poll hands its deadline down), a read is NOT started once
+no budget remains — that frame is reported with
+`the frame read was not started: the step's remaining budget was 0 ms` instead of
+reading as a document without a recorder — and every frame keeps its own
+`readError`. N sequential 10 s reads can no longer pin a step past its bound;
+`G7-A01.3` the offline Save holds a NEW intent **for this document**, with zero
+server versions. The step polls the app's own receipt — an intent record the fork
+writes only after its module's own Save lands, so a read straight after
+`aiOffice.uniworkSave` can still be empty — and the record it accepts must be THIS
+document's: the durable store names one record per intent KEY,
+`recordFileName(key) = sha256(key) + ".rec"` (`uniwork-sync/store/paths.ts`), and
+the intent key is the working-copy folder segment, which the docs service builds
+with the document id (`uniwork-docs/service.ts` `dirFor(…, documentId)`;
+`save-coordinator.ts` `intents.put(doc.key, …)`). The record's own meta names the
+document too (`IntentRecordV2.documentId`), but it is sealed AES-256-GCM on disk
+(`uniwork-sync/store/codec.ts`, key wrapped by safeStorage), so the driver cannot
+read that field: the record NAME is the document identity it checks, and this
+document's own `offline` / `paused_offline` binding state is the second, per-document
+half of the receipt. A new `.rec` of ANOTHER open document of the same user
+therefore never satisfies the row (`intents` moves, `documentIntents` does not), an
+intent a previous parked row left behind never counts (BE-704-302), and a miss
+reports `intents`, `documentIntents`, `newIntents`, the binding state and the base
+version it measured; `G7-A01.5` the AI
+turn creates zero versions and the Save after it exactly one (polled the same way,
+until the server head and the app binding agree); a timeout there names both
+measured checksums beside the versions (BE-704-305), grouped with a `.` so the
+artifact's token redactor leaves them intact; `G7-A01.6` the three checksums
+agree and the tally is one version per user Save.
+
+The web reload is DRIVEN, not only awaited (D4-01). At the fork pin a CLEAN frame
+reloads itself on the announce, but a dirty frame (or one with an AI run live) only
+shows its own warn bar: the driver finds that bar's reload control INSIDE the frame
+(`section.uw-remote-bar button.uw-remote-link[data-action="reload"]`, the frame is an iframe and
+the top page never carries it) and, when the bar's Reload confirm comes up, clicks
+ONLY that dialog's discard choice (`button[data-choice="discard"]`, "Discard
+changes and reload", BE-704-402) — never `download`, which the same step offers
+FIRST whenever the host can download (`conflict-dialog.ts:424-446`) and which
+starts a file delivery instead of reloading. The whole frame-side flow is the
+serialized `driveFrameReloadFlow` (BE-704-406), so the pinned markup — the choice
+order included — is exercised by a page-style test against a fake DOM. The click
+only DRIVES the fork: it claims no reload. The step then waits for a fresh
+`office-frame` GET of the announced version id, and THAT is what confirms the
+reload (`details.webSees.confirmed`); a dialog that never offers the discard choice
+is reported with the choices it did offer, and the click's own outcome is on the
+miss (`details.webSeesMiss.reloadClick`). Every GET of that document's own route
+counts, whatever its path (the exact-path matcher turned a reload through another
+route into "no open at all"), and a miss reports the GETs it saw and what the frame
+SHOWED — its bar text and actions, the dialog's choices, the docs host's dirty flag.
+
+The reload window opens at the ANNOUNCE's own timestamp EXACTLY (D5-01/BE-704-501), never at the
+instant the driver starts waiting and never at the instant its click returns (BE-704-401): the floor
+is `Number(entry.at) >= match.at` with nothing subtracted, so a matching GET recorded even 1 ms
+before the announce is a stale open and can never stand in for the reload (the round-5 window
+subtracted `ANNOUNCE_OPEN_TOLERANCE_MS` from the anchor, which admitted a refresh that had finished
+before the announce). `ANNOUNCE_OPEN_TOLERANCE_MS` (50 ms) is the postMessage -> host -> `api.open`
+hop's slack on the COMPLETION deadline only (`waitForReload`'s bound), never on the floor. A clean
+frame reloads as
+soon as the announce lands, so its GET can be recorded while the reload click is still
+in flight: a window anchored at the click would count that reload as
+"0 office-frame GET(s) after the announce", which is why the anchor is the announce
+(the unit tests pin both sides of it, and the controller fake times its open against
+the announce). The
+announce poll can notice the announce afterwards, so a miss also says how many of the
+document's GETs landed BEFORE it, with their offsets. The reply's fields are read with
+the pinned wire's own names (`file.fileId`, `file.versionId`, `file.revision`,
+`file.etag`; the frame protocol's `FileMeta` is camelCase,
+`web/docs/protocol/types.ts:326-346` at the frame pin), where round 5 read
+`file.version_id` and could therefore never match the announced version, and a GET is
+recorded when it is ISSUED — one that never answers is the measured "a GET with no
+answer yet" / "the GET failed", not the absence of a GET.
+
+`web-sees` spends ONE budget (BE-704-502). The step sets a single deadline before its
+first poll; the announce poll and the reload wait draw on it, holding back
+`MISS_DIAGNOSTIC_RESERVE_MS` (10 s, never more than half the step bound) so a miss can
+still be explained, and the miss diagnostics (`frameAudit`, `frameSurface`,
+`frameEvidence`) get the remaining deadline and start no read after it: every read they
+did not make is recorded — with its reason — in `details.webSeesMiss.diagnostics`
+(`read`, `started`, `budgetMs`, the frames read, the reads that expired), and the miss
+reason names it ("diagnostics left unread: …"). Round 5 read each of those with a FRESH
+`stepTimeout` after the poll had already spent its own, so a hung renderer could pin a
+failing step for the poll bound plus two more read budgets; the whole step now returns
+inside one bound.
+
+A miss names the guard that dropped the announce FROM MEASURED VALUES (D5-01), never
+from a guess. The recorder keeps the announce's own `document_id` / `revision` /
+`version_id` / `saved_at` with the JS `typeof` each arrived as, the realm that recorded
+it (the top page, or the frame), whether the parent window sent it, and the last `file`
+the frame's realm received (a host `open` push, or an `api.open` / `api.save` reply) —
+the frame's held copy, which `revisionOf` (`web/modules/shared/conflict-dialog.ts:135-140`)
+turns into the `revision` the pin's guards compare against. The verdict follows the pin's
+own order — the endpoint's origin/source checks
+(`web/docs/protocol/endpoint.ts:264-275`), `parseEnvelope`'s ns and version
+(`web/docs/protocol/types.ts:1758-1760`, l.1801), then
+`web/modules/shared/remote-version.ts:443` (`!isDecimalRevision(p.revision)`), `:445`
+(`cur.fileId !== p.document_id`) and `:448` (`rev <= open`, over the pin's `revisionOf`)
+— and says so when NO guard explains the drop, which is a delivery/handler finding
+rather than a guess. The same fields are recorded on the artifact as
+`details.webSeesMiss` (`announced`, `reloadClick`, `announceRealm`, `announceTypes`,
+`held`, `verdict`, `documents`, `opens`, `diagnostics`); round 5's "the frame's own guard needs a DECIMAL revision"
+asserted a type nobody had read and is gone. By the same rule the APP's S6 reload is driven through the fork's whole flow
+(D4-02), not one text-matched click: the bar's own action
+(`div.uw-remote-bar button.uw-remote-action[data-action="reload"]`) asks the main
+process for the reload, which opens the conflict dialog for the stored notice;
+that dialog's step 1 offers `Reload latest`
+(`button[data-conflict-action="reload"]`), and its reload step makes the user
+choose what happens to the local edits — "Keep my version as a draft" or "Discard
+my changes" (`input[type="radio"][value="discard"]`) — before its confirm
+(`button[data-conflict-action="reload-go"]`) becomes usable
+(`canSubmit = selectedKeep === 'discard' || …`, `uniwork-conflict-model.ts:326`).
+The driver clicks each of those in turn and reports the first one that refused
+(an `aria-disabled` bar action or confirm), so "the fork did not reload" never
+reads the same as "the driver never confirmed". That whole flow is the serialized
+page function `driveAppConflictReloadFlow` (BE-704-406), exercised page-style
+against a fake DOM that copies the pinned step markup, including the confirm that
+stays `aria-disabled` until the keep choice. App-reload then ACCEPTS the final
+state only with `confirmed === true && choseDiscard === true` (BE-704-403): a copy
+that reaches the web Save's bytes without that confirmation FAILs with the
+measured confirm reason instead of passing on the bytes alone, and the step
+records the dirty working-copy checksum it read JUST BEFORE the click
+(`details.appReload.dirtyShaBeforeClick`) so the discard is a measured
+before/after transition, and the click's own outcome is on `details.appReload`. With the
+confirmation made, the step's own settle predicate closes it: the working copy must reach
+the web Save's base VERSION **and** its `sha256` (BE-704-504), so a bug
+that only keeps one half cannot pass — the tests drive the confirmed click that never
+settles, the announced version with the wrong bytes, and the right bytes under a stale
+binding version, each FAILing with what the poll measured.
+
+The rows share ONE app process, and both sides sign a previous session out with
+`accountLogout({ confirmed: true })` — the call the product's own account UI
+sends: the driver before the harness's sign-in (D2-05), and the harness's own
+`signIn`/`signOut` (D3-03). The fork's sign-out gate otherwise waits for a
+renderer prompt answer that no headless run can give, which is how the 4th row of
+a round can hang in `app-open` with `aiOffice.accountLogout did not settle within
+90 s`. A timeout inside the driver's own pre-sign-in sign-out is recorded as `the
+previous row's session could not be signed out: …`, with
+`details.appStepTimeout.call` naming `signOutPreviousSession.…`, so a record says
+which of the two calls hung.
+
+Which edits a run really drove through the editor UI is on the row: `uiEdits`
+(record and artifact) carries `dirty`, `offlineSave` and `aiSave`, each `real`
+(the app's own editor made that edit) or `standin` (the harness wrote the
+format's deterministic bytes into the working copy — a working-copy write, never
+claimed as a UI edit — or the step did not run, which drives no UI edit either).
+A stand-in offline edit stays allowed and stays visible: the artifact also says so
+in `steps["app-offline-save"].editSource` and in `notes`. The AI turn is the
+document-route protocol call (`contract-p0.md` A10) and the Save after it stores
+the format's deterministic stand-in bytes for the AI edit, so `uiEdits.aiSave` is
+`standin` — this harness does not drive the fork's AI panel.
+
+Steps that cannot run are BLOCKED with a named blocker, never folded into a PASS:
+the app's editor cannot be driven (the dirty-edit plans of `DIRTY_EDIT_PLANS`,
+whose actions are `EDIT_DRIVERS`), the S6 reload action cannot be driven, the web
+frame never reaches `data-state="ready"` (owner `lead-f`; the pinned bundle must
+be installed in the web build), or the app cannot sign in (no OS keyring). A
+BLOCKED step stops only the later steps that consume its result — they are
+recorded `SKIPPED`, not failed — and a BLOCKED step with no named blocker is a
+FAIL. In the `G5-A03` chain a BLOCKED dirty step therefore skips
+`web-save-2`/`dirty-kept`/`app-reload` while the independent desktop half
+(`app-offline-save` → `app-reconnect` → `web-sees`) and `final-shas` still run,
+and the row ends BLOCKED (77) with that blocker; a FAIL always stops the chain and
+wins over BLOCKED. Artifacts:
+`<runDir>/reports/g7-qa/<row lower-case>/<fixture>.json`; version ids, counts and
+the three checksums are in the record the command prints (the evidence artifact
+log) and in that JSON.
+
+
+## G7-04 revoke (UNI-1386, row G7-A02.1)
+
+`g7-04/revoke.mjs` proves one thing on the running harness stack: a revocation
+between two UniWork AI turns refuses the NEXT turn on both hosts, refuses the
+revoked user's Save, and leaves the version count unchanged with no committed
+commit intent. The helpers it names are imported, never copied: ports.env / the
+start gate / the fixture loader (`harness/lib.mjs`, `harness/fixture-files.mjs`),
+`evidence.mjs`, and the G7-10 tracer's `classifyAiResponse` /
+`interpretCommitIntentLookup`; its own HTTP transport wraps the shared
+`harness/api-contract.mjs` `G8_API_CALLS` table and answers `{ status, ok, body }`
+(the commit-intent lookup hands the tracer helper that body as `data`, the shape
+it reads).
+
+```sh
+node scripts/office/g5g6g7/evidence.mjs run \
+  --req G7-A02 --fixture fx-docx-report-vi --checker tester-cloud -- \
+  node scripts/office/g5g6g7/g7-04/revoke.mjs --case deactivate --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"
+node scripts/office/g5g6g7/evidence.mjs verify
+```
+
+CLI: `--fixture fx-docx-report-vi|fx-xlsx-revenue-xyz|all`, `--case
+deactivate|downgrade|remove|all`, `--run-dir <dir>`, `--dry-run`. One evidence
+line per (case, fixture) for G7-A02; the artifact log under `logs/` carries every
+status code, both version counts and the file:line reason behind each expected
+answer. Exit `0` PASS / `1` FAIL / `77` BLOCKED.
+
+Every (case, fixture) run seeds its OWN world (owner, editor member, organization,
+workspace, document): a run must never inherit an earlier run's revoke and be
+handed a member a previous case already revoked (D1-01). There is no world cache
+— nothing but the artifact text is written to the run dir, and a cache file an
+earlier driver version left there is deleted, never read back, so no bearer token
+survives on disk (BE-704-04). The version counts and the commit-intent lookup are
+read with the **owner's** token, which keeps read access in every case: a revoked
+member's own reads are refused (403/404) and would turn the count itself into a
+failure before the "+0 versions" assertion is evaluated (BE-704-02).
+
+The driver opens the document on both hosts (the member's desktop session route
+and a frame token the member mints) and runs AI turn 1. Then it revokes and runs
+AI turn 2, a Save attempt and a commit-intent lookup. What each case does, and
+what the server really answers — read from the Go code, never assumed, and
+asserted per route (the two hosts do not always answer the same code). Both
+turns are asserted: turn 1 must be `200` on both routes (below), and the table
+is what the revoke makes turn 2 answer:
+
+| `--case` | revoke step | AI turn 2 | the member's Save | version |
+| --- | --- | --- | --- | --- |
+| `deactivate` (primary) | `POST /api/v1/orgs/{org}/members/{userID}/deactivate` (`router/organizations.go:89`) | session **403 `member_deactivated`** (`service/organization.go:155-156` → `service/errors.go:53-57`); frame **401 `unauthorized`**, `error_class=session` — the frame actor resolver forwards only `ErrNotFound`/`ErrForbidden` and rewrites the same CodedError as a generic 401 (`handler/ai_mount.go:101-106`; class from `handler/dto/sdo/error_class.go:64`) | 403 `member_deactivated` | +0 |
+| `downgrade` | `PATCH /documents/{id}` `visibility=restricted` + `POST /documents/{id}/shares` `level=view` (the FQ-50 path) | **200 on both** — the AI turn needs view only and view-only AI is allowed by design (G6-05u, Advisor; `handler/office_frame_ai.go:26-35`, `service/ai_uniwork.go:391`) | upload **403 `forbidden`** (the edit gate, `service/document_files.go:132-134`); commit **404 `not_found`** (`resolveUpload` runs before the edit gate, `service/document_commit.go:277` vs `:296`) | +0 |
+| `remove` | `DELETE /api/v1/workspaces/{ws}/members/{user}` (`router/workspaces.go:65`) — answers **204** | **404 `not_found` on both** (a non-member holds no level: `service/document_permissions.go` `decideDocumentAccess:290-293`, the product rule a non-member never learns an id exists) | 404 `not_found` | +0 |
+
+The `downgrade` row is the one to read twice: its AI turn keeps answering 200
+because it only ever needed view, so the driver asserts exactly that and does NOT
+fake a 403 on it. The refusal that proves the edit right is gone is the UPLOAD's
+403 `forbidden` (the edit gate); the commit's 404 `not_found` is the route's own
+answer, not an edit refusal — its order is `preflightDocument` (view) →
+`resolveUpload` → the edit gate, and the refused upload left no resolvable id, so
+the commit is refused before the edit check is reached. Both are asserted as the
+code answers them and neither is widened to "any 4xx".
+
+The `deactivate` row refuses the next turn on both routes with two different
+codes, and both are the code's: the session route passes the
+`member_deactivated` CodedError through as 403, while the frame route's actor
+resolver swallows it into a generic 401 `unauthorized` `error_class=session` —
+the 401 is not frame-token auth (the token is stateless and still verifies) and
+not a session revocation; it is that resolver's default branch.
+
+Turn 1 is a precondition, not a warm-up (cloud D2, D2-02): the row may PASS only
+when **both** routes answered `200` to turn 1, because the revoke is only shown
+against a turn that really worked. A deployment whose UniWork AI capability is
+off refuses turn 1 with `403 office_capability_off` and names the flag in
+`error.fields.capability` (`ai_uniwork`, or the format, e.g. `ai_uniwork_xlsx`;
+`service/ai_uniwork.go:498-514`): that row is **BLOCKED** (exit 77) with that
+capability named in the blocker — never a PASS, whatever turn 2 answers —
+because no turn ever worked and nothing about the revoke can be concluded. That
+BLOCKED needs BOTH routes to answer that same refusal (BE-704-451): one route
+refusing while the other answers a 5xx or times out is not a capability blocker —
+the other route failed on its own — and the row is the `turn1_not_200` **FAIL**
+carrying both measured cells. A turn 1 that answered anything else but `200`
+(and is not the fake deployment's `503 ai_disabled` on both routes, BE-704-551)
+is a **FAIL** naming both routes' status and code. A
+capability that turns off **between** the two turns (turn 1 `200` on both, turn 2
+`office_capability_off`) is a **FAIL** named as that capability flip, not as a
+revoke result (D2-03). The run-level test drives that flip through `downgrade` —
+the only case whose member the server still admits, because `RequireMember`
+(`service/ai_uniwork.go:241-244`) runs before the capability check (:503-515), so
+a deactivated member is never answered `office_capability_off` (BE-704-353). The
+revoke assertions still run in every one of these rows, and a broken revoke
+assertion wins over the BLOCKED.
+
+The commit-intent lookup is read with the owner's token — the revoke never
+refuses that read — and the intent the route answers for is the CALLER's own
+(`service/document_commit_intent.go:380-384`, enforced at `:429`): the owner's
+read is the owner's own answer, a revoked member's own read is refused 403/404,
+and the write path is refused before any intent is claimed
+(`service/document_commit.go:296` → `:305-309`), so no intent can appear after
+the revoke in the first place. The rule that a committed intent FAILs the row is
+pinned by the unit test (the fake's committed-answer mutation), and the artifact
+records both the read and the reason with its file:line. A 200 on the next turn
+where a case expects a refusal, any new version, or a committed commit intent is
+a **FAIL**, never a PASS — and so is a turn 1 that never answered `200` on both
+routes, since then the revoke was never shown.
+
+Under `AI_PROVIDER=fake` the turn-1 content claim cannot be proven **even when
+turn 1 answered `200` on both routes** (`classifyAiResponse` BLOCKs any answer
+labelled fake, whatever the status): that step is **BLOCKED** (`no real upstream
+on this runner; contract-p0 §8`), and so is the **ROW** — exit 77, owner
+`g7-qa`, blocker `turn-1 AI content not verifiable under the fake provider
+(real-AI round)` — because a row may never end PASS while its own record marks a
+step inside it BLOCKED (BE-704-202; the cross-host driver answers the same
+question the same way). Every revoke assertion is still recorded as PASS, so the
+artifact still shows the revoke itself was proven, and a broken revoke assertion
+wins over that BLOCKED exactly as it wins over the other two.
+
+Every BLOCKED and FAIL **verdict** reason — the row's own `reason`, what the
+record and the CLI print — is built by ONE helper (`verdictReasonOf`) from a
+compact **measured** tuple: never prose, and never the expectation the case names
+(BE-704-204, BE-704-350, BE-704-351). Each failing step record names the same
+compact verdict code and carries the measurement it read in its own fields.
+
+```
+<verdict code>; t1 s<session>/f<frame> t2 s<session>/f<frame> v <before>-><after> save up <upload>/cm <commit>
+```
+
+Each entry is the measured `status code` of that route (the frame route's
+distinctive `error_class`, the transport message and the whole expectation live
+in `details`, which is not character-capped), and a route that produced no HTTP
+answer carries its own transport code instead: `timeout` (the request never came
+back), `transport` (any other failure), or `http_<status>` for a 5xx the call
+refuses (BE-704-352). The member's Save upload and commit go through that SAME
+mapper (BE-704-450): a refused 5xx, a timeout and a connection failure read
+`http_<status>`, `timeout` and `transport` on both Save cells too, never a code
+that is not on the wire. Each route captures its own failure and BOTH routes are
+always tried, so a session 500 or timeout still reports the frame route's
+measurement in the turn-1 FAIL instead of a generic exception. Only a failure the
+shared call table really raises is read as a route failure — a refused status, an
+abort/timeout, or the platform's own `fetch` rejection: any other exception is
+rethrown to the driver-error path (BE-704-454), so a harness defect is never
+reported as a product-style route transport failure. Every dynamic value — a
+route's error code, `error.fields.capability`, an `error_class` — is redacted and
+bounded (21 characters) BEFORE it is interpolated, and a value that still does
+not fit becomes an explicit `oversized(<length>)` marker instead of being
+truncated (BE-704-452): the widest reason the helper can compose is 234
+characters and no measured cell is ever silently dropped, so the reason is
+therefore inside the record's own 240-char redaction by construction
+(`redactSignInError(reason) === reason`; the tests pin that for every verdict,
+including the widest one a row can compose), while the long text — the
+expectation the row was read against, the mismatch prose, the blocker and the
+file:line why — lives in `details` (and in `blocker` for BLOCKED). A prerequisite
+reason that was never measured (the start gate, an unknown case) is still one
+helper's compact code, with the whole start.sh text in `details.gate`,
+`steps.start.reason` and the run's log. The unit tests pin the process
+environment they depend on (`AI_PROVIDER` and the real-upstream guard,
+BE-704-203), so a runner that exports `AI_PROVIDER=fake` decides none of them.
+
+**G7-A02.2 (a late AI result not applied to a newer base) is not implemented
+here.** It belongs to G7-03a (FQ-28/29/32); G7-04 records the cross-reference
+only and runs no duplicate.
+
+Local tests: `node --test scripts/office/g5g6g7/g7-04/revoke.test.mjs` (the
+state-driven fake stack: it refuses a revoked member's own reads, resolves
+`upload_id` before the access gate, answers the frame route's 401 and pins the
+`{ status, ok, body }` lookup shape the driver's own `call()` returns; the real
+harness is Linux-only).
+## G8-19 cross-host rows (UNI-1414)
+
+The G8 rows (`g8-19/<module>.mjs`, one file per module) share one harness. The
+contract they code against is `harness/g8-contract.md`; `g8-19/fake-world.mjs`
+implements it in memory, so a row module can be written and tested before a
+live run exists.
+
+| Module | What it gives a row |
+| --- | --- |
+| `harness/world.mjs` | the seeded world: users A, B, C (organization X, workspaces W1/W2, B and C invited into W2) and M (organization Y, workspace WY); cached 0600 at `$HARNESS_RUN_DIR/g8-19-world.json`, every user re-logged in on reuse; `world.refreshTokens()` re-logs in on demand (access tokens live 15 min); `cleanup()` reports leftovers and never deletes by SQL |
+| `harness/api.mjs` | `session(user)` / `createApi(origin)`: one bearer session per user over the rows in `api-contract.mjs`, which are checked against the Go router and SDI structs |
+| `harness/app.mjs` | the desktop driver over CDP: sign-in with the org choice, editor pages, the comments/discussion bridges, tabs focus |
+| `harness/web.mjs` | one Playwright context per user on the D web; `openDocument` reads the Inbox state and comment-panel markers |
+| `g8-19/run-row.mjs` | `runRowModule` / `rowMain`: the start gate, `ports.env`, the step ctx, the watchdog and the exit mapping |
+
+A row module ends with:
+
+```sh
+# inside g8-19/<module>.mjs (JavaScript, shown here for the entry line only):
+#   if (isMainModule({ moduleUrl: import.meta.url })) process.exit(await rowMain("comments", run));
+node scripts/office/g5g6g7/g8-19/comments.mjs --row G8-A01 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"
+```
+
+Exit codes: `0` PASS, `1` FAIL, `77` BLOCKED with a named blocker and owner
+(`ctx.block(blocker, owner)`); a BLOCKED without a named blocker is rewritten to
+FAIL. The artifact is `<runDir>/reports/g7-qa/<g8-aXX>/<fixture>.json`, truncated
+at the start of every run and redacted (bearer tokens, tickets, secrets).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OFFICE_FORK_SHA` | — | the spec must export `7d665a54` for G8 runs; the start default (`0d03b18`) predates the comment bridges |
+| `G819_ALLOW_SQL_MEMBERSHIP` | unset | `1` lets the seed add M to X/W1 by a direct SQL insert (no API can create a multi-organization account since ADR 0032); otherwise the multi-org rows are BLOCKED with that reason |
+| `G819_DATABASE_URL` / `DATABASE_URL` | unset | the database the SQL membership insert uses |
+| `G819_ROW_TIMEOUT_MS` | `600000` | row watchdog; the running step and the row FAIL with `row watchdog` |
+| `G819_WRITE_EVIDENCE` | unset | `1` makes `rowMain` append its own `evidence.jsonl` line when no `OFFICE_EVIDENCE_ID` wrapper writes one |

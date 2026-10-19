@@ -11,6 +11,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { NotificationMark } from "./notification-mark";
 import { notificationSnippet } from "./notification-snippet";
+import { quoted } from "./trashed-notice";
 import { NotificationTitle } from "./notification-title";
 import { absoluteTime, relativeTime } from "./relative-time";
 import { useNow } from "./use-now";
@@ -78,16 +79,43 @@ export function NotificationRow({
     <>
       <NotificationMark notification={n} dimmed={!unread || n.resource_deleted} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className={cn("line-clamp-2 text-body text-pretty", unread ? "text-foreground" : "text-muted-foreground")}>
+        <span
+          className={cn(
+            // Break-glass titles carry the "(24h)" window mid-sentence, and a trash notice ends in its purge
+            // date; at phone width two lines cut both off. The vi trash sentence (actor + date) needs a 4th line.
+            n.kind === "document_trashed_by_other"
+              ? "line-clamp-4"
+              : n.kind === "document_break_glass"
+                ? "line-clamp-3"
+                : "line-clamp-2",
+            "text-body text-pretty",
+            unread ? "text-foreground" : "text-muted-foreground",
+          )}
+        >
           {unread ? <span className="sr-only">{`${t("notifications.unread_dot")}: `}</span> : null}
           <NotificationTitle notification={n} unread={unread} />
         </span>
         {snippet ? (
           <span
-            className={cn("line-clamp-1 text-caption text-muted-foreground", snippet.kind === "deleted" && "italic")}
+            className={cn(
+              "text-caption text-muted-foreground",
+              snippet.kind === "trashed" ? "flex min-w-0 gap-1" : "line-clamp-1",
+              snippet.kind === "deleted" && "italic",
+            )}
             data-notification-snippet={snippet.kind}
           >
-            {snippet.kind === "text" ? snippet.text : t(snippet.key)}
+            {snippet.kind === "text" ? (
+              snippet.text
+            ) : snippet.kind === "trashed" ? (
+              // The name gives way to the ellipsis; "và N mục khác" never does.
+              <>
+                {snippet.document.trim() ? <span className="min-w-0 truncate">{quoted(snippet.document)}</span> : null}
+                {snippet.document.trim() && snippet.count > 0 ? " " : null}
+                {snippet.count > 0 ? <span className="shrink-0">{t("notifications.trashed_more", { count: snippet.count })}</span> : null}
+              </>
+            ) : (
+              t(snippet.key)
+            )}
           </span>
         ) : null}
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground">

@@ -287,7 +287,7 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 	if err != nil {
 		return UniworkTurn{}, err
 	}
-	allow := ai.UniworkModuleAllowlist(module, req.Tools, !doc.edit)
+	allow := ai.UniworkModuleAllowlist(module, req.Tools, !doc.edit, scope.DocumentID != "")
 	turn, err := ai.PlanUniworkTurn(transcriptMessages(conv), in.Body, allow)
 	if err != nil {
 		// The conversation exists and is untouched; the client still gets its
@@ -312,16 +312,22 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 	defer release()
 	// The run counters are the last gate before the model (A3, design §5.5):
 	// the limiter already ran, so a turn refused here holds no slot, and the
-	// take is what makes the caps hold across pods. The refusal (limit
-	// reached, run id unknown/expired/foreign) carries no run id back — the
-	// client drops its header and asks again, which opens a new run in the
-	// same conversation (§4.3).
+	// take is what makes the caps hold across pods. A refusal ends the run on
+	// the client's side — it drops the run header and asks again, which opens
+	// a new run in the same conversation (§4.3) — and the answer names the
+	// run when there still is one (below).
 	run, err := s.takeRun(ctx, ai.TakeRunTurn{
 		OrganizationID: orgID, ConversationID: conv.ID, RunID: in.RunID,
 		ToolRound: turn.ToolResultTurn, CreatedBy: scope.UserID, Now: s.now(),
 	})
 	if err != nil {
-		return UniworkTurn{ConversationID: conv.ID}, err
+		// A spent cap is refused by a live run, and that refusal is an answer
+		// of that run: the store hands it back with the error and it travels
+		// to the answer (A12, design §2.1), so a client can tell "this run is
+		// over" from "there was no run". A run that is gone (run_expired, the
+		// lost race included) names nothing — the client drops the id it holds
+		// and asks again, which opens a new run in the same conversation.
+		return UniworkTurn{ConversationID: conv.ID, RunID: run.ID}, err
 	}
 
 	request := ai.Request{

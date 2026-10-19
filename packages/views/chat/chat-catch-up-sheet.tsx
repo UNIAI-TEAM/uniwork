@@ -1,17 +1,32 @@
 "use client";
 
 import { useId, useState } from "react";
-import { CircleAlert, CircleCheck, RotateCcwClock, ListChecks, MessageSquareText, Sparkles } from "lucide-react";
+import { CircleAlert, CircleCheck, ListChecks, MessageCircle, Sparkle, SquareCheckBig } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { ChatCatchUpActionItem, ChatCatchUpResponse } from "@uniwork/core/types";
+import type { ChatCatchUpActionItem, ChatCatchUpHighlight, ChatCatchUpResponse } from "@uniwork/core/types";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Notice } from "../common/notice";
+import { cn } from "@uniwork/ui/lib/utils";
+import {
+  CHAT_EMPTY_TILE_CLASS,
+  CHAT_EMPTY_TITLE_CLASS,
+  CHAT_PILL_SM_CLASS,
+  CHAT_SHEET_CLASS,
+  CHAT_SHEET_HEADER_CLASS,
+} from "./chat-dialog-look";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
 import { CreateTaskFromMessageDialog } from "./create-task-from-message-dialog";
 import { catchUpGeneratedAt } from "./use-chat-catch-up-ui";
+
+/** Highlights with their source message; a server that predates highlight_items sends only the strings. */
+function briefHighlights(result: ChatCatchUpResponse): ChatCatchUpHighlight[] {
+  if (result.highlight_items.length > 0) return result.highlight_items;
+  return result.highlights.map((text) => ({ text, source_message_id: "" }));
+}
 
 function isEmptyBrief(result: ChatCatchUpResponse): boolean {
   return (
@@ -34,31 +49,37 @@ function parseTs(value: string): number | null {
   return Number.isNaN(ts) ? null : ts;
 }
 
+/** The canvas sheet is 480px wide (the shared chat sheet stops at 448). */
+const CATCH_UP_WIDTH = "data-[side=right]:sm:max-w-120";
+
 function SectionLabel({ icon: Icon, children }: { icon?: typeof ListChecks; children: string }) {
   return (
-    <h3 className="flex items-center gap-1.5 text-overline text-muted-foreground uppercase">
+    <h3 className="flex items-center gap-1.5 text-micro leading-4 font-semibold tracking-[0.06em] text-muted-foreground uppercase">
       {Icon ? <Icon aria-hidden className="size-3.5" /> : null}
       {children}
     </h3>
   );
 }
 
-/** Placeholder in the brief's shape: attribution, summary lines, list rows. */
+/** Placeholder in the brief's shape (summary lines, list rows) under a line saying UNI is reading. */
 function CatchUpSkeleton({ label }: { label: string }) {
   return (
-    <div role="status" className="flex flex-col gap-5">
-      <span className="sr-only">{label}</span>
-      <div aria-hidden className="flex flex-col gap-5">
-        <Skeleton className="h-4 w-44" />
-        <div className="flex flex-col gap-2 rounded-lg border border-border px-3 py-3">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-11/12" />
-          <Skeleton className="h-4 w-3/5" />
+    <div role="status" className="flex flex-col gap-3.5">
+      <p className="flex items-center gap-2 text-body text-foreground">
+        <Spinner className="text-brand" />
+        {label}
+      </p>
+      <div aria-hidden className="flex flex-col gap-3.5">
+        <Skeleton className="h-3.5 w-50 rounded-full" />
+        <div className="flex flex-col gap-2.5 rounded-xl border border-border px-4 py-3.5">
+          <Skeleton className="h-3 w-full rounded-full" />
+          <Skeleton className="h-3 w-11/12 rounded-full" />
+          <Skeleton className="h-3 w-3/5 rounded-full" />
         </div>
+        <Skeleton className="h-2.5 w-24 rounded-full" />
         <div className="flex flex-col gap-2">
-          <Skeleton className="h-3 w-24" />
-          {[0, 1, 2].map((row) => (
-            <Skeleton key={row} className="h-10 w-full" />
+          {[0, 1].map((row) => (
+            <Skeleton key={row} className="h-9 w-full rounded-lg" />
           ))}
         </div>
       </div>
@@ -100,6 +121,7 @@ export function ChatCatchUpSheet({
   const errorDetail = error && error !== failedTitle ? error : null;
   const stamp = generatedAt ?? catchUpGeneratedAt(result);
   const since = result ? parseTs(result.since) : null;
+  const highlights = result ? briefHighlights(result) : [];
 
   const jumpTo = (messageId: string) => {
     onOpenChange(false);
@@ -112,14 +134,14 @@ export function ChatCatchUpSheet({
         <SheetContent
           side="right"
           closeLabel={t("common.close")}
-          className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+          className={cn(CHAT_SHEET_CLASS, CATCH_UP_WIDTH)}
         >
-          <SheetHeader className="border-b border-border px-4 py-3">
-            <SheetTitle className="flex items-center gap-2">
-              <RotateCcwClock aria-hidden className="size-4 text-muted-foreground" />
+          <SheetHeader className={cn(CHAT_SHEET_HEADER_CLASS, "gap-0.5 pb-3.5 pl-6")}>
+            <SheetTitle className="flex items-center gap-3">
+              <IconTile icon={Sparkle} tone="brand" size="md" className="size-9 rounded-[11px]" />
               {t("chat.ai.catch_up_title")}
             </SheetTitle>
-            <SheetDescription>
+            <SheetDescription className="pl-12">
               {result?.mode === "recent"
                 ? t("chat.ai.catch_up_description_recent")
                 : t("chat.ai.catch_up_description")}
@@ -133,7 +155,7 @@ export function ChatCatchUpSheet({
               live="assertive"
               action={
                 onRetry ? (
-                  <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+                  <Button type="button" variant="outline" size="sm" className={CHAT_PILL_SM_CLASS} onClick={onRetry}>
                     {t("common.retry")}
                   </Button>
                 ) : undefined
@@ -144,68 +166,88 @@ export function ChatCatchUpSheet({
             </Notice>
           ) : null}
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-4.5 pb-5">
             {loading ? <CatchUpSkeleton label={t("chat.ai.catch_up_loading")} /> : null}
 
             {!loading && !error && empty ? (
               <div
-                className="flex flex-1 flex-col items-center justify-center gap-3 text-center"
+                className="flex flex-1 flex-col items-center justify-center gap-4 text-center"
                 role="status"
               >
-                <IconTile icon={CircleCheck} size="lg" tone="success" />
-                <div className="flex max-w-[36ch] flex-col gap-1">
-                  <p className="text-body font-medium text-foreground">{t("chat.ai.catch_up_empty_title")}</p>
-                  <p className="text-caption text-muted-foreground">{t("chat.ai.catch_up_empty")}</p>
+                <IconTile icon={CircleCheck} size="lg" tone="success" className={CHAT_EMPTY_TILE_CLASS} />
+                <div className="flex max-w-80 flex-col gap-1.5">
+                  <p className={CHAT_EMPTY_TITLE_CLASS}>{t("chat.ai.catch_up_empty_title")}</p>
+                  <p className="text-body text-muted-foreground">{t("chat.ai.catch_up_empty")}</p>
                 </div>
               </div>
             ) : null}
 
             {!loading && !error && result && !empty ? (
               <div className="flex flex-col gap-5">
-                <section className="flex flex-col gap-2" aria-labelledby={`${idBase}-attribution`}>
+                <section className="flex flex-col gap-2.5" aria-labelledby={`${idBase}-attribution`}>
                   <p
                     id={`${idBase}-attribution`}
-                    className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-muted-foreground"
+                    className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-label text-muted-foreground tabular-nums"
                   >
-                    <IconTile icon={Sparkles} size="xs" tone="brand" />
-                    <span className="font-medium text-foreground">{t("chat.ai.catch_up_attribution")}</span>
+                    <Sparkle aria-hidden className="size-3.5 text-brand" />
+                    <span className="font-semibold text-foreground">{t("chat.ai.catch_up_attribution")}</span>
                     {stamp ? (
                       <time dateTime={new Date(stamp).toISOString()} title={formatMessageDateTime(stamp, locale)}>
                         {t("chat.ai.catch_up_generated_at", { time: formatBriefTime(stamp, locale) })}
                       </time>
                     ) : null}
-                  </p>
-                  <div className="rounded-lg border border-border bg-surface px-3 py-3">
-                    <p className="whitespace-pre-wrap text-body leading-6 text-foreground">{result.summary}</p>
-                    {result.message_count > 0 || since ? (
-                      <p className="mt-2 flex flex-wrap gap-x-1.5 text-caption text-muted-foreground">
-                        {result.message_count > 0 ? (
-                          <span>{t("chat.ai.message_count", { count: result.message_count })}</span>
-                        ) : null}
-                        {result.message_count > 0 && since ? <span aria-hidden>·</span> : null}
-                        {since ? (
-                          <time dateTime={new Date(since).toISOString()} title={formatMessageDateTime(since, locale)}>
-                            {t("chat.ai.catch_up_since", { time: formatBriefTime(since, locale) })}
-                          </time>
-                        ) : null}
-                      </p>
+                    {result.message_count > 0 ? (
+                      <>
+                        <span aria-hidden>·</span>
+                        <span>{t("chat.ai.message_count", { count: result.message_count })}</span>
+                      </>
                     ) : null}
+                    {since ? (
+                      <>
+                        <span aria-hidden>·</span>
+                        <time dateTime={new Date(since).toISOString()} title={formatMessageDateTime(since, locale)}>
+                          {t("chat.ai.catch_up_since", { time: formatBriefTime(since, locale) })}
+                        </time>
+                      </>
+                    ) : null}
+                  </p>
+                  {/* The AI's words sit on the brand wash, apart from the room's own messages. */}
+                  <div className="rounded-xl border border-brand/25 bg-brand-subtle/50 px-4 py-3.5">
+                    <p className="text-body-lg leading-[1.533] whitespace-pre-wrap text-foreground">{result.summary}</p>
                   </div>
                 </section>
 
-                {result.highlights.length > 0 ? (
+                {highlights.length > 0 ? (
                   <section className="flex flex-col gap-2">
                     <SectionLabel>{t("chat.ai.highlights")}</SectionLabel>
-                    <ul className="space-y-2">
-                      {result.highlights.map((h) => (
-                        <li
-                          key={h}
-                          className="flex gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body text-foreground"
-                        >
-                          <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" aria-hidden />
-                          <span className="min-w-0">{h}</span>
-                        </li>
-                      ))}
+                    <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
+                      {highlights.map((h, index) => {
+                        const sourceId = h.source_message_id;
+                        const textId = `${idBase}-highlight-${index}`;
+                        return (
+                          <li
+                            key={`${h.text}-${sourceId}-${index}`}
+                            className="flex items-start gap-2.5 py-2.5 pr-2 pl-3.5 text-body leading-[1.5] text-foreground"
+                          >
+                            <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
+                            <span id={textId} className="min-w-0 flex-1">
+                              {h.text}
+                            </span>
+                            {sourceId && onJumpToMessage ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7.5 shrink-0 rounded-full px-2.5 text-label font-semibold text-brand hover:text-brand"
+                                aria-describedby={textId}
+                                onClick={() => jumpTo(sourceId)}
+                              >
+                                {t("chat.ai.catch_up_view_source")}
+                              </Button>
+                            ) : null}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </section>
                 ) : null}
@@ -220,26 +262,27 @@ export function ChatCatchUpSheet({
                         return (
                           <li
                             key={`${item.title}-${sourceId}-${index}`}
-                            className="rounded-md border border-border bg-surface px-3 py-2.5"
+                            className="rounded-xl border border-border bg-surface px-3.5 py-3"
                           >
-                            <p id={titleId} className="text-body font-medium text-foreground">
+                            <p id={titleId} className="text-body-lg leading-[1.4] font-semibold text-foreground">
                               {item.title}
                             </p>
                             {item.owner || item.due ? (
-                              <p className="mt-0.5 text-caption text-muted-foreground">
+                              <p className="mt-0.5 text-label text-muted-foreground">
                                 {[item.owner, item.due].filter(Boolean).join(" · ")}
                               </p>
                             ) : null}
                             {sourceId ? (
-                              <div className="mt-2 flex flex-wrap gap-2">
+                              <div className="mt-2.5 flex flex-wrap gap-2">
                                 <Button
                                   type="button"
-                                  variant="outline"
+                                  variant="brandSubtle"
                                   size="sm"
+                                  className={cn(CHAT_PILL_SM_CLASS, "pl-3")}
                                   aria-describedby={titleId}
                                   onClick={() => setCreateFor(item)}
                                 >
-                                  <ListChecks aria-hidden />
+                                  <SquareCheckBig aria-hidden />
                                   {t("chat.link.create_task")}
                                 </Button>
                                 {onJumpToMessage ? (
@@ -247,10 +290,11 @@ export function ChatCatchUpSheet({
                                     type="button"
                                     variant="ghost"
                                     size="sm"
+                                    className={cn(CHAT_PILL_SM_CLASS, "px-3 text-muted-foreground")}
                                     aria-describedby={titleId}
                                     onClick={() => jumpTo(sourceId)}
                                   >
-                                    <MessageSquareText aria-hidden />
+                                    <MessageCircle aria-hidden />
                                     {t("chat.ai.catch_up_view_source")}
                                   </Button>
                                 ) : null}

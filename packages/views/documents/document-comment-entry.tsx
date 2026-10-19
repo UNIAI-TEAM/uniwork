@@ -4,7 +4,10 @@ import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from "re
 import { Copy, Ellipsis, Pencil, RotateCcwClock, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
-import type { DocumentComment } from "@uniwork/core/types/document";
+import type {
+  DocumentComment,
+  DocumentCommentMentionWithoutAccess,
+} from "@uniwork/core/types/document";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -18,6 +21,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AgentBadge } from "../agents/agent-badge";
 import { CommentActorAvatar } from "../comments/comment-actor-avatar";
 import { DocumentCommentBody, type MentionNames } from "./document-comment-body";
+import { PostSendMentionNotice } from "./document-comment-mention-notice";
 import { DocumentCommentHistory } from "./document-comment-history";
 import { K } from "./document-comments-keys";
 import { formatCollabTime } from "./document-comments-model";
@@ -106,6 +110,7 @@ function EditBox({ initial, onSave, onClose }: { initial: string; onSave: (body:
 export function DocumentCommentEntry({
   wsId,
   documentId,
+  documentWorkspaceId,
   comment,
   authorName,
   authorId,
@@ -117,10 +122,12 @@ export function DocumentCommentEntry({
   onTombstone,
   headingRef,
   meta,
+  mentionsWithoutAccess,
   children,
 }: {
   wsId: string;
   documentId: string;
+  documentWorkspaceId?: string;
   comment: DocumentComment;
   authorName: string;
   /** Id of the author's name element, part of the thread's accessible name. */
@@ -136,6 +143,8 @@ export function DocumentCommentEntry({
   headingRef?: Ref<HTMLHeadingElement & HTMLParagraphElement>;
   /** Anchor and state labels shown in the root's head line. */
   meta?: ReactNode;
+  /** Post-send mentions without access returned by create/update (G8-18). */
+  mentionsWithoutAccess?: readonly DocumentCommentMentionWithoutAccess[];
   /** The root's action row (reply, resolve). */
   children?: ReactNode;
 }) {
@@ -166,6 +175,7 @@ export function DocumentCommentEntry({
   };
   const time = formatCollabTime(comment.created_at, locale);
   const Heading = headingRef ? "h3" : "p";
+  const noticeItems = mentionsWithoutAccess ?? comment.mentions_without_access;
 
   return (
     <div data-testid={`document-comment-${comment.id}`} className="px-3 py-2.5">
@@ -217,6 +227,17 @@ export function DocumentCommentEntry({
         ) : (
           <DocumentCommentBody body={comment.body} names={names} className="mt-1" />
         )}
+        {!editing && noticeItems && noticeItems.length > 0 ? (
+          <PostSendMentionNotice
+            wsId={wsId}
+            documentId={documentId}
+            documentWorkspaceId={documentWorkspaceId}
+            items={noticeItems}
+            nameOfId={nameOf}
+            body={comment.body}
+            testId={`document-comment-post-send-notice-${comment.id}`}
+          />
+        ) : null}
         {edited && !editing ? (
           <button
             type="button"

@@ -70,7 +70,11 @@ type DocumentWorkers struct {
 
 // NewDocumentWorkers builds the maintenance worker for this service.
 func (s *DocumentService) NewDocumentWorkers() *DocumentWorkers {
-	return &DocumentWorkers{svc: s}
+	var intentTick time.Duration
+	if s != nil {
+		intentTick = s.intentPolicy.SweepTick
+	}
+	return &DocumentWorkers{svc: s, IntentTick: intentTick}
 }
 
 // SetOfficeLaunchService wires the tenant-scoped launch-session retention
@@ -96,6 +100,9 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 		compactTick = documentCompactTick
 	}
 	intentTick := w.IntentTick
+	if intentTick <= 0 && w.svc != nil {
+		intentTick = w.svc.intentPolicy.sweepTick()
+	}
 	if intentTick <= 0 {
 		intentTick = commitIntentSweepTick
 	}
@@ -134,6 +141,9 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 		{intentTick, func(ctx context.Context) {
 			started := time.Now()
 			_, err := w.svc.SweepCommitIntents(ctx)
+			if err == nil {
+				_, err = w.svc.ExpireMultipartUploads(ctx, w.clock()())
+			}
 			w.svc.recordDocumentSweep("commit_intent", 0, err, started)
 			if w.swept != nil {
 				w.swept("commit_intent", err)
@@ -208,6 +218,9 @@ func (w *DocumentWorkers) wait(ctx context.Context, d time.Duration) bool {
 // otherwise. It returns how many pages failed; the pass carries on past them
 // and the next tick retries.
 func (w *DocumentWorkers) autoVersionPass(ctx context.Context) (int, error) {
+	if w.svc == nil || w.svc.q == nil {
+		return 0, nil
+	}
 	now := w.clock()()
 	quiet := now.Add(-documentAutoVersionQuiet)
 	var failed int

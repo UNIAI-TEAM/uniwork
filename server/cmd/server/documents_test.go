@@ -30,6 +30,9 @@ func (*stubDocumentMetrics) IncDocumentConflict(string, string)                 
 func (*stubDocumentMetrics) IncDocumentQuotaRejected(string)                    {}
 func (*stubDocumentMetrics) ObserveDocumentWorkerSweep(string, string, float64) {}
 func (*stubDocumentMetrics) AddDocumentWorkerRowsFailed(string, int)            {}
+func (*stubDocumentMetrics) IncDocumentEditLockOp(string)                       {}
+func (*stubDocumentMetrics) IncDocumentEditLockRefused(string)                  {}
+func (*stubDocumentMetrics) IncDocumentEditRequest(string)                      {}
 
 // stubOfficeIntentMetrics stands in for reg.Office's intent counters.
 type stubOfficeIntentMetrics struct{}
@@ -45,7 +48,7 @@ func (*stubOfficeIntentMetrics) AddOfficeCommitIntentsSwept(int) {}
 func TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters(t *testing.T) {
 	flags := &stubDocumentFlags{}
 	intentMetrics := &stubOfficeIntentMetrics{}
-	policy := service.CommitIntentPolicy{ClaimTTL: 13 * time.Minute, Retention: 72 * time.Hour}
+	policy := service.CommitIntentPolicy{ClaimTTL: 13 * time.Minute, Retention: 72 * time.Hour, SweepTick: 45 * time.Second}
 
 	svc := newDocumentService(documentServiceOptions{
 		Flags: flags, IntentMetrics: intentMetrics, Policy: policy,
@@ -54,6 +57,9 @@ func TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters(t *testing.T) {
 	wiring := svc.IntentWiringForTest()
 	if wiring.Policy != policy {
 		t.Errorf("commit intent policy = %+v, want %+v; without it the route commits claim with the default TTL and resume window", wiring.Policy, policy)
+	}
+	if w := svc.NewDocumentWorkers(); w.IntentTick != policy.SweepTick {
+		t.Errorf("NewDocumentWorkers().IntentTick = %v, want %v", w.IntentTick, policy.SweepTick)
 	}
 	if wiring.Flags != flags {
 		t.Errorf("flag evaluator = %#v, want the evaluator main.go passes in; without it office_sync_write never reaches the routes", wiring.Flags)
@@ -171,7 +177,7 @@ func TestMainPassesTheFullDocumentServiceOptions(t *testing.T) {
 			}
 		}
 	}
-	for _, key := range []string{"Pool", "Queries", "Organizations", "Workspaces", "Files", "Flags", "Metrics", "IntentMetrics", "Policy"} {
+	for _, key := range []string{"Pool", "Queries", "Organizations", "Workspaces", "Files", "Flags", "Metrics", "IntentMetrics", "Policy", "EditLock"} {
 		if _, ok := values[key]; !ok {
 			t.Errorf("main.go's documentServiceOptions literal does not set %s; the one DocumentService would lose it and bring back BE-I4-1", key)
 		}
@@ -184,6 +190,7 @@ func TestMainPassesTheFullDocumentServiceOptions(t *testing.T) {
 	wantFromCfg := map[string]string{
 		"ClaimTTL":  "DocumentCommitIntentClaimTTL",
 		"Retention": "DocumentCommitIntentRetention",
+		"SweepTick": "DocumentCommitIntentSweepTick",
 	}
 	for _, elt := range policy.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
@@ -208,5 +215,80 @@ func TestMainPassesTheFullDocumentServiceOptions(t *testing.T) {
 	}
 	for key := range wantFromCfg {
 		t.Errorf("Policy in main.go's literal does not set %s from cfg; the routes would fall back to the default window (BE-I4-1)", key)
+	}
+}
+
+// TestNewDocumentServiceWiresEditLockConfig pins the DOCUMENT_EDIT_* timing
+// (UNI-1645 §7) on the instance the routes and the sweeper share: without it
+// a configured TTL or request cap would silently stay the default.
+func TestNewDocumentServiceWiresEditLockConfig(t *testing.T) {
+	want := service.DocumentEditLockConfig{
+		TTL: 3 * time.Minute, Heartbeat: 40 * time.Second, SweepInterval: 20 * time.Second,
+		HoldMax: 4 * time.Hour, HoldChainMax: 12 * time.Hour, RequestTTL: 10 * time.Minute, RequestMaxPerHour: 7,
+	}
+	svc := newDocumentService(documentServiceOptions{EditLock: want})
+	if got := svc.EditLockConfig(); got != want {
+		t.Errorf("edit lock config = %+v, want %+v", got, want)
+	}
+	if got := newDocumentService(documentServiceOptions{}).EditLockConfig(); got != service.DefaultDocumentEditLockConfig() {
+		t.Errorf("unset edit lock config = %+v, want the addendum defaults", got)
+	}
+}
+
+// TestMainPassesTheEditLockConfigFromCfg pins every EditLock field of
+// main.go's literal to its config.Config field, the way Policy is pinned.
+func TestMainPassesTheEditLockConfigFromCfg(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse main.go: %v", err)
+	}
+	var editLock *ast.CompositeLit
+	ast.Inspect(file, func(n ast.Node) bool {
+		kv, ok := n.(*ast.KeyValueExpr)
+		if !ok {
+			return true
+		}
+		if key, ok := kv.Key.(*ast.Ident); ok && key.Name == "EditLock" {
+			editLock, _ = kv.Value.(*ast.CompositeLit)
+		}
+		return true
+	})
+	if editLock == nil {
+		t.Fatal("main.go sets no EditLock: service.DocumentEditLockConfig{...} literal")
+	}
+	wantFromCfg := map[string]string{
+		"TTL":               "DocumentEditLockTTL",
+		"Heartbeat":         "DocumentEditLockHeartbeat",
+		"SweepInterval":     "DocumentEditLockSweepInterval",
+		"HoldMax":           "DocumentEditHoldMax",
+		"HoldChainMax":      "DocumentEditHoldChainMax",
+		"RequestTTL":        "DocumentEditRequestTTL",
+		"RequestMaxPerHour": "DocumentEditRequestMaxPerHour",
+	}
+	for _, elt := range editLock.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key, _ := kv.Key.(*ast.Ident)
+		if key == nil {
+			continue
+		}
+		field, want := wantFromCfg[key.Name]
+		if !want {
+			continue
+		}
+		sel, ok := kv.Value.(*ast.SelectorExpr)
+		var recv *ast.Ident
+		if ok {
+			recv, _ = sel.X.(*ast.Ident)
+		}
+		if !ok || recv == nil || recv.Name != "cfg" || sel.Sel.Name != field {
+			t.Errorf("EditLock.%s must be cfg.%s", key.Name, field)
+		}
+		delete(wantFromCfg, key.Name)
+	}
+	for key := range wantFromCfg {
+		t.Errorf("EditLock in main.go's literal does not set %s from cfg; it would stay the default", key)
 	}
 }

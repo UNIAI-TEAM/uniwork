@@ -337,6 +337,39 @@ func (s *ChatService) ListRoomMessageLinks(
 	return out, nil
 }
 
+// The info panel shows a few linked tasks and a "see all" count.
+const (
+	chatRoomLinkedTasksDefault = 20
+	chatRoomLinkedTasksMax     = 50
+)
+
+// ListRoomLinkedTasks returns the tasks this room's messages link to, each
+// once, most recently linked first, and how many there are in all. Reading the
+// room is enough, as for the links themselves; the tasks are the path
+// workspace's, which the room gate already required the caller to belong to.
+func (s *ChatService) ListRoomLinkedTasks(
+	ctx context.Context, userID, workspaceID, roomID string, limit int,
+) ([]db.ListChatRoomLinkedTasksRow, int, error) {
+	if _, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID); err != nil {
+		return nil, 0, err
+	}
+	if limit <= 0 {
+		limit = chatRoomLinkedTasksDefault
+	}
+	// shortcut: tasks linked from another workspace of an org-level DM/group are omitted; gate each task's workspace if the panel must show them.
+	rows, err := s.q.ListChatRoomLinkedTasks(ctx, db.ListChatRoomLinkedTasksParams{
+		RoomID: roomID, WorkspaceID: workspaceID, RowLimit: int32(min(limit, chatRoomLinkedTasksMax)),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	total := 0
+	if len(rows) > 0 {
+		total = int(rows[0].Total)
+	}
+	return rows, total, nil
+}
+
 // UnlinkChatMessage removes a link from a message (requireLinkWriter).
 func (s *ChatService) UnlinkChatMessage(
 	ctx context.Context, userID, workspaceID, messageID, linkID string,

@@ -1,6 +1,6 @@
 # UniWork — Documents (soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập, object storage)
 
-> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11). **Bổ sung 2026-09-16 (§13):** tài liệu thuộc sở hữu của một Kết quả công việc — hệ quả của ADR 0016, điều kiện để C-14 (UNI-634) khởi động. Phần đã duyệt không đổi. **Amendment 2026-09-26 (§14), người dùng duyệt 2026-09-27:** sau G0 = GO (ADR 0021) và hợp đồng FileService FS-C1 — byte qua FileService (`file_id`, đọc bằng proxy, `ReleaseInTx`), cột còn thiếu, bảng lỗi DOC-005, một hình dạng API save.
+> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11). **Bổ sung 2026-09-16 (§13):** tài liệu thuộc sở hữu của một Kết quả công việc — hệ quả của ADR 0016, điều kiện để C-14 (UNI-634) khởi động. Phần đã duyệt không đổi. **Amendment 2026-09-26 (§14), người dùng duyệt 2026-09-27:** sau G0 = GO (ADR 0021) và hợp đồng FileService FS-C1 — byte qua FileService (`file_id`, đọc bằng proxy, `ReleaseInTx`), cột còn thiếu, bảng lỗi DOC-005, một hình dạng API save. **Sửa 2026-10-16 (UNI-1780):** §6.1 và mục kiểm thử 12 khớp ADR 0009 — tự lưu có dòng audit, không có frame.
 
 **Ngày:** 2026-09-08
 **Issue:** UNI-437 · C-01 · Bounded context Document · P0
@@ -346,6 +346,11 @@ thấy đếm và dung lượng theo org.
 > cập (không tự cấp, thẻ khóa `variant="member"`, người quản lý duyệt) ở [phụ lục truy cập](2026-10-15-documents-access-addendum.md);
 > §4 này **không viết lại**, phụ lục chỉ thêm lệnh và cổng `canAdminister()` của DOC-05.
 
+> **Bổ sung 2026-10-15 (SRS Share v1.0)** — [phụ lục căn chỉnh SRS Share](2026-10-15-documents-share-srs-addendum.md) thay
+> dòng `edit nếu visibility=workspace ∧ actor là effective member` bằng **dòng Workspace gốc** có mức riêng (`workspace_level`
+> ∈ view/comment/edit, mặc định `edit` cho tài liệu có sẵn), đổi mặc định tạo ở gốc thành **riêng tư** (`restricted`), và thêm
+> ghi quyền theo lô (tất cả hoặc không), nguồn quyền, phạm vi chia sẻ trên danh sách và thông báo `document_shared`.
+
 ## 5. API
 
 Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/documents.go` sau
@@ -449,8 +454,11 @@ với phòng); hub kiểm quyền view lúc subscribe qua `effectiveLevel`. Ghi 
 Audit (`audit_coverage_test.go` thêm hàng): `document.created`, `document.updated` (diff
 `title, icon, visibility, parent_id`), `document.archived`, `document.restored`, `document.deleted`,
 `document.version_created`, `document.version_restored`, `document.shared`, `document.share_revoked`,
-`document.link_created`, `document.link_revoked`, `document.file_uploaded`. Tự lưu nội dung **không**
-audit từng lần (đã có phiên bản + `updated_by`); được thay bằng `document.version_created(auto)`.
+`document.link_created`, `document.link_revoked`, `document.file_uploaded`. Mỗi lần lưu đã commit —
+kể cả tự lưu — vẫn ghi một dòng audit `document.updated` trong cùng transaction (ADR 0009,
+ADR 0012), mang `revision` mới và cờ *nội dung có đổi hay không*, **không bao giờ** mang nội dung
+trang; chỉ frame `document.updated` mới hẹp ở title/icon/visibility/move, còn mốc tự động vẫn riêng
+(`document.version_created(auto)`, không mỗi phím gõ).
 
 ### 6.2 Notification (kind mới, spec Notifications §4.1)
 
@@ -489,7 +497,7 @@ audit từng lần (đã có phiên bản + `updated_by`); được thay bằng 
 | `packages/core/permissions/rules.ts` | `canViewDocument`, `canEditDocument`, `canManageDocument` mirror §4 |
 | `packages/core/paths/paths.ts` | `workspace(org, ws).documents()`, `.document(id)`; `share.document(token)` → `/share/{token}`; reserved slug `share`, `documents` |
 | `packages/core/feature-flags` | `useFlag("documents", false)` gate nav + route |
-| `packages/views/documents/documents-page-view.tsx` | `/documents`: `CollectionPageHeader` (icon, "Tài liệu", đếm, nút "Trang mới" + "Tải tệp"), tab Tất cả / Gần đây / Được chia sẻ với tôi / Lưu trữ (manage); danh sách + cây bên trái |
+| `packages/views/documents/documents-page-view.tsx` | `/documents`: `CollectionPageHeader` (icon, "Tài liệu", đếm, nút "UniNote mới" + "Tải tệp"), tab Tất cả / Gần đây / Được chia sẻ với tôi / Lưu trữ (manage); danh sách + cây bên trái |
 | `packages/views/documents/document-tree.tsx` | Cây 5 cấp, mở/đóng, kéo thả đổi cha (cùng `position.ts`), bàn phím ←→↑↓ |
 | `packages/views/documents/document-detail-view.tsx` | `/documents/{id}`: `BreadcrumbHeader` (cây › tiêu đề), trạng thái lưu ("Đã lưu 10:32" / "Đang lưu…" / "Xung đột"), nút Chia sẻ, Phiên bản, menu ⋯ (xuất, nhật ký, lưu trữ) |
 | `packages/views/documents/document-editor.tsx` | **`next/dynamic`-free**: lazy qua `React.lazy` trong views (không `next/*`), chunk riêng; TipTap + extensions của schema; toolbar nổi; dán ảnh → upload asset → chèn `asset://` |
@@ -577,7 +585,7 @@ access log `via = ai_context`, citation `href` = `paths.document(id)`.
 9. `TestAccessLog` — GET ghi `view` với `correlation_id` = trace id; gộp 5 phút; lỗi INSERT không làm GET thất bại (metric tăng); agent đọc ghi `actor_kind = agent`.
 10. `TestArchivePurge` — archive cha kéo con; restore; purger xóa row + object sau `purge_after`, audit `document.deleted` system; object xóa thất bại → có dòng outbox retry.
 11. `TestTree` — chu trình → `document_cycle`; depth 6 → `document_too_deep`; move khác workspace → `cross_workspace_reference`.
-12. `TestDocumentAuditAndOutbox` — mỗi command §6.1 có audit + outbox trong tx; rollback → không có gì; tự lưu **không** tạo audit.
+12. `TestDocumentAuditAndOutbox` — mỗi command §6.1 có audit + outbox trong tx; rollback → không có gì; tự lưu **có** dòng audit `document.updated` (revision + cờ nội dung đổi, không có nội dung trang) nhưng **không** có frame/outbox `document.updated` cho workspace.
 13. Arch: chỉ `service/document*.go` gọi query `Document*`; `internal/document` (sanitize) không import `service`; `audit_coverage_test` có đủ hàng; `swagger_test` thấy mọi route; migration lint xanh.
 14. Lát cắt 3: `TestCrdtRelay` — update persist trước khi phát; snapshot xóa update ≤ id; client không có `edit` bị từ chối subscribe; update > 64 KiB → 413.
 

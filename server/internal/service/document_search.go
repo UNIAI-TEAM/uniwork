@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -46,17 +48,94 @@ const (
 //   - Query runs the folded-text search over the whole workspace - it
 //     ignores ParentID, the way search behaves in the client.
 //   - Archived switches to the trash view (manage-only).
+//   - Shelved switches to the archive shelf (ARCHIVE-01): the shelved rows
+//     the caller can view, keyset shelved_at DESC, id DESC, filters allowed.
+//     Shelved with Archived is 400 invalid_filter.
 type ListDocumentsInput struct {
 	ParentID    *string
 	Query       string
 	Kind        string
 	Match       string
 	Archived    bool
+	Shelved     bool
 	UpdatedBy   string
 	UpdatedFrom time.Time
 	UpdatedTo   time.Time
-	Cursor      string
-	Limit       int
+	SharedByMe  bool
+	// Format and Access are the type and access filters of the library list
+	// (UNI-1868): a file format of the six in internal/files, and one of
+	// manage/edit/restricted. An unknown value, Format with kind=page and
+	// manage/edit on the trash are 400 invalid_filter (resolveListFilters).
+	Format string
+	Access string
+	Cursor string
+	Limit  int
+}
+
+// The access filter of a document list (UNI-1868). manage and edit compare
+// the level the caller holds on the row; restricted is the row's visibility,
+// exactly as the library's own access filter reads it.
+const (
+	DocumentAccessManage     = "manage"
+	DocumentAccessEdit       = "edit"
+	DocumentAccessRestricted = "restricted"
+)
+
+// documentListFilters is the format/access pair of one list request, resolved
+// into what the list queries take: the format and the MIME its verified
+// uploads carry, every MIME the format table names (so the SQL can tell a MIME
+// it cannot name from one it can), the access filter and the levels that
+// satisfy it. A zero Format/Access means the filter is not set.
+type documentListFilters struct {
+	format       string
+	access       string
+	formatMime   string
+	accessLevels []string
+}
+
+// resolveListFilters parses ?format= and ?access= strictly (UNI-1868). An
+// unknown value, format together with kind=page, and manage/edit on the trash
+// view are 400 invalid_filter; the trash is manage-only, so its one access
+// filter is restricted.
+func resolveListFilters(format, access, kind string, archived bool) (documentListFilters, error) {
+	var out documentListFilters
+	if format != "" {
+		if kind == DocumentKindPage {
+			return out, coded(http.StatusBadRequest, "invalid_filter", "format không dùng được cùng kind=page")
+		}
+		if mime, ok := files.DocumentFormatMime(format); !ok {
+			return out, coded(http.StatusBadRequest, "invalid_filter", "format phải là docx, xlsx, pptx, pdf, md hoặc html")
+		} else {
+			out.format = format
+			out.formatMime = mime
+		}
+	}
+	switch access {
+	case "":
+	case DocumentAccessRestricted:
+		out.access = access
+	case DocumentAccessManage, DocumentAccessEdit:
+		if archived {
+			return out, coded(http.StatusBadRequest, "invalid_filter", "access=manage/edit không dùng được trên thùng rác")
+		}
+		out.access = access
+		out.accessLevels = accessFilterLevels(access)
+	default:
+		return out, coded(http.StatusBadRequest, "invalid_filter", "access phải là manage, edit hoặc restricted")
+	}
+	return out, nil
+}
+
+// accessFilterLevels is the levels that satisfy one access filter, the way the
+// library's filter reads my_level: manage needs manage, edit takes edit or
+// manage. A share and a home row are compared against the same list (a home
+// row never carries manage, so manage's list only ever matches a share or a
+// role), which is why the SQL takes one array for both legs.
+func accessFilterLevels(access string) []string {
+	if access == DocumentAccessManage {
+		return []string{string(DocumentLevelManage)}
+	}
+	return []string{string(DocumentLevelEdit), string(DocumentLevelManage)}
 }
 
 // DocumentPathItem is one ancestor step from root to direct parent on a
@@ -73,6 +152,13 @@ type DocumentListItem struct {
 	Document db.Document
 	Snippet  string
 	Facts    DocumentListFacts
+	// EditLock is who is editing this row's document right now, when a live
+	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
+	// carries the tenure id - that is R1's or the holder's.
+	EditLock *DocumentEditLockSummary
+	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
+	// addendum §6.4, §7); nil for agent actors (C-01 §4).
+	ShareScope *DocumentShareScope
 	// Access is the actor's level on the row (document_list_access.go); the
 	// zero value means the service did not compute it.
 	Access DocumentAccess
@@ -86,8 +172,8 @@ type DocumentListPage struct {
 }
 
 // documentCursor pins the ordering value of the last row returned. At pairs
-// with the (updated_at|archived_at, id) descending lists, Pos with the
-// position-ordered children list; exactly one is set.
+// with the (updated_at|archived_at|shelved_at, id) descending lists, Pos
+// with the position-ordered children list; exactly one is set.
 type documentCursor struct {
 	At  *time.Time `json:"t,omitempty"`
 	Pos *float64   `json:"p,omitempty"`
@@ -223,8 +309,10 @@ func shareLevelsFor(min DocumentLevel) []string {
 		return []string{string(DocumentLevelManage)}
 	case DocumentLevelEdit:
 		return []string{string(DocumentLevelEdit), string(DocumentLevelManage)}
+	case DocumentLevelComment:
+		return []string{string(DocumentLevelComment), string(DocumentLevelEdit), string(DocumentLevelManage)}
 	default:
-		return []string{string(DocumentLevelView), string(DocumentLevelEdit), string(DocumentLevelManage)}
+		return []string{string(DocumentLevelView), string(DocumentLevelComment), string(DocumentLevelEdit), string(DocumentLevelManage)}
 	}
 }
 
@@ -244,13 +332,27 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	if err != nil {
 		return DocumentListPage{}, err
 	}
-	return page, s.attachListFacts(ctx, page.Items)
+	if err := s.attachListFacts(ctx, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
 func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
 	scope, err := s.documentListScope(ctx, actor, workspaceID)
 	if err != nil {
 		return DocumentListPage{}, err
+	}
+	if in.SharedByMe && in.ParentID != nil {
+		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shared_by_me không thể dùng cùng parent_id")
+	}
+	if in.Shelved && in.Archived {
+		// ARCHIVE-01 (Q-AR3 = a): the shelf and the trash are two views; a
+		// trashed-and-shelved row lives in the trash only.
+		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shelved không thể dùng cùng archived")
 	}
 	cursor, err := decodeDocumentCursor(in.Cursor)
 	if err != nil {
@@ -285,6 +387,10 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	default:
 		return DocumentListPage{}, Invalid("kind phải là page, file, folder hoặc document")
 	}
+	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, in.Archived)
+	if err != nil {
+		return DocumentListPage{}, err
+	}
 	updatedBy := nullText(in.UpdatedBy)
 	var from, to pgtype.Timestamptz
 	if !in.UpdatedFrom.IsZero() {
@@ -298,18 +404,26 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 
 	out := DocumentListPage{Items: []DocumentListItem{}}
 	switch {
+	case in.Archived && in.SharedByMe:
+		return out, nil
+
 	case in.Archived:
-		// The trash answers to manage-level eyes only (decideDocumentAccess
-		// does the same on a single row).
+		// The trash answers to manage and edit holders (RESTORE-01 §3):
+		// attachListAccess below populates the caller's real level on each row.
 		var cursorAt pgtype.Timestamptz
 		if cursor.At != nil {
 			cursorAt = pgtype.Timestamptz{Time: *cursor.At, Valid: true}
 		}
 		rows, err := s.q.ListArchivedDocumentsPage(ctx, db.ListArchivedDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-			SeeAll: scope.seeAll, AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
-			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
-			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
+			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
+			AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelEdit),
+			ShareWorkspaces: scope.shareWorkspaces,
+			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(), Access: nullText(filters.access),
 			Query: query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
@@ -324,6 +438,41 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			out.Items = append(out.Items, DocumentListItem{Document: d})
 		}
 
+	case in.Shelved:
+		// ARCHIVE-01 §4: the archive shelf. Every caller sees the shelved
+		// rows they can view - the flat list's own permission ladder, not the
+		// trash's manage/edit gate - ordered shelved_at DESC, id DESC. A
+		// parent_id or search term still applies; the filters resolve with
+		// archived=false so access=manage/edit stays legal here.
+		var cursorAt pgtype.Timestamptz
+		if cursor.At != nil {
+			cursorAt = pgtype.Timestamptz{Time: *cursor.At, Valid: true}
+		}
+		rows, err := s.q.ListShelvedDocumentsPage(ctx, db.ListShelvedDocumentsPageParams{
+			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
+			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, Agent: agent,
+			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
+			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
+			ShareLevels: shareLevelsFor(DocumentLevelView),
+			Kind:        kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(),
+			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
+			SharedByMe: in.SharedByMe,
+			Query:      query, MatchTitle: matchTitle,
+			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
+		})
+		if err != nil {
+			return DocumentListPage{}, err
+		}
+		for i, d := range rows {
+			if i == limit {
+				out.NextCursor = encodeDocumentCursor(documentCursor{At: &rows[limit-1].ShelvedAt.Time, ID: rows[limit-1].ID})
+				break
+			}
+			out.Items = append(out.Items, DocumentListItem{Document: d})
+		}
+
 	case in.ParentID != nil && !query.Valid:
 		// One level of the tree, position order. q present searches the
 		// whole workspace instead (the flat branch below).
@@ -333,10 +482,14 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		rows, err := s.q.ListDocumentsByParentPage(ctx, db.ListDocumentsByParentPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ParentID: nullText(*in.ParentID),
-			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(),
+			Access:      nullText(filters.access), AccessLevels: filters.accessLevels, Agent: agent,
 			Query: query, MatchTitle: matchTitle,
 			CursorPosition: cursorPos, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
@@ -358,11 +511,16 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		rows, err := s.q.ListDocumentsPage(ctx, db.ListDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
+			MaxLevel: subtreeMaxLevel(),
+			SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
-			Query: query, MatchTitle: matchTitle,
+			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
+			FormatMimes: files.DocumentFormatMimes(),
+			Access:      nullText(filters.access), AccessLevels: filters.accessLevels, Agent: agent,
+			SharedByMe: in.SharedByMe,
+			Query:      query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
 		if err != nil {
@@ -392,6 +550,12 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 // seeAll is false. Each item's walk up parent_id stops at the first missing or
 // unreadable ancestor, matching documentBreadcrumbs.
 func (s *DocumentService) attachListPaths(ctx context.Context, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
+	return s.attachListPathsQ(ctx, s.q, scope, workspaceID, agent, items)
+}
+
+// attachListPathsQ is attachListPaths read through q, for a caller that holds
+// a snapshot transaction (the access report export).
+func (s *DocumentService) attachListPathsQ(ctx context.Context, q *db.Queries, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -410,7 +574,7 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 	if len(parentIDs) == 0 {
 		return nil
 	}
-	ancRows, err := s.q.ListDocumentAncestors(ctx, db.ListDocumentAncestorsParams{
+	ancRows, err := q.ListDocumentAncestors(ctx, db.ListDocumentAncestorsParams{
 		OrganizationID: scope.organizationID,
 		WorkspaceID:    workspaceID,
 		Ids:            parentIDs,
@@ -423,18 +587,31 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 		return nil
 	}
 	ancByID := make(map[string]db.ListDocumentAncestorsRow, len(ancRows))
-	var shareCheckIDs []string
+	var shareCheckIDs, adminIDs []string
 	for _, r := range ancRows {
 		ancByID[r.ID] = r
-		if scope.allowShares && !scope.seeAll && !r.OwnerKind.Valid {
+		if r.OwnerKind.Valid {
+			continue
+		}
+		switch {
+		case listAdminScopeRow(scope, db.Document{Visibility: r.Visibility, AclOwnerID: r.AclOwnerID}):
+			// DOC-05: an admin reads a restricted ancestor's title only
+			// through a share or a live break-glass grant.
+			shareCheckIDs = append(shareCheckIDs, r.ID)
+			adminIDs = append(adminIDs, r.ID)
+		case scope.allowShares && !scope.seeAll:
 			if r.Visibility == documentVisibilityRestricted || r.ArchivedAt.Valid || !scope.memberVisible {
 				shareCheckIDs = append(shareCheckIDs, r.ID)
 			}
 		}
 	}
+	grants, err := s.liveBreakGlassFor(ctx, q, scope, workspaceID, adminIDs)
+	if err != nil {
+		return err
+	}
 	var shares map[string][]db.ListLiveSharesForDocumentsRow
 	if len(shareCheckIDs) > 0 {
-		shRows, err := s.q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
+		shRows, err := q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
 			OrganizationID: scope.organizationID,
 			WorkspaceID:    workspaceID,
 			DocumentIds:    shareCheckIDs,
@@ -468,10 +645,11 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 				OrganizationID: scope.organizationID,
 				WorkspaceID:    workspaceID,
 				Visibility:     anc.Visibility,
+				WorkspaceLevel: anc.WorkspaceLevel,
 				AclOwnerID:     anc.AclOwnerID,
 				ArchivedAt:     anc.ArchivedAt,
 			}
-			acc := listRowAccess(scope, agent, doc, shares[anc.ID])
+			acc := listRowAccess(scope, agent, doc, shares[anc.ID], grants[anc.ID])
 			if decideDocumentAccess(doc, acc, DocumentLevelView) != nil {
 				break
 			}
@@ -500,7 +678,13 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 	if err != nil {
 		return DocumentListPage{}, err
 	}
-	return page, s.attachListFacts(ctx, page.Items)
+	if err := s.attachListFacts(ctx, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
 func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
@@ -520,6 +704,10 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	default:
 		return DocumentListPage{}, Invalid("match phải là title")
 	}
+	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, false)
+	if err != nil {
+		return DocumentListPage{}, err
+	}
 	limit := in.Limit
 	if limit <= 0 {
 		limit = defaultDocumentListPage
@@ -533,8 +721,15 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	}
 	rows, err := s.q.ListRecentDocumentsPage(ctx, db.ListRecentDocumentsPageParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ActorID: actor.ID,
-		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
-		AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
+		MaxLevel: subtreeMaxLevel(),
+		SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
+		AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelView),
+		ShareWorkspaces: scope.shareWorkspaces,
+		Format:          nullText(filters.format), FormatMime: nullText(filters.formatMime),
+		FormatMimes: files.DocumentFormatMimes(),
+		// The recent list is human-only, so the home-row leg never needs the
+		// agent cap.
+		Access: nullText(filters.access), AccessLevels: filters.accessLevels, Agent: false,
 		CursorAt: cursorAt, CursorID: nullText(cursor.ID), PageLimit: int32(limit + 1),
 	})
 	if err != nil {
@@ -556,7 +751,8 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 	return db.Document{
 		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
-		Kind: r.Kind, Title: r.Title, Icon: r.Icon, Visibility: r.Visibility, Content: r.Content,
+		Kind: r.Kind, SystemKind: r.SystemKind, Title: r.Title, Icon: r.Icon, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		Content:     r.Content,
 		ContentText: r.ContentText, SearchText: r.SearchText, ContentBytes: r.ContentBytes,
 		CurrentVersion: r.CurrentVersion, FileVersionID: r.FileVersionID, Revision: r.Revision,
 		Position: r.Position, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID, AclOwnerID: r.AclOwnerID,
@@ -566,6 +762,12 @@ func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 		CreatedBy: r.CreatedBy, CreatedByKind: r.CreatedByKind, UpdatedBy: r.UpdatedBy,
 		UpdatedByKind: r.UpdatedByKind, ContentSavedAt: r.ContentSavedAt, LastVersionAt: r.LastVersionAt,
 		ArchivedAt: r.ArchivedAt, ArchivedBy: r.ArchivedBy, PurgeAfter: r.PurgeAfter,
-		ArchiveBatchID: r.ArchiveBatchID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		ArchiveBatchID: r.ArchiveBatchID,
+		// ARCHIVE-01 (Q-AR3 = a): search rows the shelf holds must report the
+		// state so the client can label them "Đã lưu trữ".
+		ShelvedAt:     r.ShelvedAt,
+		ShelvedBy:     r.ShelvedBy,
+		ShelvedByKind: r.ShelvedByKind, ShelveBatchID: r.ShelveBatchID,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }

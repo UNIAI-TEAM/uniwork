@@ -187,6 +187,13 @@ describe("frame comment endpoints (contract-collab §2)", () => {
     expect(lastCall().url).toBe("http://api.test/api/v1/documents/d1/mention-candidates?q=ng&limit=5");
   });
 
+  it("asks for members without view access with include=no_access and keeps can_view", async () => {
+    const candidates = [{ user_id: "u2", display_name: "An", can_view: false }];
+    vi.mocked(fetch).mockResolvedValueOnce(json({ candidates }));
+    expect(await searchFrameMentionCandidates("d1", { q: "", include: "no_access" })).toEqual({ candidates });
+    expect(lastCall().url).toBe("http://api.test/api/v1/documents/d1/mention-candidates?q=&include=no_access");
+  });
+
   it.each([
     ["create", () => createFrameComment("d1", { kind: "discussion", body: "x" })],
     ["update", () => updateFrameComment("d1", "c1", { body: "x" })],

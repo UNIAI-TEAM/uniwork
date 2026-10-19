@@ -48,6 +48,7 @@ function builderTemplates(): string[] {
     paths.authCallback(),
     paths.desktopAuthorize(),
     paths.connectAuthorize(),
+    paths.unichatStart(),
     paths.forgotPassword(),
     paths.resetPassword(),
     paths.onboarding(),
@@ -69,7 +70,9 @@ function builderTemplates(): string[] {
     paths.pricing(),
     paths.enterprise(),
     paths.requestDemo(),
-    paths.office(),
+    paths.apps.root(),
+    paths.apps.office(),
+    paths.apps.unichat(),
     paths.about(),
     paths.security(),
     paths.guide(ID),
@@ -89,7 +92,7 @@ function builderTemplates(): string[] {
     paths.admin.system(),
   ];
   const ws = paths.workspace(ORG, WS);
-  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.calendar(), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.inbox(), ws.email(), ws.members(), ws.people(), ws.person(ID), ws.documents(), ws.document(ID), ws.settings()];
+  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.calendar(), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.inbox(), ws.email(), ws.members(), ws.people(), ws.person(ID), ws.documents(), ws.documentsAccessReport(), ws.document(ID), ws.settings()];
   return [...globals, ...scoped]
     .map((p) =>
       p

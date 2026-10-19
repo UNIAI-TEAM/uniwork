@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import {
   createChatGroup,
+  uploadChatRoomAvatar,
+  removeChatRoomAvatar,
   ensureWorkspaceChatRoom,
   getWorkspaceChatRoom,
   leaveChatRoom,
@@ -16,6 +18,7 @@ import {
   searchChatRoomMessages,
   listChatRoomMessagesAround,
   listChatRooms,
+  getChatUnreadSummary,
   listWorkspaceChatMessages,
   lookupChatUser,
   lookupChatUserById,
@@ -40,6 +43,7 @@ import {
   listChatNicknames,
   setChatNickname,
   searchChatGifs,
+  getChatRoomSharedSummary,
   listTrendingChatGifs,
   searchChatStickers,
   listTrendingChatStickers,
@@ -166,6 +170,40 @@ describe("chat endpoints", () => {
     ]);
   });
 
+  it("getChatUnreadSummary reads the totals", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        direct: { unread: 4, mentions: 1 },
+        workspaces: [{ workspace_id: "ws1", unread: 3, mentions: 0 }],
+      }),
+    );
+    expect(await getChatUnreadSummary()).toEqual({
+      direct: { unread: 4, mentions: 1 },
+      workspaces: [{ workspace_id: "ws1", unread: 3, mentions: 0 }],
+    });
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe("http://api.test/api/v1/me/chat/unread-summary");
+  });
+
+  it("getChatUnreadSummary degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await getChatUnreadSummary()).toEqual({ direct: { unread: 0, mentions: 0 }, workspaces: [] });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        direct: "lots",
+        workspaces: [
+          { workspace_id: "ws1", unread: "3", mentions: 2 },
+          { unread: 9, mentions: 9 },
+          "ws3",
+        ],
+      }),
+    );
+    expect(await getChatUnreadSummary()).toEqual({
+      direct: { unread: 0, mentions: 0 },
+      workspaces: [{ workspace_id: "ws1", unread: 0, mentions: 2 }],
+    });
+  });
+
   it("resolveDMRoom degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await resolveDMRoom("ws1", "user1")).toBeNull();
@@ -174,6 +212,39 @@ describe("chat endpoints", () => {
   it("createChatGroup degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await createChatGroup("ws1", { name: "G", member_user_ids: ["a", "b"] })).toBeNull();
+  });
+
+  it("uploadChatRoomAvatar posts the file and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const file = new File(["png"], "nhom.png", { type: "image/png" });
+    expect(await uploadChatRoomAvatar("ws1", "room1", file)).toBeNull();
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(url).toBe("http://api.test/api/v1/workspaces/ws1/chat/rooms/room1/avatar");
+    expect(init?.method).toBe("POST");
+    expect((init?.body as FormData).get("file")).toBeInstanceOf(Blob);
+  });
+
+  it("removeChatRoomAvatar degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await removeChatRoomAvatar("ws1", "room1")).toBeNull();
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method).toBe("DELETE");
+  });
+
+  it("listChatRooms reads a group's avatar_url and drops a malformed one, not the room", async () => {
+    const group = { kind: "group", name: "G", workspace_id: "ws1", member_user_ids: ["a", "b"] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...group, id: "g1", avatar_url: "https://storage.test/a.png" },
+          { ...group, id: "g2", avatar_url: 42 },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((room) => [room.id, room.avatar_url])).toEqual([
+      ["g1", "https://storage.test/a.png"],
+      ["g2", undefined],
+    ]);
   });
 
   it("listChatRooms keeps valid rooms when one row is malformed", async () => {
@@ -195,6 +266,25 @@ describe("chat endpoints", () => {
     const rooms = await listChatRooms("ws1");
     expect(rooms).toHaveLength(1);
     expect(rooms[0]?.id).toBe("room-dm");
+  });
+
+  it("listChatRooms reads a call's outcome and a voice note's length, and drops drifted ones", async () => {
+    const room = { kind: "group", name: "G", workspace_id: "ws1", member_user_ids: [] };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          { ...room, id: "r1", last_message_kind: "voice_call_log", last_message_call_outcome: "unanswered" },
+          { ...room, id: "r2", last_message_kind: "voice", last_message_duration_ms: 42000 },
+          { ...room, id: "r3", last_message_call_outcome: 7, last_message_duration_ms: "long" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms.map((r) => [r.id, r.last_message_call_outcome, r.last_message_duration_ms])).toEqual([
+      ["r1", "unanswered", undefined],
+      ["r2", undefined, 42000],
+      ["r3", undefined, undefined],
+    ]);
   });
 
   it("listChatRooms reads the caller's read pointer and degrades a drifted one", async () => {
@@ -552,6 +642,24 @@ describe("chat endpoints", () => {
     ]);
   });
 
+  it("listChatRoomMembers keeps a member whose last_read_at drifts, as never read", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        members: [
+          { user_id: "u1", role: "admin", email: "a@x.vn", display_name: "A", last_read_at: 42 },
+          { user_id: "u2", role: "member", email: "b@x.vn", display_name: "B", last_read_at: "2026-01-01T10:00:00.123456Z" },
+          { user_id: "u3", role: "member", email: "c@x.vn", display_name: "C" },
+        ],
+      }),
+    );
+    const members = await listChatRoomMembers("ws1", "room1");
+    expect(members.map((m) => [m.user_id, m.last_read_at])).toEqual([
+      ["u1", undefined],
+      ["u2", "2026-01-01T10:00:00.123456Z"],
+      ["u3", undefined],
+    ]);
+  });
+
   it("patchChatRoomMember degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await patchChatRoomMember("ws1", "room1", "user1", { role: "admin" })).toBe(false);
@@ -670,5 +778,28 @@ describe("chat endpoints", () => {
   it("getChatMediaStatus degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await getChatMediaStatus("ws1")).toEqual({ tenorEnabled: false });
+  });
+
+  it("getChatRoomSharedSummary degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ counts: "lots", recent_photos: [{ id: 1 }] }));
+    expect(await getChatRoomSharedSummary("ws1", "r1")).toEqual({
+      counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 },
+      recent_photos: [],
+    });
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("/chat/rooms/r1/shared-summary");
+  });
+
+  it("getChatRoomSharedSummary keeps a count and a photo whose optional fields drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        counts: { photo: 48, gif: "4", file: 12, link: 9, voice: 6 },
+        recent_photos: [{ message_id: "m1", title: "banner.png", url: "https://s/1", thumb_url: 3, created_at: "2026-10-17T10:00:00Z" }],
+      }),
+    );
+    const out = await getChatRoomSharedSummary("ws1", "r1");
+    expect(out.counts).toEqual({ photo: 48, gif: 0, video: 0, file: 12, link: 9, voice: 6 });
+    expect(out.recent_photos).toEqual([
+      { message_id: "m1", title: "banner.png", url: "https://s/1", thumb_url: undefined, created_at: "2026-10-17T10:00:00Z" },
+    ]);
   });
 });

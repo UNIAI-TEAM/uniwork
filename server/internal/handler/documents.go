@@ -32,11 +32,20 @@ import (
 // envelope overhead — a request the service would accept is never cut here.
 const (
 	maxDocumentJSONBody       = 8<<20 + 64<<10
-	documentFileMultipartCap  = 50<<20 + 256<<10
-	documentAssetMultipartCap = 10<<20 + 256<<10
+	documentMultipartEnvelope = 256 << 10
+	documentAssetMaxBytes     = 10 << 20
+	documentAssetMultipartCap = documentAssetMaxBytes + documentMultipartEnvelope
 )
 
 var errDocumentUploadTooLarge = errors.New("documents: upload exceeds the request cap")
+
+func (h *handlers) documentMaxBytes() int64 {
+	return h.Cfg.EffectiveDocumentMaxBytes()
+}
+
+func (h *handlers) documentFileMultipartCap() int64 {
+	return h.documentMaxBytes() + documentMultipartEnvelope
+}
 
 // documentFlagOrganization feeds mw.FlagOrganization on the authenticated
 // document routes: DocumentService names the organization of the path's
@@ -49,8 +58,8 @@ func (h *handlers) documentFlagOrganization(r *http.Request) string {
 		chi.URLParam(r, "orgID"), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "documentID"))
 }
 
-func documentTooLarge(w http.ResponseWriter) {
-	respondError(w, http.StatusRequestEntityTooLarge, "file_too_large", "tệp vượt quá dung lượng cho phép")
+func documentTooLarge(w http.ResponseWriter, maxBytes int64) {
+	respondErrorFields(w, http.StatusRequestEntityTooLarge, "file_too_large", "tệp vượt quá dung lượng cho phép", map[string]any{"max_bytes": maxBytes})
 }
 
 // cappedDocumentPart counts part bytes while they stream into a service call
@@ -82,9 +91,9 @@ const documentUploadFieldCap = 4 << 10
 // still bounds a chunked one. Text fields are honoured only while they
 // precede the file part (the wire contract orders them first); anything after
 // is dropped when the body drains. The caller owns the returned part's Close.
-func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*multipart.Part, map[string]string, bool) {
+func documentUploadForm(w http.ResponseWriter, r *http.Request, cap, maxFileBytes int64) (*multipart.Part, map[string]string, bool) {
 	if r.ContentLength > cap {
-		documentTooLarge(w)
+		documentTooLarge(w, maxFileBytes)
 		return nil, nil, false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, cap)
@@ -102,7 +111,7 @@ func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*mul
 		if err != nil {
 			var tooBig *http.MaxBytesError
 			if errors.As(err, &tooBig) {
-				documentTooLarge(w)
+				documentTooLarge(w, maxFileBytes)
 			} else {
 				respondError(w, http.StatusBadRequest, "invalid_request", "malformed multipart body")
 			}
@@ -113,7 +122,7 @@ func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*mul
 			_ = p.Close()
 			var tooBig *http.MaxBytesError
 			if errors.As(err, &tooBig) {
-				documentTooLarge(w)
+				documentTooLarge(w, maxFileBytes)
 				return nil, nil, false
 			}
 			if err != nil || len(b) > documentUploadFieldCap {
@@ -140,7 +149,7 @@ func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*mul
 func (h *handlers) mapDocumentUploadError(w http.ResponseWriter, part *cappedDocumentPart, err error) {
 	var tooBig *http.MaxBytesError
 	if part.n > part.max || errors.Is(err, errDocumentUploadTooLarge) || errors.As(err, &tooBig) {
-		documentTooLarge(w)
+		documentTooLarge(w, part.max)
 		return
 	}
 	h.mapServiceError(w, err)
@@ -170,6 +179,7 @@ func (h *handlers) createDocument(w http.ResponseWriter, r *http.Request) {
 	view, err := h.Documents.CreatePage(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreatePageInput{
 		Kind:           in.Kind,
 		ParentID:       stringValue(in.ParentID),
+		Destination:    stringValue(in.Destination),
 		Title:          in.Title,
 		Icon:           stringValue(in.Icon),
 		Visibility:     in.Visibility,
@@ -181,6 +191,22 @@ func (h *handlers) createDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusCreated, sdo.DocumentSDO{Document: documentDTO(view)})
+}
+
+// ensureMyFolder is POST /workspaces/{workspaceID}/documents/my-folder
+// (MYFOLDER-01, addendum §2): lazily creates and returns the caller's personal
+// My Folder in workspaceID (200 DocumentSDO whether newly created or existing).
+func (h *handlers) ensureMyFolder(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	view, _, err := h.Documents.EnsureMyFolder(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.DocumentSDO{Document: documentDTO(view)})
 }
 
 // getDocument is GET /documents/{documentID}: the working copy for a page or
@@ -224,6 +250,7 @@ func (h *handlers) patchDocument(w http.ResponseWriter, r *http.Request) {
 		Icon:       in.Icon,
 		Visibility: in.Visibility,
 		Content:    content,
+		EditLockID: strings.TrimSpace(in.EditLockID),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -233,24 +260,26 @@ func (h *handlers) patchDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 // createDocumentFile is POST /workspaces/{workspaceID}/documents/files: one
-// multipart file document. The file part streams into FileService; parent_id
-// and title are optional form fields.
+// multipart file document. The file part streams into FileService; parent_id,
+// destination, title and visibility are optional form fields.
 func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, fields, ok := documentUploadForm(w, r, documentFileMultipartCap)
+	file, fields, ok := documentUploadForm(w, r, h.documentFileMultipartCap(), h.documentMaxBytes())
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 50 << 20}
+	part := &cappedDocumentPart{r: file, max: h.documentMaxBytes()}
 	res, err := h.Documents.CreateFileDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreateFileDocumentInput{
 		ParentID:       strings.TrimSpace(fields["parent_id"]),
+		Destination:    strings.TrimSpace(fields["destination"]),
 		Title:          strings.TrimSpace(fields["title"]),
 		Filename:       file.FileName(),
 		Body:           part,
+		Visibility:     strings.TrimSpace(fields["visibility"]),
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
 	if err != nil {
@@ -274,12 +303,12 @@ func (h *handlers) uploadDocumentFile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, _, ok := documentUploadForm(w, r, documentFileMultipartCap)
+	file, _, ok := documentUploadForm(w, r, h.documentFileMultipartCap(), h.documentMaxBytes())
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 50 << 20}
+	part := &cappedDocumentPart{r: file, max: h.documentMaxBytes()}
 	up, err := h.Documents.UploadDocumentFile(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.DocumentUploadInput{
 		Filename:       file.FileName(),
 		Body:           part,
@@ -321,7 +350,8 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		// The desktop app's device session is the sync path office_sync_write
 		// gates; a browser session keeps saving while the flag is off (G5-07).
-		Sync: middleware.DeviceSession(r.Context()),
+		Sync:       middleware.DeviceSession(r.Context()),
+		EditLockID: strings.TrimSpace(in.EditLockID),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -465,6 +495,7 @@ func (h *handlers) restoreDocumentVersion(w http.ResponseWriter, r *http.Request
 		Version:        versionNo,
 		BaseRevision:   base,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		EditLockID:     strings.TrimSpace(body.EditLockID),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -484,12 +515,12 @@ func (h *handlers) uploadDocumentAsset(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap)
+	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap, documentAssetMaxBytes)
 	if !ok {
 		return
 	}
 	defer file.Close()
-	part := &cappedDocumentPart{r: file, max: 10 << 20}
+	part := &cappedDocumentPart{r: file, max: documentAssetMaxBytes}
 	asset, err := h.Documents.UploadDocumentAsset(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.DocumentUploadInput{
 		Filename:       file.FileName(),
 		Body:           part,
@@ -837,6 +868,7 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		Position:       doc.Position,
 		MyLevel:        string(view.Access.Level),
 		Via:            string(view.Access.Via),
+		AdminScope:     view.Access.AdminScope,
 		CreatedBy:      doc.CreatedBy,
 		CreatedByKind:  doc.CreatedByKind,
 		UpdatedBy:      doc.UpdatedBy,
@@ -845,14 +877,20 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 	if doc.ParentID.Valid {
 		out.ParentID = &doc.ParentID.String
 	}
+	if doc.SystemKind.Valid && doc.SystemKind.String != "" {
+		out.SystemKind = &doc.SystemKind.String
+	}
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		out.Icon = &doc.Icon.String
 	}
-	if doc.Kind == service.DocumentKindPage && len(doc.Content) > 0 {
+	// DOC-05: an AdminScope caller with no read level (visibility, archive,
+	// restore results) never gets the body.
+	readable := view.Access.Level.AtLeast(service.DocumentLevelView)
+	if readable && doc.Kind == service.DocumentKindPage && len(doc.Content) > 0 {
 		raw := json.RawMessage(doc.Content)
 		out.Content = &raw
 	}
-	if doc.ContentText != "" {
+	if readable && doc.ContentText != "" {
 		out.ContentText = doc.ContentText
 	}
 	if len(view.Breadcrumbs) > 0 {
@@ -865,6 +903,10 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 			}
 			out.Breadcrumbs = append(out.Breadcrumbs, cr)
 		}
+	}
+	if !view.BreakGlassExpiresAt.IsZero() {
+		at := view.BreakGlassExpiresAt.UTC().Format(time.RFC3339)
+		out.BreakGlassExpiresAt = &at
 	}
 	if view.File != nil {
 		f := documentFileDTO(*view.File)
@@ -879,6 +921,24 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 	if doc.ArchivedAt.Valid {
 		at := doc.ArchivedAt.Time.UTC().Format(time.RFC3339)
 		out.ArchivedAt = &at
+	}
+	if doc.ArchivedBy.Valid && doc.ArchivedBy.String != "" {
+		by := doc.ArchivedBy.String
+		out.ArchivedBy = &by
+	}
+	if doc.PurgeAfter.Valid {
+		after := doc.PurgeAfter.Time.UTC().Format(time.RFC3339)
+		out.PurgeAfter = &after
+	}
+	// ARCHIVE-01: shelved fields travel on every document payload - detail,
+	// command results and the document a restore returns (spec Q-UI3).
+	if doc.ShelvedAt.Valid {
+		at := doc.ShelvedAt.Time.UTC().Format(time.RFC3339)
+		out.ShelvedAt = &at
+	}
+	if doc.ShelvedBy.Valid && doc.ShelvedBy.String != "" {
+		by := doc.ShelvedBy.String
+		out.ShelvedBy = &by
 	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)

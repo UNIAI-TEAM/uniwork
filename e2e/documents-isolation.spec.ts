@@ -24,8 +24,11 @@ const DOCUMENT_URL = /\/documents\/[0-9A-HJKMNP-TV-Z]{26}$/;
 let m: DocumentMatrix;
 let pageDocId: string;
 let pageDocTitle: string;
+let pageDocRevision: number;
 let ownerDocUrl: string;
 let restrictedDocUrl: string;
+let restrictedDocTitle: string;
+let restrictedDocId: string;
 
 function authHeaders(token: string): Record<string, string> {
   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
@@ -52,15 +55,26 @@ test.beforeAll(async ({ browser }) => {
     const created = await createPage(page.request, m.aOwner.token, m.aOwner.wsId, { title: pageDocTitle });
     expect(created.status(), await created.text()).toBe(201);
     pageDocId = ((await created.json()) as { document: { id: string } }).document.id;
+    // A root page is private at create (U-SH2, SH-S1); the member-side rows
+    // below need the workspace-editable page this spec was written against.
+    const opened = await page.request.post(`${api}/api/v1/documents/${pageDocId}/shares`, {
+      headers: authHeaders(m.aOwner.token),
+      data: { principal_type: "workspace", principal_id: m.aOwner.wsId, level: "edit" },
+    });
+    expect(opened.status(), await opened.text()).toBe(201);
+    // The share moved the revision; the save rows start from the stored one.
+    const fresh = await page.request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: authHeaders(m.aOwner.token) });
+    pageDocRevision = Number(((await fresh.json()) as { document: { revision: string } }).document.revision);
     ownerDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${pageDocId}`;
 
+    restrictedDocTitle = `G1-09 restricted ${stamp}`;
     const restricted = await createPage(page.request, m.aMember.token, m.aOwner.wsId, {
-      title: `G1-09 restricted ${stamp}`,
+      title: restrictedDocTitle,
       visibility: "restricted",
     });
     expect(restricted.status(), await restricted.text()).toBe(201);
-    const restrictedId = ((await restricted.json()) as { document: { id: string } }).document.id;
-    restrictedDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${restrictedId}`;
+    restrictedDocId = ((await restricted.json()) as { document: { id: string } }).document.id;
+    restrictedDocUrl = `/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents/${restrictedDocId}`;
   } finally {
     await page.close();
   }
@@ -127,19 +141,19 @@ test("two saves from one base: the first wins, the stale one conflicts", async (
   });
   const first = await request.patch(`${api}/api/v1/documents/${pageDocId}`, {
     headers: h,
-    data: { revision: "1", content: content("first save") },
+    data: { revision: String(pageDocRevision), content: content("first save") },
   });
   expect(first.status()).toBe(200);
-  expect(((await first.json()) as { document: { revision: string } }).document.revision).toBe("2");
+  expect(((await first.json()) as { document: { revision: string } }).document.revision).toBe(String(pageDocRevision + 1));
 
   const stale = await request.patch(`${api}/api/v1/documents/${pageDocId}`, {
     headers: h,
-    data: { revision: "1", content: content("stale save") },
+    data: { revision: String(pageDocRevision), content: content("stale save") },
   });
   expect(stale.status()).toBe(422);
   const body = (await stale.json()) as { error: { code: string; fields?: { current_revision?: string } } };
   expect(body.error.code).toBe("revision_conflict");
-  expect(body.error.fields?.current_revision).toBe("2");
+  expect(body.error.fields?.current_revision).toBe(String(pageDocRevision + 1));
 });
 
 test("a create replay returns the same page; a changed payload under the same key is refused", async ({ request }) => {
@@ -162,7 +176,7 @@ test("a plain member creates, types and reloads a page in the browser", async ({
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginViaUi(page, m.aMember.email);
   await page.goto(`/${m.aOwner.orgSlug}/${m.aOwner.wsSlug}/documents`);
-  await expect(page.getByRole("heading", { name: "Tài liệu", level: 1 })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("heading", { name: "Tài liệu của workspace", level: 1 })).toBeVisible({ timeout: 60_000 });
 
   await newPageCard(page).click();
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
@@ -179,10 +193,15 @@ test("a plain member creates, types and reloads a page in the browser", async ({
   );
 });
 
-test("a workspace member without access sees the not-found screen, not the content", async ({ page }) => {
+test("a workspace member without access sees the locked card, not the content", async ({ page }) => {
   await loginViaUi(page, m.aOther.email);
   await page.goto(restrictedDocUrl);
-  await expect(page.getByText("Không tìm thấy tài liệu này")).toBeVisible({ timeout: 60_000 });
+  // A 404 reads as the neutral member card (W-DOC07, access addendum §3.4): a way to ask, nothing of the document.
+  await expect(page.getByRole("heading", { name: "Bạn chưa mở được tài liệu này" })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("Tài liệu có thể không tồn tại, hoặc bạn chưa có quyền xem.")).toBeVisible();
+  await expect(page.getByText(restrictedDocTitle)).toHaveCount(0);
+  await expect(page.getByText(restrictedDocId)).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toHaveCount(0);
 });
 
 test("the other organization's shell sends a foreign document URL to the picker", async ({ page }) => {

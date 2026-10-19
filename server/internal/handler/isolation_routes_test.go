@@ -162,6 +162,11 @@ func isoIdemOnly(_ *isoWorld, tn *isoTenant) isoBody {
 	return isoBody{headers: map[string]string{"Idempotency-Key": "iso-intent-" + tn.tag}}
 }
 
+// isoForwardBody forwards into the tenant's own group room.
+func isoForwardBody(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"target_room_ids": []any{tn.ids["room"]}}}
+}
+
 func isoJSON(v any) func(*isoWorld, *isoTenant) isoBody {
 	return func(*isoWorld, *isoTenant) isoBody { return isoBody{json: v} }
 }
@@ -257,6 +262,7 @@ var isoRoutes = map[string]isoSpec{
 	// The caller's own account.
 	"GET /api/v1/ws":                            {class: isoRealtime, reason: "workspace WebSocket: membership is checked on the auth frame, scopes on subscribe - TestIsolationRealtime"},
 	"GET /api/v1/me":                            {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/chat/unread-summary":        {class: isoSelf, reason: reasonSelf},
 	"PATCH /api/v1/me":                          {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/avatar":                    {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/delete":                    {class: isoSelf, reason: reasonSelf},
@@ -373,12 +379,16 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/active": {query: "?call_id={callID}"},
 	"GET /api/v1/workspaces/{workspaceID}/chat/users/lookup":                          {query: "?email={peerEmail}"},
 	// The organization rides in the query; the installer profile is configured in the world, so the owner is served.
-	"GET /api/v1/office/desktop/download":                                        {query: "?organization_id={orgID}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/labels":                      {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends":             {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/sidebar-counts":              {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/email-hub/threads":                     {query: "?account_id={emailAccount}"},
-	"GET /api/v1/workspaces/{workspaceID}/projects/search":                       {query: "?q=Project"},
+	"GET /api/v1/office/desktop/download":                            {query: "?organization_id={orgID}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/labels":          {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends": {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/sidebar-counts":  {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/email-hub/threads":         {query: "?account_id={emailAccount}"},
+	"GET /api/v1/workspaces/{workspaceID}/projects/search":           {query: "?q=Project"},
+	// The access report (UNI-1643) over the tenant's folder: the mixed pass
+	// sends B's workspace with A's folder.
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":               {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":        {query: "?folder_id={folderID}&format=csv"},
 	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                 {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
@@ -414,6 +424,17 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/comments/{commentID}/reactions":                                   {body: isoJSON(map[string]any{"emoji": "👍"})},
 	"PATCH /api/v1/documents/{documentID}/comments/{commentID}":                                            {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/documents/{documentID}/comments":                                                         {body: isoJSON(map[string]any{"body": "hello", "type": "comment"})},
+
+	// The document edit lock (UNI-1645 §6 step 4). R1, R3, R4 and R7 carry no
+	// body and the owner holds docEditLock, so they stay plain isoScoped. No
+	// skipControl: every row's control is a 2xx for its own member.
+	"POST /api/v1/documents/{documentID}/edit-lock":                        {body: isoWith(map[string]string{"editor_id": "docEditor"}, map[string]any{"client": "desktop"})},
+	"POST /api/v1/documents/{documentID}/edit-lock/take-over":              {body: isoWith(map[string]string{"expected_lock_id": "peerEditLock"}, map[string]any{"editor_id": "01J8X4ED1T0R0000000000000A", "client": "desktop"})},
+	"PUT /api/v1/documents/{documentID}/edit-lock/{lockID}/offline-hold":   {body: isoJSON(map[string]any{})},
+	"POST /api/v1/documents/{documentID}/edit-requests":                    {body: isoJSON(map[string]any{}), controlAs: "third"},
+	"POST /api/v1/documents/{documentID}/edit-requests/{requestID}/answer": {body: isoWith(map[string]string{"lock_id": "docEditLock"}, map[string]any{"decision": "decline"})},
+	"DELETE /api/v1/documents/{documentID}/edit-requests/{requestID}":      {controlAs: "peer"},
+
 	// R1-8: the anchors key is required, so the body must carry it or the
 	// route answers 400 before it reads the document - an empty [] is the
 	// valid no-op update the tenancy gate then judges.
@@ -437,8 +458,27 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/ai/uniwork/chat/completions":              {body: isoJSON(isoUniworkTurnBody)},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions": {body: isoJSON(isoUniworkTurnBody)},
 	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
-	"POST /api/v1/documents/{documentID}/uploads":                                  {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
-	"POST /api/v1/documents/{documentID}/versions/commit":                          {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
+	"PUT /api/v1/documents/{documentID}/access":                                    {body: isoWith(map[string]string{}, map[string]any{"items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}})},
+	// DOC-05: a valid reason, so the cross-tenant refusal is the gate and never the 422.
+	"POST /api/v1/documents/{documentID}/break-glass":     {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
+	"POST /api/v1/documents/{documentID}/uploads":         {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
+	"POST /api/v1/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	// Large upload sessions (BIGUP-S1, contract §5). The owner's seeded session
+	// is the control of each session route; the complete routes answer 422 on
+	// it because no part was ever PUT, which still proves the owner reached the
+	// part check. The workspace create route's write control is its
+	// isoReferences parent case: a third session would cross the
+	// 4-open-per-person limit that buildUploadSessions already spends two of.
+	"POST /api/v1/workspaces/{workspaceID}/documents/upload-sessions":                       {body: isoUploadSessionOpen("workspace"), skipControl: "seeding a third session would cross the 4-open-per-person limit; the isoReferences parent case is this route's owner control"},
+	"POST /api/v1/documents/{documentID}/upload-sessions":                                   {body: isoUploadSessionOpen("version")},
+	"POST /api/v1/office-frame/documents/{documentID}/upload-sessions":                      {body: isoUploadSessionOpen("frame")},
+	"GET /api/v1/upload-sessions/{sessionID}":                                               {},
+	"POST /api/v1/upload-sessions/{sessionID}/complete":                                     {body: isoUploadSessionComplete, control: []int{http.StatusUnprocessableEntity}},
+	"DELETE /api/v1/upload-sessions/{sessionID}":                                            {},
+	"GET /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}":           {},
+	"POST /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}/complete": {body: isoUploadSessionComplete, control: []int{http.StatusUnprocessableEntity}},
+	"DELETE /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}":        {},
 	// G5-07: the lookup sends the key isolation_world_test.go seeds and leaves not_committed, so the
 	// owner's control reads its own intent (200 not_committed) and the other tenant is refused on the
 	// document before any intent is read.
@@ -453,6 +493,15 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}": {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
+	// The source frame (UNI-1869): a source token, minted by the owner's
+	// session for a DOCX task attachment, opens the metadata and the bytes.
+	// do() sends that token on /api/v1/office-frame/sources/* (frameSources),
+	// so the cross-tenant pass attacks with B's own source token and the
+	// anonymous pass with none.
+	"POST /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/office/frame-token": {reason: "the mint re-runs the source's own gate and binds w/o/s into the claims; a foreign workspace or source answers 403/404"},
+	"GET /api/v1/office-frame/sources/{sourceFileID}":                                           {reason: "the source token binds w/o/s/parent; AuthorizeSource re-runs the source gate as the token's user, so a foreign source is not_found"},
+	"GET /api/v1/office-frame/sources/{sourceFileID}/content":                                   {reason: "as the open route: the bytes stream only after AuthorizeSource re-runs the source gate"},
+	"HEAD /api/v1/office-frame/sources/{sourceFileID}/content":                                  {reason: "as the open route: the headers are answered only after AuthorizeSource re-runs the source gate"},
 	// GO-A7's AI on the frame token (UNI-1014): the same bodies and vendor exemptions as the session rows.
 	"PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}":            {body: isoAICredentialPut},
 	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions": {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
@@ -496,9 +545,11 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/chat/dm":                                            {body: isoWith(map[string]string{"user_id": "peer"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages":                                      {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/links":                    {body: isoWith(map[string]string{"target_id": "task"}, map[string]any{"target_type": "task"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/forward":                  {body: isoForwardBody},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages":                       {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/file":                  {body: isoFile("note.pdf", "application/pdf", tinyPDF, map[string]string{"client_msg_id": ""})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/voice":                 {body: isoFile("voice.webm", "audio/webm", tinyWebM, map[string]string{"client_msg_id": "", "duration_ms": "4000"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar":                         {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}":          {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote": {body: isoWith(map[string]string{"option_id": "pollOption"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages":   {body: isoJSON(map[string]any{"body": "hello"})},
@@ -515,6 +566,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/documents":                                         {body: isoJSON(map[string]any{"title": "new", "kind": "folder"})},
 	"POST /api/v1/workspaces/{workspaceID}/documents/files":                                   {body: isoFile("note.md", "text/markdown", []byte("# new\n"), map[string]string{"title": "new"})},
 	"POST /api/v1/workspaces/{workspaceID}/documents/files/blank":                             {body: isoIdem(nil, map[string]any{"format": "md", "title": "new"})},
+	"POST /api/v1/workspaces/{workspaceID}/documents/my-folder":                               {class: isoScoped, reason: "EnsureMyFolder (UNI-1850): workspace-scoped with no body; outsider refused, owner write-control 200"},
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch":                           {query: "?account_id={emailAccount}"},
 	"POST /api/v1/workspaces/{workspaceID}/email-hub/inbox-watch":                             {query: "?account_id={emailAccount}"},
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}":     {query: "?account_id={emailAccount}"},

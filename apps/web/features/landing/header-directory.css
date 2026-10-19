@@ -15,10 +15,31 @@
 .header-directory-footer svg { width: 16px; height: 16px; }
 .header-directory-footer > span { color: var(--muted-foreground); }
 .header-editorial-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding-bottom: 24px; }
-.header-office-links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.header-office-coming { display: flex; align-items: flex-start; gap: 14px; padding: 16px; color: var(--muted-foreground); }
-/* Display the user's native 32px Office icon, excluding its reference image padding. */
-.header-office-logo { width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px; object-fit: none; object-position: -19px -7px; }
+/* Apps (UNI-1913): the catalogue beside the downloads for this system. */
+.header-apps { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 24px; padding-bottom: 24px; }
+.header-apps-title { margin: 0; padding: 4px 14px 10px; font-family: var(--font-mono); font-size: var(--text-caption); font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); }
+.header-apps-title.is-own { padding: 0; color: var(--brand); }
+.header-apps-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.header-app { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 16px; min-height: 76px; padding: 12px 14px; border-radius: 14px; }
+a.header-app:hover { background: var(--landing-stage-soft, var(--muted)); }
+.header-app > svg:last-child { width: 16px; height: 16px; color: var(--faint-foreground); transition: transform .2s, color .2s; }
+a.header-app:hover > svg:last-child { color: var(--foreground); transform: translateX(2px); }
+.header-app strong { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--text-body-lg); font-weight: 700; }
+.header-app small { display: block; font-size: var(--text-body); color: var(--muted-foreground); }
+.header-app-platforms { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted-foreground); }
+.header-app.is-dim strong, .header-app.is-dim small { color: var(--muted-foreground); }
+.header-apps-all { display: flex; align-items: center; justify-content: space-between; min-height: 48px; margin-top: 8px; padding: 0 14px; border-top: 1px solid var(--border); font-size: var(--text-body); font-weight: 600; color: var(--brand); }
+.header-apps-all:hover { text-decoration: underline; text-underline-offset: 4px; }
+.header-apps-all svg, .header-quick-link svg { width: 16px; height: 16px; }
+.header-quick { display: flex; flex-direction: column; gap: 14px; align-self: start; padding: 20px; border-radius: 16px; border: 1px solid var(--border); background: var(--landing-stage-soft, var(--muted)); }
+.header-quick-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.header-quick-row b { display: block; font-size: var(--text-body); font-weight: 600; }
+.header-quick-row small { display: block; font-size: var(--text-caption); color: var(--muted-foreground); }
+.header-quick-get { min-height: 40px; gap: 8px; border-radius: 10px; }
+.header-quick-get svg { width: 16px; height: 16px; }
+.header-quick-sep { height: 1px; background: var(--border); }
+.header-quick-link { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: var(--text-body); font-weight: 600; color: var(--foreground); }
+.header-quick-link:hover { color: var(--brand); }
 .header-editorial-links > a { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border-radius: 12px; }
 .header-editorial-links > a > svg { width: 20px; height: 20px; margin-top: 3px; color: var(--brand); }
 .header-editorial-links > a > svg:last-child { width: 16px; margin-left: auto; }
@@ -32,6 +53,11 @@
 .header-mobile-menu .header-product-columns { grid-template-columns: 1fr 1fr; padding: 12px; gap: 16px; }
 .header-mobile-menu .header-product-columns a { justify-content: flex-start; }
 .header-mobile-menu .header-editorial-links { grid-template-columns: 1fr; gap: 4px; padding-bottom: 12px; }
+.header-mobile-menu .header-apps { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 4px 0 12px; }
+.header-mobile-menu .header-apps-title, .header-mobile-menu .header-quick, .header-mobile-menu .header-app-platforms, .header-mobile-menu .header-app > svg:last-child { display: none; }
+.header-mobile-menu .header-app { grid-template-columns: 44px minmax(0, 1fr); gap: 12px; min-height: 60px; padding: 8px; }
+/* The mobile menu shrinks every link svg to 16px; the app icon keeps its own size. */
+.header-mobile-menu .header-app svg.app-icon { width: 44px; height: 44px; }
 .header-mobile-menu .header-directory-footer { padding: 8px 12px; flex-wrap: wrap; }
 .header-mobile-menu .header-directory-footer > span { display: none; }
 .header-mobile-menu .mobile-route-link { min-height: 48px; padding: 10px 12px; }
@@ -47,5 +73,5 @@
   .header-directory { animation: menu-arrive .18s ease-out both; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .header-directory-toggle > svg { transition: none; }
+  .header-directory-toggle > svg, .header-app > svg:last-child { transition: none; }
 }

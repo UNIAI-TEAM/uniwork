@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -29,8 +31,8 @@ func TestDocumentSourceSaveable(t *testing.T) {
 		{"markdown", "md", "text/markdown", 10, true},
 		{"text", "txt", "text/plain", 10, true},
 		{"css stored as text", "css", "text/plain", 10, true},
-		{"exactly the cap", "pdf", "application/pdf", 50 << 20, true},
-		{"over the cap", "pdf", "application/pdf", 50<<20 + 1, false},
+		{"exactly the cap", "pdf", "application/pdf", 200 << 20, true},
+		{"over the cap", "pdf", "application/pdf", 200<<20 + 1, false},
 		{"empty", "pdf", "application/pdf", 0, false},
 		{"meeting recording", "mp4", "video/mp4", 10 << 20, false},
 		{"webm recording", "webm", "video/webm", 10 << 20, false},
@@ -45,7 +47,7 @@ func TestDocumentSourceSaveable(t *testing.T) {
 		{"parameters are ignored", "pdf", "application/pdf; charset=binary", 100, true},
 	}
 	for _, c := range cases {
-		if got := documentSourceSaveable(c.ext, c.mime, c.size); got != c.want {
+		if got := documentSourceSaveable(documentFilePolicyFor(nil), c.ext, c.mime, c.size); got != c.want {
 			t.Errorf("%s: documentSourceSaveable(%q, %q, %d) = %v, want %v", c.name, c.ext, c.mime, c.size, got, c.want)
 		}
 	}
@@ -57,6 +59,40 @@ func TestDocumentSourceSaveable(t *testing.T) {
 		if ce.Code != "source_not_saveable" || ce.Status != http.StatusUnprocessableEntity {
 			t.Fatalf("refusal = %s/%d, want source_not_saveable/422", ce.Code, ce.Status)
 		}
+	}
+}
+
+func TestDocumentSizeCapAndTooLargeFields(t *testing.T) {
+	// Default DocumentService and DocumentOfficeService read the 200 MiB default.
+	docs := &DocumentService{}
+	if got := docs.fileLimits().TextScanBytes; got != 200<<20 {
+		t.Fatalf("default DocumentService.fileLimits().TextScanBytes = %d, want %d", got, int64(200<<20))
+	}
+	officeSvc := &DocumentOfficeService{}
+	if got := officeSvc.documentFileMaxBytes(); got != 200<<20 {
+		t.Fatalf("default DocumentOfficeService.documentFileMaxBytes() = %d, want %d", got, int64(200<<20))
+	}
+
+	// Custom DocumentMaxBytes on the files service propagates to both.
+	const customCap int64 = 12 << 20
+	fake := filesfake.New(filesfake.Options{DocumentMaxBytes: customCap})
+	docs.SetFiles(fake)
+	officeSvc.files = fake
+	if got := docs.fileLimits().TextScanBytes; got != customCap {
+		t.Fatalf("configured DocumentService.fileLimits().TextScanBytes = %d, want %d", got, customCap)
+	}
+	if got := officeSvc.documentFileMaxBytes(); got != customCap {
+		t.Fatalf("configured DocumentOfficeService.documentFileMaxBytes() = %d, want %d", got, customCap)
+	}
+
+	// documentFileError on CodeTooLarge carries fields.max_bytes.
+	err := documentFileError(files.TooLarge(customCap))
+	var ce CodedError
+	if !errors.As(err, &ce) {
+		t.Fatalf("documentFileError(TooLarge) = %T %v, want CodedError", err, err)
+	}
+	if ce.Status != http.StatusRequestEntityTooLarge || ce.Code != "file_too_large" || ce.Fields["max_bytes"] != customCap {
+		t.Fatalf("documentFileError(TooLarge) = %+v, want 413 file_too_large with max_bytes=%d", ce, customCap)
 	}
 }
 

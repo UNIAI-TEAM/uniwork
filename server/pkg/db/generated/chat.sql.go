@@ -15,7 +15,7 @@ const archiveChatChannel = `-- name: ArchiveChatChannel :one
 UPDATE chat_rooms
 SET archived_at = now(), archived_by = $2, updated_at = now()
 WHERE id = $1 AND kind = 'channel' AND is_default = false AND archived_at IS NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
 `
 
 type ArchiveChatChannelParams struct {
@@ -46,6 +46,7 @@ func (q *Queries) ArchiveChatChannel(ctx context.Context, arg ArchiveChatChannel
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -252,10 +253,10 @@ func (q *Queries) CreateChatKindMessage(ctx context.Context, arg CreateChatKindM
 const createChatMessage = `-- name: CreateChatMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, reply_to_message_id, client_msg_id, thread_root_id,
-  organization_id
+  organization_id, metadata
 ) VALUES (
   $1, $2, $3, $4, $5, 'text', $6, $7, $8, $9,
-  $10
+  $10, COALESCE($11::jsonb, '{}'::jsonb)
 ) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
 `
 
@@ -270,6 +271,7 @@ type CreateChatMessageParams struct {
 	ClientMsgID      pgtype.Text `json:"client_msg_id"`
 	ThreadRootID     pgtype.Text `json:"thread_root_id"`
 	OrganizationID   string      `json:"organization_id"`
+	Metadata         []byte      `json:"metadata"`
 }
 
 func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessageParams) (ChatMessage, error) {
@@ -284,6 +286,7 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 		arg.ClientMsgID,
 		arg.ThreadRootID,
 		arg.OrganizationID,
+		arg.Metadata,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -317,7 +320,7 @@ INSERT INTO chat_rooms (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12, $13, now(), now()
-) RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
+) RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
 `
 
 type CreateChatRoomParams struct {
@@ -372,6 +375,7 @@ func (q *Queries) CreateChatRoom(ctx context.Context, arg CreateChatRoomParams) 
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -516,7 +520,7 @@ func (q *Queries) DropChatThreadReplyStats(ctx context.Context, arg DropChatThre
 }
 
 const getActiveChatRoomMember = `-- name: GetActiveChatRoomMember :one
-SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
+SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, last_delivered_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 LIMIT 1
 `
@@ -539,6 +543,7 @@ type GetActiveChatRoomMemberRow struct {
 	JoinedAt           pgtype.Timestamptz `json:"joined_at"`
 	LeftAt             pgtype.Timestamptz `json:"left_at"`
 	LastReadAt         pgtype.Timestamptz `json:"last_read_at"`
+	LastDeliveredAt    pgtype.Timestamptz `json:"last_delivered_at"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
@@ -560,6 +565,7 @@ func (q *Queries) GetActiveChatRoomMember(ctx context.Context, arg GetActiveChat
 		&i.JoinedAt,
 		&i.LeftAt,
 		&i.LastReadAt,
+		&i.LastDeliveredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -571,7 +577,6 @@ SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_mess
 WHERE room_id = $1
   AND sender_id = $2
   AND client_msg_id = $3
-  AND deleted_at IS NULL
 `
 
 type GetChatMessageByClientMsgIDParams struct {
@@ -719,8 +724,26 @@ func (q *Queries) GetChatMessageInRoomForUpdate(ctx context.Context, arg GetChat
 	return i, err
 }
 
+const getChatRoomAvatarFileIDForUpdate = `-- name: GetChatRoomAvatarFileIDForUpdate :one
+SELECT avatar_file_id FROM chat_rooms
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type GetChatRoomAvatarFileIDForUpdateParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GetChatRoomAvatarFileIDForUpdate(ctx context.Context, arg GetChatRoomAvatarFileIDForUpdateParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getChatRoomAvatarFileIDForUpdate, arg.ID, arg.OrganizationID)
+	var avatar_file_id pgtype.Text
+	err := row.Scan(&avatar_file_id)
+	return avatar_file_id, err
+}
+
 const getChatRoomByID = `-- name: GetChatRoomByID :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms WHERE id = $1
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms WHERE id = $1
 `
 
 // tenant: by-id
@@ -746,12 +769,13 @@ func (q *Queries) GetChatRoomByID(ctx context.Context, id string) (ChatRoom, err
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
 
 const getChatRoomByKindAndMemberSet = `-- name: GetChatRoomByKindAndMemberSet :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms
 WHERE organization_id = $1 AND kind = $2 AND member_set_key = $3
 LIMIT 1
 `
@@ -784,8 +808,123 @@ func (q *Queries) GetChatRoomByKindAndMemberSet(ctx context.Context, arg GetChat
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
+}
+
+const getChatRoomSharedSummary = `-- name: GetChatRoomSharedSummary :many
+WITH timeline AS (
+  SELECT
+    m.id, m.kind, m.body, m.metadata, m.created_at,
+    CASE WHEN m.kind = 'file' THEN COALESCE(m.metadata->>'content_type', '') END AS content_type,
+    substring(m.body FROM '^\s*!\[[^]]*\]\((https://(?:media\.tenor\.com|media\.giphy\.com|cdn\.jsdelivr\.net)(?::[0-9]+)?(?:[/?#][^)\s]*)?)\)\s*$')::text AS media_url,
+    btrim(COALESCE(substring(m.body FROM '^\s*!\[([^]]*)\]'), '')) AS media_alt
+  FROM chat_messages m
+  WHERE m.room_id = $1
+    AND m.workspace_id = $2
+    AND m.deleted_at IS NULL
+    AND m.thread_root_id IS NULL
+), classified AS (
+  SELECT
+    t.id, t.kind, t.body, t.metadata, t.created_at, t.media_url, t.media_alt,
+    CASE
+      WHEN t.kind = 'file' THEN CASE
+        WHEN t.content_type = 'image/gif' THEN 'gif'
+        WHEN t.content_type LIKE 'video/%' THEN 'video'
+        WHEN t.content_type LIKE 'image/%' THEN 'photo'
+        WHEN btrim(COALESCE(t.metadata->>'filename', '') || t.body) <> '' THEN 'file'
+      END
+      WHEN t.media_url IS NULL THEN NULL
+      WHEN split_part(t.media_alt, ':', 1) = 'sticker' THEN NULL
+      WHEN split_part(t.media_alt, ':', 1) = 'video' THEN 'video'
+      WHEN split_part(t.media_alt, ':', 1) = 'gif' OR lower(split_part(t.media_url, '?', 1)) LIKE '%.gif' THEN 'gif'
+      ELSE 'photo'
+    END AS bucket
+  FROM timeline t
+), counts AS (
+  SELECT
+    (count(*) FILTER (WHERE c.bucket = 'photo'))::int AS photo_count,
+    (count(*) FILTER (WHERE c.bucket = 'gif'))::int AS gif_count,
+    (count(*) FILTER (WHERE c.bucket = 'video'))::int AS video_count,
+    (count(*) FILTER (WHERE c.bucket = 'file'))::int AS file_count,
+    (COALESCE(sum(regexp_count(c.body, 'https?://[^]\s<>)]+', 1, 'i')) FILTER (WHERE c.kind = 'text' AND c.media_url IS NULL), 0))::int AS link_count,
+    (count(*) FILTER (WHERE c.kind = 'voice'))::int AS voice_count
+  FROM classified c
+), recent AS (
+  SELECT c.id, c.kind, c.metadata, c.created_at, c.media_url, c.media_alt
+  FROM classified c
+  WHERE c.bucket = 'photo'
+  ORDER BY c.created_at DESC, c.id DESC
+  LIMIT 6
+)
+SELECT
+  n.photo_count, n.gif_count, n.video_count, n.file_count, n.link_count, n.voice_count,
+  r.id, r.kind, r.metadata, r.created_at, r.media_url, r.media_alt
+FROM counts n
+LEFT JOIN recent r ON true
+ORDER BY r.created_at DESC, r.id DESC
+`
+
+type GetChatRoomSharedSummaryParams struct {
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type GetChatRoomSharedSummaryRow struct {
+	PhotoCount int32              `json:"photo_count"`
+	GifCount   int32              `json:"gif_count"`
+	VideoCount int32              `json:"video_count"`
+	FileCount  int32              `json:"file_count"`
+	LinkCount  int32              `json:"link_count"`
+	VoiceCount int32              `json:"voice_count"`
+	ID         pgtype.Text        `json:"id"`
+	Kind       pgtype.Text        `json:"kind"`
+	Metadata   []byte             `json:"metadata"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	MediaUrl   pgtype.Text        `json:"media_url"`
+	MediaAlt   pgtype.Text        `json:"media_alt"`
+}
+
+// The info panel's shared media in one scan of a room's main timeline (the
+// rows ListChatMessagesByRoom pages): how many photos, GIFs, videos, files,
+// links and voice messages it holds, and its newest photos. Sorted the way
+// the client sorts a loaded timeline (packages/views/chat/chat-person-shared.ts):
+// an attachment by its content type, a picker body (![alt](https://allowed
+// host/…)) by its alt prefix (stickers do not count), and every http(s) URL
+// in a text body as one link. One row per recent photo, each carrying the
+// counts; a single row with a NULL id when the room has no photo.
+func (q *Queries) GetChatRoomSharedSummary(ctx context.Context, arg GetChatRoomSharedSummaryParams) ([]GetChatRoomSharedSummaryRow, error) {
+	rows, err := q.db.Query(ctx, getChatRoomSharedSummary, arg.RoomID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetChatRoomSharedSummaryRow{}
+	for rows.Next() {
+		var i GetChatRoomSharedSummaryRow
+		if err := rows.Scan(
+			&i.PhotoCount,
+			&i.GifCount,
+			&i.VideoCount,
+			&i.FileCount,
+			&i.LinkCount,
+			&i.VoiceCount,
+			&i.ID,
+			&i.Kind,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.MediaUrl,
+			&i.MediaAlt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatThreadFollower = `-- name: GetChatThreadFollower :one
@@ -824,7 +963,10 @@ SELECT
   m.kind,
   m.sender_id,
   m.created_at,
-  u.display_name AS sender_display_name
+  u.display_name AS sender_display_name,
+  COALESCE(CASE WHEN m.kind = 'voice_call_log' THEN m.metadata ->> 'outcome' END, '')::text AS call_outcome,
+  COALESCE(CASE WHEN m.kind = 'voice' AND jsonb_typeof(m.metadata -> 'duration_ms') = 'number'
+    THEN (m.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS duration_ms
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
 WHERE m.room_id = $1
@@ -845,6 +987,8 @@ type GetLatestChatMessageByRoomRow struct {
 	SenderID          string             `json:"sender_id"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	SenderDisplayName string             `json:"sender_display_name"`
+	CallOutcome       string             `json:"call_outcome"`
+	DurationMs        int32              `json:"duration_ms"`
 }
 
 func (q *Queries) GetLatestChatMessageByRoom(ctx context.Context, arg GetLatestChatMessageByRoomParams) (GetLatestChatMessageByRoomRow, error) {
@@ -856,12 +1000,14 @@ func (q *Queries) GetLatestChatMessageByRoom(ctx context.Context, arg GetLatestC
 		&i.SenderID,
 		&i.CreatedAt,
 		&i.SenderDisplayName,
+		&i.CallOutcome,
+		&i.DurationMs,
 	)
 	return i, err
 }
 
 const getWorkspaceChatRoom = `-- name: GetWorkspaceChatRoom :one
-SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by FROM chat_rooms
+SELECT id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id FROM chat_rooms
 WHERE workspace_id = $1 AND is_default = true AND archived_at IS NULL
 LIMIT 1
 `
@@ -889,6 +1035,7 @@ func (q *Queries) GetWorkspaceChatRoom(ctx context.Context, workspaceID pgtype.T
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -898,7 +1045,7 @@ INSERT INTO chat_room_members (
   id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
-) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted
+) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted, last_delivered_at
 `
 
 type InsertChatRoomMemberParams struct {
@@ -938,6 +1085,7 @@ func (q *Queries) InsertChatRoomMember(ctx context.Context, arg InsertChatRoomMe
 		&i.SendRestricted,
 		&i.OrganizationID,
 		&i.NotificationsMuted,
+		&i.LastDeliveredAt,
 	)
 	return i, err
 }
@@ -1051,6 +1199,8 @@ SELECT
   ''::text AS last_message_kind,
   ''::text AS last_message_sender_id,
   ''::text AS last_message_sender_name,
+  ''::text AS last_message_call_outcome,
+  0::int AS last_message_duration_ms,
   CAST(NULL AS timestamptz) AS last_message_at
 FROM chat_rooms r
 WHERE r.workspace_id = $1
@@ -1076,22 +1226,24 @@ type ListChatChannelsByProjectParams struct {
 }
 
 type ListChatChannelsByProjectRow struct {
-	ID                    string             `json:"id"`
-	Kind                  string             `json:"kind"`
-	Name                  string             `json:"name"`
-	WorkspaceID           pgtype.Text        `json:"workspace_id"`
-	Visibility            string             `json:"visibility"`
-	ProjectID             pgtype.Text        `json:"project_id"`
-	Topic                 string             `json:"topic"`
-	IsDefault             bool               `json:"is_default"`
-	MemberPermissions     []byte             `json:"member_permissions"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	UnreadCount           int32              `json:"unread_count"`
-	LastMessageBody       string             `json:"last_message_body"`
-	LastMessageKind       string             `json:"last_message_kind"`
-	LastMessageSenderID   string             `json:"last_message_sender_id"`
-	LastMessageSenderName string             `json:"last_message_sender_name"`
-	LastMessageAt         pgtype.Timestamptz `json:"last_message_at"`
+	ID                     string             `json:"id"`
+	Kind                   string             `json:"kind"`
+	Name                   string             `json:"name"`
+	WorkspaceID            pgtype.Text        `json:"workspace_id"`
+	Visibility             string             `json:"visibility"`
+	ProjectID              pgtype.Text        `json:"project_id"`
+	Topic                  string             `json:"topic"`
+	IsDefault              bool               `json:"is_default"`
+	MemberPermissions      []byte             `json:"member_permissions"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	UnreadCount            int32              `json:"unread_count"`
+	LastMessageBody        string             `json:"last_message_body"`
+	LastMessageKind        string             `json:"last_message_kind"`
+	LastMessageSenderID    string             `json:"last_message_sender_id"`
+	LastMessageSenderName  string             `json:"last_message_sender_name"`
+	LastMessageCallOutcome string             `json:"last_message_call_outcome"`
+	LastMessageDurationMs  int32              `json:"last_message_duration_ms"`
+	LastMessageAt          pgtype.Timestamptz `json:"last_message_at"`
 }
 
 func (q *Queries) ListChatChannelsByProject(ctx context.Context, arg ListChatChannelsByProjectParams) ([]ListChatChannelsByProjectRow, error) {
@@ -1119,6 +1271,8 @@ func (q *Queries) ListChatChannelsByProject(ctx context.Context, arg ListChatCha
 			&i.LastMessageKind,
 			&i.LastMessageSenderID,
 			&i.LastMessageSenderName,
+			&i.LastMessageCallOutcome,
+			&i.LastMessageDurationMs,
 			&i.LastMessageAt,
 		); err != nil {
 			return nil, err
@@ -1148,6 +1302,8 @@ SELECT
   ''::text AS last_message_kind,
   ''::text AS last_message_sender_id,
   ''::text AS last_message_sender_name,
+  ''::text AS last_message_call_outcome,
+  0::int AS last_message_duration_ms,
   CAST(NULL AS timestamptz) AS last_message_at
 FROM chat_rooms r
 WHERE r.workspace_id = $1
@@ -1171,22 +1327,24 @@ type ListChatChannelsDiscoverableParams struct {
 }
 
 type ListChatChannelsDiscoverableRow struct {
-	ID                    string             `json:"id"`
-	Kind                  string             `json:"kind"`
-	Name                  string             `json:"name"`
-	WorkspaceID           pgtype.Text        `json:"workspace_id"`
-	Visibility            string             `json:"visibility"`
-	ProjectID             pgtype.Text        `json:"project_id"`
-	Topic                 string             `json:"topic"`
-	IsDefault             bool               `json:"is_default"`
-	MemberPermissions     []byte             `json:"member_permissions"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	UnreadCount           int32              `json:"unread_count"`
-	LastMessageBody       string             `json:"last_message_body"`
-	LastMessageKind       string             `json:"last_message_kind"`
-	LastMessageSenderID   string             `json:"last_message_sender_id"`
-	LastMessageSenderName string             `json:"last_message_sender_name"`
-	LastMessageAt         pgtype.Timestamptz `json:"last_message_at"`
+	ID                     string             `json:"id"`
+	Kind                   string             `json:"kind"`
+	Name                   string             `json:"name"`
+	WorkspaceID            pgtype.Text        `json:"workspace_id"`
+	Visibility             string             `json:"visibility"`
+	ProjectID              pgtype.Text        `json:"project_id"`
+	Topic                  string             `json:"topic"`
+	IsDefault              bool               `json:"is_default"`
+	MemberPermissions      []byte             `json:"member_permissions"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	UnreadCount            int32              `json:"unread_count"`
+	LastMessageBody        string             `json:"last_message_body"`
+	LastMessageKind        string             `json:"last_message_kind"`
+	LastMessageSenderID    string             `json:"last_message_sender_id"`
+	LastMessageSenderName  string             `json:"last_message_sender_name"`
+	LastMessageCallOutcome string             `json:"last_message_call_outcome"`
+	LastMessageDurationMs  int32              `json:"last_message_duration_ms"`
+	LastMessageAt          pgtype.Timestamptz `json:"last_message_at"`
 }
 
 func (q *Queries) ListChatChannelsDiscoverable(ctx context.Context, arg ListChatChannelsDiscoverableParams) ([]ListChatChannelsDiscoverableRow, error) {
@@ -1214,6 +1372,8 @@ func (q *Queries) ListChatChannelsDiscoverable(ctx context.Context, arg ListChat
 			&i.LastMessageKind,
 			&i.LastMessageSenderID,
 			&i.LastMessageSenderName,
+			&i.LastMessageCallOutcome,
+			&i.LastMessageDurationMs,
 			&i.LastMessageAt,
 		); err != nil {
 			return nil, err
@@ -1280,6 +1440,11 @@ SELECT
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
   COALESCE(last_msg.sender_display_name, '') AS last_message_sender_name,
+  -- What the list line needs beyond the body: a call log's outcome (a missed
+  -- call reads red) and a voice note's length ("· 0:42"); both live in metadata.
+  COALESCE(CASE WHEN last_msg.kind = 'voice_call_log' THEN last_msg.metadata ->> 'outcome' END, '')::text AS last_message_call_outcome,
+  COALESCE(CASE WHEN last_msg.kind = 'voice' AND jsonb_typeof(last_msg.metadata -> 'duration_ms') = 'number'
+    THEN (last_msg.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS last_message_duration_ms,
   last_msg.created_at AS last_message_at
 FROM chat_rooms r
 INNER JOIN chat_room_members mem
@@ -1290,6 +1455,7 @@ LEFT JOIN LATERAL (
     m.kind,
     m.sender_id,
     m.created_at,
+    m.metadata,
     u.display_name AS sender_display_name
   FROM chat_messages m
   INNER JOIN users u ON u.id = m.sender_id
@@ -1314,26 +1480,28 @@ type ListChatChannelsMineParams struct {
 }
 
 type ListChatChannelsMineRow struct {
-	ID                    string             `json:"id"`
-	Kind                  string             `json:"kind"`
-	Name                  string             `json:"name"`
-	WorkspaceID           pgtype.Text        `json:"workspace_id"`
-	Visibility            string             `json:"visibility"`
-	ProjectID             pgtype.Text        `json:"project_id"`
-	Topic                 string             `json:"topic"`
-	IsDefault             bool               `json:"is_default"`
-	MemberPermissions     []byte             `json:"member_permissions"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
-	NotificationsMuted    bool               `json:"notifications_muted"`
-	UnreadCount           int32              `json:"unread_count"`
-	MentionUnreadCount    int32              `json:"mention_unread_count"`
-	MemberCount           int32              `json:"member_count"`
-	LastMessageBody       string             `json:"last_message_body"`
-	LastMessageKind       string             `json:"last_message_kind"`
-	LastMessageSenderID   string             `json:"last_message_sender_id"`
-	LastMessageSenderName string             `json:"last_message_sender_name"`
-	LastMessageAt         pgtype.Timestamptz `json:"last_message_at"`
+	ID                     string             `json:"id"`
+	Kind                   string             `json:"kind"`
+	Name                   string             `json:"name"`
+	WorkspaceID            pgtype.Text        `json:"workspace_id"`
+	Visibility             string             `json:"visibility"`
+	ProjectID              pgtype.Text        `json:"project_id"`
+	Topic                  string             `json:"topic"`
+	IsDefault              bool               `json:"is_default"`
+	MemberPermissions      []byte             `json:"member_permissions"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	MyLastReadAt           pgtype.Timestamptz `json:"my_last_read_at"`
+	NotificationsMuted     bool               `json:"notifications_muted"`
+	UnreadCount            int32              `json:"unread_count"`
+	MentionUnreadCount     int32              `json:"mention_unread_count"`
+	MemberCount            int32              `json:"member_count"`
+	LastMessageBody        string             `json:"last_message_body"`
+	LastMessageKind        string             `json:"last_message_kind"`
+	LastMessageSenderID    string             `json:"last_message_sender_id"`
+	LastMessageSenderName  string             `json:"last_message_sender_name"`
+	LastMessageCallOutcome string             `json:"last_message_call_outcome"`
+	LastMessageDurationMs  int32              `json:"last_message_duration_ms"`
+	LastMessageAt          pgtype.Timestamptz `json:"last_message_at"`
 }
 
 func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannelsMineParams) ([]ListChatChannelsMineRow, error) {
@@ -1365,6 +1533,8 @@ func (q *Queries) ListChatChannelsMine(ctx context.Context, arg ListChatChannels
 			&i.LastMessageKind,
 			&i.LastMessageSenderID,
 			&i.LastMessageSenderName,
+			&i.LastMessageCallOutcome,
+			&i.LastMessageDurationMs,
 			&i.LastMessageAt,
 		); err != nil {
 			return nil, err
@@ -1693,6 +1863,33 @@ func (q *Queries) ListChatMessagesInRoomBetween(ctx context.Context, arg ListCha
 	return items, nil
 }
 
+const listChatRoomAvatarFileIDs = `-- name: ListChatRoomAvatarFileIDs :many
+SELECT avatar_file_id FROM chat_rooms
+WHERE avatar_file_id = ANY($1::text[])
+`
+
+// tenant: system
+// FileService asks which of these files a group still shows.
+func (q *Queries) ListChatRoomAvatarFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listChatRoomAvatarFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var avatar_file_id pgtype.Text
+		if err := rows.Scan(&avatar_file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, avatar_file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatRoomMemberUserIDs = `-- name: ListChatRoomMemberUserIDs :many
 SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active')
@@ -1724,6 +1921,8 @@ SELECT
   m.user_id,
   m.role,
   m.send_restricted,
+  m.last_read_at,
+  m.last_delivered_at,
   u.email,
   u.display_name
 FROM chat_room_members m
@@ -1733,11 +1932,13 @@ ORDER BY m.created_at, m.user_id
 `
 
 type ListChatRoomMembersRow struct {
-	UserID         string `json:"user_id"`
-	Role           string `json:"role"`
-	SendRestricted bool   `json:"send_restricted"`
-	Email          string `json:"email"`
-	DisplayName    string `json:"display_name"`
+	UserID          string             `json:"user_id"`
+	Role            string             `json:"role"`
+	SendRestricted  bool               `json:"send_restricted"`
+	LastReadAt      pgtype.Timestamptz `json:"last_read_at"`
+	LastDeliveredAt pgtype.Timestamptz `json:"last_delivered_at"`
+	Email           string             `json:"email"`
+	DisplayName     string             `json:"display_name"`
 }
 
 // tenant: parent room_id
@@ -1754,6 +1955,8 @@ func (q *Queries) ListChatRoomMembers(ctx context.Context, roomID string) ([]Lis
 			&i.UserID,
 			&i.Role,
 			&i.SendRestricted,
+			&i.LastReadAt,
+			&i.LastDeliveredAt,
 			&i.Email,
 			&i.DisplayName,
 		); err != nil {
@@ -1775,6 +1978,8 @@ SELECT
   r.workspace_id,
   r.member_set_key,
   r.member_permissions,
+  r.avatar_file_id,
+  r.topic,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
   mem.notifications_muted,
@@ -1821,10 +2026,16 @@ SELECT
   COALESCE(peer.email, '') AS peer_email,
   COALESCE(peer.display_name, '') AS peer_display_name,
   peer.last_read_at AS peer_last_read_at,
+  peer.last_delivered_at AS peer_last_delivered_at,
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
   COALESCE(last_msg.sender_display_name, '') AS last_message_sender_name,
+  -- What the list line needs beyond the body: a call log's outcome (a missed
+  -- call reads red) and a voice note's length ("· 0:42"); both live in metadata.
+  COALESCE(CASE WHEN last_msg.kind = 'voice_call_log' THEN last_msg.metadata ->> 'outcome' END, '')::text AS last_message_call_outcome,
+  COALESCE(CASE WHEN last_msg.kind = 'voice' AND jsonb_typeof(last_msg.metadata -> 'duration_ms') = 'number'
+    THEN (last_msg.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS last_message_duration_ms,
   last_msg.created_at AS last_message_at
 FROM chat_rooms r
 INNER JOIN chat_room_members mem
@@ -1835,6 +2046,7 @@ LEFT JOIN LATERAL (
     m.kind,
     m.sender_id,
     m.created_at,
+    m.metadata,
     u.display_name AS sender_display_name
   FROM chat_messages m
   INNER JOIN users u ON u.id = m.sender_id
@@ -1846,8 +2058,8 @@ LEFT JOIN LATERAL (
 ) last_msg ON true
 LEFT JOIN LATERAL (
   -- A DM's peer comes from its member set, so it survives the peer leaving;
-  -- their read cursor only while they are still in the room.
-  SELECT u.id, u.email, u.display_name, pm.last_read_at
+  -- their read and delivered cursors only while they are still in the room.
+  SELECT u.id, u.email, u.display_name, pm.last_read_at, pm.last_delivered_at
   FROM users u
   LEFT JOIN chat_room_members pm
     ON pm.room_id = r.id AND pm.user_id = u.id AND pm.status IN ('invited', 'active')
@@ -1877,27 +2089,32 @@ type ListChatRoomsForMemberParams struct {
 }
 
 type ListChatRoomsForMemberRow struct {
-	ID                    string             `json:"id"`
-	Kind                  string             `json:"kind"`
-	Name                  string             `json:"name"`
-	WorkspaceID           pgtype.Text        `json:"workspace_id"`
-	MemberSetKey          pgtype.Text        `json:"member_set_key"`
-	MemberPermissions     []byte             `json:"member_permissions"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	MyLastReadAt          pgtype.Timestamptz `json:"my_last_read_at"`
-	NotificationsMuted    bool               `json:"notifications_muted"`
-	UnreadCount           int32              `json:"unread_count"`
-	MentionUnreadCount    int32              `json:"mention_unread_count"`
-	MemberUserIds         []string           `json:"member_user_ids"`
-	PeerUserID            string             `json:"peer_user_id"`
-	PeerEmail             string             `json:"peer_email"`
-	PeerDisplayName       string             `json:"peer_display_name"`
-	PeerLastReadAt        pgtype.Timestamptz `json:"peer_last_read_at"`
-	LastMessageBody       string             `json:"last_message_body"`
-	LastMessageKind       string             `json:"last_message_kind"`
-	LastMessageSenderID   string             `json:"last_message_sender_id"`
-	LastMessageSenderName string             `json:"last_message_sender_name"`
-	LastMessageAt         pgtype.Timestamptz `json:"last_message_at"`
+	ID                     string             `json:"id"`
+	Kind                   string             `json:"kind"`
+	Name                   string             `json:"name"`
+	WorkspaceID            pgtype.Text        `json:"workspace_id"`
+	MemberSetKey           pgtype.Text        `json:"member_set_key"`
+	MemberPermissions      []byte             `json:"member_permissions"`
+	AvatarFileID           pgtype.Text        `json:"avatar_file_id"`
+	Topic                  string             `json:"topic"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	MyLastReadAt           pgtype.Timestamptz `json:"my_last_read_at"`
+	NotificationsMuted     bool               `json:"notifications_muted"`
+	UnreadCount            int32              `json:"unread_count"`
+	MentionUnreadCount     int32              `json:"mention_unread_count"`
+	MemberUserIds          []string           `json:"member_user_ids"`
+	PeerUserID             string             `json:"peer_user_id"`
+	PeerEmail              string             `json:"peer_email"`
+	PeerDisplayName        string             `json:"peer_display_name"`
+	PeerLastReadAt         pgtype.Timestamptz `json:"peer_last_read_at"`
+	PeerLastDeliveredAt    pgtype.Timestamptz `json:"peer_last_delivered_at"`
+	LastMessageBody        string             `json:"last_message_body"`
+	LastMessageKind        string             `json:"last_message_kind"`
+	LastMessageSenderID    string             `json:"last_message_sender_id"`
+	LastMessageSenderName  string             `json:"last_message_sender_name"`
+	LastMessageCallOutcome string             `json:"last_message_call_outcome"`
+	LastMessageDurationMs  int32              `json:"last_message_duration_ms"`
+	LastMessageAt          pgtype.Timestamptz `json:"last_message_at"`
 }
 
 func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsForMemberParams) ([]ListChatRoomsForMemberRow, error) {
@@ -1916,6 +2133,8 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.WorkspaceID,
 			&i.MemberSetKey,
 			&i.MemberPermissions,
+			&i.AvatarFileID,
+			&i.Topic,
 			&i.UpdatedAt,
 			&i.MyLastReadAt,
 			&i.NotificationsMuted,
@@ -1926,10 +2145,13 @@ func (q *Queries) ListChatRoomsForMember(ctx context.Context, arg ListChatRoomsF
 			&i.PeerEmail,
 			&i.PeerDisplayName,
 			&i.PeerLastReadAt,
+			&i.PeerLastDeliveredAt,
 			&i.LastMessageBody,
 			&i.LastMessageKind,
 			&i.LastMessageSenderID,
 			&i.LastMessageSenderName,
+			&i.LastMessageCallOutcome,
+			&i.LastMessageDurationMs,
 			&i.LastMessageAt,
 		); err != nil {
 			return nil, err
@@ -2391,6 +2613,23 @@ func (q *Queries) SearchChatMessagesByRoom(ctx context.Context, arg SearchChatMe
 	return items, nil
 }
 
+const setChatRoomAvatar = `-- name: SetChatRoomAvatar :exec
+UPDATE chat_rooms SET avatar_file_id = $1, updated_at = now()
+WHERE id = $2 AND organization_id = $3
+`
+
+type SetChatRoomAvatarParams struct {
+	AvatarFileID   pgtype.Text `json:"avatar_file_id"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// NULL drops the group avatar; the caller holds the row FOR UPDATE.
+func (q *Queries) SetChatRoomAvatar(ctx context.Context, arg SetChatRoomAvatarParams) error {
+	_, err := q.db.Exec(ctx, setChatRoomAvatar, arg.AvatarFileID, arg.ID, arg.OrganizationID)
+	return err
+}
+
 const setChatRoomMemberNotificationsMuted = `-- name: SetChatRoomMemberNotificationsMuted :execrows
 UPDATE chat_room_members SET notifications_muted = $3, updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
@@ -2546,7 +2785,7 @@ const unarchiveChatChannel = `-- name: UnarchiveChatChannel :one
 UPDATE chat_rooms
 SET archived_at = NULL, archived_by = NULL, updated_at = now()
 WHERE id = $1 AND kind = 'channel' AND archived_at IS NOT NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
 `
 
 // tenant: by-id
@@ -2572,6 +2811,7 @@ func (q *Queries) UnarchiveChatChannel(ctx context.Context, id string) (ChatRoom
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -2608,7 +2848,7 @@ SET
 WHERE id = $6
   AND kind = 'channel'
   AND archived_at IS NULL
-RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by
+RETURNING id, kind, workspace_id, name, member_set_key, livekit_room_name, created_by, created_at, updated_at, organization_id, member_permissions, visibility, project_id, topic, is_default, created_by_kind, archived_at, archived_by, avatar_file_id
 `
 
 type UpdateChatChannelParams struct {
@@ -2650,6 +2890,7 @@ func (q *Queries) UpdateChatChannel(ctx context.Context, arg UpdateChatChannelPa
 		&i.CreatedByKind,
 		&i.ArchivedAt,
 		&i.ArchivedBy,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -2750,7 +2991,7 @@ func (q *Queries) UpdateChatMessageMetadata(ctx context.Context, arg UpdateChatM
 
 const updateChatRoomMemberLastRead = `-- name: UpdateChatRoomMemberLastRead :exec
 UPDATE chat_room_members
-SET last_read_at = GREATEST(last_read_at, $3), updated_at = now()
+SET last_read_at = GREATEST(last_read_at, $3), last_delivered_at = GREATEST(last_delivered_at, $3), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 `
 
@@ -2761,6 +3002,7 @@ type UpdateChatRoomMemberLastReadParams struct {
 }
 
 // tenant: parent room_id
+// A read implies delivered: the delivered cursor never trails the read one.
 func (q *Queries) UpdateChatRoomMemberLastRead(ctx context.Context, arg UpdateChatRoomMemberLastReadParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomMemberLastRead, arg.RoomID, arg.UserID, arg.LastReadAt)
 	return err
@@ -2829,6 +3071,21 @@ type UpdateChatRoomNameParams struct {
 // tenant: by-id
 func (q *Queries) UpdateChatRoomName(ctx context.Context, arg UpdateChatRoomNameParams) error {
 	_, err := q.db.Exec(ctx, updateChatRoomName, arg.ID, arg.Name)
+	return err
+}
+
+const updateChatRoomTopic = `-- name: UpdateChatRoomTopic :exec
+UPDATE chat_rooms SET topic = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateChatRoomTopicParams struct {
+	ID    string `json:"id"`
+	Topic string `json:"topic"`
+}
+
+// tenant: by-id
+func (q *Queries) UpdateChatRoomTopic(ctx context.Context, arg UpdateChatRoomTopicParams) error {
+	_, err := q.db.Exec(ctx, updateChatRoomTopic, arg.ID, arg.Topic)
 	return err
 }
 

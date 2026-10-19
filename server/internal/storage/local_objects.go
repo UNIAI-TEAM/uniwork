@@ -26,10 +26,11 @@ type localObjectStore struct {
 func (s *localObjectStore) Backend() Backend { return BackendLocal }
 
 // Capabilities implements ObjectStore. The local backend streams ranged reads
-// but cannot mint a presigned URL - local objects are served by the API's own
-// authorized route, so a presign-only purpose must not select it.
+// but cannot mint a presigned URL or run multipart uploads - local objects are
+// served by the API's own authorized route, so presign-only or multipart
+// flows must not select it.
 func (s *localObjectStore) Capabilities() Capabilities {
-	return Capabilities{Presign: false, Range: true, VersionedObjects: false}
+	return Capabilities{Presign: false, Range: true, VersionedObjects: false, Multipart: false}
 }
 
 // Put implements ObjectStore. It writes through the same temp file + rename
@@ -167,6 +168,36 @@ func (s *localObjectStore) SignRead(context.Context, ObjectLocator, SignOptions)
 // not run on local.
 func (s *localObjectStore) SignWrite(context.Context, ObjectLocator, SignOptions) (SignedURL, error) {
 	return SignedURL{}, fmt.Errorf("local SignWrite: %w: the filesystem backend has no presigned upload URL", ErrCapabilityUnsupported)
+}
+
+// CreateMultipart implements ObjectStore: the filesystem backend has no
+// multipart upload protocol.
+func (s *localObjectStore) CreateMultipart(context.Context, ObjectLocator, WriteInfo) (string, error) {
+	return "", fmt.Errorf("local CreateMultipart: %w: the filesystem backend does not support multipart uploads", ErrCapabilityUnsupported)
+}
+
+// SignUploadPart implements ObjectStore: the filesystem backend has no
+// multipart upload protocol.
+func (s *localObjectStore) SignUploadPart(context.Context, ObjectLocator, string, int32, SignOptions) (SignedURL, error) {
+	return SignedURL{}, fmt.Errorf("local SignUploadPart: %w: the filesystem backend does not support multipart uploads", ErrCapabilityUnsupported)
+}
+
+// ListParts implements ObjectStore: the filesystem backend has no multipart
+// upload protocol.
+func (s *localObjectStore) ListParts(context.Context, ObjectLocator, string) ([]MultipartPart, error) {
+	return nil, fmt.Errorf("local ListParts: %w: the filesystem backend does not support multipart uploads", ErrCapabilityUnsupported)
+}
+
+// CompleteMultipart implements ObjectStore: the filesystem backend has no
+// multipart upload protocol.
+func (s *localObjectStore) CompleteMultipart(context.Context, ObjectLocator, string, []MultipartPart) (PutResult, error) {
+	return PutResult{}, fmt.Errorf("local CompleteMultipart: %w: the filesystem backend does not support multipart uploads", ErrCapabilityUnsupported)
+}
+
+// AbortMultipart implements ObjectStore: the filesystem backend has no
+// multipart upload protocol.
+func (s *localObjectStore) AbortMultipart(context.Context, ObjectLocator, string) error {
+	return fmt.Errorf("local AbortMultipart: %w: the filesystem backend does not support multipart uploads", ErrCapabilityUnsupported)
 }
 
 // Probe implements ObjectStore. It answers "is the root still a usable

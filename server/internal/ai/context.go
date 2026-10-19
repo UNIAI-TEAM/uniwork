@@ -77,16 +77,9 @@ func BuildContext(sources []Source) (pack []Source, truncated bool) {
 	return pack, truncated
 }
 
-// untrustedTag matches an opening or closing untrusted tag, tolerating
-// whitespace and invisible format characters a model may still read as a tag.
-var untrustedTag = regexp.MustCompile(`(?i)<([\s\p{Z}\p{Cf}]*/?[\s\p{Z}\p{Cf}]*untrusted)`)
-
-// untrustedTagFull matches a whole tag, attributes included, for stripping.
-var untrustedTagFull = regexp.MustCompile(`(?i)<[\s\p{Z}\p{Cf}]*/?[\s\p{Z}\p{Cf}]*untrusted[^>\n]*>?`)
-
-// EscapeUntrusted turns every look-alike untrusted tag in s into inert text
-// so user-typed content cannot close or open a block.
-func EscapeUntrusted(s string) string { return untrustedTag.ReplaceAllString(s, "&lt;$1") }
+// untrustedTagFull is untrustedTag through the end of the tag, attributes
+// included, for stripping.
+var untrustedTagFull = regexp.MustCompile(untrustedTagPattern() + `[^>\n]*>?`)
 
 // WrapUntrusted marks s as data from source; the caller adds any newlines.
 func WrapUntrusted(source, s string) string {
@@ -107,11 +100,13 @@ func StripUntrustedTags(s string) string {
 
 // RenderSources is the prompt fragment: every title and excerpt wrapped as
 // untrusted data under its number, so a citation can be checked and neither
-// a task title nor a description can carry an instruction or fake a tag.
+// a task title nor a description can carry an instruction or fake a tag. The
+// title is the block's first line (the fake provider reads it there), forced
+// onto that one line.
 func RenderSources(pack []Source) string {
 	var b strings.Builder
 	for _, s := range pack {
-		fmt.Fprintf(&b, "[%s] (%s)\n%s\n\n", s.ID, s.Kind, WrapUntrusted(s.ID, "\n"+s.Title+"\n"+s.Excerpt+"\n"))
+		fmt.Fprintf(&b, "[%s] (%s)\n%s\n\n", s.ID, EscapeUntrustedLine(s.Kind), Untrusted(s.ID, EscapeUntrustedLine(s.Title)+"\n"+s.Excerpt))
 	}
 	return b.String()
 }

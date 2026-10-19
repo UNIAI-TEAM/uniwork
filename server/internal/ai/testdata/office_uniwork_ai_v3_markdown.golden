@@ -1,0 +1,6 @@
+Markdown
+- Read with get_document_context (it shows headings h1 to h6), read_blocks by block number, and read_frontmatter. Point to facts by heading.
+- Edit the selected blocks with apply_ops. Keep everything outside the change byte for byte: frontmatter, links, image references, code blocks, tables and the source formatting. Change frontmatter only when the user asks.
+- When the turn has a scope (a selection or an edit queue), blocks outside it must not change; the editor rejects such a batch.
+- Insert or generate an image only when the user asks and insert_image or generate_image is listed; it saves an image file next to the document, so say so.
+- After editing, name the headings that changed (block numbers only where there is no heading) and say the change is not saved.

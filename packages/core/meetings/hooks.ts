@@ -2,7 +2,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import * as meetings from "../api/endpoints/meetings";
 import * as feed from "../api/endpoints/meetings-feed";
-import { taskKeys } from "../tasks/hooks";
 import type { Meeting, MeetingChatMessage, MeetingTranscriptSegment } from "../types/meeting";
 import {
   addMeetingFeedRow,
@@ -17,7 +16,6 @@ export type {
   CreateMeetingBody,
   MeetingListFilters,
   MeetingToken,
-  SummaryTaskItem,
   UpdateMeetingBody,
 } from "../api/endpoints/meetings";
 export { activityLabelKey, inviteLinkStatus, isJoinAdmitted } from "./status";
@@ -489,38 +487,6 @@ export function useAppendMeetingChat(meetingId: string) {
     mutationFn: (message: string) => meetings.appendMeetingChat(meetingId, message),
     onSuccess: (saved) => {
       if (saved) addMeetingFeedRow(qc, meetingKeys.chat(meetingId), chatRows, saved);
-    },
-  });
-}
-
-export function useMeetingSummary(meetingId: string) {
-  return useQuery({
-    queryKey: meetingKeys.summary(meetingId),
-    queryFn: () => meetings.getMeetingSummary(meetingId),
-    enabled: !!meetingId,
-    // 404 = no summary yet; that is a state, not an error worth retrying.
-    retry: false,
-  });
-}
-
-export function useCreateMeetingSummary(meetingId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (locale: string) => meetings.createMeetingSummary(meetingId, locale),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: meetingKeys.summary(meetingId) });
-      void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
-    },
-  });
-}
-
-export function useCreateTasksFromSummary(workspaceId: string, meetingId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (items: meetings.SummaryTaskItem[]) => meetings.createTasksFromSummary(meetingId, items),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
-      void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
     },
   });
 }

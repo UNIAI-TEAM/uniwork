@@ -128,7 +128,13 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 
-	fake := &provider.Fake{Reply: ai.FakeReply}
+	// chat_call_summary@1 answers highlights as plain strings; they are stored
+	// as strings even though catch-up highlights now carry a source.
+	fake := &provider.Fake{Reply: func(req provider.CompletionRequest) provider.CompletionResponse {
+		resp := ai.FakeReply(req)
+		resp.Text = strings.Replace(resp.Text, `"highlights":[]`, `"highlights":["Chốt demo thứ Sáu"]`, 1)
+		return resp
+	}}
 	s.SetAIGateway(ai.NewGateway(q, fake, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
 
 	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
@@ -184,6 +190,9 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	if len(summary.ActionItems) == 0 {
 		t.Fatalf("expected action items: %+v", summary)
 	}
+	if len(summary.Highlights) != 1 || summary.Highlights[0] != "Chốt demo thứ Sáu" {
+		t.Fatalf("highlights: %q", summary.Highlights)
+	}
 
 	logMsg, err := q.GetChatMessageByID(ctx, logID)
 	if err != nil {
@@ -195,6 +204,58 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	}
 	if meta["summary_message_id"] == nil || meta["summary_message_id"] == "" {
 		t.Fatalf("call log not patched: %+v", meta)
+	}
+}
+
+func TestEditingASummaryKeepsTheSummary(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	fake := &provider.Fake{Reply: ai.FakeReply}
+	s.SetAIGateway(ai.NewGateway(q, fake, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "edit-summary-call", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "edit-summary-call"); err != nil {
+		t.Fatal(err)
+	}
+	backdateVoiceCallAnswer(t, dm.ID, "edit-summary-call", 45*time.Second)
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, dm.ID, "edit-summary-call"); err != nil {
+		t.Fatal(err)
+	}
+	d := outbox.New(pool, q, outbox.Options{})
+	d.Register(NewChatVoiceSummaryConsumer(s))
+	if err := d.Process(ctx, 50); err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, dm.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summaryID, senderID string
+	for _, msg := range msgs {
+		if msg.VoiceCallSummary != nil {
+			summaryID = msg.ID
+			senderID = msg.SenderID
+		}
+	}
+	if summaryID == "" {
+		t.Fatal("summary message missing")
+	}
+	edited, err := s.EditChatMessage(ctx, senderID, w.ID, dm.ID, summaryID, "Tóm tắt (đã sửa chính tả)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edited.VoiceCallSummary == nil || strings.TrimSpace(edited.VoiceCallSummary.Summary) == "" {
+		t.Fatalf("summary card lost: %+v", edited.VoiceCallSummary)
+	}
+	if len(edited.VoiceCallSummary.ActionItems) == 0 {
+		t.Fatalf("action items lost: %+v", edited.VoiceCallSummary)
 	}
 }
 

@@ -61,6 +61,12 @@ var catalogue = map[string]Entry{
 		ReasonCode:     "host_not_built",
 		ExplanationKey: "capabilities.host_not_built",
 	},
+	// S-DOC02 (SH-S1): the file create routes accept the visibility field.
+	// The entry tells a client that may still be talking to an older server
+	// whether the switch can be shown for files; it grants nothing.
+	"documents.create_visibility": {
+		Status: Available,
+	},
 }
 
 // Catalogue returns a defensive copy of the capability map so callers cannot

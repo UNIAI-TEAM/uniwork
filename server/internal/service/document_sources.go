@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -110,10 +111,11 @@ type DocumentSourceFilter struct {
 // DocumentSourceParent is where a source file lives. Ref is internal: the
 // task id of a comment attachment, the mailbox of an email attachment.
 type DocumentSourceParent struct {
-	Kind  string
-	ID    string
-	Title string
-	Ref   string
+	Kind      string
+	ID        string
+	Title     string
+	Ref       string
+	MessageID string // chat file: the message that carries the attachment
 }
 
 // DocumentSourceOwner is who put the file there; nil for email.
@@ -239,6 +241,24 @@ func (s *DocumentSourceService) Open(ctx context.Context, actor Actor, workspace
 		return DocumentSourceFile{}, err
 	}
 	return s.openItem(ctx, actor, workspaceID, item)
+}
+
+// ViewSource is the metadata half of Open, for the Office frame's mint and
+// open answer (UNI-1869): the same gate and lookup, without reading a byte.
+// Email's Open fetches over IMAP, so the mint must not pay for bytes it will
+// not use; the token grants nothing, and every frame read runs Open again.
+// A refusal is not_found, exactly as on the download path, so a member never
+// learns whether a file they cannot read exists.
+func (s *DocumentSourceService) ViewSource(ctx context.Context, actor Actor, workspaceID, sourceFileID string) (db.Workspace, DocumentSourceItem, error) {
+	ws, err := s.gate(ctx, actor, workspaceID)
+	if err != nil {
+		return db.Workspace{}, DocumentSourceItem{}, hideSourceRefusal(err)
+	}
+	item, err := s.lookup(ctx, actor, ws, sourceFileID)
+	if err != nil {
+		return db.Workspace{}, DocumentSourceItem{}, hideSourceRefusal(err)
+	}
+	return ws, item, nil
 }
 
 // openItem opens the bytes of a row the list gate already admitted.
@@ -402,25 +422,29 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 	default:
 		return nil, nil
 	}
+	policy := s.docs.documentFilePolicy()
 	out := make([]DocumentSourceItem, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, documentSourceItem(src, r))
+		out = append(out, documentSourceItem(src, r, policy))
 	}
 	return out, nil
 }
 
-func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow) DocumentSourceItem {
+func documentSourceItem(src string, r db.ListDocumentSourceChatFilesRow, docPolicy files.Policy) DocumentSourceItem {
 	ext := documentSourceExtension(r.Name)
 	item := DocumentSourceItem{
 		ID: r.SourceID, Source: src, Name: r.Name, MimeType: r.MimeType, Extension: ext,
 		SizeBytes: r.SizeBytes, UpdatedAt: r.SortAt.Time.UTC(), CanOpenInApp: documentSourceAppExts[ext],
-		CanSave: documentSourceSaveable(ext, r.MimeType, r.SizeBytes),
+		CanSave: documentSourceSaveable(docPolicy, ext, r.MimeType, r.SizeBytes),
 		Parent:  DocumentSourceParent{Kind: documentSourceParentKind(r.ParentKind), ID: r.ParentID, Title: r.ParentTitle, Ref: r.ParentRef},
 		rowID:   r.RowID,
 	}
 	// A task comment's file links to its task: the comment is read there.
 	if item.Parent.Kind == "task_comment" && r.ParentRef != "" {
 		item.Parent.ID = r.ParentRef
+	}
+	if src == DocumentSourceChat && r.RowID != "" {
+		item.Parent.MessageID = r.RowID
 	}
 	if r.OwnerID != "" {
 		item.Owner = &DocumentSourceOwner{ID: r.OwnerID, Kind: documentSourceOwnerKind(r.OwnerKind), Name: r.OwnerName}

@@ -107,4 +107,16 @@ describe("MessageTaskCard", () => {
     expect(unlink).toHaveBeenCalledWith({ messageId: "m1", linkId: "link1" });
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
+
+  it("draws a linked task as one line, and says a made one was made from the message, in the reader's words", () => {
+    const { unmount } = wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" />);
+    // Linked only: identifier, title and status on one line, no heading (canvas).
+    expect(screen.getByRole("button", { name: "Mở LUN-2 · long ơi" })).toHaveTextContent("LUN-2 · long ơi");
+    expect(screen.getByText("Cần làm")).toBeInTheDocument();
+    expect(screen.queryByText(/Đã tạo việc/)).toBeNull();
+    unmount();
+    LINKS.set("m1", [{ ...LINKS.get("m1")![0]!, relation: "created_from" }]);
+    wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" isOwn />);
+    expect(screen.getByText("Đã tạo việc từ tin nhắn của bạn")).toBeInTheDocument();
+  });
 });

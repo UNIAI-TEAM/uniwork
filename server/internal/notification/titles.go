@@ -7,6 +7,11 @@ import "strings"
 // strings are the same as notifications.kind.* in packages/core/i18n/locales
 // so a person sees one wording everywhere; titles_test.go reads the JSON files
 // and fails when they drift.
+//
+// document_edit_request_answered has two sentences, one per decision
+// (UNI-1645 addendum §5.2): the kind's own entry is the accepted one and
+// editRequestDeclinedTitleKey - not a kind - the declined one, picked by
+// Title when params["decision"] is "decline".
 var titles = map[string]map[string]string{
 	"vi": {
 		KindTaskAssigned:                "{{actor}} đã giao bạn việc “{{task}}”",
@@ -28,9 +33,20 @@ var titles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "{{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”.",
 		KindDocumentDiscussionReplied:   "{{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu “{{document}}”.",
 		KindDocumentCommentResolved:     "{{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết.",
+		KindDocumentEditRequested:       "{{actor}} muốn sửa “{{document}}”",
+		KindDocumentEditRequestAnswered: "{{actor}} đã nhường quyền sửa “{{document}}” cho bạn",
+		editRequestDeclinedTitleKey:     "{{actor}} chưa nhả quyền sửa “{{document}}”",
+		KindDocumentEditTakenOver:       "{{actor}} đã lấy quyền sửa “{{document}}”. Thay đổi chưa lưu của bạn vẫn còn trong tài liệu đang mở.",
+		KindDocumentBreakGlass:          "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “{{document}}”.",
 		KindChatMentioned:               "{{actor}} đã nhắc đến bạn trong {{room}}",
 		KindChatDM:                      "{{actor}} đã nhắn tin cho bạn",
+		KindChatCallIncoming:            "{{actor}} đang gọi",
 		KindChatThreadReplied:           "{{actor}} đã trả lời thread trong {{room}}",
+		KindDocumentAccessRequested:     "{{actor}} xin quyền truy cập tài liệu “{{document}}”.",
+		KindDocumentAccessApproved:      "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",
+		KindDocumentAccessDeclined:      "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
+		KindDocumentShared:              "{{actor}} đã chia sẻ tài liệu “{{document}}” với bạn. Quyền: {{level}}.",
+		KindDocumentTrashedByOther:      "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
 	},
 	"en": {
 		KindTaskAssigned:                "{{actor}} assigned you “{{task}}”",
@@ -52,9 +68,38 @@ var titles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "{{actor}} mentioned you in a discussion on “{{document}}”.",
 		KindDocumentDiscussionReplied:   "{{actor}} replied to your discussion post in “{{document}}”.",
 		KindDocumentCommentResolved:     "{{actor}} marked your comment in “{{document}}” as resolved.",
+		KindDocumentEditRequested:       "{{actor}} wants to edit “{{document}}”",
+		KindDocumentEditRequestAnswered: "{{actor}} handed you editing of “{{document}}”",
+		editRequestDeclinedTitleKey:     "{{actor}} is still editing “{{document}}”",
+		KindDocumentEditTakenOver:       "{{actor}} took over editing of “{{document}}”. Your unsaved changes are still in the open document.",
+		KindDocumentBreakGlass:          "{{actor}} opened emergency view access (24h) to “{{document}}”.",
 		KindChatMentioned:               "{{actor}} mentioned you in {{room}}",
 		KindChatDM:                      "{{actor}} sent you a message",
+		KindChatCallIncoming:            "{{actor}} is calling",
 		KindChatThreadReplied:           "{{actor}} replied to a thread in {{room}}",
+		KindDocumentAccessRequested:     "{{actor}} requested access to “{{document}}”.",
+		KindDocumentAccessApproved:      "{{actor}} gave you access to “{{document}}”.",
+		KindDocumentAccessDeclined:      "Your request to access a document was declined.",
+		KindDocumentShared:              "{{actor}} shared “{{document}}” with you ({{level}}).",
+		KindDocumentTrashedByOther:      "{{actor}} moved your document to trash. Restore it before {{date}}",
+	},
+}
+
+// documentLevelLabels translates the wire share level on server-rendered
+// document_shared titles (digest / push fallback) so a raw enum never leaks;
+// unknown values stay as-is.
+var documentLevelLabels = map[string]map[string]string{
+	"vi": {
+		"view":    "Chỉ xem",
+		"comment": "Nhận xét",
+		"edit":    "Chỉnh sửa",
+		"manage":  "Quản lý",
+	},
+	"en": {
+		"view":    "View",
+		"comment": "Comment",
+		"edit":    "Edit",
+		"manage":  "Manage",
 	},
 }
 
@@ -71,6 +116,12 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "Bạn được nhắc tên trong thảo luận",
 		KindDocumentDiscussionReplied:   "Có phản hồi thảo luận mới",
 		KindDocumentCommentResolved:     "Bình luận đã được giải quyết",
+		KindDocumentBreakGlass:          "Truy cập khẩn cấp vào tài liệu",
+		KindDocumentAccessRequested:     "Yêu cầu truy cập tài liệu",
+		KindDocumentAccessApproved:      "Đã được cấp quyền",
+		KindDocumentAccessDeclined:      "Yêu cầu bị từ chối",
+		KindDocumentShared:              "Tài liệu được chia sẻ",
+		KindDocumentTrashedByOther:      "Tài liệu của bạn đã vào thùng rác",
 	},
 	"en": {
 		KindDocumentMentioned:           "You were mentioned in a comment",
@@ -78,21 +129,41 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "You were mentioned in a discussion",
 		KindDocumentDiscussionReplied:   "New reply in a discussion",
 		KindDocumentCommentResolved:     "Comment resolved",
+		KindDocumentBreakGlass:          "Emergency access to document",
+		KindDocumentAccessRequested:     "Document access request",
+		KindDocumentAccessApproved:      "Access granted",
+		KindDocumentAccessDeclined:      "Request declined",
+		KindDocumentShared:              "Document shared",
+		KindDocumentTrashedByOther:      "Your document was moved to trash",
 	},
 }
+
+// editRequestDeclinedTitleKey keys the declined sentence of
+// document_edit_request_answered in titles and in notifications.kind.* of the
+// client locales; it is not a kind.
+const editRequestDeclinedTitleKey = KindDocumentEditRequestAnswered + "_declined"
 
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
 	loc := titles[locale]
 	if loc == nil {
+		locale = "en"
 		loc = titles["en"]
+	}
+	if kind == KindDocumentEditRequestAnswered && params["decision"] == editDecisionDecline {
+		kind = editRequestDeclinedTitleKey
 	}
 	s := loc[kind]
 	if s == "" {
 		return kind
 	}
 	for k, v := range params {
+		if k == "level" && kind == KindDocumentShared {
+			if label := documentLevelLabels[locale][v]; label != "" {
+				v = label
+			}
+		}
 		s = strings.ReplaceAll(s, "{{"+k+"}}", v)
 	}
 	return s

@@ -50,6 +50,23 @@ func (q *Queries) ClaimMeetingReminder(ctx context.Context, id string) (int64, e
 	return result.RowsAffected(), nil
 }
 
+const claimNotificationGroup = `-- name: ClaimNotificationGroup :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+// The exclusive half of that claim (BE-TN-9): HasNotificationGroupRow alone
+// is an unlocked existence read, so two dispatcher nodes carrying different
+// events of one (user, kind, group_key) can both miss it and merge through
+// UpsertNotification's count + 1. The claim is taken here as a
+// transaction-scoped advisory lock on the group, held until the write
+// commits, so the loser's existence read runs after the winner's row is
+// visible and skips. The key is hashed because advisory locks take bigint
+// keys; a collision only serializes two unrelated groups for one write.
+func (q *Queries) ClaimNotificationGroup(ctx context.Context, claimKey string) error {
+	_, err := q.db.Exec(ctx, claimNotificationGroup, claimKey)
+	return err
+}
+
 const countOwnedNotifications = `-- name: CountOwnedNotifications :one
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY($2::text[])
 `
@@ -133,6 +150,34 @@ func (q *Queries) GetNotification(ctx context.Context, id string) (Notification,
 	return i, err
 }
 
+const hasNotificationGroupRow = `-- name: HasNotificationGroupRow :one
+SELECT EXISTS (
+  SELECT 1 FROM notifications
+  WHERE user_id = $1
+    AND kind = $2
+    AND group_key = $3
+)
+`
+
+type HasNotificationGroupRowParams struct {
+	UserID   string `json:"user_id"`
+	Kind     string `json:"kind"`
+	GroupKey string `json:"group_key"`
+}
+
+// The historical (batch, recipient) claim of a once-only draft
+// (TRASH-NOTIFY-01): the merge index in UpsertNotification only covers an
+// open row, so a draft that may never repeat itself checks for ANY row of
+// its group - read, archived, purged from view - inside the write
+// transaction. The consumer treats a hit as already delivered.
+// tenant: self
+func (q *Queries) HasNotificationGroupRow(ctx context.Context, arg HasNotificationGroupRowParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasNotificationGroupRow, arg.UserID, arg.Kind, arg.GroupKey)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertNotificationDeliveries = `-- name: InsertNotificationDeliveries :many
 INSERT INTO notification_deliveries (event_id, user_id)
 SELECT $1::text, u.user_id FROM unnest($2::text[]) AS u(user_id)
@@ -186,7 +231,7 @@ func (q *Queries) InsertNotificationDelivery(ctx context.Context, arg InsertNoti
 }
 
 const listActivePushSubscriptions = `-- name: ListActivePushSubscriptions :many
-SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
+SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string) ([]PushSubscription, error) {
@@ -208,6 +253,7 @@ func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string
 			&i.LastUsedAt,
 			&i.RevokedAt,
 			&i.CreatedAt,
+			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}
@@ -770,6 +816,19 @@ func (q *Queries) MarkNotificationsUnread(ctx context.Context, arg MarkNotificat
 	return result.RowsAffected(), nil
 }
 
+const revokeDevicePushSubscriptionsForUser = `-- name: RevokeDevicePushSubscriptionsForUser :exec
+UPDATE push_subscriptions p SET revoked_at = now()
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND p.session_id IN (SELECT d.session_family_id FROM device_sessions d WHERE d.user_id = $1)
+`
+
+// A user-wide revoke closes every push registered from a native device
+// session; browser subscriptions stay, the web has no way to re-register them.
+func (q *Queries) RevokeDevicePushSubscriptionsForUser(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, revokeDevicePushSubscriptionsForUser, userID)
+	return err
+}
+
 const revokePushSubscription = `-- name: RevokePushSubscription :exec
 UPDATE push_subscriptions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL
 `
@@ -795,6 +854,22 @@ func (q *Queries) RevokePushSubscriptionByEndpoint(ctx context.Context, arg Revo
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const revokePushSubscriptionsForSession = `-- name: RevokePushSubscriptionsForSession :exec
+UPDATE push_subscriptions SET revoked_at = now()
+WHERE user_id = $1 AND session_id = $2 AND revoked_at IS NULL
+`
+
+type RevokePushSubscriptionsForSessionParams struct {
+	UserID    string      `json:"user_id"`
+	SessionID pgtype.Text `json:"session_id"`
+}
+
+// Revoking a native device family closes the pushes registered from it.
+func (q *Queries) RevokePushSubscriptionsForSession(ctx context.Context, arg RevokePushSubscriptionsForSessionParams) error {
+	_, err := q.db.Exec(ctx, revokePushSubscriptionsForSession, arg.UserID, arg.SessionID)
+	return err
 }
 
 const unarchiveNotifications = `-- name: UnarchiveNotifications :execrows
@@ -1031,12 +1106,12 @@ func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNot
 }
 
 const upsertPushSubscription = `-- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, now())
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, last_used_at = now()
-RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
+RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id
 `
 
 type UpsertPushSubscriptionParams struct {
@@ -1046,6 +1121,7 @@ type UpsertPushSubscriptionParams struct {
 	P256dh    string      `json:"p256dh"`
 	Auth      string      `json:"auth"`
 	UserAgent pgtype.Text `json:"user_agent"`
+	SessionID pgtype.Text `json:"session_id"`
 }
 
 func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error) {
@@ -1056,6 +1132,7 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		arg.P256dh,
 		arg.Auth,
 		arg.UserAgent,
+		arg.SessionID,
 	)
 	var i PushSubscription
 	err := row.Scan(
@@ -1068,6 +1145,7 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		&i.LastUsedAt,
 		&i.RevokedAt,
 		&i.CreatedAt,
+		&i.SessionID,
 	)
 	return i, err
 }

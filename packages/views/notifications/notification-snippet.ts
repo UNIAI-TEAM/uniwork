@@ -1,5 +1,6 @@
 import type { Notification } from "@uniwork/core/types";
 import { K } from "../documents/document-comments-keys";
+import { trashedOtherCount } from "./trashed-notice";
 
 // The mention token of the comment body (contract-collab §4.2), and the same
 // token cut by the server's snippet bound (the snippet ends in "…").
@@ -24,7 +25,11 @@ export function plainSnippet(raw: string): string {
 }
 
 /** What a document row says under its sentence. */
-type NotificationSnippet = { kind: "text"; text: string } | { kind: "deleted"; key: string } | null;
+type NotificationSnippet =
+  | { kind: "text"; text: string }
+  | { kind: "deleted"; key: string }
+  | { kind: "trashed"; document: string; count: number }
+  | null;
 
 /**
  * The second line of a document comment row (S15). A document the recipient
@@ -34,6 +39,12 @@ type NotificationSnippet = { kind: "text"; text: string } | { kind: "deleted"; k
  */
 export function notificationSnippet(n: Notification): NotificationSnippet {
   if (n.resource_type !== "document" || n.resource_access_lost || n.resource_deleted) return null;
+  // A trash notice names the top item and how many others rode in its batch (TRASH-NOTIFY-01).
+  if (n.kind === "document_trashed_by_other") {
+    const document = n.params.document?.trim() ?? "";
+    const count = trashedOtherCount(n.params);
+    return document || count > 0 ? { kind: "trashed", document, count } : null;
+  }
   if (n.comment_deleted) {
     return { kind: "deleted", key: n.params.kind === "discussion" ? K.collabDiscussionDeleted : K.collabCommentDeleted };
   }

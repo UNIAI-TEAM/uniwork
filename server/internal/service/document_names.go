@@ -145,9 +145,9 @@ func suffixedTitle(kind, base string, n int) string {
 // documentTitleWriteError maps the folder-name unique violation (23505, via
 // the package's isUniqueViolation) onto the wire answer of a duplicate: a
 // create or a rename is refused, never renamed for, so the violation becomes
-// the same 409 the pre-check answers. Until PR 2 creates
-// idx_documents_folder_name_uidx only the titleWriteErr test seam produces one,
-// so this path is exercised before the index ships. The kind decides the code
+// the same 409 the pre-check answers. A racing writer reaches it through
+// idx_documents_folder_name_user_uidx (the My Folder-aware index); the
+// titleWriteErr test seam fakes the same 23505. The kind decides the code
 // (errDocumentNameExhausted), so a page or a file never answers
 // folder_name_taken (FD-D10) and never an uncoded 500 either.
 func documentTitleWriteError(kind string, err error) error {

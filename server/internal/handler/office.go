@@ -203,7 +203,8 @@ func (h *handlers) createBlankDocumentFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	res, err := h.Office.CreateBlankFile(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.BlankFileInput{
-		Format: in.Format, Title: in.Title, ParentID: stringValue(in.ParentID), IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		Format: in.Format, Title: in.Title, ParentID: stringValue(in.ParentID), Destination: stringValue(in.Destination), Visibility: stringValue(in.Visibility),
+		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
 	if err != nil {
 		h.mapOfficeError(w, err)
@@ -228,6 +229,7 @@ func (h *handlers) copyDocument(w http.ResponseWriter, r *http.Request) {
 	res, err := h.Documents.CopyDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.CopyDocumentInput{
 		Consent: in.Consent, Title: stringValue(in.Title), ParentID: stringValue(in.ParentID),
 		IdempotencyKey: r.Header.Get("Idempotency-Key"), JobID: stringValue(in.JobID),
+		UploadID: strings.TrimSpace(stringValue(in.UploadID)),
 	})
 	if err != nil {
 		h.mapOfficeError(w, err)

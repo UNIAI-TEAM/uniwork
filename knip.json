@@ -3,6 +3,11 @@
   "exclude": [
     "catalog"
   ],
+  "ignoreIssues": {
+    "packages/core/office/docs-frame-protocol.ts": [
+      "duplicates"
+    ]
+  },
   "workspaces": {
     ".": {
       "ignore": [
@@ -17,6 +22,7 @@
       ],
       "ignoreBinaries": [
         "rustc",
+        "awk",
         "go"
       ],
       "ignoreDependencies": [
@@ -33,6 +39,24 @@
     "apps/web": {
       "ignore": [
         "public/sw.js"
+      ]
+    },
+    "apps/chat-desktop": {
+      "entry": [
+        "electron-builder.ts"
+      ]
+    },
+    "apps/chat-mobile": {
+      "ignoreDependencies": [
+        "@expo-google-fonts/inter",
+        "@expo-google-fonts/plus-jakarta-sans",
+        "@rn-primitives/avatar",
+        "@rn-primitives/switch",
+        "expo-updates",
+        "react-native-css-interop"
+      ],
+      "entry": [
+        "scripts/sync-i18n.mjs"
       ]
     },
     "packages/*": {},

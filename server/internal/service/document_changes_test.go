@@ -805,3 +805,66 @@ func TestDocumentChangesFlagOffAnswersCapabilityOff(t *testing.T) {
 		t.Fatalf("a refused caller opened %d snapshots (%v)", n, err)
 	}
 }
+
+// MYFOLDER-01 (UNI-1891): the cold-start snapshot is the list predicate
+// materialised at one MVCC point, so it carries the same ancestor-My-Folder
+// exclusion - an admin's cold start must not seed the offline library with a
+// document inside another member's My Folder, while the member who owns it
+// still gets it. The admin is wsAdmin (a workspace admin, see_all = true).
+func TestDocumentChangesSnapshotHidesForeignMyFolderSubtree(t *testing.T) {
+	w := newChangeWorld(t, "chgmfs", nil)
+
+	// A is a plain workspace member; their My Folder plus a page inside it.
+	env := w.f
+	mf, _, err := env.svc.EnsureMyFolder(env.ctx, Human(w.tn.member.ID), w.tn.wsA)
+	if err != nil {
+		t.Fatalf("EnsureMyFolder(member): %v", err)
+	}
+	page, err := env.svc.CreatePage(env.ctx, Human(w.tn.member.ID), w.tn.wsA, CreatePageInput{
+		Title: "mfs-secret", Destination: DocumentSystemKindMyFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(inside My Folder): %v", err)
+	}
+	shared, err := env.svc.CreatePage(env.ctx, Human(w.tn.member.ID), w.tn.wsA, CreatePageInput{
+		Title: "Shared With Admin Inside My Folder", Destination: DocumentSystemKindMyFolder,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(shared): %v", err)
+	}
+	if _, err := env.svc.ShareDocument(env.ctx, Human(w.tn.member.ID), shared.Document.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: w.tn.wsAdmin.ID, Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("ShareDocument(shared -> admin): %v", err)
+	}
+
+	hasID := func(items []DocumentChange, id string) bool {
+		for _, c := range items {
+			if c.DocumentID == id {
+				return true
+			}
+		}
+		return false
+	}
+	adminItems, _ := w.drain(t, w.tn.wsAdmin.ID, 50, nil)
+	ownerItems, _ := w.drain(t, w.tn.member.ID, 50, nil)
+
+	t.Run("admin snapshot hides unshared foreign page", func(t *testing.T) {
+		if hasID(adminItems, mf.Document.ID) {
+			t.Error("admin snapshot leaked A's My Folder")
+		}
+		if hasID(adminItems, page.Document.ID) {
+			t.Error("admin snapshot leaked the unshared page inside A's My Folder")
+		}
+	})
+	t.Run("admin snapshot keeps a shared foreign descendant", func(t *testing.T) {
+		if !hasID(adminItems, shared.Document.ID) {
+			t.Error("admin snapshot dropped a page inside A's My Folder that is shared with the admin")
+		}
+	})
+	t.Run("owner snapshot keeps the subtree", func(t *testing.T) {
+		if !hasID(ownerItems, mf.Document.ID) || !hasID(ownerItems, page.Document.ID) {
+			t.Error("owner snapshot missing My Folder or the page inside it")
+		}
+	})
+}

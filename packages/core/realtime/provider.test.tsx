@@ -12,7 +12,7 @@ vi.mock("../api/endpoints/auth", () => ({ refreshSession: vi.fn(async () => null
 const sockets = vi.hoisted(
   () =>
     [] as {
-      options: { resumed?: boolean; onSessionEnded?: () => void } | undefined;
+      options: { resumed?: boolean; onSessionEnded?: () => void; identity?: { platform?: string } } | undefined;
       connected: boolean;
     }[],
 );
@@ -20,7 +20,10 @@ const sockets = vi.hoisted(
 vi.mock("../api/ws-client", () => ({
   WSClient: class {
     private entry: (typeof sockets)[number];
-    constructor(_url: string, options?: { resumed?: boolean; onSessionEnded?: () => void }) {
+    constructor(
+      _url: string,
+      options?: { resumed?: boolean; onSessionEnded?: () => void; identity?: { platform?: string } },
+    ) {
       this.entry = { options, connected: false };
       sockets.push(this.entry);
     }
@@ -83,5 +86,18 @@ describe("WSProvider", () => {
 
     expect(auth.refreshSession).toHaveBeenCalledTimes(1);
     unmount();
+  });
+
+  it("reports the runtime's client platform on the socket: web by default, desktop inside UniChat", () => {
+    setSessionUser(user);
+    setAccessToken("t1");
+    const first = render(<WSProvider workspaceSlug="acme/main">{null}</WSProvider>);
+    expect(sockets[0]?.options?.identity).toEqual({ platform: "web" });
+    first.unmount();
+
+    configureRuntime({ clientPlatform: "desktop" });
+    const second = render(<WSProvider workspaceSlug="acme/main">{null}</WSProvider>);
+    expect(sockets.at(-1)?.options?.identity).toEqual({ platform: "desktop" });
+    second.unmount();
   });
 });

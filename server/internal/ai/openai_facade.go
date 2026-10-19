@@ -698,16 +698,30 @@ type uniworkModuleTools struct {
 // and an unknown or missing module (the org route without `module`, a name no
 // table knows) yields no tools at all. Names and the read/write split come
 // from docs/office/g5g6g7/genoffice-tools.md §3, the mechanical block
-// generated at fork rev cb76dde5928f8ea9cf66af938d3f83bd1278f78c (extract
-// sha256 d0ef92a89cf178086768295c885448087af0ba05463748197fc9785428982fac):
+// generated at fork rev 3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b (extract
+// sha256 235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95):
 // every editor_write=yes row, plus the four group-B rows the document lists
 // as writing files or creating versions (create_document in docs, sheets and
-// pdf, save_style_template in slides). G6-01/G6-12 replace the contents when
-// the mechanical table lands; the mechanism and its tests stay.
+// pdf, save_style_template in slides), minus the five slides rows G6-09a
+// removes below. G6-01/G6-12 replace the contents when the mechanical table
+// lands; the mechanism and its tests stay.
+//
+// G6-09a (N1) takes the five slides tools the client never offers under
+// UniWork AI out of the table again — generate_deck, regenerate_slide,
+// insert_web_image, replace_image, save_style_template (the slides skill hides
+// them whenever the provider is UniWork AI) — so a modified client cannot
+// offer them and a call for one is dropped as not_allowlisted. What stays on
+// purpose in the base table: create_document (docs, sheets, pdf) and the pdf
+// file-level page tools (insert_blank_page, set_page_size, crop_pages,
+// replace_pages, extract_pages, split_pdf, split_pages, merge_pages). Those stay
+// for unbound turns and are withheld on bound turns (scope.DocumentID != "") by
+// officeUniworkBoundHiddenTools in UniworkModuleAllowlist (FU-G6-03a-BOUND).
+// The pdf text / image edit tools stay too: the client hides them by the host
+// capability, which the server cannot read.
 var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 	"docs": {
 		Read: []string{
-			"analyze_media", "ask_clarification", "get_document_context", "image_search", "list_styles",
+			"analyze_media", "ask_clarification", "generate_mindmap", "get_document_context", "image_search", "list_styles",
 			"read_attachment", "read_blocks", "read_comments", "read_notes", "read_revisions", "web_search",
 		},
 		Write: []string{
@@ -723,7 +737,7 @@ var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 		Write: []string{"apply_ops", "plan_page", "write_document"},
 	},
 	"markdown": {
-		Read:  []string{"ask_clarification", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
+		Read:  []string{"ask_clarification", "generate_mindmap", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
 		Write: []string{"apply_ops", "generate_image", "insert_image", "write_document"},
 	},
 	"pdf": {
@@ -754,11 +768,24 @@ var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 			"analyze_media", "ask_clarification", "generate_image", "image_search", "list_style_templates",
 			"load_guide", "plan_deck", "read_attachment", "read_slide", "web_search",
 		},
-		Write: []string{
-			"apply_ops", "edit_chart", "execute_slide_script", "generate_deck", "insert_web_image",
-			"regenerate_slide", "replace_image", "save_style_template",
-		},
+		Write: []string{"apply_ops", "edit_chart", "execute_slide_script"},
 	},
+}
+
+// officeUniworkBoundHiddenTools lists the tools withheld on a bound turn
+// (scope.DocumentID != "", FU-G6-03a-BOUND): create_document in docs, sheets
+// and pdf, plus the 8 pdf file-level page tools (policy Q3/Q4,
+// docs/office/g5g6g7/genoffice-tools.md §3.1 group B, §5, §9 rows 2/17/30/31).
+// Removing them from both Tools and WriteNames when bound ensures the model is
+// never offered them and any call for one is dropped as not_allowlisted.
+var officeUniworkBoundHiddenTools = map[string]map[string]bool{
+	"docs":   uniworkNameSet([]string{"create_document"}),
+	"sheets": uniworkNameSet([]string{"create_document"}),
+	"pdf": uniworkNameSet([]string{
+		"create_document",
+		"insert_blank_page", "set_page_size", "crop_pages", "replace_pages",
+		"extract_pages", "split_pdf", "split_pages", "merge_pages",
+	}),
 }
 
 // uniworkPackModules maps a genoffice web module — the names this file's tool
@@ -782,26 +809,42 @@ func UniworkPackModule(module string) (string, bool) {
 
 // UniworkModuleAllowlist builds one turn's allowlist from the interim module
 // table: the model may be offered a tool only when the client offered it AND
-// the module table knows the name. While viewOnly the module's write tools
-// are withheld (rule 6) but stay in WriteNames, so a call for one is reported
+// the module table knows the name. On a bound turn (a saved UniWork document),
+// create_document and the 8 pdf file-level page tools are removed from both
+// Tools and WriteNames so they are never offered and a call for one is reported
+// not_allowlisted. While viewOnly the module's remaining write tools are
+// withheld (rule 6) but stay in WriteNames, so a call for one is reported
 // view_only; an empty intersection offers no tool and the model answers in
 // text. The registry entries carry the client's schema and description — the
 // editor owns the tool shapes, the server owns the names. The allowlist also
 // carries the turn's pack module, which the Gateway assembles the system text
 // by and the A7 budget counts.
-func UniworkModuleAllowlist(module string, offered []UniworkToolSpec, viewOnly bool) UniworkAllowlist {
+func UniworkModuleAllowlist(module string, offered []UniworkToolSpec, viewOnly, bound bool) UniworkAllowlist {
 	pack, _ := UniworkPackModule(module)
 	mod, ok := officeUniworkModulesV1[module]
 	if !ok {
 		return UniworkAllowlist{ViewOnly: viewOnly, Module: pack}
 	}
+	var hidden map[string]bool
+	if bound {
+		hidden = officeUniworkBoundHiddenTools[module]
+	}
+	writeList := mod.Write
+	if len(hidden) > 0 {
+		writeList = make([]string, 0, len(mod.Write))
+		for _, w := range mod.Write {
+			if !hidden[w] {
+				writeList = append(writeList, w)
+			}
+		}
+	}
 	read := uniworkNameSet(mod.Read)
-	writes := uniworkNameSet(mod.Write)
+	writes := uniworkNameSet(writeList)
 	seen := make(map[string]bool, len(offered))
-	allow := UniworkAllowlist{WriteNames: mod.Write, ViewOnly: viewOnly, Module: pack}
+	allow := UniworkAllowlist{WriteNames: writeList, ViewOnly: viewOnly, Module: pack}
 	for _, spec := range offered {
 		name := spec.Function.Name
-		if name == "" || seen[name] {
+		if name == "" || seen[name] || hidden[name] {
 			continue
 		}
 		_, isRead := read[name]

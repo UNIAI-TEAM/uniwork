@@ -25,6 +25,7 @@ func TestDocumentMetricsExposeSaveAndWorkerSignals(t *testing.T) {
 	d.IncDocumentVersionsProtectedOverflow()
 	d.ObserveDocumentSave("page", "ok", 0.012)
 	d.ObserveDocumentSave("file", "conflict", 0.4)
+	d.ObserveDocumentSave("file", "unchanged", 0.02)
 	d.IncDocumentConflict("file", "document_version_conflict")
 	d.IncDocumentQuotaRejected("page")
 	d.ObserveDocumentWorkerSweep("purge", "error", 3.5)
@@ -38,12 +39,42 @@ func TestDocumentMetricsExposeSaveAndWorkerSignals(t *testing.T) {
 		"uniwork_document_versions_protected_overflow_total 1",
 		`uniwork_document_saves_total{kind="page",outcome="ok"} 1`,
 		`uniwork_document_saves_total{kind="file",outcome="conflict"} 1`,
+		`uniwork_document_saves_total{kind="file",outcome="unchanged"} 1`,
 		`uniwork_document_save_duration_seconds_count{kind="page"} 1`,
-		`uniwork_document_save_duration_seconds_count{kind="file"} 1`,
+		`uniwork_document_save_duration_seconds_count{kind="file"} 2`,
 		`uniwork_document_conflicts_total{code="document_version_conflict",kind="file"} 1`,
 		`uniwork_document_quota_rejects_total{kind="page"} 1`,
 		`uniwork_document_worker_sweeps_total{result="error",worker="purge"} 1`,
 		`uniwork_document_worker_sweep_duration_seconds_count{worker="purge"} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q\n%s", want, body)
+		}
+	}
+}
+
+// UNI-1645: the three edit-lock families are returned by Collectors(), so the
+// registry NewRegistry builds exposes them to a scrape; a family left out of
+// Collectors() would be invisible in production.
+func TestDocumentMetricsExposeEditLockSignals(t *testing.T) {
+	registry := NewRegistry(RegistryOptions{})
+	d := registry.Documents
+
+	d.IncDocumentEditLockOp("acquire")
+	d.IncDocumentEditLockOp("acquire")
+	d.IncDocumentEditLockOp("session_revoked")
+	d.IncDocumentEditLockRefused("frame_commit")
+	d.IncDocumentEditRequest("rate_limited")
+
+	rec := httptest.NewRecorder()
+	NewHandler(registry.Gatherer).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rec.Body.String()
+
+	for _, want := range []string{
+		`uniwork_document_edit_lock_ops_total{op="acquire"} 2`,
+		`uniwork_document_edit_lock_ops_total{op="session_revoked"} 1`,
+		`uniwork_document_edit_lock_refused_total{route="frame_commit"} 1`,
+		`uniwork_document_edit_requests_total{op="rate_limited"} 1`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("metrics body missing %q\n%s", want, body)

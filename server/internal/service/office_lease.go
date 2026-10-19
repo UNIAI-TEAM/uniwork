@@ -64,9 +64,12 @@ func officeLeaseLimitReached() error {
 // document that went to the trash (G5-D1 row 14): the app keeps its copy to
 // the lease's expiry instead of reading a not-found as lost access. Only a
 // holder of a live lease row, or a manager who can see the archived document
-// anyway, ever gets it, so it reveals nothing.
+// anyway, ever gets it, so it reveals nothing. The version-save routes (commit,
+// upload, restore, and the web frame's two save routes) answer it too, under
+// the same rule: only an actor who could save (edit or more), or a lease
+// holder / manager, ever gets it; below edit the document stays not_found.
 func documentArchived() error {
-	return CodedError{Code: "document_archived", Status: http.StatusForbidden, Msg: "this document is archived", Err: ErrDocumentArchived}
+	return CodedError{Code: "document_archived", Status: http.StatusForbidden, Msg: "tài liệu đã được lưu trữ", Err: ErrDocumentArchived}
 }
 
 // Lease levels: manage reads as edit offline (G5-D1 row 3).
@@ -98,7 +101,8 @@ const (
 	OfficeLeaseRevokeAdmin             = "admin"
 )
 
-// The closed set of blocked-lease reasons (G5-D1 row 17).
+// The closed set of blocked-lease reasons (G5-D1 row 17; ARCHIVE-01 §3 adds
+// shelved for the read-only document state).
 const (
 	officeLeaseBlockedDevice    = "device"
 	officeLeaseBlockedACL       = "acl"
@@ -107,6 +111,7 @@ const (
 	officeLeaseBlockedFlagOff   = "flag_off"
 	officeLeaseBlockedLimit     = "limit"
 	officeLeaseBlockedArchived  = "archived"
+	officeLeaseBlockedShelved   = "shelved"
 	officeLeaseBlockedSignature = "signature"
 )
 
@@ -302,6 +307,12 @@ func (s *OfficeLeaseService) Put(ctx context.Context, actor Actor, in OfficeLeas
 			return OfficeLease{}, officeLeaseBlocked(officeLeaseBlockedArchived, documentArchived())
 		}
 		return OfficeLease{}, officeLeaseBlocked(officeLeaseBlockedACL, ErrNotFound)
+	}
+	// A shelved document is read-only for everyone (ARCHIVE-01 §3): a fresh
+	// grant and a renewal both refuse with document_shelved. The app holds
+	// its downloaded copy to the live row's expiry, like the trash answer.
+	if doc.ShelvedAt.Valid {
+		return OfficeLease{}, officeLeaseBlocked(officeLeaseBlockedShelved, errDocumentShelved())
 	}
 	if !renewing {
 		live, err := q.CountLiveOfficeOfflineLeasesForDevice(ctx, db.CountLiveOfficeOfflineLeasesForDeviceParams{

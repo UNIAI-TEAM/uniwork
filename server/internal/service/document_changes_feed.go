@@ -85,11 +85,13 @@ import (
 //     through any other path now. A caller who still reads another way gets the
 //     upsert, never a removal.
 //   - visibility demotion: the REAL command is a PATCH through UpdateDocument
-//     with Visibility set, which writes document.updated with a
-//     changes.visibility {from,to} diff (document_pages.go, audit.Diff); a
-//     document.settings_changed row is the arm the document-level settings
-//     command would write and is kept harmlessly. The prior visibility comes
-//     from the audit row (metadata.visibility, or changes.visibility.from). A
+//     with Visibility set. Since SH-S1 it writes document.workspace_access_changed
+//     with a changes.visibility {from,to} diff (the home row turning on or
+//     off); rows a pre-SH-S1 binary wrote carry the same diff on
+//     document.updated, and both are read the same way. A document.settings_changed
+//     row is the arm the document-level settings command would write and is
+//     kept harmlessly. The prior visibility comes from the audit row
+//     (metadata.visibility, or changes.visibility.from). A
 //     member the prior visibility admitted and the current one refuses gets the
 //     removal. A document.updated row WITHOUT a visibility diff (a title, icon
 //     or content edit) is NOT a removal basis and is ignored - never 410; a
@@ -184,21 +186,31 @@ var feedDocumentActions = map[string]bool{
 	"document.moved":            true,
 	"document.archived":         true,
 	"document.restored":         true,
+	// ARCHIVE-01: the shelf transition reaches the client as an upsert
+	// carrying shelved - desktop flips the file read-only on it.
+	"document.shelved":          true,
+	"document.unshelved":        true,
 	"document.deleted":          true,
 	"document.asset_uploaded":   true,
 	"document.shared":           true,
 	"document.share_revoked":    true,
 	"document.settings_changed": true,
+	// SH-S1: the home row turned on, off, or changed level.
+	"document.workspace_access_changed": true,
 }
 
 // feedGrantActions are the actions that can make a document readable to
-// someone: a document created (its creator reads it) or a share granted. One
-// of these on the page means a caller's readership cannot be proven to predate
+// someone: a document created (its creator reads it), a share granted, or the
+// home row turning on - a merged share (a share naming the document's own
+// workspace) writes document.workspace_access_changed, not document.shared,
+// and it is the grant that admits every member of that workspace. One of
+// these on the page means a caller's readership cannot be proven to predate
 // their snapshot, so a removal whose evidence the change destroyed (a purge, a
 // document becoming an owner's) answers 410 instead of guessing.
 var feedGrantActions = map[string]bool{
-	"document.created": true,
-	"document.shared":  true,
+	"document.created":                  true,
+	"document.shared":                   true,
+	"document.workspace_access_changed": true,
 }
 
 // DocumentChangeFeedRow is one incremental-feed row. It carries ids, the
@@ -222,6 +234,9 @@ type DocumentChangeFeedRow struct {
 	// Archived marks an archived document: still an upsert, so archive and
 	// restore are distinct from delete.
 	Archived bool
+	// Shelved marks a shelved document (ARCHIVE-01): also an upsert, so a
+	// shelve or unshelve reaches the client as a state change, not a removal.
+	Shelved bool
 	// Removal is the reason; empty on an upsert.
 	Removal string
 }
@@ -335,11 +350,16 @@ func (s *DocumentChangesService) pageFeed(ctx context.Context, cs changeCursorSc
 // resolveFeedRow then treats an owned document as unreadable: a caller the
 // snapshot proves read it before it became owned gets the ids-only removal, a
 // stranger gets nothing.
+//
+// DOC-05: an AdminScope row (a workspace admin on a restricted document)
+// resolves through its shares alone. A break-glass grant is deliberately not
+// read here: the feed fills the offline library, and a 24-hour grant whose
+// expiry writes no audit row could never be retracted from it.
 func feedRowLevel(scope documentListScope, doc db.Document, shares []db.ListLiveSharesForDocumentsRow) DocumentLevel {
 	if doc.OwnerID.Valid {
 		return DocumentLevelNone
 	}
-	return listRowAccess(scope, false, doc, shares).Level
+	return listRowAccess(scope, false, doc, shares, false).Level
 }
 
 // feedCandidate is one document's audit rows on one page, in xact order: the
@@ -388,7 +408,9 @@ func (s *DocumentChangesService) feedRows(ctx context.Context, q *db.Queries, cs
 			ID: d.ID, OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
 			Kind: d.Kind, Revision: d.Revision, CurrentVersion: d.CurrentVersion,
 			FileVersionID: d.FileVersionID, ArchivedAt: d.ArchivedAt,
-			OwnerID: d.OwnerID, Visibility: d.Visibility, AclOwnerID: d.AclOwnerID,
+			ShelvedAt: d.ShelvedAt,
+			OwnerID:   d.OwnerID, Visibility: d.Visibility, AclOwnerID: d.AclOwnerID,
+			WorkspaceLevel: d.WorkspaceLevel,
 		}
 	}
 	// The snapshot evidence is consulted only for the two kinds whose removing
@@ -485,6 +507,7 @@ func upsertRow(doc db.Document) DocumentChangeFeedRow {
 		DocumentID: doc.ID, ChangeKind: DocumentChangeKindUpsert, Kind: doc.Kind,
 		Revision: doc.Revision, CurrentVersion: doc.CurrentVersion,
 		FileVersionID: doc.FileVersionID.String, Archived: doc.ArchivedAt.Valid,
+		Shelved: doc.ShelvedAt.Valid,
 	}
 }
 
@@ -583,6 +606,20 @@ func removalByAudit(c *feedCandidate, scope documentListScope, userID string) (r
 			if !ok {
 				// A visibility change whose prior value is missing: the removal
 				// may be due and cannot be proven either way -> 410.
+				return false, true
+			}
+			if scope.memberVisible && prior != documentVisibilityRestricted {
+				return true, false
+			}
+		case "document.workspace_access_changed":
+			// SH-S1: the home row changed - visibility on or off the workspace
+			// (the level may have moved with it). A caller the prior visibility
+			// admitted and the current one refuses gets the removal, exactly as
+			// the document.updated visibility diff answers above; a level move
+			// alone leaves a reader reading (the upsert branch above already
+			// caught it), so only the visibility off switch removes.
+			prior, ok := feedPriorVisibility(c, i)
+			if !ok {
 				return false, true
 			}
 			if scope.memberVisible && prior != documentVisibilityRestricted {

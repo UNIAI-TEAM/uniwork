@@ -1,3 +1,4 @@
+import { getSessionProvider } from "../auth/session-provider";
 import { runtimeConfig } from "../runtime-config";
 import { SessionResponseSchema, type SessionResponse } from "../types/user";
 import { emitEntitlementGateError } from "./entitlement-error-bus";
@@ -29,6 +30,9 @@ const API_ERROR_CLASSES = [
   "missing",
   "incompatible",
   "session",
+  // ARCHIVE-01 (UNI-1845): the server stamps read_only on document_shelved
+  // (409) so every shelve-blocked write fails with the same class.
+  "read_only",
 ] as const;
 
 export type ApiErrorClass = (typeof API_ERROR_CLASSES)[number];
@@ -212,22 +216,28 @@ function parseRetryAfter(value: string | null): number | undefined {
   return Math.max(0, Math.ceil((at - Date.now()) / 1000));
 }
 
-async function throwFromFailedResponse(res: Response): Promise<never> {
+export async function throwFromFailedResponse(res: Response): Promise<never> {
   let code = "internal";
+  // No `HTTP ${res.status}` fallback: a body-less failure (a proxy 502 with an
+  // HTML body, an empty statusText over HTTP/2) must leave the message empty so
+  // `apiErrorMessage` answers undefined and the caller renders its own
+  // localized sentence instead of a raw English "HTTP 502". Callers that need
+  // the status read `err.status` / `err.code`, never the message.
   let message = res.statusText;
   let fields: Record<string, unknown> | undefined;
   let errorClass: ApiErrorClass | undefined;
   try {
     const body = (await res.json()) as {
       error?: {
-        code: string;
-        message: string;
+        code?: unknown;
+        message?: unknown;
         fields?: Record<string, unknown>;
         error_class?: unknown;
       };
     };
     if (body.error) {
-      ({ code, message } = body.error);
+      if (typeof body.error.code === "string") code = body.error.code;
+      if (typeof body.error.message === "string") message = body.error.message;
       if (body.error.fields && typeof body.error.fields === "object" && !Array.isArray(body.error.fields)) {
         fields = body.error.fields;
       }
@@ -294,6 +304,19 @@ export async function requestText(path: string): Promise<string> {
  * the bearer token, so callers create a short-lived object URL from this blob.
  */
 export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"> = {}): Promise<Blob> {
+  return (await requestDownload(path, opts)).blob;
+}
+
+/**
+ * `requestBlob` for a file the user saves: the bytes plus the name the server
+ * gave them. `filename` is null when the response carries none, or when the
+ * browser may not read `Content-Disposition` (a cross-origin API that does not
+ * expose it), so the caller names the file itself.
+ */
+export async function requestDownload(
+  path: string,
+  opts: Pick<RequestOpts, "signal"> = {},
+): Promise<{ blob: Blob; filename: string | null }> {
   let res = await rawFetch(path, opts);
   if (res.status === 401 && getAccessToken()) {
     const refreshed = await refreshSession();
@@ -306,27 +329,56 @@ export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"
   // readable bytes / .text(), which breaks authenticated media object URLs in tests.
   const type = res.headers.get("Content-Type") ?? "";
   const buffer = await res.arrayBuffer();
-  return new Blob([buffer], { type });
+  return {
+    blob: new Blob([buffer], { type }),
+    filename: dispositionFilename(res.headers.get("Content-Disposition")),
+  };
+}
+
+/** The file name in a Content-Disposition value (`filename*` first, then plain), or null. */
+function dispositionFilename(value: string | null): string | null {
+  if (!value) return null;
+  const star = /filename\*\s*=\s*[^']*'[^']*'([^;]+)/i.exec(value);
+  if (star?.[1]) {
+    try {
+      return decodeURIComponent(star[1].trim());
+    } catch {
+      /* a malformed escape: fall back to the plain form */
+    }
+  }
+  const plain = /filename\s*=\s*(?:"([^"]*)"|([^;]+))/i.exec(value);
+  const name = (plain?.[1] ?? plain?.[2] ?? "").trim();
+  return name === "" ? null : name;
 }
 
 // Refresh tokens rotate: two refreshes racing (StrictMode double mount,
 // several requests hitting 401 together) would have the second one present an
 // already-revoked cookie → 401 → a spurious logout. Single-flight: every
 // caller shares one in-flight promise.
-let refreshInFlight: Promise<SessionResponse | null> | null = null;
+let refreshInFlight: Promise<RefreshedSession | null> | null = null;
+
+/** `user` is null when a host session provider refreshed: it hands out tokens only. */
+type RefreshedSession = { access_token: string; user: SessionResponse["user"] | null };
 
 /**
- * Obtain a new access token from the refresh cookie. Lives here rather than in
- * the auth endpoints because the transport's 401 retry depends on it.
+ * Obtain a new access token from the refresh cookie — or from the registered
+ * session provider when a host (the UniChat shell) owns the session. Lives
+ * here rather than in the auth endpoints because the transport's 401 retry
+ * depends on it.
  */
-export function refreshSession(): Promise<SessionResponse | null> {
+export function refreshSession(): Promise<RefreshedSession | null> {
   refreshInFlight ??= (async () => {
     const tokenBefore = getAccessToken();
     try {
-      const raw = await request("/api/v1/auth/refresh", { method: "POST", skipRefresh: true });
-      const sess = parseWithFallback<SessionResponse | null>(raw, SessionResponseSchema, null, {
-        endpoint: "POST /api/v1/auth/refresh",
-      });
+      const provider = getSessionProvider();
+      const sess: RefreshedSession | null = provider
+        ? await provider.refresh().then((t) => (t ? { access_token: t, user: null } : null))
+        : parseWithFallback<SessionResponse | null>(
+            await request("/api/v1/auth/refresh", { method: "POST", skipRefresh: true }),
+            SessionResponseSchema,
+            null,
+            { endpoint: "POST /api/v1/auth/refresh" },
+          );
       // Login/register may set a newer token while this refresh was in flight.
       const tokenNow = getAccessToken();
       if (tokenNow !== null && tokenNow !== tokenBefore) {

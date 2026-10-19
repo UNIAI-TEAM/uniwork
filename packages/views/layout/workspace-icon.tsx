@@ -13,9 +13,12 @@ import { cn } from "@uniwork/ui/lib/utils";
 export function WorkspaceIcon({
   workspace,
   className,
+  fallback,
 }: {
   workspace: Pick<Workspace, "name" | "icon_emoji" | "icon_url">;
   className?: string;
+  /** Text drawn when there is no image or emoji; the first letter of the name by default. */
+  fallback?: string;
 }) {
   // The URL that failed to load, so a new URL gets its own chance.
   const [broken, setBroken] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export function WorkspaceIcon({
         <span className="leading-none">{workspace.icon_emoji}</span>
       ) : (
         // Array.from keeps a surrogate pair (an emoji first letter) whole.
-        (Array.from(workspace.name.trim())[0] ?? "").toUpperCase()
+        (fallback ?? (Array.from(workspace.name.trim())[0] ?? "").toUpperCase())
       )}
     </span>
   );

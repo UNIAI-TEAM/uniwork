@@ -6,8 +6,12 @@ package service
 
 import (
 	"context"
+	"slices"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/audit"
 )
 
 func countVersions(t *testing.T, f *docPermFixture, documentID, reason string) int {
@@ -19,6 +23,84 @@ func countVersions(t *testing.T, f *docPermFixture, documentID, reason string) i
 		t.Fatal(err)
 	}
 	return n
+}
+
+func TestDocumentWorkersCommitIntentSweepTick(t *testing.T) {
+	t.Run("unset policy keeps commitIntentSweepTick default", func(t *testing.T) {
+		svc := NewDocumentService(nil, nil, nil, nil)
+		w := svc.NewDocumentWorkers()
+		if w.IntentTick != 0 {
+			t.Fatalf("IntentTick = %v, want 0 when policy SweepTick is unset", w.IntentTick)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var mu sync.Mutex
+		var ticks []time.Duration
+		w.after = func(d time.Duration) <-chan time.Time {
+			mu.Lock()
+			ticks = append(ticks, d)
+			if slices.Contains(ticks, commitIntentSweepTick) {
+				cancel()
+			}
+			mu.Unlock()
+			return make(chan time.Time)
+		}
+		w.Run(ctx)
+		if !slices.Contains(ticks, commitIntentSweepTick) {
+			t.Fatalf("observed ticks %v, want default %v (%v)", ticks, commitIntentSweepTick, 10*time.Minute)
+		}
+	})
+
+	t.Run("configured policy SweepTick threads into NewDocumentWorkers and Run", func(t *testing.T) {
+		const customTick = 15 * time.Millisecond
+		svc := NewDocumentService(nil, nil, nil, nil)
+		svc.SetCommitIntentPolicy(CommitIntentPolicy{SweepTick: customTick})
+		w := svc.NewDocumentWorkers()
+		if w.IntentTick != customTick {
+			t.Fatalf("NewDocumentWorkers().IntentTick = %v, want %v", w.IntentTick, customTick)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		var mu sync.Mutex
+		var ticks []time.Duration
+		intentPasses := 0
+		w.swept = func(kind string, err error) {
+			if kind != "commit_intent" {
+				return
+			}
+			if err != nil {
+				t.Errorf("commit_intent sweep error: %v", err)
+			}
+			mu.Lock()
+			intentPasses++
+			if intentPasses >= 3 {
+				cancel()
+			}
+			mu.Unlock()
+		}
+		w.after = func(d time.Duration) <-chan time.Time {
+			mu.Lock()
+			ticks = append(ticks, d)
+			mu.Unlock()
+			if d == customTick {
+				ch := make(chan time.Time, 1)
+				time.AfterFunc(customTick, func() { ch <- time.Now() })
+				return ch
+			}
+			return make(chan time.Time)
+		}
+		w.Run(ctx)
+		if intentPasses < 3 {
+			t.Fatalf("commit_intent passes = %d, want at least 3 on %v tick", intentPasses, customTick)
+		}
+		if !slices.Contains(ticks, customTick) {
+			t.Fatalf("observed ticks %v, want %v", ticks, customTick)
+		}
+		if slices.Contains(ticks, commitIntentSweepTick) {
+			t.Fatalf("observed ticks %v still used default %v instead of override %v", ticks, commitIntentSweepTick, customTick)
+		}
+	})
 }
 
 func TestDocumentWorkers(t *testing.T) {
@@ -101,4 +183,86 @@ func TestDocumentWorkers(t *testing.T) {
 			t.Fatal("worker did not stop on cancel")
 		}
 	})
+}
+
+// BIGUP S1-b (R1-11): the running worker, not a direct call, must be what
+// expires an expired multipart session: parts aborted, quota released, row
+// terminal and the system audit row written.
+func TestDocumentWorkersRunExpiresMultipartUpload(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	const size = 25 << 20
+	_, probe := buildLargePDF(size, "worker-gc")
+	opened, err := env.svc.OpenWorkspaceUploadSession(ctx, member, env.tn.wsA, OpenUploadSessionInput{
+		Filename:       "worker-gc.pdf",
+		SizeBytes:      size,
+		Probe:          probe,
+		IdempotencyKey: nextIDK(),
+	})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if used, _ := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID); used != size {
+		t.Fatalf("reserved bytes = %d, want %d", used, size)
+	}
+
+	// Push the session past expires_at, then run the real worker for one
+	// commit_intent pass on a fake clock. The observation hook and its
+	// channel exist before Run starts: an immediate sweep must never race
+	// the assignment, and its notification must never be lost.
+	env.clock.Advance(UploadSessionTTL + time.Hour)
+	w := env.svc.NewDocumentWorkers()
+	w.now = env.clock.Now
+	w.after = func(time.Duration) <-chan time.Time { return make(chan time.Time) }
+	swept := make(chan error, 8)
+	w.swept = func(kind string, err error) {
+		if kind == "commit_intent" {
+			swept <- err
+		}
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		w.Run(runCtx)
+	}()
+	select {
+	case serr := <-swept:
+		if serr != nil {
+			t.Fatalf("commit_intent sweep: %v", serr)
+		}
+	case <-time.After(30 * time.Second):
+		cancel()
+		t.Fatal("commit_intent sweep did not run")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("worker did not stop on cancel")
+	}
+
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, opened.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Status != "expired" {
+		t.Fatalf("session status = %q, want expired", row.Status)
+	}
+	env.store.mu.Lock()
+	aborts := env.store.abortsByKey[row.ObjectKey]
+	env.store.mu.Unlock()
+	if aborts != 1 {
+		t.Fatalf("aborts for %s = %d, want 1", row.ObjectKey, aborts)
+	}
+	if used, _ := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID); used != 0 {
+		t.Fatalf("reserved bytes after expiry = %d, want 0", used)
+	}
+	if n := env.countAudit(t, audit.ActionDocumentUploadSessionExpired, opened.SessionID); n != 1 {
+		t.Fatalf("expired audit rows = %d, want 1", n)
+	}
 }

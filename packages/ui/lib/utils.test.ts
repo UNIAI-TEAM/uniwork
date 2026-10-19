@@ -42,6 +42,16 @@ describe("cn: cỡ chữ và màu chữ là hai nhóm khác nhau", () => {
     expect(cn("text-sm", "text-lg")).toBe("text-lg");
   });
 
+  it("bong bóng chat của mình giữ cả cỡ lẫn màu chữ", () => {
+    // The meeting chat tab writes `text-body text-foreground` then the own
+    // bubble; the bubble's ink must replace the foreground, not the size.
+    const out = cn("text-body text-foreground", "bg-chat-bubble-own text-chat-bubble-own-foreground");
+    expect(out).toContain("text-body");
+    expect(out).toContain("text-chat-bubble-own-foreground");
+    expect(out).not.toContain("text-foreground ");
+    expect(cn("text-caption", "text-chat-bubble-own-meta")).toBe("text-caption text-chat-bubble-own-meta");
+  });
+
   it("nút primary size lg giữ được màu chữ", () => {
     // Đúng thứ tự thật: base + variant + size, rồi className của call site.
     const out = cn("bg-brand text-brand-foreground hover:opacity-90 h-10 px-4 text-body", "w-full");

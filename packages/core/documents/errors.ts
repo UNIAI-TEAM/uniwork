@@ -1,5 +1,5 @@
 import { ApiError, errorClassOf, errorCode, errorFields } from "../api/http";
-import type { DocumentErrorClass } from "../types/document";
+import { DOCUMENT_ACCESS_LEVELS, type DocumentAccessLevel, type DocumentErrorClass } from "../types/document";
 
 // Maps the stable wire codes of C-01 §14.5 onto the client-side classes the
 // save machine and the UI branch on — a mirror of errorClassByCode in
@@ -22,10 +22,16 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   // FD-02). The server stamps the class, so this entry only fires when the
   // stamp is missing; it keeps the mirror true to errorClassByCode.
   folder_name_taken: "conflict",
+  // ARCHIVE-01 (UNI-1845): every write on a shelved document refuses with 409
+  // document_shelved. The server stamps read_only; this entry mirrors
+  // error_class.go when the stamp is stripped or the client predates it.
+  document_shelved: "read_only",
+  my_folder_locked: "conflict",
   document_deleted: "gone",
   quota_exceeded: "quota",
   forbidden: "permission",
   member_deactivated: "permission",
+  workspace_seat_required: "permission",
   organization_suspended: "permission",
   not_meeting_host: "permission",
   ai_context_forbidden: "permission",
@@ -36,6 +42,10 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   unauthorized: "session",
   invalid_token: "session",
   invalid_code: "session",
+  // 423: someone else holds the edit lock (UNI-1645). The server carries no
+  // class for it, so this entry is the only path to "locked" - without it a
+  // 423 classifies unknown and the save machine keeps retrying.
+  document_locked: "locked",
   // Client-only fallbacks for plausible codes the server table omits.
   document_version_unchanged: "conflict",
   file_too_large: "quota",
@@ -100,4 +110,62 @@ export function classifyDocumentError(err: unknown): ClassifiedDocumentError {
  *  a silently newer base (plan G1-05 save-state contract). */
 export function isConflictClass(cls: DocumentErrorClass | "unknown"): boolean {
   return cls === "conflict";
+}
+
+/**
+ * The people a batch share refused (UNI-1641): a 422
+ * `principal_not_in_organization` carries the offending ids, in request
+ * order, in `fields.principal_ids`. Null for any other failure, so the caller
+ * falls back to the generic message; non-string entries are dropped.
+ */
+export function sharePrincipalsNotInOrganization(err: unknown): string[] | null {
+  if (errorCode(err) !== "principal_not_in_organization") return null;
+  const ids = errorFields(err)?.principal_ids;
+  if (!Array.isArray(ids)) return null;
+  return ids.filter((id): id is string => typeof id === "string" && id !== "");
+}
+
+/**
+ * The ceiling on a share for the document's own workspace (SH-S1 Q-S1). The
+ * server answers that refusal — 422 `level_not_allowed`, the home row tops out
+ * below manage — with the top level it does take in `fields.max`. The code is
+ * deliberately unclassified (`dto/sdo/error_class.go`: the caller may share,
+ * so not permission; nothing needs a reload, so not conflict), so it never
+ * reaches CODE_TO_CLASS and this helper is the client's whole reading of it.
+ * Null for any other failure, so a caller keeps its own state instead of
+ * lowering a level that was never refused.
+ */
+export function shareLevelNotAllowedMax(err: unknown): DocumentAccessLevel | null {
+  if (errorCode(err) !== "level_not_allowed") return null;
+  const max = errorFields(err)?.max;
+  if (typeof max !== "string") return null;
+  return DOCUMENT_ACCESS_LEVELS.find((level) => level === max) ?? null;
+}
+
+/**
+ * True when a purge or restore request targeted a document that is not in the
+ * trash (`400 document_not_in_trash`, RESTORE-01 §2 P-1). Deliberately
+ * unclassified so it does not trigger save-conflict, quota or gone recovery.
+ */
+export function isDocumentNotInTrashError(err: unknown): boolean {
+  return errorCode(err) === "document_not_in_trash";
+}
+
+/**
+ * True when an archive or purge subtree exceeded the per-command node bound
+ * (`400`/`422 folder_too_large`, FD-06 / RESTORE-01 §2 P-7). Deliberately
+ * unclassified so it does not trigger billing quota or save-conflict recovery.
+ */
+export function isFolderTooLargeError(err: unknown): boolean {
+  return errorCode(err) === "folder_too_large";
+}
+
+/**
+ * True when a write refused because the document sits in "Lưu trữ" (`409
+ * document_shelved`, ARCHIVE-01 §0/§3). Views switch the open document to its
+ * read-only shell off this - U-10 invalidates the document so the UI settles
+ * while the caller keeps the unsent draft.
+ */
+export function isDocumentShelvedError(err: unknown): boolean {
+  return errorCode(err) === "document_shelved";
 }

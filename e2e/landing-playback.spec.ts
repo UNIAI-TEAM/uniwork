@@ -9,8 +9,10 @@ test("preview plays a real sequence, pauses and stops outside the viewport", asy
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await gotoLanding(page, "/#du-an");
   await landingReady(page);
+  await page.waitForLoadState("networkidle");
   const player = page.locator(".product-playback");
   await player.scrollIntoViewIfNeeded();
+  await expect(player).toHaveAttribute("data-reduced", "false", { timeout: 15_000 });
   await expect(player).toHaveAttribute("data-running", "true");
   // Real time, not a faked clock: under load the film may already be past beat 1.
   await expect.poll(async () => Number(await player.getAttribute("data-step")), { timeout: 8000 }).toBeGreaterThanOrEqual(1);
@@ -32,19 +34,19 @@ test("reduced motion is still by default and manual exploration retains local ac
   await landingReady(page);
   const player = page.locator(".product-playback");
   await expect(player).toHaveAttribute("data-running", "false");
-  await expect(player.locator(".demo-unassigned")).toBeVisible();
+  await expect(player.locator('[data-demo-item="design"]')).toContainText("UNI-18");
   await page.getByRole("button", { name: "Tự khám phá", exact: true }).click();
   const stage = page.locator("#product-preview");
-  await stage.getByRole("searchbox").fill("phạm vi");
-  await expect(stage.locator(".preview-task")).toHaveCount(1);
+  await stage.getByRole("tabpanel").getByRole("button", { name: "Bộ lọc", exact: true }).click();
+  await stage.getByRole("searchbox", { name: "Tìm công việc minh họa" }).fill("phạm vi");
+  await expect(stage.getByRole("tabpanel").locator(".product-task-open")).toHaveCount(1);
   await page.getByRole("button", { name: "Xem demo", exact: true }).click();
   await expect(player).toBeVisible();
   await page.getByRole("button", { name: "Tự khám phá", exact: true }).click();
-  await expect(stage.getByRole("searchbox")).toHaveValue("phạm vi");
+  await expect(stage.getByRole("searchbox", { name: "Tìm công việc minh họa" })).toHaveValue("phạm vi");
 });
 
-// Below 768px the stage shows a readable three-step story instead of the film
-// (DESIGN.md, "readable three-step summary below 768px"); see the test after this loop.
+// Every implemented film uses the current product presentation components.
 for (const width of [1440]) {
   test(`every storyboard reaches its last beat without clipping at ${width}px`, async ({ page }) => {
     // Every clock tick also drives the 3D core and scroll ticker, so a full run of
@@ -61,31 +63,31 @@ for (const width of [1440]) {
       await page.bringToFront();
       await player.scrollIntoViewIfNeeded();
       await expect(player).toBeInViewport({ ratio: .5 });
-      await player.getByRole("button", { name: "Phát demo", exact: true }).click();
+      await page.locator('#product-preview [data-action="toggle-playback"]').click();
       await expect(player).toHaveAttribute("data-running", "true");
       const beatCount = Number(await player.getAttribute("data-beat-count"));
       for (let beat = 1; beat < beatCount; beat++) {
         await page.clock.runFor(2700);
         await expect(player).toHaveAttribute("data-step", String(beat));
-        const clipped = await player.locator(".action-stage").evaluate(stage => {
+        const clipped = await player.locator(".action-stage, .product-meeting-stage, .product-email-stage, .product-chat-stage, .product-ask-stage").evaluate(stage => {
           const bounds = stage.getBoundingClientRect();
-          return [...stage.querySelectorAll(".action-source-picker, .action-create-dialog, .action-drawer, .action-member-picker, .action-source-detail")].filter(element => {
+          return [...stage.querySelectorAll(".action-source-picker, .product-chat-dialog, .action-create-dialog, .action-drawer, .action-member-picker, .action-source-detail")].filter(element => {
             const rect = element.getBoundingClientRect();
             return rect.left < bounds.left || rect.right > bounds.right + 1 || rect.bottom > bounds.bottom + 1;
           }).map(element => element.className);
         });
         expect(clipped, `${key} beat ${beat} fits its own stage`).toEqual([]);
       }
-      const fits = await player.locator(".demo-stage").evaluate(stage => {
+      const fits = await player.locator(".demo-stage, .product-meeting-stage, .product-email-stage, .product-chat-stage, .product-ask-stage").evaluate(stage => {
         const bounds = stage.getBoundingClientRect();
         const content = stage.firstElementChild!.getBoundingClientRect();
         return content.bottom <= bounds.bottom + 1;
       });
       expect.soft(fits, `${key} fits vertically`).toBe(true);
       if (key === "tasks") {
-        await expect(player.locator('[data-status="done"] [data-demo-result="task-moved"]')).toContainText("HA");
+        await expect(player.locator('[data-status="done"] [data-demo-result="task-moved"]')).toContainText("Hoàng Anh");
         await expect(player.locator('[data-demo-item="design"]')).toHaveCount(1);
-        await expect(player.locator('.lovable-task-stats > div').nth(2)).toContainText("4");
+        await expect(player.locator('[data-status="done"] [data-slot="status-heading"]')).toContainText("1");
       }
       if (process.env.LANDING_CAPTURE === "1" && key === "tasks") {
         const dir = resolve(import.meta.dirname, "../.impeccable/review");
@@ -96,24 +98,24 @@ for (const width of [1440]) {
   });
 }
 
-test("storyboards become readable three-step stories at 390px", async ({ page }) => {
+test("current Chat and Ask UNI films also play on phones", async ({ page }) => {
+  test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await gotoLanding(page, "/#du-an");
   await landingReady(page);
-  for (const key of ["tasks", "meetings", "chat", "ask", "email"]) {
+  await page.waitForLoadState('networkidle');
+  await page.clock.install();
+  for (const key of ["chat", "ask"]) {
     await selectWorkspaceFeature(page, key, false);
-    const story = page.locator(`.mobile-feature-story[data-mobile-feature="${key}"]`);
-    await story.scrollIntoViewIfNeeded();
-    await expect(story).toBeVisible();
-    const steps = story.locator(".mobile-story-steps button");
-    await expect(steps).toHaveCount(3);
-    const detail = story.locator(".mobile-story-detail");
-    const first = await detail.innerText();
-    await steps.nth(2).click();
-    await expect(steps.nth(2)).toHaveAttribute("aria-pressed", "true");
-    await expect(detail).not.toHaveText(first);
-    for (const button of await steps.all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    const player = page.locator('.product-playback');
+    await player.scrollIntoViewIfNeeded();
+    await page.locator('#product-preview [data-action=toggle-playback]').click();
+    await expect(player).toHaveAttribute('data-running', 'true');
+    const beats = Number(await player.getAttribute('data-beat-count'));
+    for (let beat = 1; beat < beats; beat++) await page.clock.runFor(2700);
+    await expect(player).toHaveAttribute('data-step', String(beats - 1));
+    await expect(player.locator(key === 'chat' ? '[data-demo-result=chat-task]' : '.product-ask-turns')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });

@@ -59,7 +59,7 @@ func (h *handlers) listDocumentChanges(w http.ResponseWriter, r *http.Request) {
 		row := sdo.DocumentChangeFeedSDO{
 			DocumentID: f.DocumentID, ChangeKind: f.ChangeKind, Kind: f.Kind,
 			Revision: changeRevisionWire(f.Revision), CurrentVersion: f.CurrentVersion,
-			Archived: f.Archived, Removal: f.Removal,
+			Archived: f.Archived, Shelved: f.Shelved, Removal: f.Removal,
 		}
 		if f.FileVersionID != "" {
 			v := f.FileVersionID

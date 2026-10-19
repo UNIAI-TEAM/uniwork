@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, type WSMessage } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { PROTOCOL_NS, PROTOCOL_VERSION, checkInitComments, type Envelope, type InitPayload, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import type { User } from "@uniwork/core/types";
@@ -55,6 +56,9 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const api = vi.fn<(path: string, opts?: { method?: string; headers?: Record<string, string> }) => Promise<unknown>>((path, opts) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
     if (path === OTHER_MINT_PATH) return Promise.resolve({ ...minted(canEdit), module, document_id: "doc-2" });
+    // The session reads its upload ceiling from GET /api/v1/config (useDocumentLimits); answer it
+    // like use-docs-frame-session.test.tsx does so the query resolves instead of erroring.
+    if (String(path).startsWith("/api/v1/config")) return Promise.resolve({ flags: {} });
     return Promise.reject(new Error(`unexpected ${path} ${opts?.method ?? "GET"}`));
   });
   requestMock.mockImplementation(api);
@@ -87,7 +91,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
     const comments = useFrameComments({ wsId: "ws-1", ...props, documentId });
     panels.push(comments.framePanel);
     const session = useDocsFrameSession({
-      iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", documentId,
+      iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: { kind: "document", id: documentId },
       readonly, locale: "vi", theme: "light", onError, comments: comments.binding,
       api: { open: vi.fn(), save: vi.fn(), recents: vi.fn() } as unknown as DocsFrameApi,
     });
@@ -95,7 +99,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   }, { wrapper, initialProps: initial as Props });
   const sent = (type: string) => received.filter((m) => m.kind === "request" && m.type === type);
   const frame = {
-    hook, panels, received, sent, onError, api,
+    hook, panels, received, sent, onError, api, client,
     rerender: (props: Props) => hook.rerender(props),
     event: (type: string, payload: unknown) => post(envelope("event", type, payload)),
     respond: (to: Envelope, payload: unknown) => post(envelope("response", to.type, payload, to.id)),
@@ -152,8 +156,11 @@ describe("useFrameComments: what init advertises (OQ-C12)", () => {
 
   it.each([
     ["view", { myLevel: "view" }, "view"],
+    ["comment (DOC-05)", { myLevel: "comment" }, "comment"],
     ["edit", { myLevel: "edit" }, "edit"],
     ["manage", { myLevel: "manage" }, "manage"],
+    ["a level the client does not know never maps upward", { myLevel: "owner" }, "view"],
+    ["an empty level (admin-only caller) is view", { myLevel: "" }, "view"],
     ["a read-only page never gets more than view", { myLevel: "manage", readonly: true }, "view"],
     ["no level and an editor token: edit, never manage", { myLevel: null }, "edit"],
     ["no level and a token that cannot edit (sheets): view", { myLevel: undefined, module: "sheets" as const, canEdit: false }, "view"],
@@ -163,6 +170,19 @@ describe("useFrameComments: what init advertises (OQ-C12)", () => {
     expect(initOf(frame).commentsLevel).toBe(level);
     expect(initOf(frame).capabilities.comments).toBe(true);
     // The host-side rule of the protocol: a host that grants comments must send a valid level.
+    expect(checkInitComments(frame.sent("init")[0]!.payload as InitPayload)).toBeNull();
+  });
+
+  it.each([
+    ["manage", { myLevel: "manage" }, true],
+    ["edit", { myLevel: "edit" }, false],
+    ["comment", { myLevel: "comment" }, false],
+    ["a read-only page", { myLevel: "manage", readonly: true }, false],
+    ["an unknown level", { myLevel: "owner" }, false],
+  ])("advertises commentsShareView only to a caller who can share (%s)", async (_name, props, granted) => {
+    const frame = setup(props);
+    await frame.boot();
+    expect(initOf(frame).capabilities.commentsShareView === true).toBe(granted);
     expect(checkInitComments(frame.sent("init")[0]!.payload as InitPayload)).toBeNull();
   });
 
@@ -366,8 +386,7 @@ describe("useFrameComments: the frame's requests go to the D API with the user's
   it("delete, resolve, reopen, revisions, anchors and mention search use their routes", async () => {
     const frame = setup({ myLevel: "manage" });
     await frame.boot();
-    const calls = (): Array<[string, string]> => frame.api.mock.calls
-      .filter(([path]) => String(path) !== MINT_PATH)
+    const calls = (): Array<[string, string]> => frame.commentsRequests()
       .map(([path, opts]) => [(opts as { method?: string } | undefined)?.method ?? "GET", String(path)]);
     frame.api.mockImplementation((path: string) => {
       if (path.endsWith("/revisions")) return Promise.resolve({ revisions: [] });
@@ -396,6 +415,109 @@ describe("useFrameComments: the frame's requests go to the D API with the user's
       ["GET", "/api/v1/documents/doc-1/mention-candidates?q=ng&limit=5"],
     ]);
   });
+});
+
+describe("useFrameComments: G8-18 comments.shareView and mentions without access", () => {
+  const SHARE = { share: { id: "s1", principal_type: "user", principal_id: "u2", level: "view" } };
+  const SHARES_PATH = "/api/v1/documents/doc-1/shares";
+
+  it("shares view, and only view, with the named user and answers ok", async () => {
+    const frame = setup({ myLevel: "manage" });
+    await frame.boot();
+    frame.api.mockResolvedValue(SHARE);
+    const answer = await frame.answerOf(await frame.request("comments.shareView", { user_id: "u2" }));
+    expect(frame.api).toHaveBeenLastCalledWith(
+      SHARES_PATH,
+      expect.objectContaining({ method: "POST", body: { principal_type: "user", principal_id: "u2", level: "view" } }),
+    );
+    expect(answer.payload).toEqual({ ok: true });
+  });
+
+  it("L9: a share the frame made refreshes the shares list an open share dialog reads", async () => {
+    const frame = setup({ myLevel: "manage" });
+    await frame.boot();
+    const spy = vi.spyOn(frame.client, "invalidateQueries");
+    frame.api.mockResolvedValue(SHARE);
+    await frame.answerOf(await frame.request("comments.shareView", { user_id: "u2" }));
+    expect(spy).toHaveBeenCalledWith({ queryKey: documentKeys.shares("ws-1", "doc-1") });
+  });
+
+  it("L9: a refused share does not touch the shares cache", async () => {
+    const frame = setup({ myLevel: "manage" });
+    await frame.boot();
+    const spy = vi.spyOn(frame.client, "invalidateQueries");
+    frame.api.mockRejectedValue(new ApiError("x", "forbidden", 403));
+    await frame.answerOf(await frame.request("comments.shareView", { user_id: "u2" }));
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("refuses without the capability (a level below manage): forbidden, no share request", async () => {
+    const frame = setup({ myLevel: "edit" });
+    await frame.boot();
+    frame.api.mockResolvedValue(SHARE);
+    const answer = await frame.answerOf(await frame.request("comments.shareView", { user_id: "u2" }));
+    expect(errorOf(answer)).toMatchObject({ code: "forbidden" });
+    expect(frame.api.mock.calls.some(([path]) => path === SHARES_PATH)).toBe(false);
+  });
+
+  it.each([
+    [403, "forbidden", "forbidden"],
+    [403, "break_glass_required", "forbidden"],
+    [422, "principal_not_in_organization", "invalid_arg"],
+    [409, "document_owned_by_work_product", "conflict"],
+    [404, "not_found", "not_found"],
+    [401, "unauthorized", "unauthorized"],
+    [503, "unavailable", "internal"],
+  ])("HTTP %i %s becomes %s", async (status, code, expected) => {
+    const frame = setup({ myLevel: "manage" });
+    await frame.boot();
+    frame.api.mockRejectedValue(new ApiError("x", code, status));
+    const answer = await frame.answerOf(await frame.request("comments.shareView", { user_id: "u2" }));
+    expect(errorOf(answer)).toMatchObject({ code: expected, status });
+    if (status === 403 || status === 409) expect(errorOf(answer)).toMatchObject({ details: { code } });
+  });
+
+  it("a malformed share answer is an internal error, never ok", async () => {
+    const frame = setup({ myLevel: "manage" });
+    await frame.boot();
+    frame.api.mockResolvedValue({ nope: true });
+    const answer = await frame.answerOf(await frame.request("comments.shareView", { user_id: "u2" }));
+    expect(errorOf(answer)).toMatchObject({ code: "internal" });
+  });
+
+  it("passes include=no_access through to the mention candidates and hands can_view back untouched", async () => {
+    const frame = setup({ myLevel: "edit" });
+    await frame.boot();
+    const candidates = [{ user_id: "u2", display_name: "Bình", can_view: false }, { user_id: "u3", display_name: "Cường", can_view: true }];
+    frame.api.mockResolvedValue({ candidates });
+    const answer = await frame.answerOf(await frame.request("mentions.search", { q: "b", limit: 5, include: "no_access" }));
+    expect(frame.api).toHaveBeenLastCalledWith("/api/v1/documents/doc-1/mention-candidates?q=b&limit=5&include=no_access", expect.objectContaining({}));
+    expect(answer.payload).toEqual({ candidates });
+  });
+
+  it("hands mentions_without_access back untouched on create and on the list", async () => {
+    const frame = setup({ myLevel: "edit" });
+    await frame.boot();
+    const comment = { ...WIRE, mentions_without_access: [{ user_id: "u2", display_name: "Bình", can_share: true }, { user_id: "u9", can_share: false }] };
+    frame.api.mockResolvedValue({ comment });
+    const created = await frame.answerOf(await frame.request("comments.create", { kind: "discussion", body: "hi [@Bình](mention://member/u2)" }));
+    expect(created.payload).toEqual({ comment });
+    frame.api.mockResolvedValue({ comments: [comment], mentions: [], list_token: "lt1:cc", unchanged: false });
+    const listed = await frame.answerOf(await frame.request("comments.list", {}));
+    expect(listed.payload).toMatchObject({ comments: [comment] });
+  });
+
+  it.each(["comments.list", "comments.create", "comments.resolve", "mentions.search", "comments.shareView"] as const)(
+    "403 document_restricted on %s is the frame's forbidden path, with the server code kept",
+    async (type) => {
+      const frame = setup({ myLevel: "manage" });
+      await frame.boot();
+      frame.api.mockRejectedValue(new ApiError("restricted", "document_restricted", 403));
+      const payload = type === "comments.create" ? { kind: "discussion", body: "x" } : type === "mentions.search" ? { q: "" } : type === "comments.shareView" ? { user_id: "u2" } : type === "comments.resolve" ? { comment_id: "c1" } : {};
+      const answer = await frame.answerOf(await frame.request(type, payload));
+      expect(errorOf(answer)).toMatchObject({ code: "forbidden", status: 403, retryable: false, details: { code: "document_restricted" } });
+    },
+  );
 });
 
 describe("useFrameComments: a comment deep link (?comment=)", () => {

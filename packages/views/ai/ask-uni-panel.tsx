@@ -75,7 +75,12 @@ function Citations({ citations }: { citations: AiCitation[] }) {
   );
 }
 
-function Turn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" | "notice" | "citations"> }) {
+/** One question or answer. `notice` is optional so a static preview (the landing demo) can render a turn. */
+export function AskUniMessageTurn({
+  message,
+}: {
+  message: Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice">>;
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const mine = message.role === "user";
   const noticeText = (code: string) => {
@@ -95,7 +100,7 @@ function Turn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" 
           mine ? "bg-surface-selected text-surface-selected-foreground" : "border border-border bg-surface text-foreground",
         )}
       >
-        {message.content === "" && message.notice !== "" ? noticeText(message.notice) : message.content}
+        {message.content === "" && message.notice ? noticeText(message.notice) : message.content}
         {mine ? null : <Citations citations={message.citations} />}
       </div>
     </li>
@@ -293,7 +298,7 @@ export function AskUniPanel() {
           ) : (
             <ul className="space-y-4" aria-live="polite">
               {turns.map((m) => (
-                <Turn key={m.id} message={m} />
+                <AskUniMessageTurn key={m.id} message={m} />
               ))}
               {ask.isPending ? (
                 <li className="flex items-center gap-2 text-caption text-muted-foreground">

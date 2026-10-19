@@ -130,6 +130,21 @@ describe("showWebNotification", () => {
     expect(onClick).toHaveBeenCalledWith(payload());
   });
 
+  it("asks the UniChat shell to focus its window on click", () => {
+    const focusWindow = vi.fn();
+    (globalThis as Record<string, unknown>).window = {
+      Notification: FakeNotification,
+      focus: () => {},
+      desktopAPI: { app: "unichat", focusWindow },
+    };
+
+    showWebNotification(payload());
+    created[0]?.instance.onclick?.();
+
+    expect(focusWindow).toHaveBeenCalledTimes(1);
+    expect(created[0]?.instance.close).toHaveBeenCalledTimes(1);
+  });
+
   it("swallows constructors that throw (e.g. service-worker-only engines)", () => {
     class ThrowingNotification {
       static permission: NotificationPermission = "granted";

@@ -94,7 +94,7 @@ func (s *DocumentService) CreateDocumentLink(ctx context.Context, actor Actor, d
 	if expiresInDays < 1 || expiresInDays > documentLinkMaxDays {
 		return CreatedDocumentLink{}, Invalid("expires_in_days phải từ 1 đến 90")
 	}
-	doc, access, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
+	doc, access, err := s.authorizeDocumentViewOrAdminister(ctx, actor, documentID)
 	if err != nil {
 		return CreatedDocumentLink{}, err
 	}
@@ -117,7 +117,7 @@ func (s *DocumentService) CreateDocumentLink(ctx context.Context, actor Actor, d
 		return CreatedDocumentLink{}, err
 	}
 	var out CreatedDocumentLink
-	err = s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (s *DocumentService) CreateDocumentLink(ctx context.Context, actor Actor, d
 // RevokeDocumentLink ends a link; the next public read with its token is
 // not found.
 func (s *DocumentService) RevokeDocumentLink(ctx context.Context, actor Actor, documentID, linkID string) error {
-	return s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	return s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteAllowed, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}

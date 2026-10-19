@@ -21,7 +21,7 @@ interface DocsAccount {
   wsSlug: string;
 }
 
-interface DocsUser {
+export interface DocsUser {
   token: string;
   email: string;
 }
@@ -94,7 +94,7 @@ async function createWorkspaceInOrg(
  * parameter (that helper hardcodes member); accepting marks the invitee
  * onboarded, so the UI flows can sign them in.
  */
-async function inviteAndAccept(
+export async function inviteAndAccept(
   page: Page,
   api: string,
   hostToken: string,
@@ -142,7 +142,7 @@ function e2eDatabaseUrl(): string {
 }
 
 /** Fixture-only setup: stamps the F-03 lifecycle column, skipping the command. */
-async function deactivateOrgMember(email: string): Promise<void> {
+export async function deactivateOrgMember(email: string): Promise<void> {
   const c = new Client({ connectionString: e2eDatabaseUrl() });
   await c.connect();
   try {

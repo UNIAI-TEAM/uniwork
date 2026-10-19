@@ -166,8 +166,9 @@ test.describe.serial("chat file and voice messages", () => {
     const memberRow = member.locator('article[id^="chat-msg-"]').filter({ hasText: "Tin nhắn thoại" }).last();
     await expect(memberRow).toBeVisible({ timeout: 20_000 });
     // Metadata duration, not the player's own estimate: both rows render the
-    // duration the uploader measured.
-    await expect(memberRow.getByText(/^0:0[1-3]$/)).toBeVisible({ timeout: 20_000 });
+    // duration the uploader measured. Since #348 the duration opens the line that
+    // also carries the time and delivery state, so it is matched at the start only.
+    await expect(memberRow.getByText(/^0:0[1-3]/).first()).toBeVisible({ timeout: 20_000 });
 
     await memberRow.getByRole("button", { name: "Phát tin nhắn thoại" }).click();
     await expect(memberRow.getByRole("button", { name: "Tạm dừng tin nhắn thoại" })).toBeVisible({
@@ -280,7 +281,10 @@ test.describe.serial("chat file and voice messages", () => {
       timeout: 20_000,
     });
 
-    // The DM settings sheet carries the block action.
+    // The DM settings sheet carries the block action; it opens from the info panel,
+    // which docks open on a wide pane and is opened from the header otherwise.
+    const panelToggle = member.getByRole("button", { name: "Thông tin cuộc trò chuyện" });
+    if ((await panelToggle.getAttribute("aria-pressed")) !== "true") await panelToggle.click();
     await member.getByRole("button", { name: "Cài đặt cuộc trò chuyện" }).click();
     await member.getByRole("button", { name: "Chặn nhắn tin" }).click();
     await member.getByRole("alertdialog").getByRole("button", { name: "Chặn nhắn tin" }).click();

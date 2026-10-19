@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { toastApiError } from "../../toast-api-error";
+import { useProjectOperations } from "../project-operations-context";
 import type { OpenProject } from "../project-row-metrics";
 
 export function ProjectRowActions({
@@ -47,8 +48,10 @@ export function ProjectRowActions({
   const deletePin = useDeletePin(workspaceId);
   const deleteProject = useDeleteProject(workspaceId);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const operations = useProjectOperations();
 
   const togglePin = () => {
+    if (operations) { operations.pin(project.id, !pinned); return; }
     const onError = (err: unknown) => toastApiError(err, t("common.error"));
     if (pinned) {
       deletePin.mutate({ itemType: "project", itemId: project.id }, { onError });
@@ -120,6 +123,7 @@ export function ProjectRowActions({
               variant="destructive"
               size="sm"
               onClick={() => {
+                if (operations) { operations.remove(project.id); setDeleteOpen(false); return; }
                 deleteProject.mutate(project.id, {
                   onError: (err) =>
                     toast.error(err instanceof Error ? err.message : String(err)),

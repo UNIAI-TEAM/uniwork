@@ -26,6 +26,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/handler"
+	"github.com/unicomhub/uniwork/server/internal/linkpreview"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
@@ -321,6 +322,7 @@ func main() {
 	// (user decision 2026-10-14; docs/ops/RUNBOOK_FILE_GC.md).
 	fileSvc, err := service.NewFileService(service.FileServiceOptions{
 		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(), KeyRoot: storageCfg.KeyRoot,
+		DocumentMaxBytes:   cfg.EffectiveDocumentMaxBytes(),
 		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
 		// storage.bytes reservations for the Document purposes (G1-03): the
 		// hook ignores every other purpose.
@@ -388,7 +390,19 @@ func main() {
 		// office_sync_write, read through the same evaluator as
 		// /api/v1/config. A zero field keeps the contract-p0 §7 default.
 		Policy: service.CommitIntentPolicy{
-			ClaimTTL: cfg.DocumentCommitIntentClaimTTL, Retention: cfg.DocumentCommitIntentRetention,
+			ClaimTTL:  cfg.DocumentCommitIntentClaimTTL,
+			Retention: cfg.DocumentCommitIntentRetention,
+			SweepTick: cfg.DocumentCommitIntentSweepTick,
+		},
+		// The edit lock timing (UNI-1645 §7), validated by config.Load.
+		EditLock: service.DocumentEditLockConfig{
+			TTL:               cfg.DocumentEditLockTTL,
+			Heartbeat:         cfg.DocumentEditLockHeartbeat,
+			SweepInterval:     cfg.DocumentEditLockSweepInterval,
+			HoldMax:           cfg.DocumentEditHoldMax,
+			HoldChainMax:      cfg.DocumentEditHoldChainMax,
+			RequestTTL:        cfg.DocumentEditRequestTTL,
+			RequestMaxPerHour: cfg.DocumentEditRequestMaxPerHour,
 		},
 	})
 	// The document maintenance worker (auto-version, purge, compaction -
@@ -431,6 +445,8 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewFileThumbnailConsumer(fileSvc))
+	// Link previews (ADR 0035): a fetch waits on a third party, so never the realtime lane.
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatLinkPreviewConsumer(chatSvc, linkpreview.New(linkpreview.Options{})))
 	// The UniWork AI transcript follows what it is bound to: a deleted document
 	// or a membership that ended takes its conversations, and no request
 	// answers from a copy of content the person may no longer read (A9).
@@ -468,17 +484,28 @@ func main() {
 	officeLeases := service.NewOfficeLeaseService(documentSvc, flags, cfg)
 	officeLeaseSweep := officeLeases.NewSweeper(log)
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(documentSvc))
+	// The edit lock (UNI-1645 §3.5): the releaser ends tenures on a revoked
+	// session, lost access, suspension and delete - audit + outbox across
+	// several tables, so it rides the notify lane, not realtime - and the
+	// expiry sweep is awaited in the shutdown sequence below.
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewDocumentEditLockReleaser(documentSvc))
+	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
 	}
 	notifConsumer.SetDocumentReaders(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
-	var pushSender notification.PushSender
+	// A call ring is delivered only while the call still rings for that person.
+	notifConsumer.SetCallRinging(chatSvc)
+	var webSender notification.PushSender
 	if cfg.PushEnabled() {
-		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
+		webSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
 		log.Info("web push enabled", "subject", cfg.VAPIDSubject)
 	}
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken}, webSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
+	pushConsumer.SetPresence(chatSvc)
+	pushConsumer.SetCallRinging(chatSvc)
 	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	// The inbox list marks a document row's resource_access_lost /
@@ -562,6 +589,10 @@ func main() {
 	// below.
 	officeLeaseSweepDone := make(chan struct{})
 	go func() { officeLeaseSweep.Run(runCtx); close(officeLeaseSweepDone) }()
+	// The edit lock expiry sweep (UNI-1645 §3.5) stops with runCancel and is
+	// awaited below.
+	editLockSweepDone := make(chan struct{})
+	go func() { editLockSweep.Run(runCtx); close(editLockSweepDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
 	// callbacks and the provider-event ledger past their windows. It stops with
 	// runCancel and is awaited below.
@@ -849,6 +880,11 @@ func main() {
 	case <-officeLeaseSweepDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("office: offline lease sweep did not stop in time")
+	}
+	select {
+	case <-editLockSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: edit lock sweep did not stop in time")
 	}
 	select {
 	case <-retentionDone:

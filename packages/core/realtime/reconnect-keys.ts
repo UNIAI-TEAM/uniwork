@@ -22,6 +22,7 @@ export function allWorkspaceKeys(wsId: string) {
     taskKeys.projects(wsId),
     chatKeys.rooms(wsId),
     chatKeys.room(wsId),
+    chatKeys.unreadSummary(),
     // Open room timelines refresh their newest page and room task links are
     // emptied instead (refreshLoadedRoomTimelines).
     // Roots, not the builders: those append filters and would miss variants.

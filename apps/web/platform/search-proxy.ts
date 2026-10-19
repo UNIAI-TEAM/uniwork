@@ -15,7 +15,7 @@ export function searchProxy(request: NextRequest) {
     return NextResponse.redirect(destination, 308);
   }
   const route = marketingRoute(request.nextUrl.pathname);
-  if (!route && /^\/(?:vi(?:\/|$)|features\/|learn\/|solutions\/)/.test(request.nextUrl.pathname)) {
+  if (!route && /^\/(?:vi(?:\/|$)|features\/|learn\/|solutions\/|apps\/)/.test(request.nextUrl.pathname)) {
     return publicNotFound(request.nextUrl.pathname.startsWith("/vi/") ? "vi" : "en");
   }
   const requestHeaders = new Headers(request.headers);

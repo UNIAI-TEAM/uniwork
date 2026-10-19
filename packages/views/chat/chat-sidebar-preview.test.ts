@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   applyKnownPeopleToRoomPreviews,
+  chatSidebarPreviewIcon,
   compareRoomPreviewRecency,
+  isMissedCallPreview,
   formatChatSidebarPreviewText,
   formatChatSidebarTime,
 } from "./chat-sidebar-preview";
+import { givenNameOf, initialsOf, roomInitialsOf } from "./chat-initials";
 
 describe("chat-sidebar-preview", () => {
   it("formats group preview with sender prefix", () => {
@@ -326,6 +329,10 @@ describe("chat-sidebar-preview", () => {
         yesterdayLabel: "Hôm qua",
       }),
     ).toMatch(/\d/);
+    // Vietnamese weekdays read "T2"; this year's dates drop the year.
+    expect(formatChatSidebarTime("2026-03-23T10:30:00Z", { now, yesterdayLabel: "Hôm qua", locale: "vi" })).toBe("T2");
+    expect(formatChatSidebarTime("2026-03-01T10:30:00Z", { now, yesterdayLabel: "Hôm qua", locale: "vi" })).toBe("1/3");
+    expect(formatChatSidebarTime("2025-12-01T10:30:00Z", { now, yesterdayLabel: "Hôm qua", locale: "vi" })).toBe("1/12/2025");
     expect(formatChatSidebarTime(undefined, { now, yesterdayLabel: "Hôm qua" })).toBeNull();
     expect(formatChatSidebarTime("  ", { now, yesterdayLabel: "Hôm qua" })).toBeNull();
     expect(formatChatSidebarTime("not-a-date", { now, yesterdayLabel: "Hôm qua" })).toBeNull();
@@ -365,7 +372,7 @@ describe("chat-sidebar-preview", () => {
           createdAt: "2026-03-26T10:00:00Z",
         },
       },
-      [{ user_id: senderId.toLowerCase(), display_name: "Trà My Đào" }],
+      [{ user_id: senderId.toLowerCase(), display_name: "Đào Trà My" }],
     );
     expect(
       formatChatSidebarPreviewText(previews.room1, {
@@ -374,7 +381,7 @@ describe("chat-sidebar-preview", () => {
         youLabel: "Bạn",
         voiceCallLabel: "Cuộc gọi",
       }),
-    ).toBe("Trà My Đào: @Trà My Đào xem giúp");
+    ).toBe("My: @Đào Trà My xem giúp");
   });
 
   it("shows a sticker as words, never as its markdown", () => {
@@ -396,5 +403,71 @@ describe("chat-sidebar-preview", () => {
         },
       ),
     ).toBe("Bạn: Nhãn dán · ăn mừng");
+  });
+
+  it("names the sender of a group voice note or photo, and says Photo for an image file", () => {
+    const base = { senderId: "u2", senderName: "Tuấn", createdAt: "2026-03-26T10:00:00Z" };
+    const options = {
+      currentUserId: "self",
+      isGroup: true,
+      youLabel: "Bạn",
+      voiceCallLabel: "Cuộc gọi",
+      voiceMessageLabel: "Tin nhắn thoại",
+      mediaLabels: { sticker: "Sticker", gif: "GIF", image: "Ảnh" },
+    };
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice" }, options)).toBe("Tuấn: Tin nhắn thoại");
+    expect(formatChatSidebarPreviewText({ ...base, body: "IMG_01.JPG", kind: "file" }, options)).toBe("Tuấn: Ảnh");
+    expect(formatChatSidebarPreviewText({ ...base, body: "plan.pdf", kind: "file" }, options)).toBe("Tuấn: plan.pdf");
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice_call_log" }, options)).toBe("Cuộc gọi");
+  });
+
+  it("says a missed call only to whoever it rang for, and gives a voice note its length", () => {
+    const base = { senderId: "caller", senderName: "Châu", createdAt: "2026-03-26T10:00:00Z" };
+    const options = {
+      currentUserId: "me",
+      isGroup: false,
+      youLabel: "Bạn",
+      voiceCallLabel: "Cuộc gọi thoại",
+      voiceMessageLabel: "Tin nhắn thoại",
+      missedCallLabel: "Cuộc gọi nhỡ",
+    };
+    const call = { ...base, body: "", kind: "voice_call_log", callOutcome: "unanswered" };
+    expect(isMissedCallPreview(call, "me")).toBe(true);
+    expect(formatChatSidebarPreviewText(call, options)).toBe("Cuộc gọi nhỡ");
+    // The caller's own unanswered call, or an answered one, is not missed.
+    expect(isMissedCallPreview(call, "CALLER")).toBe(false);
+    expect(formatChatSidebarPreviewText({ ...call, callOutcome: "completed" }, options)).toBe("Cuộc gọi thoại");
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice", durationMs: 41200 }, options)).toBe(
+      "Tin nhắn thoại · 0:42",
+    );
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice" }, options)).toBe("Tin nhắn thoại");
+  });
+
+  it("picks the glyph a row draws before its preview", () => {
+    const base = { senderId: "u2", senderName: "A", createdAt: "2026-03-26T10:00:00Z" };
+    expect(chatSidebarPreviewIcon({ ...base, body: "", kind: "voice" })).toBe("voice");
+    expect(chatSidebarPreviewIcon({ ...base, body: "", kind: "voice_call_log" })).toBe("call");
+    expect(chatSidebarPreviewIcon({ ...base, body: "a.webp", kind: "file" })).toBe("image");
+    expect(chatSidebarPreviewIcon({ ...base, body: "a.zip", kind: "file" })).toBe("file");
+    expect(chatSidebarPreviewIcon({ ...base, body: "hello", kind: "text" })).toBeNull();
+    expect(chatSidebarPreviewIcon(undefined)).toBeNull();
+  });
+
+  it("takes a face's two letters from the last two words", () => {
+    expect(initialsOf("Nguyễn Thu Hà")).toBe("TH");
+    expect(initialsOf("Trần Đức Anh")).toBe("ĐA");
+    expect(initialsOf("Võ Minh")).toBe("VM");
+    expect(initialsOf("binh")).toBe("B");
+    expect(initialsOf("  ")).toBe("?");
+    // A room reads from its first words, past a leading "Đội".
+    expect(roomInitialsOf("Ra mắt UniWork Q4")).toBe("RM");
+    expect(roomInitialsOf("Đội Thiết kế")).toBe("TK");
+    expect(roomInitialsOf("Nhóm thiết kế")).toBe("NT");
+    expect(roomInitialsOf("Đội")).toBe("Đ");
+    expect(roomInitialsOf("design")).toBe("D");
+    // A list line calls a person by the given name; an acronym tail keeps the whole name.
+    expect(givenNameOf("Bùi Minh Quân")).toBe("Quân");
+    expect(givenNameOf("Phòng HC")).toBe("Phòng HC");
+    expect(givenNameOf("Binh")).toBe("Binh");
   });
 });

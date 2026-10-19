@@ -15,7 +15,7 @@ function narrowDocument(parsed: ReturnType<typeof DocumentSchema.parse>): Docume
     visibility: parsed.visibility as Document["visibility"],
     my_level: parsed.my_level as Document["my_level"],
     via: parsed.via as Document["via"],
-    owner_kind: parsed.owner_kind as Document["owner_kind"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"],
   };
 }
 
@@ -199,6 +199,12 @@ describe("AccessLogSheet", () => {
 
     expect(screen.getByText(t("documents.accessLog.manage_only"))).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("reads the logs for a break-glass admin (view + admin_scope parsed from the wire)", async () => {
+    renderSheet({ doc: documentFixture({ my_level: "view", admin_scope: true }) });
+    expect(await screen.findByText("Bình")).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.accessLog.manage_only"))).toBeNull();
   });
 
   it("holds focus inside while open and closes on Escape", async () => {

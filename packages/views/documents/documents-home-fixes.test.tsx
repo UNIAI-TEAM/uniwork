@@ -6,12 +6,13 @@ import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
+import { libraryLadder } from "./library-columns";
 import { documentRow } from "./library-rows";
 import { favoriteRow } from "./starred-rows";
 
 // Review fixes for the Documents home (UNI-1305 review-fe r1): the type chip
 // that can reach the next page, the sidebar that does not flicker, the folder
-// create and rename that submit once, the header count, the starred rows.
+// create and rename that submit once, the documents count, the starred rows.
 
 const { t } = initI18n();
 
@@ -101,6 +102,15 @@ function route(routes: Routes) {
 }
 
 const queryOf = (path: string) => new URLSearchParams(path.split("?")[1] ?? "");
+
+/** Picks a type in the home filter bar's "Loại" select (TRASH-A3 replaced the chip row at home). */
+async function pickType(chip: string) {
+  fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) }));
+  const option = within(await screen.findByRole("listbox")).getByText(t(`documents.home.chips.${chip}`));
+  // Base UI only commits a click that started on the item with a pointer.
+  fireEvent.pointerDown(option);
+  fireEvent.click(option);
+}
 const writes = (method: string) =>
   requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === method);
 
@@ -119,28 +129,44 @@ beforeEach(() => {
 });
 
 describe("type chip over paged lists (M2)", () => {
-  it("offers Load more instead of a dead end, and shows the match from the next page", async () => {
+  it("filters on the server: the chip becomes ?format=, pages restart at the cursor base, and load more keeps filtering", async () => {
     route({
-      list: (path) => (queryOf(path).get("cursor") === "c2" ? [file("f2", "Số liệu.xlsx")] : [summary(), file("f1", "Báo giá.docx")]),
-      cursor: (path) => (queryOf(path).get("cursor") === "c2" ? null : "c2"),
+      list: (path) => {
+        const format = queryOf(path).get("format");
+        if (format === "xlsx") return queryOf(path).get("cursor") === "x2" ? [file("x2", "Thêm.xlsx")] : [];
+        return queryOf(path).get("cursor") === "c2" ? [summary({ id: "d2" })] : [summary(), file("f1", "Báo giá.docx")];
+      },
+      cursor: (path) => {
+        const format = queryOf(path).get("format");
+        if (format === "xlsx") return queryOf(path).get("cursor") === "x2" ? null : "x2";
+        return queryOf(path).get("cursor") === "c2" ? null : "c2";
+      },
     });
     renderView();
     await screen.findByText("Báo giá.docx");
 
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.xlsx") }));
+    // The server answered the filtered page: it is empty, so the state says
+    // there is no match — never "in what is loaded", the filter already ran.
+    await pickType("xlsx");
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
-    expect(screen.getByText(t("documents.home.no_matches_more_description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.no_matches_more_description"))).toBeNull();
+    const filteredCalls = requestMock.mock.calls.filter(([path]) => queryOf(String(path)).get("format") === "xlsx");
+    expect(filteredCalls.length).toBeGreaterThan(0);
+    expect(filteredCalls.every(([path]) => !queryOf(String(path)).get("cursor"))).toBe(true);
 
+    // The next filtered page arrives through its own cursor.
     fireEvent.click(screen.getByRole("button", { name: t("documents.library.load_more") }));
-    expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
+    expect(await screen.findByText("Thêm.xlsx")).toBeInTheDocument();
     expect(screen.queryByText(t("documents.library.no_matches_title"))).toBeNull();
   });
 
-  it("points at the create cards when they are on screen, and offers no Load more once exhausted", async () => {
-    route({ list: () => [summary()] });
+  it("shows the filtered-empty line pointing at the Tạo nhanh strip, with no Load more once exhausted", async () => {
+    // The chip is a server filter (UNI-1868), so the fixture answers an empty
+    // page for format=pdf the way the real server would.
+    route({ list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [summary()]) });
     renderView();
     await screen.findByText("Kế hoạch Q4");
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.pdf") }));
+    await pickType("pdf");
     expect(await screen.findByText(t("documents.home.no_matches_description"))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull();
   });
@@ -155,7 +181,7 @@ describe("sidebar sources section (m2)", () => {
     renderView();
     expect(await screen.findByText(t("documents.home.sidebar.elsewhere"))).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.docx") }));
+    await pickType("docx");
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => queryOf(String(path)).get("type") === "docx")).toBe(true));
     expect(screen.getByText(t("documents.home.sidebar.elsewhere"))).toBeInTheDocument();
   });
@@ -197,7 +223,9 @@ describe("folder rename (m4)", () => {
       patch: () => ({ document: folderDetail({ title: "CCB 2027", revision: "4" }) }),
     });
     renderView();
-    fireEvent.click(await within(await screen.findByRole("table")).findByText("Dự án CCB"));
+    // The folder is a card above the table (TRASH-A3).
+    const folders = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
+    fireEvent.click(await within(folders).findByRole("button", { name: /^Dự án CCB/ }));
     const crumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.home.folders.rename") }));
     return within(crumbs).getByRole("textbox", { name: t("documents.home.folders.rename_label") });
@@ -222,16 +250,19 @@ describe("folder rename (m4)", () => {
   });
 });
 
-describe("header count (m9, visual r1)", () => {
-  it("counts the rows the list shows, folders and linked files included, like the tab", async () => {
+describe("documents count (m9, visual r1; TRASH-A3)", () => {
+  it("counts the table's rows, linked files included, beside Tài liệu; folders are cards, not counted there", async () => {
     route({
+      tree: () => [{ id: "fo1", title: "Hợp đồng", kind: "folder", position: 0, children: [] }],
       list: () => [summary(), summary({ id: "d2", title: "Biên bản" }), summary({ id: "fo1", kind: "folder", title: "Hợp đồng" })],
       sources: () => [source()],
     });
     renderView();
     await screen.findByText("Đề xuất ngân sách.pdf");
-    const heading = screen.getByRole("heading", { level: 1, name: t("documents.page.title") });
-    expect(heading.parentElement).toHaveTextContent(new RegExp(`${t("documents.page.title")}4$`));
+    const heading = screen.getByRole("heading", { level: 2, name: new RegExp(`^${t("documents.home.sections.documents")}`) });
+    expect(heading).toHaveTextContent(new RegExp(`${t("documents.home.sections.documents")} 3$`));
+    const folders = screen.getByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
+    expect(within(folders).getByRole("heading", { level: 2 })).toHaveTextContent(new RegExp(`${t("documents.home.sections.folders")} 1$`));
   });
 });
 
@@ -252,7 +283,7 @@ describe("starred rows without a loaded copy (m1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} archived={false} />
+          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} ladder={libraryLadder()} />
         </tbody>
       </table>,
     );
@@ -266,5 +297,30 @@ describe("starred rows without a loaded copy (m1)", () => {
   it("offers it once a loaded copy gives the organisation and version", () => {
     renderRow({ id: "f1", organization_id: "org1", current_version: 2 });
     expect(screen.getByRole("button", { name: t("office.desktop.row_action") })).toBeInTheDocument();
+  });
+
+  it("shows a star marker next to the title on a starred row and none on an unstarred row", () => {
+    const { unmount } = render(
+      <table>
+        <tbody>
+          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} ladder={libraryLadder()} />
+        </tbody>
+      </table>,
+    );
+    expect(screen.getByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+    unmount();
+
+    render(
+      <table>
+        <tbody>
+          <LibraryRowView
+            row={documentRow(favoriteRow(fav))}
+            handlers={{ ...handlers, isStarred: () => false }}
+            ladder={libraryLadder()}
+          />
+        </tbody>
+      </table>,
+    );
+    expect(screen.queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
   });
 });

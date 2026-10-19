@@ -40,6 +40,7 @@ const STATUS_KEYS: Record<Exclude<PanelStatus, null>, string> = {
   server: K.collabServerError,
   signedOut: K.collabSignedOut,
   viewOnly: K.collabViewOnly,
+  shelved: "documents.shelved_doc.comments_status",
 };
 
 type FocusRequest = { rootId: string; target: "heading" | "resolve" | "scroll" } | null;
@@ -195,6 +196,9 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
     wsId,
     documentId: doc.id,
     orgId,
+    doc,
+    canSeeMembers: panel.canSeeMembers,
+    postSendNotices: panel.postSendNotices,
     names: panel.names,
     // An author the server no longer names is a former member (S12 "Tác giả không còn tên").
     nameOf: (comment) => panel.authorName(comment) || t(K.collabFormerMember),
@@ -325,7 +329,10 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
             placeholderKey={K.collabComposerDiscussion}
             deletedKey={K.collabDiscussionDeleted}
             blockedReasonId={panel.blocked ? statusId : undefined}
-            onSend={(text) => panel.send(text)}
+            doc={doc}
+            canSeeMembers={panel.canSeeMembers}
+            renderPostSendInline={false}
+            onSend={(text, opts) => panel.send(text, undefined, opts?.warnedUserIds)}
             testId="document-discussion-composer"
           />
         </div>

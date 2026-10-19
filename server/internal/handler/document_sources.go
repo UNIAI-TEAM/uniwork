@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -66,7 +67,9 @@ func (h *handlers) listDocumentSources(w http.ResponseWriter, r *http.Request) {
 func documentSourceDTO(it service.DocumentSourceItem) sdo.DocumentSourceDTO {
 	dto := sdo.DocumentSourceDTO{
 		ID: it.ID, Source: it.Source,
-		Parent:   sdo.DocumentSourceParentDTO{Kind: it.Parent.Kind, ID: it.Parent.ID, Title: it.Parent.Title},
+		Parent: sdo.DocumentSourceParentDTO{
+			Kind: it.Parent.Kind, ID: it.Parent.ID, Title: it.Parent.Title, MessageID: it.Parent.MessageID,
+		},
 		Name:     it.Name,
 		MimeType: it.MimeType, Extension: it.Extension, SizeBytes: it.SizeBytes,
 		UpdatedAt:    it.UpdatedAt.UTC().Format(time.RFC3339),
@@ -79,6 +82,14 @@ func documentSourceDTO(it service.DocumentSourceItem) sdo.DocumentSourceDTO {
 	return dto
 }
 
+// sourceFileIDParam reads {sourceFileID} the way the wire sends it: chi
+// hands the RawPath segment, so the id's colon arrives as %3A and is
+// unescaped back. An escape that does not decode reports like an unknown
+// id: the caller learns nothing more than not_found.
+func sourceFileIDParam(r *http.Request) (string, error) {
+	return url.PathUnescape(chi.URLParam(r, "sourceFileID"))
+}
+
 // downloadDocumentSource is GET .../documents/sources/{sourceFileID}/download:
 // the bytes, always as an attachment and never sniffed, since a source file
 // may be any type its domain accepted.
@@ -86,8 +97,13 @@ func (h *handlers) downloadDocumentSource(w http.ResponseWriter, r *http.Request
 	if !h.documentSourcesReady(w) {
 		return
 	}
+	sourceFileID, err := sourceFileIDParam(r)
+	if err != nil {
+		h.mapServiceError(w, service.ErrNotFound)
+		return
+	}
 	f, err := h.DocumentSources.Open(r.Context(), service.Human(middleware.UserID(r.Context())),
-		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "sourceFileID"))
+		chi.URLParam(r, "workspaceID"), sourceFileID)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -125,8 +141,13 @@ func (h *handlers) saveDocumentSource(w http.ResponseWriter, r *http.Request) {
 	if !decodeOptionalBody(w, r, &in) {
 		return
 	}
+	sourceFileID, err := sourceFileIDParam(r)
+	if err != nil {
+		h.mapServiceError(w, service.ErrNotFound)
+		return
+	}
 	actor := service.Human(middleware.UserID(r.Context()))
-	res, err := h.DocumentSources.Save(r.Context(), actor, chi.URLParam(r, "workspaceID"), chi.URLParam(r, "sourceFileID"), service.SaveSourceFileInput{
+	res, err := h.DocumentSources.Save(r.Context(), actor, chi.URLParam(r, "workspaceID"), sourceFileID, service.SaveSourceFileInput{
 		ParentID:       optionalField(in.ParentID),
 		Title:          optionalField(in.Title),
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),

@@ -69,6 +69,8 @@ export function FullCalendarHost(props: {
   showWeekends?: boolean;
   language?: string;
   viewerTimeZone?: string;
+  /** Initial visible time in day and week views. */
+  scrollTime?: string;
   onDatesSet: (range: { from: string; to: string }) => void;
   onEventClick: (event: CalendarEvent, source?: HTMLElement) => void;
   editable?: boolean;
@@ -340,7 +342,7 @@ export function FullCalendarHost(props: {
         nowIndicator={isTimeGrid}
         slotMinTime="00:00:00"
         slotMaxTime="24:00:00"
-        scrollTime="00:00:00"
+        scrollTime={props.scrollTime ?? "00:00:00"}
         hiddenDays={hiddenDays}
         dayMaxEventRows={isTimeGrid
           ? (allDayExpanded ? false : 1)

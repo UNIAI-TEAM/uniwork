@@ -4,8 +4,11 @@ import { initI18n } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
 import { resetChatSendOutboxForTests } from "@uniwork/core/chat/send-outbox-store";
 import { resetPendingChatMessagesForTests } from "@uniwork/core/chat/pending-messages-store";
+import { toast } from "sonner";
 import { useChatPageActions } from "./use-chat-page-actions";
 import type { ChatMessage } from "./chat-messages";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() } }));
 
 beforeAll(() => {
   initI18n();
@@ -43,6 +46,7 @@ function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> 
     sendRoomMessage: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
     resolveDM: { mutateAsync: vi.fn() },
     createGroup: { mutateAsync: vi.fn().mockResolvedValue({ id: "g1", name: "Squad", member_user_ids: ["u2"] }) },
+    setRoomAvatar: { mutateAsync: vi.fn().mockResolvedValue(null) },
     inviteMembers: { mutateAsync: vi.fn() },
     leaveRoom: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
     setConnectError,
@@ -189,6 +193,27 @@ describe("useChatPageActions", () => {
       });
       expect(deps.setCreateGroupOpen).toHaveBeenCalledWith(false);
     });
+  });
+
+  it("uploads the photo picked in the dialog once the group exists; a failed upload keeps the group", async () => {
+    const deps = buildDeps({ setRoomAvatar: { mutateAsync: vi.fn().mockRejectedValue(new Error("413")) } });
+    const members = [
+      { user_id: "u1", email: "a@example.com", display_name: "A" },
+      { user_id: "u2", email: "b@example.com", display_name: "B" },
+    ];
+    const photo = new File(["png"], "g.png", { type: "image/png" });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    act(() => {
+      result.current.handleCreateGroup(members, "Squad", photo);
+    });
+
+    await waitFor(() => {
+      expect(deps.setRoomAvatar.mutateAsync).toHaveBeenCalledWith({ roomId: "g1", file: photo });
+      expect(toast.error).toHaveBeenCalledWith("Đã tạo nhóm nhưng chưa tải được ảnh lên. Đổi ảnh trong Cài đặt nhóm.");
+    });
+    expect(deps.setTarget).toHaveBeenCalledWith({ kind: "group", group: expect.objectContaining({ id: "g1" }) });
+    expect(deps.setConnectError).not.toHaveBeenCalledWith(expect.any(String));
   });
 
   it("lets the server name a group left unnamed", async () => {
@@ -379,8 +404,55 @@ describe("useChatPageActions", () => {
 
     const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
     expect(useChatSendOutboxStore.getState().entries).toEqual([
-      expect.objectContaining({ roomId: "room1", body: "hello", thread_root_id: "root1" }),
+      // A 503 while online keeps the bubble as failed, with "Thử lại".
+      expect.objectContaining({ roomId: "room1", body: "hello", thread_root_id: "root1", failed_at: expect.any(String) }),
     ]);
+  });
+
+  it("queues a send lost to the network quietly, without marking it failed", async () => {
+    const deps = buildDeps({
+      sendRoomMessage: { mutateAsync: vi.fn().mockRejectedValue(new TypeError("Failed to fetch")) },
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend();
+    });
+
+    const { useChatSendOutboxStore } = await import("@uniwork/core/chat/send-outbox-store");
+    const [entry] = useChatSendOutboxStore.getState().entries;
+    expect(entry).toEqual(expect.objectContaining({ roomId: "room1", body: "hello" }));
+    expect(entry?.failed_at).toBeUndefined();
+  });
+
+  it("sends the side thread's own draft into its thread and leaves the main composer's reply and priority alone", async () => {
+    const sendThreadMessage = { mutateAsync: vi.fn().mockResolvedValue(undefined) };
+    const setComposerPriority = vi.fn();
+    const deps = buildDeps({
+      replyTo: { id: "m9" } as ChatMessage,
+      composerPriority: "urgent",
+      setComposerPriority,
+      sendThreadMessage,
+    });
+    let threadDraft = "trong chủ đề";
+    const write = vi.fn((value: string) => {
+      threadDraft = value;
+    });
+    const { result } = renderHook(() => useChatPageActions(deps));
+
+    await act(async () => {
+      await result.current.provisionAndSend(() => threadDraft, write, "root1");
+    });
+
+    expect(sendThreadMessage.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ threadRootId: "root1", body: "trong chủ đề", priority: undefined }),
+    );
+    expect(deps.sendRoomMessage.mutateAsync).not.toHaveBeenCalled();
+    expect(threadDraft).toBe("");
+    // The main composer's draft, reply and priority are untouched.
+    expect(deps.getDraft()).toBe("hello");
+    expect(deps.setReplyTo).not.toHaveBeenCalled();
+    expect(setComposerPriority).not.toHaveBeenCalled();
   });
 
   it("tracks an optimistic pending row while sending online", async () => {

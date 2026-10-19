@@ -37,6 +37,11 @@ type documentStore struct {
 	// after ClaimInTx, so a test can fail the transaction after the bytes
 	// are stored and the file is claimed. nil in production.
 	afterClaim func() error
+	// beforeSaveLock is a test seam: it runs after the preflight (and, for a
+	// commit, the intent claim) and right before the save transaction opens
+	// its row lock, so a test can change the row in that window. nil in
+	// production.
+	beforeSaveLock func()
 }
 
 var errDocumentStoreMissing = errors.New("documents: FileService is not wired")
@@ -50,7 +55,11 @@ func (s *DocumentService) fileService() (files.Service, error) {
 
 func (s *DocumentService) fileLimits() document.FileLimits {
 	if s.store.limits.MaxEntries == 0 {
-		return document.DefaultFileLimits
+		limits := document.DefaultFileLimits
+		if maxBytes := s.documentFileMaxBytes(); maxBytes > 0 {
+			limits.TextScanBytes = maxBytes
+		}
+		return limits
 	}
 	return s.store.limits
 }
@@ -116,21 +125,27 @@ func fileUploadKey(command, target, key string) string {
 // UploadDocumentFile stages bytes for a later versions/commit (C-01 §14.4):
 // edit on the document now, bytes into FileService, format check, and the
 // staged file_id back as upload_id. The permission is checked again at
-// commit - this one only stops a stranger from filling storage.
+// commit - this one only stops a stranger from filling storage. It answers
+// as the commit does (preflightDocument, then decideFileSave), so an
+// AdminScope caller with no read level on a live restricted file gets
+// document_restricted here as on the asset upload route (DOC-05 §4).
 func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, documentID string, in DocumentUploadInput) (DocumentUpload, error) {
 	fs, err := s.fileService()
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
+	doc, access, err := s.preflightDocument(ctx, actor, documentID)
 	if err != nil {
 		return DocumentUpload{}, err
 	}
-	if err := refuseFolder(doc); err != nil {
+	if err := decideFileSave(doc, access); err != nil {
 		return DocumentUpload{}, err
 	}
-	if doc.Kind != DocumentKindFile {
-		return DocumentUpload{}, Invalid("chỉ tài liệu file nhận phiên bản tải lên")
+	// A shelved document is read-only (addendum §3): the upload that stages
+	// bytes for a commit is refused before any byte leaves the client, and
+	// the commit's own gate answers the same if it raced the shelve.
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentUpload{}, err
 	}
 	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, documentScope(doc.OrganizationID, doc.WorkspaceID),
 		fileUploadKey("documents.upload", doc.ID, in.IdempotencyKey), in)
@@ -148,14 +163,17 @@ func (s *DocumentService) UploadDocumentFile(ctx context.Context, actor Actor, d
 }
 
 // uploadChecked streams one upload into FileService and runs the editor
-// format check on the stored bytes. A file that fails the check is canceled
-// so it can never be committed, and the refusal names the reason.
+// format check on FileService's local spool before any byte is stored. An
+// idempotent replay does not spool, so Check does not run; uploadChecked then
+// falls back to checkStoredFile so facts stay accurate for the caller.
 func (s *DocumentService) uploadChecked(
 	ctx context.Context, fs files.Service, actor Actor, purpose files.UploadPurpose, scope files.Scope, key string, in DocumentUploadInput,
 ) (files.Upload, document.FileFacts, error) {
 	if in.Body == nil {
 		return files.Upload{}, document.FileFacts{}, Invalid("thiếu nội dung tệp")
 	}
+	var facts document.FileFacts
+	checked := false
 	up, err := fs.Upload(ctx, files.UploadInput{
 		Actor:          actor,
 		Purpose:        purpose,
@@ -163,21 +181,26 @@ func (s *DocumentService) uploadChecked(
 		IdempotencyKey: key,
 		Filename:       in.Filename,
 		Body:           in.Body,
+		Check: func(_ context.Context, body io.ReaderAt, size int64, contentType string) error {
+			var err error
+			facts, err = document.ValidateFile(body, size, contentType, s.fileLimits())
+			if err != nil {
+				return documentValidationError(err)
+			}
+			checked = true
+			return nil
+		},
 	})
 	if err != nil {
 		err = documentFileError(err)
 		s.recordDocumentUploadQuota(purpose, err)
 		return files.Upload{}, document.FileFacts{}, err
 	}
-	facts, err := s.checkStoredFile(ctx, fs, scope, up.File)
-	if err != nil {
-		if codedIs(err, document.ErrCodeUnsupportedMedia) {
-			if cerr := fs.CancelUpload(ctx, files.CancelInput{Actor: actor, Scope: scope, FileID: up.File.ID}); cerr != nil &&
-				!errors.Is(filesError(cerr), ErrConflict) {
-				return files.Upload{}, document.FileFacts{}, documentFileError(cerr)
-			}
+	if !checked {
+		facts, err = s.checkStoredFile(ctx, fs, scope, up.File)
+		if err != nil {
+			return files.Upload{}, document.FileFacts{}, err
 		}
-		return files.Upload{}, document.FileFacts{}, err
 	}
 	return up, facts, nil
 }
@@ -242,8 +265,12 @@ func documentFileError(err error) error {
 		return CodedError{Code: document.ErrCodeUnsupportedMedia, Status: http.StatusUnsupportedMediaType,
 			Msg: "định dạng tệp không được hỗ trợ", Fields: map[string]any{"reason": fe.Code}}
 	case files.CodeTooLarge:
+		maxBytes := fe.MaxBytes
+		if maxBytes <= 0 {
+			maxBytes = files.DefaultDocumentMaxBytes
+		}
 		return CodedError{Code: "file_too_large", Status: http.StatusRequestEntityTooLarge,
-			Msg: "tệp vượt quá dung lượng cho phép"}
+			Msg: "tệp vượt quá dung lượng cho phép", Fields: map[string]any{"max_bytes": maxBytes}}
 	case files.CodeNotFound:
 		return ErrNotFound
 	case files.CodeNotReady, files.CodeClaimExpired, files.CodeUploadCanceled, files.CodeDeleting:
@@ -278,12 +305,15 @@ type DocumentFileResult struct {
 }
 
 // CreateFileDocumentInput is POST /workspaces/{ws}/documents/files
-// (C-01 §5.1 as amended by §14.2).
+// (C-01 §5.1 as amended by §14.2). Visibility empty means the parent's (a
+// child inherits it at create time, C-01 §4), or private at the root (U-SH2).
 type CreateFileDocumentInput struct {
 	ParentID       string
+	Destination    string
 	Title          string
 	Filename       string
 	Body           io.Reader
+	Visibility     string
 	IdempotencyKey string
 	// engine is the provenance of bytes the Office engine produced (blank
 	// create); set only inside the service, never from a request.
@@ -295,6 +325,20 @@ type CreateFileDocumentInput struct {
 }
 
 const idempotencyScopeDocumentFileCreate = "documents.files.create"
+
+func fileCreateFingerprint(workspaceID, parentID, title, checksum, visibility, destination string) string {
+	parts := []string{idempotencyScopeDocumentFileCreate, workspaceID, parentID, title, checksum}
+	if visibility != "" {
+		// Only a named visibility joins the fingerprint: a retry in flight
+		// across the deploy that never sent the field keeps its key (the page
+		// route's rule).
+		parts = append(parts, visibility)
+	}
+	if destination != "" {
+		parts = append(parts, "destination:"+destination)
+	}
+	return IdempotencyFingerprint(parts...)
+}
 
 // CreateFileDocument uploads the bytes (outside any transaction), checks
 // them, then in one transaction: membership again, the files claim, the
@@ -310,6 +354,16 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if actor.Kind != audit.KindHuman || !validActor(actor) {
 		// Agents never write documents directly (ADR 0010).
 		return DocumentFileResult{}, ErrForbidden
+	}
+	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
+		return DocumentFileResult{}, err
+	}
+	// The request is checked before its bytes are staged, like the page route:
+	// a bad visibility must not leave a claimed upload behind.
+	if in.Visibility != "" {
+		if err := validDocumentVisibility(in.Visibility); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	ws, err := s.ws.RequireMember(ctx, workspaceID, actor.ID)
 	if err != nil {
@@ -333,8 +387,10 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	fingerprint := IdempotencyFingerprint("documents.files.create", workspaceID, in.ParentID, title, up.File.ChecksumSHA256)
-	opts := IdempotencyOptions{Fingerprint: fingerprint, RequireFingerprint: true}
+	opts := IdempotencyOptions{
+		Fingerprint:        fileCreateFingerprint(workspaceID, in.ParentID, title, up.File.ChecksumSHA256, in.Visibility, in.Destination),
+		RequireFingerprint: true,
+	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -374,16 +430,25 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentFileResult{}, err
 	}
-	visibility := documentVisibilityWorkspace
-	if in.ParentID != "" {
-		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, orgID, workspaceID, DocumentKindFile)
+	parentID := in.ParentID
+	if in.Destination == DocumentSystemKindMyFolder {
+		mf, _, err := s.ensureMyFolderInTx(ctx, tx, q, actor, orgID, workspaceID)
 		if err != nil {
 			return DocumentFileResult{}, err
 		}
-		// A file child inherits its parent's visibility like a page child
-		// does: a restricted page never gains a workspace-visible file.
-		visibility = parent.Visibility
+		parentID = mf.ID
 	}
+	var parent *db.Document
+	if parentID != "" {
+		p, err := s.lockPageParent(ctx, q, actor, parentID, orgID, workspaceID, DocumentKindFile)
+		if err != nil {
+			return DocumentFileResult{}, err
+		}
+		// A file child inherits its parent's home row like a page child does:
+		// a restricted page never gains a workspace-visible file.
+		parent = &p
+	}
+	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
 	if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -392,10 +457,11 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		ID:             docID,
 		OrganizationID: orgID,
 		WorkspaceID:    workspaceID,
-		ParentID:       nullText(in.ParentID),
+		ParentID:       nullText(parentID),
 		Kind:           DocumentKindFile,
 		Title:          title,
 		Visibility:     visibility,
+		WorkspaceLevel: workspaceLevel,
 		SearchText:     documentSearchText(title, ""),
 		CurrentVersion: 1,
 		FileVersionID:  pgtype.Text{String: versionID, Valid: true},
@@ -564,6 +630,11 @@ func (s *DocumentService) uploadDocumentAsset(ctx context.Context, actor Actor, 
 	}
 	doc, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelEdit)
 	if err != nil {
+		return db.DocumentAsset{}, err
+	}
+	// A shelved document is read-only (addendum §3): refuse before the bytes
+	// are stored; the mutation gate answers the same for a raced shelve.
+	if err := requireNotShelved(doc); err != nil {
 		return db.DocumentAsset{}, err
 	}
 	if err := refuseFolder(doc); err != nil {

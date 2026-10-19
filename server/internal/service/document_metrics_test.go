@@ -44,6 +44,10 @@ func (c *countingDocMetrics) ObserveDocumentWorkerSweep(worker, result string, s
 	c.sweeps = append(c.sweeps, worker+"/"+result)
 }
 
+func (c *countingDocMetrics) IncDocumentEditLockOp(string)      {}
+func (c *countingDocMetrics) IncDocumentEditLockRefused(string) {}
+func (c *countingDocMetrics) IncDocumentEditRequest(string)     {}
+
 func (c *countingDocMetrics) AddDocumentWorkerRowsFailed(worker string, n int) {
 	for range n {
 		c.rowsFail = append(c.rowsFail, worker)
@@ -63,9 +67,11 @@ func TestDocumentSaveResultClassification(t *testing.T) {
 		{"stale file base", errDocumentVersionConflict(3), documentOutcomeConflict, "document_version_conflict"},
 		{"quota", CodedError{Code: "quota_exceeded", Status: 403, Err: ErrQuotaExceeded}, documentOutcomeQuota, ""},
 		{"deleted", errDocumentDeleted(), documentOutcomeGone, ""},
+		{"archived", documentArchived(), documentOutcomeArchived, ""},
 		{"storage down", CodedError{Code: "storage_unavailable", Status: 503}, documentOutcomeUnavailable, ""},
 		{"validation", Invalid("thiếu gì đó"), documentOutcomeInvalid, ""},
 		{"forbidden", ErrForbidden, documentOutcomeForbidden, ""},
+		{"restricted", errDocumentRestricted(), documentOutcomeForbidden, ""},
 		{"deactivated member", errMemberDeactivated(), documentOutcomeForbidden, ""},
 		{"not found", ErrNotFound, documentOutcomeNotFound, ""},
 		{"other conflict class", CodedError{Code: "engine_incompatible", Status: 409, Err: ErrConflict}, documentOutcomeConflict, ""},

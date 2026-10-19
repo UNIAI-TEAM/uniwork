@@ -76,6 +76,19 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND archive_batch_id = sqlc.arg(archive_batch_id)
 ORDER BY id;
 
+-- The trash-notification rule's per-event batch read (TRASH-NOTIFY-01): one
+-- document.archived row lands per node, so a full-row batch read would
+-- re-materialize every document - content included - once per node. The
+-- election needs only the ACL columns; the elected top's title is fetched
+-- separately, once per owner.
+-- name: ListDocumentArchiveBatchAcl :many
+SELECT id, parent_id, acl_owner_id, archived_at, archived_by, purge_after
+FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND archive_batch_id = sqlc.arg(archive_batch_id)
+ORDER BY id;
+
 -- Every restore path bumps revision: a row that leaves the trash changes,
 -- and a client holding the pre-archive revision must conflict on write
 -- rather than silently keep a stale base.
@@ -89,7 +102,7 @@ SET archived_at = NULL,
     updated_at = now()
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
-  AND archive_batch_id = sqlc.arg(archive_batch_id)
+  AND id = ANY(sqlc.arg(ids)::text[])
   AND archived_at IS NOT NULL
 RETURNING id, parent_id;
 
@@ -127,6 +140,34 @@ WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
 RETURNING *;
+
+-- A document being hard-deleted must not leave a dangling parent_id behind
+-- (no foreign keys, RESTORE-01 §2 P-4): its surviving direct children re-root
+-- to the workspace root first. This is the read half - children outside the
+-- delete set, both trashed and live.
+-- name: ListDocumentChildrenOutsideSet :many
+SELECT *
+FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND parent_id = sqlc.arg(parent_id)
+  AND NOT (id = ANY(sqlc.arg(exclude_ids)::text[]))
+ORDER BY id;
+
+-- The trashed half of the re-root: parent_id leaves the dying row while
+-- archived_at, archive_batch_id, purge_after, title, position and revision
+-- all stay untouched - the row is not being restored, it is staying in the
+-- trash where a later restore re-reads it. An id inside the delete set is
+-- skipped even if it still names the parent: it is deleted moments later.
+-- name: RerootArchivedChildrenOutsideSet :many
+UPDATE documents
+SET parent_id = NULL
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND parent_id = sqlc.arg(parent_id)
+  AND archived_at IS NOT NULL
+  AND NOT (id = ANY(sqlc.arg(exclude_ids)::text[]))
+RETURNING id;
 
 -- The restore's other name write: a batch member keeps its parent and only its
 -- title moves. Written while the row is still archived, for the same reason as
@@ -314,3 +355,83 @@ WHERE d.organization_id = sqlc.arg(organization_id)
     )
   )
 ORDER BY d.id;
+
+-- Shelve stamping for one batch (ARCHIVE-01, UNI-1845; addendum §2 S-1):
+-- every live, not-yet-shelved id of the subtree gets the same
+-- shelve_batch_id. A row already shelved keeps its own batch - an unshelve
+-- clears exactly one batch, the way a restore recovers exactly one archive
+-- batch. shelved carries no purge_after: the trash sweep never sees it.
+-- Unlike ArchiveDocumentBatch there is no archived_at guard: shelving an
+-- item already in the trash is allowed (shelved and trashed are orthogonal
+-- states), and it stamps only the shelved_* columns - the row stays
+-- trashed.
+-- name: ShelveDocumentBatch :many
+UPDATE documents
+SET shelved_at = now(),
+    shelved_by = sqlc.arg(shelved_by),
+    shelved_by_kind = sqlc.arg(shelved_by_kind),
+    shelve_batch_id = sqlc.arg(shelve_batch_id)
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND id = ANY(sqlc.arg(ids)::text[])
+  AND shelved_at IS NULL
+RETURNING id;
+
+-- One shelve batch's rows (unshelve reads this).
+-- name: ListDocumentShelveBatch :many
+SELECT *
+FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND shelve_batch_id = sqlc.arg(shelve_batch_id)
+ORDER BY id;
+
+-- The unshelve write: clears the shelved_* four of exactly the ids the
+-- managed-subset walk returned. revision bumps like every restore path: a
+-- row that leaves the shelf is a changed row, and a client holding the
+-- pre-shelve revision must conflict on write rather than silently keep a
+-- stale base. Trashed rows clear too - the shape CHECK holds in either
+-- state and a later restore-from-trash no longer lands shelved.
+-- name: ClearDocumentShelveBatch :many
+UPDATE documents
+SET shelved_at = NULL,
+    shelved_by = NULL,
+    shelved_by_kind = NULL,
+    shelve_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND id = ANY(sqlc.arg(ids)::text[])
+  AND shelved_at IS NOT NULL
+RETURNING id;
+
+-- The live AND not-yet-shelved ids of a subtree, at most max_rows of them:
+-- the shelve command's walk (addendum §2 S-1). Same shape as
+-- ListLiveDocumentSubtreeIDs - archived AND shelved nodes are still walked
+-- (a shelved child can sit under a live one only after a partial unshelve,
+-- and a live child of a shelved parent must be stamped with the rest) but
+-- do not count against the cap - except shelved rows are also excluded from
+-- the result set. The ids come back unordered; the caller sorts for a
+-- stable refusal order.
+-- name: ListUnshelvedLiveDocumentSubtreeIDs :many
+WITH RECURSIVE sub AS (
+  SELECT r.id, 1 AS lvl
+  FROM documents r
+  WHERE r.organization_id = sqlc.arg(organization_id)
+    AND r.workspace_id = sqlc.arg(workspace_id)
+    AND r.id = sqlc.arg(root_id)
+  UNION ALL
+  SELECT d.id, sub.lvl + 1
+  FROM documents d
+  JOIN sub ON d.parent_id = sub.id
+  WHERE d.organization_id = sqlc.arg(organization_id)
+    AND d.workspace_id = sqlc.arg(workspace_id)
+    AND sub.lvl < sqlc.arg(max_level)::int
+)
+SELECT d.id
+FROM sub
+JOIN documents d ON d.id = sub.id
+WHERE d.archived_at IS NULL
+  AND d.shelved_at IS NULL
+LIMIT sqlc.arg(max_rows);

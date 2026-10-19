@@ -173,6 +173,12 @@ fails on drift. One flat namespace, keys nested by section:
 | owner (UI label) | **chủ sở hữu** | Owner | `people.role_owner = "Chủ sở hữu"`; the label translates, the role value stays `owner` (see below) |
 | leave organization | **rời tổ chức** | Leave organization | `org.leave.title`; the member walks out, the organization stays |
 | transfer ownership | **chuyển quyền sở hữu** | Transfer ownership | `org.transfer.*`; immediate, no acceptance step; the former owner becomes `admin` |
+| document owner (ACL) | **chủ sở hữu** (tài liệu) | Owner | `documents.share.acl_owner`; người giữ `acl_owner_id` — quản lý tài liệu khi còn là thành viên hiệu lực của workspace; khác vai trò `owner` của tổ chức/workspace |
+| transfer document ownership | **chuyển quyền sở hữu** (tài liệu) | Transfer ownership | `documents.share.owner.*`; ngay lập tức, không có bước chấp nhận; chủ cũ giữ mức đã chọn (mặc định Chỉnh sửa) hoặc không giữ gì — khác `org.transfer.*` |
+| document home workspace row | **Workspace "{{name}}"** + nhãn phụ **"Nơi lưu"** | Workspace "{{name}}" · "Home" | `documents.share.home_badge`; nguồn quyền của mọi thành viên workspace chứa tài liệu; lưu ở `visibility` + `workspace_level` |
+| private (document share state) | **Riêng tư** | Private | trạng thái hiển thị, **không** phải cấu hình: không có dòng Workspace gốc, không share sống, không link sống (BR-10). Thay chữ "Hạn chế"/"Restricted" ở mọi bề mặt người dùng; giá trị wire `restricted` giữ nguyên |
+| document access level | **Chỉ xem** / **Nhận xét** / **Chỉnh sửa** / **Quản lý** | View / Comment / Edit / Manage | `documents.share.level_*`, `documents.accessReport.level_*`, `documents.home.access.*` |
+| document access source | **Trực tiếp** / **Qua Workspace "X"** / **Qua tổ chức** / **Chủ sở hữu** / **Quản trị viên** / **Truy cập khẩn cấp** / **Theo kết quả công việc** | Direct / Via workspace "X" / Via organization / Owner / Admin / Emergency access / Via work product | `documents.share.via_*`, `documents.share.source_item` |
 | close organization | **đóng tổ chức** | Close organization | `org.close.*`; archives the organization, deletes nothing (ADR 0032) — never "xóa tổ chức", which is the 5-day privacy deletion |
 | switch organization | **chuyển tổ chức** | Switch organization | `invitations.switch.*`; leave, transfer or close the current one and join another in one step — never "đổi tổ chức" |
 | comment | **bình luận** | Comment | |
@@ -204,12 +210,20 @@ fails on drift. One flat namespace, keys nested by section:
 | graph timeline | **dòng thời gian** | Timeline | khác "Hoạt động" (audit + bình luận) của trang việc |
 | Work Graph | **Work Graph** | Work Graph | tên hệ thống, không dịch |
 | folder (Documents) | **thư mục** | Folder | dùng lại khóa `"folder": "Thư mục"` có sẵn; UNI-1425 (phụ lục thư mục §3.6) |
+| Page (the rich-text document kind, `kind=page`) | **UniNote** | UniNote | tên sản phẩm, không dịch ở mọi ngôn ngữ (U-UN1, UNI-1812); `documents.file_types.page`, `documents.page.new_page` = "UniNote mới" / "New UniNote"; chỉ chữ trên UI — `kind=page`, route, `documentKeys` giữ nguyên. "Trang" vẫn là phân trang ("Trang sau"), trang chủ ("Trang chủ") và trang in ("Trang in"). `packages/core/i18n/uninote-copy.test.ts` giữ danh sách khóa |
 | subfolder | **thư mục con** | Subfolder | luôn đủ cụm, không "mục con" |
 | new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Tài liệu (gốc)" (tiêu đề hộp thoại từ (+) sidebar) |
 | rename | **đổi tên** | Rename | |
 | move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
 | trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |
 | path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |
+| editing (the document edit lock as a person sees it) | **quyền sửa** | Editing | `documents.editLock.*` (UNI-1645); never "khóa" in copy, which reads as locking or restricting the document |
+| editing (someone is, now) | **đang sửa** | Editing | `rowEditing` "đang sửa" / "editing", `bannerOther` "{{name}} đang sửa từ {{time}}" |
+| take over editing | **lấy quyền sửa** | Take over editing | manage level only, takes effect at once; the button and the confirm say the same words |
+| request to edit | **yêu cầu quyền sửa** | Request to edit | edit level; the holder answers "Lưu và nhường quyền" / "Từ chối" |
+| keep editing offline | **giữ quyền sửa khi offline** | Keep editing offline | desktop only; others read "{{name}} giữ quyền sửa offline đến {{time}}" |
+| offline (the app working without a network) | **offline** | offline | kept lowercase English inside Vietnamese, like workspace: "thư viện offline", "giữ quyền sửa offline"; **Ngoại tuyến** is only a person's presence (`presence_offline`), never the app's mode |
+| origin link of a file from another module (Documents) | **Xem nơi đính kèm** | View where attached | `documents.home.row.go_to_source`; một nhãn cho việc, bình luận việc, cuộc họp và Trò chuyện (mở đúng phòng và tin nhắn); email giữ `open_email` = "Mở Email" vì Email Hub chưa có đường dẫn tới từng thread; không dùng "Đi tới bản gốc" |
 
 `workspace` stays English on purpose: the Vietnamese candidates ("không gian
 làm việc") are long, and the URL, the slug field and the product name all say

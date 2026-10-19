@@ -173,3 +173,115 @@ func TestConfigPublishesCIJobInstallerURLs(t *testing.T) {
 		t.Fatalf("beta/stable must stay empty: %+v", out.Installers)
 	}
 }
+
+func TestConfigPublishesDocumentLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		cfg     config.Config
+		wantMax int64
+	}{
+		{"default 200 MiB", config.Config{}, 209715200},
+		{"configured 100 MiB", config.Config{DocumentMaxBytes: 100 << 20}, 100 << 20},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := New(Deps{Cfg: tc.cfg, Log: slog.Default()})
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d", rec.Code)
+			}
+			var raw map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+				t.Fatal(err)
+			}
+			docsObj, ok := raw["documents"].(map[string]any)
+			if !ok {
+				t.Fatalf("documents missing from /api/v1/config: %v", raw)
+			}
+			limits, ok := docsObj["limits"].(map[string]any)
+			if !ok {
+				t.Fatalf("documents.limits missing: %v", docsObj)
+			}
+			if _, exists := limits["chunked_upload_threshold_bytes"]; exists {
+				t.Fatalf("chunked_upload_threshold_bytes must not be present: %v", limits)
+			}
+			if got := int64(limits["upload_max_bytes"].(float64)); got != tc.wantMax {
+				t.Fatalf("upload_max_bytes = %d, want %d", got, tc.wantMax)
+			}
+			if got := limits["save_warn_ratio"].(float64); got != 0.9 {
+				t.Fatalf("save_warn_ratio = %v, want 0.9", got)
+			}
+			webOpen, ok := limits["web_open"].(map[string]any)
+			if !ok {
+				t.Fatalf("documents.limits.web_open missing: %v", limits)
+			}
+			for format, wantWarn := range map[string]int64{
+				"docx": 31457280,
+				"pptx": 26214400,
+				"pdf":  52428800,
+				"xlsx": 5242880,
+			} {
+				entry, ok := webOpen[format].(map[string]any)
+				if !ok {
+					t.Fatalf("web_open.%s missing: %v", format, webOpen)
+				}
+				if got := int64(entry["warn_bytes"].(float64)); got != wantWarn {
+					t.Fatalf("web_open.%s.warn_bytes = %d, want %d", format, got, wantWarn)
+				}
+			}
+		})
+	}
+}
+
+// GET /api/v1/config carries the UniChat catalogue beside Office's: arrays per
+// channel (never null), store links that are HTTPS or empty, and neither
+// product's variables leak into the other's catalogue.
+func TestConfigPublishesUniChatCatalogue(t *testing.T) {
+	type wire struct {
+		Office  map[string][]config.OfficeInstaller `json:"office_installers"`
+		UniChat map[string][]config.OfficeInstaller `json:"unichat_installers"`
+		Stores  *config.UniChatStoreLinks           `json:"unichat_stores"`
+	}
+	read := func(cfg config.Config) wire {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		New(Deps{Cfg: cfg, Log: slog.Default()}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d", rec.Code)
+		}
+		var out wire
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	empty := read(config.Config{OfficeInstallerDevURLs: `{"win32-x64":"https://downloads.test/office.exe"}`})
+	for _, channel := range []string{"dev", "beta", "stable"} {
+		if got, present := empty.UniChat[channel]; !present || got == nil || len(got) != 0 {
+			t.Fatalf("unset UniChat %s = %+v, want an empty array", channel, got)
+		}
+	}
+	if empty.Stores == nil || *empty.Stores != (config.UniChatStoreLinks{}) {
+		t.Fatalf("unset stores = %+v, want four empty links", empty.Stores)
+	}
+
+	got := read(config.Config{
+		UniChatInstallerDevURLs:    `{"darwin-arm64":"https://downloads.test/UniChat_0.1.0-dev.2_unsigned_darwin_arm64.dmg"}`,
+		UniChatInstallerStableURLs: `{"win32-x64":"javascript:alert(1)"}`,
+		UniChatStoreIOSURL:         "https://apps.apple.com/app/id1234567890",
+		UniChatPlayInternalURL:     "http://play.google.com/apps/internaltest/1",
+	})
+	if dev := got.UniChat["dev"]; len(dev) != 1 || dev[0].Platform != "darwin-arm64" || dev[0].Version != "0.1.0-dev.2" || !dev[0].Unsigned {
+		t.Fatalf("UniChat dev = %+v", dev)
+	}
+	if stable, present := got.UniChat["stable"]; !present || len(stable) != 0 {
+		t.Fatalf("an invalid map must publish nothing: %+v", stable)
+	}
+	if len(got.Office["dev"]) != 0 {
+		t.Fatalf("UniChat installers leaked into Office: %+v", got.Office)
+	}
+	if got.Stores == nil || *got.Stores != (config.UniChatStoreLinks{IOS: "https://apps.apple.com/app/id1234567890"}) {
+		t.Fatalf("stores = %+v", got.Stores)
+	}
+}

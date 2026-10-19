@@ -128,6 +128,8 @@ const (
 	ActionChatRoomMemberUpdated   = "chat.room.member_updated"
 	ActionChatRoomSettingsUpdated = "chat.room.settings_updated"
 	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
+	ActionChatVoiceTranscribed    = "chat.voice_message.transcribed"
+	ActionChatMessageForwarded    = "chat.message.forwarded"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
@@ -147,11 +149,23 @@ const (
 
 	// Document access (UNI-676): shares and public links on one document,
 	// and the organization's public-link switch.
-	ActionDocumentShared          = "document.shared"
-	ActionDocumentShareRevoked    = "document.share_revoked"
-	ActionDocumentLinkCreated     = "document.link_created"
-	ActionDocumentLinkRevoked     = "document.link_revoked"
-	ActionDocumentSettingsChanged = "document.settings_changed"
+	ActionDocumentShared       = "document.shared"
+	ActionDocumentShareRevoked = "document.share_revoked"
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	ActionDocumentBreakGlassGranted = "document.break_glass_granted"
+	ActionDocumentBreakGlassRevoked = "document.break_glass_revoked"
+	// SH-S1 (UNI-1780): the workspace home row turned on, off or changed
+	// level - the (visibility, workspace_level) pair of one document. One row
+	// per home-row change, the plain visibility PATCH included; the level of
+	// a home row never exceeds edit (Q-S1).
+	ActionDocumentWorkspaceAccessChanged = "document.workspace_access_changed"
+	ActionDocumentLinkCreated            = "document.link_created"
+	ActionDocumentLinkRevoked            = "document.link_revoked"
+	ActionDocumentSettingsChanged        = "document.settings_changed"
+	// ActionDocumentsAccessReportExported is one access report export
+	// (UNI-1643): ids, the filter and counts, never a name.
+	ActionDocumentsAccessReportExported = "documents.access_report_exported"
 
 	// Document comments + favorites (UNI-681): the document half of the
 	// shared comment core. The reaction actions stay document-scoped so
@@ -167,8 +181,9 @@ const (
 	ActionDocumentFavorited              = "document.favorited"
 	ActionDocumentUnfavorited            = "document.unfavorited"
 
-	// Pages (UNI-678, G1-04a): a PATCH of title, icon, visibility or the
-	// working copy. Metadata only - the page JSON never reaches audit.
+	// Pages (UNI-678, G1-04a): a PATCH of title, icon or the working copy.
+	// Metadata only - the page JSON never reaches audit. The visibility half
+	// of a PATCH moved to document.workspace_access_changed with SH-S1.
 	ActionDocumentUpdated = "document.updated"
 
 	// Document tree and lifecycle (UNI-678, G1-04b): a move, the archive
@@ -181,6 +196,27 @@ const (
 	ActionDocumentDeleted           = "document.deleted"
 	ActionDocumentVersionsCompacted = "document.versions_compacted"
 	ActionDocumentAssetPurged       = "document.asset_purged"
+
+	// Document edit lock (UNI-1645, addendum §5.1): the one editor of a
+	// document. Acquire covers a handover claim and "edit here"; release
+	// carries the end reason in metadata (the holder, the sweeper, the
+	// consumer, an archive); a take-over is its own row. The heartbeat is
+	// never audited. Requests (D3) are created, answered and cancelled.
+	ActionDocumentEditLockAcquired    = "document.edit_lock_acquired"
+	ActionDocumentEditLockReleased    = "document.edit_lock_released"
+	ActionDocumentEditLockTakenOver   = "document.edit_lock_taken_over"
+	ActionDocumentEditHoldStarted     = "document.edit_hold_started"
+	ActionDocumentEditHoldRenewed     = "document.edit_hold_renewed"
+	ActionDocumentEditHoldEnded       = "document.edit_hold_ended"
+	ActionDocumentEditRequestCreated  = "document.edit_request_created"
+	ActionDocumentEditRequestAnswered = "document.edit_request_answered"
+	ActionDocumentEditRequestCanceled = "document.edit_request_cancelled"
+
+	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, kept forever
+	// and read-only - "archived" is the trash. One row per document of the
+	// batch, the batch id in metadata and in the event payload.
+	ActionDocumentShelved   = "document.shelved"
+	ActionDocumentUnshelved = "document.unshelved"
 
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit
@@ -249,6 +285,16 @@ const (
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
 
+	// A host turned action items of a meeting summary into tasks: one row
+	// for the batch, beside the task.created row of each task
+	// (MeetingService.CreateTasksFromSummary, UNI-1853).
+	ActionMeetingSummaryTasksCreated = "meeting_summary.tasks_created"
+
+	// A host or admin generated the meeting's AI summary
+	// (MeetingService.Summarize); metadata names the summary and the usage
+	// row that paid for it.
+	ActionMeetingSummaryCreated = "meeting.summary_created"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"
@@ -258,6 +304,12 @@ const (
 	ActionPrivacyDeletionRequested   = "privacy.deletion_requested"
 	ActionPrivacyDeletionCancelled   = "privacy.deletion_cancelled"
 	ActionPrivacyOrganizationDeleted = "privacy.organization_deleted"
+
+	// Multipart upload sessions for large files (BIGUP S1-b / UNI-1862).
+	ActionDocumentUploadSessionOpened    = "document.upload_session_opened"
+	ActionDocumentUploadSessionCompleted = "document.upload_session_completed"
+	ActionDocumentUploadSessionAborted   = "document.upload_session_aborted"
+	ActionDocumentUploadSessionExpired   = "document.upload_session_expired"
 )
 
 // Chat message create and update are deliberately not audited: the volume is

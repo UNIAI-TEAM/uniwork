@@ -45,15 +45,28 @@ const CHECK_HIT = "mx-auto aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.
 const PUSH_BY_DEFAULT = new Set<Kind>([
   "mentioned",
   "document_mentioned",
+  "document_discussion_mentioned",
+  "document_break_glass",
   "task_assigned",
   "meeting_starting",
   "chat_mentioned",
   "chat_dm",
   "chat_reminder",
+  "chat_call_incoming",
+  // UNI-1645: an edit request needs a quick answer and a take-over may leave
+  // unsaved work behind; the answer to a request stays in-app.
+  "document_edit_requested",
+  "document_edit_taken_over",
 ]);
 
+/**
+ * Kinds that never email (TRASH-NOTIFY-01, Q-R2: in-app only), mirrored from
+ * the Email ceiling `Matrix.For` applies in `server/internal/notification/prefs.go`.
+ */
+const NO_EMAIL: Partial<Record<Kind, true>> = { document_trashed_by_other: true };
+
 function serverDefault(kind: Kind): NotificationPreference {
-  return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: true };
+  return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: !NO_EMAIL[kind] };
 }
 
 /**
@@ -82,6 +95,11 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
   const rows: NotificationPreference[] = NOTIFICATION_KINDS.map(
     (kind) => inFlight[kind] ?? prefs.data?.find((p) => p.kind === kind) ?? serverDefault(kind),
   );
+  // The kinds the bulk Email control speaks for: the trash kind can never
+  // hold email (NO_EMAIL mirrors the server's ceiling), so counting it would
+  // pin the checkbox to "mixed" and make every later click ask to switch
+  // that one ineligible row on instead of switching the rest off (BE-TN-11).
+  const emailRows = rows.filter((r) => !NO_EMAIL[r.kind]);
   const busy = (kind: Kind) => inFlight[kind] !== undefined;
   const kindLabel = (kind: Kind) => t(`kinds.${kind}`);
   const channelLabel = (c: Channel) => t(`channel_${c}`);
@@ -113,7 +131,10 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
 
   const toggleChannel = (channel: Channel, value: boolean) => {
     if (rows.some((r) => busy(r.kind))) return;
-    write(rows.filter((r) => r[channel] !== value).map((r) => ({ ...r, [channel]: value })));
+    // A kind a channel can never carry is not written: the server would
+    // clamp it back and the checkbox would lie about what it just did.
+    const target = channel === "email" ? emailRows : rows;
+    write(target.filter((r) => r[channel] !== value).map((r) => ({ ...r, [channel]: value })));
   };
 
   return (
@@ -154,13 +175,14 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
                   {t("all_kinds")}
                 </th>
                 {channels.map((c) => {
-                  const allOn = rows.every((r) => r[c]);
-                  const someOn = !allOn && rows.some((r) => r[c]);
+                  const eligible = c === "email" ? emailRows : rows;
+                  const allOn = eligible.every((r) => r[c]);
+                  const someOn = !allOn && eligible.some((r) => r[c]);
                   const anyBusy = rows.some((r) => busy(r.kind));
                   return (
                     <td key={c} className={CELL}>
                       <Checkbox
-                        aria-label={t("channel_all", { channel: channelLabel(c) })}
+                        aria-label={c === "email" ? t("email_all") : t("channel_all", { channel: channelLabel(c) })}
                         aria-busy={anyBusy || undefined}
                         className={CHECK_HIT}
                         checked={allOn}

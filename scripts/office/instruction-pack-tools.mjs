@@ -15,9 +15,18 @@ export const TOOLS_DOC = "docs/office/g5g6g7/genoffice-tools.md";
 const TOOL_TOKEN_SOURCE = String.raw`\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b`;
 const SNAKE_CASE_TOOL = new RegExp(`^${TOOL_TOKEN_SOURCE}$`);
 const SCHEMA_SHA256 = /^[0-9a-f]{64}$/;
+// The extractor writes this instead of a hash when it cannot resolve a schema
+// statically (e.g. `generate_mindmap` before G6-09d folded `nodeSchema(maxDepth)`),
+// and the block header documents the form. The row keeps its tool name, so the
+// tool stays a tool of its module; only the schema cell is missing, and a
+// consumer that needs a schema for it must treat the row as schemaless.
+const UNRESOLVED_SCHEMA_CELL = /^unresolved:[a-z0-9_:.-]+$/;
 const MODULE_NAME = /^[a-z][a-z0-9-]*$/;
 const HEADER = ["module", "tool", "input_schema_sha256", "editor_write", "source"];
 const PROVENANCE_COMMENT = /^<!-- genoffice-tools-extract [^>]*-->$/;
+
+/** True for the documented `unresolved:<reason>` schema cell; false for a 64-hex hash and anything else. */
+export const isUnresolvedSchemaCell = (cell) => UNRESOLVED_SCHEMA_CELL.test(cell);
 
 /** Every distinct snake_case token in `text`, in order of first appearance. */
 export function snakeCaseTokens(text) {
@@ -28,8 +37,11 @@ export function snakeCaseTokens(text) {
  * The mechanical block of `genoffice-tools.md` as `Map<module, Set<tool>>`,
  * with the number of tool rows. Throws loudly when the doc layout changed:
  * missing markers, another header, a line that is neither a table row, a
- * blank line nor the extractor's provenance comment (a wrapped row), a row
- * that is not five machine-shaped cells, or a repeated (module, tool) pair.
+ * blank line nor the extractor's provenance comment (a wrapped row), a schema
+ * cell that is neither a 64-hex hash nor the documented `unresolved:<reason>`
+ * form, or a repeated (module, tool) pair. A row whose cell is `unresolved:`
+ * still names its tool: `byModule` carries it, and the caller that needs a
+ * schema for it reads `isUnresolvedSchemaCell` on the cell it already has.
  */
 export function parseMechanicalTable(markdown) {
   // The markers also appear inside §1's AC-2 recipe (`sed -e '1,/^<!-- extract:begin -->$/d'`),
@@ -75,7 +87,9 @@ export function parseMechanicalTable(markdown) {
     const [module, tool, schemaSha256, editorWrite, source] = row;
     if (!MODULE_NAME.test(module)) throw new Error(`${TOOLS_DOC}: mechanical row names module "${module}": ${line}`);
     if (!SNAKE_CASE_TOOL.test(tool)) throw new Error(`${TOOLS_DOC}: mechanical row names tool "${tool}", which is not a snake_case tool name: ${line}`);
-    if (!SCHEMA_SHA256.test(schemaSha256)) throw new Error(`${TOOLS_DOC}: mechanical row for ${module} ${tool} has no 64-hex input schema hash: ${line}`);
+    if (!SCHEMA_SHA256.test(schemaSha256) && !UNRESOLVED_SCHEMA_CELL.test(schemaSha256)) {
+      throw new Error(`${TOOLS_DOC}: mechanical row for ${module} ${tool} has input schema cell "${schemaSha256}", which is neither a 64-hex hash nor the documented unresolved:<reason> form: ${line}`);
+    }
     if (editorWrite !== "yes" && editorWrite !== "no") throw new Error(`${TOOLS_DOC}: mechanical row for ${module} ${tool} has editor_write "${editorWrite}", expected yes | no: ${line}`);
     if (source.length === 0) throw new Error(`${TOOLS_DOC}: mechanical row for ${module} ${tool} has no source: ${line}`);
     if (!byModule.has(module)) byModule.set(module, new Set());

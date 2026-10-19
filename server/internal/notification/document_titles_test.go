@@ -1,7 +1,7 @@
 package notification
 
 // FE-2 (G8-05, UNI-1400): every document kind whose template interpolates the
-// document name must render that name verbatim, in vi and en; the five short
+// document name must render that name verbatim, in vi and en; the short
 // push titles OQ-C8 splits out must stay name-free in both locales; and the
 // real PushConsumer.message boundary must carry the same special-character
 // name the Title() path does. The round-2 review
@@ -40,9 +40,11 @@ var documentNameCases = []struct {
 	{KindDocumentDiscussionMentioned, `An đã nhắc đến bạn trong thảo luận của tài liệu “A "b" & <c>”.`, `An mentioned you in a discussion on “A "b" & <c>”.`},
 	{KindDocumentDiscussionReplied, `An đã phản hồi nội dung thảo luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your discussion post in “A "b" & <c>”.`},
 	{KindDocumentCommentResolved, `An đã đánh dấu bình luận của bạn trong tài liệu “A "b" & <c>” là đã giải quyết.`, `An marked your comment in “A "b" & <c>” as resolved.`},
+	{KindDocumentBreakGlass, `An đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “A "b" & <c>”.`, `An opened emergency view access (24h) to “A "b" & <c>”.`},
+	{KindDocumentShared, `An đã chia sẻ tài liệu “A "b" & <c>” với bạn. Quyền: Chỉ xem.`, `An shared “A "b" & <c>” with you (View).`},
 }
 
-// shortPushTitleCases is the five short titles OQ-C8 splits out, vi and en.
+// shortPushTitleCases is the short titles OQ-C8 splits out, vi and en.
 // They intentionally carry no document name: the assertions below check the
 // exact literal and that the rendered title contains no name.
 var shortPushTitleCases = []struct {
@@ -55,6 +57,8 @@ var shortPushTitleCases = []struct {
 	{KindDocumentDiscussionMentioned, "Bạn được nhắc tên trong thảo luận", "You were mentioned in a discussion"},
 	{KindDocumentDiscussionReplied, "Có phản hồi thảo luận mới", "New reply in a discussion"},
 	{KindDocumentCommentResolved, "Bình luận đã được giải quyết", "Comment resolved"},
+	{KindDocumentBreakGlass, "Truy cập khẩn cấp vào tài liệu", "Emergency access to document"},
+	{KindDocumentShared, "Tài liệu được chia sẻ", "Document shared"},
 }
 
 // htmlEscapeMarks are the byte sequences a stray HTML-escape would leave in a
@@ -65,7 +69,7 @@ var htmlEscapeMarks = []string{"&amp;", "&lt;", "&gt;", "&quot;", "&#39;", "&#x2
 // Title for vi and en with a name carrying quotes, an ampersand and angle
 // brackets, and asserts the exact sentence - the name verbatim, no escaping.
 func TestTitleDocumentNameVerbatimAllKinds(t *testing.T) {
-	params := map[string]string{"actor": "An", "document": documentName}
+	params := map[string]string{"actor": "An", "document": documentName, "level": "view"}
 	for _, tc := range documentNameCases {
 		for _, locale := range []string{"vi", "en"} {
 			want := tc.vi
@@ -88,7 +92,30 @@ func TestTitleDocumentNameVerbatimAllKinds(t *testing.T) {
 	}
 }
 
-// TestShortPushTitlesCarryNoDocumentName asserts the five short push titles
+func TestTitleDocumentSharedLevels(t *testing.T) {
+	cases := []struct {
+		level string
+		vi    string
+		en    string
+	}{
+		{"view", "Chỉ xem", "View"},
+		{"comment", "Nhận xét", "Comment"},
+		{"edit", "Chỉnh sửa", "Edit"},
+		{"manage", "Quản lý", "Manage"},
+		{"custom_future", "custom_future", "custom_future"},
+	}
+	for _, tc := range cases {
+		p := map[string]string{"actor": "An", "document": "Kế hoạch", "level": tc.level}
+		if got, want := Title("vi", KindDocumentShared, p), "An đã chia sẻ tài liệu “Kế hoạch” với bạn. Quyền: "+tc.vi+"."; got != want {
+			t.Errorf("Title(vi, %s) = %q, want %q", tc.level, got, want)
+		}
+		if got, want := Title("en", KindDocumentShared, p), "An shared “Kế hoạch” with you ("+tc.en+")."; got != want {
+			t.Errorf("Title(en, %s) = %q, want %q", tc.level, got, want)
+		}
+	}
+}
+
+// TestShortPushTitlesCarryNoDocumentName asserts the short push titles
 // for vi and en are the exact literals and, by design, never carry the
 // document name - a short title cannot prove a name is preserved.
 func TestShortPushTitlesCarryNoDocumentName(t *testing.T) {

@@ -1,8 +1,8 @@
 "use client";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import * as tasks from "../api/endpoints/tasks";
-import { calendarKeys } from "../calendar/keys";
 import type { Task } from "../types/task";
+import { invalidateTaskCollections } from "./invalidate";
 import { taskKeys } from "./keys";
 import { useRecentTasksStore } from "./stores/recent-tasks-store";
 import { applyTaskPatch, patchTableCaches } from "./table-cache-patch";
@@ -64,10 +64,7 @@ export function useCreateTask(workspaceId: string) {
         identifier: task.identifier,
         title: task.title,
       });
-      invalidatePagedTaskLists(qc, workspaceId);
-      void qc.invalidateQueries({ queryKey: taskKeys.tableRoot(workspaceId) });
-      void qc.invalidateQueries({ queryKey: calendarKeys.all(workspaceId) });
-      return qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
+      return invalidateTaskCollections(qc, workspaceId);
     },
   });
 }

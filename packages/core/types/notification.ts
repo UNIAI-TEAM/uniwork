@@ -21,9 +21,19 @@ export const NOTIFICATION_KINDS = [
   "document_discussion_mentioned",
   "document_discussion_replied",
   "document_comment_resolved",
+  "document_edit_requested",
+  "document_edit_request_answered",
+  "document_edit_taken_over",
+  "document_break_glass",
   "chat_mentioned",
   "chat_dm",
   "chat_thread_replied",
+  "chat_call_incoming",
+  "document_access_requested",
+  "document_access_approved",
+  "document_access_declined",
+  "document_shared",
+  "document_trashed_by_other",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

@@ -60,6 +60,7 @@ describe("ai endpoints", () => {
       json({
         summary: "Có 2 tin mới.",
         highlights: ["An nhắc hạn"],
+        highlight_items: [{ text: "An nhắc hạn", source_message_id: "m2" }, { text: "Không nguồn" }],
         action_items: [{ title: "Gửi bản nháp", owner: "An", source_message_id: "m1" }],
         message_count: 2,
         since: "2026-09-11T08:00:00Z",
@@ -69,12 +70,24 @@ describe("ai endpoints", () => {
     const res = await chatCatchUp("ws1", { room_id: "r1", locale: "vi" });
     expect(res.summary).toBe("Có 2 tin mới.");
     expect(res.action_items[0]!.source_message_id).toBe("m1");
+    expect(res.highlight_items).toEqual([
+      { text: "An nhắc hạn", source_message_id: "m2" },
+      { text: "Không nguồn", source_message_id: "" },
+    ]);
     const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ room_id: "r1", locale: "vi" });
     expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/workspaces/ws1/ai/chat/catch-up");
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: 1 }));
     expect((await chatCatchUp("ws1", { room_id: "r1" })).summary).toBe("");
+    // An older server omits highlight_items; a drifted one must not blank the brief.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "Cũ", highlights: ["a"] }));
+    expect((await chatCatchUp("ws1", { room_id: "r1" })).highlight_items).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "Lệch", highlights: ["a"], highlight_items: [{ text: 1 }] }));
+    const drifted = await chatCatchUp("ws1", { room_id: "r1" });
+    expect(drifted.summary).toBe("Lệch");
+    expect(drifted.highlights).toEqual(["a"]);
+    expect(drifted.highlight_items).toEqual([]);
   });
 
   it("conversations and messages degrade to empty lists", async () => {

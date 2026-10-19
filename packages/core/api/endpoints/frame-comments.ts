@@ -178,14 +178,16 @@ export async function putFrameCommentAnchors(
   );
 }
 
-/** GET .../mention-candidates?q=&limit= - who the composer may offer. */
+/** GET .../mention-candidates?q=&limit=&include= - who the composer may offer. */
 export async function searchFrameMentionCandidates(
   documentId: string,
-  query: { q: string; limit?: number },
+  query: { q: string; limit?: number; include?: "no_access" },
   signal?: AbortSignal,
 ): Promise<{ candidates: Record<string, unknown>[] } | null> {
   const params = new URLSearchParams({ q: query.q });
   if (query.limit !== undefined) params.set("limit", String(query.limit));
+  // G8-18: members without view access come back with `can_view: false`; the server ignores it for a caller who may not list members.
+  if (query.include) params.set("include", query.include);
   const raw = await request(`${path(documentId, "mention-candidates")}?${params.toString()}`, { signal });
   return parseWithFallback<{ candidates: Record<string, unknown>[] } | null>(raw, CandidatesResponse, null, {
     endpoint: "GET /api/v1/documents/{id}/mention-candidates (frame)",

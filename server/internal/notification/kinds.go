@@ -38,11 +38,34 @@ const (
 	KindDocumentDiscussionMentioned = "document_discussion_mentioned"
 	KindDocumentDiscussionReplied   = "document_discussion_replied"
 	KindDocumentCommentResolved     = "document_comment_resolved"
+	// The edit lock (UNI-1645, addendum §5.2): someone asks the holder to
+	// stop editing, the holder's answer, and a manager taking the lock.
+	KindDocumentEditRequested       = "document_edit_requested"
+	KindDocumentEditRequestAnswered = "document_edit_request_answered"
+	KindDocumentEditTakenOver       = "document_edit_taken_over"
+	// A workspace admin opened emergency view access to a restricted
+	// document (DOC-05; UNI-1628). Sent to the document's ACL owner; the
+	// params carry ids only.
+	KindDocumentBreakGlass = "document_break_glass"
 	// Chat (H1): one row per room or thread while unread, so a burst of
 	// messages is one notification and one push.
 	KindChatMentioned     = "chat_mentioned"
 	KindChatDM            = "chat_dm"
 	KindChatThreadReplied = "chat_thread_replied"
+	// A chat call ringing (UniChat M3): one row per room, closed when the
+	// person answers or the call ends; its push lives 60 seconds.
+	KindChatCallIncoming = "chat_call_incoming"
+	// Document access requests (W-DOC07): registered so the inbox, titles and
+	// preference matrix know them; the producers land with S-DOC07.
+	KindDocumentAccessRequested = "document_access_requested"
+	KindDocumentAccessApproved  = "document_access_approved"
+	KindDocumentAccessDeclined  = "document_access_declined"
+	// Direct user document share that raises effective access (SH-S3, UNI-1782).
+	KindDocumentShared = "document_shared"
+	// TRASH-NOTIFY-01 (UNI-1844): somebody else moved a person's document to
+	// the trash; the ACL owner hears once per archive batch. In-app only by
+	// default (Q-R2: no email, push off).
+	KindDocumentTrashedByOther = "document_trashed_by_other"
 )
 
 // Kinds is the list in display order.
@@ -52,7 +75,12 @@ var Kinds = []string{
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
-	KindChatMentioned, KindChatDM, KindChatThreadReplied,
+	KindDocumentEditRequested, KindDocumentEditRequestAnswered, KindDocumentEditTakenOver,
+	KindDocumentBreakGlass,
+	KindChatMentioned, KindChatDM, KindChatThreadReplied, KindChatCallIncoming,
+	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
+	KindDocumentShared,
+	KindDocumentTrashedByOther,
 }
 
 var kindSet = func() map[string]bool {

@@ -4,11 +4,19 @@ import {
   Bell,
   Bookmark,
   CircleCheck,
+  CircleX,
   FileDown,
+  KeyRound,
+  Lock,
   MessageSquare,
+  Pencil,
+  Phone,
   RefreshCw,
+  Share2,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserPlus,
   UserRoundCheck,
   type LucideIcon,
@@ -36,13 +44,27 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_discussion_mentioned: AtSign,
   document_discussion_replied: MessageSquare,
   document_comment_resolved: CircleCheck,
+  document_edit_requested: Pencil,
+  document_edit_request_answered: CircleCheck,
+  document_edit_taken_over: Lock,
+  document_break_glass: ShieldAlert,
   chat_mentioned: AtSign,
   chat_dm: MODULE_ICONS.chat,
   chat_thread_replied: MessageSquare,
+  chat_call_incoming: Phone,
+  document_access_requested: KeyRound,
+  document_access_approved: CircleCheck,
+  document_access_declined: CircleX,
+  document_shared: Share2,
+  document_trashed_by_other: Trash2,
 };
 
-/** One glyph per kind; an unknown kind from a newer server gets the bell. */
-export function kindIcon(kind: string): LucideIcon {
+/**
+ * One glyph per kind; an unknown kind from a newer server gets the bell. An
+ * edit-request answer that was declined is not a success: it gets CircleX.
+ */
+export function kindIcon(kind: string, params?: Record<string, string | undefined>): LucideIcon {
+  if (kind === "document_edit_request_answered" && params?.decision === "decline") return CircleX;
   return (ICONS as Record<string, LucideIcon>)[kind] ?? Bell;
 }
 

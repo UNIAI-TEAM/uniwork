@@ -114,6 +114,98 @@ func TestMCPOAuthRoutesAreMountedOutsideTheAPIWrapper(t *testing.T) {
 	}
 }
 
+// Upload session OpenAPI (UNI-1862): POST /api/v1/upload-sessions/{sessionID}/complete
+// answers DocumentSDO for workspace sessions and DocumentUploadSDO for document
+// sessions, so its 200 response schema offers both as oneOf; both DELETE
+// upload-session operations advertise an empty-body 204 response.
+func TestUploadSessionOpenAPISpec(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}
+	mux := New(Deps{Cfg: cfg}, stubRoutes())
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /swagger/doc.json = %d, want 200", rec.Code)
+	}
+
+	type schemaRef struct {
+		Ref   string      `json:"$ref"`
+		OneOf []schemaRef `json:"oneOf"`
+	}
+	type operation struct {
+		Description string `json:"description"`
+		Responses   map[string]struct {
+			Description string `json:"description"`
+			Content     map[string]struct {
+				Schema schemaRef `json:"schema"`
+			} `json:"content"`
+		} `json:"responses"`
+	}
+	var spec struct {
+		Paths      map[string]map[string]operation `json:"paths"`
+		Components struct {
+			Schemas map[string]schemaRef `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("unmarshal swagger doc: %v", err)
+	}
+
+	completePath := "/api/v1/upload-sessions/{sessionID}/complete"
+	completeSchema := spec.Paths[completePath]["post"].Responses["200"].Content["application/json"].Schema
+	if name, ok := strings.CutPrefix(completeSchema.Ref, "#/components/schemas/"); ok {
+		completeSchema = spec.Components.Schemas[name]
+	}
+	gotRefs := map[string]bool{}
+	for _, item := range completeSchema.OneOf {
+		gotRefs[item.Ref] = true
+	}
+	for _, wantRef := range []string{
+		"#/components/schemas/SdoDocumentSDO",
+		"#/components/schemas/SdoDocumentUploadSDO",
+	} {
+		if !gotRefs[wantRef] {
+			t.Errorf("POST %s 200 schema oneOf = %+v, missing %s", completePath, completeSchema.OneOf, wantRef)
+		}
+	}
+	if len(completeSchema.OneOf) != 2 {
+		t.Errorf("POST %s 200 schema oneOf len = %d (%+v), want 2", completePath, len(completeSchema.OneOf), completeSchema.OneOf)
+	}
+
+	for _, delPath := range []string{
+		"/api/v1/upload-sessions/{sessionID}",
+		"/api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}",
+	} {
+		resps := spec.Paths[delPath]["delete"].Responses
+		resp204, ok := resps["204"]
+		if !ok {
+			t.Errorf("DELETE %s responses = %v, missing 204", delPath, resps)
+			continue
+		}
+		if len(resp204.Content) != 0 {
+			t.Errorf("DELETE %s 204 content = %+v, want empty body (no content)", delPath, resp204.Content)
+		}
+	}
+
+	// BIGUP-LOCKCHECK S-4: both create operations answer 423 document_locked
+	// when another holder has the edit lock, and the spec's description says
+	// so (the reflector only auto-adds 400/401; a named error code lives in
+	// the description, as on the edit-lock routes).
+	for _, createPath := range []string{
+		"/api/v1/documents/{documentID}/upload-sessions",
+		"/api/v1/office-frame/documents/{documentID}/upload-sessions",
+	} {
+		op, ok := spec.Paths[createPath]["post"]
+		if !ok {
+			t.Errorf("POST %s is missing from the spec", createPath)
+			continue
+		}
+		if !strings.Contains(op.Description, "423 document_locked") {
+			t.Errorf("POST %s description = %q, want it to name 423 document_locked", createPath, op.Description)
+		}
+	}
+}
+
 // Without a platform-role source the admin console does not exist: no
 // route, not a 403 — a tenant cannot learn the console is there.
 func TestAdminRoutesNeedPlatformRoleSource(t *testing.T) {
@@ -201,6 +293,26 @@ func TestCORSPreflightAllowsTheForwardedVendorHeaders(t *testing.T) {
 		mux.ServeHTTP(rec, req)
 		if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.EqualFold(got, header) {
 			t.Errorf("preflight for %s: Access-Control-Allow-Headers = %q (status %d)", header, got, rec.Code)
+		}
+	}
+}
+
+// The access report export (UNI-1643) names its file and counts in response
+// headers; a cross-origin browser reads them only when CORS exposes them.
+func TestCORSExposesTheAccessReportExportHeaders(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000"}
+	mux := New(Deps{Cfg: cfg}, stubRoutes())
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/w1/documents/access-report/export?format=csv", nil)
+	req.Header.Set("Origin", cfg.FrontendOrigin)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	exposed := map[string]bool{}
+	for _, h := range strings.Split(rec.Header().Get("Access-Control-Expose-Headers"), ",") {
+		exposed[strings.ToLower(strings.TrimSpace(h))] = true
+	}
+	for _, header := range []string{"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At"} {
+		if !exposed[strings.ToLower(header)] {
+			t.Errorf("Access-Control-Expose-Headers lacks %s (got %q)", header, rec.Header().Get("Access-Control-Expose-Headers"))
 		}
 	}
 }

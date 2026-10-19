@@ -4,7 +4,9 @@ import { ApiError } from "@uniwork/core/api";
 import { FOLDER_TITLE_MAX } from "@uniwork/core/documents/folder-limits";
 import { initI18n } from "@uniwork/core/i18n";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
-import { requestMock, wrap } from "../test/api-mock";
+import type { User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import { useCreateOfType } from "./documents-create";
 import { DocumentsSidebar, DocumentsSidebarSheet } from "./documents-sidebar";
 import { FolderNameDialog } from "./folder-name-dialog";
@@ -225,6 +227,42 @@ describe("DocumentTreeRowMenu permissions", () => {
     await waitFor(() => expect(detailCalls).toBeGreaterThanOrEqual(1));
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(detailCalls).toBe(1);
+  });
+});
+
+describe("DocumentTreeRowMenu star item", () => {
+  const actions = (onToggleStar: (node: DocumentTreeNode, starred: boolean) => void) => ({
+    onNewSubfolder: vi.fn(),
+    onRename: vi.fn(),
+    onMoveTo: vi.fn(),
+    onDelete: vi.fn(),
+    onToggleStar,
+  });
+
+  it("offers Gắn sao for an unstarred folder and reports the current state on click", async () => {
+    const onToggleStar = vi.fn();
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="view" actions={actions(onToggleStar)} />));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.unstar") })).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.star") }));
+    expect(onToggleStar).toHaveBeenCalledWith(folderNode, false);
+  });
+
+  it("offers Bỏ gắn sao for a starred folder, even to a view-only member", async () => {
+    const onToggleStar = vi.fn();
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="view" starred actions={actions(onToggleStar)} />));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.star") })).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.unstar") }));
+    expect(onToggleStar).toHaveBeenCalledWith(folderNode, true);
+  });
+
+  it("shows no star item where the host wires none", async () => {
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="manage" />));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") });
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.star") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.unstar") })).toBeNull();
   });
 });
 
@@ -596,5 +634,71 @@ describe("DocumentTree row menu dialogs and toasts", () => {
     const sheetTree = await screen.findByRole("tree");
     expect(sheetTree.closest("nav")).toHaveClass("flex-1", "min-h-0", "overflow-y-auto");
     expect(sheetTree.parentElement).toHaveClass("shrink-0");
+  });
+});
+
+describe("DocumentTreeRowMenu access report entry (UNI-1643)", () => {
+  const baseActions = {
+    onNewSubfolder: vi.fn(),
+    onRename: vi.fn(),
+    onMoveTo: vi.fn(),
+    onDelete: vi.fn(),
+  };
+  const reportItem = () => screen.queryByRole("menuitem", { name: t("documents.accessReport.menu_folder") });
+  const openMenu = () =>
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+
+  it("offers the report only at manage level and hands the folder over", async () => {
+    const onAccessReport = vi.fn();
+    const actions = { ...baseActions, onAccessReport };
+
+    const edit = render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="edit" actions={actions} />));
+    openMenu();
+    await screen.findByRole("menuitem", { name: t("documents.tree.menu.rename") });
+    expect(reportItem()).toBeNull();
+    edit.unmount();
+
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="manage" actions={actions} />));
+    openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.accessReport.menu_folder") }));
+    expect(onAccessReport).toHaveBeenCalledWith(folderNode);
+  });
+
+  it("stays out of the menu when the host gives no way to open it", async () => {
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="manage" actions={baseActions} />));
+    openMenu();
+    await screen.findByRole("menuitem", { name: t("documents.tree.menu.rename") });
+    expect(reportItem()).toBeNull();
+  });
+
+  it("in the tree, navigates to the folder's report", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: forest });
+      if (path === "/api/v1/documents/f1") return Promise.resolve({ document: detailRow() });
+      return Promise.resolve({});
+    });
+    const workspace: Workspace = {
+      id: WS,
+      slug: "doi",
+      name: "Đội",
+      organization_id: "org1",
+      organization_slug: "acme",
+      organization_name: "Acme",
+    };
+    const user = { id: "u1", email: "an@example.com", display_name: "An", locale: "vi" } as User;
+    const nav = fakeNav("/acme/doi/documents");
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <DocumentTree wsId={WS} folders />
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+
+    const row = await screen.findByRole("treeitem", { name: /Hợp đồng/ });
+    fireEvent.contextMenu(row);
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.accessReport.menu_folder") }));
+    expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents/access-report?folder=f1");
   });
 });

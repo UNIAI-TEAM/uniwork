@@ -83,8 +83,8 @@ func TestDocumentPoliciesMatchTheContract(t *testing.T) {
 	}
 
 	file := specs[DocumentFile]
-	if file.Policy.MaxBytes != 50<<20 {
-		t.Errorf("document_file cap = %d, want 50 MiB", file.Policy.MaxBytes)
+	if file.Policy.MaxBytes != 200<<20 {
+		t.Errorf("document_file cap = %d, want 200 MiB", file.Policy.MaxBytes)
 	}
 	if !file.Policy.ChecksumRequired {
 		t.Error("document_file must require a checksum")
@@ -106,6 +106,14 @@ func TestDocumentPoliciesMatchTheContract(t *testing.T) {
 	if asset.Policy.ReadMode != ReadProxy {
 		t.Errorf("document_asset read mode = %q, want %q", asset.Policy.ReadMode, ReadProxy)
 	}
+
+	customSpecs := map[UploadPurpose]PurposeSpec{}
+	for _, spec := range SpecsWithDocumentMaxBytes(25 << 20) {
+		customSpecs[spec.Purpose] = spec
+	}
+	if customSpecs[DocumentFile].Policy.MaxBytes != 25<<20 {
+		t.Errorf("SpecsWithDocumentMaxBytes(25 MiB) document_file cap = %d, want 25 MiB", customSpecs[DocumentFile].Policy.MaxBytes)
+	}
 }
 
 // Caps the pipelines publish today, pinned so a registry edit that changes a
@@ -119,6 +127,8 @@ func TestCapsFollowThePublishedPipelines(t *testing.T) {
 		UserAvatar:     2 << 20,
 		TaskAttachment: 25 << 20,
 		ChatVoice:      4 << 20,
+		AuditExport:    100 << 20,
+		TenantExport:   100 << 20,
 	}
 	for purpose, want := range caps {
 		if got := specs[purpose].Policy.MaxBytes; got != want {

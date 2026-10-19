@@ -420,9 +420,11 @@ type Routes struct {
 	GetChatMediaStatus               http.HandlerFunc
 	MintChatVoiceToken               http.HandlerFunc
 	ListPendingChatVoiceInvites      http.HandlerFunc
+	ListChatCallLogs                 http.HandlerFunc
 	GetWorkspaceChatRoom             http.HandlerFunc
 	EnsureWorkspaceChatRoom          http.HandlerFunc
 	ListChatRooms                    http.HandlerFunc
+	ChatUnreadSummary                http.HandlerFunc
 	ResolveDM                        http.HandlerFunc
 	CreateChatGroup                  http.HandlerFunc
 	InviteChatGroupMembers           http.HandlerFunc
@@ -441,8 +443,13 @@ type Routes struct {
 	ListChatThreads                  http.HandlerFunc
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
+	ForwardChatMessage               http.HandlerFunc
 	ListChatMessageLinks             http.HandlerFunc
 	ListChatRoomMessageLinks         http.HandlerFunc
+	ListChatRoomLinkPreviews         http.HandlerFunc
+	ListChatRoomLinkedTasks          http.HandlerFunc
+	GetChatRoomSharedSummary         http.HandlerFunc
+	TranscribeChatVoiceMessage       http.HandlerFunc
 	DeleteChatMessageLink            http.HandlerFunc
 	SyncChatThreadTask               http.HandlerFunc
 	UnsyncChatThreadTask             http.HandlerFunc
@@ -454,9 +461,12 @@ type Routes struct {
 	ListChatRoomMembers              http.HandlerFunc
 	PatchChatRoomMember              http.HandlerFunc
 	PatchChatRoom                    http.HandlerFunc
+	UploadChatRoomAvatar             http.HandlerFunc
+	RemoveChatRoomAvatar             http.HandlerFunc
 	RemoveChatRoomMember             http.HandlerFunc
 	LeaveChatRoom                    http.HandlerFunc
 	MarkChatRoomRead                 http.HandlerFunc
+	AckChatDelivered                 http.HandlerFunc
 	MuteChatRoom                     http.HandlerFunc
 	UnmuteChatRoom                   http.HandlerFunc
 	ListWorkspaceChatMessages        http.HandlerFunc
@@ -493,6 +503,7 @@ type Routes struct {
 	// Documents (C-01 §5 + §14; UNI-679, G1-05a): page CRUD-lite, file
 	// upload/commit/download, versions and embedded assets.
 	CreateDocument          http.HandlerFunc
+	EnsureMyFolder          http.HandlerFunc
 	CreateDocumentFile      http.HandlerFunc
 	CreateBlankDocumentFile http.HandlerFunc
 	StartOfficeJob          http.HandlerFunc
@@ -509,20 +520,37 @@ type Routes struct {
 	ListDocumentSources    http.HandlerFunc
 	DownloadDocumentSource http.HandlerFunc
 	SaveDocumentSource     http.HandlerFunc
-	GetDocument            http.HandlerFunc
-	PatchDocument          http.HandlerFunc
-	UploadDocumentFile     http.HandlerFunc
-	CommitDocumentVersion  http.HandlerFunc
-	LookupCommitIntent     http.HandlerFunc
-	ListDocumentVersions   http.HandlerFunc
-	CreateDocumentVersion  http.HandlerFunc
-	GetDocumentVersion     http.HandlerFunc
-	RestoreDocumentVersion http.HandlerFunc
-	UploadDocumentAsset    http.HandlerFunc
-	GetDocumentAsset       http.HandlerFunc
-	DownloadDocument       http.HandlerFunc
-	CreatePreviewScope     http.HandlerFunc
-	GetPreviewAsset        http.HandlerFunc
+	// A view-only Office frame over a source file (UNI-1869): the session
+	// mint, then the frame-token routes Deps.OfficeFrameAuth guards.
+	MintSourceOfficeFrameToken  http.HandlerFunc
+	OpenOfficeFrameSource       http.HandlerFunc
+	GetOfficeFrameSourceContent http.HandlerFunc
+	GetDocument                 http.HandlerFunc
+	PatchDocument               http.HandlerFunc
+	UploadDocumentFile          http.HandlerFunc
+	CommitDocumentVersion       http.HandlerFunc
+	LookupCommitIntent          http.HandlerFunc
+	ListDocumentVersions        http.HandlerFunc
+	CreateDocumentVersion       http.HandlerFunc
+	GetDocumentVersion          http.HandlerFunc
+	RestoreDocumentVersion      http.HandlerFunc
+	UploadDocumentAsset         http.HandlerFunc
+	GetDocumentAsset            http.HandlerFunc
+	DownloadDocument            http.HandlerFunc
+	CreatePreviewScope          http.HandlerFunc
+	GetPreviewAsset             http.HandlerFunc
+
+	// Large upload sessions (BIGUP-S1, UNI-1862): the three create routes, and
+	// the session routes a session token or a frame token reaches.
+	CreateWorkspaceUploadSession http.HandlerFunc
+	CreateDocumentUploadSession  http.HandlerFunc
+	CreateFrameUploadSession     http.HandlerFunc
+	GetUploadSession             http.HandlerFunc
+	GetFrameUploadSession        http.HandlerFunc
+	CompleteUploadSession        http.HandlerFunc
+	CompleteFrameUploadSession   http.HandlerFunc
+	AbortUploadSession           http.HandlerFunc
+	AbortFrameUploadSession      http.HandlerFunc
 
 	// Office Docs web frame (UNI-1013): the session mint, and the frame-token
 	// routes Deps.OfficeFrameAuth guards.
@@ -589,15 +617,43 @@ type Routes struct {
 	// Offline lease of one desktop device on one document (G5-08s).
 	PutOfficeOfflineLease    http.HandlerFunc
 	DeleteOfficeOfflineLease http.HandlerFunc
-	ListSharedWithMe         http.HandlerFunc
-	DocumentTree             http.HandlerFunc
-	MoveDocument             http.HandlerFunc
-	ArchiveDocument          http.HandlerFunc
-	ArchiveImpact            http.HandlerFunc
-	RestoreDocument          http.HandlerFunc
-	ListDocumentShares       http.HandlerFunc
-	CreateDocumentShare      http.HandlerFunc
-	RevokeDocumentShare      http.HandlerFunc
+
+	// Document edit lock and edit requests (UNI-1645, R1-R10).
+	GetDocumentEditLock       http.HandlerFunc
+	AcquireDocumentEditLock   http.HandlerFunc
+	HeartbeatDocumentEditLock http.HandlerFunc
+	ReleaseDocumentEditLock   http.HandlerFunc
+	TakeOverDocumentEditLock  http.HandlerFunc
+	PutDocumentEditHold       http.HandlerFunc
+	ClearDocumentEditHold     http.HandlerFunc
+	CreateDocumentEditRequest http.HandlerFunc
+	AnswerDocumentEditRequest http.HandlerFunc
+	CancelDocumentEditRequest http.HandlerFunc
+
+	ListSharedWithMe           http.HandlerFunc
+	DocumentAccessReport       http.HandlerFunc
+	ExportDocumentAccessReport http.HandlerFunc
+	DocumentTree               http.HandlerFunc
+	MoveDocument               http.HandlerFunc
+	ArchiveDocument            http.HandlerFunc
+	ArchiveImpact              http.HandlerFunc
+	RestoreDocument            http.HandlerFunc
+	PurgeDocument              http.HandlerFunc
+	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, read-only and
+	// kept forever - "archive" is the trash.
+	ShelveDocument              http.HandlerFunc
+	UnshelveDocument            http.HandlerFunc
+	ListDocumentShares          http.HandlerFunc
+	ListDocumentShareCandidates http.HandlerFunc
+	CreateDocumentShare         http.HandlerFunc
+	CreateDocumentShareBatch    http.HandlerFunc
+	UpdateDocumentAccess        http.HandlerFunc
+	RevokeDocumentShare         http.HandlerFunc
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	CreateDocumentBreakGlass http.HandlerFunc
+	RevokeDocumentBreakGlass http.HandlerFunc
+	GetDocumentAdminSummary  http.HandlerFunc
 	CreateDocumentLink       http.HandlerFunc
 	RevokeDocumentLink       http.HandlerFunc
 	ListDocumentAccessLogs   http.HandlerFunc

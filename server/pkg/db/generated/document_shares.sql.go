@@ -11,6 +11,156 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDocumentAccessPreviewGroup = `-- name: CountDocumentAccessPreviewGroup :one
+SELECT
+  count(*)::bigint AS member_count,
+  count(*) FILTER (
+    WHERE $1::int > 0
+      AND $2::int < $1::int
+      AND GREATEST(
+        CASE
+          WHEN COALESCE(hwm.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') IN ('owner', 'admin')
+            AND $3::boolean
+          THEN 4 ELSE 0
+        END,
+        CASE
+          WHEN COALESCE(hwm.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') <> ''
+            AND om.user_id = $4::text
+          THEN 4 ELSE 0
+        END,
+        CASE
+          WHEN COALESCE(hwm.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') <> ''
+          THEN $5::int ELSE 0
+        END,
+        CASE WHEN $6::boolean THEN $1::int ELSE 0 END,
+        CASE WHEN om.user_id = ANY($7::text[]) THEN $1::int ELSE 0 END,
+        CASE
+          WHEN EXISTS (
+            SELECT 1 FROM workspace_members swm
+            WHERE swm.organization_id = om.organization_id
+              AND swm.user_id = om.user_id
+              AND swm.workspace_id = ANY($8::text[])
+          ) OR (om.role IN ('owner', 'admin') AND cardinality($8::text[]) > 0)
+          THEN $1::int ELSE 0
+        END,
+        CASE
+          WHEN COALESCE(hwm.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') IN ('owner', 'admin')
+            AND NOT $3::boolean
+            AND $4::text IS DISTINCT FROM om.user_id
+            AND EXISTS (
+              SELECT 1 FROM document_break_glass_grants bg
+              WHERE bg.organization_id = om.organization_id
+                AND bg.workspace_id = $9::text
+                AND bg.document_id = $10::text
+                AND bg.actor_id = om.user_id
+                AND bg.actor_kind = 'human'
+                AND bg.revoked_at IS NULL
+                AND bg.expires_at > now()
+            )
+          THEN 1 ELSE 0
+        END
+      ) < $1::int
+  )::bigint AS losing_count
+FROM organization_members om
+LEFT JOIN workspace_members hwm
+  ON hwm.organization_id = om.organization_id
+ AND hwm.workspace_id = $9::text
+ AND hwm.user_id = om.user_id
+LEFT JOIN workspace_members wm
+  ON wm.organization_id = om.organization_id
+ AND wm.workspace_id = $11::text
+ AND wm.user_id = om.user_id
+WHERE om.organization_id = $12::text
+  AND om.deactivated_at IS NULL
+  AND (
+    $13::text = 'organization'
+    OR wm.user_id IS NOT NULL
+    OR om.role IN ('owner', 'admin')
+  )
+`
+
+type CountDocumentAccessPreviewGroupParams struct {
+	PrevGroupRank    int32       `json:"prev_group_rank"`
+	AfterGroupRank   int32       `json:"after_group_rank"`
+	HomeVisible      bool        `json:"home_visible"`
+	AclOwnerID       pgtype.Text `json:"acl_owner_id"`
+	HomeAfterRank    int32       `json:"home_after_rank"`
+	OrgPreserves     bool        `json:"org_preserves"`
+	PreservedUserIds []string    `json:"preserved_user_ids"`
+	PreservedWsIds   []string    `json:"preserved_ws_ids"`
+	HomeWorkspaceID  string      `json:"home_workspace_id"`
+	DocumentID       string      `json:"document_id"`
+	PrincipalID      string      `json:"principal_id"`
+	OrganizationID   string      `json:"organization_id"`
+	PrincipalType    string      `json:"principal_type"`
+}
+
+type CountDocumentAccessPreviewGroupRow struct {
+	MemberCount int64 `json:"member_count"`
+	LosingCount int64 `json:"losing_count"`
+}
+
+// Group preview counts for PUT /documents/{documentID}/access (SH-S2, UNI-1781,
+// D5): member_count and losing_count of one workspace or organization group
+// item in one SQL query without loading member names.
+//
+// The group's membership is the EFFECTIVE membership the resolver decides
+// (WorkspaceService.RequireMember -> GetWorkspaceAccess): a workspace_members
+// row, or an organization owner/admin, who is an implicit admin of every
+// workspace of the organization (R1-03, R1-04). A person who is not an
+// effective member of the document's own workspace holds no role-based level
+// (R1-07): the ACL-owner path is evaluated only inside that membership.
+//
+// The home workspace role is the EFFECTIVE role GetWorkspaceAccess returns
+// (workspaces.sql:78): COALESCE(explicit workspace role, implicit org
+// admin) - an explicit workspace_members row WINS over the organization
+// role (R2-01). An organization admin who also holds an explicit home
+// `member` row is a plain member there, so they hold no role manage and no
+// AdminScope, exactly as the resolver decides. Everywhere the home role is
+// read below, this expression is the one used; it is repeated because the
+// join is a LEFT JOIN and no alias can be referenced in the same SELECT.
+//
+// losing_count counts the effective members whose post-batch level falls below
+// the rank the group grants today. The post-batch level is the greatest of the
+// paths the resolver walks (document_permissions.go), each expressed here:
+//   - role manage - an effective admin of the document's workspace (effective
+//     home role, R2-01), only while the document stays workspace-visible: a
+//     restricted document hands admins AdminScope, never a level, so their
+//     level comes from the shares and the break-glass grant below (R1-05).
+//   - ACL owner manage - only while the home-membership prerequisite holds.
+//   - the home row's level merged with a legacy home-workspace share
+//     (home_after_rank): the member level while workspace-visible, and on a
+//     restricted document exactly the legacy share's level, which is what a
+//     member keeps.
+//   - a surviving organization grant (org_preserves).
+//   - a surviving direct user grant (preserved_user_ids).
+//   - a surviving workspace grant whose workspace the person effectively
+//     belongs to - a workspace_members row, or an implicit organization
+//     owner/admin (R1-04).
+//   - a live break-glass grant, view only, and only while the holder still
+//     holds AdminScope - which is the effective home role, never the raw
+//     organization role (R1-06, R2-01).
+func (q *Queries) CountDocumentAccessPreviewGroup(ctx context.Context, arg CountDocumentAccessPreviewGroupParams) (CountDocumentAccessPreviewGroupRow, error) {
+	row := q.db.QueryRow(ctx, countDocumentAccessPreviewGroup,
+		arg.PrevGroupRank,
+		arg.AfterGroupRank,
+		arg.HomeVisible,
+		arg.AclOwnerID,
+		arg.HomeAfterRank,
+		arg.OrgPreserves,
+		arg.PreservedUserIds,
+		arg.PreservedWsIds,
+		arg.HomeWorkspaceID,
+		arg.DocumentID,
+		arg.PrincipalID,
+		arg.OrganizationID,
+		arg.PrincipalType,
+	)
+	var i CountDocumentAccessPreviewGroupRow
+	err := row.Scan(&i.MemberCount, &i.LosingCount)
+	return i, err
+}
+
 const getDocumentShare = `-- name: GetDocumentShare :one
 SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
 FROM document_shares
@@ -53,6 +203,55 @@ func (q *Queries) GetDocumentShare(ctx context.Context, arg GetDocumentSharePara
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getLiveDocumentBreakGlassGrantForActor = `-- name: GetLiveDocumentBreakGlassGrantForActor :one
+SELECT id, organization_id, workspace_id, document_id, actor_id, actor_kind, level, reason, granted_at, expires_at, revoked_at, revoked_by
+FROM document_break_glass_grants
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND actor_id = $4
+  AND actor_kind = $5
+  AND revoked_at IS NULL
+  AND expires_at > now()
+ORDER BY granted_at DESC, id DESC
+LIMIT 1
+`
+
+type GetLiveDocumentBreakGlassGrantForActorParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+	ActorID        string `json:"actor_id"`
+	ActorKind      string `json:"actor_kind"`
+}
+
+// The caller's live emergency view grant on a document (DOC-05; UNI-1628).
+func (q *Queries) GetLiveDocumentBreakGlassGrantForActor(ctx context.Context, arg GetLiveDocumentBreakGlassGrantForActorParams) (DocumentBreakGlassGrant, error) {
+	row := q.db.QueryRow(ctx, getLiveDocumentBreakGlassGrantForActor,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.ActorID,
+		arg.ActorKind,
+	)
+	var i DocumentBreakGlassGrant
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.ActorID,
+		&i.ActorKind,
+		&i.Level,
+		&i.Reason,
+		&i.GrantedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.RevokedBy,
 	)
 	return i, err
 }
@@ -155,6 +354,60 @@ func (q *Queries) ListDocumentShares(ctx context.Context, arg ListDocumentShares
 			&i.RevokedBy,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLiveBreakGlassGrantsForDocuments = `-- name: ListLiveBreakGlassGrantsForDocuments :many
+SELECT document_id, level
+FROM document_break_glass_grants
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = ANY($3::text[])
+  AND actor_id = $4
+  AND actor_kind = $5
+  AND revoked_at IS NULL
+  AND expires_at > now()
+`
+
+type ListLiveBreakGlassGrantsForDocumentsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DocumentIds    []string `json:"document_ids"`
+	ActorID        string   `json:"actor_id"`
+	ActorKind      string   `json:"actor_kind"`
+}
+
+type ListLiveBreakGlassGrantsForDocumentsRow struct {
+	DocumentID string `json:"document_id"`
+	Level      string `json:"level"`
+}
+
+// The caller's live emergency view grants on a page of documents of one
+// workspace, read once so a list can resolve every restricted row's level
+// without a query per row (DOC-05; UNI-1628).
+func (q *Queries) ListLiveBreakGlassGrantsForDocuments(ctx context.Context, arg ListLiveBreakGlassGrantsForDocumentsParams) ([]ListLiveBreakGlassGrantsForDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, listLiveBreakGlassGrantsForDocuments,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentIds,
+		arg.ActorID,
+		arg.ActorKind,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveBreakGlassGrantsForDocumentsRow{}
+	for rows.Next() {
+		var i ListLiveBreakGlassGrantsForDocumentsRow
+		if err := rows.Scan(&i.DocumentID, &i.Level); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

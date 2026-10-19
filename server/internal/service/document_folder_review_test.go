@@ -236,7 +236,8 @@ func TestDocumentMoveKeepsVisibility(t *testing.T) {
 	if restricted.Document.Visibility != documentVisibilityRestricted {
 		t.Fatalf("folder visibility = %q", restricted.Document.Visibility)
 	}
-	page, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Title: "Công khai trong workspace"})
+	page, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Title: "Công khai trong workspace",
+		Visibility: documentVisibilityWorkspace})
 	if err != nil {
 		t.Fatal(err)
 	}

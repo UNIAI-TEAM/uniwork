@@ -201,6 +201,16 @@ export function useRefreshChatMessageMedia(workspaceId: string, roomId: string) 
   );
 }
 
+/** Shared-media counts and newest photos of one room, without paging its history. */
+export function useChatRoomSharedSummary(workspaceId: string, roomId: string, enabled = true) {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  return useQuery({
+    queryKey: chatKeys.roomSharedSummary(workspaceId, roomId),
+    queryFn: () => chat.getChatRoomSharedSummary(workspaceId, roomId),
+    enabled: authReady && enabled && !!workspaceId && !!roomId,
+  });
+}
+
 export function useChatBlockStatus(workspaceId: string, userId: string, enabled: boolean) {
   const authReady = useAuthStore((s) => s.status === "authed");
   return useQuery({

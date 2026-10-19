@@ -283,6 +283,9 @@ func chatMediaExistingMessage(
 	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
+	if msg.DeletedAt.Valid {
+		return db.ChatMessage{}, false, errClientMsgIDDeleted()
+	}
 	return msg, true, nil
 }
 

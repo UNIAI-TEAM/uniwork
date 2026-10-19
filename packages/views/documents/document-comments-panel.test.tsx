@@ -48,7 +48,7 @@ function makeDoc(over: Record<string, unknown> = {}): Document {
     id: DOC, workspace_id: WS, organization_id: "org1", kind: "page", title: "Tài liệu",
     revision: "3", current_version: 1, my_level: "edit", ...over,
   });
-  return { ...parsed, kind: parsed.kind as Document["kind"], visibility: parsed.visibility as Document["visibility"], my_level: parsed.my_level as Document["my_level"], via: parsed.via as Document["via"], owner_kind: parsed.owner_kind as Document["owner_kind"] };
+  return { ...parsed, kind: parsed.kind as Document["kind"], visibility: parsed.visibility as Document["visibility"], my_level: parsed.my_level as Document["my_level"], via: parsed.via as Document["via"], owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"], };
 }
 const docxDoc = (over: Record<string, unknown> = {}) => makeDoc({ kind: "file", title: "Plan.docx", file: DOCX, ...over });
 
@@ -936,3 +936,125 @@ describe("panel chrome (V5 F3, F4, F6)", () => {
     expect(within(pane).getByRole("button", { name: t(K.collabClosePanel, { panel: commentsTitle() }) })).toBeInTheDocument();
   });
 });
+
+// DOC5-W01 / DOC5-W02 (UNI-1413 addendum §1): the `comment` level.
+describe("comment level (DOC5-W01, DOC5-W02)", () => {
+  const ROOT_MINE = row({ id: "mine", author_id: ME, display_name: "Minh", body: "Gốc của tôi" });
+  const ROOT_LAN = row({ id: "lan", author_id: LAN, body: "Gốc của Lan" });
+  const REPLY_MINE = row({ id: "rm", parent_id: "lan", author_id: ME, display_name: "Minh", body: "Trả lời của tôi" });
+
+  async function open(level: string, comments = [ROOT_MINE, ROOT_LAN, REPLY_MINE]) {
+    installApi({ comments });
+    renderPanel({ doc: makeDoc({ my_level: level }) });
+    return openPanel(discussionTitle());
+  }
+
+  it("W01: a comment-level person sees the composer, reply, and edits their own post, with no view-only badge", async () => {
+    const pane = await open("comment");
+    expect(await within(pane).findByRole("textbox", { name: t(K.collabComposerDiscussion) })).toBeInTheDocument();
+    expect(within(pane).queryByTestId("document-comments-view-only")).toBeNull();
+    expect(within(thread("lan")).getByRole("button", { name: t(K.collabReply) })).toBeInTheDocument();
+    fireEvent.click(within(thread("mine")).getAllByRole("button", { name: `${t(K.collabActions)} Minh` })[0]!);
+    expect(await screen.findByRole("menuitem", { name: t(K.collabEdit) })).toBeInTheDocument();
+  });
+
+  it("W01: a comment-level person cannot edit or delete someone else's post", async () => {
+    const pane = await open("comment");
+    await within(pane).findByTestId("document-thread-lan");
+    fireEvent.click(within(thread("lan")).getAllByRole("button", { name: `${t(K.collabActions)} Lan` })[0]!);
+    expect(await screen.findByRole("menuitem", { name: t(K.collabHistory) })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t(K.collabEdit) })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t(K.collabDelete) })).toBeNull();
+  });
+
+  it("W02: resolve is offered on the thread this person started, not on a thread where they only replied", async () => {
+    const pane = await open("comment");
+    await within(pane).findByTestId("document-thread-lan");
+    expect(within(thread("mine")).getByRole("button", { name: t(K.collabResolve) })).toBeInTheDocument();
+    expect(within(thread("lan")).queryByRole("button", { name: t(K.collabResolve) })).toBeNull();
+    expect(within(thread("lan")).queryByRole("button", { name: t(K.collabReopen) })).toBeNull();
+  });
+
+  it("W02: the comment-level root author resolves and the server is called", async () => {
+    const pane = await open("comment");
+    fireEvent.click(await within(pane).findByRole("button", { name: t(K.collabResolve) }));
+    await waitFor(() => expect(requestMock.mock.calls.some(([p, i]) => String(p).endsWith("/mine/resolve") && (i as Init | undefined)?.method === "POST")).toBe(true));
+  });
+
+  it.each(["edit", "manage"])("W02: %s resolves any thread", async (level) => {
+    const pane = await open(level);
+    await within(pane).findByTestId("document-thread-lan");
+    expect(within(thread("lan")).getByRole("button", { name: t(K.collabResolve) })).toBeInTheDocument();
+    expect(within(thread("mine")).getByRole("button", { name: t(K.collabResolve) })).toBeInTheDocument();
+  });
+
+  it("G8-18: a comment the server saved with mentions_without_access shows the inline notice under it and the share action", async () => {
+    const MENTIONED = "01J8X4USR0000000000000000D";
+    const state = { comments: [] as DocumentComment[] };
+    installApi(state, (method, path, init) => {
+      if (method === "POST" && path === `/api/v1/documents/${DOC}/comments`) {
+        const created = { ...row({ id: "n1", author_id: ME, display_name: "Minh", body: (init!.body as { body: string }).body }), mentions_without_access: [{ user_id: MENTIONED, display_name: "Đào", can_share: true }] };
+        state.comments = [created];
+        return Promise.resolve({ comment: created });
+      }
+      return undefined;
+    });
+    renderPanel();
+    const pane = await openPanel(discussionTitle());
+    const box = await within(pane).findByRole("textbox", { name: t(K.collabComposerDiscussion) });
+    fireEvent.change(box, { target: { value: "Nhờ Đào xem" } });
+    fireEvent.click(within(pane).getByTestId("document-discussion-composer-send"));
+    const notice = await within(pane).findByTestId("document-comment-post-send-notice-n1");
+    expect(notice).toHaveTextContent(t(K.collabPostSendNoAccess, { names: "Đào" }));
+    expect(within(notice).getByRole("button", { name: t(K.collabPostSendShareAction) })).toBeInTheDocument();
+  });
+});
+
+describe("G8-18 post-send notice after the pre-send warning (R21 M2)", () => {
+  const WARNED = "01J8X4USR0000000000000000D";
+  const OTHER = "01J8X4USR0000000000000000E";
+
+  function mountHook(mentions: unknown[]) {
+    installApi({ comments: [] }, (method, path, init) => {
+      if (method === "POST" && path === `/api/v1/documents/${DOC}/comments`) {
+        const created = { ...row({ id: "n1", author_id: ME, display_name: "Minh", body: (init!.body as { body: string }).body }), mentions_without_access: mentions };
+        return Promise.resolve({ comment: created });
+      }
+      return undefined;
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return renderHook(() => useDocumentCommentsPanel(WS, makeDoc()), { wrapper });
+  }
+
+  it("leaves out the people the warning already listed and keeps the ones the server adds", async () => {
+    const { result } = mountHook([
+      { user_id: WARNED, display_name: "Đào", can_share: true },
+      { user_id: OTHER, display_name: "Em", can_share: true },
+    ]);
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.send("Nhờ Đào và Em", undefined, new Set([WARNED]));
+    });
+    expect(result.current.postSendNotices.get("n1")).toEqual([{ user_id: OTHER, display_name: "Em", can_share: true }]);
+  });
+
+  it("send without notifying: no duplicate post-send notice for the warned people", async () => {
+    const { result } = mountHook([{ user_id: WARNED, display_name: "Đào", can_share: true }]);
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.send("Nhờ Đào", undefined, new Set([WARNED]));
+    });
+    expect(result.current.postSendNotices.has("n1")).toBe(false);
+  });
+
+  it("tells about everyone when no warning was shown (typed or pasted mention)", async () => {
+    const { result } = mountHook([{ user_id: WARNED, display_name: "Đào", can_share: true }]);
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.send("Nhờ Đào");
+    });
+    expect(result.current.postSendNotices.get("n1")).toHaveLength(1);
+  });
+});
+

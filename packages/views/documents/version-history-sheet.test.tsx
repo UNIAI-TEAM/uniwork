@@ -1,9 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
+import { forgetHeldEditLock, registerHeldEditLock } from "@uniwork/core/documents/edit-lock-registry";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { requestMock, wrap } from "../test/api-mock";
+import { onWriteRefused } from "./edit-lock-refusal";
 import { VersionHistorySheet } from "./version-history-sheet";
 
 const { t } = initI18n();
@@ -17,7 +20,7 @@ function narrowDocument(parsed: ReturnType<typeof DocumentSchema.parse>): Docume
     visibility: parsed.visibility as Document["visibility"],
     my_level: parsed.my_level as Document["my_level"],
     via: parsed.via as Document["via"],
-    owner_kind: parsed.owner_kind as Document["owner_kind"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"],
   };
 }
 
@@ -58,8 +61,13 @@ const versionRows = [
   },
 ];
 
+const members = [
+  { workspace_id: WS, user_id: "u1", role: "member", email: "lan@example.com", display_name: "Lan Nguyễn" },
+];
+
 function mockApi(overrides: { rows?: unknown[]; onPost?: (path: string, opts: any) => unknown } = {}) {
   requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+    if (path === `/api/v1/workspaces/${WS}/members`) return Promise.resolve({ members });
     if (path.startsWith("/api/v1/documents/d1/versions") && !opts?.method) {
       return Promise.resolve({ versions: overrides.rows ?? versionRows, next_cursor: null });
     }
@@ -74,7 +82,7 @@ function mockApi(overrides: { rows?: unknown[]; onPost?: (path: string, opts: an
   });
 }
 
-function renderSheet(over: { doc?: Document; onOpenChange?: (open: boolean) => void } = {}) {
+function renderSheet(over: { doc?: Document; onOpenChange?: (open: boolean) => void; client?: QueryClient } = {}) {
   const onOpenChange = over.onOpenChange ?? vi.fn();
   const view = render(
     wrap(
@@ -84,6 +92,7 @@ function renderSheet(over: { doc?: Document; onOpenChange?: (open: boolean) => v
         wsId={WS}
         doc={over.doc ?? pageDocument()}
       />,
+      over.client,
     ),
   );
   return { view, onOpenChange };
@@ -230,6 +239,80 @@ describe("VersionHistorySheet", () => {
     expect(posts[0]?.body).toEqual({ base_revision: "3" });
   });
 
+  it("the holder's restore names the edit lock this tab holds (UNI-1645)", async () => {
+    const posts: { path: string; body?: unknown }[] = [];
+    mockApi({
+      onPost: (path, opts) => {
+        posts.push({ path, body: opts.body });
+        return Promise.resolve({
+          document: pageDocument({ revision: "8" }),
+          version: { ...versionRows[0], id: "v3", version: 3, reason: "restore", restored_from: 1 },
+        });
+      },
+    });
+    registerHeldEditLock("d1", "L1");
+    try {
+      renderSheet();
+      fireEvent.click(await screen.findByRole("button", { name: t("documents.versions.restore", { no: 1 }) }));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") }));
+      await waitFor(() => expect(posts.length).toBe(1));
+      expect(posts[0]?.body).toEqual({ edit_lock_id: "L1" });
+      await waitFor(() =>
+        expect(screen.queryByText(t("documents.versions.restore_confirm_title", { no: 1 }))).toBeNull(),
+      );
+    } finally {
+      forgetHeldEditLock("L1");
+    }
+  });
+
+  it("a restore refused with 423 while someone else holds the lock keeps the holder message", async () => {
+    const posts: { path: string; body?: unknown }[] = [];
+    mockApi({
+      onPost: (path, opts) => {
+        posts.push({ path, body: opts.body });
+        return Promise.reject(new ApiError("tài liệu đang được người khác sửa", "document_locked", 423));
+      },
+    });
+    renderSheet();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.versions.restore", { no: 1 }) }));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("tài liệu đang được người khác sửa");
+    expect(posts[0]?.body).toBeUndefined();
+    expect(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") })).toBeInTheDocument();
+  });
+
+  it("a restore refused with 423 is reported to the page, and a retry under another lock id mints a new key (CFE-1-12)", async () => {
+    const posts: { path: string; body?: unknown; key?: string }[] = [];
+    mockApi({
+      onPost: (path, opts) => {
+        posts.push({ path, body: opts.body, key: opts.headers?.["Idempotency-Key"] });
+        return posts.length === 1
+          ? Promise.reject(new ApiError("tài liệu đang được người khác sửa", "document_locked", 423, undefined, { holder_name: "An" }))
+          : Promise.resolve({ document: pageDocument({ revision: "8" }), version: { ...versionRows[0], id: "v3", version: 3, reason: "restore", restored_from: 1 } });
+      },
+    });
+    const refused = vi.fn();
+    const off = onWriteRefused("d1", refused);
+    registerHeldEditLock("d1", "L1");
+    try {
+      renderSheet();
+      fireEvent.click(await screen.findByRole("button", { name: t("documents.versions.restore", { no: 1 }) }));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("tài liệu đang được người khác sửa");
+      expect(refused).toHaveBeenCalledWith({ holder_name: "An" }, "L1");
+      forgetHeldEditLock("L1");
+      registerHeldEditLock("d1", "L2");
+      fireEvent.click(screen.getByRole("button", { name: t("documents.versions.restore_confirm_submit") }));
+      await waitFor(() => expect(posts.length).toBe(2));
+      expect(posts[1]?.body).toEqual({ edit_lock_id: "L2" });
+      expect(posts[1]?.key).not.toBe(posts[0]?.key);
+    } finally {
+      off();
+      forgetHeldEditLock("L1");
+      forgetHeldEditLock("L2");
+    }
+  });
+
   it("tells the user to reopen the history when the restore conflicts", async () => {
     mockApi({
       onPost: () =>
@@ -293,5 +376,172 @@ describe("VersionHistorySheet", () => {
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
     fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
     await waitFor(() => expect(onOpenChange.mock.calls.some((call) => call[0] === false)).toBe(true));
+  });
+
+  describe("author line", () => {
+    const membersClient = () =>
+      new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
+    const membersQueries = (client: QueryClient) =>
+      client.getQueryCache().findAll({ predicate: (q) => JSON.stringify(q.queryKey).includes("members") });
+    const rowOf = (no: number) =>
+      screen.getByText(t("documents.versions.row_version", { no })).closest("li") as HTMLElement;
+
+    it("shows the member's display name for a human author", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      expect(await within(rowOf(2)).findByText("Lan Nguyễn")).toBeInTheDocument();
+    });
+
+    it("resolves names through one members request, not one per row", async () => {
+      mockApi({
+        rows: [
+          { ...versionRows[0], created_by: "u1" },
+          { ...versionRows[1], created_by: "u1" },
+        ],
+      });
+      renderSheet();
+      await waitFor(() => expect(screen.getAllByText("Lan Nguyễn").length).toBe(2));
+      const memberCalls = requestMock.mock.calls.filter(([path]) => String(path).endsWith("/members"));
+      expect(memberCalls.length).toBe(1);
+    });
+
+    it("marks an unnamed agent with the badge alone", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "agent-9", created_by_kind: "agent" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      const line = await within(rowOf(2)).findByTestId("version-author");
+      // The member list does not name this agent: the badge is its one label,
+      // so the line holds the badge and no name span.
+      expect(within(line).getByText(t("agents.badge"))).toBeInTheDocument();
+      expect(line.querySelector("span.truncate")).toBeNull();
+    });
+
+    it("draws both the name and the badge for an agent the member list names", async () => {
+      requestMock.mockImplementation((path: string) => {
+        if (path === `/api/v1/workspaces/${WS}/members`) {
+          return Promise.resolve({
+            members: [{ workspace_id: WS, user_id: "agent-9", role: "member", email: "", display_name: "Trợ lý Lịch" }],
+          });
+        }
+        return Promise.resolve({
+          versions: [{ ...versionRows[0], created_by: "agent-9", created_by_kind: "agent" }],
+          next_cursor: null,
+        });
+      });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      const line = await within(rowOf(2)).findByTestId("version-author");
+      await within(line).findByText("Trợ lý Lịch");
+      expect(line.querySelector("span.truncate")).toHaveTextContent("Trợ lý Lịch");
+      expect(within(line).getByText(t("agents.badge"))).toBeInTheDocument();
+    });
+
+    it("does not claim a former member while the members request is pending", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      const base = requestMock.getMockImplementation()!;
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+        path === `/api/v1/workspaces/${WS}/members` ? new Promise(() => {}) : base(path, opts),
+      );
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      await waitFor(() => expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/members"))).toBe(true));
+      expect(screen.queryByTestId("version-author")).toBeNull();
+      expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
+    });
+
+    it("does not claim a former member when the members request fails", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      const base = requestMock.getMockImplementation()!;
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+        path === `/api/v1/workspaces/${WS}/members` ? Promise.reject(new Error("boom")) : base(path, opts),
+      );
+      const client = membersClient();
+      renderSheet({ client });
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      // Wait for the query itself to reach the error state: a call having been
+      // made is also true while it is still pending.
+      await waitFor(() => expect(membersQueries(client).some((q) => q.state.status === "error")).toBe(true));
+      expect(screen.queryByTestId("version-author")).toBeNull();
+      expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
+    });
+
+    it("keeps cached names when a background members refetch fails", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      const base = requestMock.getMockImplementation()!;
+      const client = membersClient();
+      renderSheet({ client });
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      await within(rowOf(2)).findByText("Lan Nguyễn");
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+        path === `/api/v1/workspaces/${WS}/members` ? Promise.reject(new Error("boom")) : base(path, opts),
+      );
+      await client.refetchQueries({ predicate: (q) => JSON.stringify(q.queryKey).includes("members") });
+      await waitFor(() =>
+        expect(
+          membersQueries(client).some((q) => q.state.status === "error" && q.state.data !== undefined),
+        ).toBe(true),
+      );
+      expect(within(rowOf(2)).getByText("Lan Nguyễn")).toBeInTheDocument();
+      expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
+    });
+
+    it("makes no members request while the sheet is closed", async () => {
+      mockApi();
+      render(wrap(<VersionHistorySheet open={false} onOpenChange={vi.fn()} wsId={WS} doc={pageDocument()} />));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/members"))).toBe(false);
+    });
+
+    it("renders the line without an invalid-DOM console error and with one shared height", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      mockApi({ rows: [{ ...versionRows[0], created_by: "u1", created_by_kind: "human" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      const line = await within(rowOf(2)).findByTestId("version-author");
+      await within(line).findByText("Lan Nguyễn");
+      expect(line.tagName).toBe("DIV");
+      expect(line).toHaveClass("min-h-5");
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it("labels a system author", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "sys", created_by_kind: "system" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      expect(await within(rowOf(2)).findByText(t("documents.versions.author_system"))).toBeInTheDocument();
+    });
+
+    it("falls back to the former-member label for an id outside the workspace", async () => {
+      mockApi({ rows: [{ ...versionRows[0], created_by: "gone", created_by_kind: "human" }] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 2 }));
+      expect(await within(rowOf(2)).findByText(t("documents.comments.former_member"))).toBeInTheDocument();
+    });
+
+    it("draws no author line for an old row without created_by", async () => {
+      mockApi({ rows: [versionRows[1]] });
+      renderSheet();
+      await screen.findByText(t("documents.versions.row_version", { no: 1 }));
+      await waitFor(() => expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/members"))).toBe(true));
+      expect(screen.queryByTestId("version-author")).toBeNull();
+      expect(screen.queryByText(t("documents.comments.former_member"))).toBeNull();
+    });
+  });
+
+  // Pins today's label per reason: the editor save goes out as "upload", so the
+  // server fix (e6-server) shows up here as a visible change.
+  it.each([
+    ["upload", "documents.file.reason_upload"],
+    ["manual", "documents.file.reason_manual"],
+    ["auto", "documents.file.reason_auto"],
+    ["restore", "documents.file.reason_restore"],
+    ["agent", "documents.file.reason_agent"],
+    ["something_new", "documents.file.unknown_reason"],
+  ])("labels reason %s with %s", async (reason, key) => {
+    mockApi({ rows: [{ ...versionRows[1], reason, label: undefined }] });
+    renderSheet();
+    const row = (await screen.findByText(t("documents.versions.row_version", { no: 1 }))).closest("li") as HTMLElement;
+    expect(within(row).getByText(new RegExp(t(key)))).toBeInTheDocument();
   });
 });

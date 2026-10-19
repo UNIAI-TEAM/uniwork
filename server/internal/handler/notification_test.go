@@ -171,6 +171,18 @@ func TestNotificationEndpoints(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("subscribe with push off: %d", res.StatusCode)
 	}
+	// An Expo token needs no VAPID: it is stored with its platform, and
+	// refused without one.
+	res, _ = doJSON(t, srv, "POST", "/api/v1/me/push-subscriptions", member, map[string]any{
+		"endpoint": "ExponentPushToken[abc]", "keys": map[string]string{}, "platform": "ios"})
+	if res.StatusCode != 200 {
+		t.Fatalf("subscribe expo with push off: %d", res.StatusCode)
+	}
+	res, _ = doJSON(t, srv, "POST", "/api/v1/me/push-subscriptions", member, map[string]any{
+		"endpoint": "ExponentPushToken[abc]", "keys": map[string]string{}})
+	if res.StatusCode != 400 {
+		t.Fatalf("subscribe expo without platform: %d", res.StatusCode)
+	}
 
 	// Timezone rides on PATCH /me and is validated as an IANA name.
 	res, _ = doJSON(t, srv, "PATCH", "/api/v1/me", member, map[string]string{"timezone": "Mars/Olympus"})
@@ -230,7 +242,8 @@ func TestNotificationDocumentFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/documents", owner, map[string]any{"title": "Kế hoạch", "kind": "page"})
+	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/documents", owner, map[string]any{
+		"title": "Kế hoạch", "kind": "page", "visibility": "workspace"})
 	if res.StatusCode != 201 {
 		t.Fatalf("create document: %d %v", res.StatusCode, out)
 	}

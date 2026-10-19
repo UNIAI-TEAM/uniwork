@@ -26,6 +26,10 @@ import (
 //	GET    /api/v1/office-frame/documents/{documentID}                  (open)
 //	GET    /api/v1/office-frame/documents/{documentID}/content          (bytes; HEAD)
 //	POST   /api/v1/office-frame/documents/{documentID}/uploads          (save intent)
+//	POST   /api/v1/office-frame/documents/{documentID}/upload-sessions  (BIGUP-S1: large save)
+//	GET    /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}          (BIGUP-S1)
+//	POST   /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}/complete (BIGUP-S1)
+//	DELETE /api/v1/office-frame/documents/{documentID}/upload-sessions/{sessionID}          (BIGUP-S1)
 //	POST   /api/v1/office-frame/documents/{documentID}/versions/commit  (save)
 //	GET    /api/v1/office-frame/documents/{documentID}/recents
 //	POST   /api/v1/office-frame/documents/{documentID}/assets
@@ -33,6 +37,8 @@ import (
 //	POST   /api/v1/office-frame/documents/{documentID}/assets/resolve    (md/html: relative paths -> signed URLs)
 //	GET    /api/v1/office-frame/documents/{documentID}/assets/{assetID} (bytes; HEAD)
 //	GET    /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID} (bytes; HEAD)
+//	GET    /api/v1/office-frame/sources/{sourceFileID}                  (source frame; UNI-1869)
+//	GET    /api/v1/office-frame/sources/{sourceFileID}/content          (bytes; HEAD)
 func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 	// The module flags are not middleware here: they are organization-scoped
 	// and only the document names its organization and format, so
@@ -42,7 +48,7 @@ func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/office/frame-token", h.MintOfficeFrameToken, apiOp{
 		summary: "Mint an Office web frame token",
 		description: "Host page only: checks the live ACL of a file document a web module opens (docx, pdf, md, html, pptx, xlsx) and returns a server-signed token (10 min) bound to this document, its workspace, the caller and the module derived from the stored format. " +
-			"403 feature_disabled when that module's flag is off for the document's organization; 413 too_large when the stored file is over the module's cap (sheets: 10 MiB). " +
+			"403 feature_disabled when that module's flag is off for the document's organization. " +
 			"The host passes it to the frame in the postMessage init; it opens only /api/v1/office-frame/* for this document and is refused everywhere else.",
 		tags: []string{"documents"}, sdo: sdo.OfficeFrameTokenSDO{}, status: http.StatusCreated, auth: true,
 	})
@@ -73,8 +79,29 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 	})
 	f.Post("/office-frame/documents/{documentID}/uploads", h.UploadOfficeFrameFile, apiOp{
 		summary:     "Stage the bytes of a frame save",
-		description: "Frame token only, edit access: multipart (≤ 50 MiB) staging the new bytes of the document. Returns upload_id for .../versions/commit. Idempotency-Key makes a retry find the same upload.",
+		description: "Frame token only, edit access: multipart (≤ DOCUMENT_MAX_BYTES) staging the new bytes of the document. Returns upload_id for .../versions/commit. Idempotency-Key makes a retry find the same upload.",
 		tags:        []string{"documents"}, sdi: sdi.UploadOfficeFrameFileSDI{}, sdo: sdo.DocumentUploadSDO{}, status: http.StatusCreated, auth: true,
+	})
+	f.Post("/office-frame/documents/{documentID}/upload-sessions", h.CreateFrameUploadSession, apiOp{
+		summary: "Open a large frame save session",
+		description: "Frame token only, edit access: như POST /api/v1/documents/{id}/upload-sessions nhưng cho lưu từ khung khi tệp vượt ngưỡng một lượt. Phiên ghi document_id của token (token chỉ hợp lệ cho đúng tài liệu đó) và chỉ route frame đọc/hoàn tất/huỷ được nó: route /api/v1/upload-sessions/{id} trả 404 cho phiên này. Cùng ngưỡng, mã lỗi và thứ tự từ chối như route tài liệu; hoàn tất trả 200 DocumentUploadSDO để commit qua /office-frame/documents/{id}/versions/commit. " +
+			"Tài liệu đang bị người khác giữ khóa sửa (hoặc một agent) -> 423 document_locked trước khi mở phiên, cùng fields như cổng commit; người giữ token đang giữ khóa hoặc không có khóa sống thì qua.",
+		tags: []string{"documents"}, sdi: sdi.CreateUploadSessionSDI{}, sdo: sdo.UploadSessionSDO{}, status: http.StatusCreated, auth: true,
+	})
+	f.Get("/office-frame/documents/{documentID}/upload-sessions/{sessionID}", h.GetFrameUploadSession, apiOp{
+		summary:     "Read a large frame save session",
+		description: "Frame token only: cùng shape với GET /api/v1/upload-sessions/{sessionID}, nhưng chỉ cho phiên mở bằng frame token của đúng tài liệu này. Token của tài liệu khác, phiên mở bằng phiên đăng nhập, và id không tồn tại đều trả cùng 404 not_found; phiên hết hạn/huỷ -> 410 upload_session_expired.",
+		tags:        []string{"documents"}, sdo: sdo.UploadSessionSDO{}, auth: true,
+	})
+	f.Post("/office-frame/documents/{documentID}/upload-sessions/{sessionID}/complete", h.CompleteFrameUploadSession, apiOp{
+		summary:     "Complete a large frame save session",
+		description: "Frame token only, edit access: như POST /api/v1/upload-sessions/{id}/complete; thành công trả 200 DocumentUploadSDO để commit qua /office-frame/documents/{id}/versions/commit. Cùng thứ tự và mã lỗi: 422 upload_parts_invalid / upload_size_mismatch / upload_probe_mismatch, 415 khi nội dung hỏng (object bị xoá, quota được nhả), 409 upload_session_busy + Retry-After: 5 khi một complete khác đang giữ lease.",
+		tags:        []string{"documents"}, sdi: sdi.CompleteUploadSessionSDI{}, sdo: sdo.DocumentUploadSDO{}, auth: true,
+	})
+	f.Delete("/office-frame/documents/{documentID}/upload-sessions/{sessionID}", h.AbortFrameUploadSession, apiOp{
+		summary:     "Abort a large frame save session",
+		description: "Frame token only: huỷ phiên mở bằng frame token của đúng tài liệu; 204, idempotent với phiên đã huỷ/hết hạn, 409 upload_session_completed nếu đã xong.",
+		tags:        []string{"documents"}, status: http.StatusNoContent, auth: true,
 	})
 	f.Post("/office-frame/documents/{documentID}/versions/commit", h.CommitOfficeFrameVersion, apiOp{
 		summary: "Save the frame's staged bytes as a new version",
@@ -125,6 +152,28 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 	f.cat.add(http.MethodHead, joinRoute(f.prefix, "/office-frame/documents/{documentID}/linked/{linkedDocumentID}"), apiOp{
 		summary:     "Headers of a file next to the frame's document",
 		description: "Như GET nhưng không có body.",
+		tags:        []string{"documents"},
+	})
+	// The source frame (UNI-1869): a view-only frame over a file that lives in
+	// Chat, Tasks, Meetings or Email Hub — the same modules, the same token
+	// machinery, a "source" principal instead of a document.
+	f.Get("/office-frame/sources/{sourceFileID}", h.OpenOfficeFrameSource, apiOp{
+		summary: "Open a source file in the Office web frame",
+		description: "Chỉ token nguồn (ofs1.): tên tệp, revision (luôn \"0\"), module, nơi chứa và download_url, kèm can_edit=false và readonly=true. " +
+			"Mỗi request chạy lại cổng đọc của nơi chứa theo người dùng của token; tệp đổi định dạng hoặc mất quyền đọc trả 404 như tệp không tồn tại. " +
+			"Token tài liệu (oft1.), token phiên và ?sig= đều bị từ chối 401.",
+		tags: []string{"documents"}, sdo: sdo.OfficeFrameSourceSDO{}, auth: true,
+	})
+	f.Get("/office-frame/sources/{sourceFileID}/content", h.GetOfficeFrameSourceContent, apiOp{
+		summary: "Stream the source file bytes to the frame",
+		description: "Chỉ token nguồn: bytes của tệp nguồn sau khi chạy lại cổng đọc. Content-Type theo MIME của nguồn, nosniff, " +
+			"Cache-Control: private, no-store, Content-Security-Policy: sandbox; default-src 'none'. Content-Length chỉ đặt khi biết độ dài giải mã (email: độ dài đã mã hoá nên bỏ trống). Không hỗ trợ Range.",
+		tags: []string{"documents"}, produces: "application/octet-stream", auth: true,
+	})
+	f.r.Head("/office-frame/sources/{sourceFileID}/content", h.GetOfficeFrameSourceContent)
+	f.cat.add(http.MethodHead, joinRoute(f.prefix, "/office-frame/sources/{sourceFileID}/content"), apiOp{
+		summary:     "Headers of the source file bytes",
+		description: "Như GET nhưng không có body. Chỉ chạy phần tra cứu (không đọc byte): Content-Length vắng khi độ dài giải mã không biết (email).",
 		tags:        []string{"documents"},
 	})
 }

@@ -71,7 +71,7 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
-	if fake.Calls != 1 || !strings.Contains(prompt, "Meeting title: AI") || !strings.Contains(prompt, "A: Chốt ship vào thứ Sáu") || !strings.Contains(prompt, "Output language: Vietnamese") {
+	if fake.Calls != 1 || !strings.Contains(prompt, `Meeting title: <untrusted source="title">AI</untrusted>`) || !strings.Contains(prompt, "A: Chốt ship vào thứ Sáu") || !strings.Contains(prompt, "Output language: Vietnamese") {
 		t.Fatalf("gateway prompt: %s", prompt)
 	}
 	if sum.Summary != "Đã chốt." || !strings.Contains(sum.ActionItems, "Gửi báo cáo") || sum.Model != "fake" || !sum.UsageEventID.Valid {
@@ -104,23 +104,20 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("expected nil summary, got %+v %v", empty, err)
 	}
 
-	tasks, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, []SummaryTaskItem{
-		{Title: "Gửi báo cáo", Owner: "B"},
-		{Title: "Book phòng", AssigneeID: &ub.ID},
+	res, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{
+		SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0, AssigneeID: &ub.ID}},
 	})
-	if err != nil || len(tasks) != 2 {
-		t.Fatalf("%d %v", len(tasks), err)
+	if err != nil || len(res.Tasks) != 1 {
+		t.Fatalf("%d %v", len(res.Tasks), err)
 	}
-	if !strings.Contains(tasks[0].Description, "Từ cuộc họp: AI") || tasks[0].AssigneeID.String != ub.ID {
-		t.Fatalf("owner resolve: %+v", tasks[0])
+	tasks := res.Tasks
+	if tasks[0].Title != "Gửi báo cáo" || !strings.Contains(tasks[0].Description, "Từ cuộc họp: AI") || tasks[0].AssigneeID.String != ub.ID {
+		t.Fatalf("stored item with the host's assignee: %+v", tasks[0])
 	}
 	if tasks[0].OriginType.String != "meeting" || tasks[0].OriginID.String != m.ID {
 		t.Fatalf("origin: type=%s id=%s", tasks[0].OriginType.String, tasks[0].OriginID.String)
 	}
-	if tasks[1].AssigneeID.String != ub.ID {
-		t.Fatalf("%+v", tasks)
-	}
-	if _, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, nil); err == nil {
+	if _, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID}); err == nil {
 		t.Fatal("empty items accepted")
 	}
 
@@ -247,7 +244,7 @@ func TestSummarizeWithClosedMotionOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	// No transcript, notes or chat, and a vote still open is not material yet.
-	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !codedIs(err, "nothing_to_summarize") {
+	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !codedIs(err, "summary_no_source") {
 		t.Fatalf("open vote only: %v", err)
 	}
 	for _, uid := range []string{ua.ID, ub.ID} {
@@ -266,7 +263,7 @@ func TestSummarizeWithClosedMotionOnly(t *testing.T) {
 	if fake.Calls != 1 || sum.Summary != "Đã biểu quyết." {
 		t.Fatalf("calls=%d summary=%+v", fake.Calls, sum)
 	}
-	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@2" {
+	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@3" {
 		t.Fatalf("usage row: %+v %v", ev, err)
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content

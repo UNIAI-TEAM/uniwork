@@ -4,8 +4,19 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	// DefaultDocumentMaxBytes is the default per-file byte ceiling for Documents
+	// and Office uploads/saves (200 MiB; SIZE-S1 / UNI-1859).
+	DefaultDocumentMaxBytes int64 = 200 << 20
+	// MinDocumentMaxBytes and MaxDocumentMaxBytes bound DOCUMENT_MAX_BYTES to
+	// [1 MiB, 2 GiB].
+	MinDocumentMaxBytes int64 = 1 << 20
+	MaxDocumentMaxBytes int64 = 2 << 30
 )
 
 type Config struct {
@@ -27,12 +38,17 @@ type Config struct {
 	DesktopAuthDeploymentIDs []string
 	DesktopAuthCodeTTL       time.Duration
 	DesktopAuthAttemptTTL    time.Duration
-	// DocumentCommitIntentClaimTTL and DocumentCommitIntentRetention are the
-	// G5-07 intent windows (service.DefaultCommitIntentClaimTTL / ...Retention
-	// are the same dev defaults; G5-D2 fixes production).
+	// DocumentCommitIntentClaimTTL, DocumentCommitIntentRetention and
+	// DocumentCommitIntentSweepTick are the G5-07 intent windows and sweep
+	// cadence (service.DefaultCommitIntentClaimTTL / ...Retention /
+	// commitIntentSweepTick are the same dev defaults; G5-D2 fixes production).
 	DocumentCommitIntentClaimTTL  time.Duration
 	DocumentCommitIntentRetention time.Duration
-	FrontendOrigin                string
+	DocumentCommitIntentSweepTick time.Duration
+	// DocumentMaxBytes (DOCUMENT_MAX_BYTES) is the single byte ceiling for
+	// document file creates, version uploads, Office saves and exports.
+	DocumentMaxBytes int64
+	FrontendOrigin   string
 	// PreviewOrigin is the separate, cookie-less origin used by isolated
 	// Markdown/HTML frames. It must never be the frontend origin.
 	PreviewOrigin string
@@ -49,6 +65,18 @@ type Config struct {
 	// (BE-F1-11), because a misspelled TTL that reads as 15m in production is
 	// a silent data-lifecycle change. The production number is G5-D2's.
 	OfficeChangeSnapshotTTL time.Duration
+	// The document edit lock (UNI-1645, addendum §7). Every one of these is
+	// read strictly: a value that is set and malformed fails Load, because a
+	// mistyped TTL that silently behaves like the default is a lifecycle
+	// change nobody asked for. Load also rejects HEARTBEAT*2 > TTL (a client
+	// would miss one beat and lose the lock) and HOLD_MAX > HOLD_CHAIN_MAX.
+	DocumentEditLockTTL           time.Duration
+	DocumentEditLockHeartbeat     time.Duration
+	DocumentEditLockSweepInterval time.Duration
+	DocumentEditHoldMax           time.Duration
+	DocumentEditHoldChainMax      time.Duration
+	DocumentEditRequestTTL        time.Duration
+	DocumentEditRequestMaxPerHour int
 	// SecureCookies is derived from FrontendOrigin's scheme: an https origin
 	// gets the Secure flag on the refresh cookie, a plain-http dev origin does
 	// not (browsers silently drop Secure cookies set over http, which would
@@ -118,13 +146,16 @@ type Config struct {
 	MailFrom                      string
 	// TenorAPIKey enables Tenor GIF search in chat; empty uses a small built-in catalog.
 	TenorAPIKey string
-	// VAPID keys enable Web Push (F-07). Both empty turns push off: the push
-	// consumer acknowledges rows without sending and the client hides the
-	// option. VAPID_SUBJECT is a mailto: or https origin the push service can
+	// VAPID keys enable Web Push (F-07). Both empty turns web push off: the
+	// push consumer acknowledges web subscriptions without sending and the
+	// client hides the option (Expo mobile push needs no VAPID). VAPID_SUBJECT is a mailto: or https origin the push service can
 	// contact about abuse; it defaults to the frontend origin.
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
 	VAPIDSubject    string
+	// ExpoAccessToken authenticates mobile push to Expo Push Service when the
+	// Expo project enables enhanced push security; empty sends unauthenticated.
+	ExpoAccessToken string
 	// RUMSampleRate is the share of web sessions that report web-vitals to
 	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
 	RUMSampleRate             float64
@@ -134,6 +165,15 @@ type Config struct {
 	OfficeInstallerDevURLs    string
 	OfficeInstallerBetaURLs   string
 	OfficeInstallerStableURLs string
+	// UniChat downloads on the public /unichat page (UNI-1837): desktop
+	// installer maps in the Office format, and the mobile store links.
+	UniChatInstallerDevURLs    string
+	UniChatInstallerBetaURLs   string
+	UniChatInstallerStableURLs string
+	UniChatStoreIOSURL         string
+	UniChatStoreAndroidURL     string
+	UniChatTestFlightURL       string
+	UniChatPlayInternalURL     string
 	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
 	AdminRateLimitPerMin int
 	// HTTPMaxInFlight bounds the HTTP requests served at once; past it the
@@ -237,6 +277,15 @@ func (c Config) EmailHubRedirectURL(provider string) string {
 	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/email-hub-connections/" + provider + "/callback"
 }
 
+// EffectiveDocumentMaxBytes returns DocumentMaxBytes, or DefaultDocumentMaxBytes
+// when Config was constructed directly in a unit test with a zero value.
+func (c Config) EffectiveDocumentMaxBytes() int64 {
+	if c.DocumentMaxBytes > 0 {
+		return c.DocumentMaxBytes
+	}
+	return DefaultDocumentMaxBytes
+}
+
 func Load() (Config, error) {
 	// OFFICE_CHANGE_SNAPSHOT_TTL is parsed before the struct literal because a
 	// set value must fail the load when malformed instead of silently keeping
@@ -244,6 +293,51 @@ func Load() (Config, error) {
 	changeSnapshotTTL, err := parseOptionalDuration(os.Getenv("OFFICE_CHANGE_SNAPSHOT_TTL"), 0)
 	if err != nil {
 		return Config{}, fmt.Errorf("OFFICE_CHANGE_SNAPSHOT_TTL %w", err)
+	}
+	// The edit-lock settings are parsed before the literal for the same
+	// reason: set and malformed fails the load (addendum §7), unlike
+	// parseDuration which would fall back to the default.
+	editLockTTL, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_LOCK_TTL"), 2*time.Minute)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_LOCK_TTL %w", err)
+	}
+	editLockHeartbeat, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_LOCK_HEARTBEAT"), 30*time.Second)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_LOCK_HEARTBEAT %w", err)
+	}
+	editLockSweep, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL"), 30*time.Second)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL %w", err)
+	}
+	editHoldMax, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_HOLD_MAX"), 8*time.Hour)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_HOLD_MAX %w", err)
+	}
+	editHoldChainMax, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_HOLD_CHAIN_MAX"), 24*time.Hour)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_HOLD_CHAIN_MAX %w", err)
+	}
+	editRequestTTL, err := parseOptionalDuration(os.Getenv("DOCUMENT_EDIT_REQUEST_TTL"), 15*time.Minute)
+	if err != nil {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_REQUEST_TTL %w", err)
+	}
+	editRequestMaxPerHour := 5
+	if raw := strings.TrimSpace(os.Getenv("DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR")); raw != "" {
+		n, convErr := strconv.Atoi(raw)
+		if convErr != nil || n <= 0 {
+			return Config{}, fmt.Errorf("DOCUMENT_EDIT_REQUEST_MAX_PER_HOUR must be a positive integer, got %q", raw)
+		}
+		editRequestMaxPerHour = n
+	}
+	if editLockHeartbeat*2 > editLockTTL {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_LOCK_HEARTBEAT must be at most half of DOCUMENT_EDIT_LOCK_TTL")
+	}
+	if editHoldMax > editHoldChainMax {
+		return Config{}, fmt.Errorf("DOCUMENT_EDIT_HOLD_MAX must not exceed DOCUMENT_EDIT_HOLD_CHAIN_MAX")
+	}
+	documentMaxBytes, err := parseDocumentMaxBytes(os.Getenv("DOCUMENT_MAX_BYTES"))
+	if err != nil {
+		return Config{}, err
 	}
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
@@ -259,12 +353,21 @@ func Load() (Config, error) {
 		DesktopAuthAttemptTTL:         parseDuration(os.Getenv("DESKTOP_AUTH_ATTEMPT_TTL"), 10*time.Minute),
 		DocumentCommitIntentClaimTTL:  parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_CLAIM_TTL"), 2*time.Minute),
 		DocumentCommitIntentRetention: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_RETENTION"), 7*24*time.Hour),
+		DocumentCommitIntentSweepTick: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK"), 10*time.Minute),
+		DocumentMaxBytes:              documentMaxBytes,
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),
 		PreviewCapabilitySecret:       os.Getenv("PREVIEW_CAPABILITY_SECRET"),
 		PreviewAssetTTL:               parseRequiredDuration(os.Getenv("PREVIEW_ASSET_TTL")),
 		PreviewAssetMaxBytes:          parseRequiredInt64(os.Getenv("PREVIEW_ASSET_MAX_BYTES")),
 		OfficeChangeSnapshotTTL:       changeSnapshotTTL,
+		DocumentEditLockTTL:           editLockTTL,
+		DocumentEditLockHeartbeat:     editLockHeartbeat,
+		DocumentEditLockSweepInterval: editLockSweep,
+		DocumentEditHoldMax:           editHoldMax,
+		DocumentEditHoldChainMax:      editHoldChainMax,
+		DocumentEditRequestTTL:        editRequestTTL,
+		DocumentEditRequestMaxPerHour: editRequestMaxPerHour,
 		TrustedProxies:                os.Getenv("TRUSTED_PROXIES"),
 		LiveKitURL:                    os.Getenv("LIVEKIT_URL"),
 		LiveKitAPIKey:                 os.Getenv("LIVEKIT_API_KEY"),
@@ -310,6 +413,7 @@ func Load() (Config, error) {
 		VAPIDPublicKey:                os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey:               os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:                  os.Getenv("VAPID_SUBJECT"),
+		ExpoAccessToken:               os.Getenv("EXPO_ACCESS_TOKEN"),
 		RUMSampleRate:                 parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
 		OfficeInstallerDevURL:         os.Getenv("OFFICE_INSTALLER_DEV_URL"),
 		OfficeInstallerBetaURL:        os.Getenv("OFFICE_INSTALLER_BETA_URL"),
@@ -317,6 +421,13 @@ func Load() (Config, error) {
 		OfficeInstallerDevURLs:        os.Getenv("OFFICE_INSTALLER_DEV_URLS"),
 		OfficeInstallerBetaURLs:       os.Getenv("OFFICE_INSTALLER_BETA_URLS"),
 		OfficeInstallerStableURLs:     os.Getenv("OFFICE_INSTALLER_STABLE_URLS"),
+		UniChatInstallerDevURLs:       os.Getenv("UNICHAT_INSTALLER_DEV_URLS"),
+		UniChatInstallerBetaURLs:      os.Getenv("UNICHAT_INSTALLER_BETA_URLS"),
+		UniChatInstallerStableURLs:    os.Getenv("UNICHAT_INSTALLER_STABLE_URLS"),
+		UniChatStoreIOSURL:            os.Getenv("UNICHAT_STORE_IOS_URL"),
+		UniChatStoreAndroidURL:        os.Getenv("UNICHAT_STORE_ANDROID_URL"),
+		UniChatTestFlightURL:          os.Getenv("UNICHAT_TESTFLIGHT_URL"),
+		UniChatPlayInternalURL:        os.Getenv("UNICHAT_PLAY_INTERNAL_URL"),
 		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 		HTTPMaxInFlight:               int(parseInt32(os.Getenv("HTTP_MAX_IN_FLIGHT"), 128)),
 		RealtimeRelay:                 !strings.EqualFold(strings.TrimSpace(os.Getenv("REALTIME_RELAY")), "false"),
@@ -446,6 +557,18 @@ func parseRequiredInt64(raw string) int64 {
 		return 0
 	}
 	return n
+}
+
+func parseDocumentMaxBytes(raw string) (int64, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return DefaultDocumentMaxBytes, nil
+	}
+	n, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil || n < MinDocumentMaxBytes || n > MaxDocumentMaxBytes {
+		return 0, fmt.Errorf("DOCUMENT_MAX_BYTES must be an integer between %d (1 MiB) and %d (2 GiB), got %q", MinDocumentMaxBytes, MaxDocumentMaxBytes, raw)
+	}
+	return n, nil
 }
 
 func parseRatio(raw string, fallback float64) float64 {

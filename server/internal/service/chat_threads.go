@@ -193,6 +193,10 @@ func (s *ChatService) SendThreadReply(
 		clientMsg = pgtype.Text{String: clientMsgID, Valid: true}
 	}
 	replyTo := pgtype.Text{String: threadRootID, Valid: true}
+	meta, err := buildChatTextMessageMetadata(mentions, in.Priority)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
 	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID:               util.NewID(),
 		RoomID:           room.ID,
@@ -204,6 +208,7 @@ func (s *ChatService) SendThreadReply(
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      clientMsg,
 		ThreadRootID:     pgtype.Text{String: threadRootID, Valid: true},
+		Metadata:         meta,
 	})
 	if err != nil {
 		if clientMsgID != "" && isUniqueViolation(err) {
@@ -234,16 +239,6 @@ func (s *ChatService) SendThreadReply(
 	}
 
 	if len(mentions.Recipients) > 0 {
-		meta, err := encodeMentionsMetadata(msg.Metadata, mentions)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-		msg, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-			ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: meta,
-		})
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
 		// Only the people named follow the thread: an @all made every member
 		// of the room a follower for good.
 		for _, mid := range mentions.Named {
@@ -252,20 +247,11 @@ func (s *ChatService) SendThreadReply(
 			}
 		}
 	}
-	if priority := normalizeMessagePriority(in.Priority); priority != "" {
-		meta, err := encodeMessagePriorityMetadata(msg.Metadata, priority)
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-		msg, err = q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-			ID: msg.ID, RoomID: room.ID, WorkspaceID: anchorWS, Metadata: meta,
-		})
-		if err != nil {
-			return ChatMessageRow{}, err
-		}
-	}
 	_ = q.TouchChatRoomUpdatedAt(ctx, room.ID)
 	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, threadRootID, root.SenderID, mentions); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := requestChatLinkPreview(ctx, q, userID, room, msg.ID, body); err != nil {
 		return ChatMessageRow{}, err
 	}
 

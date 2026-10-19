@@ -27,11 +27,11 @@ const NONE = "__none__";
  * dialog, so they already sit above it (the tasks pickers rely on the same).
  */
 const chatTaskPillTrigger =
-  "h-8 w-auto min-w-0 gap-1.5 rounded-full border border-border bg-background px-2.5 text-caption font-medium text-foreground shadow-none hover:bg-surface-hover dark:bg-background";
+  "h-8.5 w-auto min-w-0 gap-1.5 rounded-full border border-border bg-background px-3 text-label font-medium text-foreground shadow-none hover:bg-surface-hover dark:bg-background";
 
 /** Borderless display-size title; the field still shows a border on hover and focus. */
 export const chatTaskTitleInput =
-  "h-auto rounded-md border-transparent bg-transparent px-1 py-0.5 text-display-sm font-bold leading-snug tracking-tight text-foreground hover:border-border md:text-display-sm dark:bg-transparent";
+  "-mx-2 h-11 w-[calc(100%+1rem)] rounded-control border-transparent bg-transparent px-2 font-display text-title-xl font-bold text-foreground hover:border-border md:text-title-xl dark:bg-transparent";
 
 export function ChatTaskProjectField({
   workspaceId,
@@ -119,6 +119,11 @@ export function ChatTaskAssigneeField({
   );
 }
 
+/** "T4, 23/10" (canvas): Vietnamese writes the weekday in its narrow form; other languages keep the short one. */
+function dueFormat(language: string): Intl.DateTimeFormatOptions {
+  return { weekday: language.startsWith("vi") ? "narrow" : "short", day: "2-digit", month: "2-digit" };
+}
+
 export function ChatTaskDueField({
   id,
   value,
@@ -131,7 +136,7 @@ export function ChatTaskDueField({
   const { t, i18n } = useTranslation();
   const date = value ? dateOnlyToLocalDate(value) : undefined;
   const shown = date
-    ? date.toLocaleDateString(i18n.language, { day: "numeric", month: "short", year: "numeric" })
+    ? date.toLocaleDateString(i18n.language, dueFormat(i18n.language))
     : undefined;
   const ariaLabel = usePickerTriggerLabel(t("chat.link.due_label"), shown);
   return (
@@ -140,6 +145,7 @@ export function ChatTaskDueField({
       value={value}
       onChange={onChange}
       ariaLabel={ariaLabel}
+      formatOptions={dueFormat(i18n.language)}
       className={cn(chatTaskPillTrigger, !value && "text-muted-foreground")}
     />
   );

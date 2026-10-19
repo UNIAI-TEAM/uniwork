@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import JSZip from "jszip";
 import { e2eBaseUrl } from "./api-url";
-import { listVersions, seedDocument, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
+import { listVersions, openSeededDocument, releaseSeededEditLock, seedDocument, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
   expectFrameNotice, moduleFrameBase, moduleFrameHost, moduleFrameInstalled, readModulePin, signInAs, versionBytes, type FrameModule, type ModulePin,
 } from "./office-module-web-fixtures";
@@ -156,6 +156,10 @@ for (const c of CASES) {
       await setFlag(c.flag, seeded.organizationId, true);
     });
 
+    test.afterEach(async ({ request }) => {
+      await releaseSeededEditLock(request, seeded);
+    });
+
     test.afterAll(async () => {
       if (seeded) await setFlag(c.flag, seeded.organizationId, false);
     });
@@ -164,7 +168,7 @@ for (const c of CASES) {
       const violations: string[] = [];
       page.on("console", (m) => { if (/Content Security Policy|Refused to/i.test(m.text())) violations.push(m.text()); });
       await signInAs(page, seeded.account.email);
-      await page.goto(seeded.documentUrl);
+      await openSeededDocument(page, seeded);
       const frame = page.locator(`iframe[src*="/office-frame/${c.module}/"]`);
       await expect(frame).toBeVisible({ timeout: 60_000 });
       expect(await frame.getAttribute("src")).toContain(`${moduleFrameBase(c.module, pin!)}/`);
@@ -177,7 +181,7 @@ for (const c of CASES) {
       // A bundle missing on the server: the iframe fires no error for an HTTP 404, so the host probes it.
       await page.route(`**/office-frame/${c.module}/**/index.html`, (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "not found" }));
       await signInAs(page, seeded.account.email);
-      await page.goto(seeded.documentUrl);
+      await openSeededDocument(page, seeded);
       await expectFrameNotice(page, "load");
       await expect(page.locator(`iframe[src*="/office-frame/${c.module}/"]`)).toHaveCount(0);
       await page.screenshot({ path: test.info().outputPath(`03-${c.module}-bundle-missing.png`) });
@@ -191,7 +195,7 @@ for (const c of CASES) {
         await page.route(`**/office-frame/${c.module}/**/*.js`, (route) => route.abort("failed"));
         await signInAs(page, seeded.account.email);
         const startedAt = Date.now();
-        await page.goto(seeded.documentUrl);
+        await openSeededDocument(page, seeded);
         await expect(page.getByTestId("office-docs-frame-failed")).toBeVisible({ timeout: 20_000 });
         expect(Date.now() - startedAt, "the host must not wait for the 25 s boot timer").toBeLessThan(20_000);
         await expectFrameNotice(page, "load", "The editor files did not load");
@@ -203,10 +207,11 @@ for (const c of CASES) {
       test(`an edit in the ${c.module} frame is saved as a new version`, async ({ page, context, request }) => {
         // The frame follows the app's locale; the specs drive its English labels.
         await context.addCookies([{ name: "uniwork-locale", value: "en", url: baseUrl }]);
-        const marker = `${Date.now()}`.slice(-8);
+        // Never a leading 0: the sheets number cell drops it and hasEdit's <v> lookup misses.
+        const marker = `1${`${Date.now()}`.slice(-7)}`;
         const before = await listVersions(request, seeded.account.token, seeded.documentId);
         await signInAs(page, seeded.account.email);
-        await page.goto(seeded.documentUrl);
+        await openSeededDocument(page, seeded);
         await expect(moduleFrameHost(page, c.module)).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
         await c.edit!(page, marker);
         await expect.poll(async () => (await listVersions(request, seeded.account.token, seeded.documentId)).length, { timeout: 60_000, intervals: [1_000] })

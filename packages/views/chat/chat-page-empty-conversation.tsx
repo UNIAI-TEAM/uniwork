@@ -1,10 +1,9 @@
 "use client";
 
-import { ChevronLeft, PanelLeft } from "lucide-react";
+import { ChevronLeft, MessageCircle, PanelLeft } from "lucide-react";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { CollectionPageState } from "../layout/collection-page";
-import { MODULE_ICONS } from "../layout/module-icons";
-import { moduleTone } from "../layout/module-tones";
+import { CHAT_WALL } from "./chat-wall";
 
 /**
  * Main pane when no conversation is open: say so, and where to start. When
@@ -29,9 +28,8 @@ export function ChatPageEmptyConversation({
     listHidden && onShowList ? (
       <Button
         type="button"
-        variant="outline"
-        size="sm"
-        className="hidden lg:inline-flex"
+        variant="secondary"
+        className="hidden h-10 gap-2 rounded-full pr-4.5 pl-3.5 font-semibold lg:inline-flex"
         aria-expanded={false}
         data-chat-sidebar-expand=""
         onClick={onShowList}
@@ -41,28 +39,30 @@ export function ChatPageEmptyConversation({
       </Button>
     ) : null;
   const back = onBackToList ? (
-    <Button type="button" variant="outline" size="sm" className="lg:hidden" onClick={onBackToList}>
+    <Button type="button" variant="secondary" className="h-10 rounded-full px-4 lg:hidden" onClick={onBackToList}>
       <ChevronLeft aria-hidden />
       {t("chat.back_to_conversations")}
     </Button>
   ) : null;
 
+  // The wall the conversation opens on, with one card that says where to start.
   return (
-    <div className="flex flex-1 items-center justify-center">
-      <CollectionPageState
-        icon={MODULE_ICONS.chat}
-        tone={moduleTone("chat")}
-        title={t("chat.no_conversation_title")}
-        description={listHidden ? t("chat.no_conversation_hint_hidden") : t("chat.no_conversation_hint")}
-        actions={
-          showList || back ? (
-            <>
-              {showList}
-              {back}
-            </>
-          ) : undefined
-        }
-      />
+    <div className={`flex flex-1 items-center justify-center p-6 ${CHAT_WALL}`}>
+      <div className="flex w-full max-w-85 flex-col items-center rounded-2xl bg-surface px-6 pt-7 pb-6 text-center shadow-chat-bubble">
+        <IconTile icon={MessageCircle} tone="brand" size="lg" className="mb-3 size-16 rounded-2xl [&_svg]:size-7" />
+        <h2 className="font-display text-title font-bold text-foreground">
+          {t("chat.no_conversation_title")}
+        </h2>
+        <p className="mt-1 max-w-73 text-body text-pretty text-muted-foreground">
+          {listHidden ? t("chat.no_conversation_hint_hidden") : t("chat.no_conversation_hint")}
+        </p>
+        {showList || back ? (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {showList}
+            {back}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -73,19 +73,19 @@ export function ChatPageEmptyConversation({
  * collapsed list must not depend on a room being open.
  */
 export function ChatFrameListToggle({ t, onShowList }: { t: (key: string) => string; onShowList: () => void }) {
+  // Canvas WebBanners "Danh sách đang ẩn": a 56px bar with the way back spelled out.
   return (
-    <div className="hidden h-14 shrink-0 items-center border-b border-border bg-surface px-3 lg:flex">
+    <div className="hidden h-14 shrink-0 items-center border-b border-border bg-surface px-2 lg:flex">
       <Button
         type="button"
         variant="ghost"
-        size="icon-lg"
-        className="text-muted-foreground hover:text-foreground"
-        aria-label={t("chat.show_conversations")}
+        className="h-11 gap-2 rounded-lg pr-3.5 pl-2.5 text-body font-semibold text-muted-foreground hover:text-foreground"
         aria-expanded={false}
         data-chat-sidebar-expand=""
         onClick={onShowList}
       >
         <PanelLeft aria-hidden className="size-4.5" />
+        {t("chat.show_conversations")}
       </Button>
     </div>
   );

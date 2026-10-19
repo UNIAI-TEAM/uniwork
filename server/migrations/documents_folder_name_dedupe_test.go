@@ -8,6 +8,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -43,6 +44,21 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 	cleanup()
 	t.Cleanup(cleanup)
 
+	// PR 2's idx_documents_folder_name_uidx refuses the duplicate live
+	// siblings this exercise exists to dedupe, so the whole run happens in a
+	// transaction with the index dropped: the rollback restores it. The
+	// email-hub dedupe test drops its index for the same reason. The seed
+	// cleanup above runs before the transaction on purpose - DROP INDEX holds
+	// ACCESS EXCLUSIVE on documents, so a later pool statement would wait.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx, idx_documents_folder_name_user_uidx`); err != nil {
+		t.Fatal(err)
+	}
+
 	seed := []struct {
 		id, kind, title, parent string
 		archived                bool
@@ -63,7 +79,7 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 		{id: "01DOCDEDUPECO000000000000013", kind: "folder", title: "Con", parent: "01DOCDEDUPEPR000000000000012", createdAgo: "2 hours"},
 	}
 	for _, s := range seed {
-		if _, err := pool.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `
 			INSERT INTO documents (id, organization_id, workspace_id, kind, title, visibility,
 			  parent_id, created_by, created_by_kind, updated_by, updated_by_kind, created_at)
 			VALUES ($1, '01ORGDEDUPE0000000000000001', $2, $3, $4, 'workspace', nullif($5, ''),
@@ -72,7 +88,7 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		UPDATE documents SET archived_at = now(), purge_after = now() + interval '30 days'
 		WHERE id = '01DOCDEDUPEAR100000000000009'`); err != nil {
 		t.Fatal(err)
@@ -80,13 +96,13 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 
 	run := func() {
 		t.Helper()
-		if _, err := pool.Exec(ctx, dedupe); err != nil {
+		if _, err := tx.Exec(ctx, dedupe); err != nil {
 			t.Fatalf("%s: %v", matches[0], err)
 		}
 	}
 	titles := func() map[string]string {
 		t.Helper()
-		rows, err := pool.Query(ctx, `SELECT id, title FROM documents WHERE workspace_id = $1`, ws)
+		rows, err := tx.Query(ctx, `SELECT id, title FROM documents WHERE workspace_id = $1`, ws)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -144,7 +160,7 @@ func TestFolderNameDedupeMigration(t *testing.T) {
 
 	// No audit row: a data fix is not a user command.
 	var audits int
-	if err := pool.QueryRow(ctx,
+	if err := tx.QueryRow(ctx,
 		`SELECT count(*) FROM audit_events WHERE resource_id LIKE '01DOCDEDUPE%'`).Scan(&audits); err != nil {
 		t.Fatal(err)
 	}
@@ -190,6 +206,22 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 	cleanup()
 	t.Cleanup(cleanup)
 
+	// PR 2's idx_documents_folder_name_uidx refuses the duplicate live
+	// siblings this exercise seeds, so the whole run happens in a transaction
+	// with the index dropped: the rollback restores it. The probe at the end
+	// builds the index's exact expression inside that same transaction, over
+	// the rows the migration just cleaned. The cleanup above runs before the
+	// transaction on purpose - DROP INDEX holds ACCESS EXCLUSIVE on documents,
+	// so a later pool statement would wait.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS idx_documents_folder_name_uidx, idx_documents_folder_name_user_uidx`); err != nil {
+		t.Fatal(err)
+	}
+
 	// Two groups at the root, each "base", "base", "base (2)" - the shape the
 	// buggy probe turns into two rows on one key.
 	seed := []struct {
@@ -203,7 +235,7 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 		{id: "01DOCDEDUPEICU600000000006", title: "ΑΣ (2)", createdAgo: "30 minutes"},
 	}
 	for _, s := range seed {
-		if _, err := pool.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `
 			INSERT INTO documents (id, organization_id, workspace_id, kind, title, visibility,
 			  created_by, created_by_kind, updated_by, updated_by_kind, created_at)
 			VALUES ($1, '01ORGDEDUPEICU000000000001', $2, 'folder', $3, 'workspace',
@@ -215,13 +247,13 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 
 	run := func() {
 		t.Helper()
-		if _, err := pool.Exec(ctx, dedupe); err != nil {
+		if _, err := tx.Exec(ctx, dedupe); err != nil {
 			t.Fatalf("%s: %v", matches[0], err)
 		}
 	}
 	titles := func() map[string]string {
 		t.Helper()
-		rows, err := pool.Query(ctx, `SELECT id, title FROM documents WHERE workspace_id = $1`, ws)
+		rows, err := tx.Query(ctx, `SELECT id, title FROM documents WHERE workspace_id = $1`, ws)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -243,7 +275,7 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 	// share, the exact state the unique index of PR 2 rejects.
 	duplicateKeys := func() []string {
 		t.Helper()
-		rows, err := pool.Query(ctx, `
+		rows, err := tx.Query(ctx, `
 			SELECT lower(title COLLATE "und-x-icu") AS k, count(*)
 			FROM documents
 			WHERE workspace_id = $1 AND kind = 'folder' AND archived_at IS NULL AND owner_id IS NULL
@@ -297,14 +329,9 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 		}
 	}
 
-	// PR 2's exact key expression must build over the result. The index is
-	// created in a transaction that is rolled back, so the test leaves the
-	// schema as it found it.
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	// PR 2's exact key expression must build over the result, inside the
+	// transaction that dropped the real index: the rollback leaves the schema
+	// as it found it.
 	if _, err := tx.Exec(ctx, `CREATE UNIQUE INDEX fd02_dedupe_probe_uidx ON documents
 		(workspace_id, COALESCE(parent_id, ''), lower(title COLLATE "und-x-icu"))
 		WHERE kind = 'folder' AND archived_at IS NULL AND owner_id IS NULL`); err != nil {
@@ -313,43 +340,152 @@ func TestFolderNameDedupeMigrationICULowerKey(t *testing.T) {
 }
 
 // TestFolderNameKeyExpressionIsOneShape guards the shared duplicate key: the
-// pre-check query (document_names.sql) and the dedupe migration must write the
-// collation INSIDE lower(), never after it. Applied to the result, the outside
-// form resolves lower() under the cluster's default collation while every key
-// read back is the ICU one, so the two disagree about which strings are the
-// same name - the drift the appendix forbids.
+// pre-check query (document_names.sql), the dedupe migration of PR 1 and the
+// unique index of PR 2 must write the collation INSIDE lower(), never after
+// it. Applied to the result, the outside form resolves lower() under the
+// cluster's default collation while every key read back is the ICU one, so the
+// two disagree about which strings are the same name - the drift the appendix
+// forbids. Every file holding the key expression is listed here, so a fourth
+// copy cannot appear unnoticed.
 func TestFolderNameKeyExpressionIsOneShape(t *testing.T) {
-	matches, err := filepath.Glob("*_documents_folder_name_dedupe.up.sql")
-	if err != nil || len(matches) != 1 {
-		t.Fatalf("want one folder-name dedupe migration, found %v (%v)", matches, err)
+	var sources []string
+	var dedupe string
+	for _, glob := range []string{
+		"*_documents_folder_name_dedupe.up.sql",
+		"*_documents_folder_name_uidx.up.sql",
+		"*_documents_folder_name_user_uidx.up.sql",
+	} {
+		matches, err := filepath.Glob(glob)
+		if err != nil || len(matches) != 1 {
+			t.Fatalf("want one %s, found %v (%v)", glob, matches, err)
+		}
+		sources = append(sources, matches[0])
+		if strings.Contains(glob, "dedupe") {
+			dedupe = matches[0]
+		}
 	}
-	sources := map[string]string{matches[0]: stripSQLComments(readMigration(t, matches[0]))}
-	query, err := os.ReadFile(filepath.Join("..", "pkg", "db", "queries", "document_names.sql"))
+	sources = append(sources, filepath.Join("..", "pkg", "db", "queries", "document_names.sql"))
+
+	for _, name := range sources {
+		raw, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkKeyShape(t, name, string(raw))
+	}
+
+	// The runbook holds a fourth copy of the key expression - the one an
+	// operator actually runs (BE-FD02P2-1). It is markdown, not SQL, so it
+	// needs its own reader: the recovery block must stay the dedupe migration's
+	// statements (comments and whitespace aside), and every key expression in
+	// the file keeps the inside-lower() shape. Deliberate deltas (reviews
+	// BE-MF-1, BE-MF-R2-1): the runbook scopes both statements to the current
+	// index population with system_kind IS NULL, because the historical
+	// migration predates system_kind and would rename My Folder rows, and its
+	// normalize UPDATE adds owner_id IS NULL so owned folders stay untouched.
+	// Removing exactly those three predicates must give the migration back, and
+	// all must be present, so dropping one fails.
+	runbook := filepath.Join("..", "..", "docs", "runbooks", "documents-folder-name-index.md")
+	blocks := fencedSQLBlocks(t, runbook)
+	recovery := 0
+	for i, block := range blocks {
+		if strings.Contains(block, `COLLATE "und-x-icu"`) {
+			checkKeyShape(t, fmt.Sprintf("%s: sql block %d", runbook, i+1), block)
+		}
+		if !strings.Contains(block, "normalize(title, NFC)") {
+			continue
+		}
+		recovery++
+		code := normalizeSQL(stripSQLComments(block))
+		if n := strings.Count(code, "system_kind IS NULL"); n != 2 {
+			t.Errorf("%s: the recovery SQL carries system_kind IS NULL %d times, want 2 (one per statement)", runbook, n)
+		}
+		// The normalize UPDATE (the first statement) also carries owner_id IS
+		// NULL, which the historical migration lacks (BE-MF-R2-1).
+		normalizeStmt, _, _ := strings.Cut(code, ";")
+		if !strings.Contains(normalizeStmt, "SET title = normalize(title, NFC)") || strings.Count(normalizeStmt, "AND owner_id IS NULL") != 1 {
+			t.Errorf("%s: the normalize UPDATE must carry owner_id IS NULL exactly once", runbook)
+		}
+		scoped := strings.Replace(code, "AND owner_id IS NULL", "", 1) // first occurrence: the normalize UPDATE
+		scoped = strings.NewReplacer("AND system_kind IS NULL", "", "AND d.system_kind IS NULL", "").Replace(scoped)
+		if want, got := normalizeSQL(stripSQLComments(readMigration(t, dedupe))), normalizeSQL(scoped); want != got {
+			t.Errorf("%s: the recovery SQL is not %s apart from the system_kind scope\nwant: %s\ngot:  %s", runbook, dedupe, want, got)
+		}
+	}
+	if recovery != 1 {
+		t.Fatalf("%s: want one fenced SQL block holding the dedupe recovery, found %d", runbook, recovery)
+	}
+}
+
+// checkKeyShape asserts every COLLATE "und-x-icu" in sql sits inside its
+// lower() call - the shape that resolves the argument under the ICU collation
+// - and that sql carries the key at all.
+func checkKeyShape(t *testing.T, name, sql string) {
+	t.Helper()
+	const key = `COLLATE "und-x-icu"`
+	sql = stripSQLComments(sql)
+	occurrences := 0
+	for i := 0; ; {
+		at := strings.Index(sql[i:], key)
+		if at < 0 {
+			break
+		}
+		at += i
+		occurrences++
+		i = at + len(key)
+		if !insideLowerCall(sql, at) {
+			t.Errorf("%s:%d: COLLATE %q is outside its lower() call; write lower(x COLLATE %q)",
+				name, strings.Count(sql[:at], "\n")+1, "und-x-icu", "und-x-icu")
+		}
+	}
+	if occurrences == 0 {
+		t.Errorf("%s carries no lower(... COLLATE \"und-x-icu\") key expression", name)
+	}
+}
+
+// fencedSQLBlocks returns the body of every ```sql fenced block in a markdown
+// file, indentation left as written (callers normalise whitespace before
+// comparing).
+func fencedSQLBlocks(t *testing.T, name string) []string {
+	t.Helper()
+	raw, err := os.ReadFile(name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sources[filepath.Join("..", "pkg", "db", "queries", "document_names.sql")] = stripSQLComments(string(query))
-
-	const key = `COLLATE "und-x-icu"`
-	for name, sql := range sources {
-		occurrences := 0
-		for i := 0; ; {
-			at := strings.Index(sql[i:], key)
-			if at < 0 {
-				break
+	var blocks []string
+	var cur []string
+	in := false
+	for _, line := range strings.Split(string(raw), "\n") {
+		switch strings.TrimSpace(line) {
+		case "```sql":
+			if in {
+				t.Fatalf("%s: nested ```sql fence", name)
 			}
-			at += i
-			occurrences++
-			i = at + len(key)
-			if !insideLowerCall(sql, at) {
-				t.Errorf("%s:%d: COLLATE %q is outside its lower() call; write lower(x COLLATE %q)",
-					name, strings.Count(sql[:at], "\n")+1, "und-x-icu", "und-x-icu")
+			in, cur = true, nil
+		case "```":
+			if in {
+				blocks = append(blocks, strings.Join(cur, "\n"))
+				in = false
 			}
-		}
-		if occurrences == 0 {
-			t.Errorf("%s carries no lower(... COLLATE \"und-x-icu\") key expression", name)
+		default:
+			if in {
+				cur = append(cur, line)
+			}
 		}
 	}
+	if in {
+		t.Fatalf("%s: unterminated ```sql fence", name)
+	}
+	if len(blocks) == 0 {
+		t.Fatalf("%s: no ```sql block", name)
+	}
+	return blocks
+}
+
+// normalizeSQL collapses runs of whitespace, so a copy that differs from its
+// source only in indentation or line wrapping still compares equal.
+func normalizeSQL(sql string) string {
+	return strings.Join(strings.Fields(sql), " ")
 }
 
 // insideLowerCall reports whether the innermost call open at offset at is

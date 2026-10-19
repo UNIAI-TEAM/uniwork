@@ -206,8 +206,8 @@ func toneKey(w string) string {
 	return norm.NFC.String(string(base)) + string(tones)
 }
 
-// hasPhrase reports whether any folded keyword occurs as whole adjacent tokens.
-func hasPhrase(q string, keywords ...string) bool {
+// hasFoldedPhrase reports whether any folded keyword occurs as whole adjacent tokens.
+func hasFoldedPhrase(q string, keywords ...string) bool {
 	hay := " " + strings.Join(tokens(q), " ") + " "
 	for _, k := range keywords {
 		if strings.Contains(hay, " "+k+" ") {
@@ -221,11 +221,11 @@ func hasPhrase(q string, keywords ...string) bool {
 // unaccented questions need a phrase.
 func asksOverdue(q string) bool {
 	return slices.Contains(words(q), "trễ") ||
-		hasPhrase(q, "qua han", "tre han", "bi tre", "dang tre", "tre deadline", "overdue", "late")
+		hasFoldedPhrase(q, "qua han", "tre han", "bi tre", "dang tre", "tre deadline", "overdue", "late")
 }
 
 func asksMembers(q string) bool {
-	return hasPhrase(q, "thanh vien", "member", "members", "ai", "who", "nhan su", "doi ngu", "doi minh")
+	return hasFoldedPhrase(q, "thanh vien", "member", "members", "ai", "who", "nhan su", "doi ngu", "doi minh")
 }
 
 type scored struct {

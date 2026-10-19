@@ -194,7 +194,7 @@ func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[
 		})
 	}
 
-	return s.postVoiceCallSummaryMessage(ctx, room, callerID, wsID, callID, callLogID, parsed.Summary, parsed.Highlights, items)
+	return s.postVoiceCallSummaryMessage(ctx, room, callerID, wsID, callID, callLogID, parsed.Summary, parsed.HighlightTexts(), items)
 }
 
 func (s *ChatService) chatPathBase(ctx context.Context, workspaceID string) (string, error) {
@@ -247,14 +247,9 @@ func (s *ChatService) postVoiceCallSummaryMessage(
 	msgID := util.NewID()
 	msg, err := q.CreateChatMessage(ctx, db.CreateChatMessageParams{
 		ID: msgID, RoomID: room.ID, OrganizationID: room.OrganizationID, WorkspaceID: workspaceID,
-		SenderID: callerID, SenderKind: string(audit.KindHuman), Body: body,
+		SenderID: callerID, SenderKind: string(audit.KindHuman), Body: body, Metadata: rawMeta,
 	})
 	if err != nil {
-		return err
-	}
-	if _, err := q.UpdateChatMessageMetadata(ctx, db.UpdateChatMessageMetadataParams{
-		ID: msgID, RoomID: room.ID, WorkspaceID: workspaceID, Metadata: rawMeta,
-	}); err != nil {
 		return err
 	}
 	var logMeta map[string]any

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
-import { greetingPart } from "./documents-home-create";
 import {
   byUpdatedDesc,
   DEFAULT_FOLDER_SORT,
@@ -12,12 +11,16 @@ import {
   formatBytes,
   groupRows,
   indexTree,
+  matchesAccess,
   matchesChip,
   mergeNewestFirst,
   readFolderSort,
+  rowAccessLabelKey,
+  rowFormat,
   rowOrigin,
   rowSizeBytes,
   rowTypeKey,
+  rowVisibilityLabelKey,
   sortFolderRows,
   sourceRow,
   writeFolderSort,
@@ -100,6 +103,22 @@ describe("library rows", () => {
     expect(groupRows(rows, "none", index)).toHaveLength(1);
   });
 
+  it("puts root folder rows in their own first group under group-by-folder, keeps nested folders in their parent group, keeps empty root folders visible, and leaves only root documents in unfiled", () => {
+    const rootDoc = documentRow(doc({ id: "root-doc", kind: "page", title: "Root page" }));
+    const childDoc = documentRow(doc({ id: "child-doc", kind: "file", title: "Spec.docx", parent_id: "f1" }));
+    const nonEmptyFolder = documentRow(doc({ id: "f1", kind: "folder", title: "F1" }));
+    const emptyRootFolder = documentRow(doc({ id: "f-empty", kind: "folder", title: "Empty" }));
+    const nestedFolder = documentRow(doc({ id: "f2", kind: "folder", title: "F2", parent_id: "p1" }));
+    const rows = [rootDoc, childDoc, nonEmptyFolder, emptyRootFolder, nestedFolder];
+
+    const groups = groupRows(rows, "folder", index);
+    expect(groups.map((g) => [g.key, g.title, g.rows.map((r) => r.id)])).toEqual([
+      ["folders", "", ["f1", "f-empty"]],
+      ["unfiled", "", ["root-doc"]],
+      ["folder:f1", "F1", ["child-doc", "f2"]],
+    ]);
+  });
+
   it("tells uploads from created documents and sizes only files", () => {
     const upload = documentRow(doc({ kind: "file", origin: "upload", size_bytes: 2048 }));
     const blank = documentRow(doc({ kind: "file", origin: "created", size_bytes: 0 }));
@@ -145,13 +164,6 @@ describe("library rows", () => {
     expect(formatBytes(318 * 1024, "en")).toBe("318 KB");
     expect(formatBytes(1.2 * 1024 * 1024, "en")).toBe("1.2 MB");
     expect(formatBytes(-1, "en")).toBe("");
-  });
-
-  it("greets by the time of day", () => {
-    expect(greetingPart(8)).toBe("morning");
-    expect(greetingPart(14)).toBe("afternoon");
-    expect(greetingPart(21)).toBe("evening");
-    expect(greetingPart(2)).toBe("evening");
   });
 
   it("places folders before documents in both sorts", () => {
@@ -200,6 +212,21 @@ describe("library rows", () => {
     expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Báo giá.docx" })))).toBe("documents.file_types.docx");
     expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Số liệu.xlsx" })))).toBe("documents.file_types.xlsx");
     expect(rowTypeKey(documentRow(doc({ kind: "file", title: "archive.zip" })))).toBe("documents.file_types.file");
+  });
+
+  it("reads the server's format over the title's extension, and an unknown one as a generic file (UNI-1868)", () => {
+    // kind stays the authority for pages and folders; only files read `format`.
+    expect(rowFormat(documentRow(doc({ kind: "file", title: "Báo giá.docx", format: "xlsx" })))).toBe("xlsx");
+    expect(rowFormat(documentRow(doc({ kind: "file", title: "Số liệu.xlsx" })))).toBe("xlsx");
+    // An unknown server value is not trusted: the extension, then the generic file.
+    const odd = (title: string) => documentRow(doc({ kind: "file", title, format: "odd" as DocumentSummaryRow["format"] }));
+    expect(rowFormat(odd("Ghi chú.docx"))).toBe("docx");
+    expect(rowFormat(odd("Ghi chú"))).toBe("file");
+    expect(rowFormat(documentRow(doc({ kind: "page", title: "Trang.md", format: "md" as DocumentSummaryRow["format"] })))).toBe("page");
+    expect(rowTypeKey(documentRow(doc({ kind: "file", title: "Báo giá.docx", format: "xlsx" })))).toBe("documents.file_types.xlsx");
+    expect(rowTypeKey(odd("Ghi chú"))).toBe("documents.file_types.file");
+    // ...and it groups under the generic file, not under a group of its own.
+    expect(groupRows([odd("Ghi chú")], "type", new Map()).map((g) => g.key)).toEqual(["type:file"]);
   });
 
   it("persists folder sort per viewer under uniwork_documents_folder_sort:<userId> and neither reads nor writes without a user", () => {
@@ -253,3 +280,36 @@ describe("library rows", () => {
   });
 });
 
+
+describe("access columns and filter (UNI-1642)", () => {
+  const lvl = (my_level: string | null | undefined, visibility = "workspace") =>
+    documentRow(doc({ my_level: my_level as DocumentSummaryRow["my_level"], visibility: visibility as DocumentSummaryRow["visibility"] }));
+
+  it("maps the viewer's level to the share dialog's words, comment included, and an unknown level to nothing", () => {
+    expect(rowAccessLabelKey(lvl("view"))).toBe("documents.home.access.view");
+    expect(rowAccessLabelKey(lvl("edit"))).toBe("documents.home.access.edit");
+    expect(rowAccessLabelKey(lvl("comment"))).toBe("documents.home.access.comment");
+    expect(rowAccessLabelKey(lvl("manage"))).toBe("documents.home.access.manage");
+    expect(rowAccessLabelKey(lvl("owner"))).toBeNull();
+    expect(rowAccessLabelKey(lvl(null))).toBeNull();
+    expect(rowAccessLabelKey(lvl(undefined))).toBeNull();
+    expect(rowAccessLabelKey(src())).toBeNull();
+  });
+
+  it("maps visibility and leaves an unknown value or a source row blank", () => {
+    expect(rowVisibilityLabelKey(lvl("view", "workspace"))).toBe("documents.scope.workspace");
+    expect(rowVisibilityLabelKey(lvl("view", "restricted"))).toBe("documents.scope.private");
+    expect(rowVisibilityLabelKey(lvl("view", "public"))).toBeNull();
+    expect(rowVisibilityLabelKey(lvl("view", ""))).toBeNull();
+    expect(rowVisibilityLabelKey(src())).toBeNull();
+  });
+
+  it("filters: manage = manage, edit = edit or manage, restricted = restricted, all = everything", () => {
+    const rows = [lvl("view"), lvl("edit"), lvl("manage"), lvl("comment"), lvl(undefined), lvl("manage", "restricted"), lvl("view", "restricted"), src()];
+    const pick = (f: Parameters<typeof matchesAccess>[1]) => rows.map((r) => matchesAccess(r, f));
+    expect(pick("all")).toEqual([true, true, true, true, true, true, true, true]);
+    expect(pick("manage")).toEqual([false, false, true, false, false, true, false, false]);
+    expect(pick("edit")).toEqual([false, true, true, false, false, true, false, false]);
+    expect(pick("restricted")).toEqual([false, false, false, false, false, true, true, false]);
+  });
+});

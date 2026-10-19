@@ -27,6 +27,7 @@ export const DocumentSourceFileSchema = z.object({
     kind: z.string(),
     id: z.string(),
     title: z.string(),
+    message_id: z.string().optional().default("").catch(""),
   }),
   name: z.string(),
   mime_type: z.string().optional().default(""),
@@ -46,7 +47,7 @@ export const DocumentSourceFileSchema = z.object({
 });
 export type DocumentSourceFile = Omit<z.infer<typeof DocumentSourceFileSchema>, "source" | "parent"> & {
   source: DocumentSourceKind;
-  parent: { kind: DocumentSourceParentKind; id: string; title: string };
+  parent: { kind: DocumentSourceParentKind; id: string; title: string; message_id?: string };
 };
 
 export const DocumentSourceListSchema = z.object({

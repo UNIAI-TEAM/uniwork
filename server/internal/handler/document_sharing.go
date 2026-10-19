@@ -33,7 +33,12 @@ func (h *handlers) listDocumentShares(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := sdo.DocumentAccessSDO{MyLevel: string(overview.My.Level), Via: string(overview.My.Via)}
+	out := sdo.DocumentAccessSDO{
+		MyLevel:    string(overview.My.Level),
+		Via:        string(overview.My.Via),
+		MySources:  documentAccessSourceDTOs(overview.MySources),
+		AdminScope: overview.My.AdminScope,
+	}
 	if overview.ACLOwner != nil {
 		out.ACLOwner = &sdo.DocumentPersonAccessDTO{
 			UserID: overview.ACLOwner.UserID,
@@ -41,11 +46,26 @@ func (h *handlers) listDocumentShares(w http.ResponseWriter, r *http.Request) {
 			Via:    string(overview.ACLOwner.Access.Via),
 		}
 	}
+	if overview.HomeWorkspace != nil {
+		hw := &sdo.DocumentHomeWorkspaceAccessDTO{
+			WorkspaceID:   overview.HomeWorkspace.WorkspaceID,
+			WorkspaceName: overview.HomeWorkspace.WorkspaceName,
+			Visibility:    overview.HomeWorkspace.Visibility,
+		}
+		if overview.HomeWorkspace.Level != nil {
+			lvl := string(*overview.HomeWorkspace.Level)
+			hw.Level = &lvl
+		}
+		out.HomeWorkspace = hw
+	}
 	for _, sh := range overview.Shares {
 		out.Shares = append(out.Shares, documentShareDTO(sh))
 	}
 	for _, link := range overview.Links {
 		out.Links = append(out.Links, documentLinkDTO(link))
+	}
+	for _, g := range overview.BreakGlass {
+		out.BreakGlass = append(out.BreakGlass, documentBreakGlassGrantDTO(g))
 	}
 	respondJSON(w, http.StatusOK, out)
 }
@@ -252,8 +272,28 @@ func documentShareDTO(sh service.DocumentShareAccess) sdo.DocumentShareDTO {
 		via := string(sh.Effective.Via)
 		out.EffectiveVia = &via
 	}
+	if len(sh.Sources) > 0 {
+		out.Sources = documentAccessSourceDTOs(sh.Sources)
+	}
+	if len(sh.Warnings) > 0 {
+		out.Warnings = append([]string(nil), sh.Warnings...)
+	}
 	if sh.Share.CreatedAt.Valid {
 		out.CreatedAt = sh.Share.CreatedAt.Time.UTC().Format(time.RFC3339)
+	}
+	return out
+}
+
+func documentAccessSourceDTOs(srcs []service.DocumentAccessSource) []sdo.DocumentAccessSourceDTO {
+	out := make([]sdo.DocumentAccessSourceDTO, 0, len(srcs))
+	for _, src := range srcs {
+		out = append(out, sdo.DocumentAccessSourceDTO{
+			Via:           src.Via,
+			PrincipalType: src.PrincipalType,
+			PrincipalID:   src.PrincipalID,
+			Name:          src.Name,
+			Level:         string(src.Level),
+		})
 	}
 	return out
 }

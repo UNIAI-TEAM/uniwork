@@ -309,6 +309,9 @@ type RestoreDocumentVersionInput struct {
 	Version        int32
 	BaseRevision   int64
 	IdempotencyKey string
+	// EditLockID is the caller's edit lock tenure (UNI-1645 §2, edge 11): a
+	// restore replaces the content, so it is gated like a save.
+	EditLockID string
 }
 
 // DocumentVersionResult is DocumentVersionResultSDO: the document after the
@@ -321,6 +324,14 @@ type DocumentVersionResult struct {
 
 // RestoreDocumentVersion restores a page or a file version as a new version.
 func (s *DocumentService) RestoreDocumentVersion(ctx context.Context, actor Actor, documentID string, in RestoreDocumentVersionInput) (DocumentVersionResult, error) {
+	out, err := s.restoreDocumentVersion(ctx, actor, documentID, in)
+	s.countEditLockRefused(DocumentEditLockRouteRestore, err)
+	return out, err
+}
+
+// restoreDocumentVersion is the command body; RestoreDocumentVersion counts a
+// restore refused by the edit lock, page and file alike.
+func (s *DocumentService) restoreDocumentVersion(ctx context.Context, actor Actor, documentID string, in RestoreDocumentVersionInput) (DocumentVersionResult, error) {
 	if !validActor(actor) || documentID == "" {
 		return DocumentVersionResult{}, ErrNotFound
 	}
@@ -361,6 +372,9 @@ func (s *DocumentService) RestoreDocumentVersion(ctx context.Context, actor Acto
 			}
 			view, err := s.documentView(ctx, q, actor, locked)
 			out = DocumentVersionResult{View: view, Version: v}
+			return err
+		}
+		if err := s.checkDocumentEditLock(ctx, q, actor, locked, in.EditLockID); err != nil {
 			return err
 		}
 		if in.BaseRevision != 0 && in.BaseRevision != locked.Revision {

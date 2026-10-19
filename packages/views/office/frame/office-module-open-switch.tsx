@@ -3,11 +3,11 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useOfficeWebFlagEnabled } from "@uniwork/core/documents/office-enabled";
-import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
+import type { OfficeModule, OpenRefusedReason } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { DocsFrameFailure } from "./docs-frame-failure";
-import { DocsFrameRefusalContext } from "./docs-frame-refusal";
+import { DocsFrameRefusalContext, DocsFrameRefusedReasonContext } from "./docs-frame-refusal";
 
 export interface OfficeModuleOpenSwitchProps {
   module: OfficeModule;
@@ -15,8 +15,8 @@ export interface OfficeModuleOpenSwitchProps {
   /** `<OfficeModuleFrame>` — mounted once the module's flag is not off. */
   frame: ReactNode;
   /**
-   * Shown instead of the frame when it says the file is over the module's size cap
-   * (the too-large / open-in-the-app notice). A module without a size cap never asks for it.
+   * Shown instead of the frame when it refuses the file (`open_refused` or `too_large`)
+   * (the refusal / open-in-the-app notice).
    */
   tooLarge?: ReactNode;
 }
@@ -47,13 +47,19 @@ export function OfficeModuleOpenSwitch({ module, organizationId, frame, tooLarge
   const { t } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const state = useOfficeWebFlagEnabled(officeModuleSpec(module).flag, organizationId);
   const [frameMounted, setFrameMounted] = useState(false);
-  // The frame said the file is over the module's size cap: the too-large notice replaces it.
-  const [refusedSize, setRefusedSize] = useState(false);
+  // The frame refused to open the file (`open_refused` or `too_large`): the refusal notice replaces it.
+  const [refused, setRefused] = useState<{ refused: boolean; reason?: OpenRefusedReason }>({ refused: false });
   if ((state === "on" || state === "unknown") && !frameMounted) setFrameMounted(true);
 
-  if (refusedSize && tooLarge) return <>{tooLarge}</>;
+  if (refused.refused && tooLarge) {
+    return <DocsFrameRefusedReasonContext.Provider value={refused.reason}>{tooLarge}</DocsFrameRefusedReasonContext.Provider>;
+  }
   if (frameMounted || state === "on" || state === "unknown") {
-    return <DocsFrameRefusalContext.Provider value={() => setRefusedSize(true)}>{frame}</DocsFrameRefusalContext.Provider>;
+    return (
+      <DocsFrameRefusalContext.Provider value={(reason) => setRefused({ refused: true, reason })}>
+        {frame}
+      </DocsFrameRefusalContext.Provider>
+    );
   }
   if (state === "loading") {
     return (

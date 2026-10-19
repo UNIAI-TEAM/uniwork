@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -57,6 +58,12 @@ func TestIsolationMatrix(t *testing.T) {
 	if stale := isoStaleRows(routes); len(stale) > 0 {
 		t.Fatalf("isoRoutes rows that match no registered route:\n  %s", strings.Join(stale, "\n  "))
 	}
+
+	narrowed := strings.TrimSpace(os.Getenv("ISO_ONLY")) != ""
+	if narrowed {
+		t.Logf("ISO_ONLY=%q: SKIPPED the \"references\" subtest and the member-of-both reference loop; a narrowed run is NOT merge evidence", os.Getenv("ISO_ONLY"))
+	}
+	routes = isoOnly(routes, os.Getenv("ISO_ONLY"))
 
 	t.Run("control", func(t *testing.T) {
 		for _, r := range routes {
@@ -177,10 +184,18 @@ func TestIsolationMatrix(t *testing.T) {
 	// names nothing of A's (G5-01a).
 	t.Run("change-cursor", w.changeCursorChecks)
 
+	// The ?shared_by_me=true query variant of the workspace documents list
+	// route (SHAREDBYME-01, UNI-1851): each tenant's owner sees their shared
+	// row in the control pass, and B's owner with A's workspace is refused.
+	t.Run("shared-by-me", w.sharedByMeChecks)
+
 	// B's own routes with A's rows named in the body: an assignee, a parent,
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
 	t.Run("references", func(t *testing.T) {
+		if narrowed {
+			t.Skip("ISO_ONLY narrows the run to routes; the reference cases are a fixed list")
+		}
 		w.referenceControls(t)
 		for _, c := range isoReferences {
 			path, ok := c.refPath(t, w.bravo)
@@ -225,6 +240,9 @@ func TestIsolationMatrix(t *testing.T) {
 			w.attackAs(t, both, "member-of-both mixed "+r.method+" "+r.pattern, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), refused)
 		}
 		for _, c := range isoReferences {
+			if narrowed {
+				break
+			}
 			path, ok := c.refPath(t, w.bravo)
 			if !ok {
 				continue
@@ -359,6 +377,29 @@ func TestIsolationMatrix(t *testing.T) {
 
 type isoRoute struct{ method, pattern string }
 
+// isoOnly narrows a run to the routes whose "METHOD pattern" contains one of
+// the comma-separated substrings of ISO_ONLY. CI never sets it, so the full
+// matrix is what gates a merge; it lets a lane that may not run the whole
+// matrix on a shared box exercise just the routes it added. The routes are
+// still checked for a class and for staleness before this narrows them.
+// A narrowed run also skips the "references" subtest and the reference loop, so
+// it is NOT merge evidence; the test logs a banner saying so.
+func isoOnly(routes []isoRoute, only string) []isoRoute {
+	if strings.TrimSpace(only) == "" {
+		return routes
+	}
+	var out []isoRoute
+	for _, r := range routes {
+		for _, sub := range strings.Split(only, ",") {
+			if sub = strings.TrimSpace(sub); sub != "" && strings.Contains(r.method+" "+r.pattern, sub) {
+				out = append(out, r)
+				break
+			}
+		}
+	}
+	return out
+}
+
 func isoWalk(t *testing.T, h http.Handler) []isoRoute {
 	t.Helper()
 	var out []isoRoute
@@ -397,6 +438,8 @@ func isoWritePhase(r isoRoute) int {
 		return 2
 	}
 	switch r.pattern[strings.LastIndex(r.pattern, "/")+1:] {
+	case "purge":
+		return 2
 	case "leave", "archive", "cancel", "end", "reject", "approve", "deactivate", "finalize", "close", "stop", "hangup", "host-transfer":
 		return 1
 	}
@@ -405,7 +448,7 @@ func isoWritePhase(r isoRoute) int {
 
 // isoQueryNamesRow: the query string carries a tenant row (not a date).
 func isoQueryNamesRow(q string) bool {
-	for _, p := range []string{"{emailAccount}", "{callID}", "{peerEmail}", "{peerID}", "{orgID}"} {
+	for _, p := range []string{"{emailAccount}", "{callID}", "{peerEmail}", "{peerID}", "{orgID}", "{folderID}"} {
 		if strings.Contains(q, p) {
 			return true
 		}
@@ -442,6 +485,9 @@ var isoTenantParams = map[string]bool{
 	// A launch receipt names a document of one organization; revoke answers
 	// 404 to every account but its creator.
 	"{launchSessionID}": true,
+	// An edit lock tenure and an edit request are rows of one organization
+	// (UNI-1645 §6 step 3).
+	"{lockID}": true, "{requestID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -565,17 +611,44 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		case strings.HasSuffix(pattern, "/task-sync"):
 			// A group thread cannot sync to a task (H12); a public channel's can.
 			return tn.get(t, "channelMessage")
+		case strings.HasSuffix(pattern, "/transcript"):
+			return tn.get(t, "voiceMessage")
 		}
 		return tn.get(t, "message")
 	case "{followUpID}":
 		return tn.get(t, "followUp")
+	case "{sessionID}":
+		// The large-upload session routes (BIGUP-S1): the frame family acts on
+		// the session the frame opened, the session routes on the workspace one.
+		if under("/office-frame/") {
+			return tn.get(t, "frameUploadSession")
+		}
+		return tn.get(t, "uploadSession")
 	case "{documentID}":
-		// The restore route acts on a folder in the trash (E6 FD-02): the
-		// folder kind is what the matrix varies on it, so the name it has to
-		// place back among live siblings is part of every pass. The page kind
-		// is held by the repo's own lifecycle tests.
-		if pattern == "/api/v1/documents/{documentID}/restore" {
+		// The restore and purge routes act on a folder in the trash (E6 FD-02,
+		// RESTORE-01 §2): the folder kind is what the matrix varies on it, so
+		// the name it has to place back among live siblings is part of every
+		// pass. The page kind is held by the repo's own lifecycle tests.
+		if pattern == "/api/v1/documents/{documentID}/restore" || pattern == "/api/v1/documents/{documentID}/purge" {
 			return tn.get(t, "archivedFolder")
+		}
+		// ARCHIVE-01 (UNI-1845): shelve acts on a live page, unshelve on one
+		// already shelved - shelving "document" would read-lock it for every
+		// later control pass.
+		if pattern == "/api/v1/documents/{documentID}/shelve" {
+			return tn.get(t, "shelveDocument")
+		}
+		if pattern == "/api/v1/documents/{documentID}/unshelve" {
+			return tn.get(t, "unshelveDocument")
+		}
+		// The large-upload session routes (BIGUP-S1): a markdown document on
+		// the frame family (the module its token opens) and the file document
+		// whose new version the session route stages.
+		if under("/upload-sessions") {
+			if under("/office-frame/") {
+				return tn.get(t, "frameMarkdown")
+			}
+			return tn.get(t, "fileDocument")
 		}
 		if under("/office-frame/") && (under("/linked/") || under("/assets/resolve")) {
 			return tn.get(t, "frameMarkdown")
@@ -591,7 +664,24 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}
+		// The edit lock (UNI-1645 §6 step 3): the owner holds lockDocument and
+		// the peer peerLockDocument, which the owner's take-over targets.
+		if under("/edit-lock/take-over") {
+			return tn.get(t, "peerLockDocument")
+		}
+		if under("/edit-lock") || under("/edit-requests") {
+			return tn.get(t, "lockDocument")
+		}
+		// The break-glass routes act on a restricted page the tenant's owner
+		// administers without owning (DOC-05).
+		if under("/break-glass") {
+			return tn.get(t, "restrictedDocument")
+		}
 		return tn.get(t, "document")
+	case "{lockID}":
+		return tn.get(t, "docEditLock")
+	case "{requestID}":
+		return tn.get(t, "docEditRequest")
 	case "{assetID}":
 		if under("/office-frame/") {
 			return tn.get(t, "frameAsset")
@@ -611,6 +701,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{deviceSessionID}":
 		return tn.get(t, "deviceSession")
 	case "{grantID}":
+		if under("/break-glass/") {
+			return tn.get(t, "breakGlassGrant")
+		}
 		return tn.get(t, "mcpGrant")
 	case "{attemptID}":
 		return tn.get(t, "mcpAttempt")
@@ -646,8 +739,17 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "file")
 	case "{sourceFileID}":
 		// The documents home's other sources (UNI-1305): the task
-		// attachment is a file-backed source every tenant has.
-		return "task:" + tn.get(t, "attachment")
+		// attachment is a file-backed source every tenant has. Clients
+		// send the id percent-escaped (its colon travels as %3A, UNI-1815;
+		// url.PathEscape would keep a raw colon), so the matrix names it
+		// the way the wire does.
+		// The Office frame routes (UNI-1869) mint and serve a source token
+		// for a source one of the web modules opens: the seeded docx
+		// attachment, not the png one the download/save rows use.
+		if strings.Contains(pattern, "/office-frame/sources/") || strings.HasSuffix(pattern, "/office/frame-token") {
+			return "task%3A" + tn.get(t, "sourceDocx")
+		}
+		return "task%3A" + tn.get(t, "attachment")
 	case "{provider}":
 		return "google"
 	case "{resourceType}":
@@ -919,6 +1021,8 @@ func isoQuery(q string, tn *isoTenant) string {
 		"{callID}", tn.ids["callID"],
 		"{peerID}", tn.peerID,
 		"{orgID}", tn.orgID,
+		// The access report's folder (UNI-1643) rides in ?folder_id=.
+		"{folderID}", tn.ids["folder"],
 		// The calendar window around the fixture's meetings (now + 24h).
 		"{fromDate}", time.Now().AddDate(0, 0, -30).Format("2006-01-02"),
 		"{toDate}", time.Now().AddDate(0, 0, 60).Format("2006-01-02"),
@@ -1087,13 +1191,15 @@ func (w *isoWorld) emptyTenantTables(t *testing.T, tn *isoTenant) []string {
 // isoUnseeded lists tenant tables the fixture leaves empty, with the reason
 // no route of the API can fill them.
 var isoUnseeded = map[string]string{
-	"task_source_contexts":    "no code path writes it today; only the files backfill reads it",
-	"invoices":                "written by a billing provider's webhook; the manual provider in tests issues none",
-	"billing_payment_intents": "created only by owner checkout; isolation matrix does not run paid checkout",
-	"file_backfill_items":     "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
-	"meeting_reminders":       "written only by the meeting reminder job (internal/notification); no route fills it",
-	"graph_dirty":             "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
-	"file_derivatives":        "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
+	"task_source_contexts":       "no code path writes it today; only the files backfill reads it",
+	"invoices":                   "written by a billing provider's webhook; the manual provider in tests issues none",
+	"billing_payment_intents":    "created only by owner checkout; isolation matrix does not run paid checkout",
+	"file_backfill_items":        "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
+	"meeting_reminders":          "written only by the meeting reminder job (internal/notification); no route fills it",
+	"graph_dirty":                "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
+	"file_derivatives":           "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
+	"chat_link_previews":         "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",
+	"chat_message_link_previews": "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",
 }
 
 // isoDigestSkip lists tenant tables a refused request is allowed to write:
@@ -1106,4 +1212,26 @@ func isoClip(raw []byte) string {
 		s = s[:300] + "…"
 	}
 	return s
+}
+
+func (w *isoWorld) sharedByMeChecks(t *testing.T) {
+	t.Helper()
+	pathFor := func(tn *isoTenant) string {
+		return "/api/v1/workspaces/" + tn.wsID + "/documents?shared_by_me=true"
+	}
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		status, raw := w.do(t, http.MethodGet, pathFor(tn), tn.token, isoBody{})
+		if status != http.StatusOK || !bytes.Contains(raw, []byte(tn.ids["document"])) {
+			t.Errorf("GET %s as %s owner = %d, want 200 carrying %s: %s", pathFor(tn), tn.tag, status, tn.ids["document"], isoClip(raw))
+		}
+		if bytes.Contains(raw, []byte(tn.ids["restrictedDocument"])) {
+			t.Errorf("GET %s as %s owner carried peer's restricted document %s: %s", pathFor(tn), tn.tag, tn.ids["restrictedDocument"], isoClip(raw))
+		}
+	}
+	w.attack(t, "GET /api/v1/workspaces/{workspaceID}/documents?shared_by_me=true",
+		http.MethodGet, pathFor(w.alpha), isoBody{}, isoSpec{class: isoScoped}.refused)
+	_, raw := w.do(t, http.MethodGet, pathFor(w.bravo), w.bravo.token, isoBody{})
+	if leak := w.alpha.leakIn(raw, ""); leak != "" {
+		t.Errorf("GET %s: B's own view carries A's %s: %s", pathFor(w.bravo), leak, isoClip(raw))
+	}
 }

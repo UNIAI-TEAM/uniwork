@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   DocumentAssetSchema,
   DocumentDownloadSchema,
@@ -9,7 +10,15 @@ import {
   type DocumentUpload,
   type DocumentVisibility,
 } from "../../types/document";
-import { request, requestBlob } from "../http";
+import {
+  DocumentAdminSummarySchema,
+  DocumentBreakGlassGrantEnvelopeSchema,
+  DocumentBreakGlassGrantSchema,
+  type DocumentAccessError,
+  type DocumentAdminSummary,
+  type DocumentBreakGlassGrant,
+} from "../../types/document-access";
+import { ApiError, request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 
 // Documents endpoints (C-01 §5 + §14; UNI-679, G1-05a). The transport returns
@@ -33,16 +42,23 @@ export interface DocumentRequestOpts {
   filename?: string;
 }
 
-export interface CreateDocumentBody {
+export const DOCUMENT_DESTINATIONS = ["my_folder"] as const;
+export type DocumentCreateDestination = (typeof DOCUMENT_DESTINATIONS)[number];
+
+type CreateDocumentPlacementWire =
+  | { parent_id?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never };
+
+export type CreateDocumentBody = {
   title: string;
   /** "page" (default) or "folder" (a container with no content). A file
    *  document is created through createDocumentFile on the multipart route. */
   kind?: "page" | "folder";
-  parent_id?: string;
   icon?: string;
   content?: unknown;
+  /** Only `visibility` is on the create wire; the level is the server's (view at the root). */
   visibility?: DocumentVisibility;
-}
+} & CreateDocumentPlacementWire;
 
 export interface PatchDocumentBody {
   /** Required base revision as a decimal string; a stale base answers 422
@@ -53,13 +69,20 @@ export interface PatchDocumentBody {
   icon?: string;
   content?: unknown;
   visibility?: DocumentVisibility;
+  /** The editor's live edit lock (UNI-1645). A PATCH carrying content is
+   *  refused 423 document_locked while someone else holds the document;
+   *  absent means "not holding a lock". */
+  edit_lock_id?: string;
 }
 
-export interface CreateDocumentFileMeta {
-  parent_id?: string;
+export type CreateDocumentFileMeta = {
   /** Display title; defaults to the file name server-side. */
   title?: string;
-}
+  visibility?: DocumentVisibility;
+} & (
+  | { parent_id?: string; parentId?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never }
+);
 
 function idempotencyHeaders(opts?: DocumentRequestOpts): Record<string, string> | undefined {
   return opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined;
@@ -101,6 +124,27 @@ export async function createDocument(
   })?.document ?? null;
 }
 
+/**
+ * POST /api/v1/workspaces/{workspaceID}/documents/my-folder — lazily ensure
+ * the caller's personal root folder ("My Folder") and return its DocumentSDO.
+ * Naturally idempotent per (workspace, caller) on the server.
+ */
+export async function ensureMyFolder(
+  wsId: string,
+  opts?: DocumentRequestOpts | AbortSignal,
+): Promise<Document | null> {
+  const signal = opts instanceof AbortSignal ? opts : opts?.signal;
+  const headers = opts && !(opts instanceof AbortSignal) ? idempotencyHeaders(opts) : undefined;
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/my-folder`, {
+    method: "POST",
+    headers,
+    signal,
+  });
+  return parseWithFallback<{ document: Document } | null>(raw, DocumentEnvelopeSchema, null, {
+    endpoint: "POST /api/v1/workspaces/{ws}/documents/my-folder",
+  })?.document ?? null;
+}
+
 /** GET /api/v1/documents/{documentID} — the working copy. */
 export async function getDocument(documentId: string, signal?: AbortSignal): Promise<Document | null> {
   const raw = await request(`/api/v1/documents/${enc(documentId)}`, { signal });
@@ -133,7 +177,8 @@ export async function patchDocument(
 /**
  * POST /api/v1/workspaces/{workspaceID}/documents/files — one multipart call
  * that creates a file document whose bytes stream into FileService
- * (purpose document_file, ≤ 50 MiB, MIME allowlist, magic-byte check).
+ * (purpose document_file, ≤ the configured DOCUMENT_MAX_BYTES cap — see
+ * documents.limits in GET /api/v1/config — MIME allowlist, magic-byte check).
  */
 export async function createDocumentFile(
   wsId: string,
@@ -143,7 +188,12 @@ export async function createDocumentFile(
 ): Promise<Document | null> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/files`, {
     method: "POST",
-    body: fileForm(file, { parent_id: meta?.parent_id, title: meta?.title }),
+    body: fileForm(file, {
+      parent_id: meta?.parent_id ?? meta?.parentId,
+      destination: meta?.destination,
+      title: meta?.title,
+      visibility: meta?.visibility,
+    }),
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,
   });
@@ -247,3 +297,162 @@ export async function downloadDocumentFile(
 ): Promise<Blob> {
   return requestBlob(documentDownloadPath(documentId, version), { signal });
 }
+
+// ---- DOC-05 (UNI-1628): break-glass + admin-summary + typed errors ---------
+
+export interface BreakGlassDocumentBody {
+  /** Audited emergency-access reason (10–500 runes after trim). */
+  reason: string;
+}
+
+const BreakGlassGrantResponseSchema = z.union([
+  DocumentBreakGlassGrantEnvelopeSchema.transform((v) => v.grant),
+  DocumentBreakGlassGrantSchema,
+]);
+
+const BreakGlassStatusResponseSchema = z.object({ status: z.string() });
+
+/** POST /api/v1/documents/{documentID}/break-glass — open a 24h read-only grant (DOC-05). */
+export async function createDocumentBreakGlass(
+  documentId: string,
+  body: BreakGlassDocumentBody,
+  opts?: DocumentRequestOpts,
+): Promise<DocumentBreakGlassGrant | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/break-glass`, {
+    method: "POST",
+    body,
+    headers: idempotencyHeaders(opts),
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentBreakGlassGrant | null>(
+    raw,
+    BreakGlassGrantResponseSchema,
+    null,
+    { endpoint: "POST /api/v1/documents/{id}/break-glass" },
+  );
+}
+
+/** DELETE /api/v1/documents/{documentID}/break-glass/{grantID} — revoke a live grant (DOC-05). */
+export async function revokeDocumentBreakGlass(
+  documentId: string,
+  grantId: string,
+  opts?: DocumentRequestOpts,
+): Promise<boolean> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/break-glass/${enc(grantId)}`, {
+    method: "DELETE",
+    signal: opts?.signal,
+  });
+  return (
+    parseWithFallback<{ status: string }>(
+      raw,
+      BreakGlassStatusResponseSchema,
+      { status: "" },
+      { endpoint: "DELETE /api/v1/documents/{id}/break-glass/{grantId}" },
+    ).status === "ok"
+  );
+}
+
+/** GET /api/v1/documents/{documentID}/admin-summary — metadata-only summary (DOC-05). */
+export async function getDocumentAdminSummary(
+  documentId: string,
+  opts?: { signal?: AbortSignal },
+): Promise<DocumentAdminSummary | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/admin-summary`, {
+    signal: opts?.signal,
+  });
+  return parseWithFallback<DocumentAdminSummary | null>(raw, DocumentAdminSummarySchema, null, {
+    endpoint: "GET /api/v1/documents/{id}/admin-summary",
+  });
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function extractRawError(err: unknown): {
+  code: string;
+  message: string;
+  status: number;
+  fields: Record<string, unknown> | undefined;
+} | null {
+  if (err instanceof ApiError) {
+    return {
+      code: typeof err.code === "string" ? err.code : "",
+      message: typeof err.message === "string" ? err.message : "",
+      status: typeof err.status === "number" ? err.status : 0,
+      fields: isPlainRecord(err.fields) ? err.fields : undefined,
+    };
+  }
+  if (!isPlainRecord(err)) return null;
+  const inner = isPlainRecord(err.error) ? err.error : err;
+  const code = typeof inner.code === "string" ? inner.code : "";
+  if (!code) return null;
+  const message = typeof inner.message === "string" ? inner.message : "";
+  const status =
+    typeof inner.status === "number" ? inner.status : typeof err.status === "number" ? err.status : 0;
+  const rawFields = inner.fields ?? err.fields;
+  return { code, message, status, fields: isPlainRecord(rawFields) ? rawFields : undefined };
+}
+
+/** Parse a failed documents call into a typed DOC-05 error so views can switch on `kind`/`code`. */
+export function parseDocumentAccessError(err: unknown): DocumentAccessError | null {
+  const extracted = extractRawError(err);
+  if (!extracted) return null;
+  switch (extracted.code) {
+    case "document_restricted": {
+      const canBreakGlass = extracted.fields?.can_break_glass === true;
+      return {
+        kind: "document_restricted",
+        code: "document_restricted",
+        canBreakGlass,
+        status: extracted.status || 403,
+        message: extracted.message,
+      };
+    }
+    case "break_glass_required":
+      return {
+        kind: "break_glass_required",
+        code: "break_glass_required",
+        status: extracted.status || 403,
+        message: extracted.message,
+      };
+    case "break_glass_reason_invalid": {
+      const { min: rawMin, max: rawMax, length: rawLength } = extracted.fields ?? {};
+      const min = typeof rawMin === "number" && Number.isFinite(rawMin) && rawMin > 0 ? rawMin : 10;
+      const max = typeof rawMax === "number" && Number.isFinite(rawMax) && rawMax > 0 ? rawMax : 500;
+      const length =
+        typeof rawLength === "number" && Number.isFinite(rawLength) && rawLength >= 0
+          ? rawLength
+          : undefined;
+      return {
+        kind: "break_glass_reason_invalid",
+        code: "break_glass_reason_invalid",
+        min,
+        max,
+        ...(length !== undefined ? { length } : {}),
+        status: extracted.status || 422,
+        message: extracted.message,
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+export function isDocumentRestrictedError(err: unknown): boolean {
+  return parseDocumentAccessError(err)?.code === "document_restricted";
+}
+
+export function canBreakGlassFromError(err: unknown): boolean {
+  const parsed = parseDocumentAccessError(err);
+  return parsed?.code === "document_restricted" && parsed.canBreakGlass;
+}
+
+export function isBreakGlassRequiredError(err: unknown): boolean {
+  return parseDocumentAccessError(err)?.code === "break_glass_required";
+}
+
+export function isBreakGlassReasonInvalidError(err: unknown): boolean {
+  return parseDocumentAccessError(err)?.code === "break_glass_reason_invalid";
+}
+

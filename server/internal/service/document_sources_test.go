@@ -432,6 +432,88 @@ func TestDocumentSourceListPagesAcrossSources(t *testing.T) {
 	}
 }
 
+// UNI-1814: a chat file names the message it sits in, so "go to source" can
+// open the room at that message; the other sources name none.
+func TestDocumentSourceListNamesTheChatMessage(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+	svc, _ := sourceService(t, env)
+	tn := env.tn
+	taskA := s.task(tn, tn.wsA)
+	onTask := s.attachment(tn, tn.wsA, taskA, "", "on-task.pdf")
+	commentID := util.NewID()
+	s.exec(`INSERT INTO task_comments (id, organization_id, workspace_id, task_id, author_id, body, updated_at)
+		VALUES ($1, $2, $3, $4, $5, 'c', now())`, commentID, tn.orgID, tn.wsA, taskA, tn.owner.ID)
+	onComment := s.attachment(tn, tn.wsA, "", commentID, "on-comment.pdf")
+	public := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	msgID := s.fileMessage(tn.orgID, tn.wsA, public, tn.owner.ID, "in-chat.pdf", false)
+
+	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, it := range page.Items {
+		got[it.ID] = it.Parent.MessageID
+	}
+	if got["chat:"+msgID] != msgID {
+		t.Errorf("chat file parent message id = %q, want the message %s", got["chat:"+msgID], msgID)
+	}
+	for _, id := range []string{"task:" + onTask, "task:" + onComment} {
+		v, ok := got[id]
+		if !ok {
+			t.Fatalf("%s is not listed", id)
+		}
+		if v != "" {
+			t.Errorf("%s parent message id = %q, want empty", id, v)
+		}
+	}
+}
+
+// UNI-1814 review R1-1: the mapper on its own, every source kind, no DB. A
+// chat file names the message it sits in (the row id behind
+// "<source>:<row id>"), so "go to source" can open the room at it; a task,
+// task-comment, meeting and email file name none.
+func TestDocumentSourceItemNamesTheMessageOnlyForChat(t *testing.T) {
+	const (
+		messageID = "01J8X4MSG0N1P2Q3R4S5T6U7V8"
+		parentID  = "01J8X4ROOM0N1P2Q3R4S5T6U7V8"
+		taskID    = "01J8X4TSK0N1P2Q3R4S5T6U7V8"
+	)
+	row := func(src, rowID, parentKind, parentRef string) db.ListDocumentSourceChatFilesRow {
+		return db.ListDocumentSourceChatFilesRow{
+			SourceID: src + ":" + rowID, RowID: rowID,
+			ParentKind: parentKind, ParentID: parentID, ParentTitle: "Kênh dự án", ParentRef: parentRef,
+			Name: "file.pdf", MimeType: "application/pdf", SizeBytes: 42,
+			OwnerID: "01J8X4USR0N1P2Q3R4S5T6U7V8", OwnerKind: "member", OwnerName: "An",
+		}
+	}
+	cases := []struct {
+		name string
+		src  string
+		row  db.ListDocumentSourceChatFilesRow
+		want string
+	}{
+		{"chat channel file names its message", DocumentSourceChat, row(DocumentSourceChat, messageID, "channel", ""), messageID},
+		{"chat dm file names its message", DocumentSourceChat, row(DocumentSourceChat, messageID, "dm", ""), messageID},
+		{"task file names no message", DocumentSourceTask, row(DocumentSourceTask, "01J8X4ATT0N1P2Q3R4S5T6U7V8", "task", ""), ""},
+		{"task comment file names no message", DocumentSourceTask, row(DocumentSourceTask, "01J8X4CMT0N1P2Q3R4S5T6U7V8", "task_comment", taskID), ""},
+		{"meeting file names no message", DocumentSourceMeeting, row(DocumentSourceMeeting, "01J8X4REC0N1P2Q3R4S5T6U7V8", "meeting", ""), ""},
+		{"email file names no message", DocumentSourceEmail, row(DocumentSourceEmail, "01J8X4EML0N1P2Q3R4S5T6U7V8", "email_thread", ""), ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			item := documentSourceItem(c.src, c.row, documentFilePolicyFor(nil))
+			if item.Source != c.src || item.ID != c.src+":"+c.row.RowID {
+				t.Fatalf("item = %s (%s), want source %s and id %s", item.ID, item.Source, c.src, c.src+":"+c.row.RowID)
+			}
+			if item.Parent.MessageID != c.want {
+				t.Errorf("parent message id = %q, want %q", item.Parent.MessageID, c.want)
+			}
+		})
+	}
+}
+
 func TestDocumentSourceSaveCopiesTheBytesIntoANewDocument(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
@@ -497,6 +579,77 @@ func TestDocumentSourceSaveCopiesTheBytesIntoANewDocument(t *testing.T) {
 	wantNotFound(t, err)
 }
 
+func TestDocumentSourceChatMarkdownOpens(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+	tn := env.tn
+	store := newMemStorage()
+	tasks := NewTaskService(env.f.pool, env.f.q, env.svc.ws, store)
+	chat := NewChatService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{})
+	chat.SetFiles(env.fs)
+	svc := NewDocumentSourceService(DocumentSourceDeps{Documents: env.svc, Tasks: tasks, Chat: chat})
+
+	roomID := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	s.roomMember(tn.orgID, tn.wsA, roomID, tn.owner.ID, "active")
+	s.roomMember(tn.orgID, tn.wsA, roomID, tn.member.ID, "active")
+	for _, tc := range []struct {
+		ext         string
+		filename    string
+		contentType string
+		clientMsgID string
+		body        []byte
+	}{
+		{
+			ext:         ".md",
+			filename:    "probe-md.md",
+			contentType: "text/markdown",
+			clientMsgID: "chat-md-1",
+			body:        []byte("# Probe MD\n\nBody.\n"),
+		},
+		{
+			ext:         ".csv",
+			filename:    "probe-csv.csv",
+			contentType: "text/csv",
+			clientMsgID: "chat-csv-1",
+			body:        []byte("id,name\n1,Alpha\n2,Beta\n"),
+		},
+	} {
+		t.Run(tc.ext, func(t *testing.T) {
+			msg, err := chat.SendFileMessage(s.ctx, tn.owner.ID, tn.wsA, roomID, SendFileMessageInput{
+				Filename:    tc.filename,
+				Body:        bytes.NewReader(tc.body),
+				ClientMsgID: tc.clientMsgID,
+			})
+			if err != nil {
+				t.Fatalf("SendFileMessage(%s): %v", tc.ext, err)
+			}
+			t.Cleanup(func() {
+				_, _ = env.f.pool.Exec(context.Background(), `DELETE FROM chat_messages WHERE id = $1`, msg.ID)
+			})
+			var fileID string
+			if err := env.f.pool.QueryRow(s.ctx, `SELECT file_id::text FROM chat_messages WHERE id = $1`, msg.ID).Scan(&fileID); err != nil {
+				t.Fatalf("chat file_id(%s): %v", tc.ext, err)
+			}
+			s.exec(`INSERT INTO files (id, organization_id, storage, object_key, original_filename, status, content_type, size_bytes, ready_at)
+				VALUES ($1, $2, 'local', $3, $4, 'ready', $5, $6, now())`,
+				fileID, tn.orgID, "src/"+strings.ToLower(fileID), tc.filename, tc.contentType, len(tc.body))
+
+			opened, err := svc.Open(s.ctx, human(tn.member), tn.wsA, "chat:"+msg.ID)
+			if err != nil {
+				t.Fatalf("DocumentSourceService.Open(chat:%s): %v", tc.ext, err)
+			}
+			got, err := io.ReadAll(opened.Body)
+			_ = opened.Body.Close()
+			if err != nil {
+				t.Fatalf("read opened %s body: %v", tc.ext, err)
+			}
+			if !bytes.Equal(got, tc.body) {
+				t.Fatalf("opened %s body = %q, want %q", tc.ext, got, tc.body)
+			}
+		})
+	}
+}
+
 func TestDocumentSourceCursorAndFilters(t *testing.T) {
 	at := time.Date(2026, 10, 12, 8, 0, 0, 123456000, time.UTC)
 	raw := encodeDocumentSourceCursor(at, "chat:01J8X4MSG0N1P2Q3R4S5T6U7V8")
@@ -530,5 +683,29 @@ func TestDocumentSourceCursorAndFilters(t *testing.T) {
 	b := DocumentSourceItem{ID: "chat:Z", UpdatedAt: at}
 	if !documentSourceBefore(a, b) {
 		t.Fatal("equal times must order by id descending")
+	}
+}
+
+func TestDocumentSourceChatParentIncludesMessageID(t *testing.T) {
+	row := db.ListDocumentSourceChatFilesRow{
+		SourceID:    "chat:01MSG",
+		RowID:       "01MSG",
+		SortAt:      pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ParentKind:  chatRoomKindChannel,
+		ParentID:    "01ROOM",
+		ParentTitle: "General",
+		Name:        "file.pdf",
+		MimeType:    "application/pdf",
+		SizeBytes:   100,
+	}
+	item := documentSourceItem(DocumentSourceChat, row, documentFilePolicyFor(nil))
+	if item.Parent.MessageID != "01MSG" {
+		t.Fatalf("MessageID = %q, want 01MSG", item.Parent.MessageID)
+	}
+	taskRow := row
+	taskRow.ParentKind = "task"
+	item = documentSourceItem(DocumentSourceTask, taskRow, documentFilePolicyFor(nil))
+	if item.Parent.MessageID != "" {
+		t.Fatalf("task parent MessageID = %q, want empty", item.Parent.MessageID)
 	}
 }

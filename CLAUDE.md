@@ -37,6 +37,8 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/office-engine/` — the Office engine service the server calls
   (`server/internal/office/` is its client): PDF, XLSX, legacy-format
   conversion and DOCX→PDF export jobs.
+- `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
+- `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,
@@ -60,10 +62,10 @@ Shared packages export raw `.ts` / `.tsx`, compiled by the consuming app.
 Dependency direction is `views -> core + ui`; `core` and `ui` stay independent.
 Web is the only host today. The adapters (`NavigationAdapter`,
 `StorageAdapter`, `CoreProvider`) keep views independent of the platform.
-Mobile is not a host of `views`: it will be a
-separate Expo / React Native app under apps/mobile that imports only types
+Mobile is not a host of `views`: it is a
+separate Expo / React Native app, `apps/chat-mobile`, that imports only types
 and pure functions from `packages/core/` (ADR 0011, mirrors the sibling
-`usf` repo); its rules land in its own CLAUDE.md when the app exists.
+`usf` repo); its rules are in `apps/chat-mobile/CLAUDE.md`.
 
 ## State Rules
 
@@ -349,6 +351,12 @@ Every command that changes business state writes an `audit_events` row and its
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
   `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
   `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+- The signed-in desktop app uses the keys the person saved on UniWork only
+  through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
+  key, and its calls record the `office.byok_desktop` capability while web and
+  frame calls keep `office.byok`.
+  `TestAIBYOKDeviceSessionStreamsAndMetersDesktopCapability` and
+  `TestProxySurfaceCapability` hold it.
 - External AI clients (Claude, ChatGPT, Gemini) reach UniWork only through
   the MCP connector, with UniWork as their OAuth server (ADR 0031). They get
   opaque tokens (`uwm_at_`, `uwm_rt_`) that only `/mcp` accepts, and `/mcp`
@@ -467,10 +475,16 @@ database and never reveal whether an id exists to a non-member.
   checks the bearer token itself, the in-room meeting limiters use the
   `OptionalAuth` user or an HMAC-signed guest session, the chat
   presence/typing limiter uses the bearer user, and anything unverified falls
-  back to the IP. Each limiter Redis call gives up after
-  100ms and fails open. The LiveKit webhook and `/mcp` skip the global
-  limiter. `/mcp` is budgeted per access-token hash (`mcp`, 120/min; the
-  router reads no database, so the token is not verified there) under a
+  back to the IP, or, under an address ceiling, to an unverified key. Each
+  limiter Redis call gives up after 100ms and fails open. The LiveKit
+  webhook, `/mcp` and `/api/v1/auth/desktop/refresh` skip the global
+  limiter; refresh is budgeted per device (`desktop-refresh`, 60/min, keyed
+  by the address plus the unverified `X-UniWork-Device` header, so a known
+  id cannot be spent from elsewhere) under an address ceiling
+  (`desktop-refresh-ip`, 600/min):
+  `TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling`. `/mcp` is
+  budgeted per access-token hash (`mcp`, 120/min; the router reads no
+  database, so the token is not verified there) under a
   per-address ceiling (`mcp-ip`, 1200/min):
   `TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter` and
   `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry

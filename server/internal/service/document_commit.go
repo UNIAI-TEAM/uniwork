@@ -25,7 +25,8 @@ import (
 // here, in DOC-005's order:
 //
 //  1. session     - the handler (token_expired / unauthorized)
-//  2. tombstone   - document_deleted (410); a stranger still gets not_found
+//  2. tombstone   - document_archived (403) to an actor who could save (edit
+//     or more); below edit, and for a stranger, not_found (no existence leak)
 //  3. idempotency - idempotency_key_reuse | idempotency_payload_mismatch |
 //     idempotency_in_flight, or the stored answer replayed. The fingerprint
 //     binds the verified checksum, so the upload is resolved (not claimed)
@@ -72,6 +73,11 @@ type CommitFileVersionInput struct {
 	// caller office_sync_write gates (G5-07). A browser session and the web
 	// frame leave it false and keep saving while the flag is off.
 	Sync bool
+	// EditLockID is the caller's edit lock tenure (UNI-1645 §2); empty means
+	// "not holding a lock". Frame is set by the web frame's commit route, so
+	// a 423 is counted under route frame_commit rather than commit.
+	EditLockID string
+	Frame      bool
 }
 
 func errDocumentDeleted() error {
@@ -164,9 +170,47 @@ func commitFingerprint(documentID string, base int64, checksum string, e Documen
 
 // preflightDocument is steps 2 of the order: the row, its tenant, and the
 // tombstone. It reads outside any transaction; the mutation decides again.
-// A document the actor cannot see at all is not_found (no existence leak);
-// an archived one the actor can see is document_deleted.
+// An actor with no read level, and any actor on an archived row, gets the
+// locked gate's own answer (decideFileSave), so a race never flips the
+// refusal within one retry: on a live row not_found, or document_restricted
+// (DOC-05 §4) to an AdminScope caller; on an archived row document_archived
+// at edit or more and not_found below. Then the kind refusals (folder, page)
+// in that order.
 func (s *DocumentService) preflightDocument(ctx context.Context, actor Actor, documentID string) (db.Document, DocumentAccess, error) {
+	doc, access, err := s.documentWithAccess(ctx, actor, documentID)
+	if err != nil {
+		return db.Document{}, DocumentAccess{}, err
+	}
+	if access.Level == DocumentLevelNone || doc.ArchivedAt.Valid {
+		// decideFileSave refuses both: Level none fails the content gate
+		// and every archived row fails archivedSaveRefusal.
+		return db.Document{}, DocumentAccess{}, decideFileSave(doc, access)
+	}
+	if err := refuseFolder(doc); err != nil {
+		return db.Document{}, DocumentAccess{}, err
+	}
+	if doc.Kind != DocumentKindFile {
+		return db.Document{}, DocumentAccess{}, Invalid("chỉ tài liệu file nhận phiên bản tệp")
+	}
+	return doc, access, nil
+}
+
+// readableDocument is the row by id with the actor's level on it; a document
+// the actor cannot see at all (no row, no level) is not_found.
+func (s *DocumentService) readableDocument(ctx context.Context, actor Actor, documentID string) (db.Document, DocumentAccess, error) {
+	doc, access, err := s.documentWithAccess(ctx, actor, documentID)
+	if err != nil {
+		return db.Document{}, DocumentAccess{}, err
+	}
+	if access.Level == DocumentLevelNone {
+		return db.Document{}, DocumentAccess{}, ErrNotFound
+	}
+	return doc, access, nil
+}
+
+// documentWithAccess is the row by id with the actor's access on it, refused
+// only when there is no row; the caller decides what Level none answers.
+func (s *DocumentService) documentWithAccess(ctx context.Context, actor Actor, documentID string) (db.Document, DocumentAccess, error) {
 	if !validActor(actor) || documentID == "" {
 		return db.Document{}, DocumentAccess{}, ErrNotFound
 	}
@@ -181,19 +225,19 @@ func (s *DocumentService) preflightDocument(ctx context.Context, actor Actor, do
 	if err != nil {
 		return db.Document{}, DocumentAccess{}, err
 	}
-	if access.Level == DocumentLevelNone {
-		return db.Document{}, DocumentAccess{}, ErrNotFound
-	}
-	if doc.ArchivedAt.Valid {
-		return db.Document{}, DocumentAccess{}, errDocumentDeleted()
-	}
-	if err := refuseFolder(doc); err != nil {
-		return db.Document{}, DocumentAccess{}, err
-	}
-	if doc.Kind != DocumentKindFile {
-		return db.Document{}, DocumentAccess{}, Invalid("chỉ tài liệu file nhận phiên bản tệp")
-	}
 	return doc, access, nil
+}
+
+// archivedSaveRefusal is what a version save (commit, upload, restore, and
+// the web frame's save routes) answers on an archived document: the actors
+// the route would otherwise admit (edit or more) learn it is archived, and
+// everyone below edit gets not_found as for any trashed document
+// (decideDocumentAccess). Same rule as the lease path (office_lease.go).
+func archivedSaveRefusal(access DocumentAccess) error {
+	if access.Level.AtLeast(DocumentLevelEdit) {
+		return documentArchived()
+	}
+	return ErrNotFound
 }
 
 // replayWithAccess decodes a stored answer and stamps the caller's current
@@ -231,28 +275,37 @@ func resolveUpload(ctx context.Context, fs files.Service, scope files.Scope, upl
 // order). The answer is the same on a replay of the same key and payload.
 func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, error) {
 	started := time.Now()
-	res, err := s.commitFileVersion(ctx, actor, documentID, in)
-	s.recordDocumentSave(documentMetricKindFile, err, time.Since(started))
+	res, unchanged, err := s.commitFileVersion(ctx, actor, documentID, in)
+	if err == nil && unchanged {
+		s.metrics.ObserveDocumentSave(documentMetricKindFile, documentOutcomeUnchanged, time.Since(started).Seconds())
+	} else {
+		s.recordDocumentSave(documentMetricKindFile, err, time.Since(started))
+	}
+	route := DocumentEditLockRouteCommit
+	if in.Frame {
+		route = DocumentEditLockRouteFrameCommit
+	}
+	s.countEditLockRefused(route, err)
 	return res, err
 }
 
 // commitFileVersion is the command body; CommitFileVersion adds the save metrics.
-func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, error) {
+func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, bool, error) {
 	fs, err := s.fileService()
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 	if in.UploadID == "" {
-		return DocumentFileResult{}, Invalid("upload_id bắt buộc")
+		return DocumentFileResult{}, false, Invalid("upload_id bắt buộc")
 	}
 	doc, current, err := s.preflightDocument(ctx, actor, documentID)
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
 	file, err := resolveUpload(ctx, fs, scope, in.UploadID)
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, false, err
 	}
 	opts := IdempotencyOptions{
 		Fingerprint:        commitFingerprint(doc.ID, in.BaseRevision, file.ChecksumSHA256, in.Engine),
@@ -260,23 +313,30 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	}
 	replay, err := PeekIdempotent(ctx, s.q, doc.OrganizationID, doc.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
 	if err != nil {
-		return DocumentFileResult{}, NormalizeIdempotencyError(err)
+		return DocumentFileResult{}, false, NormalizeIdempotencyError(err)
 	}
 	if replay != nil {
 		s.intentCounters().IncOfficeIdempotentReplay()
-		return replayWithAccess(replay.Body, current)
+		res, err := replayWithAccess(replay.Body, current)
+		return res, false, err
 	}
 	// The intent claim below is a write, so the permission is decided before
 	// it as well as again inside the mutation: a caller who may only view
 	// leaves no intent row behind.
-	if err := decideDocumentAccess(doc, current, DocumentLevelEdit); err != nil {
-		return DocumentFileResult{}, err
+	if err := decideFileSave(doc, current); err != nil {
+		return DocumentFileResult{}, false, err
+	}
+	// A shelved document is read-only (addendum §3): refuse before the
+	// intent claim writes a row; the save gate inside the transaction
+	// answers the same for a shelve that lands after this check.
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentFileResult{}, false, err
 	}
 	// office_sync_write hides new sync commits only (G5-07, X-03): it gates
 	// the desktop device session's path, never the web host or the web frame;
 	// a replay above and the intent lookup keep answering while it is off.
 	if in.Sync && !s.syncWriteEnabled(ctx, actor, doc.OrganizationID) {
-		return DocumentFileResult{}, errOfficeCapabilityOff(officeSyncWriteCapability)
+		return DocumentFileResult{}, false, errOfficeCapabilityOff(officeSyncWriteCapability)
 	}
 	// The logical intent is claimed before the transaction, in its own, so a
 	// lookup sees this attempt in flight (document_commit_intent.go).
@@ -284,21 +344,22 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	if in.IdempotencyKey != "" {
 		c, committed, err := s.claimOrAwaitCommitIntent(ctx, actor, doc, in.IdempotencyKey, opts.Fingerprint)
 		if err != nil {
-			return DocumentFileResult{}, err
+			return DocumentFileResult{}, false, err
 		}
 		if committed {
-			return s.replayCommittedIntent(ctx, actor, doc, in, opts, current)
+			res, err := s.replayCommittedIntent(ctx, actor, doc, in, opts, current)
+			return res, false, err
 		}
 		claim = &c
 	}
-	res, replayed, err := s.commitClaimedFileVersion(ctx, actor, doc, scope, file, in, opts, claim)
+	res, replayed, unchanged, err := s.commitClaimedFileVersion(ctx, actor, doc, scope, file, in, opts, claim)
 	if err != nil && claim != nil {
 		s.releaseCommitIntent(ctx, doc, *claim)
 	}
 	if err == nil && replayed {
 		s.intentCounters().IncOfficeIdempotentReplay()
 	}
-	return res, err
+	return res, unchanged, err
 }
 
 // replayCommittedIntent answers the post-claim race: the intent was already
@@ -321,27 +382,29 @@ func (s *DocumentService) replayCommittedIntent(
 
 // commitClaimedFileVersion is the commit after the intent claim: the format
 // check and the one transaction. replayed reports a ledger answer found
-// inside the transaction.
+// inside the transaction; unchanged reports the UNI-1900 identical-bytes
+// no-op (plain upload only).
 func (s *DocumentService) commitClaimedFileVersion(
 	ctx context.Context, actor Actor, doc db.Document, scope files.Scope, file files.File,
 	in CommitFileVersionInput, opts IdempotencyOptions, claim *commitIntentClaim,
-) (DocumentFileResult, bool, error) {
+) (DocumentFileResult, bool, bool, error) {
 	fs, err := s.fileService()
 	if err != nil {
-		return DocumentFileResult{}, false, err
+		return DocumentFileResult{}, false, false, err
 	}
 	// The editor format check streams the bytes, so it runs before the
 	// transaction opens (FS-C1 §5.5).
 	if _, err := s.checkStoredFile(ctx, fs, scope, file); err != nil {
-		return DocumentFileResult{}, false, err
+		return DocumentFileResult{}, false, false, err
 	}
 
 	var res DocumentFileResult
 	replayed := false
-	err = s.withDocumentMutation(ctx, actor, doc.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
-		if locked.ArchivedAt.Valid {
-			return errDocumentDeleted()
-		}
+	unchanged := false
+	if s.store.beforeSaveLock != nil {
+		s.store.beforeSaveLock()
+	}
+	err = s.withFileSaveMutation(ctx, actor, doc.ID, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
 		replay, commit, err := BeginIdempotent(ctx, q, locked.OrganizationID, locked.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
 		if err != nil {
 			return NormalizeIdempotencyError(err)
@@ -358,6 +421,12 @@ func (s *DocumentService) commitClaimedFileVersion(
 				return s.markCommitIntentCommitted(ctx, q, locked, *claim, res)
 			}
 			return nil
+		}
+		// The edit lock (UNI-1645 §2) after a replay - the write already
+		// happened - and before the fence and every base check, so a locked
+		// caller gets 423 rather than a version conflict (contract §4).
+		if err := s.checkDocumentEditLock(ctx, q, actor, locked, in.EditLockID); err != nil {
+			return err
 		}
 		// The fence: this attempt commits only while it still holds a live
 		// claim; the row stays locked until the transaction ends.
@@ -410,6 +479,50 @@ func (s *DocumentService) commitClaimedFileVersion(
 		current, err := s.currentFileVersion(ctx, q, locked)
 		if err != nil {
 			return err
+		}
+		// UNI-1900 / G7-08 D-E1: a plain upload whose bytes equal the current
+		// version is a 200 no-op. Office job outputs still land their own
+		// version (the job CAS). The check is after the base and before
+		// ClaimInTx, so a stale base is still 409 and a locked caller already
+		// got 423.
+		if job == nil && fileVersionUnchanged(current, file) {
+			// R1-1: identical bytes are only a no-op for an upload this
+			// document may still take. An upload another version already
+			// consumed stays the contract's refusal, exactly as it is after
+			// ClaimInTx - the guard would otherwise swallow
+			// upload_already_committed for any other document whose current
+			// version happens to carry the same bytes. The read is unlocked
+			// on purpose: a no-op writes nothing, so a lost race with a
+			// concurrent claimer only decides which of the two the caller
+			// hears, and the claimer's own transaction still locks the row.
+			inUse, err := q.DocumentFileInUse(ctx, db.DocumentFileInUseParams{
+				OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
+				FileID: pgtype.Text{String: string(file.ID), Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+			if inUse && (!current.FileID.Valid || files.FileID(current.FileID.String) != file.ID) {
+				return errUploadAlreadyCommitted()
+			}
+			name := locked.Title
+			if current.FileID.Valid {
+				resolved, rerr := fs.ResolveMany(ctx, files.ResolveInput{
+					Scope: scope, Mode: files.ReadProxy, Disposition: files.DispositionAttachment,
+					FileIDs: []files.FileID{files.FileID(current.FileID.String)},
+				})
+				if rerr == nil && len(resolved) == 1 && resolved[0].Err == nil && resolved[0].File.Filename != "" {
+					name = resolved[0].File.Filename
+				}
+			}
+			res = DocumentFileResult{Document: locked, Version: *current, File: fileInfoOf(*current, name), Access: access}
+			unchanged = true
+			if claim != nil {
+				if err := s.markCommitIntentCommitted(ctx, q, locked, *claim, res); err != nil {
+					return err
+				}
+			}
+			return storeDocumentFileResult(commit, http.StatusOK, res)
 		}
 		claimed, err := fs.ClaimInTx(ctx, q, files.ClaimInput{
 			Actor: actor, Purpose: files.DocumentFile, Scope: scope,
@@ -481,9 +594,16 @@ func (s *DocumentService) commitClaimedFileVersion(
 		return storeDocumentFileResult(commit, http.StatusOK, res)
 	})
 	if err != nil {
-		return DocumentFileResult{}, false, err
+		return DocumentFileResult{}, false, false, err
 	}
-	return res, replayed, nil
+	return res, replayed, unchanged, nil
+}
+
+// fileVersionUnchanged is the UNI-1900 identical-bytes guard: a current
+// version row with a stored checksum that equals the staged upload's.
+func fileVersionUnchanged(current *db.DocumentVersion, file files.File) bool {
+	return current != nil && current.ChecksumSha256.Valid && current.ChecksumSha256.String != "" &&
+		current.ChecksumSha256.String == file.ChecksumSHA256
 }
 
 // RestoreFileVersionInput restores an earlier file version on a base
@@ -492,6 +612,7 @@ type RestoreFileVersionInput struct {
 	Version        int32
 	BaseRevision   int64
 	IdempotencyKey string
+	EditLockID     string
 }
 
 // RestoreFileVersion appends a restore version pointing back at the earlier
@@ -518,18 +639,26 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 	if replay != nil {
 		return replayWithAccess(replay.Body, current)
 	}
+	// A shelved document is read-only (addendum §3): restore is a write, so
+	// it refuses here; the save gate answers the same under the row lock.
+	if err := requireNotShelved(doc); err != nil {
+		return DocumentFileResult{}, err
+	}
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
 	var res DocumentFileResult
-	err = s.withDocumentMutation(ctx, actor, doc.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
-		if locked.ArchivedAt.Valid {
-			return errDocumentDeleted()
-		}
+	if s.store.beforeSaveLock != nil {
+		s.store.beforeSaveLock()
+	}
+	err = s.withFileSaveMutation(ctx, actor, doc.ID, func(q *db.Queries, locked db.Document, access DocumentAccess) error {
 		replay, commit, err := BeginIdempotent(ctx, q, locked.OrganizationID, locked.WorkspaceID, idempotencyScopeDocumentVersionRestore, in.IdempotencyKey, actor.ID, opts)
 		if err != nil {
 			return NormalizeIdempotencyError(err)
 		}
 		if replay != nil {
 			res, err = replayWithAccess(replay.Body, access)
+			return err
+		}
+		if err := s.checkDocumentEditLock(ctx, q, actor, locked, in.EditLockID); err != nil {
 			return err
 		}
 		if !contentBaseCurrent(locked, in.BaseRevision) {

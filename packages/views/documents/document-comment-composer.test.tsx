@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import type React from "react";
 import { useDocumentCommentDraftStore } from "@uniwork/core/documents/comment-drafts";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User } from "@uniwork/core/types";
@@ -133,7 +134,7 @@ describe("S14 mention picker", () => {
     // Closed, the same key sends as before.
     fireEvent.keyDown(box, { key: "Escape" });
     fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Nhờ @A"));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Nhờ @A", expect.anything()));
   });
 
   it("opens the listbox upward when the viewport below the composer cannot hold it, and caps it to the room", async () => {
@@ -180,7 +181,7 @@ describe("composer rows", () => {
     const box = renderComposer(onSend);
     type(box, "Xin chào");
     fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Xin chào"));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith("Xin chào", expect.anything()));
     await waitFor(() => expect(box).toHaveValue(""));
   });
 
@@ -283,5 +284,313 @@ describe("body renderer (§4.2)", () => {
   it("keeps a mention-looking URL inside code as code, not a chip", () => {
     render(<DocumentCommentBody names={mentionNames([])} body={`\`[@X](mention://member/${AN})\``} />);
     expect(document.querySelector("[data-mention-id]")).toBeNull();
+  });
+});
+
+// G8-18 (UNI-1413): mentions of people who cannot view the document. States F2-F4 + N1-N4 of the addendum.
+describe("G8-18 mention without access", () => {
+  const CUONG = "01J8X4USR0000000000000000C";
+  const person = (id: string, name: string, canView = false) => ({ user_id: id, display_name: name, can_view: canView });
+  const tok = (id: string, name: string) => mentionToken({ user_id: id, display_name: name });
+  const shareAnswer = (id: string) => ({ share: { id: `s-${id}`, principal_type: "user", principal_id: id, level: "view" } });
+  type Call = { method: string; path: string; body?: unknown };
+  let calls: Call[];
+
+  function installApi(opts: {
+    candidates: unknown[];
+    shareFails?: string[];
+  }) {
+    calls = [];
+    requestMock.mockImplementation((path: string, init?: { method?: string; body?: unknown }) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      calls.push({ method, path, body: init?.body });
+      if (path.startsWith(`/api/v1/documents/${DOC}/mention-candidates`)) return Promise.resolve({ candidates: opts.candidates });
+      if (method === "POST" && path === `/api/v1/documents/${DOC}/shares`) {
+        const id = (init?.body as { principal_id: string }).principal_id;
+        return opts.shareFails?.includes(id) ? Promise.reject(new ApiError("no", "forbidden", 403)) : Promise.resolve(shareAnswer(id));
+      }
+      return Promise.reject(new ApiError("unexpected", "not_found", 404));
+    });
+  }
+
+  function mount(onSend: (b: string, opts?: { warnedUserIds: ReadonlySet<string> }) => Promise<SendOutcome>, extra: Partial<React.ComponentProps<typeof DocumentCommentComposer>> = {}) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DocumentCommentComposer
+          wsId="ws1" documentId={DOC} orgId="org1" placeholderKey={K.collabComposerDiscussion}
+          deletedKey={K.collabDiscussionDeleted} onSend={onSend} testId="composer"
+          canSeeMembers doc={{ my_level: "manage", owner_kind: undefined, admin_scope: undefined }} {...extra}
+        />
+      </QueryClientProvider>,
+    );
+    return screen.getByRole("textbox", { name: t(K.collabComposerDiscussion) }) as HTMLTextAreaElement;
+  }
+
+  /** Types `@`, waits for the listbox, picks the row named `name`. */
+  async function pick(box: HTMLTextAreaElement, prefix: string, name: string) {
+    type(box, `${prefix}@`);
+    const option = await screen.findByRole("option", { name: new RegExp(name) });
+    fireEvent.mouseDown(option);
+    fireEvent.click(option);
+  }
+  const shareCalls = () => calls.filter((c) => c.method === "POST" && c.path.endsWith("/shares"));
+  const dialog = () => screen.findByTestId("composer-mention-warn-dialog");
+  const names = new Intl.ListFormat("vi", { style: "long", type: "conjunction" });
+
+  it("asks the picker for include=no_access only when the caller may list members, and badges can_view=false with a lock and text", async () => {
+    installApi({ candidates: [person(AN, "An"), person(BINH, "Bình", true)] });
+    const box = mount(() => Promise.resolve("sent"));
+    type(box, "@");
+    await screen.findByRole("option", { name: /An/ });
+    expect(calls.some((c) => c.path.includes("include=no_access"))).toBe(true);
+    const badge = screen.getByTestId(`mention-candidate-no-access-${AN}`);
+    expect(badge).toHaveTextContent(t(K.collabMentionNoAccessBadge));
+    expect(badge.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByTestId(`mention-candidate-no-access-${BINH}`)).toBeNull();
+  });
+
+  it("does not ask for include=no_access when the caller cannot list members", async () => {
+    installApi({ candidates: [person(AN, "An", true)] });
+    const box = mount(() => Promise.resolve("sent"), { canSeeMembers: false });
+    type(box, "@");
+    await screen.findByRole("option", { name: /An/ });
+    expect(calls.some((c) => c.path.includes("include="))).toBe(false);
+  });
+
+  it("shows the badge on the inserted chip too", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const box = mount(() => Promise.resolve("sent"));
+    await pick(box, "Nhờ ", "An");
+    const chip = await screen.findByTestId(`composer-mention-chip-${AN}`);
+    expect(chip).toHaveTextContent(t(K.collabMentionNoAccessBadge));
+    expect(chip.querySelector("svg")).not.toBeNull();
+  });
+
+  it("F2: warns for one person, shares view with the fixed level, then sends ONE comment", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>("sent"));
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    const dlg = await dialog();
+    expect(onSend).not.toHaveBeenCalled();
+    expect(within(dlg).getByText(t(K.collabMentionWarnTitle))).toBeInTheDocument();
+    expect(dlg).toHaveTextContent(t(K.collabMentionWarnBody, { names: "An" }));
+    fireEvent.click(within(dlg).getByRole("button", { name: t(K.collabShareViewThenSend) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(shareCalls()).toHaveLength(1);
+    expect(shareCalls()[0]!.body).toEqual({ principal_type: "user", principal_id: AN, level: "view" });
+    expect(box).toHaveValue("");
+  });
+
+  it("F3/N2: lists every name through Intl.ListFormat, never 'and N others', and shares sequentially in order", async () => {
+    installApi({ candidates: [person(AN, "An"), person(BINH, "Bình"), person(CUONG, "Cường")] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>("sent"));
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    await pick(box, `${box.value}`, "Bình");
+    await pick(box, `${box.value}`, "Cường");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    const dlg = await dialog();
+    expect(dlg).toHaveTextContent(t(K.collabMentionWarnBody, { names: names.format(["An", "Bình", "Cường"]) }));
+    fireEvent.click(within(dlg).getByRole("button", { name: t(K.collabShareViewThenSend) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(shareCalls().map((c) => (c.body as { principal_id: string }).principal_id)).toEqual([AN, BINH, CUONG]);
+  });
+
+  it("N4: mixed can_share shares only the shareable people and names the others neutrally", async () => {
+    installApi({ candidates: [person(AN, "An"), person(BINH, "Bình")] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>("sent"));
+    const box = mount(onSend, { canShare: (id) => id === AN });
+    await pick(box, "", "An");
+    await pick(box, `${box.value}`, "Bình");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    const dlg = await dialog();
+    expect(dlg).toHaveTextContent(t(K.collabMentionMixedUnshareable, { unshareable: "Bình" }));
+    fireEvent.click(within(dlg).getByRole("button", { name: t(K.collabShareViewThenSend) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(shareCalls().map((c) => (c.body as { principal_id: string }).principal_id)).toEqual([AN]);
+  });
+
+  it("asks someone who manages the document when the caller cannot share, with no share button", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>("sent"));
+    const box = mount(onSend, { canShare: false });
+    await pick(box, "", "An");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    const dlg = await dialog();
+    expect(dlg).toHaveTextContent(t(K.collabMentionAskManager, { names: "An" }));
+    expect(within(dlg).queryByRole("button", { name: t(K.collabShareViewThenSend) })).toBeNull();
+    fireEvent.click(within(dlg).getByRole("button", { name: t(K.collabSendWithoutNotify) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(shareCalls()).toHaveLength(0);
+  });
+
+  it("cancel closes the dialog and keeps the draft and sends nothing", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>("sent"));
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    const draft = box.value;
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabCancel) }));
+    await waitFor(() => expect(screen.queryByTestId("composer-mention-warn-dialog")).toBeNull());
+    expect(onSend).not.toHaveBeenCalled();
+    expect(box).toHaveValue(draft);
+  });
+
+  it("sharing: disables every button (aria-disabled) with a spinner label while a share is in flight", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    let release: () => void = () => undefined;
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: { method?: string; body?: unknown }) =>
+      (init?.method ?? "GET").toUpperCase() === "POST" && path.endsWith("/shares")
+        ? new Promise((resolve) => { release = () => resolve(shareAnswer(AN)); })
+        : base(path, init),
+    );
+    const box = mount(() => Promise.resolve("sent"));
+    await pick(box, "", "An");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    const dlg = await dialog();
+    fireEvent.click(within(dlg).getByRole("button", { name: t(K.collabShareViewThenSend) }));
+    const busy = await within(dlg).findByRole("button", { name: t(K.collabSharingView) });
+    expect(busy).toHaveAttribute("aria-disabled", "true");
+    expect(within(dlg).getByRole("button", { name: t(K.collabCancel) })).toHaveAttribute("aria-disabled", "true");
+    expect(within(dlg).getByRole("button", { name: t(K.collabSendWithoutNotify) })).toHaveAttribute("aria-disabled", "true");
+    release();
+    await waitFor(() => expect(screen.queryByTestId("composer-mention-warn-dialog")).toBeNull());
+  });
+
+  it("N3: every share fails -> keeps the dialog and draft, names who failed, offers Retry / send without notifying, never sends", async () => {
+    installApi({ candidates: [person(AN, "An"), person(BINH, "Bình")], shareFails: [AN, BINH] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>("sent"));
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    await pick(box, `${box.value}`, "Bình");
+    const draft = box.value;
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabShareViewThenSend) }));
+    const alert = await screen.findByTestId("composer-mention-warn-error");
+    expect(alert).toHaveTextContent(t(K.collabShareViewFailed, { failedNames: names.format(["An", "Bình"]) }));
+    expect(onSend).not.toHaveBeenCalled();
+    expect(box).toHaveValue(draft);
+    const dlg = await dialog();
+    expect(within(dlg).getByRole("button", { name: t(K.collabRetry) })).toBeInTheDocument();
+    expect(within(dlg).getByRole("button", { name: t(K.collabSendWithoutNotify) })).toBeInTheDocument();
+    expect(within(dlg).getByRole("button", { name: t(K.collabCancel) })).toBeInTheDocument();
+  });
+
+  it("N3: partial success -> Send comment (no more shares) and Try again for the failed person only", async () => {
+    installApi({ candidates: [person(AN, "An"), person(BINH, "Bình")], shareFails: [BINH] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>("sent"));
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    await pick(box, `${box.value}`, "Bình");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabShareViewThenSend) }));
+    const alert = await screen.findByTestId("composer-mention-warn-error");
+    expect(alert).toHaveTextContent(t(K.collabShareViewPartial, { sharedNames: "An", failedNames: "Bình" }));
+    expect(onSend).not.toHaveBeenCalled();
+    const dlg = await dialog();
+    // V9 F1: three buttons wrap inside the card instead of widening the footer past it.
+    expect(dlg.querySelector("[data-slot=alert-dialog-footer]")).toHaveClass("min-w-0", "sm:flex-wrap");
+    fireEvent.click(within(dlg).getByRole("button", { name: t(K.collabRetryShareFor, { failedNames: "Bình" }) }));
+    await waitFor(() => expect(shareCalls()).toHaveLength(3));
+    expect((shareCalls()[2]!.body as { principal_id: string }).principal_id).toBe(BINH);
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabSendComment) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(shareCalls()).toHaveLength(3);
+  });
+
+  it("F2: a failed send after sharing says view was granted, keeps the text, and the retry does not share again", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const onSend = vi.fn<(b: string) => Promise<SendOutcome>>().mockResolvedValueOnce("failed").mockResolvedValue("sent");
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    const draft = box.value;
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabShareViewThenSend) }));
+    const problem = await screen.findByTestId("composer-problem");
+    expect(problem).toHaveTextContent(t(K.collabSendFailedAfterShare, { sharedNames: "An" }));
+    expect(box).toHaveValue(draft);
+    fireEvent.click(screen.getByTestId("composer-send"));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("composer-mention-warn-dialog")).toBeNull();
+    expect(shareCalls()).toHaveLength(1);
+  });
+
+  it("F4: a typed mention (never picked) is not warned before sending; the post-send notice reports it", async () => {
+    installApi({ candidates: [] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>({ status: "sent", mentionsWithoutAccess: [{ user_id: AN, display_name: "An", can_share: true }] }));
+    const box = mount(onSend);
+    type(box, `Gửi ${tok(AN, "An")} `);
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("composer-mention-warn-dialog")).toBeNull();
+    const notice = await screen.findByTestId("composer-post-send-notice");
+    expect(notice).toHaveTextContent(t(K.collabPostSendNoAccess, { names: "An" }));
+    expect(notice).toHaveTextContent(t(K.collabPostSendNoRetroNote));
+    expect(within(notice).queryByRole("button", { name: t(K.collabSendWithoutNotify) })).toBeNull();
+    fireEvent.click(within(notice).getByRole("button", { name: t(K.collabPostSendShareAction) }));
+    await waitFor(() => expect(shareCalls()).toHaveLength(1));
+    expect(shareCalls()[0]!.body).toEqual({ principal_type: "user", principal_id: AN, level: "view" });
+    await waitFor(() => expect(screen.queryByTestId("composer-post-send-notice")).toBeNull());
+  });
+
+  it("M2: send without notifying -> the post-send notice leaves out the warned person and keeps the typed one", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const onSend = vi.fn((_body: string, _opts?: { warnedUserIds: ReadonlySet<string> }) =>
+      Promise.resolve<SendOutcome>({
+        status: "sent",
+        mentionsWithoutAccess: [
+          { user_id: AN, display_name: "An", can_share: true },
+          { user_id: BINH, display_name: "Bình", can_share: true },
+        ],
+      }),
+    );
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    type(box, `${box.value}${tok(BINH, "Bình")} `);
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabSendWithoutNotify) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(onSend.mock.calls[0]![1]?.warnedUserIds.has(AN.toUpperCase())).toBe(true);
+    const notice = await screen.findByTestId("composer-post-send-notice");
+    expect(notice).toHaveTextContent(t(K.collabPostSendNoAccess, { names: "Bình" }));
+    expect(notice).not.toHaveTextContent("An");
+  });
+
+  it("M2: send without notifying a lone warned person leaves no post-send notice at all", async () => {
+    installApi({ candidates: [person(AN, "An")] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>({ status: "sent", mentionsWithoutAccess: [{ user_id: AN, display_name: "An", can_share: true }] }));
+    const box = mount(onSend);
+    await pick(box, "", "An");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    fireEvent.click(within(await dialog()).getByRole("button", { name: t(K.collabSendWithoutNotify) }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(box).toHaveValue(""));
+    expect(screen.queryByTestId("composer-post-send-notice")).toBeNull();
+  });
+
+  it("L7: with members listed, an empty picker does not claim 'with access'", async () => {
+    installApi({ candidates: [] });
+    const box = mount(() => Promise.resolve("sent"));
+    type(box, "@");
+    expect(await screen.findByText(t(K.collabMentionNoCandidatesMembers))).toHaveAttribute("aria-disabled", "true");
+    type(box, "@zz");
+    expect(await screen.findByText(t(K.collabMentionNoMatchMembers, { query: "zz" }))).toBeInTheDocument();
+    expect(screen.queryByText(t(K.collabMentionNoCandidates))).toBeNull();
+  });
+
+  it("post-send notice has no share action when nobody in it can be shared with", async () => {
+    installApi({ candidates: [] });
+    const onSend = vi.fn(() => Promise.resolve<SendOutcome>({ status: "sent", mentionsWithoutAccess: [{ user_id: AN, display_name: "An", can_share: false }] }));
+    const box = mount(onSend);
+    type(box, "hi");
+    fireEvent.keyDown(box, { key: "Enter", ctrlKey: true });
+    const notice = await screen.findByTestId("composer-post-send-notice");
+    expect(within(notice).queryByRole("button")).toBeNull();
+    expect(notice).not.toHaveTextContent(t(K.collabPostSendNoRetroNote));
   });
 });

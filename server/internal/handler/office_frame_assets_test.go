@@ -30,7 +30,13 @@ func sampleBody(t *testing.T, contentType string) []byte {
 func (w *officeWorld) createFileIn(t *testing.T, parentID, name string, body []byte) string {
 	t.Helper()
 	fields := map[string]string{}
-	if parentID != "" {
+	if parentID == "" {
+		// Explicitly workspace-visible at the root: U-SH2 makes a root create
+		// private, and the frame cases have members who are not the ACL owner
+		// open these documents. Under a parent the child inherits, which is
+		// what the sibling cases rely on.
+		fields["visibility"] = "workspace"
+	} else {
 		fields["parent_id"] = parentID
 	}
 	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token, fields, name, body, nil)

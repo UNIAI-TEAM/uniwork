@@ -281,6 +281,20 @@ type ChatBlock struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type ChatLinkPreview struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	UrlHash        string             `json:"url_hash"`
+	Url            string             `json:"url"`
+	Status         string             `json:"status"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	SiteName       string             `json:"site_name"`
+	ImageFileID    pgtype.Text        `json:"image_file_id"`
+	FetchedAt      pgtype.Timestamptz `json:"fetched_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type ChatMessage struct {
 	ID                    string             `json:"id"`
 	RoomID                string             `json:"room_id"`
@@ -333,6 +347,14 @@ type ChatMessageLink struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type ChatMessageLinkPreview struct {
+	MessageID      string             `json:"message_id"`
+	OrganizationID string             `json:"organization_id"`
+	RoomID         string             `json:"room_id"`
+	PreviewID      string             `json:"preview_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type ChatReminder struct {
 	MessageID      string             `json:"message_id"`
 	OrganizationID string             `json:"organization_id"`
@@ -368,6 +390,7 @@ type ChatRoom struct {
 	CreatedByKind     string             `json:"created_by_kind"`
 	ArchivedAt        pgtype.Timestamptz `json:"archived_at"`
 	ArchivedBy        pgtype.Text        `json:"archived_by"`
+	AvatarFileID      pgtype.Text        `json:"avatar_file_id"`
 }
 
 type ChatRoomMember struct {
@@ -386,6 +409,7 @@ type ChatRoomMember struct {
 	SendRestricted     bool               `json:"send_restricted"`
 	OrganizationID     string             `json:"organization_id"`
 	NotificationsMuted bool               `json:"notifications_muted"`
+	LastDeliveredAt    pgtype.Timestamptz `json:"last_delivered_at"`
 }
 
 type ChatThreadFollower struct {
@@ -441,6 +465,20 @@ type ChatVoiceRecording struct {
 	EndedAt          pgtype.Timestamptz `json:"ended_at"`
 	// FileService file id (FS-C1); NULL = legacy egress row located by file_url.
 	FileID pgtype.Text `json:"file_id"`
+}
+
+type ChatVoiceTranscript struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MessageID      string             `json:"message_id"`
+	Text           string             `json:"text"`
+	Language       string             `json:"language"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Status         string             `json:"status"`
+	ClaimedAt      pgtype.Timestamptz `json:"claimed_at"`
 }
 
 type CommentReaction struct {
@@ -582,6 +620,12 @@ type Document struct {
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	ArchiveBatchID       pgtype.Text        `json:"archive_batch_id"`
 	ContentRevision      int64              `json:"content_revision"`
+	WorkspaceLevel       string             `json:"workspace_level"`
+	SystemKind           pgtype.Text        `json:"system_kind"`
+	ShelvedAt            pgtype.Timestamptz `json:"shelved_at"`
+	ShelvedBy            pgtype.Text        `json:"shelved_by"`
+	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
+	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
 }
 
 type DocumentAccessLog struct {
@@ -613,6 +657,21 @@ type DocumentAsset struct {
 	CreatedByKind  string             `json:"created_by_kind"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	OrphanedAt     pgtype.Timestamptz `json:"orphaned_at"`
+}
+
+type DocumentBreakGlassGrant struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	ActorID        string             `json:"actor_id"`
+	ActorKind      string             `json:"actor_kind"`
+	Level          string             `json:"level"`
+	Reason         string             `json:"reason"`
+	GrantedAt      pgtype.Timestamptz `json:"granted_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
 }
 
 type DocumentChangeSnapshot struct {
@@ -709,6 +768,45 @@ type DocumentCommitIntent struct {
 	RetainUntil        pgtype.Timestamptz `json:"retain_until"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DocumentEditLock struct {
+	ID                  string             `json:"id"`
+	OrganizationID      string             `json:"organization_id"`
+	DocumentID          string             `json:"document_id"`
+	UserID              string             `json:"user_id"`
+	SessionID           string             `json:"session_id"`
+	EditorID            string             `json:"editor_id"`
+	Client              string             `json:"client"`
+	BaseRevision        int64              `json:"base_revision"`
+	AcquiredAt          pgtype.Timestamptz `json:"acquired_at"`
+	HeartbeatAt         pgtype.Timestamptz `json:"heartbeat_at"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	OfflineHoldUntil    pgtype.Timestamptz `json:"offline_hold_until"`
+	HoldDeviceSessionID pgtype.Text        `json:"hold_device_session_id"`
+	HoldChainStartedAt  pgtype.Timestamptz `json:"hold_chain_started_at"`
+	HoldRenewals        int32              `json:"hold_renewals"`
+	GrantedVia          string             `json:"granted_via"`
+	PreviousLockID      pgtype.Text        `json:"previous_lock_id"`
+	EndedAt             pgtype.Timestamptz `json:"ended_at"`
+	EndReason           pgtype.Text        `json:"end_reason"`
+	EndedBy             pgtype.Text        `json:"ended_by"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DocumentEditRequest struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	DocumentID     string             `json:"document_id"`
+	LockID         string             `json:"lock_id"`
+	RequesterID    string             `json:"requester_id"`
+	HolderID       string             `json:"holder_id"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	AnsweredAt     pgtype.Timestamptz `json:"answered_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type DocumentFavorite struct {
@@ -1059,6 +1157,42 @@ type FileJob struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 	// Terminal mark: set exactly when the job turns succeeded, failed or canceled; NULL while pending or leased.
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+}
+
+type FileMultipartUpload struct {
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	WorkspaceID           string             `json:"workspace_id"`
+	DocumentID            pgtype.Text        `json:"document_id"`
+	FileID                string             `json:"file_id"`
+	FileUploadSessionID   string             `json:"file_upload_session_id"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedByKind         string             `json:"created_by_kind"`
+	OpenedVia             string             `json:"opened_via"`
+	TokenDocumentID       pgtype.Text        `json:"token_document_id"`
+	StorageUploadID       string             `json:"storage_upload_id"`
+	ObjectKey             string             `json:"object_key"`
+	Filename              string             `json:"filename"`
+	SizeBytes             int64              `json:"size_bytes"`
+	PartSize              int64              `json:"part_size"`
+	TotalParts            int32              `json:"total_parts"`
+	Title                 pgtype.Text        `json:"title"`
+	ParentID              pgtype.Text        `json:"parent_id"`
+	Visibility            pgtype.Text        `json:"visibility"`
+	ProbeHeadSha256       string             `json:"probe_head_sha256"`
+	ProbeTailSha256       string             `json:"probe_tail_sha256"`
+	CdOffset              pgtype.Int8        `json:"cd_offset"`
+	CdSize                pgtype.Int8        `json:"cd_size"`
+	Status                string             `json:"status"`
+	FailureCode           pgtype.Text        `json:"failure_code"`
+	ResultDocumentID      pgtype.Text        `json:"result_document_id"`
+	ResultVersionUploadID pgtype.Text        `json:"result_version_upload_id"`
+	LeaseOwner            pgtype.Text        `json:"lease_owner"`
+	LeaseExpiresAt        pgtype.Timestamptz `json:"lease_expires_at"`
+	ExpiresAt             pgtype.Timestamptz `json:"expires_at"`
+	ClosedAt              pgtype.Timestamptz `json:"closed_at"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 }
 
 // FileService upload coordination: one row per logical upload (one idempotency key). Carries the actor pair, the backend-verified scope, the purpose, the claim deadline and the write lease. Temporary grant before a business object claims the file; after claim it is retention/audit data, not an ACL.
@@ -1605,6 +1739,27 @@ type MeetingSummary struct {
 	OrganizationID string             `json:"organization_id"`
 }
 
+type MeetingSummaryRun struct {
+	OrganizationID string             `json:"organization_id"`
+	MeetingID      string             `json:"meeting_id"`
+	RunID          string             `json:"run_id"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type MeetingSummaryTaskLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MeetingID      string             `json:"meeting_id"`
+	SummaryID      string             `json:"summary_id"`
+	ItemIndex      int32              `json:"item_index"`
+	TaskID         string             `json:"task_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type MeetingTranscriptSegment struct {
 	ID             string             `json:"id"`
 	MeetingID      string             `json:"meeting_id"`
@@ -1883,6 +2038,7 @@ type PushSubscription struct {
 	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	SessionID  pgtype.Text        `json:"session_id"`
 }
 
 type RefreshToken struct {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -682,7 +683,7 @@ func TestAIUniworkPackModuleMapping(t *testing.T) {
 		if _, err := OfficeSystemPrompt(pack); err != nil {
 			t.Errorf("UniworkPackModule(%q) = %q, which the pack refuses: %v", module, pack, err)
 		}
-		if got := UniworkModuleAllowlist(module, nil, false).Module; got != pack {
+		if got := UniworkModuleAllowlist(module, nil, false, false).Module; got != pack {
 			t.Errorf("allowlist of %q carries module %q, want %q", module, got, pack)
 		}
 	}
@@ -694,7 +695,7 @@ func TestAIUniworkPackModuleMapping(t *testing.T) {
 			t.Errorf("UniworkPackModule(%q) = %q, want no mapping (the Gateway refuses such a turn)", module, pack)
 		}
 	}
-	if got := UniworkModuleAllowlist("nope", nil, false).Module; got != "" {
+	if got := UniworkModuleAllowlist("nope", nil, false, false).Module; got != "" {
 		t.Fatalf("an unknown module's allowlist carries %q, want empty", got)
 	}
 }
@@ -706,7 +707,7 @@ func TestAIUniworkPackModuleMapping(t *testing.T) {
 // offers nothing at all.
 func TestAIUniworkModuleToolTableGovernsTheAllowlist(t *testing.T) {
 	offered := facadeSpecs("read_blocks", "delete_note", "run_shell", "read_range")
-	allow := UniworkModuleAllowlist("docs", offered, false)
+	allow := UniworkModuleAllowlist("docs", offered, false, false)
 	if got := strings.Join(allow.Tools.Names(), ","); got != "read_blocks,delete_note" {
 		t.Fatalf("docs allowlist = %q, want the known tools in the client's order", got)
 	}
@@ -724,7 +725,7 @@ func TestAIUniworkModuleToolTableGovernsTheAllowlist(t *testing.T) {
 		t.Fatalf("registry entry = %+v, want the client's schema and the table's kind", entry)
 	}
 
-	viewOnly := UniworkModuleAllowlist("docs", offered, true)
+	viewOnly := UniworkModuleAllowlist("docs", offered, true, false)
 	if got := viewOnly.Tools.Names(); len(got) != 1 || got[0] != "read_blocks" {
 		t.Fatalf("view-only allowlist = %v, want the read tool only", got)
 	}
@@ -733,11 +734,11 @@ func TestAIUniworkModuleToolTableGovernsTheAllowlist(t *testing.T) {
 	}
 
 	for _, module := range []string{"", "nope", "xlsx"} {
-		if got := UniworkModuleAllowlist(module, offered, false); len(got.Tools) != 0 {
+		if got := UniworkModuleAllowlist(module, offered, false, false); len(got.Tools) != 0 {
 			t.Fatalf("module %q offered %v", module, got.Tools.Names())
 		}
 	}
-	if got := UniworkModuleAllowlist("docs", nil, false); len(got.Tools) != 0 {
+	if got := UniworkModuleAllowlist("docs", nil, false, false); len(got.Tools) != 0 {
 		t.Fatal("tools appeared that the client never offered")
 	}
 
@@ -936,5 +937,296 @@ func TestAIUniworkUpstreamRateLimitedRetryAfter(t *testing.T) {
 				t.Fatalf("usage row = %s/%s, want failed/%s", status, reason, ErrRateLimited.Code)
 			}
 		})
+	}
+}
+
+// G6-09a (UNI-1374) N1: the slides tools a UniWork AI turn never gets (the web
+// stubs, whole-deck generation and style templates) are out of the table, so a
+// modified client cannot offer them to the model and a call for one is dropped
+// as not_allowlisted, not view_only. The tools the client hides only for a
+// bound document (create_document, the pdf file-level page tools) stay: the
+// table is keyed by module alone and carries no document scope, and R1 (the
+// local-file route) is viewOnly today.
+func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
+	removed := []string{"generate_deck", "insert_web_image", "regenerate_slide", "replace_image", "save_style_template"}
+	slides := officeUniworkModulesV1["slides"]
+	for _, name := range removed {
+		for _, group := range [][]string{slides.Read, slides.Write} {
+			for _, have := range group {
+				if have == name {
+					t.Errorf("slides table still lists %q", name)
+				}
+			}
+		}
+	}
+
+	offered := facadeSpecs(append([]string{"apply_ops", "read_slide"}, removed...)...)
+	allow := UniworkModuleAllowlist("slides", offered, false, false)
+	if got := strings.Join(allow.Tools.Names(), ","); got != "apply_ops,read_slide" {
+		t.Fatalf("slides allowlist = %q, want only the tools UniWork AI keeps", got)
+	}
+	for _, name := range removed {
+		if _, ok := allow.Tools.Get(name); ok {
+			t.Errorf("%q reached the slides allowlist", name)
+		}
+		for _, w := range allow.WriteNames {
+			if w == name {
+				t.Errorf("%q is still a named write tool, so a call for it would read as view_only", name)
+			}
+		}
+	}
+
+	// A view-only turn drops the removed names too, and the reason is
+	// not_allowlisted, not view_only: the five are out of the module table
+	// altogether, so the write set no longer names them (before G6-09a a call
+	// for one read as view_only and drove aiErrViewOnlyEdit).
+	viewOnly := UniworkModuleAllowlist("slides", offered, true, false)
+	if got := strings.Join(viewOnly.Tools.Names(), ","); got != "read_slide" {
+		t.Fatalf("slides view-only allowlist = %q, want only read_slide", got)
+	}
+	calls := make([]provider.ToolCall, 0, len(removed))
+	for i, name := range removed {
+		calls = append(calls, provider.ToolCall{ID: fmt.Sprintf("call_%d", i), Name: name, Input: json.RawMessage(`{}`)})
+	}
+	kept, dropped := FilterUniworkToolCalls(calls, viewOnly)
+	if len(kept) != 0 || len(dropped) != len(removed) {
+		t.Fatalf("removed-name calls = %d kept, %d dropped, want 0/%d", len(kept), len(dropped), len(removed))
+	}
+	for i, drop := range dropped {
+		if drop.Name != removed[i] || drop.Reason != UniworkDropNotAllowlisted {
+			t.Errorf("dropped[%d] = %+v, want %q not_allowlisted", i, drop, removed[i])
+		}
+	}
+
+	// the rest of the table still holds: every module, and the slides names the client keeps
+	if len(officeUniworkModulesV1) != 6 {
+		t.Fatalf("table has %d modules, want 6", len(officeUniworkModulesV1))
+	}
+	for _, want := range []string{"apply_ops", "edit_chart", "execute_slide_script"} {
+		if !slices.Contains(slides.Write, want) {
+			t.Errorf("slides write tools lost %q", want)
+		}
+	}
+	for _, want := range []string{"read_slide", "plan_deck", "web_search", "image_search", "generate_image"} {
+		if !slices.Contains(slides.Read, want) {
+			t.Errorf("slides read tools lost %q", want)
+		}
+	}
+
+	// bound-only hides stay in the table (the server cannot tell bound from local)
+	for module, names := range map[string][]string{
+		"docs":   {"create_document"},
+		"sheets": {"create_document"},
+		"pdf": {
+			"create_document", "insert_blank_page", "set_page_size", "crop_pages", "replace_pages",
+			"extract_pages", "split_pdf", "split_pages", "merge_pages", "edit_text", "transform_image",
+		},
+	} {
+		for _, name := range names {
+			if !slices.Contains(officeUniworkModulesV1[module].Write, name) {
+				t.Errorf("%s table lost %q, which only a bound document hides", module, name)
+			}
+		}
+	}
+
+	// The exact name sets of all six modules are pinned here: the mechanical
+	// block of docs/office/g5g6g7/genoffice-tools.md §3 plus the group-B rows
+	// decide them — minus the five slides rows G6-09a removes above — so a name
+	// that disappears without the document changing, or that moves between read
+	// and write, fails here.
+	pinned := map[string]uniworkModuleTools{
+		"docs": {
+			Read: []string{
+				"analyze_media", "ask_clarification", "generate_mindmap", "get_document_context", "image_search", "list_styles",
+				"read_attachment", "read_blocks", "read_comments", "read_notes", "read_revisions", "web_search",
+			},
+			Write: []string{
+				"accept_changes", "add_comment", "apply_ops", "create_document", "define_style", "delete_comment",
+				"delete_note", "edit_chart", "edit_note", "generate_image", "insert_chart", "insert_content",
+				"insert_endnote", "insert_footnote", "insert_image", "insert_picture", "insert_section_break",
+				"insert_text_box", "reject_changes", "replace_blocks", "replace_selection", "reply_comment",
+				"resolve_comment", "set_header_footer", "set_page_setup", "set_watermark", "write_document",
+			},
+		},
+		"html": {
+			Read:  []string{"ask_clarification", "get_outline", "read_attachment", "read_source", "web_search"},
+			Write: []string{"apply_ops", "plan_page", "write_document"},
+		},
+		"markdown": {
+			Read:  []string{"ask_clarification", "generate_mindmap", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
+			Write: []string{"apply_ops", "generate_image", "insert_image", "write_document"},
+		},
+		"pdf": {
+			Read: []string{
+				"ask_clarification", "generate_image", "get_outline", "goto_page", "image_search", "list_form_fields",
+				"list_inserted_text", "list_page_images", "read_annotations", "read_pages", "search_text",
+			},
+			Write: []string{
+				"add_form_mark", "add_note", "apply_ops", "create_document", "crop_image", "crop_pages", "delete_image",
+				"delete_inserted_text", "delete_markup", "delete_note", "edit_block", "edit_inserted_text", "edit_note",
+				"edit_text", "extract_pages", "flip_image", "insert_blank_page", "insert_image", "insert_text",
+				"markup_text", "merge_pages", "move_inserted_text", "move_text_block", "remove_image_background",
+				"replace_image", "replace_pages", "reply_note", "rotate_image", "set_header_footer", "set_image_opacity",
+				"set_page_size", "set_watermark", "split_pages", "split_pdf", "transform_image",
+			},
+		},
+		"sheets": {
+			Read: []string{
+				"aggregate_range", "ask_clarification", "compare_ranges", "find_cells", "generate_image",
+				"get_workbook_context", "image_search", "load_guide", "read_attachment", "read_cells", "read_formats",
+				"read_range", "read_sheet_features", "select_range", "summarize_range", "trace_dependents",
+				"trace_precedents", "web_search",
+			},
+			Write: []string{"create_document", "merge_attached_workbooks", "propose_operations"},
+		},
+		"slides": {
+			Read: []string{
+				"analyze_media", "ask_clarification", "generate_image", "image_search", "list_style_templates",
+				"load_guide", "plan_deck", "read_attachment", "read_slide", "web_search",
+			},
+			Write: []string{"apply_ops", "edit_chart", "execute_slide_script"},
+		},
+	}
+	for module, want := range pinned {
+		got := officeUniworkModulesV1[module]
+		facadeAssertExactNames(t, module, "read", got.Read, want.Read)
+		facadeAssertExactNames(t, module, "write", got.Write, want.Write)
+	}
+
+	// G6-09d / REPIN-1 (Advisor msg_f4b50f24445b): generate_mindmap in docs and
+	// markdown is a read-only display tool (editor_write=no), so a view-only
+	// turn keeps it in the offered allowlist while dropping write_document.
+	for _, module := range []string{"docs", "markdown"} {
+		ro := UniworkModuleAllowlist(module, facadeSpecs("generate_mindmap", "write_document"), true, false)
+		if got := strings.Join(ro.Tools.Names(), ","); got != "generate_mindmap" {
+			t.Errorf("%s view-only allowlist = %q, want generate_mindmap kept", module, got)
+		}
+		if slices.Contains(ro.WriteNames, "generate_mindmap") {
+			t.Errorf("%s WriteNames still lists generate_mindmap", module)
+		}
+	}
+}
+
+// facadeAssertExactNames fails when a module's pinned name set and the table's
+// disagree; both sides are sorted first, so the order in the table is not part
+// of the pin.
+func facadeAssertExactNames(t *testing.T, module, kind string, got, want []string) {
+	t.Helper()
+	g, w := append([]string(nil), got...), append([]string(nil), want...)
+	slices.Sort(g)
+	slices.Sort(w)
+	if !slices.Equal(g, w) {
+		t.Errorf("%s %s names = %v, want the pinned %v", module, kind, g, w)
+	}
+}
+
+// FU-G6-03a-BOUND (G6-09 relay): on a bound turn (scope.DocumentID != ""),
+// UniworkModuleAllowlist hides create_document (docs, sheets, pdf) and the 8
+// pdf file-level page tools, while unbound turns offer them, viewOnly composes
+// with bound, and a model call for a hidden tool is dropped as not_allowlisted
+// (even when viewOnly is also set).
+func TestAIUniworkBoundDocumentHidesDocumentCreatingTools(t *testing.T) {
+	pdfPageTools := []string{
+		"insert_blank_page", "set_page_size", "crop_pages", "replace_pages",
+		"extract_pages", "split_pdf", "split_pages", "merge_pages",
+	}
+	cases := []struct {
+		module string
+		read   string
+		write  string
+		hidden []string
+	}{
+		{module: "docs", read: "read_blocks", write: "apply_ops", hidden: []string{"create_document"}},
+		{module: "sheets", read: "read_range", write: "propose_operations", hidden: []string{"create_document"}},
+		{module: "pdf", read: "read_pages", write: "edit_text", hidden: append([]string{"create_document"}, pdfPageTools...)},
+	}
+
+	for _, tc := range cases {
+		allNames := append([]string{tc.read, tc.write}, tc.hidden...)
+		offered := facadeSpecs(allNames...)
+
+		// Unbound editable turn offers every tool in the module table, hidden ones included.
+		unbound := UniworkModuleAllowlist(tc.module, offered, false, false)
+		facadeAssertExactNames(t, tc.module+" unbound", "tools", unbound.Tools.Names(), allNames)
+
+		// Bound editable turn hides exactly the bound-hidden tools; other read and write tools stay.
+		bound := UniworkModuleAllowlist(tc.module, offered, false, true)
+		facadeAssertExactNames(t, tc.module+" bound", "tools", bound.Tools.Names(), []string{tc.read, tc.write})
+		for _, h := range tc.hidden {
+			if _, ok := bound.Tools.Get(h); ok {
+				t.Errorf("%s bound: %q reached Tools", tc.module, h)
+			}
+			if slices.Contains(bound.WriteNames, h) {
+				t.Errorf("%s bound: %q stayed in WriteNames", tc.module, h)
+			}
+		}
+
+		// PlanUniworkTurn with a client offering a hidden tool on a bound turn omits it from turn.Tools.
+		turn, err := PlanUniworkTurn(nil, facadeBody(t, map[string]any{
+			"messages": []map[string]string{{"role": "user", "content": "hỏi"}},
+			"tools":    offered,
+		}), bound)
+		if err != nil {
+			t.Fatalf("%s bound PlanUniworkTurn: %v", tc.module, err)
+		}
+		gotTurnTools := make([]string, 0, len(turn.Tools))
+		for _, spec := range turn.Tools {
+			gotTurnTools = append(gotTurnTools, spec.Function.Name)
+		}
+		facadeAssertExactNames(t, tc.module+" bound turn", "tools", gotTurnTools, []string{tc.read, tc.write})
+
+		// A model call for a hidden tool on a bound editable turn is dropped as not_allowlisted.
+		calls := make([]provider.ToolCall, 0, len(tc.hidden)+1)
+		calls = append(calls, provider.ToolCall{ID: "call_ok", Name: tc.write, Input: json.RawMessage(`{}`)})
+		for i, h := range tc.hidden {
+			calls = append(calls, provider.ToolCall{ID: fmt.Sprintf("call_h_%d", i), Name: h, Input: json.RawMessage(`{}`)})
+		}
+		kept, dropped := FilterUniworkToolCalls(calls, bound)
+		if len(kept) != 1 || kept[0].Name != tc.write {
+			t.Fatalf("%s bound kept = %+v, want only %q", tc.module, kept, tc.write)
+		}
+		if len(dropped) != len(tc.hidden) {
+			t.Fatalf("%s bound dropped = %+v, want %d", tc.module, dropped, len(tc.hidden))
+		}
+		for i, d := range dropped {
+			if d.Name != tc.hidden[i] || d.Reason != UniworkDropNotAllowlisted {
+				t.Errorf("%s bound dropped[%d] = %+v, want %q not_allowlisted", tc.module, i, d, tc.hidden[i])
+			}
+		}
+
+		// Bound + viewOnly composes: only read tools are offered, regular write tools
+		// drop as view_only, and bound-hidden tools drop as not_allowlisted.
+		boundViewOnly := UniworkModuleAllowlist(tc.module, offered, true, true)
+		facadeAssertExactNames(t, tc.module+" bound+viewOnly", "tools", boundViewOnly.Tools.Names(), []string{tc.read})
+		if !slices.Contains(boundViewOnly.WriteNames, tc.write) {
+			t.Errorf("%s bound+viewOnly lost regular write tool %q from WriteNames", tc.module, tc.write)
+		}
+		for _, h := range tc.hidden {
+			if slices.Contains(boundViewOnly.WriteNames, h) {
+				t.Errorf("%s bound+viewOnly kept hidden tool %q in WriteNames", tc.module, h)
+			}
+		}
+		voKept, voDropped := FilterUniworkToolCalls(calls, boundViewOnly)
+		if len(voKept) != 0 || len(voDropped) != len(calls) {
+			t.Fatalf("%s bound+viewOnly filter = %d kept / %d dropped", tc.module, len(voKept), len(voDropped))
+		}
+		if voDropped[0].Name != tc.write || voDropped[0].Reason != UniworkDropViewOnly {
+			t.Errorf("%s bound+viewOnly regular write drop = %+v, want view_only", tc.module, voDropped[0])
+		}
+		for i, d := range voDropped[1:] {
+			if d.Name != tc.hidden[i] || d.Reason != UniworkDropNotAllowlisted {
+				t.Errorf("%s bound+viewOnly hidden drop[%d] = %+v, want %q not_allowlisted", tc.module, i, d, tc.hidden[i])
+			}
+		}
+	}
+
+	// Modules with no bound-hidden tools (markdown, html, slides) are unchanged when bound=true.
+	for _, module := range []string{"markdown", "html", "slides"} {
+		mod := officeUniworkModulesV1[module]
+		offered := facadeSpecs(append(append([]string(nil), mod.Read...), mod.Write...)...)
+		unbound := UniworkModuleAllowlist(module, offered, false, false)
+		bound := UniworkModuleAllowlist(module, offered, false, true)
+		facadeAssertExactNames(t, module+" bound vs unbound", "tools", bound.Tools.Names(), unbound.Tools.Names())
+		facadeAssertExactNames(t, module+" bound vs unbound", "writes", bound.WriteNames, unbound.WriteNames)
 	}
 }
