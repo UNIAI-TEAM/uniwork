@@ -181,7 +181,7 @@ test("AC03 three people at Edit and seven at View: per-person levels with a live
   await expect(openList.getByRole("option", { name: "Nhận xét" })).toBeVisible();
   await openList.getByRole("option", { name: "Nhận xét" }).click();
   await expect(dialog.getByText("Đặt tất cả 3 đối tượng thành Nhận xét?")).toBeVisible();
-  await dialog.getByRole("button", { name: /^Hu/ }).click();
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
 
   await submitShare(dialog).click();
@@ -233,7 +233,7 @@ test("AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused fo
   const confirm = dialog.getByTestId("share-add-confirm");
   await expect(confirm).toContainText(/Chia sẻ cho toàn bộ Tổ chức .* \(\d+ thành viên\) ở mức Chỉnh sửa/, { timeout: 30_000 });
   expect((await sharesOf(request, s.owner.token, id)).shares ?? []).toHaveLength(0);
-  await confirm.getByRole("button", { name: /^Hu/ }).click();
+  await confirm.getByRole("button", { name: "Hủy", exact: true }).click();
   await expect(confirm).toHaveCount(0);
   expect((await sharesOf(request, s.owner.token, id)).shares ?? []).toHaveLength(0);
 
