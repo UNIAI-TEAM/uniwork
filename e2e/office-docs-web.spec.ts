@@ -388,8 +388,8 @@ test.describe("open, edit, save", () => {
  * window.print() calls (stubbed - a headless run has no dialog and settles
  * the real path with afterprint), `hostPrints` counts host->frame `print`
  * envelopes the realm's `message` events deliver, and `ctrlP` records each
- * mod+P keydown's final defaultPrevented (read in a microtask, after every
- * listener ran), so a binding that forgot preventDefault fails the case even
+ * mod+P keydown's final defaultPrevented (read in a task, after dispatch
+ * finished), so a binding that forgot preventDefault fails the case even
  * though headless Playwright would never show the browser dialog. An
  * `appendChild` wrap hands the count of the hidden srcdoc iframe the HTML
  * module prints through back to the module's probe, re-stubbing on the
@@ -431,10 +431,11 @@ async function installPrintProbe(scope: Page | FrameLocator): Promise<void> {
       return child;
     };
     stubPrint(window);
-    // Registered after the module's own binding; the microtask read still
-    // records the final defaultPrevented no matter the listener order.
+    // Registered in the capture phase; the read happens in a task after dispatch
+    // finished, because for a trusted keypress a microtask checkpoint runs
+    // between listeners and would miss a later bubble listener's preventDefault.
     window.addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") queueMicrotask(() => probe.ctrlP.push(e.defaultPrevented));
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") window.setTimeout(() => probe.ctrlP.push(e.defaultPrevented), 0);
     }, true);
     // host.print envelopes arrive as message events from the host window: count
     // them where they land. Never wrap `window.postMessage` for this — the
