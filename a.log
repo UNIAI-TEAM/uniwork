@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK; echo
+ba1c86050e6a5b905adf79002ab7b861497b0b82
+82c8381e160e51105528736f5c051b27f507a94e
+ba1c8605 fix(docs): Ctrl/Cmd+P has one handler path in the Docs frame, with a one-action-per-press test (UNI-1931 x UNI-1920)
+cfa0638e chore: merge fork main 82c8381e1 into the UNI-1931 lane branch
+04e0d83e fix(docs): the narrow File menu closes when the viewport resizes under it (UNI-1931 FE2-1)
+SYNCED_OK
+
