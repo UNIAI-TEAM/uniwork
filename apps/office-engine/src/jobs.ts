@@ -18,7 +18,7 @@ import {
   type EngineErrorCode,
   type JobState,
 } from "@uniwork/office-contracts";
-import { createJobDir, INPUT_NAME, OPS_NAME, OUTPUT_NAME, removeJobDir } from "./cleanup.ts";
+import { createJobDir, INPUT_NAME, logCleanupFailure, OPS_NAME, OUTPUT_NAME, removeJobDir } from "./cleanup.ts";
 import type { EngineServiceConfig } from "./config.ts";
 import { checkLive, GrantLedger, type ServiceGrant } from "./grants.ts";
 import { LIMIT_OUTCOMES, resolveLimits, type EffectiveLimits } from "./limits.ts";
@@ -241,11 +241,17 @@ export class JobManager {
   private dropInput(job: Job): void {
     const dir = job.inputDir;
     if (!dir) return;
-    job.inputDir = null;
     const done: Promise<void> = removeJobDir(dir)
-      .catch(() => undefined)
+      .then(
+        () => {
+          if (job.inputDir === dir) job.inputDir = null;
+          this.releaseInput(job.inputBytes);
+        },
+        (error: unknown) => {
+          logCleanupFailure(error, job.jobId);
+        },
+      )
       .finally(() => {
-        this.releaseInput(job.inputBytes);
         this.inFlight.delete(done);
       });
     this.inFlight.add(done);
@@ -279,7 +285,6 @@ export class JobManager {
     // here on, whatever happens below.
     dir = job.inputDir;
     const inputBytes = dir ? job.inputBytes : 0;
-    job.inputDir = null;
     try {
       identity = this.sandbox.acquire();
       const inputPath = dir ? join(dir, INPUT_NAME) : null;
@@ -350,8 +355,17 @@ export class JobManager {
         this.transition(job, "crashed", { code: "engine_crashed", reason: "internal_error" });
       }
     } finally {
-      if (dir) await removeJobDir(dir).catch(() => undefined);
-      this.releaseInput(inputBytes);
+      if (dir) {
+        await removeJobDir(dir).then(
+          () => {
+            job.inputDir = null;
+            this.releaseInput(inputBytes);
+          },
+          (error: unknown) => {
+            logCleanupFailure(error, job.jobId);
+          },
+        );
+      }
       // The uid only goes back to the pool once nothing runs under it; a
       // descendant that outlives the sweep quarantines the slot instead. The
       // release itself must never reject: it is the last step of a job that

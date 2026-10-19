@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream, readFileSync } from "node:fs";
+import { chmod, stat } from "node:fs/promises";
 import { request, type ClientRequest } from "node:http";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -691,6 +692,46 @@ describe("framed job transport (SIZE-OPS1)", () => {
       await waitTerminal(h2, running);
       await until(() => h2.service.jobs.inputBytesAdmitted === 0);
     } finally {
+      await h2.close();
+    }
+  });
+
+  it("retains inputDir and budget reservation when job dir removal fails on queued cancel (SIZE-OPS1 E2)", async () => {
+    const h2 = await startHarness({ maxWorkers: 1, inputBudgetBytes: 64 * 1024 });
+    let queuedDir: string | null = null;
+    const stderrLines: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      stderrLines.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const running = makeJob(h2.target, { text: "uniwork-fault:sleep 30000\n" });
+      const queued = makeJob(h2.target, { bytes: Buffer.alloc(32 * 1024, "q") });
+      expect((await submit(h2, running)).status).toBe(202);
+      expect((await submit(h2, queued)).status).toBe(202);
+      const queuedJob = h2.service.jobs.get(queued.grant.job_id)!;
+      queuedDir = queuedJob.inputDir;
+      expect(queuedDir).toBeTruthy();
+      await chmod(queuedDir!, 0o500);
+      await call(h2, "POST", "/v1/jobs/" + queued.grant.job_id + "/cancel", { grant: queued.token });
+      await until(() => stderrLines.length > 0 || h2.service.jobs.inputBytesAdmitted === running.bytes.length, 2_000);
+      expect((await stat(join(queuedDir!, "input.bin"))).size).toBe(queued.bytes.length);
+      expect(h2.service.jobs.inputBytesAdmitted).toBe(running.bytes.length + queued.bytes.length);
+      expect(queuedJob.inputDir).toBe(queuedDir);
+      expect(stderrLines.join("")).toContain(queued.grant.job_id);
+      expect(stderrLines.join("")).not.toContain(queuedDir!);
+      const next = makeJob(h2.target, { bytes: Buffer.alloc(32 * 1024, "n") });
+      const refused = rawFramed(h2, next, { write: 0 });
+      const res = await refused.reply;
+      refused.req.destroy();
+      expect(res.status).toBe(503);
+      expect(JSON.parse(res.body).error).toMatchObject({ code: "engine_overloaded", reason: "input_budget" });
+      await call(h2, "POST", "/v1/jobs/" + running.grant.job_id + "/cancel", { grant: running.token });
+      await waitTerminal(h2, running);
+    } finally {
+      process.stderr.write = origWrite;
+      if (queuedDir) await chmod(queuedDir, 0o700).catch(() => undefined);
       await h2.close();
     }
   });

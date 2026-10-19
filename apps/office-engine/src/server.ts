@@ -34,7 +34,7 @@ import {
 } from "@uniwork/office-contracts";
 import { nodeSha256Hex } from "@uniwork/office-engine/node";
 import { capabilityResult, isBound } from "./capability.ts";
-import { createJobDir, INPUT_NAME, removeJobDir } from "./cleanup.ts";
+import { createJobDir, INPUT_NAME, logCleanupFailure, removeJobDir } from "./cleanup.ts";
 import type { EngineServiceConfig } from "./config.ts";
 import { boundaryFailure, notFoundRoute, toFailure, unauthenticated, type HttpFailure } from "./errors.ts";
 import { bindEnvelope, verifyGrant } from "./grants.ts";
@@ -302,9 +302,20 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
     }
     send(res, replay ? 200 : 202, { ...jobView(job), replay, payload_fingerprint: fingerprint });
   } finally {
-    // A refused, replayed or aborted upload leaves no file and no budget.
-    if (dir) await removeJobDir(dir).catch(() => undefined);
-    jobs.releaseInput(reserved);
+    // A refused, replayed or aborted upload leaves no file and no budget; on a
+    // removal failure the reservation stays held so admission remains bounded.
+    if (dir) {
+      await removeJobDir(dir).then(
+        () => {
+          jobs.releaseInput(reserved);
+        },
+        (error: unknown) => {
+          logCleanupFailure(error);
+        },
+      );
+    } else {
+      jobs.releaseInput(reserved);
+    }
   }
 }
 
