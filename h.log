@@ -1,0 +1,165 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18680 FRONTEND_ORIGIN=http://localhost:13600 API_PUBLIC_URL=http://localhost:18680 PREVIEW_ORIGIN=http://localhost:13601 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18680 NEXT_PUBLIC_WS_URL=ws://localhost:18680 NEXT_PUBLIC_APP_URL=http://localhost:13600 E2E_BASE_URL=http://localhost:13600 E2E_API_URL=http://localhost:18680 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1 DOCUMENT_EDIT_LOCK_TTL=20s DOCUMENT_EDIT_LOCK_HEARTBEAT=5s DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s; pnpm --filter @uniwork/e2e exec playwright test --reporter=line documents; rc=$?; echo "E2E_EXIT=$rc"; exit $rc
+
+Running 67 tests using 1 worker
+
+(node:18097) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:18097) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/67] documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload
+[2/67] documents-folders.spec.ts:36:1 › FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to depth 20; rejects blank, >255 chars, and depth 21
+[3/67] documents-folders.spec.ts:200:1 › FD-A02 sidebar folder tree expands/collapses independently, reveals active ?folder= ancestors, and stays collapsed across a refetch
+[4/67] documents-folders.spec.ts:349:1 › FD-A03 open folder content view lists only direct children, folders first, sorted by name or updated per viewer
+[5/67] documents-folders.spec.ts:454:1 › FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă after A) or by last update, folders first, and the choice is remembered
+[6/67] documents-folders.spec.ts:561:1 › FD-A03 upload into the open folder places the uploaded file under the open folder (not at root)
+[7/67] documents-folders.spec.ts:621:1 › FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search
+[8/67] documents-folders.spec.ts:732:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live
+[9/67] documents-folders.spec.ts:972:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast
+[10/67] documents-folders.spec.ts:1058:1 › FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop
+[11/67] documents-folders.spec.ts:1160:1 › FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable aria-disabled rows with the reason Nằm trong chính nó and refuses to select them
+[12/67] documents-folders.spec.ts:1236:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision
+[13/67] documents-folders.spec.ts:1329:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành
+[14/67] documents-folders.spec.ts:1385:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder=
+[15/67] documents-folders.spec.ts:1528:1 › FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and the … menu Các cấp ẩn opens and navigates by keyboard
+[16/67] documents-folders.spec.ts:1587:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches
+[17/67] documents-folders.spec.ts:1735:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing
+[18/67] documents-folders.spec.ts:1992:1 › FD-A10 (entity/email link API) structured graph DOCUMENT links and email-hub thread links resolve after move
+[19/67] documents-folders.spec.ts:2000:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents
+[20/67] documents-folders.spec.ts:2183:1 › FD-A12 another member archiving and restoring a folder subtree is seen live by the first session, counts items, renames on restore collision, and blocks 403
+[21/67] documents-folders.spec.ts:2397:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button
+documents-folders.spec.ts:2397:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button
+FD-A12 seeded 1000 pages in 2032 ms
+
+[22/67] documents-folders.spec.ts:2463:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts
+[23/67] documents-home.spec.ts:54:1 › quick create, folder, move and the other-modules section on the owner's home
+[24/67] documents-home.spec.ts:129:1 › My Folder sub-nav row, personal folder view, localized tree label, Home create into My Folder, and system folder guards
+[25/67] documents-home.spec.ts:180:1 › the header Open UniWork Office falls back to the installer dialog when no app answers
+[26/67] documents-home.spec.ts:292:3 › a view-only member › sees create controls at the root, none inside a folder shared at view level
+[27/67] documents-home.spec.ts:313:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level
+[28/67] documents-home.spec.ts:327:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ
+[29/67] documents-isolation.spec.ts:108:1 › another organization answers not found across read, history, comments and download
+[30/67] documents-isolation.spec.ts:120:1 › an organization member outside the document workspace answers not found
+[31/67] documents-isolation.spec.ts:124:1 › an account in no organization answers not found
+[32/67] documents-isolation.spec.ts:129:1 › a deactivated member is refused with member_deactivated
+[33/67] documents-isolation.spec.ts:136:1 › two saves from one base: the first wins, the stale one conflicts
+[34/67] documents-isolation.spec.ts:159:1 › a create replay returns the same page; a changed payload under the same key is refused
+[35/67] documents-isolation.spec.ts:175:1 › a plain member creates, types and reloads a page in the browser
+[36/67] documents-isolation.spec.ts:196:1 › a workspace member without access sees the locked card, not the content
+[37/67] documents-isolation.spec.ts:207:1 › the other organization's shell sends a foreign document URL to the picker
+[38/67] documents-share-rules.spec.ts:66:1 › AC09 without Manage there is no way to change access, list candidates or see others
+[39/67] documents-share-rules.spec.ts:89:1 › U-SH4 a person without Manage opens Share and sees their own level and sources only
+[40/67] documents-share-rules.spec.ts:115:1 › AC11 sharing to another workspace does not move the document
+[41/67] documents-share-rules.spec.ts:135:1 › AC13 a second grant to the same person: keep or update, duplicates refused, one row
+[42/67] documents-share-rules.spec.ts:171:1 › AC16 leaving the workspace ends the access that came through it
+[43/67] documents-share-rules.spec.ts:186:1 › AC19 the library row shows the share scope as a type and a count, never names
+[44/67] documents-share-rules.spec.ts:219:1 › AC20 opening a document's URL grants nothing; Stored-in is separate from sharing
+[45/67] documents-share-rules.spec.ts:244:1 › U-SH3 one bad recipient rejects the whole batch; the popup marks that chip only
+[46/67] documents-share-rules.spec.ts:284:1 › isolation another organization reaches neither the access nor the candidates route
+[47/67] documents-share-rules.spec.ts:297:1 › FR-13 the recipient gets a document_shared inbox item with the level; groups and lowering stay silent
+[48/67] documents-share.spec.ts:63:1 › U-SH2 a new page is private; the create toggle shares it with the workspace at View (Q-S3)
+[49/67] documents-share.spec.ts:101:1 › AC01 one person at View: popup, confirmation toast, list row, and a dry run writes nothing
+[50/67] documents-share.spec.ts:134:1 › AC02 ten people at View in one batch
+[51/67] documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary
+  1) documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary 
+
+    Test timeout of 360000ms exceeded.
+
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Call log:
+      - waiting for getByRole('dialog', { name: /^Chia sẻ “/ }).getByRole('button', { name: /^Hu/ })
+
+
+      182 |   await openList.getByRole("option", { name: "Nhận xét" }).click();
+      183 |   await expect(dialog.getByText("Đặt tất cả 3 đối tượng thành Nhận xét?")).toBeVisible();
+    > 184 |   await dialog.getByRole("button", { name: /^Hu/ }).click();
+          |                                                     ^
+      185 |   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
+      186 |
+      187 |   await submitShare(dialog).click();
+        at /workspace/e2e/documents-share.spec.ts:184:53
+
+    Error Context: test-results/documents-share-AC03-three-24f12--levels-with-a-live-summary/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-share-AC03-three-24f12--levels-with-a-live-summary/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-share-AC03-three-24f12--levels-with-a-live-summary/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:18846) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:18846) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[52/67] documents-share.spec.ts:194:1 › AC04 the workspace at View goes through the home row, not a share row
+[53/67] documents-share.spec.ts:221:1 › AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused for the organization and the home row
+  2) documents-share.spec.ts:221:1 › AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused for the organization and the home row 
+
+    Test timeout of 360000ms exceeded.
+
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Call log:
+      - waiting for getByRole('dialog', { name: /^Chia sẻ “/ }).getByTestId('share-add-confirm').getByRole('button', { name: /^Hu/ })
+
+
+      234 |   await expect(confirm).toContainText(/Chia sẻ cho toàn bộ Tổ chức .* \(\d+ thành viên\) ở mức Chỉnh sửa/, { timeout: 30_000 });
+      235 |   expect((await sharesOf(request, s.owner.token, id)).shares ?? []).toHaveLength(0);
+    > 236 |   await confirm.getByRole("button", { name: /^Hu/ }).click();
+          |                                                      ^
+      237 |   await expect(confirm).toHaveCount(0);
+      238 |   expect((await sharesOf(request, s.owner.token, id)).shares ?? []).toHaveLength(0);
+      239 |
+        at /workspace/e2e/documents-share.spec.ts:236:54
+
+    Error Context: test-results/documents-share-AC05-Q-S1--eb8d0-ganization-and-the-home-row/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-share-AC05-Q-S1--eb8d0-ganization-and-the-home-row/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-share-AC05-Q-S1--eb8d0-ganization-and-the-home-row/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:18975) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:18975) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[54/67] documents-share.spec.ts:275:1 › AC06 + AC12 Organization at Edit with a Person at View: the person keeps Edit and the popup says why
+[55/67] documents-share.spec.ts:309:1 › AC07 revoking a Person at Edit while the Workspace stays at View: the preview sentence, then the toast
+[56/67] documents-share.spec.ts:340:1 › AC08 revoking every source leaves the document private; an admin keeps admin scope only
+[57/67] documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke
+[58/67] documents-sharing.spec.ts:56:1 › a cross-workspace grant reaches the recipient and its revoke takes it away
+[59/67] documents-sharing.spec.ts:93:1 › a principal from another organization cannot be granted access
+[60/67] documents-sharing.spec.ts:105:1 › the other organization cannot manage the document's access
+[61/67] documents-sharing.spec.ts:115:1 › a public link reads anonymously only while it is live and the switch is on
+[62/67] documents-source-chat.spec.ts:24:1 › go to source on a DM file opens that DM at the message
+[63/67] documents-versions.spec.ts:27:1 › version checkpoint restores the working copy and a second session sees it
+[64/67] documents.spec.ts:89:1 › a page is created, typed into, and survives a reload
+[65/67] documents.spec.ts:137:1 › a file document takes a new version and downloads it
+[66/67] documents.spec.ts:174:1 › the library lists pages across its views and the tree opens one
+[67/67] documents.spec.ts:251:1 › the library and the page editor never call the Office service
+  2 failed
+    documents-share.spec.ts:149:1 › AC03 three people at Edit and seven at View: per-person levels with a live summary 
+    documents-share.spec.ts:221:1 › AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused for the organization and the home row 
+  1 skipped
+  64 passed (16.9m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --reporter=line documents
+E2E_EXIT=1
