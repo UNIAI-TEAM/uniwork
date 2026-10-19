@@ -1,0 +1,99 @@
+$ pnpm --filter @uniwork/office-engine exec vitest run; echo "VITEST_ENGINE_FACADE_EXIT=$?"
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../../scripts/coverage-gate" without a file extension (vitest.config.ts:2:36). Add the file extension
+  - import "../../scripts/vitest-pool" without a file extension (vitest.config.ts:3:35). Add the file extension
+  - ESM syntax in a file loaded as CommonJS (../../scripts/vitest-pool.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (../../scripts/coverage-gate.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /workspace/packages/office-engine
+
+stderr | test/xlsx-shared-formulas.test.ts
+xlsx shared-formula follower caches (R3-1B): skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-shared-formulas.test.ts (0 test)
+stderr | test/xlsx-structural.test.ts
+xlsx structural ops on the real gateway: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+xlsx row outline levels across inserted rows: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+xlsx file row groups through a session outline action: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+xlsx Hide / Show Detail writes Excel's collapsed flag on the summary line: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-structural.test.ts (0 test)
+stderr | test/xlsx-recalc-after-assemble.test.ts
+xlsx recalc over the produced bytes (R3-1): skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-recalc-after-assemble.test.ts (0 test)
+stderr | test/xlsx-cf-dv-x14.test.ts
+x14 conditional formatting and data validation: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-cf-dv-x14.test.ts (0 test)
+stderr | test/xlsx-cf-x14-linked.test.ts
+Excel linked x14 data bars under a CF snapshot (option A): skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-cf-x14-linked.test.ts (0 test)
+stderr | test/xlsx-cf-dv-followups.test.ts
+xlsx CF/DV follow-ups on the patched gateway: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-cf-dv-followups.test.ts (0 test)
+stderr | test/xlsx-render-model.test.ts
+xlsx render model reader: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+xlsx render model reader on the G3-D3 corpus: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-render-model.test.ts (0 test)
+stderr | test/xlsx-subtotal-undo.test.ts
+xlsx Subtotal then Undo on a workbook with file CF/DV rules: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-subtotal-undo.test.ts (0 test)
+stderr | test/xlsx-real-artifact.test.ts
+xlsx real gateway artifact: skipping the real-gateway round-trip (run node scripts/office/build-upstream.mjs to build .go-tmp/office-upstream-build/dist/xlsx-gateway.mjs; set REQUIRE_XLSX_GATEWAY=1 to fail instead)
+
+ ❯ test/xlsx-real-artifact.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/xlsx-cf-dv-followups.test.ts [ test/xlsx-cf-dv-followups.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-cf-dv-followups.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  test/xlsx-cf-dv-x14.test.ts [ test/xlsx-cf-dv-x14.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-cf-dv-x14.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  test/xlsx-cf-x14-linked.test.ts [ test/xlsx-cf-x14-linked.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-cf-x14-linked.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  test/xlsx-real-artifact.test.ts [ test/xlsx-real-artifact.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-real-artifact.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  test/xlsx-recalc-after-assemble.test.ts [ test/xlsx-recalc-after-assemble.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-recalc-after-assemble.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  test/xlsx-render-model.test.ts [ test/xlsx-render-model.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-render-model.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  test/xlsx-shared-formulas.test.ts [ test/xlsx-shared-formulas.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-shared-formulas.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  test/xlsx-structural.test.ts [ test/xlsx-structural.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-structural.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  test/xlsx-subtotal-undo.test.ts [ test/xlsx-subtotal-undo.test.ts ]
+Error: No test suite found in file /workspace/packages/office-engine/test/xlsx-subtotal-undo.test.ts
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  9 failed | 62 passed | 1 skipped (72)
+      Tests  804 passed | 7 skipped (811)
+   Start at  21:53:25
+   Duration  6.27s (transform 1.43s, setup 0ms, import 6.59s, tests 5.87s, environment 4ms)
+
+undefined
+/workspace/packages/office-engine:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run
+VITEST_ENGINE_FACADE_EXIT=1

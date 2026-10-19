@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+81597861a10fa27fcc84bf30144a5fb90ea284be
+81597861a fix(office): negotiate job_transport before redispatching accepted jobs (SIZE-OPS1 r3)
+bd7ba67ad docs(office-engine): document input budget default, startup floor and envelope charge (SIZE-OPS1 r3)
+688b6ce76 fix(office-engine): hold envelope share of admission budget until submit ends (SIZE-OPS1 r3)

@@ -1,0 +1,9 @@
+$ pnpm --filter @uniwork/office-contracts --filter @uniwork/office-engine-app --filter @uniwork/office-engine lint; echo "ESLINT_EXIT=$?"
+Scope: 3 of 12 workspace projects
+packages/office-contracts lint$ eslint . --max-warnings 0
+packages/office-contracts lint: Done
+packages/office-engine lint$ eslint . --max-warnings 0
+packages/office-engine lint: Done
+apps/office-engine lint$ eslint . --max-warnings 0
+apps/office-engine lint: Done
+ESLINT_EXIT=0
