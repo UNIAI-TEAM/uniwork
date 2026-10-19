@@ -1,0 +1,9 @@
+$ npx eslint $(git diff --name-only --diff-filter=AM 1f7b4aa15 HEAD | grep -E '\.(ts|tsx|mjs)$' | tr '\n' ' '); rc=$?; echo; echo "ESLINT_EXIT=$rc"
+
+/home/ubuntu/work/uniwork-office/apps/docs/src/renderer/App.tsx
+  5227:6  warning  React Hook useEffect has missing dependencies: 'colMode', 'hasVertical', and 'watermarkDirty'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+
+
+ESLINT_EXIT=0
