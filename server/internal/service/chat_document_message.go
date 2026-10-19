@@ -125,7 +125,8 @@ func (s *ChatService) SendDocumentMessage(
 		return ChatMessageRow{}, err
 	}
 	// The payload digest joins the upload key, so a different file under the
-	// same client_msg_id conflicts instead of replaying (the file/voice rule).
+	// same client_msg_id stages its own upload; the transaction then replays
+	// the first message and the second upload is cancelled below.
 	sum := sha256.New()
 	if _, err := io.Copy(sum, in.Body); err != nil {
 		return ChatMessageRow{}, Invalid("không đọc được dữ liệu tệp")
@@ -191,6 +192,11 @@ func (s *ChatService) SendDocumentMessage(
 		// did get claimed reports already_claimed and stays.
 		s.cancelStagedUpload(ctx, actor, scope, up.File.ID)
 		return ChatMessageRow{}, err
+	}
+	if !created {
+		// A replay of an earlier send: the message names the first upload's
+		// document, so this attempt's staged file is surplus.
+		s.cancelStagedUpload(ctx, actor, scope, up.File.ID)
 	}
 	if created {
 		_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
@@ -309,7 +315,9 @@ func (s *ChatService) commitDocumentMessage(
 		// message, and the document this transaction just made is discarded
 		// with the rollback below.
 		if clientMsgID != "" && isUniqueViolation(err) {
-			existing, found, lookupErr := existingChatMessageInTx(ctx, q, room.ID, userID, clientMsgID)
+			// The pool read: the unique violation aborted this transaction, so
+			// a lookup through q would fail with 25P02.
+			existing, found, lookupErr := s.existingMessageByClientMsgID(ctx, room.ID, userID, clientMsgID)
 			if lookupErr != nil || found {
 				if found && existing.Kind != chatMessageKindDocument {
 					return db.ChatMessage{}, false, errClientMsgIDConflict()

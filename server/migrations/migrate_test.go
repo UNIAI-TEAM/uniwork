@@ -184,7 +184,10 @@ func emptyPublicTables(t *testing.T, pool *pgxpool.Pool) {
 // CONCURRENTLY file) before 0001 drops system_kind, which refuses the root My
 // Folder rows (system_kind = 'my_folder', title = 'My Folder') that
 // EnsureMyFolder tests leave behind — so which package ran first decided
-// whether a long rollback passed. It must not truncate: the shared test DB
+// whether a long rollback passed. The chat_messages kind CHECK is restored
+// without the kinds a later migration added (file, post, document,
+// document_version), so the chat tests' rows of those kinds refuse the
+// rollback the same way. It must not truncate: the shared test DB
 // holds rows that later migrations seed (the billing plans), and a rollback
 // that stops above them never puts them back for the packages that run
 // afterwards.
@@ -196,6 +199,7 @@ func clearRowsDownGuardsRefuse(t *testing.T, pool *pgxpool.Pool) {
 		`DELETE FROM meeting_recordings WHERE file_id IS NOT NULL`,
 		`DELETE FROM chat_voice_recordings WHERE file_id IS NOT NULL`,
 		`DELETE FROM documents WHERE system_kind IS NOT NULL`,
+		`DELETE FROM chat_messages WHERE kind IN ('file', 'post', 'document', 'document_version')`,
 	} {
 		if _, err := pool.Exec(ctx, q); err != nil {
 			t.Fatal(err)

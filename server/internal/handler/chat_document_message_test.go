@@ -87,13 +87,13 @@ func TestSendChatDocumentMessage(t *testing.T) {
 		t.Fatalf("message = %v", out)
 	}
 	block, _ := msg["document"].(map[string]any)
-	if block == nil || block["document_id"] == "" {
+	if blockID, _ := block["document_id"].(string); blockID == "" {
 		t.Fatalf("document block = %v", block)
 	}
 	if block["viewer_has_access"] != true || block["viewer_level"] != "manage" {
 		t.Fatalf("sender block = %v", block)
 	}
-	if block["title"] != "Kế hoạch" && block["format"] != "md" {
+	if block["title"] != "ke-hoach.md" || block["format"] != "md" {
 		t.Fatalf("block = %v", block)
 	}
 	// The block never leaks the storage locator.
@@ -264,10 +264,10 @@ func TestShareChatAttachmentAsDocument(t *testing.T) {
 		t.Fatalf("converted message = %v", out)
 	}
 	block, _ := msg["document"].(map[string]any)
-	if block == nil || block["document_id"] == "" {
+	docID, _ := block["document_id"].(string)
+	if docID == "" {
 		t.Fatalf("converted document block = %v", msg)
 	}
-	docID := block["document_id"].(string)
 
 	// L1 replay with a new client_msg_id and different share_level -> 200, same document.
 	res, out = doJSON(t, f.srv, "POST", sharePath, f.tokens["a"], map[string]any{"share_level": "view", "client_msg_id": "http-share-2"})

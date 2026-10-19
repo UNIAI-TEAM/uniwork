@@ -68,20 +68,15 @@ func documentMessageFromMetadata(kind string, raw []byte) *DocumentMessageInfo {
 	if documentID == "" {
 		return nil
 	}
-	info := &DocumentMessageInfo{DocumentID: documentID, VersionID: strings.TrimSpace(meta.VersionID)}
-	if kind == chatMessageKindDocumentVersion && info.VersionID == "" {
-		// A version message without a version id cannot name its version
-		// line; the card still shows the document.
-		return info
-	}
-	return info
+	return &DocumentMessageInfo{DocumentID: documentID, VersionID: strings.TrimSpace(meta.VersionID)}
 }
 
 // resolveChatDocuments fills the viewer fields of every document block in
 // rows, all from room, which the caller has already authorized for reading.
 // The shape is signChatMedia's: one pass over the page collects the distinct
-// document ids, one batched share read and one level resolution per distinct
-// document - never per row. Resolution is best effort, like signing: a
+// document ids, then each distinct document is resolved once (a row read, a
+// level resolution, its file info and, for the sender, a share count) - never
+// per row. The resolution is not batched across documents. Resolution is best effort, like signing: a
 // refusal (no Documents service, a document the caller may not read, a
 // deleted row) leaves the block at document_id + viewer_has_access:false
 // rather than failing the whole page.
@@ -237,7 +232,10 @@ func (s *ChatService) chatDocumentShareBatchCap(ctx context.Context, userID stri
 // gate refuses (a deactivated member or a suspended organization is skipped,
 // never failed). Agents are not members of a chat room's user list, so they
 // are not recipients; a room with no other human member grants nothing and
-// the send still writes the message for the sender.
+// the send still writes the message for the sender. The walk stops as soon as
+// the list holds one more than maxDocumentShareBatch: callers only compare the
+// length to the cap (and grant when it is within it), so a large room does not
+// cost one membership gate per member.
 func (s *ChatService) documentGrantRecipients(ctx context.Context, senderID string, room db.ChatRoom) ([]string, error) {
 	members, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
 	if err != nil {
@@ -255,6 +253,9 @@ func (s *ChatService) documentGrantRecipients(ctx context.Context, senderID stri
 			return nil, err
 		}
 		out = append(out, memberID)
+		if len(out) > maxDocumentShareBatch {
+			break
+		}
 	}
 	return out, nil
 }
