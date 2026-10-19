@@ -503,30 +503,85 @@ export function sheetNamesOf(text) {
 
 // The location nouns of the reply, in ONE table (round j, J-1): an integer right after one is a LOCATION ("slide 3",
 // "trang 2"), the place a value was read, not a figure. The vi "trang" is a page or a slide, "trang chiếu" a slide.
-const LOCATION_KINDS = new Map([['slide', ['slides']], ['page', ['pages']], ['sheet', ['sheets']], ['trang', ['pages', 'slides']], ['trang chieu', ['slides']]]);
-const LOCATION_RE = /(?<![\p{L}\d])(trang\s+chieu|trang|slide|page|sheet)(?:\s*#|\s+no\.?|\s+so)?\s*$/u;
+// oracle2 O2-F3 adds the block of a document ("block 4", vi "khối", 0-based as the frame numbers them) and the row of a
+// sheet ("row 9", "hidden row 6", vi "hàng", "dòng ẩn 6", "dòng dữ liệu 2–7", and a row range "rows 8–9", the plural
+// only before a range). A row is held when a read named that sheet row; vi "dòng" is a sheet row or a document line.
+const LOCATION_KINDS = new Map([
+  ['slide', ['slides']], ['page', ['pages']], ['sheet', ['sheets']], ['trang', ['pages', 'slides']], ['trang chieu', ['slides']],
+  ['block', ['blocks']], ['khoi', ['blocks']],
+  ['row', ['rowNumbers']], ['rows', ['rowNumbers']], ['hang', ['rowNumbers']], ['dong', ['rowNumbers', 'lines']],
+]);
+const LOCATION_RE = /(?<![\p{L}\d])(trang\s+chieu|trang|slide|page|sheet|block|khoi)(?:\s*#|\s+no\.?|\s+so)?\s*$/u;
+const ROW_QUALIFIERS = '(?:an|hidden|du lieu|tong|data|total|tieu de|header)';
+const ROW_RE = new RegExp(`(?<![\\p{L}\\d])(rows?|hang|dong)(?:\\s+${ROW_QUALIFIERS})?(?:\\s+(?:no\\.?|so))?\\s*\x60?\\s*(\\d+\\s*[\u2013\u2014:-]\\s*)?$`, 'u');
+const RANGE_NEXT_RE = /^\s*[\u2013\u2014:-]\s*\d/;
 
 /**
- * The kinds ('slides', 'pages', 'sheets') whose element a prose figure is the ORDINAL of, or null: a plain integer
- * directly after a singular location noun, with nothing between but "#", "no." or "số". The plural is a kind name
- * ("slides: 3"), never a location.
+ * The kinds ('slides', 'pages', 'sheets', 'blocks', 'rowNumbers', 'lines') whose element a prose figure is the ORDINAL
+ * of, or null: a plain integer directly after a singular location noun, with nothing between but "#", "no." or "số"
+ * (a row noun may carry one qualifier word, and either end of a row range is a row). The plural is a kind name
+ * ("slides: 3"), never a location, except a row range ("rows 8–9").
  */
 export function locationKindsOf(text, q) {
-  if (q.unit || q.currency || !/^\d+$/.test(q.raw) || q.readings.length !== 1 || q.readings[0].n < 1) return null;
-  const m = LOCATION_RE.exec(foldAscii(String(text ?? '').slice(Math.max(0, q.start - 40), q.start)));
-  return m ? LOCATION_KINDS.get(m[1].replace(/\s+/g, ' ')) : null;
+  if (q.unit || q.currency || !/^\d+$/.test(q.raw) || q.readings.length !== 1 || q.readings[0].n < 0) return null;
+  const before = foldAscii(String(text ?? '').slice(Math.max(0, q.start - 40), q.start));
+  const m = LOCATION_RE.exec(before);
+  if (m) {
+    const kinds = LOCATION_KINDS.get(m[1].replace(/\s+/g, ' '));
+    return q.readings[0].n >= 1 || kinds.includes('blocks') ? kinds : null;
+  }
+  const row = ROW_RE.exec(before);
+  if (!row || q.readings[0].n < 1) return null;
+  const ranged = Boolean(row[2]) || RANGE_NEXT_RE.test(String(text ?? '').slice(q.end));
+  if (row[1] === 'rows' && !ranged) return null;
+  return LOCATION_KINDS.get(row[1]);
 }
 
 /**
  * Does a successful read of this turn hold the location? A slide or page index is at most the count of that kind in ONE
- * result (slideCount, pageCount, the array length); a sheet index is at most the sheet count, or a sheet is named that
- * way. Nothing else holds a location, and a held location is exempt from the trace only: it credits nothing (J-1).
+ * result (slideCount, pageCount, the array length); a block index (0-based) is below the block count of one result; a
+ * sheet row is one a read named; a sheet index is at most the sheet count, or a sheet is named that way. Nothing else
+ * holds a location, and a held location is exempt from the trace only: it credits nothing (J-1).
  */
 export function heldLocation(kinds, q, ctx) {
   if (!kinds || !Array.isArray(ctx.counts)) return false;
   const index = q.readings[0].n;
+  if (kinds.includes('blocks') && ctx.counts.some((c) => c.kind === 'paragraphs' && c.n > index)) return true;
+  if (kinds.includes('rowNumbers') && ctx.rowNumbers instanceof Set && ctx.rowNumbers.has(index)) return true;
   if (ctx.counts.some((c) => kinds.includes(c.kind) && c.n >= index)) return true;
   return kinds.includes('sheets') && ctx.sheetNames instanceof Set && ctx.sheetNames.has(q.raw);
+}
+
+/** The sheet rows ONE successful result names: `rows[].row`, `hiddenRows`, cell and hit references, a `range`/`dataRange` span. */
+export function rowNumbersOf(text) {
+  let root;
+  try {
+    root = JSON.parse(String(text));
+  } catch {
+    return [];
+  }
+  if (!root || typeof root !== 'object' || Array.isArray(root) || isFailedResultPayload(root)) return [];
+  const out = new Set();
+  const span = (range) => {
+    const m = /^(?:.*!)?\$?[A-Za-z]{1,3}\$?(\d{1,7})(?::\$?[A-Za-z]{1,3}\$?(\d{1,7}))?$/.exec(String(range ?? '').trim());
+    if (!m) return;
+    const a = Number(m[1]);
+    const b = Number(m[2] ?? m[1]);
+    for (let r = Math.min(a, b); r <= Math.max(a, b) && r - Math.min(a, b) < 10000; r += 1) out.add(r);
+  };
+  const ref = (key) => { const m = /(\d{1,7})$/.exec(String(key)); if (m) out.add(Number(m[1])); };
+  const sheetLike = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node.rows)) for (const row of node.rows) if (row && typeof row === 'object' && Number.isInteger(row.row)) out.add(row.row);
+    if (Array.isArray(node.hiddenRows)) for (const r of node.hiddenRows) if (Number.isInteger(r)) out.add(r);
+    if (node.cells && typeof node.cells === 'object' && !Array.isArray(node.cells)) Object.keys(node.cells).forEach(ref);
+    if (Array.isArray(node.hits)) for (const hit of node.hits) if (hit && typeof hit === 'object' && hit.ref) ref(hit.ref);
+    if (typeof node.range === 'string') span(node.range);
+    if (typeof node.dataRange === 'string') span(node.dataRange);
+  };
+  sheetLike(root);
+  if (Array.isArray(root.sheets)) root.sheets.forEach(sheetLike);
+  return [...out];
 }
 
 const SENTENCE_END_RE = /[.!?;\n]/;
