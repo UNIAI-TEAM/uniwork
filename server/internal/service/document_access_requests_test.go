@@ -860,3 +860,90 @@ func TestDocumentAccessRequestCreateInterleavings(t *testing.T) {
 		}
 	})
 }
+
+// TestDocumentAccessRequestUniformWithOwnHistory covers BE-SD7-13: when a
+// document becomes archived or the caller receives a sufficient grant after
+// creating a pending request or receiving a recent decline, a subsequent
+// create returns the uniform 202 result (never 409/429) and leaves request,
+// audit, and outbox rows unchanged.
+func TestDocumentAccessRequestUniformWithOwnHistory(t *testing.T) {
+	f := newAccessRequestFixture(t, "ar13")
+	actor := Human(f.tn.member.ID)
+	sent := DocumentAccessRequestResult{Status: AccessRequestSent}
+
+	assertUnchangedSent := func(t *testing.T, doc db.Document, beforeRows []arRow, beforeAudit, beforeOutbox int) {
+		t.Helper()
+		got, err := f.svc.CreateDocumentAccessRequest(f.ctx, actor, doc.ID, DocumentAccessRequestInput{
+			RequestedLevel: "view", Message: "gửi lại sau khi đổi trạng thái",
+		})
+		if err != nil {
+			t.Fatalf("want uniform sent, got %v", err)
+		}
+		if got != sent {
+			t.Fatalf("result = %+v, want sent", got)
+		}
+		afterRows := f.rows(t, doc.ID)
+		if len(afterRows) != len(beforeRows) {
+			t.Fatalf("rows = %+v, want %+v", afterRows, beforeRows)
+		}
+		for i := range beforeRows {
+			if afterRows[i] != beforeRows[i] {
+				t.Fatalf("row[%d] changed: %+v -> %+v", i, beforeRows[i], afterRows[i])
+			}
+		}
+		if n := len(f.auditMeta(t, doc.ID)); n != beforeAudit {
+			t.Fatalf("audit rows = %d, want %d", n, beforeAudit)
+		}
+		if n := f.countOutbox(t, doc.ID); n != beforeOutbox {
+			t.Fatalf("outbox rows = %d, want %d", n, beforeOutbox)
+		}
+	}
+
+	t.Run("own pending request then archived", func(t *testing.T) {
+		doc := f.restrictedDoc(t)
+		if _, err := f.svc.CreateDocumentAccessRequest(f.ctx, actor, doc.ID, DocumentAccessRequestInput{RequestedLevel: "view"}); err != nil {
+			t.Fatal(err)
+		}
+		beforeRows := f.rows(t, doc.ID)
+		beforeAudit := len(f.auditMeta(t, doc.ID))
+		beforeOutbox := f.countOutbox(t, doc.ID)
+
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = $2, archived_by = $3 WHERE id = $1`, doc.ID, f.now, f.tn.aclOwner.ID); err != nil {
+			t.Fatal(err)
+		}
+		assertUnchangedSent(t, doc, beforeRows, beforeAudit, beforeOutbox)
+	})
+
+	t.Run("own pending request then sufficient grant", func(t *testing.T) {
+		doc := f.restrictedDoc(t)
+		if _, err := f.svc.CreateDocumentAccessRequest(f.ctx, actor, doc.ID, DocumentAccessRequestInput{RequestedLevel: "view"}); err != nil {
+			t.Fatal(err)
+		}
+		beforeRows := f.rows(t, doc.ID)
+		beforeAudit := len(f.auditMeta(t, doc.ID))
+		beforeOutbox := f.countOutbox(t, doc.ID)
+
+		f.share(t, doc, DocumentPrincipalUser, f.tn.member.ID, DocumentLevelView, f.tn.aclOwner.ID)
+		assertUnchangedSent(t, doc, beforeRows, beforeAudit, beforeOutbox)
+	})
+
+	t.Run("recent decline then archived", func(t *testing.T) {
+		doc := f.restrictedDoc(t)
+		f.seedDecided(t, doc, f.tn.member.ID, AccessRequestStatusDeclined, f.now.Add(-10*time.Minute))
+		beforeRows := f.rows(t, doc.ID)
+
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = $2, archived_by = $3 WHERE id = $1`, doc.ID, f.now, f.tn.aclOwner.ID); err != nil {
+			t.Fatal(err)
+		}
+		assertUnchangedSent(t, doc, beforeRows, 0, 0)
+	})
+
+	t.Run("recent decline then sufficient grant", func(t *testing.T) {
+		doc := f.restrictedDoc(t)
+		f.seedDecided(t, doc, f.tn.member.ID, AccessRequestStatusDeclined, f.now.Add(-10*time.Minute))
+		beforeRows := f.rows(t, doc.ID)
+
+		f.share(t, doc, DocumentPrincipalUser, f.tn.member.ID, DocumentLevelEdit, f.tn.aclOwner.ID)
+		assertUnchangedSent(t, doc, beforeRows, 0, 0)
+	})
+}
