@@ -786,6 +786,7 @@ function applyWriteToDoc(doc, name, args, caseDoc) {
               }
               if (rawFormula !== null) {
                 next.f = rawFormula.trim().replace(/^=+/, '');
+                next.v = null;
               } else if (rawVal !== undefined && (typeof rawVal === 'number' || typeof rawVal === 'string' || typeof rawVal === 'boolean')) {
                 // A literal replacement replaces the cell's content, so the previous formula must not survive: without
                 // this, recalcSheet below would evaluate the old formula and a later read would return the pre-write
