@@ -1,10 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDocument,
   createDocumentFile,
   downloadDocumentFile,
+  ensureMyFolder,
   getDocument,
   getDocumentAsset,
   getDocumentDownloadMeta,
@@ -13,9 +14,14 @@ import {
   uploadDocumentFile,
   type CreateDocumentBody,
   type CreateDocumentFileMeta,
+  type DocumentCreateDestination,
   type PatchDocumentBody,
 } from "../api/endpoints/documents";
-import { DocumentNotVerifiableError, type Document } from "../types/document";
+import {
+  DocumentNotVerifiableError,
+  type Document,
+  type DocumentVisibility,
+} from "../types/document";
 import { documentKeys } from "./keys";
 import {
   createDocumentPatchTransport,
@@ -28,11 +34,56 @@ import {
   requireVerifiableDocument,
   requireVerifiableUpload,
 } from "./verify";
+export { useDocumentLimits } from "./limits";
+export { useChunkedDocumentUpload } from "./use-chunked-document-upload";
 
 // TanStack Query owns documents server state. Mutations return null when the
 // response cannot prove the write; the guards in ./verify turn that into
 // "result not verifiable" — the caller keeps its draft and idempotency key,
 // and a malformed answer never reads as saved.
+
+export type CreateDocumentPlacementInput =
+  | { parent_id?: string; parentId?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never };
+
+export type CreateDocumentInput = Omit<CreateDocumentBody, "parent_id" | "destination"> & {
+  idempotencyKey?: string;
+} & CreateDocumentPlacementInput;
+
+type CreateDocumentFileBase = {
+  file: Blob;
+  title?: string;
+  visibility?: DocumentVisibility;
+  idempotencyKey?: string;
+};
+
+// Placement is one choice across the whole input: the top level and `meta`
+// must agree, so a destination never sits beside a parent at either level.
+export type CreateDocumentFileInput =
+  | (CreateDocumentFileBase & {
+      parent_id?: string;
+      parentId?: string;
+      destination?: never;
+      meta?: {
+        title?: string;
+        visibility?: DocumentVisibility;
+        parent_id?: string;
+        parentId?: string;
+        destination?: never;
+      };
+    })
+  | (CreateDocumentFileBase & {
+      destination?: DocumentCreateDestination;
+      parent_id?: never;
+      parentId?: never;
+      meta?: {
+        title?: string;
+        visibility?: DocumentVisibility;
+        destination?: DocumentCreateDestination;
+        parent_id?: never;
+        parentId?: never;
+      };
+    });
 
 export function useDocument(
   wsId: string,
@@ -53,9 +104,14 @@ export function useDocument(
 export function useCreateDocument(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: CreateDocumentBody & { idempotencyKey?: string }) => {
-      const { idempotencyKey, ...rest } = body;
-      return requireVerifiableDocument(await createDocument(wsId, rest, { idempotencyKey }));
+    mutationFn: async (body: CreateDocumentInput) => {
+      const { idempotencyKey, parentId, parent_id, destination, ...rest } = body;
+      const resolvedParentId = parent_id ?? parentId;
+      const payload: CreateDocumentBody =
+        destination !== undefined
+          ? { ...rest, destination }
+          : { ...rest, ...(resolvedParentId !== undefined ? { parent_id: resolvedParentId } : {}) };
+      return requireVerifiableDocument(await createDocument(wsId, payload, { idempotencyKey }));
     },
     onSuccess: (doc) => {
       qc.setQueryData(documentKeys.detail(wsId, doc.id), doc);
@@ -66,15 +122,45 @@ export function useCreateDocument(wsId: string) {
   });
 }
 
+/**
+ * Ensure the caller's personal root folder ("My Folder") exists in this
+ * workspace (MYFOLDER-01). Writes the verified folder into its detail cache
+ * entry and invalidates the workspace root so tree/list pick it up.
+ */
+export function useEnsureMyFolder(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => requireVerifiableDocument(await ensureMyFolder(wsId)),
+    onSuccess: (doc) => {
+      qc.setQueryData(documentKeys.detail(wsId, doc.id), doc);
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
+  });
+}
+
 export function useCreateDocumentFile(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      file: Blob;
-      meta?: CreateDocumentFileMeta;
-      idempotencyKey?: string;
-    }) => {
-      const doc = await createDocumentFile(wsId, input.file, input.meta, {
+    mutationFn: async (input: CreateDocumentFileInput) => {
+      const parent_id = input.meta?.parent_id ?? input.meta?.parentId ?? input.parent_id ?? input.parentId;
+      const destination = input.meta?.destination ?? input.destination;
+      if (destination !== undefined && parent_id !== undefined) {
+        // The types forbid this; refuse it at runtime too rather than drop the parent.
+        throw new Error("createDocumentFile: destination and parent are mutually exclusive");
+      }
+      const title = input.meta?.title ?? input.title;
+      const visibility = input.meta?.visibility ?? input.visibility;
+      const extraMeta = {
+        ...(title !== undefined ? { title } : {}),
+        ...(visibility !== undefined ? { visibility } : {}),
+      };
+      const meta: CreateDocumentFileMeta | undefined =
+        destination !== undefined
+          ? { ...extraMeta, destination }
+          : parent_id !== undefined || Object.keys(extraMeta).length > 0
+            ? { ...extraMeta, ...(parent_id !== undefined ? { parent_id } : {}) }
+            : input.meta;
+      const doc = await createDocumentFile(wsId, input.file, meta, {
         idempotencyKey: input.idempotencyKey,
       });
       const verified = requireVerifiableDocument(doc);
@@ -105,6 +191,11 @@ export function useUpdateDocument(wsId: string, documentId: string) {
       ),
     onSuccess: (doc) => {
       qc.setQueryData(documentKeys.detail(wsId, documentId), doc);
+      // UNI-1851 F2: the share dialog's workspace/restricted switch rides this
+      // hook; a visibility flip adds or drops the row in the caller's Shared
+      // by me list, so refresh its root without waiting for
+      // document.workspace_access_changed.
+      void qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) });
       return doc;
     },
   });
@@ -180,10 +271,21 @@ export function useDocumentDownload(wsId: string, documentId: string) {
  * PATCH transport through patchDocument, the acknowledged document written
  * back into the detail query on every save. The machine is a ref — it must
  * not re-render on every keystroke — so the hook subscribes and hands out the
- * snapshot for useSyncExternalStore.
+ * snapshot for useSyncExternalStore. `editLockId` is the edit lock the editor
+ * holds (UNI-1645); the machine reads the latest one at each send.
  */
-export function useDocumentSave(wsId: string, documentId: string, initialRevision: string) {
+export function useDocumentSave(
+  wsId: string,
+  documentId: string,
+  initialRevision: string,
+  opts?: { editLockId?: string },
+) {
   const qc = useQueryClient();
+  const lockId = opts?.editLockId;
+  const editLockId = useRef(lockId);
+  useEffect(() => {
+    editLockId.current = lockId;
+  }, [lockId]);
   // One machine per document: a revision prop change means the caller
   // re-fetched (fresh mount), not that the live machine should rebase —
   // updateBase handles in-place base moves.
@@ -193,6 +295,7 @@ export function useDocumentSave(wsId: string, documentId: string, initialRevisio
         documentId,
         initialRevision,
         transport: createDocumentPatchTransport(patchDocument),
+        getEditLockId: () => editLockId.current,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [wsId, documentId],
@@ -229,6 +332,7 @@ export function useDocumentSave(wsId: string, documentId: string, initialRevisio
       conflictResolved: (revision: string, acked?: Document | null) =>
         machine.conflictResolved(revision, acked),
       updateBase: (revision: string, acked?: Document | null) => machine.updateBase(revision, acked),
+      lockRestored: () => machine.lockRestored(),
     }),
     [machine, state],
   );

@@ -275,10 +275,14 @@ var catalogue = []EventDef{
 	// Access changes (UNI-676). Workspace scope, ids only: a recipient
 	// outside the workspace learns of a share through "shared with me";
 	// delivery-time filtering goes through DocumentReaderResolver.
-	{Topic: "document.shared", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.shared", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id", "notify_user_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.share_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.break_glass_granted", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.break_glass_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// SH-S1 (UNI-1780): the workspace home row turned on, off or changed
+	// level. Workspace scope, ids only; the client invalidates the document
+	// keys exactly as a document.updated visibility change does.
+	{Topic: "document.workspace_access_changed", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_created", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// Pages (UNI-678): title, icon or visibility changed; ids only, no
@@ -290,6 +294,10 @@ var catalogue = []EventDef{
 	{Topic: "document.moved", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.archived", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.restored", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// ARCHIVE-01 (UNI-1845): the shelved state is the real archive, kept
+	// forever; ids plus the shelve batch, same shape as the trash rows.
+	{Topic: "document.shelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.unshelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Document comments (UNI-681): ids only, workspace scope like the task
@@ -307,6 +315,15 @@ var catalogue = []EventDef{
 	// connections (payload.user_id resolves the user scope) and nobody else.
 	{Topic: "document.favorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "document.unfavorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Edit lock (UNI-1645, addendum §4): ids only, no lock_id or requester id
+	// (clients reread the lock state). lock_changed is every visible state
+	// change except a heartbeat and reaches the workspace; the other three are
+	// addressed to one person - user_id is the previous holder, the holder and
+	// the requester respectively - and resolve the user scope from it.
+	{Topic: "document.lock_changed", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.lock_taken_over", Version: 1, Payload: []string{"document_id", "workspace_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "document.edit_requested", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "document.edit_request_answered", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy

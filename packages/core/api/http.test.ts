@@ -152,6 +152,24 @@ describe("request", () => {
     expect(apiErrorMessage("nope")).toBeUndefined();
   });
 
+  it("leaves the message empty for a body-less failure, so the caller's fallback copy wins", async () => {
+    // A proxy 502/504 carries an HTML body and, over HTTP/2, an empty
+    // statusText. `message` must stay "" so `apiErrorMessage` answers
+    // undefined and the 43 callers of `apiErrorMessage(err) ?? t(fallback)`
+    // keep their localized sentence instead of a raw English "HTTP 502".
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response("<html><body>Bad Gateway</body></html>", {
+        status: 502,
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+    const err = await request("/api/v1/x").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(502);
+    expect((err as ApiError).message).toBe("");
+    expect(apiErrorMessage(err)).toBeUndefined();
+  });
+
   it("hands the caller's abort signal to fetch, so a cancelled query stops its request", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(okJson({ ok: true }));
     const controller = new AbortController();

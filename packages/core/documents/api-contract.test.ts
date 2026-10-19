@@ -63,6 +63,7 @@ const SDI_JSON_SCHEMAS: Record<string, z.ZodType> = {
       title: z.string(),
       kind: z.string().optional(),
       parent_id: z.string().optional(),
+      destination: z.string().optional(),
       icon: z.string().optional(),
       content: z.unknown().optional(),
       visibility: z.string().optional(),
@@ -89,7 +90,7 @@ const SDI_JSON_SCHEMAS: Record<string, z.ZodType> = {
 // form/query samples only name declared wire keys (the Go test reads the
 // formData/query tags reflectively; this list mirrors them).
 const SDI_WIRE_KEYS: Record<string, string[]> = {
-  CreateDocumentFileSDI: ["file", "parent_id", "title"],
+  CreateDocumentFileSDI: ["file", "parent_id", "destination", "title"],
   UploadDocumentFileSDI: ["file"],
   UploadDocumentAssetSDI: ["file"],
   ListDocumentVersionsSDI: ["cursor", "limit"],

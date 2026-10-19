@@ -54,6 +54,33 @@ type ConfigSDO struct {
 	OfficeAPIOrigin            string                          `json:"office_api_origin" description:"Public API origin the desktop app signs in to; empty when not a bare http(s) origin" example:"https://uniworkos.com"`
 	UniChatInstallers          OfficeInstallerChannelsSDO      `json:"unichat_installers" description:"Bản cài UniChat desktop theo kênh, cùng hợp đồng nền tảng với Office; mảng rỗng là chưa phát hành"`
 	UniChatStores              config.UniChatStoreLinks        `json:"unichat_stores" description:"Link store điện thoại của UniChat; chuỗi rỗng là chưa phát hành"`
+	Documents                  DocumentsConfigSDO              `json:"documents" description:"Giới hạn tải lên, lưu và mở tài liệu trên trình duyệt"`
+}
+
+type DocumentsConfigSDO struct {
+	Limits DocumentLimitsSDO `json:"limits" description:"Giới hạn dung lượng tệp tài liệu và ngưỡng cảnh báo mở trên web"`
+}
+
+type DocumentLimitsSDO struct {
+	UploadMaxBytes int64                    `json:"upload_max_bytes" description:"Dung lượng tối đa cho phép khi tải lên hoặc lưu tệp tài liệu (byte)" example:"209715200"`
+	SaveWarnRatio  float64                  `json:"save_warn_ratio" description:"Tỷ lệ cảnh báo sớm so với upload_max_bytes khi lưu trong trình soạn thảo (0..1)" example:"0.9"`
+	WebOpen        DocumentWebOpenLimitsSDO `json:"web_open" description:"Ngưỡng cảnh báo mềm theo định dạng khi mở trực tiếp trên trình duyệt"`
+	// Chunked upload (BIGUP-S1, addendum §6.2): present only when the active
+	// object store supports multipart uploads and presigned URLs. The local
+	// backend has neither, so the field is absent there and the web keeps the
+	// one-request flow.
+	ChunkedUploadThresholdBytes *int64 `json:"chunked_upload_threshold_bytes,omitempty" description:"Ngưỡng để client chuyển sang phiên tải lên nhiều phần (byte); vắng mặt khi backend lưu trữ không hỗ trợ multipart + presign" example:"20971520"`
+}
+
+type DocumentWebOpenLimitsSDO struct {
+	DOCX DocumentFormatOpenLimitSDO `json:"docx" description:"Ngưỡng cảnh báo mở tệp DOCX trên trình duyệt"`
+	PPTX DocumentFormatOpenLimitSDO `json:"pptx" description:"Ngưỡng cảnh báo mở tệp PPTX trên trình duyệt"`
+	PDF  DocumentFormatOpenLimitSDO `json:"pdf" description:"Ngưỡng cảnh báo mở tệp PDF trên trình duyệt"`
+	XLSX DocumentFormatOpenLimitSDO `json:"xlsx" description:"Ngưỡng cảnh báo mở tệp XLSX trên trình duyệt"`
+}
+
+type DocumentFormatOpenLimitSDO struct {
+	WarnBytes int64 `json:"warn_bytes" description:"Dung lượng bắt đầu hiển thị cảnh báo mềm trước khi mở trên web (byte)" example:"31457280"`
 }
 
 type OfficeInstallerURLsSDO struct {

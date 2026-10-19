@@ -42,6 +42,7 @@ const (
 	ReasonOOXMLMissingPart  = "ooxml_missing_part"
 	ReasonODFMimetype       = "odf_mimetype"
 	ReasonODFMissingPart    = "odf_missing_part"
+	ReasonProbeHeadShort    = "probe_head_too_short"
 	ReasonPDFHeader         = "pdf_header"
 	ReasonPDFTrailer        = "pdf_trailer"
 	ReasonOLESignature      = "ole_signature"
@@ -75,15 +76,15 @@ type FileLimits struct {
 	TextScanBytes        int64 // how much of a text file is checked
 }
 
-// DefaultFileLimits fit the 50 MiB document_file cap: a real DOCX/XLSX/PPTX
-// has a few hundred parts and compresses XML at most ~100:1.
+// DefaultFileLimits fit the default 200 MiB document_file cap: a real
+// DOCX/XLSX/PPTX has a few hundred parts and compresses XML at most ~100:1.
 var DefaultFileLimits = FileLimits{
 	MaxEntries:           10000,
 	MaxUncompressedBytes: 512 << 20,
 	MaxEntryRatio:        200,
 	MaxEntryName:         1024,
 	MaxImagePixels:       100_000_000,
-	TextScanBytes:        50 << 20,
+	TextScanBytes:        200 << 20,
 }
 
 // Content types this layer knows how to check (the document_file and
@@ -192,29 +193,41 @@ func validateODT(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, error
 	if err != nil {
 		return FileFacts{}, err
 	}
+	if err := checkODFProbeParts(zr, parts); err != nil {
+		return FileFacts{}, err
+	}
+	return FileFacts{Format: "odt"}, nil
+}
+
+// checkODFProbeParts is the ODF shape both validateODT and the upload probe
+// apply: a `mimetype` entry, stored (never deflated), whose bytes name ODF
+// text, and a content.xml. The probe reads those bytes through its sparse
+// head/central-directory reader, which is safe only because ODF mandates
+// `mimetype` as the first entry - its data sits inside the probed head.
+func checkODFProbeParts(zr *zip.Reader, parts map[string]*zip.File) error {
 	declared, ok := parts["mimetype"]
 	if !ok {
-		return FileFacts{}, refuse(ReasonODFMissingPart, "the mimetype entry is missing")
+		return refuse(ReasonODFMissingPart, "the mimetype entry is missing")
 	}
 	if declared.Method != zip.Store {
-		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry is compressed")
+		return refuse(ReasonODFMimetype, "the mimetype entry is compressed")
 	}
 	rc, err := declared.Open()
 	if err != nil {
-		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
+		return refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
 	}
 	raw, err := io.ReadAll(io.LimitReader(rc, 256))
 	_ = rc.Close()
 	if err != nil {
-		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
+		return refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
 	}
 	if strings.TrimSpace(string(raw)) != mimeODT {
-		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry names %q", string(raw))
+		return refuse(ReasonODFMimetype, "the mimetype entry names %q", string(raw))
 	}
 	if _, ok := parts["content.xml"]; !ok {
-		return FileFacts{}, refuse(ReasonODFMissingPart, "content.xml is missing")
+		return refuse(ReasonODFMissingPart, "content.xml is missing")
 	}
-	return FileFacts{Format: "odt"}, nil
+	return nil
 }
 
 // checkZipParts applies the shared package safety rules (entry bounds, names,
@@ -324,9 +337,9 @@ func validateOLE(r io.ReaderAt, size int64, contentType string) (FileFacts, erro
 	return FileFacts{Format: format}, nil
 }
 
-// validateText reads the whole file (up to TextScanBytes, which covers the
-// 50 MiB cap) in chunks and refuses invalid UTF-8 or NUL bytes: FileService
-// only checks the first 64 KiB (FS-C1 §9.1 known limit).
+// validateText reads the whole file (up to TextScanBytes, which follows the
+// configured document_file cap) in chunks and refuses invalid UTF-8 or NUL
+// bytes: FileService only checks the first 64 KiB (FS-C1 §9.1 known limit).
 func validateText(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, error) {
 	limit := min64(size, limits.TextScanBytes)
 	const chunk = 64 << 10
@@ -440,4 +453,194 @@ func validateWebP(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, erro
 		return FileFacts{}, refuse(ReasonImageDimensions, "%dx%d is outside the allowed pixel count", w, h)
 	}
 	return FileFacts{Format: "image", Width: w, Height: h}, nil
+}
+
+// ExpectedMIMEForExtension maps each document_file extension to its expected
+// content type family for multipart upload session preflight (BIGUP S1-b).
+func ExpectedMIMEForExtension(filename string) (string, bool) {
+	ext := strings.ToLower(path.Ext(strings.TrimSpace(filename)))
+	switch ext {
+	case ".pdf":
+		return mimePDF, true
+	case ".docx":
+		return mimeDOCX, true
+	case ".xlsx":
+		return mimeXLSX, true
+	case ".pptx":
+		return mimePPTX, true
+	case ".odt":
+		return mimeODT, true
+	case ".doc":
+		return mimeDOC, true
+	case ".xls":
+		return mimeXLS, true
+	case ".ppt":
+		return mimePPT, true
+	case ".txt", ".csv", ".json", ".xml", ".yaml", ".yml":
+		return mimeText, true
+	case ".md", ".markdown":
+		return mimeMD, true
+	case ".html", ".htm":
+		return mimeHTML, true
+	case ".css":
+		return mimeCSS, true
+	case ".js", ".mjs":
+		return mimeJS, true
+	case ".svg":
+		return mimeSVG, true
+	case ".png":
+		return mimePNG, true
+	case ".jpg", ".jpeg":
+		return mimeJPEG, true
+	case ".gif":
+		return mimeGIF, true
+	case ".webp":
+		return mimeWebP, true
+	default:
+		return "", false
+	}
+}
+
+// RequiresZipCentralDirectory reports whether the contentType is a zip-based
+// package (OOXML or ODF) whose upload session Open probe must include
+// central_dir_b64.
+func RequiresZipCentralDirectory(contentType string) bool {
+	switch contentType {
+	case mimeDOCX, mimeXLSX, mimePPTX, mimeODT:
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidateUploadProbe checks the Open probe (head + central_dir for OOXML)
+// before a multipart upload is created in S3.
+func ValidateUploadProbe(contentType string, sizeBytes int64, head, centralDir []byte, cdOffset, cdSize int64, limits FileLimits) error {
+	if len(head) == 0 {
+		return refuse(ReasonEmpty, "the probe head is empty")
+	}
+	switch contentType {
+	case mimeDOCX, mimeXLSX, mimePPTX, mimeODT:
+		if len(head) < 4 || !bytes.Equal(head[:4], []byte("PK\x03\x04")) {
+			return refuse(ReasonZipUnreadable, "the file does not start with a ZIP header")
+		}
+		if len(centralDir) == 0 || cdSize <= 0 || int64(len(centralDir)) != cdSize || cdOffset < 0 || cdOffset+cdSize > sizeBytes {
+			return refuse(ReasonZipUnreadable, "the ZIP central directory probe is missing or out of bounds")
+		}
+		zr, err := openZipCentralDirectoryProbe(sizeBytes, head, centralDir, cdOffset)
+		if err != nil {
+			return refuse(ReasonZipUnreadable, "the ZIP central directory cannot be read: %v", err)
+		}
+		parts, err := checkZipParts(zr, limits)
+		if err != nil {
+			return err
+		}
+		if contentType == mimeODT {
+			return checkODFProbeParts(zr, parts)
+		}
+		if _, ok := parts["[content_types].xml"]; !ok {
+			return refuse(ReasonOOXMLMissingPart, "[Content_Types].xml is missing")
+		}
+		main := ooxmlMainPart[contentType]
+		if _, ok := parts[main]; !ok {
+			return refuse(ReasonOOXMLMissingPart, "%s is missing", main)
+		}
+		return nil
+	case mimePDF:
+		if !bytes.HasPrefix(head, []byte("%PDF-1.")) && !bytes.HasPrefix(head, []byte("%PDF-2.")) {
+			return refuse(ReasonPDFHeader, "the file does not start with a PDF header")
+		}
+		return nil
+	case mimeDOC, mimeXLS, mimePPT:
+		_, err := validateOLE(bytes.NewReader(head), int64(len(head)), contentType)
+		return err
+	case mimeText, mimeMD, mimeHTML, mimeCSS, mimeJS, mimeSVG:
+		if bytes.IndexByte(head, 0) >= 0 {
+			return refuse(ReasonTextBinary, "the probe head contains a NUL byte")
+		}
+		if !validUTF8Cut(head, int64(len(head)) < sizeBytes) {
+			return refuse(ReasonTextEncoding, "the probe head is not valid UTF-8")
+		}
+		return nil
+	case mimePNG, mimeJPEG, mimeGIF:
+		_, err := validateImage(bytes.NewReader(head), sizeBytes, limits)
+		return err
+	case mimeWebP:
+		_, err := validateWebP(bytes.NewReader(head), sizeBytes, limits)
+		return err
+	default:
+		return refuse(ReasonUnknownType, "no editor opens %q", contentType)
+	}
+}
+
+func validUTF8Cut(b []byte, truncated bool) bool {
+	if utf8.Valid(b) {
+		return true
+	}
+	if !truncated {
+		return false
+	}
+	for cut := 1; cut < utf8.UTFMax && cut < len(b); cut++ {
+		if utf8.Valid(b[:len(b)-cut]) && !utf8.FullRune(b[len(b)-cut:]) {
+			return true
+		}
+	}
+	return false
+}
+
+type sparseZipProbeReaderAt struct {
+	size       int64
+	head       []byte
+	cdOffset   int64
+	centralDir []byte
+}
+
+func (s *sparseZipProbeReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if off < 0 || off >= s.size {
+		return 0, io.EOF
+	}
+	n := int64(len(p))
+	if off+n > s.size {
+		n = s.size - off
+	}
+	for i := int64(0); i < n; i++ {
+		pos := off + i
+		switch {
+		case pos < int64(len(s.head)):
+			p[i] = s.head[pos]
+		case pos >= s.cdOffset && pos < s.cdOffset+int64(len(s.centralDir)):
+			p[i] = s.centralDir[pos-s.cdOffset]
+		default:
+			p[i] = 0
+		}
+	}
+	if int(n) < len(p) {
+		return int(n), io.EOF
+	}
+	return int(n), nil
+}
+
+func openZipCentralDirectoryProbe(sizeBytes int64, head, centralDir []byte, cdOffset int64) (*zip.Reader, error) {
+	// Place centralDir at the tail [virtualSize-len(centralDir) .. virtualSize)
+	// when cdOffset+len(centralDir) == sizeBytes, or at cdOffset.
+	sr := &sparseZipProbeReaderAt{
+		size:       cdOffset + int64(len(centralDir)),
+		head:       head,
+		cdOffset:   cdOffset,
+		centralDir: centralDir,
+	}
+	if zr, err := zip.NewReader(sr, sr.size); err == nil {
+		return zr, nil
+	}
+	// If the caller built centralDir from a synthetic test ZIP whose EOCD had
+	// a different directoryOffset, patch the EOCD directoryOffset to cdOffset.
+	if cdOffset >= 0 && cdOffset < 0xffffffff && bytes.HasPrefix(centralDir, []byte("PK\x01\x02")) {
+		patched := append([]byte(nil), centralDir...)
+		if eocd := bytes.LastIndex(patched, []byte("PK\x05\x06")); eocd >= 0 && eocd+22 <= len(patched) {
+			binary.LittleEndian.PutUint32(patched[eocd+16:eocd+20], uint32(cdOffset))
+			sr.centralDir = patched
+			return zip.NewReader(sr, sr.size)
+		}
+	}
+	return nil, errors.New("invalid zip central directory")
 }

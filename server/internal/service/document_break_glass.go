@@ -70,9 +70,12 @@ func breakGlassView(ctx context.Context, q *db.Queries, g db.DocumentBreakGlassG
 func (s *DocumentService) GrantDocumentBreakGlass(ctx context.Context, actor Actor, documentID, reason string) (DocumentBreakGlassGrantView, bool, error) {
 	var out DocumentBreakGlassGrantView
 	created := false
-	err := s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	err := s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if doc.OwnerKind.Valid {
 			return errDocumentOwned()
+		}
+		if isMyFolder(doc) {
+			return errMyFolderLocked()
 		}
 		if actor.Kind != audit.KindHuman || !access.AdminScope {
 			return ErrForbidden
@@ -137,7 +140,7 @@ func (s *DocumentService) GrantDocumentBreakGlass(ctx context.Context, actor Act
 // is already revoked or expired answers success and writes nothing; one that
 // is not on this document is not found.
 func (s *DocumentService) RevokeDocumentBreakGlass(ctx context.Context, actor Actor, documentID, grantID string) error {
-	return s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	return s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteAllowed, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		g, err := q.GetDocumentBreakGlassGrant(ctx, db.GetDocumentBreakGlassGrantParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID, ID: grantID,
 		})

@@ -43,9 +43,11 @@ type OfficeEditSDI struct {
 // accepted (md, html, xlsx, docx, pptx, pdf); any other format answers
 // unsupported_operation and stores nothing.
 type CreateBlankDocumentFileSDI struct {
-	Format   string  `json:"format" description:"md, html, xlsx, docx, pptx hoặc pdf; định dạng khác trả unsupported_operation" example:"docx"`
-	Title    string  `json:"title" minLength:"1" description:"Tiêu đề tài liệu, 1-500 ký tự" example:"Ghi chú họp"`
-	ParentID *string `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Format      string  `json:"format" description:"md, html, xlsx, docx, pptx hoặc pdf; định dạng khác trả unsupported_operation" example:"docx"`
+	Title       string  `json:"title" minLength:"1" description:"Tiêu đề tài liệu, 1-500 ký tự" example:"Ghi chú họp"`
+	ParentID    *string `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Destination *string `json:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
+	Visibility  *string `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
 }
 
 // CopyDocumentSDI is POST /api/v1/documents/{documentID}/copies
@@ -58,4 +60,5 @@ type CopyDocumentSDI struct {
 	Title    *string `json:"title" description:"Tiêu đề bản sao; bỏ trống = \"<nguồn> (bản sao)\"" example:"Kế hoạch Q4 (bản sao)"`
 	ParentID *string `json:"parent_id" description:"ULID trang hoặc thư mục cha cho bản sao; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	JobID    *string `json:"job_id" description:"Chấp nhận job convert đã completed của tài liệu này: bản sao là output OOXML kèm provenance; bỏ trống = bản sao cùng định dạng" example:"01J8X4JOB0N1P2Q3R4S5T6U7V8"`
+	UploadID *string `json:"upload_id" description:"ULID bản tải lên đã stage của chính tài liệu này bởi cùng người gọi để tạo phiên bản đầu của bản sao thay vì bản đầu hiện tại; loại trừ lẫn nhau với job_id" example:"01J8X4FIL0N1P2Q3R4S5T6U7V8"`
 }

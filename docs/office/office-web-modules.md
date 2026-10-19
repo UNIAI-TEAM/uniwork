@@ -483,7 +483,29 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, fork main `0d03b185`
+All six modules are pinned to one fork commit, fork main `c9181fac7` (`0.1.0-c9181fa`, UNI-1860,
+replacing `0.1.0-cc35602`, `0.1.0-5a72c13` and the earlier `0.1.0-fa22cd9` and `0.1.0-0d77962` REPIN-1 / UNI-1825 candidates: fork main after
+merging SIZE-F1 and LAG-F1 at `cc35602c8` and the SHEETS-BUFFER-01 fix at `c9181fac7` (Sheets no longer reaches for the Node
+`Buffer` in the browser, so Save after Insert > Pictures works) — document size limits, `size_warning`, `save_blocked`, `doc.download`,
+`lag_detected`, `open_refused` — on top of UXF-FIX `005e54632`, the d3-1 `settleRecord` guard `69e49ad0a`, FD-14 `7299f9619`,
+the G6-09d extractor `5a72c1313`, the DOC-05 lockstep `fa22cd9d9`/`bf4ff7b07`, G6-09 and the OQ-F12 lows). It carries, beyond
+the history below, the SIZE-F1 + LAG-F1 frame protocol and UI events (with `protocolSha256` matching the vendored
+`packages/core/office/docs-frame-{protocol,endpoint,host}.ts`; the protocol is unchanged since `cc35602c8`, the vendored headers
+name `c9181fac7`), the AI model picker that keeps a
+provider with an empty model list (`7888df06c`, the UniWork AI row; the S7-S9 UX floor checks no longer skip), the UXF-01/08/09
+fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-1824) web-frame UX floor fixes (UXF-03 Docs S5
+"Xem khác biệt" in-dialog comparison, UXF-04 `.uw-live` nodes outside `inertSiblings`, UXF-05 `GrayText` text and border on
+`aria-disabled` S5 choices in forced colors, UXF-06 `2px Highlight` border on `.ai-model-item.selected` in forced colors,
+UXF-07 full-width S5 below 768 px, UXF-10 fixed window live nodes created at frame init, and the `ConflictIo.saveCopy` contract
+for UXF-02), the G8-11 Discussion panel web side, the G6-09 AI edit-undo tables, and the DOC-05 comment level,
+`comments.shareView` and `canActOnComment` root author. Built clean (no `-dirty` suffix) with `npm run build:web -- --all` in a
+detached worktree of `c9181fac7` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
+checksum file), published at `web-0.1.0-c9181fa` (`dist-web-0.1.0-c9181fa.tar.gz`, sha256 `b9d81281...42f0`), and
+written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` alongside `source.json`.
+UXF-03/04/05/06/07/10 have their expected-fail markers removed in `e2e/office-ux-floor.spec.ts` (since `0.1.0-5a72c13`, waiting
+for the cloud e2e run to confirm); UXF-02 stays expected-fail until the D web host supplies `ConflictIo.saveCopy`.
+
+The previous pin line, kept for the history of the bundle: fork main `0d03b185`
 (`0.1.0-0d03b18` = `98e1d20` + the UNI-1232 web polish of the six modules
 (round 2 minors and nits, `app.open`, `api.assets.resolve`) + the five fork CI fixes (FX) + the host-save conflict wording and the last web-module polish fixes (FX2, FX3, FX4, an MT test fix) + FX6 (PDF Insert text embeds real TTF fonts, dialog focus, the Docs comments pane starts closed on a narrow viewport) + the GO-A9 app acceptance merge (fork main `42e2c40`, view-only AI composer and the rest of the app acceptance fixes) + the Prettier fix `4c7c9f6`, FX7 (web view-only AI) and the AI setup notices with the muted dark disabled Send token (`d5553a0..8b2e84a`; all six bundles change) + the GO-C4 follow-ups of UNI-1240 (`8b2e84a..fcfcd29`: the AI chip takes its model from the server and saves it there, a viewer's Send stays off without a model, the Sheets size notice, one view-only AI note and the add-a-key link, an unopenable per-account store reported as a failed load; all six bundles change) + the G open-link profile work and Q3 (Slides hide the AI image buttons while image generation is off) and the fork CI fixes (`fcfcd29..0d03b185`: web plugins loaded by file URL so the build runs on Windows, Prettier on the G files; the Docs, PDF, Markdown, HTML, Slides and Sheets bundles are rebuilt); `98e1d20` was `08fafd4` + the FDX Docs and FSH Sheets fixes, the shared frame
 dialog, the AI panel and failed-save wording fixes in PDF, Markdown and HTML
@@ -497,14 +519,16 @@ headers did not change from `36e9e23`, only version, SHA and manifest digest. Wr
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
+Sizes of the bundles, measured at `0.1.0-cc35602` and not re-measured at `0.1.0-c9181fa` (the file counts are unchanged):
+
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
-| `docs` | `docs.pin.json` | 46 | 16.80 MiB | 11.71 MiB | 5.00 MiB | none |
-| `pdf` | `pdf.pin.json` | 229 | 16.33 MiB | 7.76 MiB | 1.83 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
-| `markdown` | `markdown.pin.json` | 90 | 7.96 MiB | 2.57 MiB | 2.87 MiB | none |
-| `html` | `html.pin.json` | 7 | 1.80 MiB | 0.59 MiB | 1.79 MiB | `frame-src 'self'` + `documents[/preview.html]` |
-| `slides` | `slides.pin.json` | 19 | 5.54 MiB | 2.27 MiB | 4.21 MiB | `media-src blob:` |
-| `sheets` | `sheets.pin.json` | 219 | 26.84 MiB | 7.66 MiB | 3.33 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
+| `docs` | `docs.pin.json` | 46 | 17.55 MiB | 11.91 MiB | 5.74 MiB | none |
+| `pdf` | `pdf.pin.json` | 229 | 17.14 MiB | 7.99 MiB | 2.63 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
+| `markdown` | `markdown.pin.json` | 90 | 8.70 MiB | 2.78 MiB | 3.61 MiB | none |
+| `html` | `html.pin.json` | 7 | 2.45 MiB | 0.78 MiB | 2.44 MiB | `frame-src 'self'` + `documents[/preview.html]` |
+| `slides` | `slides.pin.json` | 19 | 6.20 MiB | 2.46 MiB | 4.80 MiB | `media-src blob:` |
+| `sheets` | `sheets.pin.json` | 219 | 27.68 MiB | 7.90 MiB | 4.10 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
 
 The `pdf` bundle grew by 2.6 MiB at `b60d5ff`: it ships 12 real Liberation TTFs
 (about 4.2 MiB, `pdf/<version>/fonts/`, fetched lazily by Insert text, so the initial
@@ -563,7 +587,7 @@ is byte-different on linux-arm64 and linux-x64 from the same inputs, so the fork
 keeps one checksum line per platform
 (`apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256`) and
 `manifestSha256` in `sheets.pin.json` covers the wasm bytes. The pin is therefore
-the **linux-arm64 build made on bro** (wasm sha256 `e56985bc...27cd`, arm64
+the **linux-arm64 build made on bro** (wasm sha256 `bd3873bc...7445` at `c9181fa`, `cc35602` and `5a72c13`, `e56985bc...27cd` up to `0d03b18`; the arm64
 line of the fork file). A tarball built on an x64 machine holds a different Sheets
 wasm, so `office-frame-sync` refuses it against this pin: publish the release
 asset from the bro tarball

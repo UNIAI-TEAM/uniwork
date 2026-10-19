@@ -741,3 +741,47 @@ func TestAIUniworkCreditsExhaustedStopsBeforeGateway(t *testing.T) {
 		t.Fatalf("a spent meter spent a run: %+v", w.runs.takes)
 	}
 }
+
+// FU-G6-03a-BOUND (G6-09 relay): a turn bound to a document (scope.DocumentID != "")
+// does not offer create_document to the model even when the document is editable
+// and the client offers create_document alongside other read and write tools.
+func TestAIUniworkBoundDocumentDoesNotOfferCreateDocument(t *testing.T) {
+	p := answeringProvider()
+	w := newUniworkRunWorld(t, p)
+	ctx := context.Background()
+
+	doc := w.f.doc(t, w.tn, docSpec{
+		ws: w.tn.wsA, visibility: "workspace",
+		aclOwner: w.tn.member.ID, createdBy: w.tn.member.ID,
+	})
+	rawBody, err := json.Marshal(map[string]any{
+		"messages": []any{map[string]any{"role": "user", "content": "tóm tắt tài liệu này"}},
+		"tools": []any{
+			map[string]any{"type": "function", "function": map[string]any{"name": "read_blocks", "description": "read", "parameters": map[string]any{"type": "object"}}},
+			map[string]any{"type": "function", "function": map[string]any{"name": "apply_ops", "description": "edit", "parameters": map[string]any{"type": "object"}}},
+			map[string]any{"type": "function", "function": map[string]any{"name": "create_document", "description": "create", "parameters": map[string]any{"type": "object"}}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scope := UniworkScope{UserID: w.tn.member.ID, OrgID: w.tn.orgID, DocumentID: doc.ID, Module: "docs"}
+	if _, err := w.svc.Chat(ctx, scope, UniworkTurnInput{Body: rawBody}); err != nil {
+		t.Fatalf("bound turn Chat: %v", err)
+	}
+	if p.callCount() != 1 {
+		t.Fatalf("provider calls = %d, want 1", p.callCount())
+	}
+	tools := p.request(0).Tools
+	gotNames := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		gotNames = append(gotNames, tool.Name)
+		if tool.Name == "create_document" {
+			t.Fatalf("bound turn offered create_document to the model: %+v", tools)
+		}
+	}
+	if len(gotNames) != 2 || gotNames[0] != "read_blocks" || gotNames[1] != "apply_ops" {
+		t.Fatalf("bound turn offered tools = %v, want [read_blocks apply_ops]", gotNames)
+	}
+}

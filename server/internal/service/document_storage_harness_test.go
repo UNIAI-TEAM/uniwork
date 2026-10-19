@@ -22,6 +22,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -42,6 +43,8 @@ type docStorageEnv struct {
 	ent   *EntitlementService
 	fake  *filesfake.Fake // fake backend only
 	real  *FileService    // real backends only
+	store *switchStore    // real backends only
+	gcs   *gcStore        // set by newVersionedDocStorageEnv only
 	clock *fileTestClock  // real backends only
 }
 
@@ -95,10 +98,28 @@ func newFakeDocStorageEnv(t *testing.T) *docStorageEnv {
 func newRealDocStorageEnv(t *testing.T, backend fileBackend) *docStorageEnv {
 	t.Helper()
 	base := newFileHarness(t, backend, nil)
-	env := &docStorageEnv{name: backend.name, f: newDocPermFixtureOn(base.pool), clock: base.clock}
+	return newRealDocStorageEnvOn(t, backend, base, base.store)
+}
+
+// newVersionedDocStorageEnv is newRealDocStorageEnv behind the version-aware
+// gcStore: the local adapter can then stand in for a versioned bucket, which
+// is what the failed-upload cleanup cases need (env.gcs records the version
+// of every Delete and reports one from Stat).
+func newVersionedDocStorageEnv(t *testing.T, backend fileBackend) *docStorageEnv {
+	t.Helper()
+	base := newFileHarness(t, backend, nil)
+	gcs := &gcStore{switchStore: base.store}
+	env := newRealDocStorageEnvOn(t, backend, base, gcs)
+	env.gcs = gcs
+	return env
+}
+
+func newRealDocStorageEnvOn(t *testing.T, backend fileBackend, base *fileHarness, store storage.ObjectStore) *docStorageEnv {
+	t.Helper()
+	env := &docStorageEnv{name: backend.name, f: newDocPermFixtureOn(base.pool), store: base.store, clock: base.clock}
 	ent := NewEntitlementService(base.pool, db.New(base.pool))
 	svc, err := NewFileService(FileServiceOptions{
-		Pool: base.pool, Store: base.store, Bucket: backend.bucket, Registry: documentsOpenRegistry(t),
+		Pool: base.pool, Store: store, Bucket: backend.bucket, Registry: documentsOpenRegistry(t),
 		Signer: base.svc.signer, Quota: ent, Clock: base.clock.Now, SpoolDir: t.TempDir(),
 		ReferenceProviders: productionProviders(), GC: FileGCConfig{Mode: FileGCDestructive},
 	})
@@ -206,12 +227,23 @@ func sha(b []byte) string {
 
 func (e *docStorageEnv) createFile(t *testing.T, actor Actor, name string, body []byte) DocumentFileResult {
 	t.Helper()
+	// Explicitly workspace-visible: these fixtures are read and written by
+	// members who are not the ACL owner, and U-SH2's private default is not
+	// what they test.
 	res, err := e.svc.CreateFileDocument(context.Background(), actor, e.tn.wsA, CreateFileDocumentInput{
-		Title: "Báo cáo " + name, Filename: name, Body: bytes.NewReader(body),
+		Title: "Báo cáo " + name, Filename: name, Body: bytes.NewReader(body), Visibility: documentVisibilityWorkspace,
 	})
 	if err != nil {
 		t.Fatalf("create file document %s: %v", name, err)
 	}
+	// U-SH2/Q-S3 leaves a root create that asks for the workspace toggle on
+	// the home row's view default, while these fixtures mean the level a
+	// workspace-visible document carried before SH-S1: every effective
+	// member edits (TestArchivedSaveRecheckInTransaction's edit peer,
+	// TestArchivedDocumentCommitUploadRestore's workspace peer). The row is
+	// re-levelled the way a write command would, with no revision, audit or
+	// event of its own.
+	res.Document = setWorkspaceLevel(t, e.f, res.Document, string(DocumentLevelEdit))
 	return res
 }
 

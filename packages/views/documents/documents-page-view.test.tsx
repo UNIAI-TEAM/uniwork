@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -9,10 +9,13 @@ import {
   StaticProvider,
 } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
+import type { User, Workspace } from "@uniwork/core/types";
 import { defaultStorage } from "@uniwork/core/platform";
-import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import type { OfficeLaunchSessionFactory } from "../office";
+import { WorkspaceProvider } from "../layout/workspace-context";
 import { DocumentsPageView } from "./documents-page-view";
+import { useDocumentsLibrary } from "./use-documents-library";
 
 const { t } = initI18n();
 
@@ -22,10 +25,25 @@ const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
 const FOLDER_SORT_KEY = "uniwork_documents_folder_sort";
 const userFolderSortKey = (userId: string) => `${FOLDER_SORT_KEY}:${userId}`;
 
+const sessionUser = { id: "u1", email: "an@example.com", display_name: "An", locale: "vi" } as User;
+const workspace: Workspace = {
+  id: WS,
+  slug: "doi",
+  name: "Đội",
+  organization_id: "org1",
+  organization_slug: "acme",
+  organization_name: "Acme",
+};
+
 /** The screen is gated by `documents`; the flag has to be on to see anything. */
-function withFlag(ui: React.ReactElement, on: boolean, initialUrl?: string) {
+function withFlag(ui: React.ReactElement, on: boolean, nav = fakeNav()) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: on } }));
-  return wrapWithNav(<FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>, fakeNav(initialUrl));
+  return wrapWithNav(
+    <WorkspaceProvider workspace={workspace} user={sessionUser}>
+      <FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>
+    </WorkspaceProvider>,
+    nav,
+  );
 }
 
 function summary(over: Record<string, unknown> = {}) {
@@ -59,9 +77,11 @@ function renderView(
   const desktopOpen = typeof opts === "boolean" ? undefined : opts.desktopOpen;
   const officeHome = typeof opts === "boolean" ? undefined : opts.officeHome;
   const initialUrl = typeof opts === "boolean" ? undefined : opts.initialUrl;
-  return render(
-    withFlag(<DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} officeHome={officeHome} />, on, initialUrl),
-  );
+  const nav = fakeNav(initialUrl);
+  return {
+    ...render(withFlag(<DocumentsPageView wsId={WS} onOpen={onOpen} desktopOpen={desktopOpen} officeHome={officeHome} />, on, nav)),
+    nav,
+  };
 }
 
 function queryOf(path: string) {
@@ -136,11 +156,11 @@ describe("DocumentsPageView", () => {
     // A missing key renders as the key itself and the screen would read
     // "documents.home.scope.home" in production.
     for (const key of [
-      "documents.home.scope.home",
+      "documents.home.sidebar.home",
       "documents.home.empty.title",
-      "documents.home.greeting.morning_named",
+      "documents.home.quick_create.label",
       "documents.home.default_names.docx",
-      "documents.home.create.upload.card",
+      "documents.home.create.upload.button",
       "documents.home.folders.empty",
       "office.desktop.row_action",
     ]) {
@@ -148,15 +168,19 @@ describe("DocumentsPageView", () => {
     }
   });
 
-  it("lists the rows the server returned and counts them on the tab", async () => {
+  it("lists the rows the server returned and counts them on the documents section, with no module header", async () => {
     route({ list: () => [summary(), summary({ id: "d2", title: "Biên bản họp" })] });
     renderView(vi.fn());
 
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.getByText("Biên bản họp")).toBeInTheDocument();
-    // The tab shows the loaded row count from the server, not a made-up one.
-    const tab = screen.getByRole("tab", { name: new RegExp(t("documents.home.scope.home")) });
-    expect(within(tab).getByText("2")).toBeInTheDocument();
+    // The section heading shows the loaded row count from the server, not a made-up one.
+    expect(
+      screen.getByRole("heading", { level: 2, name: new RegExp(`^${t("documents.home.sections.documents")}`) }),
+    ).toHaveTextContent(/2$/);
+    // The home root has no module header and no scope tabs.
+    expect(screen.queryByRole("heading", { level: 1, name: t("documents.page.title") })).toBeNull();
+    expect(screen.queryByRole("tablist")).toBeNull();
   });
 
   it("shows skeleton rows while the first page loads, never fake rows", () => {
@@ -169,16 +193,16 @@ describe("DocumentsPageView", () => {
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
   });
 
-  it("shows the empty state with the create cards when the library is truly empty", async () => {
+  it("shows the empty state with the Tạo nhanh pills when the library is truly empty", async () => {
     route({ list: () => [] });
     renderView(vi.fn());
 
     expect(await screen.findByText(t("documents.home.empty.title"))).toBeInTheDocument();
-    const cards = screen.getByRole("list", { name: t("documents.home.create.label") });
+    const strip = screen.getByRole("region", { name: t("documents.home.quick_create.label") });
     for (const type of ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"]) {
-      expect(within(cards).getByRole("button", { name: new RegExp(escape(t(`documents.home.create.${type}.card`))) })).toBeInTheDocument();
+      expect(within(strip).getByRole("button", { name: new RegExp(escape(t(`documents.home.create.${type}.chip`))) })).toBeInTheDocument();
     }
-    expect(within(cards).getByRole("button", { name: new RegExp(t("documents.home.create.upload.card")) })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.home.create.upload.button") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) })).toBeInTheDocument();
   });
 
@@ -219,11 +243,14 @@ describe("DocumentsPageView", () => {
     expect(urls.some((url) => queryOf(url).get("cursor") === "c2")).toBe(true);
   });
 
-  it("filters by type chip: pages ask the server, file types keep only their extension", async () => {
+  it("filters by the Loại select on the server: ?format= for file types, ?kind=page for UniNote", async () => {
     const urls: string[] = [];
     route({
       list: (path) => {
         urls.push(path);
+        const format = queryOf(path).get("format");
+        if (format === "docx") return [file("f1", "Báo giá.docx")];
+        if (format) return [];
         if (queryOf(path).get("kind") === "page") return [summary()];
         return [summary(), file("f1", "Báo giá.docx"), file("f2", "Số liệu.xlsx")];
       },
@@ -231,53 +258,78 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.docx") }));
-    expect(screen.getByText("Báo giá.docx")).toBeInTheDocument();
+    await choose(typeSelect(), t("documents.home.chips.docx"));
+    await waitFor(() => expect(urls.some((url) => queryOf(url).get("format") === "docx")).toBe(true));
+    expect(await screen.findByText("Báo giá.docx")).toBeInTheDocument();
     expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.page") }));
+    await choose(typeSelect(), t("documents.home.chips.page"));
     await waitFor(() => expect(urls.some((url) => queryOf(url).get("kind") === "page")).toBe(true));
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
   });
 
   it("shows the filtered empty state when a chip matches nothing, and clears it", async () => {
-    route({ list: () => [summary()] });
+    route({ list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [summary()]) });
     renderView(vi.fn());
     await screen.findByText("Kế hoạch Q4");
 
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.pdf") }));
+    await choose(typeSelect(), t("documents.home.chips.pdf"));
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("documents.library.clear_filters") }));
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
   });
 
-  describe("access filter (UNI-1642)", () => {
-    const accessRows = () => [
+  describe("access filter (UNI-1642, server-side since UNI-1868), on the Recent view where the chips and pills live", () => {
+    // Answers like the server does under the filters: format drops non-matching
+    // files but keeps folders, access drops rows the filter does not cover.
+    const accessRows = [
+      summary({ id: "fo1", kind: "folder", title: "Thư mục chung", my_level: "manage" }),
       summary({ my_level: "manage" }),
       file("f1", "Báo giá.docx", { my_level: "edit" }),
       file("f2", "Số liệu.xlsx", { my_level: "view" }),
       file("f3", "Hợp đồng.docx", { my_level: "manage", visibility: "restricted" }),
     ];
+    const serverFiltered = (path: string) => {
+      const q = queryOf(path);
+      const access = q.get("access");
+      const format = q.get("format");
+      const keepAccess = (row: Record<string, unknown>) => {
+        if (access === "manage") return row.my_level === "manage";
+        if (access === "edit") return row.my_level === "edit" || row.my_level === "manage";
+        if (access === "restricted") return row.visibility === "restricted";
+        return true;
+      };
+      const keepFormat = (row: Record<string, unknown>) => {
+        if (!format) return true;
+        if (row.kind === "folder") return true;
+        return row.kind === "file" && (row.format === format || String(row.title).toLowerCase().endsWith(`.${format}`));
+      };
+      return accessRows.filter((row) => keepAccess(row) && keepFormat(row));
+    };
     const accessGroup = () => screen.getByRole("group", { name: t("documents.home.access_filter_label") });
     const typeGroup = () => screen.getByRole("group", { name: t("documents.home.chips_label") });
     const pressed = (group: HTMLElement, name: string) => within(group).getByRole("button", { name }).getAttribute("aria-pressed");
 
-    it("filters through the real hook, and clear-filters puts every row and both All chips back", async () => {
-      route({ list: accessRows });
+    it("filters through the real hook via ?access=, and clear-filters puts every row and both All chips back", async () => {
+      route({ list: serverFiltered });
       renderView(vi.fn());
+      await openView("recent");
       await screen.findByText("Số liệu.xlsx");
 
       fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.edit") }));
       expect(pressed(accessGroup(), t("documents.home.access_filters.edit"))).toBe("true");
-      expect(screen.getByText("Kế hoạch Q4")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(requestMock.mock.calls.some(([path]) => queryOf(String(path)).get("access") === "edit")).toBe(true),
+      );
+      expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
       expect(screen.getByText("Báo giá.docx")).toBeInTheDocument();
       expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
       expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
 
       fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.restricted") }));
-      expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
+      expect(await screen.findByText("Hợp đồng.docx")).toBeInTheDocument();
       expect(screen.queryByText("Báo giá.docx")).toBeNull();
 
       // Nothing is both restricted and a spreadsheet: the empty state offers the clear action.
@@ -291,43 +343,113 @@ describe("DocumentsPageView", () => {
       expect(pressed(typeGroup(), t("documents.home.chips.all"))).toBe("true");
     });
 
-    it("ANDs a type chip with the access filter, and the empty line names the filters when both are on", async () => {
-      route({ list: accessRows });
+    it("ANDs a type chip with the access filter in the request, and the empty line names the filters when both are on", async () => {
+      route({ list: serverFiltered });
       renderView(vi.fn());
+      await openView("recent");
       await screen.findByText("Số liệu.xlsx");
 
       fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.docx") }));
       fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
-      expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          requestMock.mock.calls.some(([path]) => {
+            const q = queryOf(String(path));
+            return q.get("format") === "docx" && q.get("access") === "manage";
+          }),
+        ).toBe(true),
+      );
+      expect(await screen.findByText("Hợp đồng.docx")).toBeInTheDocument();
+      expect(screen.getByText("Thư mục chung")).toBeInTheDocument();
       expect(screen.queryByText("Báo giá.docx")).toBeNull();
       expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
       expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
 
       fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.xlsx") }));
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.restricted") }));
       expect(await screen.findByText(t("documents.home.no_matches_filters_description"))).toBeInTheDocument();
       expect(screen.queryByText(t("documents.home.no_matches_access_description"))).toBeNull();
     });
 
     it("keeps the access-only empty line when only the access filter is on", async () => {
-      route({ list: () => [summary({ my_level: "view" })] });
+      route({ list: (path) => (queryOf(path).get("access") === "manage" ? [] : [summary({ my_level: "view" })]) });
       renderView(vi.fn());
+      await openView("recent");
       await screen.findByText("Kế hoạch Q4");
 
       fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
       expect(await screen.findByText(t("documents.home.no_matches_access_description"))).toBeInTheDocument();
     });
+    it("never leaks a manage/edit access filter into the trash request (the server 400s it there)", async () => {
+      route({
+        list: (path) =>
+          queryOf(path).get("archived") === "1"
+            ? queryOf(path).get("access") === "restricted"
+              ? [file("tr2", "Đã xoá.docx", { visibility: "restricted", archived_at: "2026-10-10T03:00:00Z" })]
+              : [summary({ id: "tr1", title: "Xoá mềm", archived_at: "2026-10-10T03:00:00Z" })]
+            : [summary()],
+      });
+      renderView(vi.fn());
+      await screen.findByText("Kế hoạch Q4");
+      await openView("recent");
+      await screen.findByText("Kế hoạch Q4");
+
+      // A manage/edit selection from the Recent toolbar must not leak into the
+      // trash request: the server answers it 400 invalid_filter.
+      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
+      await openView("trash");
+      expect(await screen.findByText("Xoá mềm")).toBeInTheDocument();
+      for (const [path] of requestMock.mock.calls) {
+        const q = queryOf(String(path));
+        if (q.get("archived") === "1") {
+          expect(q.get("access") === "manage" || q.get("access") === "edit").toBe(false);
+        }
+      }
+    });
   });
 
-  it("groups by folder by default and by file type on request", async () => {
+  it("groups by folder by default and by file type on request, on the Recent view (home has no grouping)", async () => {
     route({
-      tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
-      list: () => [summary(), file("f1", "Báo giá.docx", { parent_id: "fo1" })],
+      tree: () => [
+        treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" }),
+        treeNode({ id: "fo-empty", title: "Thư mục trống", kind: "folder" }),
+      ],
+      list: () => [
+        summary(),
+        summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }),
+        summary({ id: "fo-empty", kind: "folder", title: "Thư mục trống" }),
+        file("f1", "Báo giá.docx", { parent_id: "fo1" }),
+      ],
     });
     renderView(vi.fn());
     await screen.findByText("Báo giá.docx");
-
     const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((cell) => cell.textContent);
-    await waitFor(() => expect(groupHeaders()).toEqual([`${t("documents.home.groups.unfiled")}1`, "Dự án CCB1"]));
+    // The home table is flat: no group headings.
+    expect(groupHeaders()).toEqual([]);
+    await openView("recent");
+    await screen.findByText("Báo giá.docx");
+    await waitFor(() =>
+      expect(groupHeaders()).toEqual([
+        `${t("documents.home.groups.type.folder")}2`,
+        `${t("documents.home.groups.unfiled")}1`,
+        "Dự án CCB1",
+      ]),
+    );
+    const groupBody = (headerText: string) => {
+      const header = Array.from(document.querySelectorAll("[data-library-group]")).find(
+        (cell) => cell.textContent === headerText,
+      );
+      const tbody = header?.closest("tbody");
+      if (!tbody) throw new Error(`no tbody for group ${headerText}`);
+      return tbody;
+    };
+    const foldersGroup = groupBody(`${t("documents.home.groups.type.folder")}2`);
+    const unfiledGroup = groupBody(`${t("documents.home.groups.unfiled")}1`);
+    expect(within(foldersGroup).getByText("Dự án CCB")).toBeInTheDocument();
+    expect(within(foldersGroup).getByText("Thư mục trống")).toBeInTheDocument();
+    expect(within(unfiledGroup).queryByText("Dự án CCB")).toBeNull();
+    expect(within(unfiledGroup).queryByText("Thư mục trống")).toBeNull();
+    expect(within(unfiledGroup).getByText("Kế hoạch Q4")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("combobox", { name: t("documents.home.group_by.label") }));
     const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.group_by.type"));
@@ -336,7 +458,11 @@ describe("DocumentsPageView", () => {
     fireEvent.click(option);
 
     await waitFor(() =>
-      expect(groupHeaders()).toEqual([`${t("documents.home.groups.type.page")}1`, `${t("documents.home.groups.type.docx")}1`]),
+      expect(groupHeaders()).toEqual([
+        `${t("documents.home.groups.type.page")}1`,
+        `${t("documents.home.groups.type.folder")}2`,
+        `${t("documents.home.groups.type.docx")}1`,
+      ]),
     );
   });
 
@@ -350,12 +476,12 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     await screen.findByText("Kế hoạch Q4");
 
-    fireEvent.click(screen.getByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+    await openView("trash");
 
     expect(await screen.findByText(t("documents.library.permission_title"))).toBeInTheDocument();
   });
 
-  it("loads the recent and shared tabs from their own endpoints", async () => {
+  it("loads the recent and shared views from their own endpoints", async () => {
     route({
       list: (path) => {
         if (path.startsWith(`${LIST_BASE}/recent`)) return [summary({ id: "r1", title: "Mở gần đây" })];
@@ -366,14 +492,93 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     await screen.findByText(t("documents.home.empty.title"));
 
-    fireEvent.click(screen.getByRole("tab", { name: new RegExp(t("documents.home.scope.recent")) }));
+    await openView("recent");
     expect(await screen.findByText("Mở gần đây")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("tab", { name: new RegExp(t("documents.home.scope.shared")) }));
+    await openView("shared");
     expect(await screen.findByText("Được chia sẻ")).toBeInTheDocument();
   });
 
-  it("navigates into a folder from its row, lists its children and renames it on the breadcrumb", async () => {
+  describe("Shared by me view (?view=shared-by-me, UNI-1851)", () => {
+    it("navigates to ?view=shared-by-me from the sidebar, requests shared_by_me=true without parent_id even from a folder, and renders the heading and rows", async () => {
+      const urls: string[] = [];
+      route({
+        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
+        list: (path) => {
+          urls.push(path);
+          const q = queryOf(path);
+          if (q.get("shared_by_me") === "true") {
+            return [summary({ id: "sbm1", title: "Đề xuất ngân sách Q4.docx", kind: "file", via: "owner", visibility: "restricted" })];
+          }
+          return [];
+        },
+      });
+      const { nav } = renderView(vi.fn(), { initialUrl: `/acme/doi/documents?folder=fo1` });
+      await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+
+      await openView("shared_by_me");
+      expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents?view=shared-by-me");
+      expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.shared_by_me") })).toBeInTheDocument();
+      expect(await screen.findByText("Đề xuất ngân sách Q4.docx")).toBeInTheDocument();
+
+      const sbmCalls = urls.filter((u) => queryOf(u).get("shared_by_me") === "true");
+      expect(sbmCalls.length).toBeGreaterThan(0);
+      for (const u of sbmCalls) {
+        expect(queryOf(u).has("parent_id")).toBe(false);
+      }
+    });
+
+    it("parses ?view=shared-by-me on initial load and shows the Shared by me empty state when the list is empty", async () => {
+      route({ list: () => [] });
+      renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
+
+      expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.shared_by_me") })).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: t("documents.home.sidebar.shared_by_me") })[0]).toHaveAttribute("aria-current", "page");
+      expect(await screen.findByText(t("documents.home.empty.shared_by_me_title"))).toBeInTheDocument();
+      expect(screen.getByText(t("documents.home.empty.shared_by_me_description"))).toBeInTheDocument();
+    });
+
+    it("offers Rename, Move and Archive on a shared-by-me row the caller manages", async () => {
+      route({
+        list: (path) =>
+          queryOf(path).get("shared_by_me") === "true"
+            ? [summary({ id: "sbm3", title: "Đề xuất ngân sách Q4.docx", my_level: "manage", via: "owner", visibility: "restricted" })]
+            : [],
+      });
+      renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
+      const row = await rowOf("Đề xuất ngân sách Q4.docx");
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách Q4.docx" }) }));
+      await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+      expect(screen.getByRole("menuitem", { name: t("documents.home.row.rename") })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: t("documents.home.row.archive") })).toBeInTheDocument();
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
+    });
+
+    it("degrades a malformed shared_by_me response to the retryable error state without crashing", async () => {
+      let calls = 0;
+      requestMock.mockImplementation((path: string) => {
+        if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
+        if (path.startsWith(`${LIST_BASE}/sources`)) return Promise.resolve({ items: [], next_cursor: null });
+        if (path.startsWith(LIST_BASE) && queryOf(path).get("shared_by_me") === "true") {
+          calls += 1;
+          return calls === 1
+            ? Promise.resolve({ documents: "not-an-array" })
+            : Promise.resolve({ documents: [summary({ id: "sbm2", title: "Tài liệu đã chia sẻ" })], next_cursor: null });
+        }
+        return Promise.resolve({ documents: [], next_cursor: null });
+      });
+      renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
+
+      expect(await screen.findByText(t("documents.library.error_title"))).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: t("documents.library.retry") }));
+      expect(await screen.findByText("Tài liệu đã chia sẻ")).toBeInTheDocument();
+    });
+  });
+
+  it("navigates into a folder from its card, lists its children and renames it on the breadcrumb", async () => {
     const urls: string[] = [];
     route({
       tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
@@ -388,8 +593,8 @@ describe("DocumentsPageView", () => {
     const onOpen = vi.fn();
     renderView(onOpen);
 
-    const table = await screen.findByRole("table");
-    fireEvent.click(await within(table).findByText("Dự án CCB"));
+    const section = await screen.findByRole("region", { name: sectionName("folders") });
+    fireEvent.click(await within(section).findByRole("button", { name: /^Dự án CCB/ }));
 
     expect(await screen.findByText("Bên trong.docx")).toBeInTheDocument();
     expect(urls.some((url) => queryOf(url).get("parent_id") === "fo1")).toBe(true);
@@ -429,12 +634,12 @@ describe("DocumentsPageView", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("creates a page from its card and opens it", async () => {
+  it("creates a page from its Tạo nhanh pill and opens it", async () => {
     const onOpen = vi.fn();
     route({ list: () => [], post: () => ({ document: summary() }) });
     renderView(onOpen);
 
-    fireEvent.click(await cardButton("page"));
+    fireEvent.click(await pillButton("page"));
 
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("d1"));
     const call = postCall("POST");
@@ -442,12 +647,12 @@ describe("DocumentsPageView", () => {
     expect((call?.[1] as { body?: { title?: string } }).body?.title).toBe(t("documents.page.new_page"));
   });
 
-  it("creates a blank file with its default name from a card, then opens the editor", async () => {
+  it("creates a blank file with its default name from a pill, then opens the editor", async () => {
     const onOpen = vi.fn();
     route({ list: () => [], post: () => ({ document: file("n1", t("documents.home.default_names.docx")) }) });
     renderView(onOpen);
 
-    fireEvent.click(await cardButton("docx"));
+    fireEvent.click(await pillButton("docx"));
 
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("n1"));
     const call = postCall("POST");
@@ -455,6 +660,7 @@ describe("DocumentsPageView", () => {
     expect((call?.[1] as { body?: unknown }).body).toEqual({
       format: "docx",
       title: t("documents.home.default_names.docx"),
+      destination: "my_folder",
     });
   });
 
@@ -481,7 +687,7 @@ describe("DocumentsPageView", () => {
     });
   });
 
-  it("disables a card the server cannot create yet instead of failing the page", async () => {
+  it("disables a pill the server cannot create yet instead of failing the page", async () => {
     route({
       list: () => [],
       post: () => {
@@ -490,7 +696,7 @@ describe("DocumentsPageView", () => {
     });
     renderView(vi.fn());
 
-    const pptx = await cardButton("pptx");
+    const pptx = await pillButton("pptx");
     fireEvent.click(pptx);
 
     await waitFor(() => expect(pptx).toHaveAttribute("aria-disabled", "true"));
@@ -507,7 +713,7 @@ describe("DocumentsPageView", () => {
     fireEvent.click(await screen.findByRole("treeitem", { name: /Dự án CCB/ }));
 
     expect(await screen.findByText(t("documents.home.empty.view_only"))).toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: t("documents.home.create.label") })).toBeNull();
+    expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
     expect(screen.queryByRole("button", { name: new RegExp(t("documents.home.create.menu")) })).toBeNull();
     expect(screen.queryByRole("button", { name: t("documents.home.folders.new") })).toBeNull();
     const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
@@ -545,10 +751,10 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn(), { desktopOpen: desktopOpenWith(createSession) });
 
     const row = await rowOf("Đề xuất ngân sách.pdf");
-    expect(within(row).getAllByText(t("documents.home.origin.chat")).length).toBeGreaterThan(0);
-    expect(within(row).getByText("Dũng")).toBeInTheDocument();
+    // The board has no Source column; the owner name rides the secondary line until its column joins.
+    expect(within(row).getAllByText("Dũng").length).toBeGreaterThan(0);
     expect(within(row).queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
-    expect(within(row).getByRole("button", { name: t("documents.home.row.download") })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) })).toBeInTheDocument();
     // The sidebar names the modules once the sources API answered.
     expect(screen.getByRole("button", { name: t("documents.home.origin.chat") })).toBeInTheDocument();
 
@@ -594,7 +800,7 @@ describe("DocumentsPageView", () => {
     expect(createSession.mock.calls[0]?.[1]).toMatchObject({ operation: "view", deployment_id: "dep-1" });
   });
 
-  it("shows a file's size and whether it was uploaded or created here", async () => {
+  it("shows a file's size in the Dung lượng column", async () => {
     route({
       list: () => [
         summary({ id: "u1", kind: "file", title: "Hợp đồng.pdf", size_bytes: 2048, origin: "upload" }),
@@ -603,10 +809,7 @@ describe("DocumentsPageView", () => {
     });
     renderView(vi.fn());
     const uploaded = await rowOf("Hợp đồng.pdf");
-    expect(within(uploaded).getByText(t("documents.home.origin.upload"))).toBeInTheDocument();
     expect(within(uploaded).getAllByText(/2 KB/).length).toBeGreaterThan(0);
-    const created = await rowOf("Báo cáo.docx");
-    expect(within(created).getByText(t("documents.home.origin.created"))).toBeInTheDocument();
   });
 
   it("moves a row into a folder picked in the dialog, on the revision it reads first", async () => {
@@ -644,8 +847,7 @@ describe("DocumentsPageView", () => {
       },
     });
     renderView(vi.fn());
-    const row = await rowOf("Hợp đồng");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    await openFolderMenu("Hợp đồng");
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("treeitem", { name: "Hợp đồng" })).toHaveAttribute("aria-disabled", "true");
@@ -656,7 +858,10 @@ describe("DocumentsPageView", () => {
   });
 
   it("says archiving a folder takes everything in it", async () => {
-    route({ list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })] });
+    route({
+      tree: () => [treeNode({ id: "f1", title: "Hợp đồng", kind: "folder" })],
+      list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })],
+    });
     const base = requestMock.getMockImplementation()!;
     requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
       path === "/api/v1/documents/f1/archive-impact"
@@ -664,8 +869,7 @@ describe("DocumentsPageView", () => {
         : base(path, opts),
     );
     renderView(vi.fn());
-    const row = await rowOf("Hợp đồng");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    await openFolderMenu("Hợp đồng");
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.delete") }));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(t("documents.archive.delete_title"))).toBeInTheDocument();
@@ -679,12 +883,25 @@ describe("DocumentsPageView", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers no move or archive on the archive and shared tabs", async () => {
-    route({ list: () => [summary()] });
+  it("offers the trash actions, never the live row menu, on the trash view", async () => {
+    route({
+      list: (path) =>
+        queryOf(path).get("archived") === "1"
+          ? [summary({ archived_at: "2026-10-10T03:00:00Z", archived_by: "u2", purge_after: "2026-11-10T03:00:00Z" })]
+          : [summary()],
+    });
     renderView(vi.fn());
-    fireEvent.click(await screen.findByRole("tab", { name: t("documents.home.scope.archived") }));
+    await openView("trash");
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
     const row = await rowOf("Kế hoạch Q4");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
+    expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
+
+    await openView("shared");
+    const sharedRow = await rowOf("Kế hoạch Q4");
+    fireEvent.click(within(sharedRow).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
     await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
     expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
@@ -694,8 +911,8 @@ describe("DocumentsPageView", () => {
     route({
       list: () => [
         summary({ id: "m1", title: "Báo cáo quản lý", my_level: "manage" }),
-        summary({ id: "e1", title: "Chỉnh sửa", my_level: "edit" }),
-        summary({ id: "v1", title: "Chỉ xem", my_level: "view" }),
+        summary({ id: "e1", title: "Tài liệu được sửa", my_level: "edit" }),
+        summary({ id: "v1", title: "Tài liệu chỉ đọc", my_level: "view" }),
         summary({ id: "n1", title: "Chưa rõ", my_level: undefined }),
       ],
     });
@@ -711,8 +928,8 @@ describe("DocumentsPageView", () => {
       return out;
     };
     expect(await menuItems("Báo cáo quản lý")).toEqual({ move: true, archive: true });
-    expect(await menuItems("Chỉnh sửa")).toEqual({ move: true, archive: false });
-    expect(await menuItems("Chỉ xem")).toEqual({ move: false, archive: false });
+    expect(await menuItems("Tài liệu được sửa")).toEqual({ move: true, archive: false });
+    expect(await menuItems("Tài liệu chỉ đọc")).toEqual({ move: false, archive: false });
     // A row the server sent no level for reads as view: nothing it would refuse.
     expect(await menuItems("Chưa rõ")).toEqual({ move: false, archive: false });
   });
@@ -752,13 +969,12 @@ describe("DocumentsPageView", () => {
     expect(postCall("POST")).toBeUndefined();
   });
 
-  it("says a chat file opens Chat, and offers no save for a file the server will not copy", async () => {
+  it("says a chat file says View where attached, and offers no save for a file the server will not copy", async () => {
     route({ list: () => [], sources: () => [source({ can_save: false })] });
     renderView(vi.fn());
     const row = await rowOf("Đề xuất ngân sách.pdf");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách.pdf" }) }));
-    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_chat") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeNull();
+    expect(await screen.findByRole("menuitem", { name: "Xem nơi đính kèm" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.save_to_folder") })).toBeNull();
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
   });
@@ -809,6 +1025,7 @@ describe("DocumentsPageView", () => {
 
   it("explains a folder too large to archive at once", async () => {
     route({
+      tree: () => [treeNode({ id: "f1", title: "Hợp đồng", kind: "folder" })],
       list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })],
       post: () => {
         throw new ApiError("server text", "folder_too_large", 422);
@@ -821,8 +1038,7 @@ describe("DocumentsPageView", () => {
         : base(path, opts),
     );
     renderView(vi.fn());
-    const row = await rowOf("Hợp đồng");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+    await openFolderMenu("Hợp đồng");
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.delete") }));
     const dialog = await screen.findByRole("alertdialog");
     const confirm = within(dialog).getByRole("button", { name: t("documents.archive.delete_confirm") });
@@ -831,12 +1047,12 @@ describe("DocumentsPageView", () => {
     expect(await within(dialog).findByText(t("documents.errors.folder_too_large"))).toBeInTheDocument();
   });
 
-  it("uploads a file from the card and opens the new document", async () => {
+  it("uploads a file from the header button and opens the new document", async () => {
     const onOpen = vi.fn();
     route({ list: () => [], upload: () => ({ document: file("d2", "note.txt") }) });
     renderView(onOpen);
 
-    fireEvent.click(await cardButton("upload"));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
     const input = await screen.findByLabelText(t("documents.upload.pick"));
     fireEvent.change(input, { target: { files: [new File(["hello"], "note.txt", { type: "text/plain" })] } });
     expect(screen.getByTestId("document-upload-selected")).toHaveTextContent("note.txt");
@@ -855,7 +1071,7 @@ describe("DocumentsPageView", () => {
     });
     renderView(vi.fn());
 
-    fireEvent.click(await cardButton("upload"));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
     const input = await screen.findByLabelText(t("documents.upload.pick"));
     fireEvent.change(input, { target: { files: [new File(["hello"], "note.txt", { type: "text/plain" })] } });
     fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
@@ -876,6 +1092,51 @@ describe("DocumentsPageView", () => {
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => path === `${LIST_BASE}/files`)).toBe(true));
   });
 
+  it("refuses a file over upload_max_bytes before sending any upload request", async () => {
+    const uploadSpy = vi.fn();
+    route({ list: () => [], upload: uploadSpy });
+    renderView(vi.fn());
+
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Tối đa 200 MB mỗi tệp.")).toBeInTheDocument();
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    const huge = new File(["x"], "huge.pdf", { type: "application/pdf" });
+    Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });
+    fireEvent.change(input, { target: { files: [huge] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.upload.too_large_named", { name: "huge.pdf", size: "200,1 MB", max: "200 MB" }),
+    );
+    expect(uploadSpy).not.toHaveBeenCalled();
+    expect(requestMock.mock.calls.some(([path]) => path === `${LIST_BASE}/files`)).toBe(false);
+  });
+
+  it("renders {{max}} from error.fields.max_bytes when the server answers 413 file_too_large", async () => {
+    route({
+      list: () => [],
+      upload: () => {
+        throw new ApiError("tệp vượt quá dung lượng cho phép", "file_too_large", 413, undefined, {
+          max_bytes: 50 * 1024 * 1024,
+        });
+      },
+    });
+    renderView(vi.fn());
+
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
+    const input = await screen.findByLabelText(t("documents.upload.pick"));
+    const big = new File(["x"], "report.pdf", { type: "application/pdf" });
+    Object.defineProperty(big, "size", { value: 60 * 1024 * 1024 });
+    fireEvent.change(input, { target: { files: [big] } });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.upload.too_large_named", { name: "report.pdf", size: "60 MB", max: "50 MB" }),
+    );
+  });
+
+
   describe("folder contents list (FD-08)", () => {
     const rowOrder = () =>
       Array.from(document.querySelectorAll("[data-library-row]")).map((tr) =>
@@ -889,14 +1150,24 @@ describe("DocumentsPageView", () => {
       fireEvent.click(option);
     }
 
-    it("keeps folders before documents in both sorts", async () => {
+    it("keeps subfolders out of the rows, as cards above the table, in both sorts", async () => {
       route({
-        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+        tree: () => [
+          treeNode({
+            id: "fo1",
+            title: "Dự án CCB",
+            kind: "folder",
+            children: [
+              treeNode({ id: "fol-old", title: "Zebra", kind: "folder", parent_id: "fo1" }),
+              treeNode({ id: "fol-new", title: "Alpha", kind: "folder", parent_id: "fo1" }),
+            ],
+          }),
+        ],
         detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
         list: (path) =>
           queryOf(path).get("parent_id") === "fo1"
             ? [
-                summary({ id: "doc-new", parent_id: "fo1", kind: "page", title: "An", updated_at: "2026-10-10T00:00:00Z" }),
+                summary({ id: "doc-new", parent_id: "fo1", kind: "page", title: "Zulu", updated_at: "2026-10-10T00:00:00Z" }),
                 summary({ id: "fol-old", parent_id: "fo1", kind: "folder", title: "Zebra", updated_at: "2026-01-01T00:00:00Z" }),
                 file("doc-old", "Báo cáo.docx", { parent_id: "fo1", updated_at: "2026-02-01T00:00:00Z" }),
                 summary({ id: "fol-new", parent_id: "fo1", kind: "folder", title: "Alpha", updated_at: "2026-09-01T00:00:00Z" }),
@@ -905,11 +1176,16 @@ describe("DocumentsPageView", () => {
       });
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
 
-      await screen.findByText("Zebra");
-      expect(rowOrder()).toEqual(["fol-new", "fol-old", "doc-new", "doc-old"]);
+      const subfolders = await screen.findByRole("region", { name: sectionName("subfolders") });
+      await within(subfolders).findByRole("button", { name: /^Zebra/ });
+      expect(within(subfolders).getByRole("button", { name: /^Alpha/ })).toBeInTheDocument();
+      await screen.findByText("Zulu");
+      // Newest update first; the folders are cards, never rows.
+      expect(rowOrder()).toEqual(["doc-new", "doc-old"]);
 
       await selectFolderSort(t("documents.home.sort.name"));
-      await waitFor(() => expect(rowOrder()).toEqual(["fol-new", "fol-old", "doc-new", "doc-old"]));
+      await waitFor(() => expect(rowOrder()).toEqual(["doc-old", "doc-new"]));
+      expect(within(subfolders).getByRole("button", { name: /^Zebra/ })).toBeInTheDocument();
     });
 
     it("sorts by Name using Vietnamese collation ('Ă' after 'A')", async () => {
@@ -970,12 +1246,12 @@ describe("DocumentsPageView", () => {
       await selectFolderSort(t("documents.home.sort.name"));
       await waitFor(() => expect(rowOrder()).toEqual(["a-a", "a-z"]));
 
-      // Go to root so the sort Select unmounts and Group by mounts, then open another folder.
+      // Go to root so the sort Select unmounts and the home filters mount, then open another folder.
       const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
-      fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.page.title") }));
+      fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.home.sidebar.home") }));
       await screen.findByText("Tài liệu gốc");
       expect(screen.queryByRole("combobox", { name: t("documents.home.sort.label") })).toBeNull();
-      expect(screen.getByRole("combobox", { name: t("documents.home.group_by.label") })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeInTheDocument();
 
       setItemSpy.mockClear();
       fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
@@ -1058,19 +1334,18 @@ describe("DocumentsPageView", () => {
       setItemSpy.mockRestore();
     });
 
-    it("loads all pages of an open folder before applying folders-first and sort, and respects the 1000-row cap (F4)", async () => {
+    it("loads all pages of an open folder before applying sort (F4)", async () => {
       const urls: string[] = [];
       route({
         tree: () => [
-          treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" }),
-          treeNode({ id: "fo-cap", title: "Thư mục lớn", kind: "folder" }),
+          treeNode({
+            id: "fo1",
+            title: "Dự án CCB",
+            kind: "folder",
+            children: [treeNode({ id: "fol-p2", title: "Thư mục trang 2", kind: "folder", parent_id: "fo1" })],
+          }),
         ],
-        detail: (id) =>
-          id === "fo1"
-            ? folderDetail({ id: "fo1", title: "Dự án CCB" })
-            : id === "fo-cap"
-              ? folderDetail({ id: "fo-cap", title: "Thư mục lớn" })
-              : null,
+        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
         list: (path) => {
           urls.push(path);
           const pid = queryOf(path).get("parent_id");
@@ -1088,18 +1363,17 @@ describe("DocumentsPageView", () => {
             ];
           }
           if (pid === "fo-cap") {
+            // Under the docx chip the server answers docx files only. Each full
+            // page counts toward the 1000-row cap, but only the one direct child
+            // (page 2's last row) renders: the rest sit in a deeper folder, which
+            // the open folder's direct-children filter drops.
             const batch = cur === "cap2" ? 500 : cur === "cap3" ? 1000 : 0;
+            const format = queryOf(path).get("format");
             return Array.from({ length: 500 }, (_, i) => {
               const n = batch + i + 1;
-              return n === 1000
-                ? file("cap-1000", "Tài liệu 1000.docx", { parent_id: "fo-cap", updated_at: "2026-10-01T00:00:00Z" })
-                : summary({
-                    id: `cap-${n}`,
-                    parent_id: "fo-cap",
-                    kind: "page",
-                    title: `Tài liệu ${n}`,
-                    updated_at: "2026-10-01T00:00:00Z",
-                  });
+              if (n === 1000) return file("cap-1000", "Tài liệu 1000.docx", { parent_id: "fo-cap", updated_at: "2026-10-01T00:00:00Z" });
+              if (format) return file(`deep-${n}`, `Sâu ${n}.docx`, { parent_id: "fo-deep", updated_at: "2026-10-01T00:00:00Z" });
+              return summary({ id: `cap-${n}`, parent_id: "fo-cap", kind: "page", title: `Tài liệu ${n}`, updated_at: "2026-10-01T00:00:00Z" });
             });
           }
           return [];
@@ -1108,27 +1382,60 @@ describe("DocumentsPageView", () => {
           const pid = queryOf(path).get("parent_id");
           const cur = queryOf(path).get("cursor");
           if (pid === "fo1") return cur === "c2" ? null : "c2";
-          if (pid === "fo-cap") return !cur ? "cap2" : cur === "cap2" ? "cap3" : null;
           return null;
         },
       });
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
 
-      // Without clicking Load more, page 2 is auto-loaded and its folder precedes page 1's documents.
-      await screen.findByText("Thư mục trang 2");
-      expect(rowOrder()).toEqual(["fol-p2", "doc-p1-new", "doc-p1-old", "doc-p2"]);
+      // Without clicking Load more, page 2 is auto-loaded: its document joins the rows (newest first)
+      // and its folder is a card, not a row.
+      await screen.findByText("Bình");
+      expect(rowOrder()).toEqual(["doc-p1-new", "doc-p1-old", "doc-p2"]);
       expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull();
+      const subfolders = screen.getByRole("region", { name: sectionName("subfolders") });
+      expect(within(subfolders).getByRole("button", { name: /^Thư mục trang 2/ })).toBeInTheDocument();
 
       await selectFolderSort(t("documents.home.sort.name"));
-      await waitFor(() => expect(rowOrder()).toEqual(["fol-p2", "doc-p1-old", "doc-p2", "doc-p1-new"]));
+      await waitFor(() => expect(rowOrder()).toEqual(["doc-p1-old", "doc-p2", "doc-p1-new"]));
+    });
 
-      // Cap at 1000 rows: auto-loads page 1 (500) + page 2 (500) = 1000, stops before cap3, and keeps "Tải thêm".
-      fireEvent.click(screen.getByRole("button", { name: t("documents.home.chips.docx") }));
-      fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục lớn/ }));
-      await screen.findByText("Tài liệu 1000.docx");
-      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo-cap" && queryOf(u).get("cursor") === "cap2")).toBe(true);
-      expect(urls.some((u) => queryOf(u).get("parent_id") === "fo-cap" && queryOf(u).get("cursor") === "cap3")).toBe(false);
-      expect(screen.getByRole("button", { name: t("documents.library.load_more") })).toBeInTheDocument();
+    // The 1000-row cap lives on the rows useDocumentsLibrary returns; driving it
+    // through the page rendered 1000 rows and needed a 90 s timeout, so the same
+    // assertions run on the hook instead (same route stub, no DOM).
+    it("stops an open folder's auto-paging at the 1000-row cap and keeps load-more working (F4)", async () => {
+      const urls: string[] = [];
+      route({
+        tree: () => [treeNode({ id: "fo-cap", title: "Thư mục lớn", kind: "folder" })],
+        list: (path) => {
+          urls.push(path);
+          const cur = queryOf(path).get("cursor");
+          const batch = cur === "cap2" ? 500 : cur === "cap3" ? 1000 : 0;
+          return Array.from({ length: 500 }, (_, i) => {
+            const n = batch + i + 1;
+            return summary({ id: `cap-${n}`, parent_id: "fo-cap", title: `Tài liệu ${n}`, updated_at: "2026-10-01T00:00:00Z" });
+          });
+        },
+        cursor: (path) => {
+          const cur = queryOf(path).get("cursor");
+          return !cur ? "cap2" : cur === "cap2" ? "cap3" : null;
+        },
+      });
+      const { result } = renderHook(
+        () => useDocumentsLibrary({ wsId: WS, orgId: "org1", enabled: true, view: { kind: "home" }, folderId: "fo-cap", chip: "all" }),
+        { wrapper: (props: { children: React.ReactNode }) => wrap(<>{props.children}</>) },
+      );
+
+      // Auto-pages fetch 500 + 500 = 1000 and stop before cap3.
+      await waitFor(() => expect(result.current.state.rows).toHaveLength(1000));
+      expect(result.current.state.loading).toBe(false);
+      expect(urls.some((u) => queryOf(u).get("cursor") === "cap2")).toBe(true);
+      expect(urls.some((u) => queryOf(u).get("cursor") === "cap3")).toBe(false);
+
+      // The cap does not lock the list: manual load-more still fetches page 3.
+      expect(result.current.state.hasMore).toBe(true);
+      act(() => result.current.state.loadMore());
+      await waitFor(() => expect(result.current.state.rows).toHaveLength(1500));
+      expect(urls.some((u) => queryOf(u).get("cursor") === "cap3")).toBe(true);
     });
 
     it("lists direct children only and excludes grandchildren or root documents", async () => {
@@ -1156,14 +1463,16 @@ describe("DocumentsPageView", () => {
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
 
       const table = await screen.findByRole("table");
-      expect(await within(table).findByText("Con trực tiếp")).toBeInTheDocument();
+      const subfolders = await screen.findByRole("region", { name: sectionName("subfolders") });
+      expect(await within(subfolders).findByRole("button", { name: /^Con trực tiếp/ })).toBeInTheDocument();
+      expect(within(table).queryByText("Con trực tiếp")).toBeNull();
       expect(within(table).getByText("Tài liệu con.docx")).toBeInTheDocument();
       expect(within(table).queryByText("Tài liệu cháu.docx")).toBeNull();
       expect(within(table).queryByText("Tài liệu gốc")).toBeNull();
       expect(urls.some((u) => queryOf(u).get("parent_id") === "fo1")).toBe(true);
     });
 
-    it("keeps the root page unchanged per FD-D9 (no sort control, no Type column, folder grouping kept)", async () => {
+    it("keeps root and folder apart per FD-D9: filters and no sort at root, sort and no filters in a folder, never grouped", async () => {
       route({
         tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
         detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
@@ -1176,15 +1485,20 @@ describe("DocumentsPageView", () => {
       await screen.findByText("Báo giá.docx");
 
       expect(screen.queryByRole("combobox", { name: t("documents.home.sort.label") })).toBeNull();
-      expect(screen.getByRole("combobox", { name: t("documents.home.group_by.label") })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeInTheDocument();
+      expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
       expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
       const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((c) => c.textContent);
-      expect(groupHeaders()).toEqual([`${t("documents.home.groups.unfiled")}1`, "Dự án CCB1"]);
+      // The home table is flat: no "Chưa phân loại" / folder group headings.
+      expect(groupHeaders()).toEqual([]);
 
       fireEvent.click(screen.getByRole("treeitem", { name: /Dự án CCB/ }));
       expect(await screen.findByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
+      expect(screen.queryByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeNull();
       expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
-      expect(await screen.findByRole("columnheader", { name: t("documents.home.columns.type") })).toBeInTheDocument();
+      // Same six board columns inside a folder (F-7): Truy cập, never Loại.
+      expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
+      expect(await screen.findByRole("columnheader", { name: t("documents.home.columns.access") })).toBeInTheDocument();
       expect(groupHeaders()).toEqual([]);
     });
 
@@ -1221,27 +1535,6 @@ describe("DocumentsPageView", () => {
       });
     });
 
-    it("renders the Type column ('Loại') with a localized label per kind in an open folder", async () => {
-      route({
-        tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
-        detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
-        list: (path) =>
-          queryOf(path).get("parent_id") === "fo1"
-            ? [
-                summary({ id: "sub1", parent_id: "fo1", kind: "folder", title: "Thư mục con" }),
-                summary({ id: "p1", parent_id: "fo1", kind: "page", title: "Ghi chú họp" }),
-                file("f1", "Hợp đồng.docx", { parent_id: "fo1" }),
-              ]
-            : [],
-      });
-      renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
-
-      const table = await screen.findByRole("table");
-      expect(within(table).getByRole("columnheader", { name: t("documents.home.columns.type") })).toBeInTheDocument();
-      expect(within(await rowOf("Thư mục con")).getByText(t("documents.file_types.folder"))).toBeInTheDocument();
-      expect(within(await rowOf("Ghi chú họp")).getByText(t("documents.file_types.page"))).toBeInTheDocument();
-      expect(within(await rowOf("Hợp đồng.docx")).getByText(t("documents.file_types.docx"))).toBeInTheDocument();
-    });
 
     it("defaults sort without crashing when platform storage throws", async () => {
       const getSpy = vi.spyOn(defaultStorage, "getItem").mockImplementation(() => {
@@ -1273,7 +1566,7 @@ describe("DocumentsPageView", () => {
       setSpy.mockRestore();
     });
 
-    it("gives every toolbar chip and scope tab a 44x44 coarse-pointer floor while keeping fine-pointer chip sizing (V-F6 / N3)", async () => {
+    it("gives every breadcrumb button and, on the Recent view, every toolbar chip a 44x44 coarse-pointer floor (V-F6 / N3)", async () => {
       route({
         tree: () => [
           treeNode({
@@ -1292,38 +1585,32 @@ describe("DocumentsPageView", () => {
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
       await screen.findByText("Kế hoạch Q4");
 
-      const chipGroup = screen.getByRole("group", { name: t("documents.home.chips_label") });
+      // A folder has no type chips and no scope tabs, only the breadcrumb.
+      expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
+      const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+      for (const btn of within(crumbs).getAllByRole("button")) {
+        expect(btn).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
+      }
+
+      await openView("recent");
+      const chipGroup = await screen.findByRole("group", { name: t("documents.home.chips_label") });
       const chips = within(chipGroup).getAllByRole("button");
       expect(chips.length).toBeGreaterThan(0);
       for (const chip of chips) {
         expect(chip).toHaveClass("h-7", "px-3", "pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
       }
-
-      const tabList = screen.getByRole("tablist", { name: t("documents.home.scope_label") });
-      const tabs = within(tabList).getAllByRole("tab");
-      expect(tabs.length).toBeGreaterThan(0);
-      for (const tab of tabs) {
-        expect(tab).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
-      }
-
-      const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
-      for (const btn of within(crumbs).getAllByRole("button")) {
-        expect(btn).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
-      }
     });
 
-    // overflow-x-auto alone turns overflow-y into auto too; the tab underline
-    // sits below the strip, so the scope tabs grew a stray vertical scrollbar
-    // (UNI-1752). Both strips scroll sideways only, with no visible scrollbar.
-    it("keeps the scope tabs and type chips scrolling sideways only, without a visible scrollbar", async () => {
+    // overflow-x-auto alone turns overflow-y into auto too, which grew a stray
+    // vertical scrollbar (UNI-1752). The scope tabs are gone; the type chips
+    // of the Recent view still scroll sideways only, with no visible scrollbar.
+    it("keeps the type chips scrolling sideways only, without a visible scrollbar", async () => {
       route({ list: () => [summary({ id: "d1", title: "Kế hoạch Q4" })] });
       renderView(vi.fn());
       await screen.findByText("Kế hoạch Q4");
+      await openView("recent");
 
-      const tabList = screen.getByRole("tablist", { name: t("documents.home.scope_label") });
-      expect(tabList).toHaveClass("overflow-x-auto", "overflow-y-hidden", "no-scrollbar");
-
-      const chipGroup = screen.getByRole("group", { name: t("documents.home.chips_label") });
+      const chipGroup = await screen.findByRole("group", { name: t("documents.home.chips_label") });
       expect(chipGroup).toHaveClass("overflow-x-auto", "overflow-y-hidden", "no-scrollbar");
     });
   });
@@ -1423,9 +1710,38 @@ function sourceCalls() {
   return requestMock.mock.calls.filter(([path]) => String(path).startsWith(`${LIST_BASE}/sources`)).length;
 }
 
-async function cardButton(type: string) {
-  const cards = await screen.findByRole("list", { name: t("documents.home.create.label") });
-  return within(cards).getByRole("button", { name: new RegExp(`^${escape(t(`documents.home.create.${type}.card`))}`) });
+/** A pill of the Tạo nhanh strip at the home root. */
+async function pillButton(type: string) {
+  const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
+  return within(strip).getByRole("button", { name: new RegExp(escape(t(`documents.home.create.${type}.chip`))) });
+}
+
+const typeSelect = () => new RegExp(`^${escape(t("documents.home.filters.type"))}`);
+
+/** Opens a Select by its trigger name and commits an option. */
+async function choose(comboboxName: string | RegExp, option: string | RegExp) {
+  fireEvent.click(await screen.findByRole("combobox", { name: comboboxName }));
+  const optionEl = within(await screen.findByRole("listbox")).getByText(option);
+  // Base UI only commits a click that started on the item with a pointer.
+  fireEvent.pointerDown(optionEl);
+  fireEvent.click(optionEl);
+}
+
+/** Switches the view through the sidebar nav (the scope tabs are gone). */
+async function openView(view: "home" | "recent" | "starred" | "shared" | "shared_by_me" | "trash") {
+  const buttons = await screen.findAllByRole("button", { name: t(`documents.home.sidebar.${view}`) });
+  fireEvent.click(buttons[0]!);
+}
+
+/** The section regions are named by their h2, which carries the count ("Thư mục 1"). */
+function sectionName(key: "folders" | "subfolders" | "documents") {
+  return new RegExp(`^${escape(t(`documents.home.sections.${key}`))} [0-9]+$`);
+}
+
+/** Opens the ⋯ menu of a folder card (folders are cards, never table rows). */
+async function openFolderMenu(title: string, regionName: RegExp = sectionName("folders")) {
+  const section = await screen.findByRole("region", { name: regionName });
+  fireEvent.click(await within(section).findByRole("button", { name: t("documents.home.row.menu", { title }) }));
 }
 
 async function rowOf(title: string) {

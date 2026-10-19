@@ -1,10 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { DragEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { useDropUpload } from "./use-drop-upload";
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), loading: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 const { t } = initI18n();
@@ -22,6 +23,8 @@ function pdf(name: string) {
 beforeEach(() => {
   toast.success.mockReset();
   toast.error.mockReset();
+  toast.loading.mockReset().mockImplementation((msg: string) => `toast-${msg}`);
+  toast.dismiss.mockReset();
 });
 
 describe("useDropUpload", () => {
@@ -77,6 +80,37 @@ describe("useDropUpload", () => {
     expect(over.dataTransfer.dropEffect).toBe("copy");
   });
 
+  it("serializes overlapping drops so the second upload starts only after the first settles", async () => {
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const upload = vi.fn(async (file: File) => {
+      order.push(`start:${file.name}`);
+      if (file.name === "a.pdf") await firstGate;
+      order.push(`end:${file.name}`);
+    });
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [pdf("a.pdf")]).event));
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [pdf("b.pdf")]).event));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // B is queued, not started: the chunked hook keeps ONE active upload, so a
+    // second start would overwrite it and the first toast's Cancel would act
+    // on the wrong upload (R2-3).
+    expect(order).toEqual(["start:a.pdf"]);
+
+    releaseFirst();
+    await waitFor(() =>
+      expect(order).toEqual(["start:a.pdf", "end:a.pdf", "start:b.pdf", "end:b.pdf"]),
+    );
+    expect(upload).toHaveBeenCalledTimes(2);
+  });
+
   it("uploads dropped files one after another and reports the count", async () => {
     const order: string[] = [];
     const upload = vi.fn(async (file: File) => {
@@ -127,4 +161,143 @@ describe("useDropUpload", () => {
     expect(upload).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
   });
+
+  it("rejects an oversize file before calling upload while continuing with valid files", async () => {
+    const upload = vi.fn(async () => {});
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+    const huge = pdf("huge.pdf");
+    Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });
+    const ok = pdf("ok.pdf");
+
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [huge, ok]).event));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.home.drop_done", { count: 1 })));
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(upload).toHaveBeenCalledWith(ok);
+    expect(toast.error).toHaveBeenCalledWith(
+      t("documents.upload.too_large_named", { name: "huge.pdf", size: "200,1 MB", max: "200 MB" }),
+    );
+  });
+
+  it("rejects an unsupported file extension before calling upload while continuing with valid files", async () => {
+    const upload = vi.fn(async () => {});
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+    const bad = new File(["x"], "installer.exe", { type: "application/octet-stream" });
+    const ok = pdf("ok.pdf");
+
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [bad, ok]).event));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.home.drop_done", { count: 1 })));
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(upload).toHaveBeenCalledWith(ok);
+    expect(toast.error).toHaveBeenCalledWith(
+      t("documents.upload.unsupported_format", { name: "installer.exe" }),
+    );
+  });
+
+  it("reads error.fields.max_bytes when a server upload rejects with 413 file_too_large", async () => {
+    const upload = vi.fn().mockRejectedValue(
+      new ApiError("too large", "file_too_large", 413, undefined, { max_bytes: 50 * 1024 * 1024 }),
+    );
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+    const big = pdf("big.pdf");
+    Object.defineProperty(big, "size", { value: 60 * 1024 * 1024 });
+
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [big]).event));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        t("documents.upload.too_large_named", { name: "big.pdf", size: "60 MB", max: "50 MB" }),
+      ),
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("shows a waiting toast per file queued behind a running upload, and Cancel drops it (I-1)", async () => {
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const upload = vi.fn(async (file: File) => {
+      if (file.name === "a.pdf") await firstGate;
+    });
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+
+    // The first file of a clear drop starts straight away: no waiting toast.
+    act(() => result.current.zoneProps.onDrop?.(dragEvent(["Files"], [pdf("a.pdf")]).event));
+    expect(toast.loading).not.toHaveBeenCalled();
+
+    // A drop that lands behind the running one announces each file.
+    act(() =>
+      result.current.zoneProps.onDrop?.(
+        dragEvent(["Files"], [pdf("b.pdf"), pdf("c.pdf")]).event,
+      ),
+    );
+    expect(toast.loading).toHaveBeenCalledWith(
+      t("documents.upload.drop_queued", { name: "b.pdf" }),
+      expect.objectContaining({
+        action: expect.objectContaining({ label: t("documents.upload.cancel") }),
+      }),
+    );
+    expect(toast.loading).toHaveBeenCalledWith(
+      t("documents.upload.drop_queued", { name: "c.pdf" }),
+      expect.anything(),
+    );
+
+    // Cancel on b's waiting toast takes it out of the queue entirely.
+    const bOptions: unknown = toast.loading.mock.calls[0]?.[1];
+    if (!bOptions || typeof bOptions !== "object" || !("action" in bOptions)) {
+      throw new Error("b's waiting toast carried no options");
+    }
+    const bAction: unknown = bOptions.action;
+    if (!bAction || typeof bAction !== "object" || !("onClick" in bAction)) {
+      throw new Error("b's waiting toast carried no Cancel action");
+    }
+    const cancelB: unknown = bAction.onClick;
+    if (typeof cancelB !== "function") {
+      throw new Error("b's Cancel action is not callable");
+    }
+    act(() => {
+      void cancelB();
+    });
+
+    releaseFirst();
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
+    expect(upload.mock.calls.map((call) => call[0].name)).toEqual(["a.pdf", "c.pdf"]);
+
+    // Each waiting toast retires when its file's turn comes.
+    await waitFor(() => {
+      expect(toast.dismiss).toHaveBeenCalledWith(
+        `toast-${t("documents.upload.drop_queued", { name: "b.pdf" })}`,
+      );
+      expect(toast.dismiss).toHaveBeenCalledWith(
+        `toast-${t("documents.upload.drop_queued", { name: "c.pdf" })}`,
+      );
+    });
+  });
+
+  it("shows waiting toasts for the files behind the first in one drop", async () => {
+    const upload = vi.fn(async () => undefined);
+    const { result } = renderHook(() => useDropUpload({ enabled: true, upload }));
+
+    act(() =>
+      result.current.zoneProps.onDrop?.(
+        dragEvent(["Files"], [pdf("a.pdf"), pdf("b.pdf"), pdf("c.pdf")]).event,
+      ),
+    );
+
+    expect(toast.loading).toHaveBeenCalledTimes(2);
+    expect(toast.loading).toHaveBeenCalledWith(
+      t("documents.upload.drop_queued", { name: "b.pdf" }),
+      expect.anything(),
+    );
+    expect(toast.loading).toHaveBeenCalledWith(
+      t("documents.upload.drop_queued", { name: "c.pdf" }),
+      expect.anything(),
+    );
+
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(toast.dismiss).toHaveBeenCalledTimes(2));
+  });
 });
+

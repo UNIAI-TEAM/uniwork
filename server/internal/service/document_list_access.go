@@ -16,8 +16,9 @@ import (
 //
 // The legs match resolveLevel for a person or an agent who passed the list's
 // gates: workspace owner/admin manage; the ACL owner manage; a member on a
-// non-restricted document edit (an agent view); and the highest live share
-// that applies (user, the organization, or a workspace the actor is in).
+// non-restricted document the home row's workspace_level (an agent view); and
+// the highest live share that applies (user, the organization, or a workspace
+// the actor is in).
 // The list SQL admits a row through the same legs, so a row it returns
 // always resolves to a level above none - except DOC-05's: a workspace
 // owner/admin sees every restricted row (see_all) but holds AdminScope there,
@@ -108,7 +109,9 @@ func listRowAccess(scope documentListScope, agent bool, doc db.Document, shares 
 	case scope.aclOwner && doc.AclOwnerID.Valid && doc.AclOwnerID.String == scope.actorID:
 		return DocumentAccess{Level: DocumentLevelManage, Via: DocumentViaMember}
 	case scope.memberVisible && doc.Visibility != documentVisibilityRestricted:
-		best = DocumentAccess{Level: DocumentLevelEdit, Via: DocumentViaMember}
+		// The home row's own level (SH-S1): a workspace-visible document
+		// grants workspace_level (view/comment/edit), never a fixed edit.
+		best = DocumentAccess{Level: DocumentLevel(doc.WorkspaceLevel), Via: DocumentViaMember}
 		if agent {
 			best.Level = DocumentLevelView
 		}

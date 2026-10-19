@@ -1,10 +1,11 @@
 "use client";
 
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { Download, Eye, RotateCcwClock, RotateCcw, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage } from "@uniwork/core/api";
+import { heldEditLockId } from "@uniwork/core/documents/edit-lock-registry";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useDocumentDownload } from "@uniwork/core/documents/hooks";
 import {
@@ -12,8 +13,9 @@ import {
   useDocumentVersions,
   useRestoreDocumentVersion,
 } from "@uniwork/core/documents/hooks-versions";
-import type { Document, DocumentVersion } from "@uniwork/core/types/document";
+import { isShelved, type Document, type DocumentVersion } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
+import { useMembers } from "@uniwork/core/workspaces";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -35,7 +37,10 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { documentErrorMessage } from "./document-error-message";
 import { formatFileSize, formatWhen } from "./document-format";
+import { reportWriteRefused } from "./edit-lock-refusal";
+import { VersionAuthor } from "./version-author";
 
 // The editor chunk only arrives when a page version is actually previewed, so
 // opening the sheet never drags TipTap into the route's first load.
@@ -78,11 +83,16 @@ function reasonLabel(
  */
 export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHistorySheetProps) {
   const { t, i18n } = useTranslation();
-  const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
+  // A shelved document keeps its history readable but takes no new or restored version (ARCHIVE-01 §3).
+  const shelved = isShelved(doc);
+  const canEdit = !shelved && (doc.my_level === "edit" || doc.my_level === "manage");
   const versions = useDocumentVersions(wsId, doc.id, { enabled: open });
   const create = useCreateDocumentVersion(wsId, doc.id);
   const restore = useRestoreDocumentVersion(wsId, doc.id);
   const download = useDocumentDownload(wsId, doc.id);
+  // One member lookup for the whole list; its cache is shared with the library.
+  const members = useMembers(open ? wsId : "");
+  const memberById = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
 
   const [label, setLabel] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -91,6 +101,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
   const [restoreTarget, setRestoreTarget] = useState<DocumentVersion | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const restoreKeyRef = useRef<string | null>(null);
+  const restoreKeyLockRef = useRef<string | undefined>(undefined);
   const [downloading, setDownloading] = useState<number | null>(null);
 
   const rows = versions.data?.pages.flatMap((page) => page.versions) ?? [];
@@ -115,7 +126,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
       setLabel("");
       toast.success(t("documents.versions.name_done", { no: version.version }));
     } catch (err) {
-      setCreateError(apiErrorMessage(err) ?? t("documents.versions.name_failed"));
+      setCreateError(documentErrorMessage(err, t, "documents.versions.name_failed"));
     }
   };
 
@@ -128,6 +139,10 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
   const confirmRestore = async () => {
     if (!restoreTarget || restore.isPending) return;
     setRestoreError(null);
+    // The body carries edit_lock_id: a key is only valid for the lock id it was minted under.
+    const lockId = heldEditLockId(doc.id);
+    if (restoreKeyRef.current && restoreKeyLockRef.current !== lockId) restoreKeyRef.current = null;
+    if (!restoreKeyRef.current) restoreKeyLockRef.current = lockId;
     restoreKeyRef.current ??= createSafeId();
     try {
       await restore.mutateAsync({
@@ -136,16 +151,23 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
         // File restores name the base they intend to overwrite; page restores
         // replace the working copy and the server owns the revision.
         baseRevision: doc.kind === "file" ? doc.revision : undefined,
+        // The open editor holds the lock: the server refuses a content write without it (423).
+        editLockId: lockId,
       });
       restoreKeyRef.current = null;
       setRestoreTarget(null);
     } catch (err) {
       const cls = classifyDocumentError(err).cls;
-      if (cls === "conflict") {
+      if (cls === "locked") {
+        // The page ends its hold when this was the lock it holds; the next try is a new write.
+        restoreKeyRef.current = null;
+        reportWriteRefused(doc.id, err instanceof ApiError ? err.fields : undefined, lockId);
+        setRestoreError(apiErrorMessage(err) ?? t("documents.versions.restore_failed"));
+      } else if (cls === "conflict") {
         restoreKeyRef.current = null;
         setRestoreError(t("documents.versions.restore_conflict"));
       } else {
-        setRestoreError(apiErrorMessage(err) ?? t("documents.versions.restore_failed"));
+        setRestoreError(documentErrorMessage(err, t, "documents.versions.restore_failed"));
       }
     }
   };
@@ -220,7 +242,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
             </form>
           ) : (
             <p className="mb-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
-              {t("documents.versions.manage_only")}
+              {t(shelved ? "documents.shelved_doc.write_blocked" : "documents.versions.manage_only")}
             </p>
           )}
 
@@ -265,6 +287,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
                         {version.size_bytes > 0 ? ` · ${formatFileSize(version.size_bytes, i18n.language)}` : ""}
                         {version.created_at ? ` · ${formatWhen(version.created_at, i18n.language)}` : ""}
                       </p>
+                      <VersionAuthor version={version} members={memberById} ready={members.data !== undefined} />
                     </div>
                     <div className="flex shrink-0 items-center gap-0.5">
                       {doc.kind === "page" ? (

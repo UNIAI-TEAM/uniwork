@@ -313,6 +313,40 @@ func TestAccessReportEffectiveLevel(t *testing.T) {
 	})
 }
 
+// TestAccessReportHomeRowReportsItsStoredLevel is BE-SHS1-1: the workspace row
+// of a document's own workspace reports the home row's stored level
+// (documents.workspace_level), and the level filter matches on it, so a view
+// home row is never listed as edit.
+func TestAccessReportHomeRowReportsItsStoredLevel(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "ar10")
+	view := f.arDoc(t, tn, arDocSpec{visibility: "workspace"})
+	comment := f.arDoc(t, tn, arDocSpec{visibility: "workspace"})
+	edit := f.arDoc(t, tn, arDocSpec{visibility: "workspace"})
+	setWorkspaceLevel(t, f, view, "view")
+	setWorkspaceLevel(t, f, comment, "comment")
+
+	page := f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{})
+	arSame(t, "view home row", arRowKeys(arItem(t, page, view.ID)), []string{
+		"workspace|member|workspace|" + tn.wsA + "|view|view|active",
+	})
+	arSame(t, "comment home row", arRowKeys(arItem(t, page, comment.ID)), []string{
+		"workspace|member|workspace|" + tn.wsA + "|comment|comment|active",
+	})
+	arSame(t, "edit home row", arRowKeys(arItem(t, page, edit.ID)), []string{
+		"workspace|member|workspace|" + tn.wsA + "|edit|edit|active",
+	})
+
+	// The level filter follows the row level: a view home row is a view row,
+	// so level=view lists it and level=edit never does.
+	page = f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{Levels: []string{"view"}})
+	arSame(t, "level=view", arIDs(page), []string{view.ID})
+	page = f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{Levels: []string{"comment"}})
+	arSame(t, "level=comment", arIDs(page), []string{comment.ID})
+	page = f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{Levels: []string{"edit"}})
+	arSame(t, "level=edit", arIDs(page), []string{edit.ID})
+}
+
 func TestAccessReportPersonFilter(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "ar7")

@@ -29,27 +29,63 @@ export const documentKeys = {
   // `document.*` realtime invalidation still refreshes all of them; the
   // filter is part of the key so two filtered lists never share an entry.
   list: (wsId: string, filterKey: string = "") =>
-    [...documentKeys.workspace(wsId), "list", filterKey] as const,
+    [...documentKeys.listRoot(wsId), filterKey] as const,
+  // Prefix of every filtered list entry; `document.lock_changed` invalidates
+  // it (rows carry `edit_lock`) without touching detail (UNI-1645).
+  listRoot: (wsId: string) => [...documentKeys.workspace(wsId), "list"] as const,
   // Files from chat/task/meeting/email; under the workspace root so a
   // `document.*` invalidation refreshes the section too.
   sources: (wsId: string, filterKey: string = "") =>
     [...documentKeys.sourcesRoot(wsId), filterKey] as const,
   // Prefix of every filtered sources entry (realtime invalidates this one).
   sourcesRoot: (wsId: string) => [...documentKeys.workspace(wsId), "sources"] as const,
-  recent: (wsId: string) => [...documentKeys.workspace(wsId), "recent"] as const,
-  sharedWithMe: (wsId: string) => [...documentKeys.workspace(wsId), "shared"] as const,
+  // UNI-1868: the format/access chips are part of the key when they are set,
+  // so each filter combination caches separately and switching a chip starts
+  // from page 1. An unfiltered list keeps the key it had - every `document.*`
+  // invalidation hangs off the workspace root either way.
+  recent: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "recent", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "recent"] as const),
+  sharedWithMe: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "shared", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "shared"] as const),
+  sharedByMe: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "shared-by-me", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "shared-by-me"] as const),
+  // ARCHIVE-01 (UNI-1845): the shelved list ("Lưu trữ"), a flat keyset-paged
+  // view of GET .../documents?shelved=true. Under the workspace root like
+  // `recent`/`shared` so `document.*` frames and shelve/unshelve refreshes
+  // reach it; the chip filters join the key when set.
+  shelved: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "shelved", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "shelved"] as const),
   // The folders-only tree appends a segment, so the full tree's key stays
   // its prefix and one tree invalidation refreshes both.
   tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>
     foldersOnly
-      ? ([...documentKeys.workspace(wsId), "tree", root, "folders_only"] as const)
-      : ([...documentKeys.workspace(wsId), "tree", root] as const),
+      ? ([...documentKeys.treeRoot(wsId), root, "folders_only"] as const)
+      : ([...documentKeys.treeRoot(wsId), root] as const),
+  // Prefix of every tree entry (UNI-1645 `document.lock_changed`).
+  treeRoot: (wsId: string) => [...documentKeys.workspace(wsId), "tree"] as const,
+  /**
+   * Who holds the document's edit lock (UNI-1645, R1). Under the workspace
+   * root, so a reconnect refreshes it, but outside `detail`: a lock frame
+   * must never refetch the document an editor has open.
+   */
+  editLock: (wsId: string, documentId: string) =>
+    [...documentKeys.workspace(wsId), "edit-lock", documentId] as const,
   // What archiving a subtree would move (FD-06). Under the workspace root so
   // a `document.moved`/`archived`/`restored` frame refreshes open counts.
   archiveImpact: (wsId: string, documentId: string) =>
     [...documentKeys.workspace(wsId), "archive-impact", documentId] as const,
   shares: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "shares"] as const,
+  shareCandidates: (wsId: string, documentId: string, query: string = "") =>
+    [...documentKeys.detail(wsId, documentId), "share-candidates", query.trim()] as const,
   // Pending access requests (W-DOC07); a child of the detail key like
   // `shares`, so approve/decline invalidate both from one document.
   accessRequests: (wsId: string, documentId: string) =>

@@ -17,7 +17,7 @@ function fileDocument(over: Record<string, unknown> = {}): Document {
     file: { file_id: "f1", version_id: "v2", version: 2, filename: "báo-cáo.pdf", mime_type: "application/pdf", size_bytes: 1024, checksum_sha256: "a".repeat(64) },
     created_at: "2026-09-28T03:00:00Z", updated_at: "2026-09-28T03:00:00Z", ...over,
   });
-  return { ...parsed, kind: "file", visibility: parsed.visibility as Document["visibility"], my_level: parsed.my_level as Document["my_level"], via: parsed.via as Document["via"], owner_kind: parsed.owner_kind as Document["owner_kind"] };
+  return { ...parsed, kind: "file", visibility: parsed.visibility as Document["visibility"], my_level: parsed.my_level as Document["my_level"], via: parsed.via as Document["via"], owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"], };
 }
 
 const orgConfig = (flags: Record<string, boolean>) => requestMock.mockImplementation((path: string) => {

@@ -101,7 +101,8 @@ const (
 	OfficeLeaseRevokeAdmin             = "admin"
 )
 
-// The closed set of blocked-lease reasons (G5-D1 row 17).
+// The closed set of blocked-lease reasons (G5-D1 row 17; ARCHIVE-01 §3 adds
+// shelved for the read-only document state).
 const (
 	officeLeaseBlockedDevice    = "device"
 	officeLeaseBlockedACL       = "acl"
@@ -110,6 +111,7 @@ const (
 	officeLeaseBlockedFlagOff   = "flag_off"
 	officeLeaseBlockedLimit     = "limit"
 	officeLeaseBlockedArchived  = "archived"
+	officeLeaseBlockedShelved   = "shelved"
 	officeLeaseBlockedSignature = "signature"
 )
 
@@ -305,6 +307,12 @@ func (s *OfficeLeaseService) Put(ctx context.Context, actor Actor, in OfficeLeas
 			return OfficeLease{}, officeLeaseBlocked(officeLeaseBlockedArchived, documentArchived())
 		}
 		return OfficeLease{}, officeLeaseBlocked(officeLeaseBlockedACL, ErrNotFound)
+	}
+	// A shelved document is read-only for everyone (ARCHIVE-01 §3): a fresh
+	// grant and a renewal both refuse with document_shelved. The app holds
+	// its downloaded copy to the live row's expiry, like the trash answer.
+	if doc.ShelvedAt.Valid {
+		return OfficeLease{}, officeLeaseBlocked(officeLeaseBlockedShelved, errDocumentShelved())
 	}
 	if !renewing {
 		live, err := q.CountLiveOfficeOfflineLeasesForDevice(ctx, db.CountLiveOfficeOfflineLeasesForDeviceParams{

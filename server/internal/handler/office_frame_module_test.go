@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
-	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -164,23 +163,23 @@ func frameXlsx(t *testing.T, pad int) []byte {
 	return buf.Bytes()
 }
 
-// GO-D3 = C: an xlsx over the Sheets cap never gets a Sheets frame token, so a
-// crafted client cannot open it in the frame; the host shows the too-large notice.
-func TestOfficeFrameSheetsMintRefusesAWorkbookOverTheCap(t *testing.T) {
+// SIZE-S1 (UNI-1859): OfficeFrameSheetsMaxBytes (10 MiB) is gone; an xlsx over
+// 10 MiB opens under the single DOCUMENT_MAX_BYTES ceiling and mints a Sheets
+// frame token (the web host shows a soft warning above 5 MiB).
+func TestOfficeFrameSheetsMintAllowsWorkbooksAboveTenMiB(t *testing.T) {
 	w := newOfficeWorld(t, true)
 	setOfficeFrameFlagFor(t, w.q, "office_sheets_web", w.orgID, true)
+	const tenMiB = 10 * 1024 * 1024
 	small := w.createDocx(t, "small.xlsx", frameXlsx(t, 0))
-	big := w.createDocx(t, "big.xlsx", frameXlsx(t, service.OfficeFrameSheetsMaxBytes+1))
+	big := w.createDocx(t, "big.xlsx", frameXlsx(t, tenMiB+1))
 
-	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+small+"/office/frame-token", w.token, nil)
-	if res.StatusCode != 201 || out["module"] != "sheets" {
-		t.Fatalf("small xlsx mint = %d %v", res.StatusCode, out)
+	for _, id := range []string{small, big} {
+		res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/office/frame-token", w.token, nil)
+		if res.StatusCode != 201 || out["module"] != "sheets" {
+			t.Fatalf("xlsx (%s) mint = %d %v, want 201 sheets", id, res.StatusCode, out)
+		}
 	}
-	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+big+"/office/frame-token", w.token, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 413 || code != "too_large" {
-		t.Fatalf("xlsx over the cap mint = %d %v, want 413 too_large", res.StatusCode, out)
-	}
-	// The cap is checked after the ACL: a non-member still gets the plain 404.
+	// A non-member still gets the plain 404.
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+big+"/office/frame-token", w.outsiderToken(t), nil); res.StatusCode != 404 {
 		t.Fatalf("outsider mint of the big xlsx = %d %v", res.StatusCode, out)
 	}
@@ -222,6 +221,22 @@ func frameModuleFiles(t *testing.T) []struct {
 		{"html", "office_html_web", "page.html", []byte("<!doctype html><html><body><p>hi</p></body></html>\n")},
 		{"slides", "office_slides_web", "deck.pptx", frameZip(t, "[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml", "ppt/slides/slide1.xml")},
 		{"sheets", "office_sheets_web", "book.xlsx", frameXlsx(t, 0)},
+	}
+}
+
+// changedFrameBody returns a second valid file of the module's format whose
+// bytes differ from body.
+func changedFrameBody(t *testing.T, module string, body []byte) []byte {
+	t.Helper()
+	switch module {
+	case "docs":
+		return frameDocx(t, "m-changed")
+	case "slides":
+		return frameZip(t, "[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml", "ppt/slides/slide1.xml", "ppt/slides/slide2.xml")
+	case "sheets":
+		return frameXlsx(t, 8)
+	default:
+		return append(append([]byte{}, body...), []byte("\n")...)
 	}
 }
 
@@ -268,7 +283,9 @@ func TestOfficeFrameViewOnlyTokenCannotWriteInAnyModule(t *testing.T) {
 			}
 
 			ownerToken := w.mintFrameToken(t, documentID)["token"].(string)
-			res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", ownerToken, nil, m.name, m.body, nil)
+			// Different valid bytes: a commit whose bytes match the current
+			// version is a 200 no-op (UNI-1900) and would not move the revision.
+			res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", ownerToken, nil, m.name, changedFrameBody(t, m.module, m.body), nil)
 			if res.StatusCode != 201 {
 				t.Fatalf("owner upload = %d %s", res.StatusCode, raw)
 			}
@@ -333,12 +350,11 @@ func TestOfficeFrameSignedAssetKeepsTheModule(t *testing.T) {
 	}
 }
 
-// The module's flag answers before the size cap: an oversized xlsx in an
-// organization with office_sheets_web off is 403 feature_disabled, not 413.
+// An xlsx in an organization with office_sheets_web off is 403 feature_disabled.
 func TestOfficeFrameMintAnswersTheFlagBeforeTheSizeCap(t *testing.T) {
 	w := newOfficeWorld(t, true)
 	setOfficeFrameFlagFor(t, w.q, "office_sheets_web", w.orgID, false)
-	big := w.createDocx(t, "big.xlsx", frameXlsx(t, service.OfficeFrameSheetsMaxBytes+1))
+	big := w.createDocx(t, "big.xlsx", frameXlsx(t, 10*1024*1024+1))
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+big+"/office/frame-token", w.token, nil)
 	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "feature_disabled" {
 		t.Fatalf("big xlsx mint with the sheets flag off = %d %v, want 403 feature_disabled", res.StatusCode, out)

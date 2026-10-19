@@ -275,7 +275,7 @@ describe("DocumentLockedCard variant=admin", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Báo cáo lương Q4")).toBeInTheDocument();
-    expect(screen.getByText("Hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Riêng tư")).toBeInTheDocument();
     expect(screen.getByText("Chủ sở hữu: Nguyễn Văn A")).toBeInTheDocument();
     expect(screen.getByText("2.0 KB")).toBeInTheDocument();
 

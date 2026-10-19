@@ -98,7 +98,7 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 	filename := convertedFilename(sourceFile.Filename, job.TargetFormat.String)
 
 	var res DocumentFileResult
-	err = s.withDocumentMutation(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
+	err = s.withDocumentMutationOnShelved(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
 		}
@@ -159,6 +159,7 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 			ID: docID, OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
 			ParentID: nullText(in.ParentID), Kind: DocumentKindFile, Title: title,
 			Visibility:     locked.Visibility,
+			WorkspaceLevel: locked.WorkspaceLevel,
 			SearchText:     documentSearchText(title, ""),
 			CurrentVersion: 1, FileVersionID: pgtype.Text{String: versionID, Valid: true},
 			Revision:   1,

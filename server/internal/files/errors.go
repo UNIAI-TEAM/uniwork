@@ -22,6 +22,8 @@ type Error struct {
 	// Msg is an English, operator-facing sentence. It never carries a storage
 	// locator, credential or signed URL.
 	Msg string
+	// MaxBytes is the purpose policy byte ceiling when Code is CodeTooLarge.
+	MaxBytes int64
 	// Err is the underlying cause when one exists (an adapter failure). It is
 	// nil for a contract-level refusal, which is not a wrapped cause.
 	Err error
@@ -102,7 +104,9 @@ func ScopeInvalid(reason string) *Error {
 // TooLarge: the stream passed the purpose policy's byte cap. The cap is
 // measured on the stream, never trusted from Content-Length.
 func TooLarge(limit int64) *Error {
-	return NewError(CodeTooLarge, fmt.Sprintf("file exceeds the %d byte limit for this purpose", limit))
+	err := NewError(CodeTooLarge, fmt.Sprintf("file exceeds the %d byte limit for this purpose", limit))
+	err.MaxBytes = limit
+	return err
 }
 
 // TypeRejected: the type verified from the content is not in the purpose

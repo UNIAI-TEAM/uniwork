@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
@@ -78,7 +78,7 @@ function mount(props: Partial<OfficeDocsFrameProps> = {}, api = fakeApi(), token
       <NavigationProvider value={navigation}>
         <ThemeProvider defaultTheme="light" enableSystem={false}>
           <ThemeFlip />
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={api} {...props} {...extra} />
         </ThemeProvider>
       </NavigationProvider>
     </QueryClientProvider>
@@ -125,7 +125,7 @@ async function boot(frame: ReturnType<typeof fakeFrame>) {
   await waitFor(() => expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull());
 }
 
-afterEach(() => { toastError.mockReset(); toastSuccess.mockReset(); requestMock.mockReset(); });
+afterEach(() => { toastError.mockReset(); toastSuccess.mockReset(); requestMock.mockReset(); vi.mocked(navigation.push).mockReset(); vi.mocked(navigation.replace).mockReset(); vi.mocked(navigation.back).mockReset(); });
 
 describe("OfficeDocsFrame", () => {
   it("serves the pinned build same-origin and hands the token over in init once the frame is ready", async () => {
@@ -381,7 +381,7 @@ describe("OfficeDocsFrame", () => {
     render(
       <QueryClientProvider client={client}>
         <DocsFrameRefusalContext.Provider value={refuse}>
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi()} />
         </DocsFrameRefusalContext.Provider>
       </QueryClientProvider>,
     );
@@ -590,7 +590,7 @@ describe("OfficeDocsFrame", () => {
       <QueryClientProvider client={client}>
         <HeaderActionsSlotProvider>
           <header data-testid="page-header"><HeaderActionsSlot /></header>
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
         </HeaderActionsSlotProvider>
       </QueryClientProvider>,
     );
@@ -633,7 +633,7 @@ describe("OfficeDocsFrame", () => {
       <QueryClientProvider client={client}>
         <HeaderActionsSlotProvider>
           <header data-testid="page-header"><HeaderActionsSlot /></header>
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi({ save })} />
         </HeaderActionsSlotProvider>
       </QueryClientProvider>,
     );
@@ -663,7 +663,7 @@ describe("OfficeDocsFrame", () => {
     render(
       <QueryClientProvider client={client}>
         <OfficeTooLargeProvider value={{ desktopAction: <button type="button">Mở trong UniWork Office</button>, onDownload }}>
-          <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+          <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi()} />
         </OfficeTooLargeProvider>
       </QueryClientProvider>,
     );
@@ -770,7 +770,7 @@ describe("OfficeDocsFrame", () => {
     render(
       <QueryClientProvider client={client}>
         <nav data-testid="chrome">sidebar</nav>
-        <OfficeDocsFrame wsId="ws-1" documentId="doc-1" title="Plan" frameVersion="1.0.0" api={fakeApi()} />
+        <OfficeDocsFrame wsId="ws-1" fileRef={{ kind: "document", id: "doc-1" }} title="Plan" frameVersion="1.0.0" api={fakeApi()} />
       </QueryClientProvider>,
     );
     const frame = fakeFrame();
@@ -784,5 +784,311 @@ describe("OfficeDocsFrame", () => {
     await frame.event("modal", { open: false });
     await waitFor(() => expect(chrome.hasAttribute("inert")).toBe(false));
     expect(chrome.style.filter).toBe("");
+  });
+
+  describe("SIZE-W1b: size_warning chip and save_blocked dialog", () => {
+    const MIB = 1024 * 1024;
+
+    it("grants capabilities.sizeUi: true and passes limits in init and api.open", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      expect(frame.sent("request", "init")[0]?.payload).toMatchObject({
+        capabilities: { sizeUi: true },
+        limits: { max_bytes: 200 * MIB, warn_ratio: 0.9 },
+      });
+      const openId = frame.request("api.open", { fileId: "doc-1" });
+      await waitFor(() => expect(frame.answerTo(openId)?.payload).toBeDefined());
+      expect(frame.answerTo(openId)?.payload).toMatchObject({
+        file: FILE,
+        limits: { max_bytes: 200 * MIB, warn_ratio: 0.9 },
+      });
+    });
+
+    it("shows the size_warning status-bar chip once per document session with formatted {{max}} and {{size}}", async () => {
+      const { rerender } = mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      expect(screen.queryByTestId("office-size-warning-chip")).toBeNull();
+
+      await frame.event("size_warning", { bytes: Math.round(185.46 * MIB), max_bytes: 200 * MIB, warn_ratio: 0.9 });
+      const chip = await screen.findByTestId("office-size-warning-chip");
+      expect(chip).toHaveTextContent("Sắp chạm giới hạn 200 MB (đang 185,4 MB).");
+      // F4: a warning strip (warning tokens + icon) that is still one polite live region.
+      const status = within(chip).getByRole("status");
+      expect(status).toHaveAttribute("aria-live", "polite");
+      expect(status.className).toContain("bg-warning-soft");
+      expect(status.querySelector("svg")).not.toBeNull();
+
+      // A second size_warning in the same document session stays latched to the first chip.
+      await frame.event("size_warning", { bytes: Math.round(195 * MIB), max_bytes: 200 * MIB, warn_ratio: 0.9 });
+      expect(screen.getByTestId("office-size-warning-chip")).toHaveTextContent("Sắp chạm giới hạn 200 MB (đang 185,4 MB).");
+
+      // Switching to another document resets the latch.
+      requestMock.mockImplementation((path: string) =>
+        path === "/api/v1/documents/doc-2/office/frame-token"
+          ? Promise.resolve({ ...minted("tok-doc-2"), document_id: "doc-2" })
+          : Promise.reject(new Error(`unexpected ${path}`)),
+      );
+      rerender({ fileRef: { kind: "document", id: "doc-2" } });
+      await waitFor(() => expect(screen.queryByTestId("office-size-warning-chip")).toBeNull());
+    });
+
+    it("opens the save_blocked dialog without closing or reloading the frame or clearing the draft, and Tải bản của tôi triggers doc.download -> api.download", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      const iframeBefore = screen.getByTestId("office-docs-frame-iframe");
+
+      const clicks: string[] = [];
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+        clicks.push(this.download);
+      });
+      Object.assign(URL, { createObjectURL: vi.fn(() => "blob:my-copy"), revokeObjectURL: vi.fn() });
+
+      await frame.event("save_blocked", { bytes: 205 * MIB, max_bytes: 200 * MIB, reason: "over_max_bytes" });
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("Chưa lưu được lên UniWork");
+      expect(dialog).toHaveTextContent(
+        "Tài liệu đã vượt 200 MB. Thay đổi của bạn vẫn ở đây. Tải bản của bạn về máy rồi giảm dung lượng ảnh hoặc chia nhỏ tài liệu.",
+      );
+      const downloadButton = screen.getByRole("button", { name: "Tải bản của tôi" });
+      await waitFor(() => expect(downloadButton).toHaveFocus());
+
+      // Frame stays ready, same iframe instance, draft stays dirty.
+      const container = document.querySelector("[data-office-docs-frame]")!;
+      expect(container).toHaveAttribute("data-state", "ready");
+      expect(container).toHaveAttribute("data-dirty", "true");
+      expect(screen.getByTestId("office-docs-frame-iframe")).toBe(iframeBefore);
+
+      // Clicking "Tải bản của tôi" sends doc.download to the frame; a second click while pending is ignored.
+      fireEvent.click(downloadButton);
+      fireEvent.click(downloadButton);
+      await waitFor(() => expect(frame.sent("request", "doc.download")).toHaveLength(1));
+      const dlReq = frame.sent("request", "doc.download")[0]!;
+      expect(dlReq.payload).toEqual({});
+
+      const apiDlId = frame.request("api.download", { data: new ArrayBuffer(16) });
+      await frame.respond(dlReq, { delivered: true });
+      await waitFor(() => expect(frame.answerTo(apiDlId)?.payload).toEqual({ delivered: true }));
+      expect(clicks).toEqual(["Plan (bản của tôi).docx"]);
+
+      // While the dialog fades out on dismiss, its body keeps the last non-null max (R1-6).
+      let finishFade!: () => void;
+      const fadePromise = new Promise<void>((r) => { finishFade = r; });
+      let fading = true;
+      Element.prototype.getAnimations = () => (fading ? [{ finished: fadePromise } as unknown as Animation] : []);
+      try {
+        fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+        expect(document.getElementById("office-save-blocked-description")).toHaveTextContent("Tài liệu đã vượt 200 MB.");
+        fading = false;
+        await act(async () => { finishFade(); });
+        await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      } finally {
+        delete (Element.prototype as Partial<Element>).getAnimations;
+      }
+      expect(container).toHaveAttribute("data-state", "ready");
+      expect(container).toHaveAttribute("data-dirty", "true");
+      expect(screen.getByTestId("office-docs-frame-iframe")).toBe(iframeBefore);
+    });
+
+    it("opens the same save_blocked dialog with {{max}} from fields.max_bytes when api.save or api.saveAs returns 413 file_too_large, falling back to upload_max_bytes when fields.max_bytes is absent", async () => {
+      let saveAttempt = 0;
+      const save = vi.fn(async () => {
+        saveAttempt += 1;
+        if (saveAttempt === 1) {
+          throw new ApiError("file exceeds limit", "file_too_large", 413, undefined, { max_bytes: 150 * MIB });
+        }
+        throw new ApiError("file exceeds limit without fields", "file_too_large", 413);
+      });
+      const saveAs = vi.fn(async () => {
+        throw new ApiError("copy exceeds limit", "file_too_large", 413, undefined, { max_bytes: 120 * MIB });
+      });
+      mount({}, fakeApi({ save, saveAs }));
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+
+      const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(8), etag: "e1" });
+      await waitFor(() => expect(frame.answerTo(saveId)?.error?.code).toBe("too_large"));
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent("Chưa lưu được lên UniWork");
+      expect(dialog).toHaveTextContent("Tài liệu đã vượt 150 MB.");
+      expect(toastError).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+      // Fallback to configured upload_max_bytes (200 MB) when error carries no fields.max_bytes (R1-7).
+      const saveFallbackId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(8), etag: "e1" });
+      await waitFor(() => expect(frame.answerTo(saveFallbackId)?.error?.code).toBe("too_large"));
+      const fallbackDialog = await screen.findByRole("dialog");
+      expect(fallbackDialog).toHaveTextContent("Tài liệu đã vượt 200 MB.");
+      expect(toastError).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+      const saveAsId = frame.request("api.saveAs", { name: "Copy.docx", data: new ArrayBuffer(8) });
+      await waitFor(() => expect(frame.answerTo(saveAsId)?.error?.code).toBe("too_large"));
+      const dialog2 = await screen.findByRole("dialog");
+      expect(dialog2).toHaveTextContent("Tài liệu đã vượt 120 MB.");
+      expect(toastError).not.toHaveBeenCalled();
+    });
+
+    it("F6: a size-blocked save does not also flag the header with the generic failure state", async () => {
+      const save = vi.fn(async () => {
+        throw new ApiError("file exceeds limit", "file_too_large", 413, undefined, { max_bytes: 150 * MIB });
+      });
+      mount({}, fakeApi({ save }));
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+
+      const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(8), etag: "e1" });
+      await waitFor(() => expect(frame.answerTo(saveId)?.error?.code).toBe("too_large"));
+      await screen.findByRole("dialog");
+      // The dialog explains the refusal; the edits are simply still unsaved.
+      expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-save-state", "dirty");
+    });
+
+    it("F1: closing the save_blocked dialog leaves focus in the frame, not on the page control that had it", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      spyFrameFocus();
+      const pageButton = screen.getByRole("button", { name: "flip" });
+      pageButton.focus();
+
+      await frame.event("save_blocked", { bytes: 205 * MIB, max_bytes: 200 * MIB, reason: "over_max_bytes" });
+      await screen.findByRole("dialog");
+      fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("office-docs-frame-iframe")));
+      expect(document.activeElement).not.toBe(pageButton);
+    });
+
+    it("opens the save_blocked dialog with {{max}} when leave -> Save fails with 413, and Close returns focus sensibly (R1-7)", async () => {
+      mount();
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      const { focusWindow } = spyFrameFocus();
+
+      const leaving = leaveGuardAllows("/elsewhere");
+      fireEvent.click(await screen.findByRole("button", { name: "Lưu lên UniWork" }));
+      await waitFor(() => expect(frame.sent("request", "save")).toHaveLength(1));
+      const saveReq = frame.sent("request", "save")[0]!;
+      expect(saveReq.payload).toEqual({ reason: "navigate" });
+
+      await frame.respond(saveReq, {
+        ok: false,
+        error: { code: "too_large", message: "file exceeds limit", status: 413, details: { apiCode: "file_too_large", max_bytes: 160 * MIB } },
+      });
+
+      const blockedDialog = await screen.findByRole("dialog", { name: "Chưa lưu được lên UniWork" });
+      expect(blockedDialog).toHaveTextContent("Tài liệu đã vượt 160 MB.");
+      expect(toastError).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Chưa lưu được lên UniWork" })).toBeNull());
+      await waitFor(() => expect(focusWindow).toHaveBeenCalled());
+
+      // The leave dialog remains open so the user can stay on the page.
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+      await expect(leaving).resolves.toBe(false);
+    });
+  });
+
+  describe("close_requested from the frame (UNI-1876, UNI-1901)", () => {
+    it("leaves a clean document view (editor or read-only viewer) on close_requested and leaves again when the first push kept it mounted", async () => {
+      mount({ libraryHref: "/acme/ops/documents", readonly: true });
+      const frame = fakeFrame();
+      await boot(frame);
+
+      await frame.event("close_requested", { reason: "escape" });
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(1));
+      expect(navigation.push).toHaveBeenCalledWith("/acme/ops/documents");
+
+      // A push that did not unmount the frame (same href, an adapter that refused): the next
+      // Esc is not swallowed, it leaves again.
+      await frame.event("close_requested", { reason: "escape" });
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(2));
+    });
+
+    it("runs the existing leave guard (showing the leave dialog) when dirty, ignores a second event while the leave dialog is open, and allows another close after Stay", async () => {
+      mount({ libraryHref: "/acme/ops/documents" });
+      const frame = fakeFrame();
+      await boot(frame);
+      await frame.event("dirty", { dirty: true });
+      spyFrameFocus();
+
+      await frame.event("close_requested", { reason: "escape" });
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      expect(navigation.push).not.toHaveBeenCalled();
+
+      // While the leave dialog sits on top, another close_requested is ignored (does not reset or dismiss the pending leave).
+      await frame.event("close_requested", { reason: "escape" });
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(navigation.push).not.toHaveBeenCalled();
+
+      // Choosing Stay closes the dialog without navigating; a subsequent close_requested opens it again, and Discard navigates.
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(navigation.push).not.toHaveBeenCalled();
+
+      await frame.event("close_requested", { reason: "escape" });
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Bỏ thay đổi" }));
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(1));
+      expect(navigation.push).toHaveBeenCalledWith("/acme/ops/documents");
+
+      // A push that left the frame mounted does not latch the leave: another close_requested
+      // runs the guard again, so the still-dirty document shows the leave dialog once more.
+      await frame.event("close_requested", { reason: "escape" });
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Ở lại" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(navigation.push).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores close_requested while a save is in flight, while the frame modal is open, or while another host dialog sits on top", async () => {
+      let finishSave!: (v: { ok: true; file: typeof FILE; versionId: string }) => void;
+      const save = vi.fn(() => ({ then: (onFulfilled: (v: { ok: true; file: typeof FILE; versionId: string }) => void) => { finishSave = onFulfilled; } } as unknown as Promise<{ ok: true; file: typeof FILE; versionId: string }>));
+      mount({ libraryHref: "/acme/ops/documents" }, fakeApi({ save }));
+      const frame = fakeFrame();
+      await boot(frame);
+
+      // Mid-save: ignored.
+      const saveId = frame.request("api.save", { fileId: "doc-1", data: new ArrayBuffer(4), etag: "e1" });
+      await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-save-state", "saving"));
+      await frame.event("close_requested", { reason: "escape" });
+      expect(navigation.push).not.toHaveBeenCalled();
+      await act(async () => { finishSave({ ok: true, file: FILE, versionId: "v2" }); });
+      await waitFor(() => expect(frame.answerTo(saveId)?.payload).toMatchObject({ ok: true }));
+
+      // Frame modal open: ignored.
+      await frame.event("modal", { open: true });
+      await frame.event("close_requested", { reason: "escape" });
+      expect(navigation.push).not.toHaveBeenCalled();
+      await frame.event("modal", { open: false });
+
+      // Host dialog open (e.g. save_blocked or another dialog in the page): ignored.
+      const hostDialog = document.createElement("div");
+      hostDialog.setAttribute("role", "dialog");
+      document.body.append(hostDialog);
+      try {
+        await frame.event("close_requested", { reason: "escape" });
+        expect(navigation.push).not.toHaveBeenCalled();
+      } finally {
+        hostDialog.remove();
+      }
+
+      // With no dialog and no save in flight, close_requested leaves.
+      await frame.event("close_requested", { reason: "escape" });
+      await waitFor(() => expect(navigation.push).toHaveBeenCalledTimes(1));
+    });
   });
 });

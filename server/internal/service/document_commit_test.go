@@ -168,10 +168,15 @@ func TestDocumentCommit(t *testing.T) {
 			mustf(t, err, "first commit")
 			_, err = env.commit(member, two.Document.ID, up.UploadID, two.Document.Revision, util.NewID())
 			wantCode(t, err, "upload_already_committed")
-			// The same document too: a new key is a new command.
+			// The same document with a new key: the bytes already are the
+			// current version, so UNI-1900 answers 200 with that version
+			// instead of upload_already_committed.
 			d := env.doc(t, one.Document.ID)
-			_, err = env.commit(member, one.Document.ID, up.UploadID, d.Revision, util.NewID())
-			wantCode(t, err, "upload_already_committed")
+			again, err := env.commit(member, one.Document.ID, up.UploadID, d.Revision, util.NewID())
+			mustf(t, err, "re-commit of the current bytes")
+			if again.Document.FileVersionID.String != d.FileVersionID.String || again.Document.Revision != d.Revision {
+				t.Fatalf("re-commit of current bytes moved the pointer: %+v", again.Document)
+			}
 		})
 
 		t.Run("tombstone, visibility, kind and format", func(t *testing.T) {
@@ -261,6 +266,244 @@ func TestDocumentCommit(t *testing.T) {
 			wantNotFound(t, err)
 		})
 	})
+}
+
+// TestDocumentCommitIdenticalBytesIsANoOp is UNI-1900 / G7-08 D-E1: a second
+// Save of the same bytes answers 200 with the current version. It does not
+// mint a version, move the pointer, bump the revision, write audit or
+// outbox, claim the staged upload, or consume quota. Pages still refuse the
+// same case with 409 document_version_unchanged; the file path answers 200
+// so the web dialog, the frame and a deployed desktop all already treat it
+// as saved.
+func TestDocumentCommitIdenticalBytesIsANoOp(t *testing.T) {
+	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
+		ctx := context.Background()
+		member := human(env.tn.member)
+		peer := human(env.tn.creator)
+
+		t.Run("D-E1 identical bytes, third save, then different bytes", func(t *testing.T) {
+			m := &countingDocMetrics{}
+			env.svc.SetMetrics(m)
+			t.Cleanup(func() { env.svc.SetMetrics(nil) })
+
+			created := env.createFile(t, member, "de1.pdf", pdfBody("de1-v1"))
+			body := pdfBody("de1-same")
+			upA := env.upload(t, member, created.Document.ID, "de1-a.pdf", body)
+			a, err := env.commit(member, created.Document.ID, upA.UploadID, created.Document.Revision, util.NewID())
+			mustf(t, err, "commit A")
+			if a.Version.Version != 2 {
+				t.Fatalf("commit A version = %d, want 2", a.Version.Version)
+			}
+			auditAfterA := env.countAudit(t, audit.ActionDocumentVersionCreated, created.Document.ID)
+			outboxAfterA := env.countOutbox(t, "document.version_created", created.Document.ID)
+
+			upSame := env.upload(t, member, created.Document.ID, "de1-again.pdf", body)
+			usageAfterUpload := env.usage(t)
+			key := util.NewID()
+			res, err := env.commit(member, created.Document.ID, upSame.UploadID, a.Document.Revision, key)
+			mustf(t, err, "identical commit")
+			assertFileCommitNoOp(t, env, a, res, upSame.UploadID, usageAfterUpload, auditAfterA, outboxAfterA)
+			if !containsString(m.saves, "file/unchanged") {
+				t.Fatalf("saves = %v, want file/unchanged for the no-op", m.saves)
+			}
+
+			replay, err := env.commit(member, created.Document.ID, upSame.UploadID, a.Document.Revision, key)
+			mustf(t, err, "replay of the no-op key")
+			if replay.Version.ID != a.Version.ID || replay.Document.Revision != a.Document.Revision {
+				t.Fatalf("replay = ver %s rev %d, want ver %s rev %d", replay.Version.ID, replay.Document.Revision, a.Version.ID, a.Document.Revision)
+			}
+			if vs := env.versions(t, created.Document); len(vs) != 2 {
+				t.Fatalf("versions after replay = %d, want 2", len(vs))
+			}
+			got, err := env.svc.LookupCommitIntent(ctx, member, created.Document.ID, key)
+			mustf(t, err, "intent lookup")
+			if got.Outcome != CommitIntentCommitted || got.VersionID != a.Version.ID ||
+				got.Version != a.Version.Version || got.Revision != a.Document.Revision {
+				t.Fatalf("lookup = %+v, want committed v%d %s rev %d", got, a.Version.Version, a.Version.ID, a.Document.Revision)
+			}
+
+			upThird := env.upload(t, member, created.Document.ID, "de1-third.pdf", body)
+			usageThird := env.usage(t)
+			third, err := env.commit(member, created.Document.ID, upThird.UploadID, a.Document.Revision, util.NewID())
+			mustf(t, err, "third identical save")
+			assertFileCommitNoOp(t, env, a, third, upThird.UploadID, usageThird, auditAfterA, outboxAfterA)
+
+			upDiff := env.upload(t, member, created.Document.ID, "de1-diff.pdf", pdfBody("de1-different"))
+			diff, err := env.commit(member, created.Document.ID, upDiff.UploadID, a.Document.Revision, util.NewID())
+			mustf(t, err, "different bytes")
+			if diff.Version.Version != 3 || diff.Version.ID == a.Version.ID || diff.Document.Revision != a.Document.Revision+1 {
+				t.Fatalf("different-bytes version = %+v doc rev %d, want v3 new id rev %d", diff.Version, diff.Document.Revision, a.Document.Revision+1)
+			}
+			if vs := env.versions(t, created.Document); len(vs) != 3 {
+				t.Fatalf("versions after different bytes = %d, want 3", len(vs))
+			}
+		})
+
+		t.Run("frame flag is the same no-op", func(t *testing.T) {
+			created := env.createFile(t, member, "de1-frame.pdf", pdfBody("frame-v1"))
+			body := pdfBody("frame-same")
+			upA := env.upload(t, member, created.Document.ID, "frame-a.pdf", body)
+			a, err := env.commit(member, created.Document.ID, upA.UploadID, created.Document.Revision, util.NewID())
+			mustf(t, err, "commit A")
+			upSame := env.upload(t, member, created.Document.ID, "frame-again.pdf", body)
+			res, err := env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+				UploadID: upSame.UploadID, BaseRevision: a.Document.Revision, IdempotencyKey: util.NewID(), Frame: true,
+			})
+			mustf(t, err, "identical frame commit")
+			if res.Version.ID != a.Version.ID || res.Document.Revision != a.Document.Revision {
+				t.Fatalf("frame no-op = ver %s rev %d, want ver %s rev %d", res.Version.ID, res.Document.Revision, a.Version.ID, a.Document.Revision)
+			}
+			if vs := env.versions(t, created.Document); len(vs) != 2 {
+				t.Fatalf("frame versions = %d, want 2", len(vs))
+			}
+		})
+
+		t.Run("stale base is still 409", func(t *testing.T) {
+			created := env.createFile(t, member, "de1-stale.pdf", pdfBody("stale-v1"))
+			up := env.upload(t, member, created.Document.ID, "stale-same.pdf", pdfBody("stale-v1"))
+			_, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision-1, util.NewID())
+			ce := wantCode(t, err, "document_version_conflict")
+			if ce.Status != 409 {
+				t.Fatalf("stale identical = %+v, want 409", ce)
+			}
+			if vs := env.versions(t, created.Document); len(vs) != 1 {
+				t.Fatalf("stale identical wrote a version: %d", len(vs))
+			}
+		})
+
+		t.Run("another holder's lock is still 423", func(t *testing.T) {
+			created := env.createFile(t, member, "de1-lock.pdf", pdfBody("lock-v1"))
+			_, err := env.svc.AcquireDocumentEditLock(ctx, member, created.Document.ID, AcquireDocumentEditLockInput{
+				EditorID: "de1-holder", Client: DocumentEditClientWebPage, SessionID: "sid-de1-holder",
+			})
+			mustf(t, err, "acquire")
+			up := env.upload(t, peer, created.Document.ID, "lock-same.pdf", pdfBody("lock-v1"))
+			_, err = env.commit(peer, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+			if ce := wantCode(t, err, "document_locked"); ce.Status != 423 {
+				t.Fatalf("locked identical = %+v, want 423", ce)
+			}
+			if vs := env.versions(t, created.Document); len(vs) != 1 {
+				t.Fatalf("locked identical wrote a version: %d", len(vs))
+			}
+		})
+
+		t.Run("a consumed upload from another document is still 409", func(t *testing.T) {
+			// R1-1: the no-op guard must not swallow upload_already_committed.
+			// Upload A is committed into document A, so it is consumed; the
+			// same upload_id then reaches document B, whose current version
+			// carries the same bytes. The bytes match, but the upload is not
+			// B's own current file, so the answer is the contract's refusal.
+			// Doc A starts on different bytes, so its commit is a real
+			// version that consumes the upload.
+			body := pdfBody("de1-cross")
+			a := env.createFile(t, member, "de1-cross-a.pdf", pdfBody("de1-cross-v1"))
+			up := env.upload(t, member, a.Document.ID, "de1-cross-up.pdf", body)
+			committed, err := env.commit(member, a.Document.ID, up.UploadID, a.Document.Revision, util.NewID())
+			mustf(t, err, "commit A")
+			if committed.Version.FileID.String != up.UploadID {
+				t.Fatalf("fixture: commit A did not consume the upload: version file %s, upload %s", committed.Version.FileID.String, up.UploadID)
+			}
+			b := env.createFile(t, member, "de1-cross-b.pdf", body)
+			if b.Version.ChecksumSha256.String != committed.Version.ChecksumSha256.String {
+				t.Fatalf("fixture: doc B checksum %q != doc A %q", b.Version.ChecksumSha256.String, committed.Version.ChecksumSha256.String)
+			}
+			_, err = env.commit(member, b.Document.ID, up.UploadID, b.Document.Revision, util.NewID())
+			if ce := wantCode(t, err, "upload_already_committed"); ce.Status != 409 {
+				t.Fatalf("consumed upload on another document = %+v, want 409 upload_already_committed", ce)
+			}
+			d := env.doc(t, b.Document.ID)
+			if d.Revision != b.Document.Revision || d.FileVersionID.String != b.Version.ID {
+				t.Fatalf("doc B moved: rev %d ptr %s, want rev %d ptr %s", d.Revision, d.FileVersionID.String, b.Document.Revision, b.Version.ID)
+			}
+			if vs := env.versions(t, b.Document); len(vs) != 1 {
+				t.Fatalf("doc B versions = %d, want 1", len(vs))
+			}
+		})
+
+		t.Run("first version and a row with no checksum still commit", func(t *testing.T) {
+			created := env.createFile(t, member, "de1-first.pdf", pdfBody("first-v1"))
+			if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET file_version_id = NULL WHERE id = $1`, created.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			up := env.upload(t, member, created.Document.ID, "first-new.pdf", pdfBody("first-v2"))
+			res, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+			mustf(t, err, "current == nil")
+			if res.Version.Version != 2 || res.Version.FileID.String != up.UploadID {
+				t.Fatalf("nil current version = %+v, want v2 claiming the upload", res.Version)
+			}
+
+			missing := env.createFile(t, member, "de1-nocheck.pdf", pdfBody("nocheck-v1"))
+			if _, err := env.f.pool.Exec(ctx, `UPDATE document_versions SET checksum_sha256 = NULL WHERE id = $1`, missing.Version.ID); err != nil {
+				t.Fatal(err)
+			}
+			upSame := env.upload(t, member, missing.Document.ID, "nocheck-same.pdf", pdfBody("nocheck-v1"))
+			grew, err := env.commit(member, missing.Document.ID, upSame.UploadID, missing.Document.Revision, util.NewID())
+			mustf(t, err, "missing checksum")
+			if grew.Version.Version != 2 || grew.Version.ID == missing.Version.ID {
+				t.Fatalf("missing checksum version = %+v, want a new v2", grew.Version)
+			}
+		})
+
+		t.Run("office job output with identical bytes still commits a version", func(t *testing.T) {
+			body := pdfBody("office-same")
+			created := env.createFile(t, member, "de1-office.pdf", body)
+			job := env.officeJob(t, member, created.Document, body, "completed")
+			res, err := env.commit(member, created.Document.ID, job.OutputFileID.String, created.Document.Revision, util.NewID())
+			mustf(t, err, "office identical output")
+			if res.Version.Version != 2 || res.Version.FileID.String != job.OutputFileID.String {
+				t.Fatalf("office identical = %+v, want a new version claiming the output", res.Version)
+			}
+			if got := env.job(t, job.ID); !got.CommittedVersionID.Valid || got.CommittedVersionID.String != res.Version.ID {
+				t.Fatalf("job not marked committed: %+v", got)
+			}
+		})
+	})
+}
+
+func assertFileCommitNoOp(t *testing.T, env *docStorageEnv, a, res DocumentFileResult, uploadID string, usageAfterUpload int64, auditAfterA, outboxAfterA int) {
+	t.Helper()
+	if res.Version.ID != a.Version.ID || res.Version.Version != a.Version.Version || res.Document.Revision != a.Document.Revision ||
+		res.Document.FileVersionID.String != a.Version.ID {
+		t.Fatalf("no-op answer = ver %+v doc rev %d ptr %s, want ver %s v%d rev %d",
+			res.Version, res.Document.Revision, res.Document.FileVersionID.String, a.Version.ID, a.Version.Version, a.Document.Revision)
+	}
+	if res.File.VersionID != a.Version.ID || res.File.ChecksumSHA256 != a.File.ChecksumSHA256 || res.File.Filename != a.File.Filename {
+		t.Fatalf("no-op file block = %+v, want current %+v", res.File, a.File)
+	}
+	if vs := env.versions(t, a.Document); len(vs) != 2 {
+		t.Fatalf("versions = %d, want 2", len(vs))
+	}
+	if n := env.countAudit(t, audit.ActionDocumentVersionCreated, a.Document.ID); n != auditAfterA {
+		t.Fatalf("audit rows = %d, want %d", n, auditAfterA)
+	}
+	if n := env.countOutbox(t, "document.version_created", a.Document.ID); n != outboxAfterA {
+		t.Fatalf("outbox rows = %d, want %d", n, outboxAfterA)
+	}
+	if after := env.usage(t); after != usageAfterUpload {
+		t.Fatalf("quota usage %d -> %d after a no-op", usageAfterUpload, after)
+	}
+	var pointed int
+	if err := env.f.pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM document_versions WHERE file_id = $1`, uploadID).Scan(&pointed); err != nil {
+		t.Fatal(err)
+	}
+	if pointed != 0 {
+		t.Fatalf("staged upload %s is on %d version rows, want unclaimed", uploadID, pointed)
+	}
+	if env.real != nil {
+		if st := env.sessionStatus(t, uploadID); st != "staged" {
+			t.Fatalf("upload session = %s, want staged", st)
+		}
+	}
+}
+
+func containsString(got []string, want string) bool {
+	for _, s := range got {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
 
 // TestArchivedDocumentCommitUploadRestore proves F6 (G5-07): on an archived

@@ -1,10 +1,10 @@
 import { expect, test, type Frame } from "@playwright/test";
-import { e2eBaseUrl } from "./api-url";
+import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 import { auditText } from "./contrast";
-import { seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
+import { releaseSeededEditLock, seedDocx, setFlag, type SeededDocx } from "./office-docs-web-fixtures";
 import {
   COMPOSER, EDITOR, FRAME_SELECTOR, PICKER_POP, S5_CARD, S5_MASK, S6_BAR, aiFlagsBeforeAll, clippedLabels, commitElsewhere, contrastIn, docsFrameInstalled,
-  expectFocus, finding, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
+  expectFocus, focusedIn, liveReadsOf, makeDirty, motionSeen, openDocs, openPicker, pinnedVersion, prepare, reachable,
   reachConflict, recordLiveWrites, recordMotion, s5Choices, selectUniworkAi, sizeFrame, smallTargets, surfaceIsMode, visualOrder,
   uniworkOption, waitForBar, type Locale, type Mode,
 } from "./office-ux-floor-fixtures";
@@ -57,6 +57,10 @@ test.beforeAll(async ({ browser, request }) => {
   }
   await setFlag("office_engine", seeded.organizationId, true);
   test.info().annotations.push({ type: "frame", description: pinnedVersion() });
+});
+
+test.afterEach(async ({ request }) => {
+  await releaseSeededEditLock(request, seeded);
 });
 
 async function audit(frame: Frame, root: string, label: string, mode: Mode): Promise<void> {
@@ -189,7 +193,6 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
   test("Save copy sits between Reload and Overwrite with edit access", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    finding("UXF-02", "State Patterns › S5: 'Lưu thành bản sao…' (uwConflictSaveCopy, OQ-UX6) between Reload and Overwrite when the user can edit (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const { ids } = await s5Choices(frame);
     expect(ids, "save-copy, reload and overwrite present").toEqual(expect.arrayContaining(["reload", "save-copy", "overwrite"]));
     // Relative order only: UXF-03 (diff first) is its own test, so fixing it must not change this verdict.
@@ -197,10 +200,36 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
     expect(ids.indexOf("save-copy"), "Save copy before Overwrite").toBeLessThan(ids.indexOf("overwrite"));
   });
 
+  test("Save copy creates a copy with the source visibility and leaves the open document in conflict", async ({ page, request }) => {
+    await prepare(page, baseUrl, "light", "vi");
+    const frame = await reachConflict(page, request, seeded);
+    const titleBefore = await page.title();
+    await frame.locator(`${S5_CARD} [data-choice="save-copy"]`).click();
+    await frame.locator(`${S5_CARD} [data-choice="go"]`).waitFor();
+    await expectFocus(frame, "back", "Save copy confirm: default focus Back");
+    await frame.locator(`${S5_CARD} [data-choice="go"]`).click();
+    const alert = frame.locator(`${S5_CARD} .ow-dlg-alert`);
+    await expect(alert).not.toHaveText("", { timeout: 30_000 });
+    const alertText = (await alert.textContent()) ?? "";
+    const auth = { authorization: `Bearer ${seeded.account.token}` };
+    const listed = await request.get(`${e2eApiUrl}/api/v1/workspaces/${seeded.account.wsId}/documents`, { headers: auth });
+    expect(listed.ok(), `list documents: HTTP ${listed.status()}`).toBeTruthy();
+    const { documents } = (await listed.json()) as { documents: { id: string; title: string; visibility: string }[] };
+    const source = documents.find((d) => d.id === seeded.documentId);
+    const copy = documents.find((d) => d.id !== seeded.documentId && alertText.includes(d.title));
+    expect(source, "source document still in workspace list").toBeDefined();
+    expect(copy, `copy quoted in done alert (${alertText}) appears in workspace list`).toBeDefined();
+    expect(copy!.visibility, "copy keeps source visibility").toBe(source!.visibility);
+    // Open document is unchanged: still on the source URL, same page title, and S5 step 1 is still open.
+    expect(page.url()).toBe(seeded.documentUrl);
+    expect(await page.title()).toBe(titleBefore);
+    await expect(frame.locator(`${S5_CARD} [data-choice="reload"]`)).toBeVisible();
+    await expect(frame.locator(`${S5_CARD} [data-choice="overwrite"]`)).toBeVisible();
+  });
+
   test("Docs shows 'Xem khác biệt' before Reload", async ({ page, request }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await reachConflict(page, request, seeded);
-    finding("UXF-03", "State Patterns › S5: Docs/DOCX has 'Xem khác biệt' after the comparison table, before Reload (OQ-UX9) (pin: absent; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const before = await frame.locator(S5_CARD).evaluate((card) => {
       const reload = card.querySelector('[data-choice="reload"]');
       const diff = [...card.querySelectorAll("button, a")].find((b) => /Xem khác biệt|View differences/i.test(b.textContent ?? ""));
@@ -215,7 +244,6 @@ test.describe("S5 order, focus, trap and inert (State Patterns › Conflict dial
     const live = await frame.evaluate(() => [...document.querySelectorAll(".uw-live")].map((el) => ({ role: el.getAttribute("role"), inert: !!el.closest("[inert]") })));
     test.info().annotations.push({ type: "measured", description: JSON.stringify(live) });
     expect(live.length, "the frame has a window live node once a bar was announced").toBeGreaterThanOrEqual(1);
-    finding("UXF-04", "Floor › Vùng live: the window's live nodes are siblings of the inert part, never inside it (pin: frame-dialog inertSiblings inerts every body child, .uw-live included; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     expect(live.filter((l) => l.inert)).toEqual([]);
   });
 });
@@ -224,7 +252,6 @@ test.describe("live regions (Floor › Vùng live)", () => {
   test("the frame has its two fixed live nodes from load, before any bar", async ({ page }) => {
     await prepare(page, baseUrl, "light", "vi");
     const frame = await openDocs(page, seeded);
-    finding("UXF-10", "Floor › Vùng live: the window's polite and assertive nodes exist from load (pin: remote-bar.ts liveNode() creates each on its first announce; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     const nodes = await frame.evaluate(() => ({
       status: document.querySelectorAll('.uw-live[role="status"]').length,
       alert: document.querySelectorAll('.uw-live[role="alert"]').length,
@@ -298,7 +325,6 @@ test.describe("forced colors (DESIGN.md › Colors › Forced colors)", () => {
       });
       test.info().annotations.push({ type: "measured", description: JSON.stringify(got) });
       expect(got.length).toBeGreaterThan(0);
-      finding("UXF-05", "DESIGN › Forced colors: [aria-disabled=true] buttons use GrayText for text and border (pin: frame-dialog.css has no forced-colors rule, opacity only; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
       for (const b of got) {
         expect(b.color, `${b.id}: text`).toBe(b.gray);
         expect(b.border, `${b.id}: border`).toBe(b.gray);
@@ -364,7 +390,6 @@ test.describe("zoom, narrow frames and motion (Floor, Responsive & Platform)", (
       expect(new Set(box.xs).size, "buttons share one column").toBe(1);
       expect(new Set(box.ys.map(Math.round)).size, "stacked: every button on its own row").toBe(box.ys.length);
       expect([...box.ys].sort((a, b) => a - b), "stacked top-to-bottom = DOM order").toEqual(box.ys);
-      if (width > 448 + 32) finding("UXF-07", "Responsive › Web hẹp (< 768px): S5 takes the full width minus 16px margins (pin: .ow-dlg max-width 448px; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
       expect(Math.abs(box.left - 16), "16px left margin").toBeLessThanOrEqual(1);
       expect(Math.abs(box.width - (box.inner - 32)), "full width minus 2x16px").toBeLessThanOrEqual(1);
     });
@@ -410,12 +435,18 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
         await audit(frame, PICKER_POP, "S7 picker", mode);
         await shot(frame, `s7-picker-${mode}-${locale}`);
         await uniworkOption(frame).click();
-        // S9: one UniWork AI turn against the fake provider; the answer (or its error line) is measured.
+        // S9: one UniWork AI turn (disclosure acknowledged first) against the fake provider; the finished reply is detected by its action toolbar (or the error line) and measured.
         const composer = frame.locator(COMPOSER).first();
         await composer.click();
         await page.keyboard.type("Tóm tắt tài liệu này trong một câu.");
-        await page.keyboard.press("Enter");
-        await frame.locator(".ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
+        // The first UniWork AI turn shows the S8 disclosure and Send stays aria-disabled until it is acknowledged; Enter would never send.
+        const disclosure = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|What UniWork AI receives/i });
+        await expect(disclosure).toBeVisible({ timeout: 10_000 });
+        await frame.getByRole("button", { name: /Đã hiểu|Got it/i }).first().click();
+        const sendBtn = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
+        await expect(sendBtn, "S9: Send is enabled after the disclosure acknowledgement").not.toHaveAttribute("aria-disabled", "true");
+        await sendBtn.click();
+        await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
         await audit(frame, ".ai-chat", "S9 result/error", mode);
         await shot(frame, `s9-result-${mode}-${locale}`);
       });
@@ -440,7 +471,6 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
       });
       test.info().annotations.push({ type: "measured", description: JSON.stringify(ring) });
       expect(ring.focusVisible, "the selected option is not :focus-visible").toBe(true);
-      finding("UXF-01", "Floor › Focus ring: .ai-model-item.selected:focus-visible has outline 2px var(--accent) at >= 3:1 against accent-soft (pin: outline none; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
       expect(ring.style).not.toBe("none");
       expect(ring.width).toBeGreaterThanOrEqual(2);
       expect(await contrastIn(frame, ring.color, ring.bg)).toBeGreaterThanOrEqual(3);
@@ -464,7 +494,6 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
     });
     test.info().annotations.push({ type: "measured", description: JSON.stringify(sel) });
     await shot(frame, "s7-forced-colors");
-    finding("UXF-06", "DESIGN › Forced colors: .ai-model-item.selected has a 2px Highlight border (pin: background only; owner: UXF-FIX (UNI-1824), lane g5-fork_main)");
     expect(sel.width).toBeGreaterThanOrEqual(2);
     expect(sel.color).toBe(sel.hl);
   });
@@ -479,7 +508,6 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
       manageInList: !!pop.querySelector('[role="listbox"] .ai-model-manage'),
     }));
     test.info().annotations.push({ type: "measured", description: JSON.stringify(roles) });
-    finding("UXF-08", "Floor › S7: role=listbox on .ai-model-pop-list, .ai-model-pop is a labelled group, Manage outside the listbox (pin: listbox on .ai-model-pop with Manage inside; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
     expect(roles).toEqual({ pop: "group", list: "listbox", manageInList: false });
   });
 
@@ -492,7 +520,6 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
     // RFE-202: a non-empty composer, so an empty-composer `disabled` can never pass for the disclosure gate.
     await frame.locator(COMPOSER).first().click();
     await page.keyboard.type("Tóm tắt tài liệu này.");
-    finding("UXF-09", "Floor › S8 / IA S8: a region labelled aiUniworkDisclosureLabel with 'Đã hiểu' before the first UniWork AI turn, and Send aria-disabled + aria-describedby until then (pin: strings only, no component renders it; fixed on fork main 99e5a5253; owner: REPIN-1 (UNI-1825), lane g6-fork_ui)");
     const region = frame.getByRole("region", { name: /Nội dung gửi tới UniWork AI|What UniWork AI receives/i });
     await expect(region).toBeVisible({ timeout: 10_000 });
     await expect(send, "Send is aria-disabled before the acknowledgement").toHaveAttribute("aria-disabled", "true");

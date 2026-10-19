@@ -235,6 +235,16 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 				state = service.DocumentAccessLost
 			}
 			switch state {
+			case service.DocumentTrashable:
+				// TRASH-NOTIFY-01: the document sits in the trash and the
+				// recipient administers it, so this notice is the link to
+				// restore it - it keeps the title like a live resource.
+				// Every other kind keeps the old answer: a trashed resource
+				// is gone.
+				if n.Kind != KindDocumentTrashedByOther {
+					item.ResourceDeleted = true
+					item.Params = dropParamKeys(n.Params, snippetKeys...)
+				}
 			case service.DocumentGone:
 				// Gone is decided before the organization/level gate, so a
 				// revoked recipient of a trashed document lands here; the

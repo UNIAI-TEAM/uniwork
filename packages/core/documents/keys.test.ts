@@ -17,6 +17,8 @@ describe("documentKeys", () => {
       documentKeys.sources("ws1"),
       documentKeys.sourcesRoot("ws1"),
       documentKeys.recent("ws1"),
+      documentKeys.shelved("ws1"),
+      documentKeys.shelved("ws1", "f1"),
       documentKeys.sharedWithMe("ws1"),
       documentKeys.tree("ws1"),
       documentKeys.shares("ws1", "d1"),
@@ -121,8 +123,25 @@ describe("documentKeys", () => {
     expect(documentKeys.tree("ws1", "r1", true)).toEqual(["documents", "ws1", "tree", "r1", "folders_only"]);
   });
 
-  it("answers recent and shared-with-me under their own segments", () => {
+  it("answers recent, shared-with-me and shared-by-me under their own segments", () => {
     expect(documentKeys.recent("ws1")).toEqual(["documents", "ws1", "recent"]);
     expect(documentKeys.sharedWithMe("ws1")).toEqual(["documents", "ws1", "shared"]);
+    expect(documentKeys.sharedByMe("ws1")).toEqual(["documents", "ws1", "shared-by-me"]);
+    expect(documentKeys.shelved("ws1")).toEqual(["documents", "ws1", "shelved"]);
+    expect(documentKeys.shelved("ws1", "f1")).toEqual(["documents", "ws1", "shelved", "f1"]);
+    expect(documentKeys.shelved("ws1")).not.toEqual(documentKeys.shelved("ws2"));
+  });
+
+  // UNI-1868: the format/access chips are part of the key when they are set,
+  // so two chip combinations never share a cache entry and switching a chip
+  // starts from page 1; an unfiltered list keeps the key it had.
+  it("keeps a chip-filtered collection apart from the unfiltered one, per workspace", () => {
+    expect(documentKeys.recent("ws1", "f1")).toEqual(["documents", "ws1", "recent", "f1"]);
+    expect(documentKeys.sharedWithMe("ws1", "f1")).toEqual(["documents", "ws1", "shared", "f1"]);
+    expect(documentKeys.sharedByMe("ws1", "f1")).toEqual(["documents", "ws1", "shared-by-me", "f1"]);
+    expect(documentKeys.recent("ws1", "f1")).not.toEqual(documentKeys.recent("ws1"));
+    expect(documentKeys.recent("ws1", "f1")).not.toEqual(documentKeys.recent("ws1", "f2"));
+    expect(documentKeys.recent("ws2", "f1")).not.toEqual(documentKeys.recent("ws1", "f1"));
+    expect(startsWith(documentKeys.recent("ws1", "f1"), documentKeys.workspace("ws1"))).toBe(true);
   });
 });

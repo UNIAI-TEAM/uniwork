@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { ChevronRight, Folder, FolderRoot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TREE_MAX_LEVEL } from "@uniwork/core/documents/folder-limits";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
@@ -183,7 +183,7 @@ export function FolderPickerDialog({
     return {
       key: row.node.id,
       id: row.node.id,
-      label: row.node.title || t("documents.detail.untitled"),
+      label: (isMyFolder(row.node) ? t("documents.home.my_folder.label") : row.node.title) || t("documents.detail.untitled"),
       depth: row.depth + 1,
       level: row.depth + 1,
       parentId: row.parentId,

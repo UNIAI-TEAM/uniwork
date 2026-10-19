@@ -323,10 +323,10 @@ type mcpCreateDocumentIn struct {
 }
 
 // CreateDocument creates a page from Markdown. DocumentService decides who may
-// put it where: at the root of a workspace the person belongs to, or under a
-// folder or page they may edit, whose visibility it takes (CreatePage). A
-// parent the person cannot use reads as not found. Nobody is notified:
-// document.created has no notification rule.
+// put it where: at the root of a workspace the person belongs to (private by
+// default, SH-S1), or under a folder or page they may edit, whose visibility
+// it takes (CreatePage). A parent the person cannot use reads as not found.
+// Nobody is notified: document.created has no notification rule.
 func (s *McpToolService) CreateDocument(ctx context.Context, p McpPrincipal, in mcpCreateDocumentIn) (McpWriteResult, error) {
 	if !s.documentsOn(ctx, p) {
 		return McpWriteResult{}, errMcpDocumentsUnavailable
@@ -587,7 +587,7 @@ func mcpDocumentTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpDocumentRef) (any, error) {
 				return s.GetDocument(ctx, p, in)
 			}),
-		mcpWriteTool("create_document", "Create document", "Creates a page from Markdown as the user, at the top level of the workspace or inside a folder or page (parent_id, one the user may edit; any other reads as not found). title is 1-"+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters. content is Markdown (headings, lists, task lists, tables, code, quotes, https links, [@Name](uniwork://user/<user_id>) mentions) of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters: for a longer page create it with the first part and append the rest in parts with update_document. Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link, and an image becomes a link. The page is visible to everyone in the workspace; one created inside a restricted folder or page is restricted too, visible only to the user, workspace admins and the people it is shared with, and the parent's own shares are not copied. No one is notified, a mention in the page included. There is no duplicate guard: sending the same call again creates a second page, so if you are not sure a call went through, look with list_documents or search before sending it again. It comes back with its doc_kind, revision and url.", "the user moves it to the trash in UniWork, where it can be restored", false, mcpSchemaCreateDocument,
+		mcpWriteTool("create_document", "Create document", "Creates a page from Markdown as the user, at the top level of the workspace or inside a folder or page (parent_id, one the user may edit; any other reads as not found). title is 1-"+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters. content is Markdown (headings, lists, task lists, tables, code, quotes, https links, [@Name](uniwork://user/<user_id>) mentions) of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters: for a longer page create it with the first part and append the rest in parts with update_document. Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link, and an image becomes a link. A page at the top level is private (restricted, visible only to the user, workspace admins and the people it is shared with); a page inside a folder or page takes that parent's visibility, and the parent's own shares are not copied. No one is notified, a mention in the page included. There is no duplicate guard: sending the same call again creates a second page, so if you are not sure a call went through, look with list_documents or search before sending it again. It comes back with its doc_kind, revision and url.", "the user moves it to the trash in UniWork, where it can be restored", false, mcpSchemaCreateDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpCreateDocumentIn) (any, error) {
 				return s.CreateDocument(ctx, p, in)
 			}),

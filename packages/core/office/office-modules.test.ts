@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createOfficeFrameApi, docsFrameSrc, type DocsFrameCall } from "./docs-frame-api";
 import { OFFICE_MODULES } from "./docs-frame-protocol";
-import { officeFrameSrc, officeModuleForFormat, officeModuleSpec, officeModuleTooLarge } from "./office-modules";
+import { officeFrameSrc, officeModuleForFormat, officeModuleSpec } from "./office-modules";
 
 const API = "http://api.test";
 const DOC = {
@@ -36,20 +36,17 @@ describe("office module table", () => {
     expect(docsFrameSrc("1.0.0")).toBe("/office-frame/docs/1.0.0/index.html");
   });
 
-  it("grants each module what its frame implements: no recents, attachments or server PDF export outside docs; images for markdown/html", () => {
+  it("grants each module what its frame implements: no recents, attachments or saveCopy outside docs; exportPdf for docs and slides; images for markdown/html", () => {
+    expect(officeModuleSpec("docs").grant.saveCopy).toBe(true);
     expect(officeModuleSpec("pdf").grant).toEqual({ save: true, saveAs: true, print: true });
     expect(officeModuleSpec("markdown").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true, images: true });
     expect(officeModuleSpec("html").grant).toEqual({ save: true, saveAs: true, print: true, exportHtml: true, images: true });
-    expect(officeModuleSpec("slides").grant).toEqual({ save: true, saveAs: true, print: true });
+    expect(officeModuleSpec("slides").grant).toEqual({ save: true, saveAs: true, print: true, exportPdf: true });
     expect(officeModuleSpec("sheets").grant).toEqual({ save: true, saveAs: true, print: true });
   });
 
-  it("caps Sheets at 10 MiB of stored xlsx and no other module", () => {
-    expect(officeModuleTooLarge("sheets", 10 * 1024 * 1024)).toBe(false);
-    expect(officeModuleTooLarge("sheets", 10 * 1024 * 1024 + 1)).toBe(true);
-    expect(officeModuleTooLarge("sheets", undefined)).toBe(false);
-    expect(OFFICE_MODULES.filter((m) => officeModuleSpec(m).maxBytes !== undefined)).toEqual(["sheets"]);
-    expect(officeModuleTooLarge("docs", 1e12)).toBe(false);
+  it("places no stored-file size cap on any module, including Sheets (BENCH-01 #2)", () => {
+    expect(OFFICE_MODULES.filter((m) => "maxBytes" in officeModuleSpec(m))).toEqual([]);
   });
 });
 

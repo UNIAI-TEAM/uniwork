@@ -280,11 +280,14 @@ func officeFormatMime(format office.Format, mime string) bool {
 
 // BlankFileInput creates one blank source document (POST
 // /workspaces/{workspaceID}/documents/files/blank). Format is the wire
-// string; the service parses it against the six-format allowlist.
+// string; the service parses it against the six-format allowlist. Visibility
+// empty means the parent's, or private at the root (U-SH2).
 type BlankFileInput struct {
 	Format         string
 	Title          string
 	ParentID       string
+	Destination    string
+	Visibility     string
 	IdempotencyKey string
 }
 
@@ -307,6 +310,15 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	format, ok := parseOfficeFormat(in.Format)
 	if !ok {
 		return DocumentFileResult{}, Invalid("format must be one of docx, xlsx, pptx, pdf, md, html")
+	}
+	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
+		return DocumentFileResult{}, err
+	}
+	// Checked before the engine runs: a bad visibility must not burn a job.
+	if in.Visibility != "" {
+		if err := validDocumentVisibility(in.Visibility); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	if s.engine == nil && blankViaEngine(format) {
 		return DocumentFileResult{}, office.ErrNotConfigured
@@ -337,8 +349,8 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	}
 	if !blankViaEngine(format) {
 		return s.documents.CreateFileDocument(ctx, actor, ws.WorkspaceID, CreateFileDocumentInput{
-			ParentID: in.ParentID, Title: title, Filename: filename,
-			Body: bytes.NewReader(seed), IdempotencyKey: in.IdempotencyKey,
+			ParentID: in.ParentID, Destination: in.Destination, Title: title, Filename: filename,
+			Body: bytes.NewReader(seed), Visibility: in.Visibility, IdempotencyKey: in.IdempotencyKey,
 			engine: officeEngineInfo(),
 		})
 	}
@@ -399,7 +411,7 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 		Input:         &office.GrantInput{Checksum: checksum, Length: int64(len(seed))},
 		Output: &office.GrantOutput{
 			FileID: string(out.FileID), URL: out.WriteTarget.URL, Method: out.WriteTarget.Method,
-			Headers: out.WriteTarget.Headers, ExpiresAt: millis(out.WriteTarget.ExpiresAt), MaxBytes: documentFileMaxBytes(),
+			Headers: out.WriteTarget.Headers, ExpiresAt: millis(out.WriteTarget.ExpiresAt), MaxBytes: s.documentFileMaxBytes(),
 		},
 		DeadlineAt: millis(deadline), IssuedAt: millis(now), ExpiresAt: millis(window),
 	})
@@ -441,8 +453,8 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 		return DocumentFileResult{}, err
 	}
 	return s.documents.CreateFileDocument(ctx, actor, ws.WorkspaceID, CreateFileDocumentInput{
-		ParentID: in.ParentID, Title: title, Filename: filename,
-		Body: bytes.NewReader(body), IdempotencyKey: in.IdempotencyKey,
+		ParentID: in.ParentID, Destination: in.Destination, Title: title, Filename: filename,
+		Body: bytes.NewReader(body), Visibility: in.Visibility, IdempotencyKey: in.IdempotencyKey,
 		engine: officeEngineInfo(),
 	})
 }
@@ -472,12 +484,33 @@ func (s *DocumentOfficeService) replayBlank(ctx context.Context, actor Actor, or
 	if want == "" {
 		want = strings.TrimSpace(files.SanitizeFilename(filename))
 	}
+	wantParentID := in.ParentID
+	if in.Destination == DocumentSystemKindMyFolder {
+		mf, err := s.q.GetMyFolder(ctx, db.GetMyFolderParams{
+			OrganizationID: orgID, WorkspaceID: workspaceID, AclOwnerID: aclOwnerFor(actor),
+		})
+		if err != nil || mf.ID == "" {
+			return DocumentFileResult{}, false, errIdempotencyPayloadMismatch()
+		}
+		wantParentID = mf.ID
+	}
 	// The key scope is shared with the plain upload route; only a result the
 	// blank path wrote carries the engine pin (a request can never set it).
+	// A request that names a visibility must match the stored document: the
+	// create's fingerprint holds it (only when named), so replaying a
+	// different one would answer another payload's document.
 	if prev.Version.EngineName.String != officeEngineInfo().Name ||
-		prev.Document.Title != want || prev.Document.ParentID.String != in.ParentID ||
-		!strings.EqualFold(path.Ext(prev.File.Filename), path.Ext(filename)) {
+		prev.Document.Title != want || prev.Document.ParentID.String != wantParentID ||
+		!strings.EqualFold(path.Ext(prev.File.Filename), path.Ext(filename)) ||
+		(in.Visibility != "" && prev.Document.Visibility != in.Visibility) {
 		return DocumentFileResult{}, false, errIdempotencyPayloadMismatch()
+	}
+	fp := fileCreateFingerprint(workspaceID, in.ParentID, want, prev.File.ChecksumSHA256, in.Visibility, in.Destination)
+	if _, err := PeekIdempotent(ctx, s.q, orgID, workspaceID, idempotencyScopeDocumentFileCreate, key, actor.ID, IdempotencyOptions{
+		Fingerprint:        fp,
+		RequireFingerprint: true,
+	}); err != nil {
+		return DocumentFileResult{}, false, NormalizeIdempotencyError(err)
 	}
 	res, err := s.documents.replayCreatedFile(ctx, s.q, actor, stored.Body)
 	return res, true, err
@@ -498,7 +531,7 @@ func (s *DocumentOfficeService) readVerifiedOutput(ctx context.Context, scope fi
 		return nil, documentFileError(err)
 	}
 	defer func() { _ = r.Close() }()
-	limit := documentFileMaxBytes()
+	limit := s.documentFileMaxBytes()
 	raw, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
 		return nil, err

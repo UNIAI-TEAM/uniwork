@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
@@ -38,34 +39,45 @@ vi.mock("@uniwork/core/feature-flags", () => ({ useFlag: (key: string, fallback:
 
 const MINT_PATH = "/api/v1/documents/doc-1/office/frame-token";
 const DOC_PATH = "/api/v1/documents/doc-1";
+const SOURCE_ID = "chat:s-1";
+const SOURCE_MINT_PATH = `/api/v1/workspaces/ws-1/documents/sources/${encodeURIComponent(SOURCE_ID)}/office/frame-token`;
+const SOURCE_DOC_PATH = `/api/v1/documents/${encodeURIComponent(SOURCE_ID)}`;
 const VERSIONS_PATH = "/api/v1/documents/doc-1/versions";
 const FEED_PATH = "/api/v1/workspaces/ws-1/documents/changes";
 const minted = {
   token: "tok-1", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: true, module: "docs",
 };
+const mintedSource = {
+  token: "ofs1.tok", token_type: "Bearer", expires_at: new Date(Date.now() + 600_000).toISOString(), expires_in: 600,
+  source_id: SOURCE_ID, parent_kind: "chat_channel", parent_id: "c-1",
+  workspace_id: "ws-1", organization_id: "org-1", can_edit: false, module: "docs", readonly: true,
+};
 const fileOf = (revision: string, versionId: string) => ({ fileId: "doc-1", name: "Plan.docx", versionId, etag: revision });
-const headDoc = (revision: string, versionId: string) => ({
+const headDoc = (revision: string, versionId: string, updatedBy?: { id: string; kind?: string }) => ({
   document: {
     id: "doc-1", workspace_id: "ws-1", kind: "file", title: "Plan", revision, updated_at: "2026-10-13T08:00:00Z",
+    ...(updatedBy ? { updated_by: updatedBy.id, updated_by_kind: updatedBy.kind ?? "human" } : {}),
     file: { file_id: "f-1", version_id: versionId, version: 1, filename: "Plan.docx", mime_type: "application/octet-stream", size_bytes: 1, checksum_sha256: "x" },
   },
 });
 
 interface Server {
-  head: { revision: string; versionId: string };
+  head: { revision: string; versionId: string; updatedBy?: { id: string; kind?: string } };
   headError?: ApiError;
   versions: string[];
   /** A feed page, or a function of the request path (to answer each page, or reject). */
   feed: unknown;
 }
 
-function setup() {
+function setup(fileRef: { kind: "document" | "source"; id: string } = { kind: "document", id: "doc-1" }) {
   const server: Server = { head: { revision: "9", versionId: "v1" }, versions: ["v1"], feed: null };
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve(minted);
+    if (path === SOURCE_MINT_PATH) return Promise.resolve(mintedSource);
+    if (path === SOURCE_DOC_PATH) return Promise.reject(new ApiError("not found", "not_found", 404));
     if (path === MINT_PATH.replace("doc-1", "doc-2")) return Promise.resolve({ ...minted, token: "tok-2", document_id: "doc-2" });
-    if (path === DOC_PATH) return server.headError ? Promise.reject(server.headError) : Promise.resolve(headDoc(server.head.revision, server.head.versionId));
+    if (path === DOC_PATH) return server.headError ? Promise.reject(server.headError) : Promise.resolve(headDoc(server.head.revision, server.head.versionId, server.head.updatedBy));
     if (path.startsWith(VERSIONS_PATH)) return Promise.resolve({ versions: server.versions.map((id, i) => ({ id, document_id: "doc-1", version: i + 1 })) });
     if (path.startsWith(FEED_PATH)) return typeof server.feed === "function" ? Promise.resolve().then(() => (server.feed as (p: string) => unknown)(path)) : Promise.resolve(server.feed);
     return Promise.reject(new Error(`unexpected ${path}`));
@@ -95,7 +107,7 @@ function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const options: DocsFrameSessionOptions = {
-    iframeRef: { current: iframe }, frameOrigin: window.location.origin, wsId: "ws-1", documentId: "doc-1",
+    iframeRef: { current: iframe }, frameOrigin: window.location.origin, wsId: "ws-1", fileRef,
     readonly: false, locale: "vi", theme: "light", onError: vi.fn(),
     api: { open, save, recents: vi.fn() } as unknown as DocsFrameApi,
   };
@@ -136,7 +148,11 @@ async function openedFrame(): Promise<Frame> {
 /** Lets the head reads a frame triggered settle. */
 const flush = () => act(async () => { for (let i = 0; i < 5; i += 1) await Promise.resolve(); await new Promise((r) => setTimeout(r, 0)); });
 
-beforeEach(() => { flag.syncFeed = true; });
+beforeEach(() => {
+  flag.syncFeed = true;
+  resetAuthStoreForTests();
+  setSessionUser({ id: "u-me", email: "me@test.dev", display_name: "Me", onboarded_at: null, email_verified_at: null, onboarding_questionnaire: {}, locale: "vi", mfa_enabled_at: null, has_password: true });
+});
 afterEach(() => {
   vi.restoreAllMocks(); requestMock.mockReset(); document.body.innerHTML = "";
   ws.handlers.clear(); ws.reconnects.clear();
@@ -317,6 +333,28 @@ describe("useDocsFrameSession: doc.remoteVersion", () => {
     await act(async () => { ws.reconnect(); });
     await waitFor(() => expect(frame.events("doc.remoteVersion")).toEqual([expect.objectContaining({ revision: "10", version_id: "v2" })]));
     expect(requestMock.mock.calls.some(([path]) => String(path).startsWith(FEED_PATH))).toBe(true);
+  });
+
+  it("names the session user on a head they saved themselves, and nobody on another member's or an agent's (UNI-1907 D-3)", async () => {
+    // Own head (a version uploaded through the page while the frame was open): "…do bạn lưu…".
+    const frame = await openedFrame();
+    frame.server.head = { revision: "10", versionId: "v2", updatedBy: { id: "u-me" } };
+    await act(async () => { ws.emit("document.version_created", { document_id: "doc-1", version_id: "v2", workspace_id: "ws-1" }); });
+    await waitFor(() => expect(frame.events("doc.remoteVersion")).toEqual([
+      { document_id: "doc-1", revision: "10", version_id: "v2", saved_at: "2026-10-13T08:00:00Z", author_name: "bạn" },
+    ]));
+
+    // Another member's head: no author_name, the frame falls back to "một thành viên".
+    frame.server.head = { revision: "11", versionId: "v3", updatedBy: { id: "u-other" } };
+    await act(async () => { ws.emit("document.version_created", { document_id: "doc-1", version_id: "v3", workspace_id: "ws-1" }); });
+    await waitFor(() => expect(frame.events("doc.remoteVersion")).toHaveLength(2));
+    expect(frame.events("doc.remoteVersion")[1]).not.toHaveProperty("author_name");
+
+    // An agent's head: never "bạn".
+    frame.server.head = { revision: "12", versionId: "v4", updatedBy: { id: "u-me", kind: "agent" } };
+    await act(async () => { ws.emit("document.version_created", { document_id: "doc-1", version_id: "v4", workspace_id: "ws-1" }); });
+    await waitFor(() => expect(frame.events("doc.remoteVersion")).toHaveLength(3));
+    expect(frame.events("doc.remoteVersion")[2]).not.toHaveProperty("author_name");
   });
 });
 
@@ -525,6 +563,41 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     expect(frame.hook.result.current.blocked).toBeNull();
   });
 
+  it.each([true, false])("a home-row access change for the open document blocks when the head read answers restricted 403, office_sync_feed %s; another document's event does not (BE-SHS1-40/-50)", async (syncFeed) => {
+    flag.syncFeed = syncFeed;
+    const frame = await openedFrame();
+    frame.server.headError = new ApiError("restricted", "document_restricted", 403);
+    await act(async () => {
+      ws.emit("document.workspace_access_changed", { document_id: "doc-2", workspace_id: "ws-1" });
+    });
+    await flush();
+    expect(frame.events("doc.blocked")).toHaveLength(0);
+    expect(frame.hook.result.current.blocked).toBeNull();
+
+    await act(async () => {
+      ws.emit("document.workspace_access_changed", { document_id: "doc-1", workspace_id: "ws-1" });
+    });
+    await waitFor(() =>
+      expect(frame.events("doc.blocked")).toEqual([{ document_id: "doc-1", reason: "permission_revoked" }]),
+    );
+    expect(frame.hook.result.current.blocked).toBe("permission_revoked");
+    if (!syncFeed) expect(frame.events("doc.remoteVersion")).toHaveLength(0);
+  });
+
+  it("with office_sync_feed on a home-row access change reads the head once and offers a newer version (R6-60/-61)", async () => {
+    flag.syncFeed = true;
+    const frame = await openedFrame();
+    frame.server.head = { revision: "10", versionId: "v2" };
+    const headReads = () => requestMock.mock.calls.filter(([path]) => path === DOC_PATH).length;
+    const before = headReads();
+    await act(async () => {
+      ws.emit("document.workspace_access_changed", { document_id: "doc-1", workspace_id: "ws-1" });
+    });
+    await waitFor(() => expect(frame.events("doc.remoteVersion")).toEqual([expect.objectContaining({ revision: "10", version_id: "v2" })]));
+    await flush();
+    expect(headReads() - before).toBe(1);
+  });
+
   it("after a reconnect the feed lists the document and its head is gone: doc.blocked document_deleted", async () => {
     const frame = await openedFrame();
     frame.server.headError = new ApiError("not found", "not_found", 404);
@@ -570,7 +643,7 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     const frame = await openedFrame();
     await act(async () => { ws.emit("document.deleted", { document_id: "doc-1", workspace_id: "ws-1" }); });
     expect(frame.hook.result.current.blocked).toBe("document_deleted");
-    frame.hook.rerender({ documentId: "doc-2" });
+    frame.hook.rerender({ fileRef: { kind: "document", id: "doc-2" } });
     expect(frame.hook.result.current.blocked).toBeNull();
     const before = frame.events("doc.blocked").length;
     await frame.boot();
@@ -610,4 +683,29 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     await waitFor(() => expect(frame.events("doc.blocked")).toHaveLength(2));
     expect(frame.events("doc.blocked").at(-1)).toEqual({ document_id: "doc-1", reason: "document_deleted" });
   });
+
+  it("never calls getDocument or listDocumentChanges or posts doc.blocked on a source session when the socket reconnects, while a document session still reads its head (F1)", async () => {
+    for (const syncFeed of [false, true]) {
+      flag.syncFeed = syncFeed;
+      const sourceFrame = setup({ kind: "source", id: SOURCE_ID });
+      await sourceFrame.boot();
+      requestMock.mockClear();
+      await act(async () => { ws.reconnect(); });
+      await flush();
+      expect(requestMock.mock.calls.filter(([path]) => path !== "/api/v1/config")).toEqual([]);
+      expect(sourceFrame.events("doc.blocked")).toEqual([]);
+      expect(sourceFrame.hook.result.current.blocked).toBeNull();
+      sourceFrame.hook.unmount();
+      ws.handlers.clear(); ws.reconnects.clear(); document.body.innerHTML = "";
+    }
+
+    flag.syncFeed = false;
+    const docFrame = await openedFrame();
+    requestMock.mockClear();
+    await act(async () => { ws.reconnect(); });
+    await flush();
+    expect(requestMock.mock.calls.filter(([path]) => path === DOC_PATH)).toHaveLength(1);
+    expect(docFrame.events("doc.blocked")).toEqual([]);
+  });
 });
+
