@@ -1,5 +1,44 @@
 [
   {
+    "id": "release-1-6-0",
+    "version": "1.6.0",
+    "date": "2026-10-19",
+    "sourceRef": "65c909bed73758a152f42b9a47db1808fc92ac07",
+    "contentKey": "v1_6_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "cca3275dc8b0fb0b2296db9529abe6546bec9b1f4",
+          "c637118da6a7728102ae5a117c56babe0e609d88e",
+          "c896171fc59d1de0c535d2cd0febe6ca41e7738b9",
+          "ca9583ec607f78bedf7a94c006620f1ee5d7c1081",
+          "c9fccc520a0414af5b9002b19e7d118fb86b13f53",
+          "c356e8ffc953347979413a330e69c7710e6aa9868",
+          "c9c8a3b74619de2d85f0ec70d387853fd1affd587"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "ccccea0fc160226064e08619e8012695125b2dc91",
+          "c22ea091760670c281c9996cbb45c136910655dd5",
+          "c961ef62c74f6af3ca50adeb2153fd4c2b1b2c6bb",
+          "ce23e2771c66928dccf84fbd9cda331f37404b685",
+          "c65c909bed73758a152f42b9a47db1808fc92ac07"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c15cfad8411e546621d6df9d7b6503a128bac61cd",
+          "cdefc46087dd47e7b2e383fa681b092a855e46e0f",
+          "c9138dd10cf4ec713e49bc35b9b7bfdd181d24aba"
+        ]
+      }
+    ]
+  },
+  {
     "id": "release-1-5-1",
     "version": "1.5.1",
     "date": "2026-10-16",
