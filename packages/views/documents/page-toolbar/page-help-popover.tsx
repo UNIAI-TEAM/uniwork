@@ -99,7 +99,7 @@ export function PageHelpPopover({
         side="bottom"
         align="end"
         sideOffset={6}
-        className="max-h-[min(32rem,var(--available-height,32rem))] w-[min(26rem,calc(100vw-2rem))] gap-3 overflow-y-auto p-3"
+        className="max-h-[min(40rem,var(--available-height,40rem))] w-[min(26rem,calc(100vw-2rem))] gap-3 overflow-y-auto p-3"
         initialFocus={false}
       >
         <div className="flex items-center justify-between gap-2">
