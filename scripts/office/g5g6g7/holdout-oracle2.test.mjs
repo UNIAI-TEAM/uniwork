@@ -149,6 +149,13 @@ describe('O2-F2: the literals of a spreadsheet formula quoted in prose are no fi
     const fromFormula = mkCase({ expected: { numeric: [{ name: 'total', value: 109, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] }, referenceAnswer: { numeric: { total: 109 }, structural: [], writes: 0, text: 'x' } });
     assert.equal(verdict(fromFormula, readAsk('read_range', 'sheets', result, 'It is SUBTOTAL(109,B2:B7).', { numbers: [] })), 'fail', 'a formula literal fills no slot');
   });
+
+  it('O2R1-01: masks only the complete "=" formula expression so an adjacent figure after punctuation stays a figure', () => {
+    assert.equal(verdict(c, say('A2 is 25 via =B2*(1-0.1),31.')), 'fail', 'P-F2-OUTSIDE-ADJACENT after comma');
+    assert.equal(verdict(c, say('A2 is 25 via =B2*(1-0.1);31.')), 'fail', 'P-F2-OUTSIDE-ADJACENT after semicolon');
+    assert.equal(verdict(c, say('A2 is 25 (=B2*(1-0.1)):31.')), 'fail', 'P-F2-OUTSIDE-ADJACENT after closing paren');
+    assert.equal(verdict(c, say('A2 is 25 via =B2*(1-0.1), 31.')), 'fail', 'P-F2-OUTSIDE-SPACED control');
+  });
 });
 
 describe('O2-F3: a block or row ordinal that a read holds is a location, not a figure', () => {
