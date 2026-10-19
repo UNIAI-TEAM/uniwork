@@ -1,0 +1,5 @@
+$ printf '%s\n' "import { test, expect } from '@playwright/test'" "test('fake-ai holds no state from an earlier spec', async ({ request }) => {" "  expect(await (await request.get('/__fake-ai/log')).json()).toEqual([])" "})" > web/e2e/zz-fakeai-leak-probe.spec.ts; cp web/e2e/pdf-web.spec.ts web/e2e/zz-pdf-web-after.spec.ts; cp web/e2e/ai-web.spec.ts web/e2e/zz-ai-web-after.spec.ts; ls web/e2e/zz-*; echo PROBE_FILES_OK
+web/e2e/zz-ai-web-after.spec.ts
+web/e2e/zz-fakeai-leak-probe.spec.ts
+web/e2e/zz-pdf-web-after.spec.ts
+PROBE_FILES_OK

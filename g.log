@@ -1,0 +1,45 @@
+$ git checkout -q origin/main -- web/e2e/sheets-ai.spec.ts; WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e sheets-ai zz-fakeai-leak-probe 2>&1 | tail -40; rc=${PIPESTATUS[0]}; git checkout -q HEAD -- web/e2e/sheets-ai.spec.ts; echo "RED_LEAK_RC=$rc"; [ $rc -ne 0 ] && echo RED_LEAK_OK; echo; echo RED_LEAK_EXIT=0
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "aspectRatio": Object {
+    +                   "description": "Aspect ratio like \"1:1\", \"16:9\", \"4:3\"; default 1:1",
+    +                   "type": "string",
+    +                 },
+    +                 "prompt": Object {
+    +                   "description": "What to draw — subject, style, composition (English works better)",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "prompt",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +       ],
+    +     },
+    +     "cookie": null,
+    +     "method": "POST",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/byok/openai/chat/completions",
+    +   },
+    + ]
+
+      1 | import { test, expect } from '@playwright/test'
+      2 | test('fake-ai holds no state from an earlier spec', async ({ request }) => {
+    > 3 |   expect(await (await request.get('/__fake-ai/log')).json()).toEqual([])
+        |                                                              ^
+      4 | })
+      5 |
+        at /home/ubuntu/work/uniwork-office/web/e2e/zz-fakeai-leak-probe.spec.ts:3:62
+
+    Error Context: web/e2e/.results/zz-fakeai-leak-probe-fake--db9d9--state-from-an-earlier-spec-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/zz-fakeai-leak-probe.spec.ts:2:5 › fake-ai holds no state from an earlier spec 
+  18 passed (32.8s)
+RED_LEAK_RC=1
+RED_LEAK_OK
+
+RED_LEAK_EXIT=0

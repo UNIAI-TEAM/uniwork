@@ -1,0 +1,2088 @@
+$ WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e sheets-ai zz-fakeai-leak-probe zz-pdf-web-after zz-ai-web-after; e=$?; echo; echo "LEAK_GREEN_EXIT=$e"; [ $e -eq 0 ]
+
+Running 72 tests using 1 worker
+
+(node:6690) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/sheets-ai.spec.ts:130:7 › sheets: web AI › grant off: no AI UI anywhere and no AI request (3.0s)
+  ✓   2 [chromium] › web/e2e/sheets-ai.spec.ts:156:7 › sheets: web AI › grant on at 390 px: the dock starts collapsed and opens as an overlay, the grid keeps its width (S-03) (1.6s)
+  ✓   3 [chromium] › web/e2e/sheets-ai.spec.ts:187:7 › sheets: web AI › grant on: panel, reply streams with the frame token, the model is offered only web-safe tools (1.6s)
+  ✓   4 [chromium] › web/e2e/sheets-ai.spec.ts:225:7 › sheets: web AI › view-only (no save grant): the composer carries the notice, the model gets read tools only (1.7s)
+  ✓   5 [chromium] › web/e2e/sheets-ai.spec.ts:253:7 › sheets: web AI › an editing frame has no view-only notice (1.4s)
+  ✓   6 [chromium] › web/e2e/sheets-ai.spec.ts:261:7 › sheets: web AI › grant on: a plan operation edits a cell and the save carries it (2.0s)
+  ✓   7 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 402 renders the credits_exhausted state (1.5s)
+  ✓   8 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 403 renders the entitlement_required state (1.4s)
+  ✓   9 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 404 renders the credential_missing state (1.5s)
+  ✓  10 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 424 renders the provider_auth_failed state (1.5s)
+  ✓  11 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 429 renders the rate_limited state (1.5s)
+  ✓  12 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 502 renders the provider_unreachable state (1.4s)
+  ✓  13 [chromium] › web/e2e/sheets-ai.spec.ts:346:7 › sheets: web AI › grant on: 503 cloud_unavailable from a cloud tool renders its state (1.4s)
+  ✓  14 [chromium] › web/e2e/sheets-ai.spec.ts:370:7 › sheets: web AI › AI settings = UniWork credentials: add a key from the gear, reply streams (1.8s)
+  ✓  15 [chromium] › web/e2e/sheets-ai.spec.ts:397:11 › sheets: web AI › screenshots light en (1.8s)
+  ✓  16 [chromium] › web/e2e/sheets-ai.spec.ts:397:11 › sheets: web AI › screenshots light vi (1.8s)
+  ✓  17 [chromium] › web/e2e/sheets-ai.spec.ts:397:11 › sheets: web AI › screenshots dark en (1.8s)
+  ✓  18 [chromium] › web/e2e/sheets-ai.spec.ts:397:11 › sheets: web AI › screenshots dark vi (1.8s)
+  ✓  19 [chromium] › web/e2e/zz-ai-web-after.spec.ts:109:9 › docs: web AI › grant off: no AI UI anywhere and no AI request (2.0s)
+  ✓  20 [chromium] › web/e2e/zz-ai-web-after.spec.ts:133:9 › docs: web AI › grant on: panel visible, reply streams through the proxy with the frame token (767ms)
+  ✓  21 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › docs: web AI › grant on: HTTP 402 renders the credits_exhausted state (588ms)
+  ✓  22 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › docs: web AI › grant on: HTTP 403 renders the entitlement_required state (580ms)
+  ✓  23 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › docs: web AI › grant on: HTTP 404 renders the credential_missing state (584ms)
+  ✓  24 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › docs: web AI › grant on: HTTP 424 renders the provider_auth_failed state (581ms)
+  ✓  25 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › docs: web AI › grant on: HTTP 429 renders the rate_limited state (591ms)
+  ✓  26 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › docs: web AI › grant on: HTTP 502 renders the provider_unreachable state (577ms)
+  ✓  27 [chromium] › web/e2e/zz-ai-web-after.spec.ts:190:9 › docs: web AI › grant on: 503 cloud_unavailable from a cloud tool, 401 -> token refresh (762ms)
+  ✓  28 [chromium] › web/e2e/zz-ai-web-after.spec.ts:231:9 › docs: web AI › AI settings = UniWork credentials: add a key from the missing-key state, reply, remove it (1.4s)
+  ✓  29 [chromium] › web/e2e/zz-ai-web-after.spec.ts:109:9 › markdown: web AI › grant off: no AI UI anywhere and no AI request (1.9s)
+  ✓  30 [chromium] › web/e2e/zz-ai-web-after.spec.ts:133:9 › markdown: web AI › grant on: panel visible, reply streams through the proxy with the frame token (593ms)
+  ✓  31 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › markdown: web AI › grant on: HTTP 402 renders the credits_exhausted state (430ms)
+  ✓  32 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › markdown: web AI › grant on: HTTP 403 renders the entitlement_required state (401ms)
+  ✓  33 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › markdown: web AI › grant on: HTTP 404 renders the credential_missing state (433ms)
+  ✓  34 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › markdown: web AI › grant on: HTTP 424 renders the provider_auth_failed state (426ms)
+  ✓  35 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › markdown: web AI › grant on: HTTP 429 renders the rate_limited state (433ms)
+  ✓  36 [chromium] › web/e2e/zz-ai-web-after.spec.ts:159:11 › markdown: web AI › grant on: HTTP 502 renders the provider_unreachable state (430ms)
+  ✓  37 [chromium] › web/e2e/zz-ai-web-after.spec.ts:190:9 › markdown: web AI › grant on: 503 cloud_unavailable from a cloud tool, 401 -> token refresh (587ms)
+  ✓  38 [chromium] › web/e2e/zz-ai-web-after.spec.ts:231:9 › markdown: web AI › AI settings = UniWork credentials: add a key from the missing-key state, reply, remove it (1.2s)
+  ✓  39 [chromium] › web/e2e/zz-ai-web-after.spec.ts:296:9 › docs: view-only AI › no save grant: the composer carries the view-only notice and the model gets no edit tool (753ms)
+  ✓  40 [chromium] › web/e2e/zz-ai-web-after.spec.ts:324:9 › docs: view-only AI › with the save grant there is no view-only notice (519ms)
+  ✓  41 [chromium] › web/e2e/zz-ai-web-after.spec.ts:296:9 › markdown: view-only AI › no save grant: the composer carries the view-only notice and the model gets no edit tool (573ms)
+  ✓  42 [chromium] › web/e2e/zz-ai-web-after.spec.ts:324:9 › markdown: view-only AI › with the save grant there is no view-only notice (362ms)
+  ✓  43 [chromium] › web/e2e/zz-ai-web-after.spec.ts:296:9 › html: view-only AI › no save grant: the composer carries the view-only notice and the model gets no edit tool (491ms)
+  ✓  44 [chromium] › web/e2e/zz-ai-web-after.spec.ts:324:9 › html: view-only AI › with the save grant there is no view-only notice (271ms)
+  ✓  45 [chromium] › web/e2e/zz-ai-web-after.spec.ts:337:9 › docs: AI screenshots light en (766ms)
+  ✓  46 [chromium] › web/e2e/zz-ai-web-after.spec.ts:337:9 › docs: AI screenshots light vi (805ms)
+  ✓  47 [chromium] › web/e2e/zz-ai-web-after.spec.ts:337:9 › docs: AI screenshots dark en (803ms)
+  ✓  48 [chromium] › web/e2e/zz-ai-web-after.spec.ts:337:9 › docs: AI screenshots dark vi (821ms)
+  ✘  49 [chromium] › web/e2e/zz-fakeai-leak-probe.spec.ts:2:5 › fake-ai holds no state from an earlier spec (21ms)
+(node:7289) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  50 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:198:7 › pdf module on the web › edit round trip: annotate, fill, save, conflict, reopen, page ops, Save As, print (4.0m)
+(node:7364) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  51 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:352:7 › pdf module on the web › view-only (no save grant): edit UI disabled, nothing can be saved, print works (992ms)
+  ✓  52 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:380:7 › pdf module on the web › phone width: the tab row stays on one line and scrolls (369ms)
+  ✘  53 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:405:7 › pdf module on the web › vi ribbon with the AI panel open: the clipped band shows an overflow cue (421ms)
+(node:7464) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  54 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:424:7 › pdf module on the web › Sign dialog: the primary button is the brand blue, not black (510ms)
+  ✓  55 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:439:9 › pdf module on the web › renders sample.pdf with zero CSP violations (1.9s)
+  ✓  56 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:439:9 › pdf module on the web › renders pdf-scanned.pdf with zero CSP violations (1.9s)
+  ✓  57 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:439:9 › pdf module on the web › renders pdf-fonts.pdf with zero CSP violations (1.9s)
+  ✓  58 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:439:9 › pdf module on the web › renders pdf-form.pdf with zero CSP violations (1.9s)
+  ✓  59 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:449:7 › pdf module on the web › encrypted PDF: password prompt, then it renders (read-only) (733ms)
+  ✓  60 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:465:7 › pdf module on the web › screenshots: light + dark, vi + en (7.8s)
+  ✓  61 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:505:9 › pdf module on the web › Insert text draws "Hello": dialog takes the typing, text is placed and saved (780ms)
+  ✓  62 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:505:9 › pdf module on the web › Insert text draws "Xin chào": dialog takes the typing, text is placed and saved (735ms)
+  ✓  63 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:550:9 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office stays visible and explains (en); no app button without the grant (404ms)
+  ✓  64 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:550:9 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office stays visible and explains (vi); no app button without the grant (411ms)
+  ✓  65 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:571:9 › pdf module on the web: use-the-app messages and narrow zoom › Redact stays visible and explains (en); no app button without the grant (461ms)
+  ✓  66 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:571:9 › pdf module on the web: use-the-app messages and narrow zoom › Redact stays visible and explains (vi); no app button without the grant (476ms)
+  ✓  67 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:591:7 › pdf module on the web: use-the-app messages and narrow zoom › Redact: Open in app sends one app.open when the host grants desktopOpen (595ms)
+  ✓  68 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:605:7 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office: Open in app sends one app.open when the host grants desktopOpen (579ms)
+  ✓  69 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:619:7 › pdf module on the web: use-the-app messages and narrow zoom › a scanned document says OCR is an app feature, once, and OK dismisses it (519ms)
+  ✓  70 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:637:7 › pdf module on the web: use-the-app messages and narrow zoom › a text document shows no OCR notice (1.9s)
+  ✓  71 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:644:7 › pdf module on the web: use-the-app messages and narrow zoom › at 390 px the page opens at the 60 % floor, not 26 % (353ms)
+  ✓  72 [chromium] › web/e2e/zz-pdf-web-after.spec.ts:665:7 › pdf module on the web: narrow slot › at 390 px the 60 % page is inside the slot and any overflow pans inside the page area (434ms)
+
+
+  1) [chromium] › web/e2e/zz-fakeai-leak-probe.spec.ts:2:5 › fake-ai holds no state from an earlier spec 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -    1
+    + Received  + 1915
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/credentials",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/cloud",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/credentials",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/cloud",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/byok/openai/models",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/credentials",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/cloud",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {
+    +       "max_completion_tokens": 32768,
+    +       "messages": Array [
+    +         Object {
+    +           "content": "Today's date is 2026-10-19; the current year is 2026.
+    +
+    + You are the document assistant built into the local document editor UniWork Docs. You read and modify the currently open document exclusively through tools; there is no other modification channel.
+    +
+    + # Intent resolution
+    + - The user asks to modify/generate/translate/format → call the appropriate tools, then summarize what was done in one or two sentences;
+    + - The user is asking a question or consulting (word count, structure, \"what is this about\", writing advice, etc.) → answer directly in plain text without calling modification tools;
+    + - For statistics such as word count or block count, quote the \"full-text stats\" from the \"document block list\" directly — do not count yourself;
+    + - When intent is unclear, read the document first (the block list in the message, and read_blocks for full text if needed), then decide.
+    +
+    + # Tool usage
+    + - Every user message carries the latest \"document block list\" (index|type|content preview; previews may be truncated); after modifications, call get_document_context if you need the latest state;
+    + - When a list preview is truncated, read the full content with read_blocks before rewriting; never rewrite based on a truncated preview;
+    + - Content changes: use insert_content for new content, and replace_blocks to rewrite/replace existing blocks (pass a block index range and the new HTML); replaced blocks pass their paragraph and text formatting (font, size, color, indent, spacing, alignment) on to the new blocks automatically, and a rewritten table keeps its widths, borders, shading and cell formatting, so a rewrite never needs follow-up formatting commands;
+    + - Long new content (drafting a whole document, a chapter, a full report/article/translation — anything beyond a few paragraphs) goes through write_document: you pass the plan and the reference material, and the system writer streams the text into the document while the user watches; never paste long content into insert_content. When the document is blank and the user asks for content, use write_document;
+    + - Formatting, structure, and batch operations (color/font size/line spacing/alignment/indent/heading level/find & replace/delete/move/list conversion) go through apply_ops — do not rewrite whole blocks with replace_blocks;
+    + - Small in-place text fixes (changing a few words inside a sentence) go through apply_ops findReplace with a target — do not rewrite the whole block; styling every occurrence of a phrase (e.g. bold each \"TODO\") uses setMatchedFont;
+    + - When the user has text selected, the message includes the selection block indexes and content; rewrite-style requests apply to the selection by default;
+    + - When only part of a block is selected, the selected span is delimited by <sel>…</sel> and repeated as \"Selected text\": \"this\"/\"the selected text\" means exactly that span. Restyle it with apply_ops and target {\"scope\":\"selection\"} (run-level ops then touch only the selected characters); rewrite it with replace_selection. Never restyle or rewrite the whole block for a partial selection;
+    + - Web search: use web_search when you need up-to-date information/data/fact checking; search before writing about uncertain facts — do not fabricate;
+    + - Illustrations: when the user wants pictures, first image_search (English keywords work better) → pick a suitable result → insert_image with its imageUrl; when the user asks to generate/draw a picture, or search cannot match the needed illustration, use generate_image with a detailed English prompt;
+    + - Tracked deletions (struck-through revision text) are not part of the current content and are hidden from the block list/read_blocks/stats; when a [tracked deletion] tag or a skipped-deletion notice appears, that text is already deleted — never try to delete or rewrite it again (the user accepts/rejects revisions in the Review tab);
+    + - Charts: use insert_chart for data visualization (bar/line/pie; saved as native Word charts); use edit_chart to change the data of an existing chart block in the block list; data must be real, from the document or search results;
+    + - New standalone document: when the user asks to put results into a NEW/separate document (a summary, a report, an extraction) instead of this one, use create_document with the full content — do not insert that content into the current document and do not claim you cannot create files;
+    + - One reply may chain multiple tools; after everything is done, always finish with a short plain-text summary.
+    +
+    + # Comments
+    + - Unresolved comment threads ride along in every user message (id, author, anchored block, quoted anchor text); resolved threads are omitted. read_comments returns the full list including resolved threads and replies.
+    + - When the user asks to handle/address/resolve the comments, process them one at a time: read the anchored block, apply the requested change with the normal editing tools, then reply_comment with a one-sentence summary of what changed, then resolve_comment. Handle each comment in its own tool sequence — never one giant edit for all of them.
+    + - A comment that is a question or is ambiguous gets a reply_comment with an answer or a clarifying question, no document change and no resolve.
+    + - Never modify content beyond a comment's anchored passage unless the comment explicitly requires it; skip threads that are already resolved.
+    + - When the user asks for review notes, questions or suggestions without changing the text (proofread and comment, flag weak spots, ask the author), use add_comment on the exact passage instead of editing; delete_comment only when the user asks to remove a comment.
+    +
+    + # Template filling
+    + - When the user asks to fill in a template/form, first scan the document for placeholders: [bracketed labels], {{curly names}}, runs of underscores (____), and protected content-control blocks whose label reads as a field.
+    + - List every placeholder found (with block indexes). Fill the ones the user's message answers via findReplace with a target so the surrounding formatting survives; for the rest, ask for the missing values in one consolidated question — never invent facts to fill a field.
+    + - Dates follow the user's locale; never change text outside the placeholders.
+    +
+    + # Fields, footnotes & endnotes
+    + - insertField writes real Word fields (SEQ caption numbers, DATE/TIME, REF/PAGEREF to a bookmark, MERGEFIELD, PAGE/NUMPAGES, AUTHOR…). Results the editor cannot compute (page numbers, document properties) are placeholders marked for Word to recompute when the file opens; mention that when you report. TOC → insertToc, never insertField.
+    + - insert_footnote / insert_endnote put a superscript reference mark into a block (after afterText, else at its end) and store the note text; read_notes lists notes with ids and anchored blocks; edit_note changes the text of one in place (findReplace inside the note, id kept); delete_note removes one with its mark. Notes are not document blocks — never reach them via block indexes or rewrite a block just to change its note.
+    +
+    + # Headers & footers
+    + - The message context lists the current header/footer text. Change them with set_header_footer: plain text, \\n between lines; the tokens {PAGE} and {NUMPAGES} become live page-number fields (e.g. text \"{PAGE} / {NUMPAGES}\" renders as \"3 / 12\"); an empty string clears the text.
+    + - view \"first\" / \"even\" writes the different-first-page or even-page variant and switches the corresponding Word setting on automatically; omit view for the normal header/footer.
+    + - Existing per-line alignment and styling are preserved; logos and images in the part are untouched. Headers/footers are not document blocks — never try to reach them via block indexes.
+    +
+    + # Answer citations
+    + - When an answer draws on specific parts of the document, cite them as markdown links: [heading text or a short label](docnav://block/N), where N is a block index from the current block list. The user can click these to jump to the passage.
+    + - Only cite block indexes that exist in the block list — never guess; prefer heading blocks as citation anchors. Whole-document answers may omit citations.
+    +
+    + # Tracked revisions
+    + - read_revisions lists every pending tracked change (kind, author, date, block index, affected text). Use it when the user asks what changed / to review or summarize the revisions (a redline summary).
+    + - Redline summary shape: overall counts first (insertions/deletions, authors, date range), then the changes grouped by document section using the heading structure from the block list, one line each; end with a \"Potential concerns\" list flagging risky edits (deleted obligations or qualifiers, changed numbers/dates/amounts, weakened commitments). Cite block indexes so the user can locate each change.
+    + - Summarizing is read-only: do not modify the document, and never try to accept or reject revisions — the user does that in the Review tab.
+    +
+    + # Mind map
+    + - When the user asks for a mind map / 思维导图 / 脑图 / knowledge structure / overview diagram of the document or a topic, call generate_mindmap with the whole tree in one call — never draw it with text or ask the user to confirm first;
+    + - The root is the document title (or the focus topic when the user named one — also pass it as `focus`); its children are the main sections/headings, then key concepts, 2-5 per node, 2-4 levels deep;
+    + - Labels are short phrases (2-8 words) in the document's own language and wording, taken from its headings and key sentences — never invent topics the document does not cover;
+    + - Cite each node's source with `block` (a block index from the current block list); omit it for nodes that span several blocks. Only cite indexes that exist;
+    + - generate_mindmap does not modify the document. After it returns, reply with one short sentence (e.g. that the map is ready and branches can be expanded).
+    +
+    + # HTML fragment rules
+    + The html tool input is a restricted HTML fragment. Rules:
+    + - Only these tags are allowed: h1 h2 h3 h4 h5 h6 p ul ol li strong em u s a br table thead tbody tr th td pre code blockquote
+    + - Tables: use <th> for the first (header) row; cells contain plain text only (<br> may split lines); nested tables / merged cells are not supported; once inserted the table is protected as a whole, only cell text remains editable
+    + - Use <pre> for code samples (monospace font + shading, line breaks preserved); use <blockquote> for quotations (indent + left bar)
+    + - Use <formula>LaTeX</formula> for math (produces native Word equations): as a top-level block it becomes its own centered paragraph; placed inside <p>/<li>/<h*> text it is an inline formula flowing with the text, e.g. <p>From <formula>E = mc^2</formula> we know…</p>; supports the common subset of \\frac \\sqrt super/subscripts \\sum \\int \\lim matrix environments Greek letters etc., the align environment is not supported; invalid LaTeX fails the whole call — fix and retry
+    + - Do not include <html>/<body>, markdown code fences, or explanatory text
+    + - <sel>…</sel> appears only in the context to mark the user's selection; it is not a tag you may write
+    + - Organize long content into sections with h2/h3 (unless the user only wants a single paragraph)
+    + - Keep the same language as the original document / user instruction, unless translation is requested
+    +
+    + # apply_ops guide
+    + apply_ops runs a list of ops as ONE atomic transaction: every op is validated first and any invalid op rejects the whole batch (the error quotes the op's usage line). Each op is a flat object { op, target?, ...fields }. Fields are patches: a present field is set, null clears it, an absent field is left untouched — never repeat properties the user did not ask to change. Colors are \"#RRGGBB\", font sizes are points, lengths are twips (1 pt = 20 twips). Pass dryRun: true to validate and see the plan without changing the document.
+    +
+    + Target (all conditions are ANDed; provide at least one):
+    + ```
+    + interface Target {
+    +   nodeType?: 'docHeading' | 'docParagraph' | 'docListItem' | 'image' | 'table'  // image = image block, table = editable table (row/column/merge/format ops)
+    +   headingLevel?: number        // only together with nodeType: 'docHeading'
+    +   containsText?: string        // block plain text contains this substring
+    +   matchCase?: boolean          // defaults to true
+    +   blockIndexes?: number[]      // indexes from the \"document block list\"
+    +   scope?: 'selection' | 'document'  // selection = only blocks covered by the current selection; when part of a block is selected, setFont / setMatchedFont / findReplace act only on the selected characters (paragraph-level ops still apply to the whole block)
+    + }
+    + ```
+    + Ops:
+    + ```
+    + { op: \"setFont\", target, bold?, italic?, underline?, strike?, color?: \"#RRGGBB\"|null, highlight?, fontSize?: pt|null, fontFamily?: string|null, baseline?: \"superscript\"|\"subscript\"|\"none\"|null, link?: {url}|null }  // run-level style of the targeted blocks (only the selected characters when the target is a partial selection); a present field is set, null clears it, absent fields stay; fontFamily applies to its own script slot (an East Asian font keeps the run's Latin font and vice versa)
+    + { op: \"setMatchedFont\", text, matchCase?, target?, bold?, italic?, underline?, strike?, color?: \"#RRGGBB\"|null, highlight?, fontSize?: pt|null, fontFamily?: string|null, baseline?: \"superscript\"|\"subscript\"|\"none\"|null, link?: {url}|null }  // character-level: styles only the occurrences of text (not the whole block); target narrows the scanned blocks, omitted = whole document
+    + { op: \"setParagraphFormat\", target, align?: \"left\"|\"center\"|\"right\"|\"justify\"|null, lineSpacing?, indentLeft?, indentRight?, indentFirstLine?, spaceBefore?, spaceAfter?, pageBreakBefore?: boolean, shadingFill?: \"#RRGGBB\"|null, borders?: subset of \"tblr\"|null }  // paragraph format of the targeted blocks (whole blocks, even for a partial selection); lengths in twips, lineSpacing as a multiple; indentFirstLine positive = first-line indent, negative = hanging; a two-character CJK indent ≈ font size in pt × 40 twips
+    + { op: \"setHeadingLevel\", target, level: 0-6 }  // 0 = demote to body paragraph
+    + { op: \"findReplace\", find, replace, matchCase?, target? }  // plain-text find & replace inside runs (no cross-block matching); the replacement keeps the matched text's formatting — the right op for small in-place fixes; target narrows the scanned blocks (blockIndexes / scope:\"selection\" / nodeType), omitted = whole document
+    + { op: \"deleteBlocks\", target }
+    + { op: \"moveBlocks\", blockIndexes: number[], afterBlockIndex }  // move the blocks (relative order kept) after afterBlockIndex; -1 = start of document
+    + { op: \"setList\", target, kind?: \"bullet\"|\"number\" }  // paragraphs to list items (default bullet); heading blocks are not converted
+    + { op: \"clearList\", target }  // list items back to body paragraphs
+    + { op: \"setImageProperties\", target, widthPx?, heightPx?, align?: \"left\"|\"center\"|\"right\"|null }  // image blocks only (target nodeType \"image\"); giving one dimension scales the other proportionally
+    + { op: \"insertToc\", afterBlockIndex }  // insert a TOC field after that block (-1 = start of document); entries come from the current headings, Word computes page numbers on open; fails if the document has no headings
+    + { op: \"insertField\", target, type: \"SEQ\"|\"REF\"|\"PAGEREF\"|\"DATE\"|\"TIME\"|\"MERGEFIELD\"|\"IF\"|\"PAGE\"|\"NUMPAGES\"|\"AUTHOR\"|\"TITLE\"|\"DOCPROPERTY\"|... (allowlist; no DDE, LINK, INCLUDE*, IMPORT, DATABASE), args?: string, result?: string, position?: \"start\"|\"end\", afterText?: string }  // insert a Word field into exactly one paragraph, at its end unless position or afterText says otherwise; args is the instruction after the keyword ({ SEQ Figure \\* ARABIC } = type \"SEQ\", args \"Figure \\* ARABIC\"). Computed here: SEQ (visible fields with that identifier so far + 1), REF/PAGEREF (the bookmarked paragraph; insertBookmark creates one), DATE/TIME (now, \\@ picture), MERGEFIELD («Name»), IF with literal operands; PAGE/NUMPAGES show \"1\"; anything else needs result, the text shown until Word updates it. Fields only Word can compute are marked dirty and refresh when the file opens in Word
+    + { op: \"insertBookmark\", target, name }  // bookmark exactly one paragraph (name: letters, digits, underscore, up to 40 characters, unique) so REF / PAGEREF fields can point at it
+    + { op: \"updateFields\", scope?: \"all\"|\"SEQ\"|\"REF\"|\"DATE\" }  // recompute the inline fields the editor can: SEQ numbering in document order, REF results from their bookmarks, DATE/TIME to now; with scope \"all\" every other allowed field (PAGE, NUMPAGES, AUTHOR...) is marked dirty so Word recomputes it on open; external-data fields (DDE, LINK, INCLUDE...) are left as they are. Table-of-contents blocks are untouched (insertToc rebuilds one)
+    + { op: \"insertTableRow\", target, row, position?: \"before\"|\"after\", count? }  // target must match one native table (nodeType \"table\" and/or blockIndexes); row is 0-based; new rows copy the neighbouring row's cell shading/borders (default: after)
+    + { op: \"deleteTableRow\", target, row, count? }  // target must match one native table (nodeType \"table\" and/or blockIndexes); row is 0-based; cells merged across the row shrink
+    + { op: \"insertTableColumn\", target, col, position?: \"before\"|\"after\", count? }  // target must match one native table; col is a 0-based grid column; the new column takes the neighbouring column's width and cell formatting (default: after)
+    + { op: \"deleteTableColumn\", target, col, count? }  // target must match one native table; col is a 0-based grid column; cells merged across the column shrink
+    + { op: \"mergeTableCells\", target, range: { row, col, rowEnd?, colEnd? } }  // merge the rectangle (0-based grid coordinates, ends inclusive) into one cell; refused when an existing merged cell crosses the rectangle edge; the texts are kept as separate paragraphs
+    + { op: \"splitTableCell\", target, cell: { row, col } }  // undo a merge: the cell becomes one cell per grid slot it covered; the text stays in the top-left one
+    + { op: \"setTableCellFormat\", target, range?: { row, col, rowEnd?, colEnd? }, fill?: \"#RRGGBB\"|null, vAlign?: \"top\"|\"center\"|\"bottom\"|null, width?: twips|\"2.5cm\"|\"1in\"|\"72pt\"|\"96px\", borders?: { all?, top?, left?, bottom?, right?: { style?: \"single\"|\"dashed\"|\"double\"|\"none\", width?: pt, color?: \"#RRGGBB\" }|null }|null }  // cells in the range (omitted = whole table); width sets the grid columns the range covers; borders: null = no borders on the cell, a side null = that side off
+    + { op: \"setTableStyle\", target, styleId?: string|null, look?: { firstRow?, lastRow?, firstColumn?, lastColumn?, bandedRows?, bandedColumns?: boolean } }  // styleId must be a table style defined in this document (docs read lists them as tableStyles); null removes the style; look toggles Word's Table Style Options
+    + { op: \"applyStyle\", target, styleId }  // paragraph style by id (or name) from styles.xml / define_style; a heading style turns the block into a heading of its level, another paragraph style turns a heading back into a paragraph; list items keep their numbering
+    + ```
+    +
+    + Common recipes:
+    + - \"Make all headings red\" → ops: [{\"op\":\"setFont\",\"target\":{\"nodeType\":\"docHeading\"},\"color\":\"#FF0000\"}]
+    + - \"1.5 line spacing for the whole document\" → one setParagraphFormat each for docParagraph / docHeading / docListItem with \"lineSpacing\":1.5
+    + - \"Demote the 'Risk Notice' level-2 heading to level 3\" → ops: [{\"op\":\"setHeadingLevel\",\"target\":{\"nodeType\":\"docHeading\",\"headingLevel\":2,\"containsText\":\"Risk Notice\"},\"level\":3}]
+    + - \"Delete blocks 3 to 5\" → ops: [{\"op\":\"deleteBlocks\",\"target\":{\"blockIndexes\":[3,4,5]}}]
+    + - \"Turn blocks 2 to 4 into a numbered list\" → ops: [{\"op\":\"setList\",\"target\":{\"blockIndexes\":[2,3,4]},\"kind\":\"number\"}]
+    + - \"Center all images\" → ops: [{\"op\":\"setImageProperties\",\"target\":{\"nodeType\":\"image\"},\"align\":\"center\"}]
+    + - \"In block 5, change 8% to 9%\" → ops: [{\"op\":\"findReplace\",\"find\":\"8%\",\"replace\":\"9%\",\"target\":{\"blockIndexes\":[5]}}]
+    + - \"Bold every TODO:\" → ops: [{\"op\":\"setMatchedFont\",\"text\":\"TODO:\",\"bold\":true}]
+    + - \"Make the selected words 14 pt blue\" (partial selection) → ops: [{\"op\":\"setFont\",\"target\":{\"scope\":\"selection\"},\"fontSize\":14,\"color\":\"#1A73E8\"}]
+    + - \"Two-character first-line indent for the whole document\" (11 pt font) → one setParagraphFormat for docParagraph with \"indentFirstLine\":440
+    + - \"Insert a table of contents at the beginning\" → ops: [{\"op\":\"insertToc\",\"afterBlockIndex\":-1}]; if the user wants the TOC on its own page, also setParagraphFormat the first body block after the TOC with \"pageBreakBefore\":true
+    + - \"Number the figures\" → one insertField {\"type\":\"SEQ\",\"args\":\"Figure \\* ARABIC\"} per caption paragraph (afterText places the number after the label); \"refresh the numbering / the date\" → [{\"op\":\"updateFields\"}]; a cross-reference is insertBookmark on the target paragraph, then insertField {\"type\":\"REF\",\"args\":\"Name \\h\"} where it is cited
+    + - Cover page recipe: use insert_content to insert one paragraph each for title/subtitle/date at the start of the document, then setFont to enlarge the title (e.g. \"fontSize\":36), setParagraphFormat to center everything and give the title \"spaceBefore\":4800, and finally set \"pageBreakBefore\":true on the first body block after the cover
+    +
+    + Discipline:
+    + - Read the \"document block list\" before issuing ops; anything like \"paragraph N / a certain section\" must be addressed with block indexes from the list — never guess;
+    + - Only give the fields the user explicitly asked to change;
+    + - Protected blocks such as images cannot be modified with style ops (they are skipped); to change table content, use read_blocks to get the <table> and rewrite it wholesale with replace_blocks (the table keeps its column widths, borders, shading and cell formatting; cells whose text you leave unchanged keep their content untouched).
+    +
+    + Known error cases (must avoid):
+    + BC-1 Giving fields the user did not ask for, wiping existing formatting by mistake;
+    + BC-2 A \"whole document\" formatting operation only changed docParagraph and missed docHeading/docListItem;
+    + BC-3 Addressing by word/character position (no such addressing exists); use block indexes, text containment or the selection instead;
+    + BC-4 Using findReplace sentence by sentence for rewrites such as translation/abbreviation; use replace_blocks (or replace_selection for a selected span) instead;
+    +
+    + ## Attachments
+    + The user may attach local files to the conversation (see the \"attachment list\" in each turn's context).
+    + - When the user's request involves attachment content, read it with read_attachment first, then answer or write; do not guess content from file names.
+    + - Long files are read in pages: the result reports the total character count and the current range; to continue, set offset to the end position of the previous slice.
+    + - Image attachments (png/jpg/gif/webp) are already sent as images with the user message — just look at them; read_attachment is only for text-like attachments.
+    + - Do not call read_attachment when there are no attachments or they are unrelated to the request.
+    +
+    + Trả lời bằng ngôn ngữ của tin nhắn người dùng; nếu không xác định được, hãy trả lời bằng tiếng Việt.",
+    +           "role": "system",
+    +         },
+    +         Object {
+    +           "content": "Hello
+    +
+    + Document block list:
+    + The document has 3 blocks, listed below (index|type|content preview):
+    + 0|h1|标题
+    + 1|p|第一段。
+    + 2|p|第二段。
+    + Full-text stats: words 10, characters (no spaces) 10, characters (with spaces) 10
+    + Headers & footers ({PAGE}/{NUMPAGES} are live page-number fields; change with set_header_footer):
+    + - header: (empty) | footer: (empty)
+    + No selection; cursor is in block 0
+    +
+    + Page setup (change with set_page_setup): A4 portrait, margins top 2.54cm right 2.54cm bottom 2.54cm left 2.54cm",
+    +           "role": "user",
+    +         },
+    +       ],
+    +       "model": "gpt-5.6-terra",
+    +       "stream": true,
+    +       "stream_options": Object {
+    +         "include_usage": true,
+    +       },
+    +       "tools": Array [
+    +         Object {
+    +           "function": Object {
+    +             "description": "Get the latest state of the current document: block list (index|type|content preview), full-text stats (word/character counts) and the current selection. Block indexes change after modifications; call this when you need up-to-date indexes.",
+    +             "name": "get_document_context",
+    +             "parameters": Object {
+    +               "properties": Object {},
+    +               "required": Array [],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Ask the user before an edit or an answer when the request is ambiguous about meaning, scope or target (which section or paragraphs, what a term or label in the document means, how far a rewrite should go). Shows a questionnaire card: 1–4 questions, ≤5 options each; the card adds \"decide for me\" and a free-text option itself. Use it only when a guess would likely change the wrong thing; skip it when the request or the document already answers it. Wait for the answers, then continue. Do not repeat the questions in your reply.",
+    +             "name": "ask_clarification",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "questions": Object {
+    +                   "items": Object {
+    +                     "properties": Object {
+    +                       "description": Object {
+    +                         "type": "string",
+    +                       },
+    +                       "id": Object {
+    +                         "type": "string",
+    +                       },
+    +                       "label": Object {
+    +                         "type": "string",
+    +                       },
+    +                       "multi": Object {
+    +                         "type": "boolean",
+    +                       },
+    +                       "options": Object {
+    +                         "items": Object {
+    +                           "type": "string",
+    +                         },
+    +                         "maxItems": 5,
+    +                         "type": "array",
+    +                       },
+    +                     },
+    +                     "required": Array [
+    +                       "id",
+    +                       "label",
+    +                       "options",
+    +                     ],
+    +                     "type": "object",
+    +                   },
+    +                   "maxItems": 4,
+    +                   "minItems": 1,
+    +                   "type": "array",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "questions",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Read the full content of a block range (restricted HTML). Previews in the block list are truncated; you must read the full original text with this tool before rewriting. Long ranges are paged: a truncated result says which offset to continue from; concatenate the slices in order to get the full HTML.",
+    +             "name": "read_blocks",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "endBlockIndex": Object {
+    +                   "description": "end block index (inclusive)",
+    +                   "type": "integer",
+    +                 },
+    +                 "offset": Object {
+    +                   "description": "character offset to continue a truncated read (default 0); use the offset given in the previous truncation notice",
+    +                   "type": "integer",
+    +                 },
+    +                 "startBlockIndex": Object {
+    +                   "description": "start block index (0-based, inclusive)",
+    +                   "type": "integer",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "startBlockIndex",
+    +                 "endBlockIndex",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Insert new content at a given position (restricted HTML, may contain multiple blocks). For writing/continuing/generating new content; to rewrite existing content use replace_blocks.",
+    +             "name": "insert_content",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "afterBlockIndex": Object {
+    +                   "description": "insert after this block index; -1 = start of document; omitted = after the block containing the cursor",
+    +                   "type": "integer",
+    +                 },
+    +                 "html": Object {
+    +                   "description": "restricted HTML fragment to insert",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "html",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "[For long new content: a whole document, a chapter, a full report, article or translation] Hands the writing to the system writer, which streams restricted HTML straight into the document while the user watches; you never write the text yourself. Give a concrete plan (title, section outline with the key points of each, tone, target length) and put every fact, figure, name and quote the text must use into context — the writer sees only the plan and context, not the conversation. Omit afterBlockIndex on a blank document; on a document with content, pass afterBlockIndex to insert after that block, or replaceDocument=true when the user asked to rewrite everything. Short additions (a paragraph or two) use insert_content instead.",
+    +             "name": "write_document",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "afterBlockIndex": Object {
+    +                   "description": "insert after this block index (-1 = document start); omitted = whole document",
+    +                   "type": "integer",
+    +                 },
+    +                 "context": Object {
+    +                   "description": "reference material: facts, figures, quotes, sources gathered from the conversation, attachments and web_search",
+    +                   "type": "string",
+    +                 },
+    +                 "plan": Object {
+    +                   "description": "title, section outline with key points per section, tone, target length",
+    +                   "type": "string",
+    +                 },
+    +                 "replaceDocument": Object {
+    +                   "description": "true replaces all existing content (only when the user asked for a rewrite)",
+    +                   "type": "boolean",
+    +                 },
+    +                 "title": Object {
+    +                   "description": "document/chapter title, when there is one",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "plan",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Replace a block range with new content (restricted HTML). For rewriting/translating/condensing/expanding existing content; the new block count may differ from the old. New blocks inherit the replaced blocks' paragraph and text formatting (font, size, color, indent, spacing, alignment) automatically, and a rewritten <table> keeps the old table's column widths, borders, shading and cell formatting (unchanged cells keep their content); never try to restore formatting afterwards.",
+    +             "name": "replace_blocks",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "endBlockIndex": Object {
+    +                   "description": "end block index (inclusive)",
+    +                   "type": "integer",
+    +                 },
+    +                 "html": Object {
+    +                   "description": "replacement restricted HTML fragment",
+    +                   "type": "string",
+    +                 },
+    +                 "startBlockIndex": Object {
+    +                   "description": "start block index (0-based, inclusive)",
+    +                   "type": "integer",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "startBlockIndex",
+    +                 "endBlockIndex",
+    +                 "html",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Replace exactly the user's selected text (the <sel>…</sel> span in the context) with new inline content, leaving the rest of the block untouched. For rewording/translating/correcting a selected phrase or sentence inside a paragraph. The new text inherits the selection's formatting unless the fragment styles it. Requires a range selection inside one paragraph/heading/list item; for whole blocks or several blocks use replace_blocks.",
+    +             "name": "replace_selection",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "html": Object {
+    +                   "description": "replacement inline content: plain text or restricted inline HTML (strong em u s a br formula)",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "html",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Run a list of formatting/structure ops as one atomic transaction (see the apply_ops guide in the system prompt): setFont, setMatchedFont, setParagraphFormat, setHeadingLevel, findReplace, deleteBlocks, moveBlocks, setList, clearList, setImageProperties, insertToc, insertField, insertBookmark, updateFields, insertTableRow, deleteTableRow, insertTableColumn, deleteTableColumn, mergeTableCells, splitTableCell, setTableCellFormat, setTableStyle, applyStyle. Each op is a flat { op, target?, ...fields } object; fields are patches (present = set, null = clear, absent = untouched). Any invalid op rejects the whole batch with its usage line.",
+    +             "name": "apply_ops",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "dryRun": Object {
+    +                   "description": "validate and return the plan without changing the document",
+    +                   "type": "boolean",
+    +                 },
+    +                 "ops": Object {
+    +                   "description": "ops executed in order, e.g. [{\"op\":\"setFont\",\"target\":{\"nodeType\":\"docHeading\"},\"color\":\"#FF0000\"}]",
+    +                   "items": Object {
+    +                     "type": "object",
+    +                   },
+    +                   "type": "array",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "ops",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "List every pending tracked revision (insertions, deletions, formatting/move/table changes) with its id, type, author, date, block index, the affected text and, for formatting changes, what changed. Ids are positional (r1 = first in document order) and renumber after every edit, so read again before accept_changes / reject_changes.",
+    +             "name": "read_revisions",
+    +             "parameters": Object {
+    +               "properties": Object {},
+    +               "required": Array [],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Accept pending tracked changes: insertions become plain text, deleted text disappears, new formatting stays. Select with all: true, ids from read_revisions, or any combination of author / type / blockIndex / blockRange / before. Only when the user asks to accept changes.",
+    +             "name": "accept_changes",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "all": Object {
+    +                   "description": "true = every pending change",
+    +                   "type": "boolean",
+    +                 },
+    +                 "author": Object {
+    +                   "description": "only changes by this author (case-insensitive)",
+    +                   "type": "string",
+    +                 },
+    +                 "before": Object {
+    +                   "description": "ISO date; only changes recorded before it",
+    +                   "type": "string",
+    +                 },
+    +                 "blockIndex": Object {
+    +                   "description": "only changes inside this block",
+    +                   "type": "integer",
+    +                 },
+    +                 "blockRange": Object {
+    +                   "description": "[from, to] block indexes, inclusive",
+    +                   "items": Object {
+    +                     "type": "integer",
+    +                   },
+    +                   "maxItems": 2,
+    +                   "minItems": 2,
+    +                   "type": "array",
+    +                 },
+    +                 "ids": Object {
+    +                   "description": "revision ids from read_revisions (r1, r2, …); positional, so re-read after any edit",
+    +                   "items": Object {
+    +                     "type": "string",
+    +                   },
+    +                   "type": "array",
+    +                 },
+    +                 "type": Object {
+    +                   "description": "only changes of this type",
+    +                   "enum": Array [
+    +                     "insertion",
+    +                     "deletion",
+    +                     "formatting",
+    +                     "move",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Reject pending tracked changes: inserted text disappears, deleted text is restored, formatting goes back to what it was. Same selector as accept_changes. Only when the user asks to reject changes.",
+    +             "name": "reject_changes",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "all": Object {
+    +                   "description": "true = every pending change",
+    +                   "type": "boolean",
+    +                 },
+    +                 "author": Object {
+    +                   "description": "only changes by this author (case-insensitive)",
+    +                   "type": "string",
+    +                 },
+    +                 "before": Object {
+    +                   "description": "ISO date; only changes recorded before it",
+    +                   "type": "string",
+    +                 },
+    +                 "blockIndex": Object {
+    +                   "description": "only changes inside this block",
+    +                   "type": "integer",
+    +                 },
+    +                 "blockRange": Object {
+    +                   "description": "[from, to] block indexes, inclusive",
+    +                   "items": Object {
+    +                     "type": "integer",
+    +                   },
+    +                   "maxItems": 2,
+    +                   "minItems": 2,
+    +                   "type": "array",
+    +                 },
+    +                 "ids": Object {
+    +                   "description": "revision ids from read_revisions (r1, r2, …); positional, so re-read after any edit",
+    +                   "items": Object {
+    +                     "type": "string",
+    +                   },
+    +                   "type": "array",
+    +                 },
+    +                 "type": Object {
+    +                   "description": "only changes of this type",
+    +                   "enum": Array [
+    +                     "insertion",
+    +                     "deletion",
+    +                     "formatting",
+    +                     "move",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "List all comment threads (including resolved ones) with ids, authors, anchored block indexes and anchor text. Unresolved threads already ride along in the message context; use this for the full picture.",
+    +             "name": "read_comments",
+    +             "parameters": Object {
+    +               "properties": Object {},
+    +               "required": Array [],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Add a reply to a comment thread: after completing a requested change (summarize what changed), or to answer/ask back when the comment is a question or is ambiguous.",
+    +             "name": "reply_comment",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "parentId": Object {
+    +                   "description": "id of the comment thread to reply to",
+    +                   "type": "string",
+    +                 },
+    +                 "text": Object {
+    +                   "description": "reply text",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "parentId",
+    +                 "text",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Mark a comment thread as resolved. Only after the requested change was applied (reply first), or when the user explicitly asked to resolve.",
+    +             "name": "resolve_comment",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "id": Object {
+    +                   "description": "id of the comment thread to resolve",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "id",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Add a footnote: a superscript reference mark goes into the block (right after afterText, else at its end) and the note text prints at the bottom of that page. Use for sources, asides and clarifications the user asks to footnote.",
+    +             "name": "insert_footnote",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "afterText": Object {
+    +                   "description": "exact text in that block the mark follows; omitted = end of the block",
+    +                   "type": "string",
+    +                 },
+    +                 "blockIndex": Object {
+    +                   "description": "block that gets the reference mark",
+    +                   "type": "integer",
+    +                 },
+    +                 "text": Object {
+    +                   "description": "the note text (\\n separates paragraphs)",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "blockIndex",
+    +                 "text",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Add an endnote (same as insert_footnote, but the text collects at the end of the document). Use when the document already uses endnotes or the user asks for them.",
+    +             "name": "insert_endnote",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "afterText": Object {
+    +                   "description": "exact text in that block the mark follows; omitted = end of the block",
+    +                   "type": "string",
+    +                 },
+    +                 "blockIndex": Object {
+    +                   "description": "block that gets the reference mark",
+    +                   "type": "integer",
+    +                 },
+    +                 "text": Object {
+    +                   "description": "the note text (\\n separates paragraphs)",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "blockIndex",
+    +                 "text",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Remove a footnote or endnote together with its reference mark; ids from read_notes.",
+    +             "name": "delete_note",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "id": Object {
+    +                   "description": "note id from read_notes",
+    +                   "type": "string",
+    +                 },
+    +                 "kind": Object {
+    +                   "enum": Array [
+    +                     "footnote",
+    +                     "endnote",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "kind",
+    +                 "id",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Change the text of an existing footnote or endnote in place (findReplace inside the note): the note keeps its id, reference mark and formatting. Use for a typo or a citation fix instead of delete_note + insert_footnote.",
+    +             "name": "edit_note",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "find": Object {
+    +                   "description": "exact text inside the note to replace",
+    +                   "type": "string",
+    +                 },
+    +                 "id": Object {
+    +                   "description": "note id from read_notes",
+    +                   "type": "string",
+    +                 },
+    +                 "kind": Object {
+    +                   "description": "omit when the id is unambiguous across footnotes and endnotes",
+    +                   "enum": Array [
+    +                     "footnote",
+    +                     "endnote",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +                 "matchCase": Object {
+    +                   "description": "defaults to true",
+    +                   "type": "boolean",
+    +                 },
+    +                 "replace": Object {
+    +                   "description": "replacement text (\"\" deletes the match)",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "id",
+    +                 "find",
+    +                 "replace",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "List every footnote and endnote with its id, number, the block holding its reference mark and its text.",
+    +             "name": "read_notes",
+    +             "parameters": Object {
+    +               "properties": Object {},
+    +               "required": Array [],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Start a new comment thread on a block or on an exact text span inside it, without changing the document: review notes, questions, suggestions the user should decide on.",
+    +             "name": "add_comment",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "author": Object {
+    +                   "description": "author name; default: the AI author",
+    +                   "type": "string",
+    +                 },
+    +                 "blockIndex": Object {
+    +                   "description": "block to annotate",
+    +                   "type": "integer",
+    +                 },
+    +                 "comment": Object {
+    +                   "description": "comment body; \\n starts a new paragraph",
+    +                   "type": "string",
+    +                 },
+    +                 "initials": Object {
+    +                   "description": "author initials shown in the margin",
+    +                   "type": "string",
+    +                 },
+    +                 "occurrence": Object {
+    +                   "description": "which match to anchor when text occurs more than once (1 = first)",
+    +                   "type": "integer",
+    +                 },
+    +                 "text": Object {
+    +                   "description": "exact text inside the block to anchor the comment to; omitted = the whole block",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "blockIndex",
+    +                 "comment",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Delete a comment. A thread root with replies is refused unless withReplies is true; a reply id deletes just that reply.",
+    +             "name": "delete_comment",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "id": Object {
+    +                   "description": "id of the comment to delete",
+    +                   "type": "string",
+    +                 },
+    +                 "withReplies": Object {
+    +                   "description": "also delete the replies of a thread root (default false)",
+    +                   "type": "boolean",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "id",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Search the web for textual information (references/data/facts). Use when you need up-to-date information or are unsure about a fact. Returns titles/links/snippets.",
+    +             "name": "web_search",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "maxResults": Object {
+    +                   "description": "maximum number of results, default 6",
+    +                   "type": "integer",
+    +                 },
+    +                 "query": Object {
+    +                   "description": "search keywords",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "query",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Search for images. Returns a list of image imageUrl entries; after picking one, insert it into the document with insert_image.",
+    +             "name": "image_search",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "maxResults": Object {
+    +                   "description": "maximum number of results, default 8",
+    +                   "type": "integer",
+    +                 },
+    +                 "query": Object {
+    +                   "description": "image search keywords (English works better)",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "query",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Look at a picture that is in the document and answer questions about it, or analyze image/audio/video given by URL or local file path; returns the analysis as text. An image block in the document carries no text of its own — read_blocks cannot tell you what a picture shows, so this is the only way to see it. Pass blockIndex for an image block listed by get_document_context, and/or mediaUrls.",
+    +             "name": "analyze_media",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "blockIndex": Object {
+    +                   "description": "block index of an image block of the document, as listed by get_document_context",
+    +                   "type": "integer",
+    +                 },
+    +                 "mediaUrls": Object {
+    +                   "description": "media URLs or local file paths (image/audio/video); optional when blockIndex is given",
+    +                   "items": Object {
+    +                     "type": "string",
+    +                   },
+    +                   "type": "array",
+    +                 },
+    +                 "requirements": Object {
+    +                   "description": "analysis requirements (English): what to extract, or the question to answer about the media",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "requirements",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Download a direct image link (an imageUrl from image_search) and insert it into the document (at the cursor / end of document).",
+    +             "name": "insert_image",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "maxWidthPx": Object {
+    +                   "description": "maximum width (px), default 480",
+    +                   "type": "integer",
+    +                 },
+    +                 "url": Object {
+    +                   "description": "direct image link",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "url",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Generate an illustration with AI from a text prompt and insert it into the document (at the cursor / end of document). For illustration/diagram-style art that image_search cannot find, or when the user asks to generate/draw a picture.",
+    +             "name": "generate_image",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "aspectRatio": Object {
+    +                   "description": "e.g. \"1:1\", \"16:9\", \"4:3\"; omit for the default",
+    +                   "type": "string",
+    +                 },
+    +                 "maxWidthPx": Object {
+    +                   "description": "maximum width (px), default 480",
+    +                   "type": "integer",
+    +                 },
+    +                 "prompt": Object {
+    +                   "description": "detailed English description of the image to generate",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "prompt",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Insert a chart (saved as a native Word chart). Data must be real: from the document content or web_search results — do not make up numbers.",
+    +             "name": "insert_chart",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "afterBlockIndex": Object {
+    +                   "description": "insert after this block index; -1 = start of document; omitted = after the block containing the cursor",
+    +                   "type": "integer",
+    +                 },
+    +                 "categories": Object {
+    +                   "description": "category (x axis / sector) labels",
+    +                   "items": Object {
+    +                     "type": "string",
+    +                   },
+    +                   "type": "array",
+    +                 },
+    +                 "kind": Object {
+    +                   "description": "chart type",
+    +                   "enum": Array [
+    +                     "bar",
+    +                     "line",
+    +                     "pie",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +                 "series": Object {
+    +                   "description": "data series; values has the same length as categories, use null for missing data. Pie charts use only the first series",
+    +                   "items": Object {
+    +                     "properties": Object {
+    +                       "name": Object {
+    +                         "type": "string",
+    +                       },
+    +                       "values": Object {
+    +                         "items": Object {
+    +                           "type": Array [
+    +                             "number",
+    +                             "null",
+    +                           ],
+    +                         },
+    +                         "type": "array",
+    +                       },
+    +                     },
+    +                     "required": Array [
+    +                       "values",
+    +                     ],
+    +                     "type": "object",
+    +                   },
+    +                   "type": "array",
+    +                 },
+    +                 "title": Object {
+    +                   "description": "chart title",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "kind",
+    +                 "categories",
+    +                 "series",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Edit the data of an existing chart in the document (title/category labels/series names/values). Chart blocks in the block list can be edited; the category count and the number of values per series must match the original chart (data points cannot be added or removed).",
+    +             "name": "edit_chart",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "blockIndex": Object {
+    +                   "description": "block index of the chart",
+    +                   "type": "integer",
+    +                 },
+    +                 "categories": Object {
+    +                   "description": "new category labels, same length as the original; pass null for positions to keep",
+    +                   "items": Object {
+    +                     "type": Array [
+    +                       "string",
+    +                       "null",
+    +                     ],
+    +                   },
+    +                   "type": "array",
+    +                 },
+    +                 "series": Object {
+    +                   "description": "series to change",
+    +                   "items": Object {
+    +                     "properties": Object {
+    +                       "index": Object {
+    +                         "description": "series index (0-based)",
+    +                         "type": "integer",
+    +                       },
+    +                       "name": Object {
+    +                         "description": "new series name (omit to keep)",
+    +                         "type": "string",
+    +                       },
+    +                       "values": Object {
+    +                         "description": "new values, same length as the original series; pass null for positions to keep",
+    +                         "items": Object {
+    +                           "type": Array [
+    +                             "number",
+    +                             "null",
+    +                           ],
+    +                         },
+    +                         "type": "array",
+    +                       },
+    +                     },
+    +                     "required": Array [
+    +                       "index",
+    +                     ],
+    +                     "type": "object",
+    +                   },
+    +                   "type": "array",
+    +                 },
+    +                 "title": Object {
+    +                   "description": "new title (omit to keep)",
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "blockIndex",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Set the page header or footer text (the current contents are listed in the message context). Plain text; \\n separates lines; the tokens {PAGE} and {NUMPAGES} become live page-number fields; an empty string clears the text. Per-line alignment/styling of the existing header/footer is preserved; images in it are untouched. view \"first\"/\"even\" writes the different-first-page / even-page variant (enabling that setting if needed).",
+    +             "name": "set_header_footer",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "kind": Object {
+    +                   "enum": Array [
+    +                     "header",
+    +                     "footer",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +                 "text": Object {
+    +                   "description": "new text; \\n between lines; may contain {PAGE} / {NUMPAGES}; \"\" clears",
+    +                   "type": "string",
+    +                 },
+    +                 "view": Object {
+    +                   "description": "which variant to write (default when omitted)",
+    +                   "enum": Array [
+    +                     "default",
+    +                     "first",
+    +                     "even",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "kind",
+    +                 "text",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Change paper size, orientation, margins, text columns, the different-first-page flag or page numbering of the document or of one section (the message context lists the sections). Only the fields given change. Lengths take a unit suffix (cm, mm, in, pt) or twips. Setting the orientation alone swaps the current width and height.",
+    +             "name": "set_page_setup",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "blockIndex": Object {
+    +                   "description": "change the section that contains this block index",
+    +                   "type": "integer",
+    +                 },
+    +                 "columns": Object {
+    +                   "description": "text columns of the section",
+    +                   "properties": Object {
+    +                     "count": Object {
+    +                       "description": "1-12",
+    +                       "type": "integer",
+    +                     },
+    +                     "spacing": Object {
+    +                       "description": "gap between columns, a number of twips or a string with a unit: \"2.54cm\", \"1in\", \"72pt\", \"10mm\"",
+    +                       "type": Array [
+    +                         "string",
+    +                         "number",
+    +                       ],
+    +                     },
+    +                   },
+    +                   "required": Array [
+    +                     "count",
+    +                   ],
+    +                   "type": "object",
+    +                 },
+    +                 "height": Object {
+    +                   "description": "custom page height, a number of twips or a string with a unit: \"2.54cm\", \"1in\", \"72pt\", \"10mm\"",
+    +                   "type": Array [
+    +                     "string",
+    +                     "number",
+    +                   ],
+    +                 },
+    +                 "margins": Object {
+    +                   "description": "any of top, right, bottom, left, header, footer, gutter; each a number of twips or a string with a unit: \"2.54cm\", \"1in\", \"72pt\", \"10mm\"",
+    +                   "properties": Object {
+    +                     "bottom": Object {
+    +                       "type": Array [
+    +                         "string",
+    +                         "number",
+    +                       ],
+    +                     },
+    +                     "footer": Object {
+    +                       "description": "footer distance from the page bottom",
+    +                       "type": Array [
+    +                         "string",
+    +                         "number",
+    +                       ],
+    +                     },
+    +                     "gutter": Object {
+    +                       "description": "extra binding margin",
+    +                       "type": Array [
+    +                         "string",
+    +                         "number",
+    +                       ],
+    +                     },
+    +                     "header": Object {
+    +                       "description": "header distance from the page top",
+    +                       "type": Array [
+    +                         "string",
+    +                         "number",
+    +                       ],
+    +                     },
+    +                     "left": Object {
+    +                       "type": Array [
+    +                         "string",
+    +                         "number",
+    +                       ],
+    +                     },
+    +                     "right": Object {
+    +                       "type": Array [
+    +                         "string",
+    +                         "number",
+    +                       ],
+    +                     },
+    +                     "top": Object {
+    +                       "type": Array [
+    +                         "string",
+    +                         "number",
+    +                       ],
+    +                     },
+    +                   },
+    +                   "type": "object",
+    +                 },
+    +                 "orientation": Object {
+    +                   "enum": Array [
+    +                     "portrait",
+    +                     "landscape",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +                 "pageNumberFormat": Object {
+    +                   "description": "decimal, lowerRoman, upperRoman, lowerLetter, upperLetter, ...",
+    +                   "type": "string",
+    +                 },
+    +                 "pageNumberStart": Object {
+    +                   "description": "restart page numbering at this value; null = continue from the previous section",
+    +                   "type": Array [
+    +                     "integer",
+    +                     "null",
+    +                   ],
+    +                 },
+    +                 "paper": Object {
+    +                   "description": "named size: A3, A4, A5, B5, Letter, Legal, Tabloid",
+    +                   "type": "string",
+    +                 },
+    +                 "section": Object {
+    +                   "description": "section index (0-based) to change; omit with blockIndex omitted = every section",
+    +                   "type": "integer",
+    +                 },
+    +                 "titlePg": Object {
+    +                   "description": "different first page (own header/footer on the first page of the section)",
+    +                   "type": "boolean",
+    +                 },
+    +                 "width": Object {
+    +                   "description": "custom page width, a number of twips or a string with a unit: \"2.54cm\", \"1in\", \"72pt\", \"10mm\"",
+    +                   "type": Array [
+    +                     "string",
+    +                     "number",
+    +                   ],
+    +                 },
+    +               },
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Insert a section break after a block so the blocks after it form a new section with its own page setup, headers and footers (the new section starts as a copy of the current one; change it with set_page_setup afterwards). type nextPage starts the new section on a new page, continuous keeps the flow (needed for column changes mid-page), evenPage / oddPage start on the next even / odd page.",
+    +             "name": "insert_section_break",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "afterBlockIndex": Object {
+    +                   "description": "the break goes after this block index; -1 = before the first block",
+    +                   "type": "integer",
+    +                 },
+    +                 "type": Object {
+    +                   "description": "default nextPage",
+    +                   "enum": Array [
+    +                     "nextPage",
+    +                     "continuous",
+    +                     "evenPage",
+    +                     "oddPage",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "afterBlockIndex",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Create a style or change the definition of an existing one (paragraph, character or table style in styles.xml). Only the fields given change; everything else the style already defines is kept. Paragraphs using the style pick the change up automatically. To put a style on paragraphs, call apply_ops with the applyStyle op { op: \"applyStyle\", target, styleId }. Existing style ids are listed by list_styles / in the tool output.",
+    +             "name": "define_style",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "basedOn": Object {
+    +                   "description": "parent style id to inherit from; null removes the inheritance",
+    +                   "type": Array [
+    +                     "string",
+    +                     "null",
+    +                   ],
+    +                 },
+    +                 "name": Object {
+    +                   "description": "display name (defaults to the id when creating)",
+    +                   "type": "string",
+    +                 },
+    +                 "next": Object {
+    +                   "description": "style of the paragraph created by Enter at the end of a paragraph in this style",
+    +                   "type": Array [
+    +                     "string",
+    +                     "null",
+    +                   ],
+    +                 },
+    +                 "paragraph": Object {
+    +                   "description": "paragraph formatting (paragraph and table styles)",
+    +                   "properties": Object {
+    +                     "align": Object {
+    +                       "enum": Array [
+    +                         "left",
+    +                         "center",
+    +                         "right",
+    +                         "justify",
+    +                         null,
+    +                       ],
+    +                       "type": Array [
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "firstLineIndent": Object {
+    +                       "description": "first-line indent, negative = hanging indent, a length like \"0.5in\", \"1.27cm\", \"12pt\" (bare numbers are points), or null to clear",
+    +                       "type": Array [
+    +                         "number",
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "indentLeft": Object {
+    +                       "description": "a length like \"0.5in\", \"1.27cm\", \"12pt\" (bare numbers are points), or null to clear",
+    +                       "type": Array [
+    +                         "number",
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "indentRight": Object {
+    +                       "description": "a length like \"0.5in\", \"1.27cm\", \"12pt\" (bare numbers are points), or null to clear",
+    +                       "type": Array [
+    +                         "number",
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "keepLines": Object {
+    +                       "description": "keep lines together",
+    +                       "type": "boolean",
+    +                     },
+    +                     "keepNext": Object {
+    +                       "description": "keep with next paragraph",
+    +                       "type": "boolean",
+    +                     },
+    +                     "lineSpacing": Object {
+    +                       "description": "line spacing as a multiple of single (1, 1.15, 1.5, 2)",
+    +                       "type": Array [
+    +                         "number",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "outlineLevel": Object {
+    +                       "description": "1-9: the style becomes a heading of that level in the navigation pane / TOC",
+    +                       "type": Array [
+    +                         "integer",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "pageBreakBefore": Object {
+    +                       "type": "boolean",
+    +                     },
+    +                     "spaceAfter": Object {
+    +                       "description": "space after, a length like \"0.5in\", \"1.27cm\", \"12pt\" (bare numbers are points), or null to clear",
+    +                       "type": Array [
+    +                         "number",
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "spaceBefore": Object {
+    +                       "description": "space before, a length like \"0.5in\", \"1.27cm\", \"12pt\" (bare numbers are points), or null to clear",
+    +                       "type": Array [
+    +                         "number",
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                   },
+    +                   "type": "object",
+    +                 },
+    +                 "quickFormat": Object {
+    +                   "description": "show in the quick style gallery",
+    +                   "type": "boolean",
+    +                 },
+    +                 "run": Object {
+    +                   "description": "text formatting (all style types)",
+    +                   "properties": Object {
+    +                     "bold": Object {
+    +                       "type": "boolean",
+    +                     },
+    +                     "caps": Object {
+    +                       "type": "boolean",
+    +                     },
+    +                     "color": Object {
+    +                       "description": "\"#RRGGBB\" or null to clear",
+    +                       "type": Array [
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "eastAsiaFontFamily": Object {
+    +                       "description": "CJK font face",
+    +                       "type": Array [
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "fontFamily": Object {
+    +                       "description": "Latin font face",
+    +                       "type": Array [
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "fontSize": Object {
+    +                       "description": "points",
+    +                       "type": Array [
+    +                         "number",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "highlight": Object {
+    +                       "description": "highlight color name (yellow, green, cyan, magenta, blue, red, ...) or null",
+    +                       "type": Array [
+    +                         "string",
+    +                         "null",
+    +                       ],
+    +                     },
+    +                     "italic": Object {
+    +                       "type": "boolean",
+    +                     },
+    +                     "smallCaps": Object {
+    +                       "type": "boolean",
+    +                     },
+    +                     "strike": Object {
+    +                       "type": "boolean",
+    +                     },
+    +                     "underline": Object {
+    +                       "type": "boolean",
+    +                     },
+    +                   },
+    +                   "type": "object",
+    +                 },
+    +                 "styleId": Object {
+    +                   "description": "style id (letters, digits, - and _; e.g. \"Heading1\", \"Quote\", \"MyCallout\")",
+    +                   "type": "string",
+    +                 },
+    +                 "type": Object {
+    +                   "description": "when creating (default paragraph); an existing style keeps its type",
+    +                   "enum": Array [
+    +                     "paragraph",
+    +                     "character",
+    +                     "table",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "styleId",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "List the styles defined in the document (id, name, type, parent, heading level) for define_style / applyStyle.",
+    +             "name": "list_styles",
+    +             "parameters": Object {
+    +               "properties": Object {},
+    +               "required": Array [],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Set, restyle or remove the page watermark: a gray text like DRAFT or CONFIDENTIAL, or a washed-out picture (a logo), drawn behind the body on every page (written into the page header, where Word shows it in Design > Watermark). Give text or image, not both; text null or image null removes whichever watermark the document has.",
+    +             "name": "set_watermark",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "bold": Object {
+    +                   "type": "boolean",
+    +                 },
+    +                 "color": Object {
+    +                   "description": "\"#RRGGBB\" (default silver)",
+    +                   "type": "string",
+    +                 },
+    +                 "diagonal": Object {
+    +                   "description": "diagonal (default) or horizontal layout",
+    +                   "type": "boolean",
+    +                 },
+    +                 "fontFamily": Object {
+    +                   "description": "font face (default the document theme face)",
+    +                   "type": "string",
+    +                 },
+    +                 "image": Object {
+    +                   "description": "picture watermark: http(s) or data: URL of a png/jpg/gif, centered behind the body; null removes the watermark",
+    +                   "type": Array [
+    +                     "string",
+    +                     "null",
+    +                   ],
+    +                 },
+    +                 "italic": Object {
+    +                   "type": "boolean",
+    +                 },
+    +                 "opacity": Object {
+    +                   "description": "0-1 (default 0.5)",
+    +                   "type": "number",
+    +                 },
+    +                 "scale": Object {
+    +                   "description": "picture size as a percent of its natural size (default: fit the page inside the margins)",
+    +                   "type": "number",
+    +                 },
+    +                 "text": Object {
+    +                   "description": "watermark text; null removes the watermark",
+    +                   "type": Array [
+    +                     "string",
+    +                     "null",
+    +                   ],
+    +                 },
+    +                 "washout": Object {
+    +                   "description": "fade the picture like Word's washout (default true)",
+    +                   "type": "boolean",
+    +                 },
+    +               },
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Insert a floating text box (a positioned rectangle holding text, like a callout or sidebar) anchored to a block. Body text either flows above/below it or ignores it.",
+    +             "name": "insert_text_box",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "afterBlockIndex": Object {
+    +                   "description": "anchor after this block (-1 = start of document); default: end of document",
+    +                   "type": "integer",
+    +                 },
+    +                 "align": Object {
+    +                   "enum": Array [
+    +                     "left",
+    +                     "center",
+    +                     "right",
+    +                     "justify",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +                 "anchor": Object {
+    +                   "description": "offsets measure from the anchor paragraph (default) or the page corner",
+    +                   "enum": Array [
+    +                     "paragraph",
+    +                     "page",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +                 "bold": Object {
+    +                   "type": "boolean",
+    +                 },
+    +                 "borderColor": Object {
+    +                   "description": "\"#RRGGBB\" outline (default black); null = no outline",
+    +                   "type": Array [
+    +                     "string",
+    +                     "null",
+    +                   ],
+    +                 },
+    +                 "color": Object {
+    +                   "description": "\"#RRGGBB\" text color",
+    +                   "type": "string",
+    +                 },
+    +                 "fill": Object {
+    +                   "description": "\"#RRGGBB\" background (default white); null = transparent",
+    +                   "type": Array [
+    +                     "string",
+    +                     "null",
+    +                   ],
+    +                 },
+    +                 "fontSize": Object {
+    +                   "description": "text size in points (a bare number, or a length like \"12pt\")",
+    +                   "type": Array [
+    +                     "number",
+    +                     "string",
+    +                   ],
+    +                 },
+    +                 "height": Object {
+    +                   "description": "box height, \"2.54cm\", \"1in\", \"72pt\", \"96px\" or a bare number of points",
+    +                   "type": Array [
+    +                     "number",
+    +                     "string",
+    +                   ],
+    +                 },
+    +                 "text": Object {
+    +                   "description": "box text; \\n separates paragraphs",
+    +                   "type": "string",
+    +                 },
+    +                 "width": Object {
+    +                   "description": "box width, \"2.54cm\", \"1in\", \"72pt\", \"96px\" or a bare number of points",
+    +                   "type": Array [
+    +                     "number",
+    +                     "string",
+    +                   ],
+    +                 },
+    +                 "wrap": Object {
+    +                   "description": "body text resumes below the box (default for paragraph anchors) or ignores it (default for page anchors)",
+    +                   "enum": Array [
+    +                     "topAndBottom",
+    +                     "none",
+    +                   ],
+    +                   "type": "string",
+    +                 },
+    +                 "x": Object {
+    +                   "description": "horizontal offset, \"2.54cm\", \"1in\", \"72pt\", \"96px\" or a bare number of points",
+    +                   "type": Array [
+    +                     "number",
+    +                     "string",
+    +                   ],
+    +                 },
+    +                 "y": Object {
+    +                   "description": "vertical offset, \"2.54cm\", \"1in\", \"72pt\", \"96px\" or a bare number of points",
+    +                   "type": Array [
+    +                     "number",
+    +                     "string",
+    +                   ],
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "text",
+    +                 "width",
+    +                 "height",
+    +                 "x",
+    +                 "y",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Insert a picture from a direct image link at a block position, at a given size, inline or floating (positioned on the page, with text wrapping around/behind/in front). insert_image is the simpler cursor-position variant.",
+    +             "name": "insert_picture",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "afterBlockIndex": Object {
+    +                   "description": "insert after this block (-1 = start of document); default: end of document",
+    +                   "type": "integer",
+    +                 },
+    +                 "altText": Object {
+    +                   "description": "alternative text (accessibility)",
+    +                   "type": "string",
+    +                 },
+    +                 "float": Object {
+    +                   "description": "omit for an inline picture in its own paragraph; give it to float the picture at a position",
+    +                   "properties": Object {
+    +                     "anchor": Object {
+    +                       "description": "what x/y measure from: the anchor paragraph (x from the text column, y from the paragraph top), the page corner, or the margin box corner",
+    +                       "enum": Array [
+    +                         "paragraph",
+    +                         "page",
+    +                         "margin",
+    +                       ],
+    +                       "type": "string",
+    +                     },
+    +                     "wrap": Object {
+    +                       "description": "how body text flows around it (default square)",
+    +                       "enum": Array [
+    +                         "square",
+    +                         "tight",
+    +                         "topAndBottom",
+    +                         "behind",
+    +                         "inFront",
+    +                       ],
+    +                       "type": "string",
+    +                     },
+    +                     "x": Object {
+    +                       "description": "horizontal offset, \"2.54cm\", \"1in\", \"72pt\", \"96px\" or a bare number of points",
+    +                       "type": Array [
+    +                         "number",
+    +                         "string",
+    +                       ],
+    +                     },
+    +                     "y": Object {
+    +                       "description": "vertical offset, \"2.54cm\", \"1in\", \"72pt\", \"96px\" or a bare number of points",
+    +                       "type": Array [
+    +                         "number",
+    +                         "string",
+    +                       ],
+    +                     },
+    +                   },
+    +                   "required": Array [
+    +                     "x",
+    +                     "y",
+    +                   ],
+    +                   "type": "object",
+    +                 },
+    +                 "height": Object {
+    +                   "description": "display height; omit to keep the aspect ratio",
+    +                   "type": Array [
+    +                     "number",
+    +                     "string",
+    +                   ],
+    +                 },
+    +                 "url": Object {
+    +                   "description": "direct image link (png/jpg/gif)",
+    +                   "type": "string",
+    +                 },
+    +                 "width": Object {
+    +                   "description": "display width, \"2.54cm\", \"1in\", \"72pt\", \"96px\" or a bare number of points; default natural size capped at 480px",
+    +                   "type": Array [
+    +                     "number",
+    +                     "string",
+    +                   ],
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "url",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Render an interactive mind map of the document (or of one focused aspect) as a diagram card in the chat. Call it when the user asks for a mind map / 思维导图 / 脑图 / knowledge structure / overview diagram of the document or a topic. Pass the entire tree in this single call: the root is the document title or the focus topic, its children are the main sections, and so on. Labels must be short phrases in the document's own language and wording — never invent topics the document does not cover. Cite the block index each node summarizes in `block` so the user can jump to the passage. This tool does not modify the document; after it returns, reply with one short sentence.",
+    +             "name": "generate_mindmap",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "focus": Object {
+    +                   "description": "optional: the aspect the map should center on (e.g. \"risk controls\", \"for beginners\"); omit for a whole-document map",
+    +                   "type": "string",
+    +                 },
+    +                 "root": Object {
+    +                   "description": "the mind map tree: root node with nested children",
+    +                   "properties": Object {
+    +                     "block": Object {
+    +                       "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks",
+    +                       "type": "integer",
+    +                     },
+    +                     "children": Object {
+    +                       "description": "sub-topics; 2-5 per node reads best",
+    +                       "items": Object {
+    +                         "properties": Object {
+    +                           "block": Object {
+    +                             "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks",
+    +                             "type": "integer",
+    +                           },
+    +                           "children": Object {
+    +                             "description": "sub-topics; 2-5 per node reads best",
+    +                             "items": Object {
+    +                               "properties": Object {
+    +                                 "block": Object {
+    +                                   "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks",
+    +                                   "type": "integer",
+    +                                 },
+    +                                 "children": Object {
+    +                                   "description": "sub-topics; 2-5 per node reads best",
+    +                                   "items": Object {
+    +                                     "properties": Object {
+    +                                       "block": Object {
+    +                                         "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks",
+    +                                         "type": "integer",
+    +                                       },
+    +                                       "children": Object {
+    +                                         "description": "sub-topics; 2-5 per node reads best",
+    +                                         "items": Object {
+    +                                           "properties": Object {
+    +                                             "block": Object {
+    +                                               "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks",
+    +                                               "type": "integer",
+    +                                             },
+    +                                             "children": Object {
+    +                                               "description": "sub-topics; 2-5 per node reads best",
+    +                                               "items": Object {
+    +                                                 "properties": Object {
+    +                                                   "block": Object {
+    +                                                     "description": "0-based block index this node summarizes (from the current block list); omit when the node spans several blocks",
+    +                                                     "type": "integer",
+    +                                                   },
+    +                                                   "children": Object {
+    +                                                     "description": "sub-topics; 2-5 per node reads best",
+    +                                                     "type": "array",
+    +                                                   },
+    +                                                   "label": Object {
+    +                                                     "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases",
+    +                                                     "type": "string",
+    +                                                   },
+    +                                                 },
+    +                                                 "required": Array [
+    +                                                   "label",
+    +                                                 ],
+    +                                                 "type": "object",
+    +                                               },
+    +                                               "type": "array",
+    +                                             },
+    +                                             "label": Object {
+    +                                               "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases",
+    +                                               "type": "string",
+    +                                             },
+    +                                           },
+    +                                           "required": Array [
+    +                                             "label",
+    +                                           ],
+    +                                           "type": "object",
+    +                                         },
+    +                                         "type": "array",
+    +                                       },
+    +                                       "label": Object {
+    +                                         "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases",
+    +                                         "type": "string",
+    +                                       },
+    +                                     },
+    +                                     "required": Array [
+    +                                       "label",
+    +                                     ],
+    +                                     "type": "object",
+    +                                   },
+    +                                   "type": "array",
+    +                                 },
+    +                                 "label": Object {
+    +                                   "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases",
+    +                                   "type": "string",
+    +                                 },
+    +                               },
+    +                               "required": Array [
+    +                                 "label",
+    +                               ],
+    +                               "type": "object",
+    +                             },
+    +                             "type": "array",
+    +                           },
+    +                           "label": Object {
+    +                             "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases",
+    +                             "type": "string",
+    +                           },
+    +                         },
+    +                         "required": Array [
+    +                           "label",
+    +                         ],
+    +                         "type": "object",
+    +                       },
+    +                       "type": "array",
+    +                     },
+    +                     "label": Object {
+    +                       "description": "short node label (2-8 words) in the document's language, taken from its headings or key phrases",
+    +                       "type": "string",
+    +                     },
+    +                   },
+    +                   "required": Array [
+    +                     "label",
+    +                   ],
+    +                   "type": "object",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "root",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +         Object {
+    +           "function": Object {
+    +             "description": "Read the text content of an attachment (parsed locally). Long files are paged: read offset=0 first, then decide whether to continue based on the returned total character count.",
+    +             "name": "read_attachment",
+    +             "parameters": Object {
+    +               "properties": Object {
+    +                 "index": Object {
+    +                   "description": "attachment index (0-based, see the attachment list)",
+    +                   "type": "integer",
+    +                 },
+    +                 "offset": Object {
+    +                   "description": "start character position, default 0",
+    +                   "type": "integer",
+    +                 },
+    +               },
+    +               "required": Array [
+    +                 "index",
+    +               ],
+    +               "type": "object",
+    +             },
+    +           },
+    +           "type": "function",
+    +         },
+    +       ],
+    +     },
+    +     "cookie": null,
+    +     "method": "POST",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/byok/openai/chat/completions",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/credentials",
+    +   },
+    +   Object {
+    +     "authorization": "Bearer test-token",
+    +     "body": Object {},
+    +     "cookie": null,
+    +     "method": "GET",
+    +     "path": "/api/v1/office-frame/documents/f1/ai/cloud",
+    +   },
+    + ]
+
+      1 | import { test, expect } from '@playwright/test'
+      2 | test('fake-ai holds no state from an earlier spec', async ({ request }) => {
+    > 3 |   expect(await (await request.get('/__fake-ai/log')).json()).toEqual([])
+        |                                                              ^
+      4 | })
+      5 |
+        at /home/ubuntu/work/uniwork-office/web/e2e/zz-fakeai-leak-probe.spec.ts:3:62
+
+    Error Context: web/e2e/.results/zz-fakeai-leak-probe-fake--db9d9--state-from-an-earlier-spec-chromium/error-context.md
+
+  2) [chromium] › web/e2e/zz-pdf-web-after.spec.ts:198:7 › pdf module on the web › edit round trip: annotate, fill, save, conflict, reopen, page ops, Save As, print 
+
+    Test timeout of 240000ms exceeded.
+
+    Error: locator.click: Test timeout of 240000ms exceeded.
+    Call log:
+      - waiting for locator('.qa-btn').first()
+        - locator resolved to <button disabled class="qa-btn" aria-label="Save" data-tip="Save (Ctrl+S)">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+          - waiting 100ms
+        455 × waiting for element to be visible, enabled and stable
+            - element is not enabled
+          - retrying click action
+            - waiting 500ms
+
+
+      184 | async function clickSave(frame: Frame): Promise<void> {
+      185 |   // the first quick-access button is Save in every UI language
+    > 186 |   await frame.locator('.qa-btn').first().click()
+          |                                          ^
+      187 | }
+      188 |
+      189 | async function waitVersion(page: Page, versionId: string): Promise<void> {
+        at clickSave (/home/ubuntu/work/uniwork-office/web/e2e/zz-pdf-web-after.spec.ts:186:42)
+        at /home/ubuntu/work/uniwork-office/web/e2e/zz-pdf-web-after.spec.ts:270:11
+
+    Error Context: web/e2e/.results/zz-pdf-web-after-pdf-modul-5aa4c-open-page-ops-Save-As-print-chromium/error-context.md
+
+  3) [chromium] › web/e2e/zz-pdf-web-after.spec.ts:405:7 › pdf module on the web › vi ribbon with the AI panel open: the clipped band shows an overflow cue 
+
+    Error: console errors
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "Failed to load resource: the server responded with a status of 424 (Failed Dependency) @ http://localhost:4748/api/v1/office-frame/documents/f1/ai/byok/openai/models",
+    + ]
+
+      57 |   expect(csp, 'CSP violations').toEqual([])
+      58 |   expect(p.page, 'page errors').toEqual([])
+    > 59 |   expect(p.console, 'console errors').toEqual([])
+         |                                       ^
+      60 | }
+      61 |
+      62 | interface OpenOptions {
+        at noProblems (/home/ubuntu/work/uniwork-office/web/e2e/zz-pdf-web-after.spec.ts:59:39)
+        at /home/ubuntu/work/uniwork-office/web/e2e/zz-pdf-web-after.spec.ts:421:5
+
+    Error Context: web/e2e/.results/zz-pdf-web-after-pdf-modul-94fbb--band-shows-an-overflow-cue-chromium/error-context.md
+
+  3 failed
+    [chromium] › web/e2e/zz-fakeai-leak-probe.spec.ts:2:5 › fake-ai holds no state from an earlier spec 
+    [chromium] › web/e2e/zz-pdf-web-after.spec.ts:198:7 › pdf module on the web › edit round trip: annotate, fill, save, conflict, reopen, page ops, Save As, print 
+    [chromium] › web/e2e/zz-pdf-web-after.spec.ts:405:7 › pdf module on the web › vi ribbon with the AI panel open: the clipped band shows an overflow cue 
+  69 passed (5.4m)
+
+LEAK_GREEN_EXIT=1

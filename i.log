@@ -1,0 +1,11 @@
+$ rm -f web/e2e/zz-*.spec.ts; git status --short | head; git diff --quiet HEAD && echo TREE_CLEAN
+ M docs/web-modules/screenshots/ai/docs-settings-dark-en.png
+ M docs/web-modules/screenshots/ai/docs-settings-dark-vi.png
+ M docs/web-modules/screenshots/ai/docs-settings-light-en.png
+ M docs/web-modules/screenshots/ai/docs-settings-light-vi.png
+ M docs/web-modules/screenshots/ai/docs-state-dark-en.png
+ M docs/web-modules/screenshots/ai/docs-state-dark-vi.png
+ M docs/web-modules/screenshots/ai/docs-state-light-en.png
+ M docs/web-modules/screenshots/ai/docs-state-light-vi.png
+ M docs/web-modules/screenshots/ai/markdown-settings-light-en.png
+ M docs/web-modules/screenshots/ai/sheets-390-open-en-light.png
