@@ -241,6 +241,22 @@ export function oracleXlsxRead(observed) {
   return passVerdict('xlsx_read_xr2_ok', { errorCellCount: truth.error_cell_count, predicates });
 }
 
+// w3b: Save recalculates untouched formulas in IEEE 754 float64 (e.g. Tổng hợp!E5 SUM(E2:E4) 1 -> 0.9999999999999999);
+// numeric cached values differing by relative or absolute float noise <= 1e-9 with the same formula and type are unchanged.
+const XLSX_UNCHANGED_FLOAT_TOLERANCE = 1e-9;
+const XLSX_MAX_MUTATED_CELLS = 20;
+
+function xlsxCellUnchanged(bc, ac) {
+  if (!bc || !ac || bc.f !== ac.f || bc.t !== ac.t) return false;
+  if (bc.v === ac.v) return true;
+  if (typeof bc.v === 'number' && typeof ac.v === 'number' && Number.isFinite(bc.v) && Number.isFinite(ac.v)) {
+    const diff = Math.abs(bc.v - ac.v);
+    const scale = Math.max(Math.abs(bc.v), Math.abs(ac.v));
+    return diff <= XLSX_UNCHANGED_FLOAT_TOLERANCE || (scale > 0 && diff / scale <= XLSX_UNCHANGED_FLOAT_TOLERANCE);
+  }
+  return false;
+}
+
 /** XLSX edit oracle (X-E1) reusing holdout-xlsx-truth.mjs and holdout-write-proof.mjs. */
 export function oracleXlsxEdit(observed) {
   if (!observed || !observed.beforeBytes || !observed.afterBytes) return blockedVerdict('missing_xlsx_edit_bytes');
@@ -278,6 +294,7 @@ export function oracleXlsxEdit(observed) {
     }
   }
 
+  const mutatedCells = [];
   for (const [sheetName, bSheet] of Object.entries(beforeSheets)) {
     const aSheet = afterSheets[sheetName];
     if (!aSheet) return failVerdict('xlsx_edit_unchanged_region_mutated', { missingSheet: sheetName });
@@ -290,10 +307,22 @@ export function oracleXlsxEdit(observed) {
       if (sheetName === targetSheet && ref === 'AA1') continue;
       const bc = bSheet.cells[ref] ?? null;
       const ac = aSheet.cells[ref] ?? null;
-      if (!bc || !ac || bc.v !== ac.v || bc.f !== ac.f || bc.t !== ac.t) {
-        return failVerdict('xlsx_edit_unchanged_region_mutated', { sheet: sheetName, cell: ref });
+      if (!xlsxCellUnchanged(bc, ac) && mutatedCells.length < XLSX_MAX_MUTATED_CELLS) {
+        mutatedCells.push({
+          sheet: sheetName,
+          ref,
+          before: bc ? { v: bc.v, f: bc.f, t: bc.t } : null,
+          after: ac ? { v: ac.v, f: ac.f, t: ac.t } : null,
+        });
       }
     }
+  }
+  if (mutatedCells.length > 0) {
+    return failVerdict('xlsx_edit_unchanged_region_mutated', {
+      sheet: mutatedCells[0].sheet,
+      cell: mutatedCells[0].ref,
+      mutatedCells,
+    });
   }
 
   if (observed.requireFootprint !== false) {
