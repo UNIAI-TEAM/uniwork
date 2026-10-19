@@ -63,6 +63,9 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.Pinned {
 		out.Pinned = true
 	}
+	if m.PinnedAt != "" {
+		out.PinnedAt = m.PinnedAt
+	}
 	if m.Priority != "" {
 		out.Priority = m.Priority
 	}

@@ -166,6 +166,27 @@ func (q *Queries) CountChatMentionUnreadForMember(ctx context.Context, arg Count
 	return mention_unread_count, err
 }
 
+const countPinnedChatMessagesInRoom = `-- name: CountPinnedChatMessagesInRoom :one
+SELECT COUNT(*)::int FROM chat_messages
+WHERE room_id = $1
+  AND workspace_id = $2
+  AND deleted_at IS NULL
+  AND (metadata->>'pinned') = 'true'
+`
+
+type CountPinnedChatMessagesInRoomParams struct {
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// tenant: workspace_id from RequireMember on the room
+func (q *Queries) CountPinnedChatMessagesInRoom(ctx context.Context, arg CountPinnedChatMessagesInRoomParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countPinnedChatMessagesInRoom, arg.RoomID, arg.WorkspaceID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createChatFileMessage = `-- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,

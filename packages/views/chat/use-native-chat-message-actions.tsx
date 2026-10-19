@@ -3,8 +3,9 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Pin, Trash2 } from "lucide-react";
 import { useChatRooms, useDeleteChatMessage, useToggleChatMessagePin, useToggleChatReaction } from "@uniwork/core/chat";
+import { CHAT_PINNED_MESSAGES_MAX } from "@uniwork/core/chat/pin-utils";
 import { mergeRoomMemberPermissions } from "@uniwork/core/chat/room-permissions-utils";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import {
@@ -87,6 +88,7 @@ export function useNativeChatMessageActions({
   const togglePinAsync = useToggleChatMessagePin(workspaceId).mutateAsync;
   const [deleting, setDeleting] = useState<ChatMessage | null>(null);
   const [forwarding, setForwarding] = useState<ChatMessage | null>(null);
+  const [pinReplace, setPinReplace] = useState<{ incoming: ChatMessage; drop: ChatMessage } | null>(null);
   const room = useChatRooms(workspaceId).data?.find((entry) => entry.id === roomId);
   const mayForward = canModerate || mergeRoomMemberPermissions(room?.member_permissions).allow_forward;
 
@@ -126,17 +128,39 @@ export function useNativeChatMessageActions({
     [onFocusComposer, onOpenThread, threadsEnabled],
   );
 
+  const runPinToggle = useCallback(
+    (message: ChatMessage) =>
+      togglePinAsync({ roomId, messageId: message.id })
+        .then(() => {
+          if (!message.pinned) toast.success(t("chat.message_list.pinned"));
+        })
+        .catch((err: unknown) => {
+          toastChatError(
+            err,
+            t,
+            message.pinned ? t("chat.message_list.unpin_failed") : t("chat.message_list.pin_failed"),
+          );
+        }),
+    [roomId, t, togglePinAsync],
+  );
+
   const onPin = useCallback(
     (message: ChatMessage) => {
-      togglePinAsync({ roomId, messageId: message.id }).catch((err: unknown) => {
-        toastChatError(
-          err,
-          t,
-          message.pinned ? t("chat.message_list.unpin_failed") : t("chat.message_list.pin_failed"),
-        );
-      });
+      if (message.pinned) {
+        void runPinToggle(message);
+        return;
+      }
+      const pinned = messagesRef.current.filter((entry) => entry.pinned);
+      if (pinned.length >= CHAT_PINNED_MESSAGES_MAX) {
+        const drop = [...pinned].sort((a, b) => (a.pinnedAt ?? a.ts) - (b.pinnedAt ?? b.ts))[0];
+        if (drop) {
+          setPinReplace({ incoming: message, drop });
+          return;
+        }
+      }
+      void runPinToggle(message);
     },
-    [roomId, t, togglePinAsync],
+    [runPinToggle],
   );
 
   const onCopy = useCallback(
@@ -193,6 +217,21 @@ export function useNativeChatMessageActions({
     }
   };
 
+  const confirmPinReplace = async () => {
+    const next = pinReplace;
+    if (!next) return;
+    try {
+      await togglePinAsync({ roomId, messageId: next.drop.id });
+      await togglePinAsync({ roomId, messageId: next.incoming.id });
+      setPinReplace(null);
+      toast.success(t("chat.message_list.pinned"));
+    } catch (err) {
+      setPinReplace(null);
+      toastChatError(err, t, t("chat.message_list.pin_failed"));
+    }
+  };
+
+  const pinPending = pinReplace != null;
   const pending = deleteMessage.isPending;
   // The message being deleted, quoted under the question, so it is clear which one goes (canvas).
   const quoteMeta = deleting
@@ -209,6 +248,26 @@ export function useNativeChatMessageActions({
           if (!open) setForwarding(null);
         }}
       />
+      <AlertDialog
+        open={pinReplace != null}
+        onOpenChange={(open) => {
+          if (!open && !pinPending) setPinReplace(null);
+        }}
+      >
+        <AlertDialogContent className={cn(CHAT_CONFIRM_CLASS, "sm:max-w-100")}>
+          <AlertDialogHeader>
+            <IconTile icon={Pin} tone="blue" className="mb-2.5" />
+            <AlertDialogTitle>{t("chat.message_list.pin_limit_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("chat.message_list.pin_limit_description", { max: CHAT_PINNED_MESSAGES_MAX })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="secondary">{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="default" onClick={() => void confirmPinReplace()}>
+              {t("chat.message_list.pin_replace_confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={deleting != null}
         onOpenChange={(open) => {

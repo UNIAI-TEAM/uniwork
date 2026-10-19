@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -21,6 +22,7 @@ const (
 type chatMessageMetadata struct {
 	Reactions        map[string][]string  `json:"reactions"`
 	Pinned           bool                 `json:"pinned,omitempty"`
+	PinnedAt         string               `json:"pinned_at,omitempty"`
 	MentionedUserIDs []string             `json:"mentioned_user_ids,omitempty"`
 	MentionsAll      bool                 `json:"mentions_all,omitempty"`
 	Poll             *ChatPollPayload     `json:"poll,omitempty"`
@@ -175,13 +177,21 @@ func decodeChatMessageMetadata(raw []byte) chatMessageMetadata {
 
 func togglePinInMetadata(raw []byte) ([]byte, bool, error) {
 	pinned := !decodeChatMessageMetadata(raw).Pinned
-	var value any
-	if pinned {
-		value = true
-	}
-	out, err := patchMetadataKey(raw, "pinned", value)
+	out, err := patchMetadataKey(raw, "pinned", pinMetadataValue(pinned))
 	if err != nil {
 		return nil, false, err
 	}
-	return out, pinned, nil
+	var pinnedAt any
+	if pinned {
+		pinnedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	out, err = patchMetadataKey(out, "pinned_at", pinnedAt)
+	return out, pinned, err
+}
+
+func pinMetadataValue(pinned bool) any {
+	if pinned {
+		return true
+	}
+	return nil
 }

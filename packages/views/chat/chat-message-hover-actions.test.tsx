@@ -46,7 +46,7 @@ describe("ChatMessageHoverActions", () => {
         </>,
       ),
     );
-    const [first, second] = screen.getAllByRole("toolbar");
+    const [first, second] = document.querySelectorAll("[data-message-actions]");
     screen.getByRole("button", { name: "before" }).focus();
 
     await user.tab();
