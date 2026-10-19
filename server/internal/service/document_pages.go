@@ -144,7 +144,14 @@ func validDocumentVisibility(v string) error {
 // is no home row to read, so view), and view at the root - Q-S3: turning
 // "share with workspace" on at create grants view, the owner raises it from
 // the share dialog.
+//
+// A folder is never a source of visibility (UNI-1974): under a folder parent a
+// create behaves as at the root - private unless the request names workspace,
+// then at view. Only a page parent passes its pair on.
 func createHomeRow(requested string, parent *db.Document) (visibility, level string) {
+	if parent != nil && parent.Kind == DocumentKindFolder {
+		parent = nil
+	}
 	visibility = requested
 	if parent != nil && visibility == "" {
 		visibility, level = parent.Visibility, parent.WorkspaceLevel
@@ -208,6 +215,9 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if in.Visibility != "" {
 		if err := validDocumentVisibility(in.Visibility); err != nil {
 			return DocumentView{}, err
+		}
+		if kind == DocumentKindFolder && in.Visibility == documentVisibilityWorkspace {
+			return DocumentView{}, errFolderNotShareable()
 		}
 	}
 	var page sanitizedPage
@@ -743,6 +753,11 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			}
 			if !access.canAdminister() {
 				return ErrForbidden
+			}
+			// A folder is never opened to the workspace; closing a legacy one
+			// stays allowed. Behind the access gate so a stranger sees 404.
+			if doc.Kind == DocumentKindFolder && *in.Visibility == documentVisibilityWorkspace {
+				return errFolderNotShareable()
 			}
 			// Opening a restricted document to the workspace would hand the
 			// admin read access by role: manage only, never AdminScope.

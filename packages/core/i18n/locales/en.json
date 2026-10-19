@@ -9585,6 +9585,7 @@
       "collabSave": "Save",
       "collabCancel": "Cancel",
       "collabDelete": "Delete",
+      "collabEditedMark": "(edited)",
       "collabHistory": "View edit history",
       "collabHistoryTitle": "Edit history",
       "collabHistoryCurrent": "Current version",
@@ -9767,7 +9768,7 @@
         },
         "share_workspace_toggle": "Share with workspace",
         "share_workspace_hint": "Everyone in this workspace can {{level}} new documents",
-        "share_workspace_inherited": "This folder is shared with the workspace, so new documents are too",
+        "share_workspace_inherited": "This UniNote is shared with the workspace, so new documents are too",
         "share_workspace_level_view": "view"
       },
       "sections": {
@@ -9776,7 +9777,6 @@
         "documents": "Documents"
       },
       "folder": {
-        "info_banner": "New and uploaded files here will be placed in “{{folder}}”. Drag and drop files into the list to upload.",
         "menu": "Folder actions"
       },
       "folder_card": {
@@ -9898,7 +9898,6 @@
         "unstar": "Remove star",
         "go_to_source": "View where attached",
         "go_to_source_named": "View where attached: {{title}}",
-        "preview_loading": "Loading image…",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
         "view_only_notice": "View only · changes will not be saved",
@@ -10018,6 +10017,7 @@
       "document_cycle": "An item can't move into itself or into something inside it.",
       "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
+      "folder_not_shareable": "A folder cannot be shared. Share the documents inside it instead.",
       "folder_too_large": "The folder holds more than 1,000 items, so it can't move to the trash in one go. Move what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
@@ -10136,7 +10136,7 @@
       "copy_failed": "Failed to copy"
     },
     "mention": {
-      "group_users": "Users",
+      "group_users": "Members",
       "all_members": "All members",
       "searching": "Searching...",
       "no_results": "No results",

@@ -25,8 +25,8 @@ import { CreateMenu, QuickCreateRow, type CreateChoicesProps } from "./documents
 
 /**
  * The single header row of the Documents home board (Main.dc) and the open
- * folder (Folder.dc): h1 "Tài liệu của workspace", or the breadcrumb above the
- * folder name with its ⋯ menu, then search, Tải lên, Tạo mới. These views
+ * folder (Folder.dc): h1 "Tài liệu của workspace", or the breadcrumb whose bold leaf (h1) is the
+ * folder name, with its rename pencil and ⋯ menu, then search, Tải lên, Tạo mới. These views
  * have no collection header (TRASH-A3).
  */
 
@@ -59,9 +59,46 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
   const menuItems = folderDoc ? folderMenuItems(folderDoc, folderHandlers, t) : [];
   const starred = Boolean(folderDoc && folderHandlers.isStarred(folderDoc.id));
   const canMenu = Boolean(folderDoc) && (menuItems.length > 0 || Boolean(folderHandlers.onToggleStar));
+  const folderMenu =
+    folderDoc && canMenu ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("documents.home.folder.menu")}
+              title={t("documents.home.folder.menu")}
+              className="shrink-0"
+            />
+          }
+        >
+          <Ellipsis aria-hidden className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-52">
+          {folderHandlers.onToggleStar ? (
+            <DropdownMenuItem
+              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+              onClick={() => folderHandlers.onToggleStar?.(folderDoc.id, starred)}
+            >
+              {t(starred ? "documents.home.row.unstar" : "documents.home.row.star")}
+            </DropdownMenuItem>
+          ) : null}
+          {menuItems.map((item) => (
+            <DropdownMenuItem key={item.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={item.run}>
+              <item.icon aria-hidden className="size-4" />
+              {item.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
+  // The row is a size container: the content width is the viewport minus the app and documents
+  // sidebars, so only the row itself says whether the search box fits beside the actions.
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex min-w-0 flex-1 basis-64 flex-col gap-1">
+    <div className="@container flex flex-wrap items-center gap-3">
+      <div className="flex min-w-0 flex-1 basis-72 items-center">
         {folderDoc ? (
           <FolderBreadcrumb
             path={[
@@ -83,50 +120,18 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
                 .mutateAsync({ patch: { revision: folderDoc.revision, title } })
                 .catch((error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.folders.rename_failed")));
             }}
+            leafActions={folderMenu}
           />
-        ) : null}
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="truncate text-title font-semibold">{folderLabel}</h1>
-          {folderDoc && canMenu ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("documents.home.folder.menu")}
-                    title={t("documents.home.folder.menu")}
-                    className="shrink-0"
-                  />
-                }
-              >
-                <Ellipsis aria-hidden className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-52">
-                {folderHandlers.onToggleStar ? (
-                  <DropdownMenuItem
-                    className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-                    onClick={() => folderHandlers.onToggleStar?.(folderDoc.id, starred)}
-                  >
-                    {t(starred ? "documents.home.row.unstar" : "documents.home.row.star")}
-                  </DropdownMenuItem>
-                ) : null}
-                {menuItems.map((item) => (
-                  <DropdownMenuItem key={item.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={item.run}>
-                    <item.icon aria-hidden className="size-4" />
-                    {item.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-        </div>
+        ) : (
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="truncate text-title font-semibold">{folderLabel}</h1>
+          </div>
+        )}
       </div>
       <DocumentsSearchBox
         search={search}
         folderPlaceholder={Boolean(folderDoc)}
-        className="order-last basis-full sm:order-none sm:w-56 sm:basis-auto md:w-64"
+        className="order-last basis-full @min-[60rem]:order-none @min-[60rem]:w-56 @min-[60rem]:basis-auto"
       />
       <div className="flex shrink-0 items-center gap-2">
         {actions}
@@ -136,15 +141,8 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
   );
 }
 
-/**
- * Under the home header, for people who may create here: the Tạo nhanh strip
- * at the workspace root, or the info line naming the open folder inside one.
- */
-export function DocumentsHomeNote({ folderTitle, create }: { folderTitle: string | null; create: CreateChoicesProps | null }) {
-  const { t } = useTranslation();
-  if (folderTitle !== null) {
-    return <p className="text-caption text-muted-foreground">{t("documents.home.folder.info_banner", { folder: folderTitle })}</p>;
-  }
+/** Under the home header, for people who may create here: the Tạo nhanh strip at the workspace root (an open folder has no line under its header). */
+export function DocumentsHomeNote({ create }: { create: CreateChoicesProps | null }) {
   return create ? <QuickCreateRow {...create} /> : null;
 }
 

@@ -12,21 +12,13 @@ export interface SourceLinkPaths {
   email: () => string;
 }
 
-/** Image extensions the browser draws in the preview when the mime type does not say so. */
-const IMAGE_EXTENSIONS: Record<string, true> = { png: true, jpg: true, jpeg: true, gif: true, webp: true, avif: true, bmp: true };
-/** The mime types a browser actually draws; image/tiff, image/heic, image/svg+xml… download instead of showing a broken frame. */
-const IMAGE_MIMES: Record<string, true> = { "image/png": true, "image/jpeg": true, "image/gif": true, "image/webp": true, "image/avif": true, "image/bmp": true };
-
 /**
  * What the primary click of a "Từ nơi khác" row does with the file (U-SRC1,
- * UNI-1869): an image opens view-only in the preview dialog; a file the
- * server marks openable AND a web module exists for opens in its module
- * frame, view-only; every other kind downloads.
+ * UNI-1869): a file the server marks openable AND a web module exists for
+ * opens in its module frame, view-only; every other kind downloads. Sources
+ * are document files only (UNI-1967), so there is no image preview.
  */
-export function sourceOpenAction(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension" | "can_open_in_app">): "image" | "office" | "download" {
-  if (IMAGE_MIMES[source.mime_type.toLowerCase()] === true) return "image";
-  const ext = source.extension.toLowerCase() || source.name.split(".").pop()?.toLowerCase() || "";
-  if (IMAGE_EXTENSIONS[ext] === true) return "image";
+export function sourceOpenAction(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension" | "can_open_in_app">): "office" | "download" {
   // The server vouches (can_open_in_app) and the client can map a module: the
   // office viewer. A flag on a format this build has no module for still downloads.
   if (source.can_open_in_app && sourceOfficeModule(source) !== null) return "office";

@@ -83,6 +83,8 @@ export const WS_EVENT_TYPES = [
   "document.lock_taken_over",
   "document.edit_requested",
   "document.edit_request_answered",
+  "document.access_requested",
+  "document.access_request_decided",
   "email_hub.inbox_changed",
   "email_hub.new_mail",
   "host.transferred",

@@ -492,7 +492,7 @@ func pathParamSDI(path string) any {
 	case "documentID,requestID":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-			RequestID  string `path:"requestID" description:"ULID yêu cầu quyền sửa" example:"01J8X4REQ0N1P2Q3R4S5T6U7V8"`
+			RequestID  string `path:"requestID" description:"ULID yêu cầu" example:"01J8X4REQ0N1P2Q3R4S5T6U7V8"`
 		}{}
 	case "documentID,shareID":
 		return struct {

@@ -636,6 +636,11 @@ func TestDocumentSourceChatMarkdownOpens(t *testing.T) {
 				fileID, tn.orgID, "src/"+strings.ToLower(fileID), tc.filename, tc.contentType, len(tc.body))
 
 			opened, err := svc.Open(s.ctx, human(tn.member), tn.wsA, "chat:"+msg.ID)
+			if tc.ext == ".csv" {
+				// Not a document kind (UNI-1967): not a source any more.
+				wantNotFound(t, err)
+				return
+			}
 			if err != nil {
 				t.Fatalf("DocumentSourceService.Open(chat:%s): %v", tc.ext, err)
 			}
@@ -770,8 +775,13 @@ func TestDocumentSourceCursorAndFilters(t *testing.T) {
 	if mode, exts, err := documentSourceTypeFilter("docx"); err != nil || mode != "ext" || len(exts) != 2 {
 		t.Fatalf("docx filter = %s %v %v", mode, exts, err)
 	}
-	if mode, exts, err := documentSourceTypeFilter("other"); err != nil || mode != "other" || len(exts) == 0 {
-		t.Fatalf("other filter = %s %v %v", mode, exts, err)
+	if mode, exts, err := documentSourceTypeFilter(""); err != nil || mode != "ext" || len(exts) != len(documentSourceAllExts) {
+		t.Fatalf("empty filter = %s %v %v, want every document extension", mode, exts, err)
+	}
+	for _, typ := range []string{"image", "other"} {
+		if _, _, err := documentSourceTypeFilter(typ); err == nil {
+			t.Fatalf("type %q accepted", typ)
+		}
 	}
 	if _, _, err := documentSourceTypeFilter("exe"); err == nil {
 		t.Fatal("an unknown type was accepted")

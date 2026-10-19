@@ -62,7 +62,6 @@ export interface LibraryRowHandlers {
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Image sources only: fetches the bytes and opens them view-only. */
-  onPreviewSource?: (sourceId: string, name: string) => void;
   /** Office formats the server marks openable (UNI-1869): opens the view-only module frame; absent falls back to download. */
   onViewSource?: (source: DocumentSourceFile) => void;
   onDownloadSource: (sourceId: string) => void;
@@ -153,7 +152,8 @@ export function LibraryRowView({
   // The narrow secondary line shows the level word and any non-default scope until the column joins.
   const levelKey = rowAccessLabelKey(row);
   // A row without `share_scope` shows no scope; it is never guessed from `visibility`.
-  const scope = doc?.share_scope ?? null;
+  // A folder is never shared (UNI-1974), so it shows none whatever a row carries.
+  const scope = doc && doc.kind !== "folder" ? (doc.share_scope ?? null) : null;
   // On Shared by me the plain "home workspace" scope is the answer the reader
   // came for (SW-V2); on every other view the narrow line omits the default.
   const showNarrowScope = Boolean(scope && (sharedByMe || !isPlainHomeWorkspaceScope(scope)));
@@ -176,11 +176,9 @@ export function LibraryRowView({
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") {
       // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
-      // row can (image preview, or the module frame for an Office format),
-      // else downloads it; "Xem nơi đính kèm" is a secondary.
+      // row can (the module frame for an Office format), else downloads it; "Xem nơi đính kèm" is a secondary.
       const open = sourceOpenAction(row.source);
-      if (open === "image" && handlers.onPreviewSource) handlers.onPreviewSource(row.source.id, row.source.name);
-      else if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
+      if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
       else handlers.onDownloadSource(row.source.id);
     }
   };

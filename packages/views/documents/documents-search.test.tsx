@@ -531,7 +531,7 @@ describe("Documents unified search (FD-10)", () => {
     expect(screen.queryByText("Tài liệu Hợp đồng")).toBeNull();
   });
 
-  it("renders a single search box in the home header row that wraps to a full-width row below sm and sits beside the title from sm up (V-F1, V-F3, TRASH-A3)", () => {
+  it("renders a single search box in the home header row that takes its own full-width row below the row's container breakpoint and sits beside the title above it (V-F1, V-F3, TRASH-A3)", () => {
     requestMock.mockResolvedValue({ documents: [], next_cursor: null });
     renderSearchView();
 
@@ -543,12 +543,14 @@ describe("Documents unified search (FD-10)", () => {
     const searchBox = searchInput.parentElement!;
 
     expect(row.contains(searchBox)).toBe(true);
+    // The row is a size container: the viewport says nothing about the room beside the actions.
+    expect(row.className).toContain("@container");
     expect(row.className).toContain("flex-wrap");
     expect(searchBox.className).toContain("order-last");
     expect(searchBox.className).toContain("basis-full");
-    expect(searchBox.className).toContain("sm:order-none");
-    expect(searchBox.className).toContain("sm:w-56");
-    expect(searchBox.className).toContain("md:w-64");
+    expect(searchBox.className).toContain("@min-[60rem]:order-none");
+    expect(searchBox.className).toContain("@min-[60rem]:basis-auto");
+    expect(searchBox.className).toContain("@min-[60rem]:w-56");
   });
 });
 

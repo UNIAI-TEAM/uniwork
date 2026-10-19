@@ -1207,6 +1207,23 @@ describe('verdict per criterion (G7-D1 signed)', () => {
     assertGreen(o, o.blockers.join(' | '));
   });
 
+  // G7-12-SCHEMA step 3 (UNI-1964): a run whose surface is the committed file (the default SURFACE carries file:<sha> for
+  // slides/pdf/markdown/html) reaches a verdict with no name-only blocker, and the report's own condition says so:
+  // conditions.scoped.nameOnly.modules is empty. This is the state a --tool-schemas run produces, and the reason the C6
+  // runs (name-only) could not be judged.
+  it('grades a file: surface with no name-only blocker and an empty conditions.scoped.nameOnly.modules', () => {
+    const runs = three();
+    const report = buildReport(runs, { thresholds: signed(limits), session: makeSession(runs) });
+    assert.deepEqual(report.conditions.scoped.nameOnly.modules, [], 'no module of the surface is name-only');
+    assert.deepEqual(report.conditions.scoped.nameOnly.groups, []);
+    assert.equal(report.conditions.scoped.nameOnly.text, null);
+    assert.ok(!report.overall.blockers.some((b) => /name-only/.test(b)), `no name-only blocker: ${report.overall.blockers.join(' | ')}`);
+    // the groups that used the four formats are judged, not parked as name-only
+    const groups = Object.fromEntries(report.overall.metrics.successRateGroupMin.groups.map((g) => [g.group, g.verdict]));
+    assert.deepEqual(groups, { xlsx: 'pass', docx: 'pass', other: 'pass', cross: 'pass' });
+    assert.ok(!/name-only/.test(renderReport(report).slice(renderReport(report).indexOf('## 0.'), renderReport(report).indexOf('## 1.'))));
+  });
+
   it('taints only the groups that used the name-only module', () => {
     const mixed = (a) => (a.group === 'cross' ? { ...a, modules: ['sheets', 'slides'] } : a);
     const o = judge(three(mixed, { toolSurface: nameOnlySurface }));
