@@ -1,0 +1,17 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; git diff --stat b54a49ac3..HEAD
+386b35fe4cd12243b2e8fb40e7f292ac7dd1e11e
+386b35fe4 fix(office): resolve review r1 F1-F5 findings for G7-12-SCHEMA
+b4de78c90 test(office): add review r1 F1-F5 regression tests for G7-12-SCHEMA
+3a3f003da feat(office): default --tool-schemas to the committed file
+fb5064efb test(office): red tests for the real-schema surface and the offline what-if
+b54a49ac3 chore: merge G7-12 oracle product-test reading (UNI-1874 a1m, 5a71ee05e) into the G5-G7 root
+8b2a329da fix(i18n): web copy follows the glossary for the comment level, edit label and diacritics
+ docs/office/g5g6g7/holdout/README.md               |   5 +
+ .../office/g5g6g7/genoffice-tool-schemas.test.mjs  |  50 +++++
+ scripts/office/g5g6g7/holdout-report.test.mjs      |  17 ++
+ scripts/office/g5g6g7/holdout-run.mjs              |  68 +++++-
+ scripts/office/g5g6g7/holdout-run.test.mjs         |  47 ++++-
+ scripts/office/g5g6g7/holdout-schema-whatif.mjs    | 230 +++++++++++++++++++++
+ .../office/g5g6g7/holdout-schema-whatif.test.mjs   | 136 ++++++++++++
+ .../internal/ai/openai_facade_schema_table_test.go |  58 ++++++
+ 8 files changed, 602 insertions(+), 9 deletions(-)

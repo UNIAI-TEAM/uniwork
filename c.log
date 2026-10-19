@@ -1,0 +1,43 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/g5g6g7/holdout*.test.mjs 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "HOLDOUT_EXIT=$rc"
+  ...
+# Subtest: loadCases reads the directory and refuses a foreign document
+ok 88 - loadCases reads the directory and refuses a foreign document
+  ---
+  duration_ms: 2.256695
+  ...
+# Subtest: DS-1: sheet-quoted cell/formula anchors and leading-= formula values match while range/other-cell identities still fail
+ok 89 - DS-1: sheet-quoted cell/formula anchors and leading-= formula values match while range/other-cell identities still fail
+  ---
+  duration_ms: 0.349984
+  ...
+# Subtest: DS-2: heading, count and table_cell match by topic and value rather than private anchor DSL while wrong values or conflicting topics fail
+ok 90 - DS-2: heading, count and table_cell match by topic and value rather than private anchor DSL while wrong values or conflicting topics fail
+  ---
+  duration_ms: 0.536059
+  ...
+# Subtest: A5: a heading value is compared as normalised equality, never as a substring (review-g712-16 A5)
+ok 91 - A5: a heading value is compared as normalised equality, never as a substring (review-g712-16 A5)
+  ---
+  duration_ms: 0.286064
+  ...
+# Subtest: A8: a table_cell topic keeps the row AND the column, dropping only private table identifiers (review-g712-16 A8)
+ok 92 - A8: a table_cell topic keeps the row AND the column, dropping only private table identifiers (review-g712-16 A8)
+  ---
+  duration_ms: 0.29593
+  ...
+# Subtest: R18-5: heading values and topic segments share one NFC + case-fold + diacritic normaliser while cell and formula addresses keep exact identity (review-g712-18 R18-5)
+ok 93 - R18-5: heading values and topic segments share one NFC + case-fold + diacritic normaliser while cell and formula addresses keep exact identity (review-g712-18 R18-5)
+  ---
+  duration_ms: 0.125884
+  ...
+1..93
+# tests 384
+# suites 58
+# pass 384
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5666.394721
+
+HOLDOUT_EXIT=0

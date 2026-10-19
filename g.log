@@ -1,0 +1,3 @@
+$ cd server && test -z "$(gofmt -l ./internal/ai)" && echo gofmt-clean; echo "GOFMT_EXIT=$?"
+gofmt-clean
+GOFMT_EXIT=0
