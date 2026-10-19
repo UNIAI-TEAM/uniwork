@@ -91,8 +91,10 @@ export function isChatFileTooLarge(file: Blob): boolean {
 
 /**
  * UNI-1966: the composer's "send as document" allowlist mirrors
- * `documentMIMETypes` in server/internal/files/registry.go:236 — the MIME a
- * document upload verifies, with the file extensions that MIME carries.
+ * `files.ChatDocumentMIMETypes` in server/internal/files/registry.go — the
+ * L8 subset of `documentMIMETypes`, not the whole list: images, SVG, CSS and
+ * JS stay out so a photo keeps sending as a plain attachment and the server
+ * answers 415 reason "format" for them on the document route.
  * `server/internal/service/chat_document_types_test.go` reads this table the
  * way TestChatFileAllowlistsAgree reads ALLOWED_MIME above: every row a
  * `{ mime: "…", exts: ["…", …] }` literal, MIMEs and extensions quoted.
@@ -113,13 +115,6 @@ export const CHAT_DOCUMENT_SHAREABLE_TYPES: ReadonlyArray<{
   { mime: "application/vnd.ms-powerpoint", exts: [".ppt"] },
   { mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", exts: [".pptx"] },
   { mime: "application/vnd.oasis.opendocument.text", exts: [".odt"] },
-  { mime: "image/jpeg", exts: [".jpg", ".jpeg"] },
-  { mime: "image/png", exts: [".png"] },
-  { mime: "image/gif", exts: [".gif"] },
-  { mime: "image/webp", exts: [".webp"] },
-  { mime: "image/svg+xml", exts: [".svg"] },
-  { mime: "text/css", exts: [".css"] },
-  { mime: "text/javascript", exts: [".js"] },
 ];
 
 const DOCUMENT_MIME: Record<string, true> = {};

@@ -96,6 +96,28 @@ describe("chat document shareable allowlist", () => {
     expect(isChatDocumentShareableFile(new File(["x"], "a.doc", { type: "application/octet-stream" }))).toBe(true);
   });
 
+  it("refuses images and web assets — they send as plain attachments (L8)", () => {
+    const cases: Array<{ name: string; type: string }> = [
+      { name: "photo.png", type: "image/png" },
+      { name: "photo.jpg", type: "image/jpeg" },
+      { name: "photo.jpeg", type: "image/jpeg" },
+      { name: "clip.gif", type: "image/gif" },
+      { name: "shot.webp", type: "image/webp" },
+      { name: "icon.svg", type: "image/svg+xml" },
+      { name: "site.css", type: "text/css" },
+      { name: "app.js", type: "text/javascript" },
+    ];
+    for (const { name, type } of cases) {
+      // MIME and extension both fail the document table: an image picked in a
+      // room that allows documents still gets no share picker and goes out on
+      // the file route.
+      expect(isChatDocumentShareableFile(new File(["x"], name, { type }))).toBe(false);
+      expect(isChatDocumentShareableFile(new File(["x"], name, { type: "" }))).toBe(false);
+    }
+    // And the images still stage as ordinary attachments.
+    expect(isChatAcceptedFile(new File(["x"], "photo.png", { type: "image/png" }))).toBe(true);
+  });
+
   it("lets a document ride the document byte ceiling, not the chat one", () => {
     const mk = (size: number) => {
       const file = new File(["x"], "deck.pptx", { type: "application/vnd.ms-powerpoint" });
