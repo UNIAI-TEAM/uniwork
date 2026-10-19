@@ -168,6 +168,22 @@ describe('O2-F2: the literals of a spreadsheet formula quoted in prose are no fi
     assert.equal(verdict(c, say('A2 is 25, TOTAL(31).')), 'fail', 'P-F2-NONFORMULA-CAPS bare number inside parentheses');
     assert.equal(verdict(c, say('A2 is 25, NOTE(A2 is 31).')), 'fail', 'P-F2-NONFORMULA-CAPS cell and prose inside parentheses');
   });
+
+  it('O2R2-01: masks scalar-only calls to allowlisted spreadsheet functions so their literals give neither credit nor shown operands', () => {
+    const operandReads = { sheetName: 'SheetZ', rows: [{ row: 2, cells: { A2: '10', B2: '15' } }] };
+    assert.equal(verdict(c, readAsk('read_range', 'sheets', operandReads, 'The total is 25, from SUM(10) and SUM(15).', { numbers: [25] })), 'fail', 'P-F2-FORMULA-OPERAND-SUM');
+    assert.equal(verdict(c, readAsk('read_range', 'sheets', operandReads, 'The total is 25, from SUM(10+15).', { numbers: [25] })), 'fail', 'P-F2-FORMULA-OPERAND-SUM expression');
+    assert.equal(verdict(c, readAsk('read_range', 'sheets', operandReads, 'The total is 25, from MAX(10) and MAX(15).', { numbers: [25] })), 'fail', 'P-F2-FORMULA-OPERAND-MAX');
+    assert.equal(verdict(c, readAsk('read_range', 'sheets', operandReads, 'The total is 25, from MAX(10+15).', { numbers: [25] })), 'fail', 'P-F2-FORMULA-OPERAND-MAX expression');
+    const fromScalar = mkCase({ expected: { numeric: [{ name: 'total', value: 31, tolerance: 0, rounding: 'none', unit: 'VND' }], structural: [], writes: 0, mustNotContain: [] }, referenceAnswer: { numeric: { total: 31 }, structural: [], writes: 0, text: 'x' } });
+    assert.equal(verdict(fromScalar, readAsk('read_range', 'sheets', result, 'It is SUM(31).', { numbers: [] })), 'fail', 'P-F2-FORMULA-OPERAND-SUM numeric credit');
+    assert.equal(verdict(fromScalar, readAsk('read_range', 'sheets', result, 'It is MAX(31).', { numbers: [] })), 'fail', 'P-F2-FORMULA-OPERAND-MAX numeric credit');
+    assert.equal(verdict(c, say('A2 is 25, from SUM(31).')), 'pass', 'P-F2-VALID-SCALAR-SUM');
+    assert.equal(verdict(c, say('A2 is 25, from SUM(10+15).')), 'pass', 'P-F2-VALID-SCALAR-SUM expression');
+    assert.equal(verdict(c, say('A2 is 25, from MAX(31).')), 'pass', 'P-F2-VALID-SCALAR-MAX');
+    assert.equal(verdict(c, say('A2 is 25, from MAX(10+15).')), 'pass', 'P-F2-VALID-SCALAR-MAX expression');
+    assert.equal(verdict(c, say('A2 is 25, TOTAL(10+15).')), 'fail', 'P-F2-NONFORMULA-CAPS scalar expression');
+  });
 });
 
 describe('O2-F3: a block or row ordinal that a read holds is a location, not a figure', () => {
