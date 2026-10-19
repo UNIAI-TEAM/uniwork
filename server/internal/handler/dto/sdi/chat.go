@@ -167,7 +167,7 @@ type CreateChatChannelSDI struct {
 	Visibility    string   `json:"visibility" description:"public or private" example:"public"`
 	Topic         string   `json:"topic,omitempty" description:"One-line topic ≤280 chars" example:"Chiến dịch Q3"`
 	ProjectID     string   `json:"project_id,omitempty" description:"Optional project to attach" example:"01J8X4PROJ0N1P2Q3R4S5T6U7V8"`
-	MemberUserIDs []string `json:"member_user_ids,omitempty" description:"Initial members (creator always included)"`
+	MemberUserIDs []string `json:"member_user_ids,omitempty" maxItems:"100" description:"Initial members (creator always included; max 100 per request)"`
 }
 
 // UpdateChatChannelSDI is PATCH .../chat/channels/{roomID}.

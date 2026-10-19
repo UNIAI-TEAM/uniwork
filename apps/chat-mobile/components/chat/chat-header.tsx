@@ -31,20 +31,46 @@ interface Props {
   /** A conversation's mark, beside the title. */
   avatar?: ReactNode;
   right?: ReactNode;
+  /** Unread elsewhere, on the back button (MobileChat board); nothing at zero. */
+  backBadge?: number;
+  /** What the back button reads out (default: "Quay lại"). */
+  backLabel?: string;
+  centered?: boolean;
+  flat?: boolean;
+  /** A tap on the avatar and title (MobileChat board: the conversation's details live behind its name). */
+  onPressTitle?: () => void;
+  /** What that tap opens, read out with the title. */
+  titleActionLabel?: string;
 }
 
-export function ChatHeader({ title, subtitle, typing, avatar, right }: Props) {
+export function ChatHeader({ title, subtitle, typing, avatar, right, backBadge = 0, backLabel, centered, flat, onPressTitle, titleActionLabel }: Props) {
   const { t } = useTranslation();
-  const back = <HeaderIconButton icon="chevron-back" label={t("common.back")} onPress={() => router.back()} />;
-  if (!avatar) return <Header title={title} subtitle={subtitle ?? undefined} left={back} right={right} />;
+  const label = backLabel ?? t("common.back");
+  const back = (
+    <View className="flex-row items-center">
+      <HeaderIconButton icon="chevron-back" label={backBadge > 0 ? `${label}, ${t("chat.unread_badge_aria", { count: backBadge })}` : label} onPress={() => router.back()} />
+      {backBadge > 0 ? (
+        <View className="-ml-2.5 h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5" accessibilityElementsHidden importantForAccessibility="no">
+          <Text className="text-[11px] font-display font-bold text-primary-foreground">{backBadge > 99 ? "99+" : String(backBadge)}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+  if (!avatar) return <Header title={title} subtitle={subtitle ?? undefined} left={back} right={right} centered={centered} flat={flat} />;
   return (
     <Header
       left={back}
       center={
-        <View className="flex-row items-center gap-2.5">
+        <Pressable
+          accessibilityRole={onPressTitle ? "button" : undefined}
+          accessibilityLabel={onPressTitle ? [title, subtitle, titleActionLabel].filter(Boolean).join(", ") : undefined}
+          disabled={!onPressTitle}
+          onPress={onPressTitle}
+          className="flex-row items-center gap-2.5 active:opacity-70"
+        >
           {avatar}
           <View className="flex-1">
-            <Text className="text-base font-bold text-foreground" numberOfLines={1} accessibilityRole="header">
+            <Text className="text-base font-display font-bold text-foreground" numberOfLines={1} accessibilityRole="header">
               {title}
             </Text>
             {subtitle ? (
@@ -53,7 +79,7 @@ export function ChatHeader({ title, subtitle, typing, avatar, right }: Props) {
               </Text>
             ) : null}
           </View>
-        </View>
+        </Pressable>
       }
       right={right}
     />

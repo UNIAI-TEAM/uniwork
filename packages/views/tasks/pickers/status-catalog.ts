@@ -12,6 +12,8 @@ export type StatusOption = {
   category: string;
   /** Only a custom status carries its own colour; built-ins keep the theme's. */
   color?: string;
+  /** Category whose glyph a custom status draws instead of its own. */
+  glyph?: string;
 };
 
 export type StatusCatalog = {
@@ -48,6 +50,7 @@ export function useStatusCatalog(workspaceId: string): StatusCatalog {
             label: status.name,
             category: status.category,
             color: status.color || undefined,
+            glyph: status.icon || undefined,
           },
     }));
     const byKey = new Map(entries.map((entry) => [entry.option.key, entry.option]));

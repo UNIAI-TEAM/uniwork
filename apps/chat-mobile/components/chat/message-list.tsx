@@ -23,6 +23,8 @@ interface Props {
   /** Scroll this message into view once it is in the list; a new `seq` asks again. */
   jumpTo?: { id: string; seq: number } | null;
   onAtLatestChange: (atLatest: boolean) => void;
+  /** Said in the middle of the wall while the conversation has no message yet. */
+  empty?: string | null;
 }
 
 function DayRow({ ts }: { ts: number }) {
@@ -37,7 +39,7 @@ function DayRow({ ts }: { ts: number }) {
   );
 }
 
-export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpTo, onAtLatestChange }: Props) {
+export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpTo, onAtLatestChange, empty }: Props) {
   const list = useRef<FlatList<TimelineRow>>(null);
   const data = useMemo(() => [...rows].reverse(), [rows]);
   const jumped = useRef<number | null>(null);
@@ -54,6 +56,17 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
     }, 50);
     return () => clearTimeout(timer);
   }, [data, jumpTo]);
+
+  if (rows.length === 0 && empty) {
+    return (
+      <View className="flex-1 items-center justify-center px-8">
+        <View className="rounded-2xl bg-chat-chip px-4 py-2.5">
+          <Text className="text-center text-sm text-chat-chip-foreground">{empty}</Text>
+        </View>
+        {bottom}
+      </View>
+    );
+  }
 
   return (
     <FlatList

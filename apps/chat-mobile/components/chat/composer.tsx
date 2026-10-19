@@ -16,8 +16,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Keyboard, Pressable, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PersonAvatar } from "@/components/people/person-avatar";
 import { ActionSheet } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
+import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { CHAT_FILE_MAX_LABEL, CHAT_FILE_PICKER_TYPES, isChatAcceptedFile, isChatFileTooLarge } from "@/lib/file-accept";
 import { formatVoiceCallDuration } from "@/lib/message-display";
 import {
@@ -35,6 +37,7 @@ import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
+import { VoiceWave } from "./voice-wave";
 
 const TYPING_DEBOUNCE_MS = 600;
 
@@ -51,6 +54,8 @@ export interface ComposerEdit {
 
 interface Props {
   candidates: ChatMentionCandidate[];
+  /** The field's hint; a thread says "Trả lời trong chủ đề…" (MobThread board). */
+  placeholder?: string;
   canSend: boolean;
   allowAttachments: boolean;
   reply: ComposerReply | null;
@@ -69,6 +74,7 @@ interface Props {
 export function Composer(props: Props) {
   const { candidates, canSend, allowAttachments, reply, edit } = props;
   const { t } = useTranslation();
+  const online = usePresenceStore((state) => state.onlineUserIds);
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [draft, setDraft] = useState("");
@@ -212,12 +218,32 @@ export function Composer(props: Props) {
             <Pressable
               key={candidate.kind === "all" ? "all" : candidate.userId}
               accessibilityRole="button"
+              accessibilityLabel={candidate.kind === "all" ? `@${allLabel}, ${t("chat.mention_all_hint")}` : `@${candidate.label}`}
               onPress={() => pickMention(candidate)}
-              className="min-h-11 justify-center px-4 active:bg-secondary"
+              className="min-h-12 flex-row items-center gap-2.5 px-4 active:bg-secondary"
             >
-              <Text className="text-sm text-foreground">
-                {candidate.kind === "all" ? `@${allLabel} · ${t("chat.mention_all_hint")}` : `@${candidate.label}`}
-              </Text>
+              {/* MobStates board: a face with its presence dot, the name and "@all" with its hint on two lines. */}
+              {candidate.kind === "all" ? (
+                <View className="h-7 w-7 items-center justify-center rounded-full bg-tint-blue">
+                  <Text className="text-xs font-display font-bold text-tint-blue-foreground">@</Text>
+                </View>
+              ) : (
+                <PersonAvatar name={candidate.label} size={28} seed={candidate.userId} online={Boolean(candidate.userId && online[candidate.userId.trim().toUpperCase()])} />
+              )}
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
+                  {candidate.kind === "all" ? `@${allLabel}` : candidate.label}
+                </Text>
+                {candidate.kind === "all" ? (
+                  <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                    {t("chat.mention_all_hint")}
+                  </Text>
+                ) : candidate.email ? (
+                  <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                    {candidate.email}
+                  </Text>
+                ) : null}
+              </View>
             </Pressable>
           ))}
         </View>
@@ -233,7 +259,7 @@ export function Composer(props: Props) {
               {banner.text}
             </Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={t("chat.cancel_reply")} onPress={banner.cancel} className="h-11 w-11 items-center justify-center">
+          <Pressable accessibilityRole="button" accessibilityLabel={edit ? t("common.cancel") : t("chat.mobile.cancel_reply")} onPress={banner.cancel} className="h-11 w-11 items-center justify-center">
             <Ionicons name="close" size={18} color={theme.mutedForeground} />
           </Pressable>
         </View>
@@ -256,6 +282,7 @@ export function Composer(props: Props) {
               {formatVoiceCallDuration(voice.elapsedMs / 1000)}{" "}
               <Text className="font-normal text-muted-foreground">/ {formatVoiceCallDuration(VOICE_MAX_MS / 1000)}</Text>
             </Text>
+            <VoiceWave />
           </View>
         ) : (
           <View className="min-h-11 flex-1 flex-row items-end rounded-[22px] border border-border bg-muted pl-3.5 pr-0.5">
@@ -263,12 +290,12 @@ export function Composer(props: Props) {
               value={draft}
               onChangeText={onChange}
               onSelectionChange={(event) => setCursor(event.nativeEvent.selection.end)}
-              placeholder={t("chat.message_placeholder")}
+              placeholder={props.placeholder ?? t("chat.message_placeholder")}
               placeholderTextColor={theme.mutedForeground}
               accessibilityLabel={t("chat.message_placeholder")}
               testID="composer-input"
               multiline
-              className="max-h-32 min-h-[42px] flex-1 py-2.5 text-base text-foreground"
+              className="max-h-32 min-h-12 flex-1 py-2.5 text-base text-foreground"
             />
             {attach ? (
               <Pressable

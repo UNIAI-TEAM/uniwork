@@ -506,7 +506,7 @@ func main() {
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	pushConsumer.SetPresence(chatSvc)
 	pushConsumer.SetCallRinging(chatSvc)
-	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
+	digest := notification.NewDigestScheduler(q, wsSvc, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	// The inbox list marks a document row's resource_access_lost /
 	// resource_deleted through the same DocumentService the routes use
@@ -517,6 +517,7 @@ func main() {
 	// recipient may no longer read is dropped from the mail instead of
 	// shipping the title the inbox withholds.
 	digest.SetDocumentReaders(documentSvc)
+	digest.SetOrgMembers(orgSvc)
 	dispatcher.RegisterLane(outbox.LaneNotify, notifConsumer)
 	// Work Graph (C-11): the marker rides the realtime lane (one upsert per
 	// event); the worker projects dirty nodes. The graph flag is read per

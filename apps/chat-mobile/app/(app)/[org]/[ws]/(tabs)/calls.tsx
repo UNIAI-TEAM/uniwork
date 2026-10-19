@@ -6,10 +6,11 @@
 // logged call was.
 import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, SectionList, View } from "react-native";
+import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
@@ -57,7 +58,7 @@ function CallRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: st
       accessibilityLabel={[title, direction, label, spokenTime].filter(Boolean).join(", ")}
       className="min-h-[64px] flex-row items-center gap-3 py-2.5 pl-4 pr-1 active:bg-secondary"
     >
-      <PersonAvatar name={title} size={44} squircle={log.room_kind !== "dm"} />
+      <PersonAvatar name={title} size={44} squircle={log.room_kind !== "dm"} seed={log.room_kind === "dm" ? (log.peer_user_id ?? log.room_id) : log.room_id} />
       <View className="flex-1 gap-0.5">
         <Text numberOfLines={1} className={cn("text-base font-semibold", view.missed ? "text-destructive" : "text-foreground")}>
           {title}
@@ -92,7 +93,7 @@ function CallRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: st
 
 export default function CallsTab() {
   const { t, i18n } = useTranslation();
-  const { org, ws } = useLocalSearchParams<{ org: string; ws: string }>();
+  const { org = "", ws = "" } = useWorkspaceSlugs();
   const current = useWorkspaceStore((s) => s.current);
   // The layout syncs the store after it validated the URL pair; until then there is no workspace to ask about.
   const wsId = current?.orgSlug === org && current.wsSlug === ws ? current.wsId : "";
@@ -121,6 +122,12 @@ export default function CallsTab() {
     [logs.data, userId, filter, i18n.language, t],
   );
 
+  // MobCalls board: the "Cuộc gọi nhỡ" chip counts the missed calls loaded so far.
+  const missedCount = useMemo(
+    () => (logs.data?.pages.flatMap((page) => page.call_logs) ?? []).filter((log) => callLogView(log, userId).missed).length,
+    [logs.data, userId],
+  );
+
   const empty = logs.isPending ? (
     <View className="items-center py-12">
       <ActivityIndicator />
@@ -147,11 +154,17 @@ export default function CallsTab() {
                 key={option.value}
                 onPress={() => setFilter(option.value)}
                 accessibilityRole="button"
+                accessibilityLabel={option.value === "missed" && missedCount > 0 ? `${t(option.label)}, ${missedCount}` : t(option.label)}
                 accessibilityState={{ selected }}
                 hitSlop={{ top: 5, bottom: 5 }}
-                className={cn("h-[34px] justify-center rounded-full px-3.5", selected ? "bg-primary" : "bg-muted active:bg-secondary")}
+                className={cn("h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5", selected ? "bg-primary" : "bg-muted active:bg-secondary")}
               >
                 <Text className={cn("text-sm font-semibold", selected ? "text-primary-foreground" : "text-foreground")}>{t(option.label)}</Text>
+                {option.value === "missed" && missedCount > 0 ? (
+                  <View className={cn("h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]", selected ? "bg-primary-foreground" : "bg-destructive-solid")}>
+                    <Text className={cn("text-[11px] font-semibold", selected ? "text-primary" : "text-on-solid")}>{missedCount > 99 ? "99+" : String(missedCount)}</Text>
+                  </View>
+                ) : null}
               </Pressable>
             );
           })}

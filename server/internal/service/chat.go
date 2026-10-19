@@ -161,14 +161,20 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return WorkspaceChat{}, err
 	}
-	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return WorkspaceChat{}, ErrNotFound
-	}
 
 	room, err := s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
+		w, wErr := s.q.GetWorkspaceByID(ctx, workspaceID)
+		if wErr != nil {
+			if errors.Is(wErr, pgx.ErrNoRows) {
+				return WorkspaceChat{}, ErrNotFound
+			}
+			return WorkspaceChat{}, wErr
+		}
 		room, err = s.createWorkspaceRoom(ctx, userID, w)
+		if isUniqueViolation(err) {
+			room, err = s.q.GetWorkspaceChatRoom(ctx, pgtype.Text{String: workspaceID, Valid: true})
+		}
 		if err != nil {
 			return WorkspaceChat{}, err
 		}
@@ -292,6 +298,9 @@ func (s *ChatService) addRoomMember(ctx context.Context, q *db.Queries, room db.
 		Status:         "active",
 		OrganizationID: room.OrganizationID,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
 	return err == nil, err
 }
 

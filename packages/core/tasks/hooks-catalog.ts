@@ -46,6 +46,16 @@ export function useDeleteTaskStatus(workspaceId: string) {
   });
 }
 
+/** Puts a whole status group (built-ins included) in the given order. */
+export function useReorderTaskStatuses(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { group: string; ids: string[] }) =>
+      catalog.reorderTaskStatuses(workspaceId, body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.statuses(workspaceId) }),
+  });
+}
+
 export function useTaskLabels(workspaceId: string) {
   return useQuery({
     queryKey: taskKeys.labels(workspaceId),

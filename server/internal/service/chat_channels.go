@@ -96,15 +96,14 @@ func (s *ChatService) CreateChannel(ctx context.Context, userID, workspaceID str
 		}
 	}
 
-	memberIDs := uniqueUserIDs(append([]string{userID}, in.MemberUserIDs...))
-	for _, id := range memberIDs {
-		if id == userID {
-			continue
-		}
-		if err := s.requireOrgPeer(ctx, w.OrganizationID, id); err != nil {
-			return ChatRoomSummary{}, err
-		}
+	inviteIDs := normalizeUserIDs(in.MemberUserIDs)
+	if len(inviteIDs) > chatInviteMaxIDs {
+		return ChatRoomSummary{}, Invalid("mỗi tối đa 100 thành viên mỗi lần")
 	}
+	if err := s.requireOrgPeers(ctx, w.OrganizationID, inviteIDs); err != nil {
+		return ChatRoomSummary{}, err
+	}
+	memberIDs := uniqueUserIDs(append([]string{userID}, inviteIDs...))
 
 	roomID := util.NewID()
 	tx, err := s.pool.Begin(ctx)
@@ -136,14 +135,8 @@ func (s *ChatService) CreateChannel(ctx context.Context, userID, workspaceID str
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	for _, id := range memberIDs {
-		role := "member"
-		if id == userID {
-			role = "admin"
-		}
-		if err := s.ensureRoomMemberTx(ctx, q, room, workspaceID, id, role); err != nil {
-			return ChatRoomSummary{}, err
-		}
+	if err := insertChatRoomMembers(ctx, q, room, workspaceID, userID, memberIDs); err != nil {
+		return ChatRoomSummary{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,

@@ -22,7 +22,7 @@ Mỗi dòng trỏ tới bằng chứng (bình luận UNI-1838, run CI, ảnh). M
 | Trợ năng / i18n (K8, K9) | ☐ | … |
 | Desktop: bản cài 3 hệ điều hành, tự cập nhật, smoke ký tên | ☐ | … |
 | Mobile: TestFlight + Play internal; Maestro 5 đêm xanh | ☐ | … |
-| Landing `/unichat` sống | ☐ | URL … |
+| Landing `/apps/unichat` sống | ☐ | URL … |
 | Tài liệu | ☐ | … |
 | Tài khoản: Apple duyệt, tên app đã giữ (`…`), Play có app, ký Windows + notarization trong workflow | ☐ | … |
 

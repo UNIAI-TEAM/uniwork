@@ -36,6 +36,48 @@ const StatusSchema = z.object({ status: z.string().optional() });
 
 const MembersSchema = z.object({ members: z.array(ChatRoomMemberSchema).optional() });
 
+// packages/core/api/endpoints/chat-rooms.ts › ChatUnreadSummarySchema: one drifted row drops alone.
+const ChatUnreadTotalsSchema = z.object({ unread: z.number().catch(0), mentions: z.number().catch(0) });
+const ChatWorkspaceUnreadSchema = ChatUnreadTotalsSchema.extend({ workspace_id: z.string() });
+const ChatUnreadSummarySchema = z.object({
+  direct: ChatUnreadTotalsSchema.catch({ unread: 0, mentions: 0 }),
+  workspaces: z
+    .array(z.unknown())
+    .catch([])
+    .transform((items) => items.flatMap((item) => { const row = ChatWorkspaceUnreadSchema.safeParse(item); return row.success ? [row.data] : []; })),
+});
+export type ChatUnreadSummary = z.infer<typeof ChatUnreadSummarySchema>;
+const EMPTY_UNREAD_SUMMARY: ChatUnreadSummary = { direct: { unread: 0, mentions: 0 }, workspaces: [] };
+
+// packages/core/types/ai.ts › ChatCatchUpResponseSchema, the fields the phone's brief shows.
+const CatchUpHighlightSchema = z.object({ text: z.string(), source_message_id: z.string().optional().default("") });
+const CatchUpActionItemSchema = z.object({ title: z.string(), owner: z.string().optional().default(""), due: z.string().optional().default("") });
+const ChatCatchUpSchema = z.object({
+  summary: z.string().optional().default(""),
+  highlights: z.array(z.string()).optional().default([]),
+  highlight_items: z.array(CatchUpHighlightSchema).optional().default([]).catch([]),
+  action_items: z.array(CatchUpActionItemSchema).optional().default([]).catch([]),
+  message_count: z.number().optional().default(0),
+});
+export type ChatCatchUp = z.infer<typeof ChatCatchUpSchema>;
+
+// packages/core/api/endpoints/chat-media.ts › ChatRoomSharedSummarySchema: counts and the newest photos.
+const count = z.number().int().nonnegative().catch(0);
+const SharedPhotoSchema = z.object({
+  message_id: z.string(),
+  title: z.string().catch(""),
+  url: z.string().optional().catch(undefined),
+  thumb_url: z.string().optional().catch(undefined),
+  created_at: z.string().catch(""),
+});
+const SharedSummarySchema = z.object({
+  counts: z.object({ photo: count, gif: count, video: count, file: count, link: count, voice: count }).catch({ photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 }),
+  recent_photos: z.array(SharedPhotoSchema).catch([]),
+});
+export type ChatSharedSummary = z.infer<typeof SharedSummarySchema>;
+const ActiveRecordingSchema = z.object({ recording: z.object({ id: z.string().optional() }).nullish().catch(undefined) });
+const EMPTY_SHARED_SUMMARY: ChatSharedSummary = { counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 }, recent_photos: [] };
+
 /** A workspace member as the new-DM picker and mention list need one. */
 export interface WorkspaceMemberRecord {
   user_id: string;
@@ -132,6 +174,17 @@ export function createChatApi(request: Request) {
     async listRooms(wsId: string, signal?: AbortSignal): Promise<ChatRoomRecord[]> {
       const raw = await request(`${ws(wsId)}/chat/rooms`, { signal });
       return parseWithFallback(raw, ChatRoomsListSchema, { rooms: [] }, { endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms" }).rooms;
+    },
+    /** Unread counts per workspace, for the workspace switch and the pill's badge (R4b). */
+    async unreadSummary(signal?: AbortSignal): Promise<ChatUnreadSummary> {
+      const raw = await request("/api/v1/me/chat/unread-summary", { signal });
+      return parseWithFallback(raw, ChatUnreadSummarySchema, EMPTY_UNREAD_SUMMARY, { endpoint: "GET /api/v1/me/chat/unread-summary" });
+    },
+    /** UNI's brief of one room's unread messages ("Bắt kịp nhanh"); null when the answer is not a brief. */
+    async catchUp(wsId: string, body: { room_id: string; locale?: string; since?: string }): Promise<ChatCatchUp | null> {
+      const raw = await request(`${ws(wsId)}/ai/chat/catch-up`, json("POST", body));
+      const parsed = parseWithFallback<ChatCatchUp | null>(raw, ChatCatchUpSchema, null, { endpoint: "POST /api/v1/workspaces/{ws}/ai/chat/catch-up" });
+      return parsed;
     },
     resolveDMRoom(wsId: string, userId: string) {
       return roomOf(request(`${ws(wsId)}/chat/dm`, json("POST", { user_id: userId })), "POST /api/v1/workspaces/{ws}/chat/dm");
@@ -263,6 +316,34 @@ export function createChatApi(request: Request) {
     },
     leavePresence(wsId: string) {
       return ok(request(`${ws(wsId)}/chat/presence`, json("POST", { state: "offline" })), "POST /api/v1/workspaces/{ws}/chat/presence");
+    },
+    /** GET …/rooms/{id}/shared-summary: what the room has shared, for the info screen (MobRoomInfo board). */
+    async sharedSummary(wsId: string, roomId: string, signal?: AbortSignal): Promise<ChatSharedSummary> {
+      const raw = await request(`${room(wsId, roomId)}/shared-summary`, { signal });
+      return parseWithFallback(raw, SharedSummarySchema, EMPTY_SHARED_SUMMARY, { endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/shared-summary" });
+    },
+    /** POST …/chat/groups (chat-rooms.ts › createChatGroup): the new group, or null. */
+    createGroup(wsId: string, input: { name: string; member_user_ids: string[] }): Promise<ChatRoomRecord | null> {
+      return roomOf(request(`${ws(wsId)}/chat/groups`, json("POST", input)), "POST /api/v1/workspaces/{ws}/chat/groups");
+    },
+    /** POST …/rooms/{id}/members (chat-rooms.ts › inviteChatGroupMembers): the group after the invite, or null. */
+    inviteGroupMembers(wsId: string, roomId: string, memberUserIds: string[]): Promise<ChatRoomRecord | null> {
+      return roomOf(request(`${room(wsId, roomId)}/members`, json("POST", { member_user_ids: memberUserIds })), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/members");
+    },
+    /** GET …/voice/recording/active (chat-voice.ts › getActiveChatVoiceRecording): whether this call is being recorded. */
+    async callRecordingActive(wsId: string, roomId: string, callId: string): Promise<boolean> {
+      const raw = await request(`${room(wsId, roomId)}/voice/recording/active${query({ call_id: callId })}`);
+      const parsed = parseWithFallback<z.infer<typeof ActiveRecordingSchema>>(raw, ActiveRecordingSchema, {}, { endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/voice/recording/active" });
+      return Boolean(parsed.recording?.id);
+    },
+    /** POST …/messages/{id}/pin toggles the pin; the server answers with the message (chat-messages.ts › toggleChatMessagePin). */
+    togglePin(wsId: string, roomId: string, messageId: string): Promise<ChatMessageRecord | null> {
+      return message(request(`${room(wsId, roomId)}/messages/${enc(messageId)}/pin`, json("POST")), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/pin");
+    },
+    /** POST …/messages/{id}/forward writes a copy in each target room (chat-forward.ts); how many copies were written. */
+    async forwardMessage(wsId: string, messageId: string, targetRoomIds: string[]): Promise<number> {
+      const raw = await request(`${ws(wsId)}/chat/messages/${enc(messageId)}/forward`, json("POST", { target_room_ids: targetRoomIds }));
+      return parseWithFallback(raw, ChatMessagesListSchema, { messages: [] }, { endpoint: "POST /api/v1/workspaces/{ws}/chat/messages/{messageID}/forward" }).messages.length;
     },
     signalTyping(wsId: string, roomId: string) {
       return ok(request(`${room(wsId, roomId)}/typing`, json("POST")), "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/typing");

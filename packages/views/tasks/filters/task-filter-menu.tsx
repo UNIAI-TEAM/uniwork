@@ -137,12 +137,14 @@ export function TaskFilterMenu({
             label: s.name || t(`tasks.status_${s.key}`, { defaultValue: s.key }),
             category: s.category,
             color: s.color,
+            glyph: s.icon || undefined,
           }))
       : TASK_STATUSES.map((key) => ({
           key,
           label: t(`tasks.status_${key}`),
           category: key,
           color: undefined as string | undefined,
+          glyph: undefined as string | undefined,
         }));
 
   const filterableProperties = useMemo(
@@ -269,7 +271,7 @@ export function TaskFilterMenu({
                   <HoverCheck checked={checked} />
                   <StatusIcon
                     status={option.key}
-                    category={option.category}
+                    category={option.glyph ?? option.category}
                     color={option.color}
                     className="size-3.5"
                   />

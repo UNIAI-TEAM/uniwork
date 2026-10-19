@@ -9,6 +9,8 @@ export const TaskCatalogStatusSchema = z.object({
   description: z.string(),
   category: z.string(),
   color: z.string(),
+  /** A category whose glyph the status draws; "" (or absent) draws its own. */
+  icon: z.string().optional(),
   is_system: z.boolean(),
   position: z.number(),
   archived_at: z.string().optional(),

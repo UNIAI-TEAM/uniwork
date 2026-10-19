@@ -38,7 +38,12 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
 - `lib/` — helper thuần + test vitest (env node). `theme.ts`/`global.css`/
   `tailwind.config.js` mirror nhau; giá trị là `packages/ui/styles/tokens.css`
   đổi sang HSL, đổi một nơi thì đổi cả ba. `radius-tokens.json` là thang
-  `--radius-*` của tokens.css.
+  `--radius-*` của tokens.css. Ngoại lệ có chủ ý (R4b, UNI-1916): các slot
+  `chat-*` của chế độ tối và `call-surface` lấy giá trị của canvas, ghi trong
+  comment. Mặt người / phòng / workspace là `--tint-*-solid` theo
+  `lib/identity-tint.ts` (bảy tint, cùng hash với web) với chữ cái của
+  `lib/initials.ts`. Font: Inter (thân) và Plus Jakarta Sans (`font-display`:
+  tiêu đề, tên) nhúng bằng plugin `expo-font` trong `app.config.ts`.
 - `data/` (Task 2–3) — `auth/*` (port từ `apps/chat-desktop/src/main/auth/*`),
   `realtime/ws-client.ts`, `api.ts`, `secure-storage.ts`, `session-epoch.ts`.
   Realtime ba tầng: `ws-client` (socket, auth frame, scope/replay, 4001 →
@@ -69,7 +74,7 @@ Logic khác của web: **copy, ghi nguồn**, test parity — không import.
   NetInfo online hoặc socket reconnect), `realtime/chat-realtime.ts` (bảng §8
   spec cha, thuần) và `realtime/use-chat-realtime.ts` (hook mỏng, gắn ở
   `[org]/[ws]/_layout.tsx`, ≤ 25 scope qua `selectLazyChatScopeRoomIds`);
-  màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,channels}.tsx`
+  màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,new-group,channels}.tsx`
   + `components/chat/*`. Route tab `/{org}/{ws}/chat` nhận `room`/`message`/`dm`
   của `lib/deep-link.ts › deepLinkHref` (hợp đồng với push và tab khác).
   Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
@@ -108,8 +113,13 @@ pnpm --filter @uniwork/chat-mobile test | typecheck | lint
 ```
 
 Máy thật không thấy `localhost` của máy dev: đặt `UNICHAT_API_URL=http://<LAN IP>:8080`
-và `UNICHAT_APP_URL=http://<LAN IP>:3000` khi chạy. Server dev phải bật
-`DESKTOP_AUTH_CLIENTS` (`.env.example`) với client `uniwork-chat-mobile`.
+và `UNICHAT_APP_URL=http://<LAN IP>:3000` khi chạy, và chạy server + web với
+`FRONTEND_ORIGIN` / `NEXT_PUBLIC_{API,WS,APP}_URL` trỏ cùng IP (một bản sao
+`.env`, `make start ENV_FILE=…`); `apps/web/next.config.mjs` tự cho host của
+`NEXT_PUBLIC_APP_URL` vào `allowedDevOrigins`, thiếu thì trang đăng nhập trắng.
+Server dev phải bật `DESKTOP_AUTH_CLIENTS` (`.env.example`) với client
+`uniwork-chat-mobile`. Ký bằng Apple ID cá nhân (Personal Team) thì team không
+có push và associated domains: build tay với file entitlements rỗng.
 
 Root `typecheck`/`test`/`lint` và CI chính lọc `!@uniwork/chat-mobile`;
 app kiểm ở `.github/workflows/mobile-verify.yml`. Không có script `build`.
@@ -129,7 +139,8 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
 - `version` trong `app.config.ts` là `runtimeVersion` (`policy: appVersion`):
   đổi native (gói native, plugin, quyền, SDK) thì bump nó; chỉ đổi JS thì phát
   OTA. Chưa có `EAS_PROJECT_ID` thì `updates.enabled: false` và push bỏ qua.
-  `knip.json` bỏ qua `expo-updates` vì knip đọc config dev.
+  `knip.json` bỏ qua `expo-updates` vì knip đọc config dev, và hai gói
+  `@expo-google-fonts/*` vì `app.config.ts` chỉ trỏ tới file `.ttf` của chúng.
 - Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`
   (EAS build + auto-submit, Environment `chat-mobile-release`, chỉ
   `EXPO_TOKEN`; thiếu thì notice và xanh).

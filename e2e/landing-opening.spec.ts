@@ -55,7 +55,7 @@ for (const width of [1440, 1280, 1240, 1239, 1100, 768, 390]) {
     await page.screenshot({ path: resolve(dir, `opening-${width}.png`), style: "nextjs-portal { visibility: hidden !important; }" });
     const header = page.getByRole("banner");
     if (width >= 1240) {
-      await expect(page.locator(".header-navigation .header-nav-link")).toHaveText(["Sản phẩm", "Giải pháp", "Office", "Tìm hiểu", "Bảng giá", "Nhật ký cập nhật"]);
+      await expect(page.locator(".header-navigation .header-nav-link")).toHaveText(["Sản phẩm", "Ứng dụng", "Giải pháp", "Tìm hiểu", "Bảng giá", "Nhật ký cập nhật"]);
       await expect(page.locator('.header-navigation a.header-nav-link[href$="/changelog"]')).toHaveText("Nhật ký cập nhật");
       const toggle = header.getByRole("button", { name: "Sản phẩm", exact: true });
       await toggle.click();
@@ -67,13 +67,13 @@ for (const width of [1440, 1280, 1240, 1239, 1100, 768, 390]) {
       await page.keyboard.press("Escape");
       await expect(toggle).toBeFocused();
       await expect(page.locator("#header-directory-products")).toHaveCount(0);
-      await header.getByRole("button", { name: "Office", exact: true }).click();
-      await expect(page.locator('#header-directory-office a[href$="/office#office-business"]')).toBeVisible();
-      // Office for Personal is announced, not offered: a label without a link (office-header.test.tsx).
-      await expect(page.locator("#header-directory-office [data-office-personal]")).toContainText("Đang phát triển");
-      // The other link is UniChat's page; the bar itself has no room for it at 1240px.
-      await expect(page.locator('#header-directory-office a[href$="/unichat"]')).toBeVisible();
-      await expect(page.locator("#header-directory-office a")).toHaveCount(2);
+      await header.getByRole("button", { name: "Ứng dụng", exact: true }).click();
+      // Every app of the catalogue, then the hub; Office for Personal is announced without a link (site-header.test.tsx).
+      await expect(page.locator("#header-directory-apps .header-apps-list a")).toHaveCount(3);
+      await expect(page.locator('#header-directory-apps a[href$="/apps/office"]')).toBeVisible();
+      await expect(page.locator('#header-directory-apps a[href$="/apps/unichat"]')).toBeVisible();
+      await expect(page.locator("#header-directory-apps [data-office-personal]")).toContainText("Đang phát triển");
+      await expect(page.locator('#header-directory-apps .header-apps-all[href$="/apps"]')).toBeVisible();
       await page.keyboard.press("Escape");
       await header.getByRole("button", { name: "Tìm hiểu", exact: true }).click();
       await expect(page.locator('#header-directory-learn a[href$="/why-uniwork"]')).toBeVisible();
@@ -94,11 +94,11 @@ for (const width of [1440, 1280, 1240, 1239, 1100, 768, 390]) {
       await page.screenshot({ path: resolve(dir, `opening-menu-${width}.png`), style: "nextjs-portal { visibility: hidden !important; }" });
       await page.locator('#landing-mobile-menu summary').filter({ hasText: "Sản phẩm" }).click();
       await expect(page.locator('#landing-mobile-menu a[href$="/features/agents"]')).toHaveText("Nhân sự AI");
-      await page.locator('#landing-mobile-menu summary').filter({ hasText: /^Office$/ }).click();
-      await expect(page.locator('#landing-mobile-menu a[href$="/office#office-business"]')).toBeVisible();
+      await page.locator('#landing-mobile-menu summary').filter({ hasText: "Ứng dụng" }).click();
+      await expect(page.locator("#landing-mobile-menu .header-apps-list a")).toHaveCount(3);
+      await expect(page.locator('#landing-mobile-menu .header-apps-list a[href$="/apps/unichat"]')).toBeVisible();
       await expect(page.locator("#landing-mobile-menu [data-office-personal]")).toContainText("Đang phát triển");
-      await expect(page.locator("#landing-mobile-menu .header-office-links a")).toHaveCount(2);
-      await expect(page.locator('#landing-mobile-menu .header-office-links a[href$="/unichat"]')).toBeVisible();
+      await expect(page.locator("#landing-mobile-menu .header-quick")).toBeHidden();
       await page.locator('#landing-mobile-menu summary').filter({ hasText: "Tìm hiểu" }).click();
       await expect(page.locator('#landing-mobile-menu a[href$="/changelog"]')).toBeVisible();
       await page.keyboard.press("Escape");

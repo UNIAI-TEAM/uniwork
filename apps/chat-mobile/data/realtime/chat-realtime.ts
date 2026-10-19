@@ -62,6 +62,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
           created: msg.type === "chat.message.created" && !payload.thread_root_id,
           senderId: payload.sender_id,
         });
+        if (msg.type === "chat.message.created") schedule(chatKeys.unreadSummary());
         return;
       case "chat.message.deleted":
         if (roomId && messageId) patchChatMessageDeleted(qc, wsId, roomId, messageId);
@@ -72,7 +73,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
         if (messageId) void fetchAndPatchChatMessage(qc, wsId, viewer, { roomId, messageId });
         return;
       case "chat.room.activity":
-        schedule(chatKeys.rooms(wsId));
+        schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
         return;
       case "chat.room.created":
       case "chat.room.updated":
@@ -94,6 +95,8 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
         return;
       case "chat.room.read":
         if (roomId && payload.user_id && viewer.userId) patchChatRoomRead(qc, wsId, viewer.userId, roomId, payload.user_id);
+        // The reader's own pointer moved: the per-workspace counts follow.
+        if (payload.user_id && payload.user_id === viewer.userId) schedule(chatKeys.unreadSummary());
         return;
       case "chat.typing":
         if (roomId && payload.user_id && viewer.userId) deps.typing.bump(roomId, payload.user_id, viewer.userId);
@@ -111,7 +114,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
 
   /** Frames sent while the socket was down are gone: each cache refreshes its own keys (ADR 0011 §5). */
   function reconnect(): void {
-    schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId));
+    schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.unreadSummary());
     void qc.invalidateQueries({ queryKey: ["chat", wsId, "thread-messages"] });
     refreshLoadedRoomTimelines(qc, wsId);
   }

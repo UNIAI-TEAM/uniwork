@@ -127,6 +127,45 @@ func (q *Queries) CarryOverChatRoomMemberSendRestricted(ctx context.Context, arg
 	return err
 }
 
+const countChatMentionUnreadForMember = `-- name: CountChatMentionUnreadForMember :one
+SELECT COUNT(*)::int AS mention_unread_count
+FROM (
+  SELECT 1
+  FROM chat_messages m
+  INNER JOIN chat_rooms r ON r.id = $1
+  INNER JOIN chat_room_members mem
+    ON mem.room_id = r.id
+   AND mem.user_id = $2
+   AND mem.status IN ('invited', 'active')
+  WHERE m.room_id = r.id
+    AND m.workspace_id = r.workspace_id
+    AND m.deleted_at IS NULL
+    AND m.thread_root_id IS NULL
+    AND (m.metadata ? 'mentioned_user_ids' OR m.metadata ? 'mentions_all')
+    AND m.sender_id != $2
+    AND m.created_at > COALESCE(mem.last_read_at, mem.joined_at, '1970-01-01'::timestamptz)
+    AND (
+      m.metadata -> 'mentioned_user_ids' ? $2::text
+      OR m.metadata @> '{"mentions_all": true}'
+    )
+  LIMIT 100
+) mentioned
+`
+
+type CountChatMentionUnreadForMemberParams struct {
+	RoomID string `json:"room_id"`
+	UserID string `json:"user_id"`
+}
+
+// Same capped badge as ListChatRoomsForMember / ListChatChannelsMine.
+// tenant: parent room_id
+func (q *Queries) CountChatMentionUnreadForMember(ctx context.Context, arg CountChatMentionUnreadForMemberParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countChatMentionUnreadForMember, arg.RoomID, arg.UserID)
+	var mention_unread_count int32
+	err := row.Scan(&mention_unread_count)
+	return mention_unread_count, err
+}
+
 const createChatFileMessage = `-- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,
@@ -1045,7 +1084,9 @@ INSERT INTO chat_room_members (
   id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, now(), now(), now()
-) RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted, last_delivered_at
+)
+ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING
+RETURNING id, room_id, workspace_id, user_id, role, status, invited_by, joined_at, left_at, last_read_at, created_at, updated_at, send_restricted, organization_id, notifications_muted, last_delivered_at
 `
 
 type InsertChatRoomMemberParams struct {
@@ -2459,6 +2500,16 @@ func (q *Queries) ListDefaultChatRoomMissingMembers(ctx context.Context, workspa
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockChatRoom = `-- name: LockChatRoom :exec
+SELECT id FROM chat_rooms WHERE id = $1 FOR UPDATE
+`
+
+// tenant: by-id
+func (q *Queries) LockChatRoom(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, lockChatRoom, id)
+	return err
 }
 
 const markChatThreadRead = `-- name: MarkChatThreadRead :exec

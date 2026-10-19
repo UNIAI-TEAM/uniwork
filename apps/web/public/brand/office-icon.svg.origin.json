@@ -1,0 +1,7 @@
+{
+  "source": "UNIAI-TEAM/uniwork-office tools/rebrand/assets/_source/uniwork-office-logo.svg at d15f82ec4d4c",
+  "method": "Unmodified copy of the official vector logo; the same commit renders it into every Office app icon (apps/shell/build/icon.png)",
+  "role": "UniOffice identity in the public Apps menu, the /apps hub, the app bar and the other-apps cards",
+  "request": "2026-10-18: replace the blurry 66x46 bitmap crop with the current official logo",
+  "modifications": "None"
+}

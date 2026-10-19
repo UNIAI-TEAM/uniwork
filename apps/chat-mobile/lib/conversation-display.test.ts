@@ -53,7 +53,8 @@ describe("roomHeaderMark", () => {
     expect(roomHeaderMark(room({ kind: "channel", is_default: true }), "Acme", false)).toEqual({ kind: "workspace" });
     expect(roomHeaderMark(room({ kind: "channel" }), "#dev", false)).toEqual({ kind: "channel" });
     expect(roomHeaderMark(room({ kind: "channel", visibility: "private" }), "sales", false)).toEqual({ kind: "private-channel" });
-    expect(roomHeaderMark(room({ kind: "group" }), "Thiết kế", false)).toEqual({ kind: "group" });
+    expect(roomHeaderMark(room({ kind: "group" }), "Thiết kế", false)).toEqual({ kind: "group", label: "Thiết kế" });
+    expect(roomHeaderMark(room({ kind: "dm", peer_user_id: "u2" }), "Bình", false)).toEqual({ kind: "dm", label: "Bình", online: false, userId: "u2" });
     expect(roomHeaderMark(room({ kind: "dm" }), "Bình", true)).toEqual({ kind: "dm", label: "Bình", online: true });
   });
 });

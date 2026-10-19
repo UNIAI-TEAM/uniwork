@@ -18,6 +18,7 @@ Thư mục này giữ bằng chứng của checklist trưởng thành. Ảnh, vi
 | [`security-review-2026-10-17.md`](security-review-2026-10-17.md) | Rà soát bảo mật hai app, server và workflow; phát hiện và bản sửa |
 | [`release-accounts.md`](release-accounts.md) | Tài khoản phát hành → tên khóa chính xác → nơi đặt |
 | [`go-no-go-template.md`](go-no-go-template.md) | Mẫu báo cáo một trang cho chủ sở hữu |
+| [`r4b-mobile/`](r4b-mobile/) | Ảnh simulator iPhone 16e (390×844) của app mobile sau đợt khớp canvas R4b (UNI-1916), sáng và tối; `00-tong-quan.jpg` là bảng gộp |
 | [`../../runbooks/unichat-pilot.md`](../../runbooks/unichat-pilot.md) | Runbook pilot: chuẩn bị, triage mỗi sáng, đo, điều kiện dừng |
 
 ## Checklist (spec Q1 §2 + epic UNI-1826)
@@ -41,7 +42,7 @@ Thư mục này giữ bằng chứng của checklist trưởng thành. Ảnh, vi
 | **Mobile — TestFlight + Play internal** | Tag `chat-mobile-v*` → build có ở cả hai | Workflow `chat-mobile-release.yml` có từ M4; chưa chạy (thiếu `EXPO_TOKEN`) | chờ tài khoản |
 | **Mobile — Maestro 5 đêm** | Ba luồng vàng xanh 5 đêm liên tiếp | `apps/chat-mobile/maestro/flows/{chat-read-send,push-open-room,call-join}.yaml` (PR #346), chạy trên iOS và Android trong `chat-mobile-verify.yml`. Gọi nhóm một tài khoản: chứng minh vào phòng LiveKit và cúp, không chứng minh đổ chuông DM, nhận cuộc gọi, âm thanh hai người (vẫn ở `test-scripts.md`). Chưa đêm nào chạy: chờ biến `MAESTRO_*` (`MAESTRO_ROOM_ID` là phòng nhóm) và workflow lên `main` | chờ M4 phase 2 (PR #346) · cần người (đặt `MAESTRO_*`) |
 | **Mobile — chạy trên máy thật** | M1/M2a/M2b/M3 chạy trên iPhone và hai máy Android | Chưa lần nào (2026-10-18). `test-scripts.md` §3. Gọi khi app ở nền trên Android chưa giữ micro: foreground service (UNI-1880) | cần người (iPhone: chờ tài khoản) · UNI-1880 |
-| **Landing `/unichat`** | Trang sống với catalogue từ `GET /api/v1/config`, link store/TestFlight, SEO `SoftwareApplication` | Mã: PR #341 (L1). Sống: cần deploy và đặt `UNICHAT_INSTALLER_*_URLS`, `UNICHAT_TESTFLIGHT_URL`, `UNICHAT_PLAY_INTERNAL_URL` (`release-accounts.md` #10, #16, #23) rồi chụp URL | cần người · chờ tài khoản |
+| **Landing `/apps/unichat`** | Trang sống với catalogue từ `GET /api/v1/config`, link store/TestFlight, SEO `SoftwareApplication` | Mã: PR #341 (L1). Sống: cần deploy và đặt `UNICHAT_INSTALLER_*_URLS`, `UNICHAT_TESTFLIGHT_URL`, `UNICHAT_PLAY_INTERNAL_URL` (`release-accounts.md` #10, #16, #23) rồi chụp URL | cần người · chờ tài khoản |
 | **Tài liệu** | `apps/chat-*/CLAUDE.md`, hai runbook phát hành, dòng Hệ quả ADR 0011 | `apps/chat-desktop/CLAUDE.md`, `apps/chat-mobile/CLAUDE.md` (cập nhật trong Q1: `GOOGLE_SERVICES_JSON`); `docs/runbooks/unichat-desktop-release.md`, `docs/runbooks/unichat-mobile-release.md` (+ `unichat-pilot.md`); ADR 0011 mục Hệ quả có dòng "iOS + Android ship cùng lúc theo spec UniChat §5" (thêm ở M1, PR #337) | done |
 | **Pilot** | ≥ 10 ngày làm việc liên tục, ≥ 80 % dùng hằng ngày, 0 mất/trùng tin, P1 đóng trong 2 ngày | Nhật ký `[pilot]` trên UNI-1838; truy vấn người dùng hằng ngày ở `docs/runbooks/unichat-pilot.md` | cần người |
 | **Tài khoản phát hành** | Apple (tổ chức) duyệt, tên "UniChat"/"UniWork Chat" giữ, Play Console có app, ký Windows và notarization chạy trong workflow | `release-accounts.md` | chờ tài khoản (chủ sở hữu) |

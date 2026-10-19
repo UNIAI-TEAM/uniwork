@@ -14,8 +14,9 @@ export async function publicPage(path: string, locale: SupportedLocale = "en") {
   const dictionaryPromise = loadMarketingDictionary(locale, path);
   let body: ReactNode;
   if (path === "/") { const { LandingPage } = await import("../features/landing/landing-page"); body = <LandingPage />; }
-  else if (path === "/office") { const { OfficePage } = await import("../features/landing/office-page"); body = <OfficePage />; }
-  else if (path === "/unichat") { const { UniChatPage } = await import("../features/landing/unichat-page"); body = <UniChatPage />; }
+  else if (path === "/apps") { const { AppsPage } = await import("../features/landing/apps/apps-page"); body = <AppsPage />; }
+  else if (path === "/apps/office") { const { OfficePage } = await import("../features/landing/office-page"); body = <OfficePage />; }
+  else if (path === "/apps/unichat") { const { UniChatPage } = await import("../features/landing/unichat-page"); body = <UniChatPage />; }
   else if (path === "/features") { const { FeaturesPage } = await import("../features/landing/feature-page"); body = <FeaturesPage />; }
   else if (path.startsWith("/features/")) {
     const { FeaturePage } = await import("../features/landing/feature-page");

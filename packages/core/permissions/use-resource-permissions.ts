@@ -26,6 +26,7 @@ import {
   canEditTask,
   canInviteMembers,
   canManageMembers,
+  canManageTaskCatalog,
   canRemoveMember,
   canUpdateWorkspaceSettings,
 } from "./rules";
@@ -66,6 +67,7 @@ export function useWorkspacePermissions(wsId: string): {
   canManageMembers: Decision;
   canDeleteMeeting: Decision;
   canUpdateSettings: Decision;
+  canManageTaskCatalog: Decision;
   decideRemove: (target: Member) => Decision;
   decideChangeRole: (target: Member) => Decision;
   isLoading: boolean;
@@ -78,6 +80,7 @@ export function useWorkspacePermissions(wsId: string): {
       canManageMembers: PENDING,
       canDeleteMeeting: PENDING,
       canUpdateSettings: PENDING,
+      canManageTaskCatalog: PENDING,
       decideRemove: () => PENDING,
       decideChangeRole: () => PENDING,
       isLoading,
@@ -88,6 +91,7 @@ export function useWorkspacePermissions(wsId: string): {
     canManageMembers: canManageMembers(ctx),
     canDeleteMeeting: canDeleteMeeting(null, ctx),
     canUpdateSettings: canUpdateWorkspaceSettings(ctx),
+    canManageTaskCatalog: canManageTaskCatalog(ctx),
     decideRemove: (target: Member) => canRemoveMember(target, ctx),
     decideChangeRole: (target: Member) => canChangeMemberRole(target, ctx),
     isLoading,

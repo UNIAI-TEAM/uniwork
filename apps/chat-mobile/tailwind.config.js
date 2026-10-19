@@ -11,7 +11,8 @@ const borderRadius = Object.fromEntries(
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: "class",
-  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  // lib/ holds whole class names too (identity-tint.ts › SOLID_TINT_BG).
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.ts"],
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
@@ -30,6 +31,7 @@ module.exports = {
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
         brand: { DEFAULT: "hsl(var(--brand))", foreground: "hsl(var(--brand-foreground))" },
         "success-solid": "hsl(var(--success-solid))",
+        "call-surface": "hsl(var(--call-surface))",
         "chat-wall": "hsl(var(--chat-wall))",
         "chat-bubble-own": "hsl(var(--chat-bubble-own))",
         "chat-bubble-own-foreground": "hsl(var(--chat-bubble-own-foreground))",
@@ -50,6 +52,15 @@ module.exports = {
         "tint-red": "hsl(var(--tint-red))",
         "tint-red-foreground": "hsl(var(--tint-red-foreground))",
         "destructive-solid": "hsl(var(--destructive-solid))",
+        "on-solid": "hsl(var(--on-solid))",
+        "tint-violet-solid": "hsl(var(--tint-violet-solid))",
+        "tint-blue-solid": "hsl(var(--tint-blue-solid))",
+        "tint-pink-solid": "hsl(var(--tint-pink-solid))",
+        "tint-orange-solid": "hsl(var(--tint-orange-solid))",
+        "tint-green-solid": "hsl(var(--tint-green-solid))",
+        "tint-yellow-solid": "hsl(var(--tint-yellow-solid))",
+        "tint-teal-solid": "hsl(var(--tint-teal-solid))",
+        "tint-gray-solid": "hsl(var(--tint-gray-solid))",
         "chat-sender-1": "hsl(var(--chat-sender-1))",
         "chat-sender-2": "hsl(var(--chat-sender-2))",
         "chat-sender-3": "hsl(var(--chat-sender-3))",
@@ -63,6 +74,8 @@ module.exports = {
       // one mobile JSON feeds both NativeWind classes and inline styles.
       borderRadius,
       borderWidth: { hairline: hairlineWidth() },
+      // The canvas's two faces (app.config.ts embeds them): Inter for body, Plus Jakarta Sans for titles and names.
+      fontFamily: { sans: ["Inter"], display: ["Plus Jakarta Sans"] },
     },
   },
   future: { hoverOnlyWhenSupported: true },

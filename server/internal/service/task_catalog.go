@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -78,17 +77,20 @@ func slugifyStatusKey(name string) (string, error) {
 }
 
 type CreateTaskStatusInput struct {
-	Key, Name, Description, Category, Color string
+	// Icon is a category whose glyph the status draws; "" draws its own.
+	Key, Name, Description, Category, Color, Icon string
 }
 
 type UpdateTaskStatusInput struct {
-	Name, Description, Color *string
-	Position                 *float64
+	Name, Description, Color, Icon, Category *string
+	Position                                 *float64
 }
 
+func validStatusIcon(icon string) bool { return icon == "" || validCategories[icon] }
+
 type ReorderTaskStatusesInput struct {
-	Category string
-	IDs      []string
+	Group string
+	IDs   []string
 }
 
 func (s *TaskService) ListTaskStatuses(ctx context.Context, actor Actor, workspaceID string, includeArchived bool) ([]db.TaskStatus, error) {
@@ -105,7 +107,7 @@ func (s *TaskService) ListTaskStatuses(ctx context.Context, actor Actor, workspa
 }
 
 func (s *TaskService) CreateTaskStatus(ctx context.Context, actor Actor, workspaceID string, in CreateTaskStatusInput) (db.TaskStatus, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return db.TaskStatus{}, err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -121,6 +123,9 @@ func (s *TaskService) CreateTaskStatus(ctx context.Context, actor Actor, workspa
 	}
 	if !validCategories[in.Category] {
 		return db.TaskStatus{}, Invalid("category không hợp lệ")
+	}
+	if !validStatusIcon(in.Icon) {
+		return db.TaskStatus{}, Invalid("icon không hợp lệ")
 	}
 	color, err := normalizeHexColor(in.Color)
 	if err != nil {
@@ -149,17 +154,15 @@ func (s *TaskService) CreateTaskStatus(ctx context.Context, actor Actor, workspa
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	maxPos, err := q.MaxTaskStatusPositionInCategory(ctx, db.MaxTaskStatusPositionInCategoryParams{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Category: in.Category,
-	})
+	pos, err := endOfStatusGroup(ctx, q, ws.OrganizationID, workspaceID, in.Category)
 	if err != nil {
 		return db.TaskStatus{}, err
 	}
 	st, err := q.CreateTaskStatus(ctx, db.CreateTaskStatusParams{
 		ID: util.NewID(), OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		Key: key, Name: name, Description: in.Description, Category: in.Category,
-		Color: color, IsSystem: false, Position: maxPos + 1,
-		CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+		Color: color, IsSystem: false, Position: pos,
+		CreatedBy: actor.ID, CreatedByKind: string(actor.Kind), Icon: in.Icon,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -183,7 +186,7 @@ func (s *TaskService) CreateTaskStatus(ctx context.Context, actor Actor, workspa
 }
 
 func (s *TaskService) UpdateTaskStatus(ctx context.Context, actor Actor, workspaceID, statusID string, in UpdateTaskStatusInput) (db.TaskStatus, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return db.TaskStatus{}, err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -225,6 +228,12 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, actor Actor, workspa
 		}
 		color = &normalized
 	}
+	if in.Icon != nil && !validStatusIcon(*in.Icon) {
+		return db.TaskStatus{}, Invalid("icon không hợp lệ")
+	}
+	if in.Category != nil && !validCategories[*in.Category] {
+		return db.TaskStatus{}, Invalid("category không hợp lệ")
+	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -232,9 +241,19 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, actor Actor, workspa
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	position := in.Position
+	if in.Category != nil && statusGroupOf[*in.Category] != statusGroupOf[existing.Category] && position == nil {
+		// A status moved to another group goes after that group's statuses.
+		next, err := endOfStatusGroup(ctx, q, ws.OrganizationID, workspaceID, *in.Category)
+		if err != nil {
+			return db.TaskStatus{}, err
+		}
+		position = &next
+	}
 	st, err := q.UpdateTaskStatus(ctx, db.UpdateTaskStatusParams{
 		Name: optText(name), Description: optText(in.Description), Color: optText(color),
-		Position:       optFloat(in.Position),
+		Icon: optText(in.Icon), Category: optText(in.Category),
+		Position:       optFloat(position),
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, ID: statusID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -262,7 +281,7 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, actor Actor, workspa
 }
 
 func (s *TaskService) DeleteTaskStatus(ctx context.Context, actor Actor, workspaceID, statusID string) error {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -313,12 +332,17 @@ func (s *TaskService) DeleteTaskStatus(ctx context.Context, actor Actor, workspa
 	return tx.Commit(ctx)
 }
 
+// ReorderTaskStatuses orders a whole group (UniAI's four), built-ins
+// included: IDs must name every active status in the group exactly once.
+// Positions are spread across the group's band, so the group still sorts
+// between its neighbours on the board and in every picker.
 func (s *TaskService) ReorderTaskStatuses(ctx context.Context, actor Actor, workspaceID string, in ReorderTaskStatusesInput) ([]db.TaskStatus, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return nil, err
 	}
-	if !validCategories[in.Category] {
-		return nil, Invalid("category không hợp lệ")
+	categories, ok := statusGroupCategories[in.Group]
+	if !ok {
+		return nil, Invalid("group không hợp lệ")
 	}
 	if len(in.IDs) == 0 {
 		return nil, Invalid("ids must not be empty")
@@ -342,55 +366,38 @@ func (s *TaskService) ReorderTaskStatuses(ctx context.Context, actor Actor, work
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	active, err := q.ListActiveCustomTaskStatusesInCategory(ctx, db.ListActiveCustomTaskStatusesInCategoryParams{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Category: in.Category,
+	active, err := q.ListActiveTaskStatusesInCategories(ctx, db.ListActiveTaskStatusesInCategoriesParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Categories: categories,
 	})
 	if err != nil {
 		return nil, err
 	}
-	activeIDs := map[string]struct{}{}
+	if len(active) != len(in.IDs) {
+		return nil, Invalid("ids must list every active status in the group")
+	}
 	for _, st := range active {
-		activeIDs[st.ID] = struct{}{}
-	}
-	if len(activeIDs) != len(in.IDs) {
-		return nil, Invalid("ids must list every active custom status in the category")
-	}
-	for _, id := range in.IDs {
-		if _, ok := activeIDs[id]; !ok {
-			// Built-in or wrong category / archived.
-			existing, getErr := q.GetTaskStatusByID(ctx, db.GetTaskStatusByIDParams{
-				OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, ID: id,
-			})
-			if getErr == nil && existing.IsSystem {
-				return nil, errSystemStatusImmutable()
-			}
-			return nil, Invalid("ids must list every active custom status in the category")
+		if _, ok := seen[st.ID]; !ok {
+			return nil, Invalid("ids must list every active status in the group")
 		}
 	}
 
-	builtIn, err := q.GetTaskStatusByKey(ctx, db.GetTaskStatusByKeyParams{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Key: in.Category,
-	})
-	base := float64(0)
-	if err == nil {
-		base = builtIn.Position
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
-	}
-
+	base := statusGroupBase[in.Group]
+	step := statusGroupSpan / float64(len(in.IDs)+1)
+	out := make([]db.TaskStatus, 0, len(in.IDs))
 	for i, id := range in.IDs {
-		pos := base + float64(i+1)
-		if _, err := q.UpdateTaskStatus(ctx, db.UpdateTaskStatusParams{
-			Position:       pgtype.Float8{Float64: pos, Valid: true},
+		st, err := q.SetTaskStatusPosition(ctx, db.SetTaskStatusPositionParams{
 			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, ID: id,
-		}); err != nil {
+			Position: base + float64(i+1)*step,
+		})
+		if err != nil {
 			return nil, err
 		}
+		out = append(out, st)
 		if err := auditRecorder.Record(ctx, q, audit.Entry{
 			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 			Actor:  actor,
 			Action: audit.ActionTaskStatusUpdated, ResourceType: "task_status", ResourceID: id,
-			Metadata: map[string]any{"reorder_category": in.Category},
+			Metadata: map[string]any{"reorder_group": in.Group},
 		}, audit.Event{Topic: "task_status.updated", Payload: map[string]string{
 			"status_id": id, "workspace_id": workspaceID,
 		}}); err != nil {
@@ -400,7 +407,23 @@ func (s *TaskService) ReorderTaskStatuses(ctx context.Context, actor Actor, work
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return s.q.ListActiveCustomTaskStatusesInCategory(ctx, db.ListActiveCustomTaskStatusesInCategoryParams{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Category: in.Category,
+	return out, nil
+}
+
+// endOfStatusGroup is the position after every active status in the group
+// of category, still inside the group's band.
+func endOfStatusGroup(ctx context.Context, q *db.Queries, orgID, workspaceID, category string) (float64, error) {
+	group := statusGroupOf[category]
+	list, err := q.ListActiveTaskStatusesInCategories(ctx, db.ListActiveTaskStatusesInCategoriesParams{
+		OrganizationID: orgID, WorkspaceID: workspaceID, Categories: statusGroupCategories[group],
 	})
+	if err != nil {
+		return 0, err
+	}
+	end := statusGroupBase[group] + statusGroupSpan
+	last := statusGroupBase[group]
+	if len(list) > 0 {
+		last = list[len(list)-1].Position
+	}
+	return last + (end-last)/2, nil
 }

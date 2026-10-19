@@ -63,13 +63,8 @@ export function useRoomContext(chat: ChatWorkspace, roomId: string) {
   );
 
   const typingIds = useSidebarTypingStore((s) => s.byRoomId[roomId] ?? NOBODY);
-  const typingLabel = typingIds.length
-    ? formatTypingLabel(
-        typingIds.map((id) => senderLabelFor({ sender: id }, "", "", nameContext)),
-        t,
-        i18n.language,
-      )
-    : null;
+  const typingNames = useMemo(() => typingIds.map((id) => senderLabelFor({ sender: id }, "", "", nameContext)), [typingIds, nameContext]);
+  const typingLabel = typingNames.length ? formatTypingLabel(typingNames, t, i18n.language) : null;
   const peerId = room?.kind === "dm" ? room.peer_user_id : undefined;
   const peerOnline = usePresenceStore((s) => (peerId ? Boolean(s.onlineUserIds[normalizeTypingUserId(peerId)]) : false));
 
@@ -83,6 +78,9 @@ export function useRoomContext(chat: ChatWorkspace, roomId: string) {
     nameContext,
     senderName,
     typingLabel,
+    /** Who is typing, first first: the typing bubble's avatar. */
+    typingNames,
+    typingIds,
     peerOnline,
   };
 }
