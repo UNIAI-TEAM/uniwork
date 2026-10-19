@@ -152,6 +152,13 @@ type DocumentService struct {
 	// editLock is the edit lock timing (UNI-1645, document_edit_lock.go);
 	// zero fields read as the addendum §7 defaults.
 	editLock DocumentEditLockConfig
+
+	// accessRequestTasks and accessRequestMeetings are the narrow ports a
+	// document access request reads its optional task/meeting source through
+	// (DOC-07, document_access_requests.go). Nil drops the source kind
+	// silently, which is also the fail-closed default.
+	accessRequestTasks    DocumentAccessRequestTaskReader
+	accessRequestMeetings DocumentAccessRequestMeetingReader
 }
 
 func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {

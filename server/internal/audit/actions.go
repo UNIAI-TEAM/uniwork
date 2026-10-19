@@ -216,6 +216,13 @@ const (
 	ActionDocumentShelved   = "document.shelved"
 	ActionDocumentUnshelved = "document.unshelved"
 
+	// Document access requests (DOC-07, UNI-1631): a person who cannot read a
+	// document asked its managers for access. The requester is the actor, the
+	// metadata carries the request id, the level and whether a message was
+	// sent - never the message text, which lives only in the request row.
+	// The approve and decline commands add their own rows with w2.
+	ActionDocumentAccessRequested = "document.access_requested"
+
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit
 	// trail for create, atomic redeem and explicit revoke.

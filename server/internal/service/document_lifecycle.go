@@ -1377,6 +1377,13 @@ func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Querie
 			return q.DeleteDocumentBreakGlassGrants(ctx, db.DeleteDocumentBreakGlassGrantsParams{
 				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})
 		},
+		// Access requests (DOC-07) go with the document too: a pending request
+		// nobody can answer any more, or a decided one, has no meaning without
+		// the document it names.
+		func(ctx context.Context) error {
+			return q.DeleteDocumentAccessRequests(ctx, db.DeleteDocumentAccessRequestsParams{
+				OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID})
+		},
 	} {
 		if err := del(ctx); err != nil {
 			return false, 0, err
