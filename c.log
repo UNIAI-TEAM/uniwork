@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19286 14286; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19286/tcp 14286/tcp 2>/dev/null; sleep 1; for p in 19286 14286; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+f7e8c03cc957775b1e0bf17588e159cbb08e0487
+f7e8c03cc test(e2e): open the discussion history from the (đã sửa) marker
+dbc054a69 feat(documents): discussion thread shows avatars, a closed edit-history marker and indented replies
+04f084fe5 test(e2e): click the share Cancel button by its glossary name Hủy (UNI-1784)
+9460aa877 chore: merge UNI-1960 SAVE-FOLDER (first save picks the folder, 97ada82c6) into the G5-G7 root
