@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+1f7b4aa152f0916dff809450f43bc77e1db488c1
+1f7b4aa1 merge: G5-13 sweep batch 1 fork part (UNI-1362, 1b86fb0d2) into fork main
+a19cc025 merge: G7-03b offline fork fixes (UNI-1915, 95eb73d7b) into fork main 5296a2478
+5296a247 test(shell): move fixture upload-session expiries past today (date bomb)
