@@ -19,9 +19,15 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
-// accessRequestCreate posts one create and returns the raw body so a case can
-// assert the exact bytes of the uniform 202.
+// accessRequestCreate posts one create as the world's owner and returns the raw
+// body so a case can assert the exact bytes of the uniform 202.
 func accessRequestCreate(t *testing.T, w *docsWorld, docID string, body any) (*http.Response, map[string]any, []byte) {
+	t.Helper()
+	return accessRequestCreateAs(t, w, w.token, docID, body)
+}
+
+// accessRequestCreateAs is accessRequestCreate for any signed-in person.
+func accessRequestCreateAs(t *testing.T, w *docsWorld, token, docID string, body any) (*http.Response, map[string]any, []byte) {
 	t.Helper()
 	var buf bytes.Buffer
 	if body != nil {
@@ -29,7 +35,7 @@ func accessRequestCreate(t *testing.T, w *docsWorld, docID string, body any) (*h
 	}
 	req, _ := http.NewRequest(http.MethodPost, w.srv.URL+"/api/v1/documents/"+docID+"/access-requests", &buf)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+w.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := w.srv.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -200,4 +206,46 @@ func unreadablePage(t *testing.T, w *docsWorld) string {
 		t.Fatalf("restrict document: %v", err)
 	}
 	return docID
+}
+
+// A11 (wire half): GET /documents/{documentID}/shares carries
+// pending_access_requests for the manager and omits it for a reader who may not
+// administer, so the share dialog's badge count is one field on a response the
+// screen already fetches. The count itself is w2's service test; this pins the
+// handler's mapping and the omitempty tag.
+func TestDocumentAccessRequestPendingCountOnShares(t *testing.T) {
+	w := newDocsWorld(t)
+	docID := unreadablePage(t, w)
+	// A second member asks to read the page the owner administers.
+	reader, _ := docsJoinWorkspace(t, w, "docs-request-reader@example.com")
+	res, _, _ := accessRequestCreateAs(t, w, reader, docID, map[string]any{"requested_level": "view"})
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("reader create: %d", res.StatusCode)
+	}
+
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+docID+"/shares", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("owner shares: %d %v", res.StatusCode, out)
+	}
+	if out["pending_access_requests"] != float64(1) {
+		t.Fatalf("owner pending_access_requests = %v, want 1", out["pending_access_requests"])
+	}
+
+	// A reader who may look at a page but not administer it gets no field at
+	// all, rather than a zero: the omitempty tag is the wire contract the web
+	// client relies on. The page is workspace-visible, so the member reads it
+	// through their workspace membership and administers nothing.
+	_, viewable := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Workspace page", "kind": "page", "visibility": "workspace",
+	})
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+viewable+"/shares", reader, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("reader shares: %d %v", res.StatusCode, out)
+	}
+	if out["my_level"] != "view" {
+		t.Fatalf("reader my_level = %v, want view (the case needs a non-administering reader)", out["my_level"])
+	}
+	if v, ok := out["pending_access_requests"]; ok {
+		t.Fatalf("a reader below administer must omit pending_access_requests, got %v", v)
+	}
 }
