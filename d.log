@@ -1,0 +1,110 @@
+$ for c in FQ-43; do HARNESS_RUN_DIR="$PWD/.harness-run-fqs3e" OFFICE_FORK_SHA=1d5b68400 timeout -k 15 2700 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case $c --run-dir .harness-run-fqs3e; echo "APP_CASE_${c//-/_}_EXIT=$?"; done; for f in .harness-run-fqs3e/fault/FQ-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:37189 app_api=http://127.0.0.1:33589 proxy_upstream=http://127.0.0.1:37189
+FQ-43 [1/9] reconciling → blocked session_expired: running
+dbus-daemon[20444]: [session uid=1000 pid=20444] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20481 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20444]: [session uid=1000 pid=20444] Successfully activated service 'org.a11y.Bus'
+FQ-43 [2/9] reconciling → blocked organization_suspended: running
+FQ-43 [3/9] reconciling → blocked member_deactivated: running
+FQ-43 [4/9] reconciling → blocked document_archived: running
+FQ-43 [5/9] reconciling → blocked permission_revoked: running
+FQ-43 [6/9] reconciling → blocked document_deleted: running
+FQ-43 [7/9] real: reconciling → blocked organization_suspended: running
+FQ-43 [8/9] real: reconciling → blocked member_deactivated: running
+FQ-43 [9/9] real: reconciling → blocked document_deleted: running
+FQ-43: FAIL (predicted OQ-F11)
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T18:06:36.950Z ∅ -> queued
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T18:06:36.989Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T18:07:29.563Z queued -> validating
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T18:07:29.563Z validating -> uploading
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T18:07:29.563Z uploading -> committing
+  FQ-43 [reconciling → blocked session_expired] trace 2026-10-19T18:07:29.563Z committing -> committed http=200
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T18:06:36.971Z upload POST 201 key=f030db613930 rule=-
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T18:06:36.985Z commit POST dropped key=f030db613930 rule=lose-commit-answer
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T18:07:29.575Z upload POST 201 key=f030db613930 rule=-
+  FQ-43 [reconciling → blocked session_expired] proxy 2026-10-19T18:07:29.585Z commit POST 200 key=f030db613930 rule=-
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T18:09:26.791Z ∅ -> queued
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T18:09:26.820Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T18:10:19.218Z queued -> validating
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T18:10:19.218Z validating -> uploading
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T18:10:19.218Z uploading -> committing
+  FQ-43 [reconciling → blocked organization_suspended] trace 2026-10-19T18:10:19.218Z committing -> committed http=200
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T18:09:26.806Z upload POST 201 key=cf5564ab9ea4 rule=-
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T18:09:26.818Z commit POST dropped key=cf5564ab9ea4 rule=lose-commit-answer
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T18:10:19.230Z upload POST 201 key=cf5564ab9ea4 rule=-
+  FQ-43 [reconciling → blocked organization_suspended] proxy 2026-10-19T18:10:19.237Z commit POST 200 key=cf5564ab9ea4 rule=-
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T18:12:16.555Z ∅ -> queued
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T18:12:16.590Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T18:13:08.968Z queued -> validating
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T18:13:08.968Z validating -> uploading
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T18:13:08.968Z uploading -> committing
+  FQ-43 [reconciling → blocked member_deactivated] trace 2026-10-19T18:13:08.968Z committing -> committed http=200
+  FQ-43 [reconciling → blocked member_deactivated] proxy 2026-10-19T18:12:16.572Z upload POST 201 key=afacadc10bec rule=-
+  FQ-43 [reconciling → blocked member_deactivated] proxy 2026-10-19T18:12:16.587Z commit POST dropped key=afacadc10bec rule=lose-commit-answer
+  FQ-43 [reconciling → blocked member_deactivated] proxy 2026-10-19T18:13:08.981Z upload POST 201 key=afacadc10bec rule=-
+  FQ-43 [reconciling → blocked member_deactivated] proxy 2026-10-19T18:13:08.989Z commit POST 200 key=afacadc10bec rule=-
+  FQ-43 [reconciling → blocked document_archived] trace 2026-10-19T18:15:06.382Z ∅ -> queued
+  FQ-43 [reconciling → blocked document_archived] trace 2026-10-19T18:15:06.409Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked document_archived] trace 2026-10-19T18:15:58.791Z queued -> validating
+  FQ-43 [reconciling → blocked document_archived] trace 2026-10-19T18:15:58.791Z validating -> uploading
+  FQ-43 [reconciling → blocked document_archived] trace 2026-10-19T18:15:58.791Z uploading -> committing
+  FQ-43 [reconciling → blocked document_archived] trace 2026-10-19T18:15:58.791Z committing -> committed http=200
+  FQ-43 [reconciling → blocked document_archived] proxy 2026-10-19T18:15:06.397Z upload POST 201 key=f23daec26392 rule=-
+  FQ-43 [reconciling → blocked document_archived] proxy 2026-10-19T18:15:06.405Z commit POST dropped key=f23daec26392 rule=lose-commit-answer
+  FQ-43 [reconciling → blocked document_archived] proxy 2026-10-19T18:15:58.804Z upload POST 201 key=f23daec26392 rule=-
+  FQ-43 [reconciling → blocked document_archived] proxy 2026-10-19T18:15:58.810Z commit POST 200 key=f23daec26392 rule=-
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-19T18:17:56.403Z ∅ -> queued
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-19T18:17:56.430Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-19T18:18:48.785Z queued -> validating
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-19T18:18:48.785Z validating -> uploading
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-19T18:18:48.785Z uploading -> committing
+  FQ-43 [reconciling → blocked permission_revoked] trace 2026-10-19T18:18:48.785Z committing -> committed http=200
+  FQ-43 [reconciling → blocked permission_revoked] proxy 2026-10-19T18:17:56.417Z upload POST 201 key=e096587770c3 rule=-
+  FQ-43 [reconciling → blocked permission_revoked] proxy 2026-10-19T18:17:56.425Z commit POST dropped key=e096587770c3 rule=lose-commit-answer
+  FQ-43 [reconciling → blocked permission_revoked] proxy 2026-10-19T18:18:48.797Z upload POST 201 key=e096587770c3 rule=-
+  FQ-43 [reconciling → blocked permission_revoked] proxy 2026-10-19T18:18:48.805Z commit POST 200 key=e096587770c3 rule=-
+  FQ-43 [reconciling → blocked document_deleted] trace 2026-10-19T18:20:46.298Z ∅ -> queued
+  FQ-43 [reconciling → blocked document_deleted] trace 2026-10-19T18:20:46.327Z queued -> paused_offline code=network
+  FQ-43 [reconciling → blocked document_deleted] trace 2026-10-19T18:21:38.658Z queued -> validating
+  FQ-43 [reconciling → blocked document_deleted] trace 2026-10-19T18:21:38.658Z validating -> uploading
+  FQ-43 [reconciling → blocked document_deleted] trace 2026-10-19T18:21:38.658Z uploading -> committing
+  FQ-43 [reconciling → blocked document_deleted] trace 2026-10-19T18:21:38.658Z committing -> committed http=200
+  FQ-43 [reconciling → blocked document_deleted] proxy 2026-10-19T18:20:46.313Z upload POST 201 key=764bdaf8a065 rule=-
+  FQ-43 [reconciling → blocked document_deleted] proxy 2026-10-19T18:20:46.324Z commit POST dropped key=764bdaf8a065 rule=lose-commit-answer
+  FQ-43 [reconciling → blocked document_deleted] proxy 2026-10-19T18:21:38.671Z upload POST 201 key=764bdaf8a065 rule=-
+  FQ-43 [reconciling → blocked document_deleted] proxy 2026-10-19T18:21:38.677Z commit POST 200 key=764bdaf8a065 rule=-
+  FQ-43 [real: reconciling → blocked organization_suspended] trace 2026-10-19T18:23:38.968Z ∅ -> queued
+  FQ-43 [real: reconciling → blocked organization_suspended] trace 2026-10-19T18:23:38.999Z queued -> paused_offline code=network
+  FQ-43 [real: reconciling → blocked organization_suspended] trace 2026-10-19T18:24:31.375Z queued -> validating
+  FQ-43 [real: reconciling → blocked organization_suspended] trace 2026-10-19T18:24:31.375Z validating -> uploading
+  FQ-43 [real: reconciling → blocked organization_suspended] trace 2026-10-19T18:24:31.375Z uploading -> committing
+  FQ-43 [real: reconciling → blocked organization_suspended] trace 2026-10-19T18:24:31.375Z committing -> committed http=200
+  FQ-43 [real: reconciling → blocked organization_suspended] proxy 2026-10-19T18:23:38.985Z upload POST 201 key=a6328d4ca7c4 rule=-
+  FQ-43 [real: reconciling → blocked organization_suspended] proxy 2026-10-19T18:23:38.996Z commit POST dropped key=a6328d4ca7c4 rule=lose-commit-answer
+  FQ-43 [real: reconciling → blocked organization_suspended] proxy 2026-10-19T18:24:31.391Z upload POST 201 key=a6328d4ca7c4 rule=-
+  FQ-43 [real: reconciling → blocked organization_suspended] proxy 2026-10-19T18:24:31.397Z commit POST 200 key=a6328d4ca7c4 rule=-
+  FQ-43 [real: reconciling → blocked member_deactivated] trace 2026-10-19T18:28:28.929Z ∅ -> queued
+  FQ-43 [real: reconciling → blocked member_deactivated] trace 2026-10-19T18:28:28.955Z queued -> paused_offline code=network
+  FQ-43 [real: reconciling → blocked member_deactivated] trace 2026-10-19T18:29:21.319Z queued -> validating
+  FQ-43 [real: reconciling → blocked member_deactivated] trace 2026-10-19T18:29:21.319Z validating -> uploading
+  FQ-43 [real: reconciling → blocked member_deactivated] trace 2026-10-19T18:29:21.319Z uploading -> committing
+  FQ-43 [real: reconciling → blocked member_deactivated] trace 2026-10-19T18:29:21.319Z committing -> committed http=200
+  FQ-43 [real: reconciling → blocked member_deactivated] proxy 2026-10-19T18:28:28.943Z upload POST 201 key=4a0de03200c4 rule=-
+  FQ-43 [real: reconciling → blocked member_deactivated] proxy 2026-10-19T18:28:28.952Z commit POST dropped key=4a0de03200c4 rule=lose-commit-answer
+  FQ-43 [real: reconciling → blocked member_deactivated] proxy 2026-10-19T18:29:21.332Z upload POST 201 key=4a0de03200c4 rule=-
+  FQ-43 [real: reconciling → blocked member_deactivated] proxy 2026-10-19T18:29:21.338Z commit POST 200 key=4a0de03200c4 rule=-
+  FQ-43 [real: reconciling → blocked document_deleted] trace 2026-10-19T18:33:18.762Z ∅ -> queued
+  FQ-43 [real: reconciling → blocked document_deleted] trace 2026-10-19T18:33:18.793Z queued -> paused_offline code=network
+  FQ-43 [real: reconciling → blocked document_deleted] trace 2026-10-19T18:34:11.176Z queued -> validating
+  FQ-43 [real: reconciling → blocked document_deleted] trace 2026-10-19T18:34:11.176Z validating -> uploading
+  FQ-43 [real: reconciling → blocked document_deleted] trace 2026-10-19T18:34:11.176Z uploading -> committing
+  FQ-43 [real: reconciling → blocked document_deleted] trace 2026-10-19T18:34:11.176Z committing -> committed http=200
+  FQ-43 [real: reconciling → blocked document_deleted] proxy 2026-10-19T18:33:18.778Z upload POST 201 key=32cd7b063233 rule=-
+  FQ-43 [real: reconciling → blocked document_deleted] proxy 2026-10-19T18:33:18.790Z commit POST dropped key=32cd7b063233 rule=lose-commit-answer
+  FQ-43 [real: reconciling → blocked document_deleted] proxy 2026-10-19T18:34:11.191Z upload POST 201 key=32cd7b063233 rule=-
+  FQ-43 [real: reconciling → blocked document_deleted] proxy 2026-10-19T18:34:11.198Z commit POST 200 key=32cd7b063233 rule=-
+FQ-43 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-fqs3e/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_43_EXIT=1
+FQ-43 FAIL OQ-F11  client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:session_expired" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:organization_suspended" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:member_deactivated" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:document_archived" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:permission_revoked" actual "(never entered)" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:document_deleted" actual "(never entered)" | lookup_held: expected "held" actual "never" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:organization_suspended" actual "(never entered)" | lookup_held: expected "held" actual "never" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:member_deactivated" actual "(never entered)" | lookup_held: expected "held" actual "never" | client_path: expected "* → reconciling → blocked" actual "queued → paused_offline → validating → uploading → committing → committed" | blocked_reason: expected "blocked:document_deleted" actual "(never entered)"
