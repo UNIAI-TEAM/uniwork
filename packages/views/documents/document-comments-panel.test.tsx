@@ -403,7 +403,7 @@ describe("S12 anchored comments", () => {
     expect(within(thread("r1")).getByRole("button", { name: t(K.collabReopen) })).toBeInTheDocument();
     expect(within(thread("r1")).queryByRole("button", { name: t(K.collabResolve) })).toBeNull();
     // The edit history of the resolved thread is readable, newest first under the current text.
-    fireEvent.click(within(thread("r1")).getByRole("button", { expanded: false, name: new RegExp(t(K.collabEdited, { time: "" }).trim().split(" ")[0]!) }));
+    fireEvent.click(within(thread("r1")).getByRole("button", { expanded: false, name: t(K.collabEditedMark) }));
     const history = await within(thread("r1")).findByTestId("document-comment-history-r1");
     await within(history).findByText("Bản 1");
     expect(within(history).getAllByTestId("document-comment-body").map((b) => b.textContent)).toEqual(["Bản 2", "Bản 1"]);
@@ -529,7 +529,7 @@ describe("thread actions (S12/S13)", () => {
     renderPanel();
     await openPanel(discussionTitle());
     const item = await screen.findByTestId("document-thread-a");
-    const edited = within(item).getByRole("button", { expanded: false, name: new RegExp(t(K.collabEdited, { time: "" }).trim().split(" ")[0]!) });
+    const edited = within(item).getByRole("button", { expanded: false, name: t(K.collabEditedMark) });
     fireEvent.click(edited);
     const history = await within(item).findByTestId("document-comment-history-a");
     await within(history).findByText("Bản 2");
@@ -549,7 +549,7 @@ describe("thread actions (S12/S13)", () => {
 
   it("says when the history is empty or cannot load", async () => {
     let broken = false;
-    installApi({ comments: [row({ id: "a" })] }, (method, path) => {
+    installApi({ comments: [row({ id: "a", revision: 2 })] }, (method, path) => {
       if (method !== "GET" || !path.endsWith("/a/revisions")) return undefined;
       return broken ? Promise.reject(new ApiError("x", "internal", 500)) : Promise.resolve({ revisions: [] });
     });
@@ -584,7 +584,8 @@ describe("view only (commentsLevel view)", () => {
     expect(within(item).queryByRole("button", { name: t(K.collabReply) })).toBeNull();
     expect(within(item).queryByRole("button", { name: t(K.collabResolve) })).toBeNull();
     fireEvent.click(within(item).getAllByRole("button", { name: `${t(K.collabActions)} Lan` })[0]!);
-    expect(await screen.findByRole("menuitem", { name: t(K.collabHistory) })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: t(K.collabCopyText) })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t(K.collabHistory) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t(K.collabEdit) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t(K.collabDelete) })).toBeNull();
   });
@@ -913,7 +914,7 @@ describe("panel chrome (V5 F3, F4, F6)", () => {
     renderPanel();
     await openPanel(discussionTitle());
     const item = await screen.findByTestId("document-thread-a");
-    const toggle = within(item).getByRole("button", { expanded: false, name: new RegExp(t(K.collabEdited, { time: "" }).trim().split(" ")[0]!) });
+    const toggle = within(item).getByRole("button", { expanded: false, name: t(K.collabEditedMark) });
     expect(toggle.className).toContain("min-h-6");
     expect(toggle.className).toContain("pointer-coarse:min-h-11");
   });
@@ -962,7 +963,8 @@ describe("comment level (DOC5-W01, DOC5-W02)", () => {
     const pane = await open("comment");
     await within(pane).findByTestId("document-thread-lan");
     fireEvent.click(within(thread("lan")).getAllByRole("button", { name: `${t(K.collabActions)} Lan` })[0]!);
-    expect(await screen.findByRole("menuitem", { name: t(K.collabHistory) })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: t(K.collabCopyText) })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t(K.collabHistory) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t(K.collabEdit) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t(K.collabDelete) })).toBeNull();
   });

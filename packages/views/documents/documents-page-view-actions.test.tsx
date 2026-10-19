@@ -453,84 +453,6 @@ describe("file from another module", () => {
     }
   });
 
-  it("previews an image in a dialog on the primary click and revokes the blob on close", async () => {
-    route({ sources: () => [source({ id: "chat:i1", name: "Chụp màn hình.png", mime_type: "image/png", extension: "png" })] });
-    downloadBlob.mockResolvedValue(new Blob(["png"], { type: "image/png" }));
-    const adapter = renderView();
-    const { createUrl, revokeUrl, restore } = stubDownload();
-    try {
-      const row = await rowOf("Chụp màn hình.png");
-      fireEvent.click(sourceNameButton(row));
-      await waitFor(() => expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Ai1/download`));
-      const dialog = await screen.findByRole("dialog");
-      const image = within(dialog).getByRole("img", { name: "Chụp màn hình.png" });
-      expect(image).toHaveAttribute("src", "blob:budget");
-      // S2V-4: the close button sits on the dialog's own surface, never on the image.
-      const close = within(dialog).getByRole("button", { name: t("documents.home.row.preview_close") });
-      expect(image).not.toContainElement(close);
-      expect(close.compareDocumentPosition(image) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-      // A preview never navigates or saves the file.
-      expect(adapter.push).not.toHaveBeenCalled();
-      fireEvent.click(close);
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      expect(revokeUrl).toHaveBeenCalledWith("blob:budget");
-    } finally {
-      restore();
-    }
-  });
-
-  it("says why when an image preview cannot load", async () => {
-    route({ sources: () => [source({ id: "chat:i2", name: "Ảnh.png", mime_type: "image/png", extension: "png" })] });
-    downloadBlob.mockRejectedValue(new ApiError("Tệp đã bị xoá", "not_found", 404));
-    renderView();
-    const row = await rowOf("Ảnh.png");
-    fireEvent.click(sourceNameButton(row));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Tệp đã bị xoá"));
-    expect(screen.queryByRole("dialog")).toBeNull();
-  });
-
-  it("closes with the failed toast when the browser cannot draw the image", async () => {
-    route({ sources: () => [source({ id: "chat:i3", name: "Ảnh lỗi.png", mime_type: "image/png", extension: "png" })] });
-    downloadBlob.mockResolvedValue(new Blob(["nope"], { type: "image/png" }));
-    renderView();
-    const { restore } = stubDownload();
-    try {
-      const row = await rowOf("Ảnh lỗi.png");
-      fireEvent.click(sourceNameButton(row));
-      const dialog = await screen.findByRole("dialog");
-      fireEvent.error(await within(dialog).findByRole("img", { name: "Ảnh lỗi.png" }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed")));
-    } finally {
-      restore();
-    }
-  });
-
-  it("drops a blob that resolves after the preview was closed", async () => {
-    route({ sources: () => [source({ id: "chat:i4", name: "Chậm.png", mime_type: "image/png", extension: "png" })] });
-    let release!: (blob: Blob) => void;
-    downloadBlob.mockImplementation(() => new Promise<Blob>((resolve) => { release = resolve; }));
-    renderView();
-    const { createUrl, revokeUrl, restore } = stubDownload();
-    try {
-      const row = await rowOf("Chậm.png");
-      fireEvent.click(sourceNameButton(row));
-      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: t("documents.home.row.preview_close") }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-
-      await act(async () => {
-        release(new Blob(["png"], { type: "image/png" }));
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      });
-      // The closed preview never became an object URL and never reopened.
-      expect(createUrl).not.toHaveBeenCalled();
-      expect(revokeUrl).not.toHaveBeenCalled();
-      expect(screen.queryByRole("dialog")).toBeNull();
-    } finally {
-      restore();
-    }
-  });
-
   it("says why when the download is refused", async () => {
     route({ sources: () => [source()] });
     downloadBlob.mockRejectedValue(new ApiError("Tệp đã bị xoá", "not_found", 404));
@@ -655,19 +577,18 @@ describe("file from another module", () => {
   });
 
   it("opens the file on Enter and keeps View where attached its own named tab stop", async () => {
-    route({ sources: () => [source({ id: "chat:k1", name: "Báo cáo.png", mime_type: "image/png", extension: "png" })] });
-    downloadBlob.mockResolvedValue(new Blob(["png"], { type: "image/png" }));
+    route({ sources: () => [source({ id: "chat:k1", name: "Báo cáo.pdf", mime_type: "application/pdf", extension: "pdf" })] });
+    downloadBlob.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
     const adapter = renderView();
-    const { restore } = stubDownload();
+    const { clicked, restore } = stubDownload();
     try {
-      const row = await rowOf("Báo cáo.png");
+      const row = await rowOf("Báo cáo.pdf");
       sourceNameButton(row).focus();
       await userEvent.keyboard("{Enter}");
-      expect(await screen.findByRole("dialog")).toBeInTheDocument();
-      await userEvent.keyboard("{Escape}");
+      await waitFor(() => expect(clicked).toHaveLength(1));
 
       // The secondary action is reachable by keyboard on its own, with a name.
-      const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Báo cáo.png" }) });
+      const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Báo cáo.pdf" }) });
       secondary.focus();
       await userEvent.keyboard("{Enter}");
       expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");

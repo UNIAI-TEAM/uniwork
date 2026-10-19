@@ -44,6 +44,8 @@ export interface MentionItem {
   group?: "current" | "recent" | "search";
   description?: string;
   disabledReason?: "agent_runtime_required";
+  /** A host-drawn row body (avatar, badges, email) that replaces the default avatar + label. */
+  content?: ReactNode;
 }
 
 interface MentionListProps {
@@ -177,7 +179,9 @@ const MentionRow = forwardRef<
   }
 >(function MentionRow({ item, selected, onSelect, onHover }, ref) {
   let leading: ReactNode;
-  if (item.type === "all") {
+  if (item.content) {
+    leading = null;
+  } else if (item.type === "all") {
     leading = <Users className="size-4 text-muted-foreground" />;
   } else {
     leading = (
@@ -205,11 +209,15 @@ const MentionRow = forwardRef<
         onSelect();
       }}
     >
-      {leading}
-      <span className="truncate">{item.label}</span>
-      {item.description ? (
-        <span className="truncate text-caption text-muted-foreground">{item.description}</span>
-      ) : null}
+      {item.content ?? (
+        <>
+          {leading}
+          <span className="truncate">{item.label}</span>
+          {item.description ? (
+            <span className="truncate text-caption text-muted-foreground">{item.description}</span>
+          ) : null}
+        </>
+      )}
     </button>
   );
 });
