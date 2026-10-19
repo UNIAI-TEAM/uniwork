@@ -196,7 +196,7 @@ describe("ShareAddSection (SH-W1 Area 1)", () => {
     // Clicking "Áp dụng cho tất cả" asks for confirmation before overwriting custom levels.
     await user.click(screen.getByRole("button", { name: "Áp dụng cho tất cả" }));
     expect(screen.getByText("Đặt tất cả 3 đối tượng thành Chỉ xem?")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Huỷ" }));
+    await user.click(screen.getByRole("button", { name: "Hủy" }));
     expect(screen.getByRole("status")).toHaveTextContent("2 Chỉ xem · 1 Chỉnh sửa");
 
     await user.click(screen.getByRole("button", { name: "Chia sẻ" }));
@@ -291,7 +291,7 @@ describe("ShareAddSection (SH-W1 Area 1)", () => {
     await user.click(submit);
 
     const confirmBox = await screen.findByTestId("share-add-confirm");
-    await user.click(within(confirmBox).getByRole("button", { name: "Huỷ" }));
+    await user.click(within(confirmBox).getByRole("button", { name: "Hủy" }));
 
     await waitFor(() => expect(submit).toHaveFocus());
   });

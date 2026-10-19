@@ -85,7 +85,7 @@ func (s *DocumentOfficeService) Capability(ctx context.Context, actor Actor, doc
 			return OfficeCapability{}, err
 		}
 	}
-	format, err := s.formatForVersion(ctx, doc, current)
+	format, err := s.formatForVersion(ctx, actor.ID, doc, current)
 	if err != nil {
 		return OfficeCapability{}, err
 	}
@@ -152,7 +152,7 @@ func blankEvidenceLevel(supported bool) office.EvidenceLevel {
 // format. A page document, a missing version or a type no engine lane owns is
 // a typed refusal, never a guess. ver may be nil: the current version is read
 // then.
-func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Document, ver *db.DocumentVersion) (office.Format, error) {
+func (s *DocumentOfficeService) formatForVersion(ctx context.Context, userID string, doc db.Document, ver *db.DocumentVersion) (office.Format, error) {
 	if doc.Kind == DocumentKindFolder {
 		return "", officeErr("unsupported_operation", "folder_document")
 	}
@@ -178,10 +178,18 @@ func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Doc
 		// sniffs as text/plain, so only the name can tell md from txt. A
 		// provider output has no extension (it carries the placeholder name
 		// "file"), so the version's own mime is authoritative there - the
-		// office commit path keeps it the document's format.
+		// office commit path keeps it the document's format - and for a .txt
+		// document (whose version mime stays text/plain) the last named
+		// version's filename stands in.
 		if format, ok := officeFormatFromMime(ver.MimeType.String); ok {
 			return format, nil
 		}
+		if prev := s.documents.versionFilename(ctx, doc, *ver, f.Filename); path.Ext(prev) != "" {
+			f.Filename = prev
+		}
+	}
+	if isTxtFilename(f.Filename) && !s.documents.txtOpenEnabled(ctx, userID, doc.WorkspaceID, doc.OrganizationID) {
+		return "", officeErr("unsupported_operation", "format_not_supported")
 	}
 	format, ok := officeFormatForFile(f)
 	if !ok {
@@ -192,7 +200,8 @@ func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Doc
 
 // officeFormatForFile maps a verified file record to an engine format. The
 // extension decides first: a markdown upload sniffs as text/plain, so the
-// content type alone cannot tell md from txt or csv.
+// content type alone cannot tell md from txt or csv. Its .txt mapping is only
+// safe behind the office_txt_open gate at the caller.
 func officeFormatForFile(f files.File) (office.Format, bool) {
 	switch strings.ToLower(path.Ext(f.Filename)) {
 	case ".docx":
@@ -203,7 +212,7 @@ func officeFormatForFile(f files.File) (office.Format, bool) {
 		return office.FormatPPTX, true
 	case ".pdf":
 		return office.FormatPDF, true
-	case ".md", ".markdown":
+	case ".md", ".markdown", ".txt":
 		return office.FormatMD, true
 	case ".html", ".htm":
 		return office.FormatHTML, true
@@ -213,6 +222,10 @@ func officeFormatForFile(f files.File) (office.Format, bool) {
 		return office.FormatODT, true
 	}
 	return officeFormatFromMime(f.ContentType)
+}
+
+func isTxtFilename(filename string) bool {
+	return strings.EqualFold(path.Ext(filename), ".txt")
 }
 
 // officeFormatFromMime maps a verified content type to an engine format. Only
@@ -661,7 +674,7 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
 	}
-	format, err := s.formatForVersion(ctx, doc, nil)
+	format, err := s.formatForVersion(ctx, actor.ID, doc, nil)
 	if err != nil {
 		return db.OfficeJob{}, err
 	}

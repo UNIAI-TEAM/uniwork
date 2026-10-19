@@ -63,7 +63,7 @@ export interface DocumentDetailViewProps {
   ownerHref?: (ownerId: string) => string;
   /** Called when the caller should go back to the library. */
   onBackToList: () => void;
-  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean; officeFormat?: string | null }>;
 }
 
 /**

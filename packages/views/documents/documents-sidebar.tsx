@@ -157,13 +157,6 @@ export function DocumentsSidebar({
   return (
     <nav aria-label={t("documents.home.sidebar.label")} className={cn("flex min-h-0 flex-col overflow-y-auto p-2", className)}>
       <NavItem icon={DOCUMENTS_NAV_ICONS.home} label={t("documents.home.sidebar.home")} current={isView("home")} onClick={() => onView({ kind: "home" })} />
-      <NavItem
-        icon={DOCUMENTS_NAV_ICONS.myFolders}
-        label={t("documents.home.my_folder.label")}
-        current={view.kind === "home" && Boolean(myFolderId) && folderId === myFolderId}
-        disabled={myFolderPending}
-        onClick={() => (myFolderId ? onFolder(myFolderId) : onMyFolder?.())}
-      />
       <NavItem icon={DOCUMENTS_NAV_ICONS.recent} label={t("documents.home.sidebar.recent")} current={isView("recent")} onClick={() => onView({ kind: "recent" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.starred} label={t("documents.home.sidebar.starred")} count={starredCount} current={isView("starred")} onClick={() => onView({ kind: "starred" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.shared} label={t("documents.home.sidebar.shared")} current={isView("shared")} onClick={() => onView({ kind: "shared" })} />
@@ -189,6 +182,16 @@ export function DocumentsSidebar({
       >
         {t("documents.home.sidebar.folders")}
       </SectionLabel>
+      {/* My Folder lives in the tree; until the server has created it, this row stands in its place and creates it. */}
+      {!myFolderId && onMyFolder ? (
+        <NavItem
+          icon={DOCUMENTS_NAV_ICONS.myFolders}
+          label={t("documents.home.my_folder.label")}
+          current={false}
+          disabled={myFolderPending}
+          onClick={onMyFolder}
+        />
+      ) : null}
       {folderTree ?? <DocumentTree
         wsId={wsId}
         folders

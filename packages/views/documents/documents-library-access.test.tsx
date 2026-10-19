@@ -92,8 +92,8 @@ describe("library table access column", () => {
   it("labels the comment level as its own word", () => {
     renderList([documentRow(item("a", "A.docx", { my_level: "comment" as DocumentSummaryRow["my_level"] }))]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
-    expect(within(row).getByText("Bạn: Bình luận")).toBeTruthy();
-    expect(within(row).getByText("Bình luận")).toBeTruthy();
+    expect(within(row).getByText("Bạn: Nhận xét")).toBeTruthy();
+    expect(within(row).getByText("Nhận xét")).toBeTruthy();
   });
 
   it("shows the column only when the list container is wide, and keeps the colgroup in step", () => {
@@ -129,7 +129,7 @@ describe("library table access column", () => {
     expect(line("b")!.querySelector("svg")).toBeNull();
     expect(line("b")!.textContent).not.toContain("Workspace");
     // Unknown/missing level and visibility show nothing in the line.
-    expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Bình luận|Riêng tư|Hạn chế/);
+    expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Nhận xét|Riêng tư|Hạn chế/);
   });
 });
 

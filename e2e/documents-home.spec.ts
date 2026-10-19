@@ -37,6 +37,11 @@ function sidebar(page: Page) {
   return page.getByRole("navigation", { name: "Điều hướng tài liệu" });
 }
 
+/** My Folder once it exists: its tree row under Thư mục (the collection row is gone). */
+function myFolderRow(page: Page) {
+  return sidebar(page).getByRole("treeitem", { name: /^Thư mục của tôi/ }).getByText("Thư mục của tôi", { exact: true });
+}
+
 function library(page: Page) {
   return page.getByRole("table", { name: "Tài liệu" });
 }
@@ -75,7 +80,7 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   // 2. A folder: named in the FD-07/08 name dialog (as documents-folders.spec.ts does), opened,
   // listed in the sidebar tree and named in the breadcrumb.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
-  await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
+  await myFolderRow(page).click();
   await expect(page.getByRole("heading", { level: 1, name: "Thư mục của tôi", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await sidebar(page).getByRole("button", { name: "Tạo thư mục" }).click();
@@ -90,7 +95,7 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   await crumbs.getByRole("button", { name: "Tài liệu của workspace" }).click();
 
   // 3. Move the docx into the folder from its row menu, then find it inside.
-  await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
+  await myFolderRow(page).click();
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
@@ -133,13 +138,15 @@ test("My Folder sub-nav row, personal folder view, localized tree label, Home cr
   const myFolderNav = nav.getByRole("button", { name: "Thư mục của tôi", exact: true });
   await expect(myFolderNav).toBeVisible({ timeout: 30_000 });
 
-  // 1. Clicking "Thư mục của tôi" ensures the personal folder, opens it as a folder view, and lists it in the tree with its i18n label.
+  // 1. A new account has no My Folder yet, so a stand-in row sits under Thư mục: clicking it ensures the
+  // personal folder, opens it as a folder view, and the tree row (i18n label, current) takes its place.
   await myFolderNav.click();
   await expect(page).toHaveURL(/\/documents\?folder=[0-9A-HJKMNP-TV-Z]{26}$/, { timeout: 30_000 });
   await expect(page.getByRole("heading", { level: 1, name: "Thư mục của tôi", exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(myFolderNav).toHaveAttribute("aria-current", "page");
   const myFolderTreeItem = nav.getByRole("treeitem", { name: /Thư mục của tôi/ });
   await expect(myFolderTreeItem).toBeVisible({ timeout: 30_000 });
+  await expect(myFolderTreeItem).toHaveAttribute("aria-current", "true");
+  await expect(myFolderNav).toHaveCount(0);
   await expect(nav.getByText("My Folder", { exact: true })).toHaveCount(0);
 
   // 2. Guards on the open My Folder header and tree row: no inline rename, no Rename / Move / Delete in menus, while New subfolder stays available.
@@ -166,7 +173,7 @@ test("My Folder sub-nav row, personal folder view, localized tree label, Home cr
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
 
   await openLibrary(page, seed.orgSlug, seed.wsSlug);
-  await myFolderNav.click();
+  await myFolderRow(page).click();
   await expect(libraryRowButton(library(page), "UniNote mới")).toBeVisible({ timeout: 30_000 });
 });
 

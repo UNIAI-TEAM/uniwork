@@ -12,7 +12,9 @@
 // GET/HEAD byte routes: the API rechecks the frame token on every call, the
 // method, headers and streaming SSE body pass through unchanged, and the
 // frame's CSP stays `'self'`. Nothing else of the API is reachable through
-// the app: the ids must be ULIDs and no other path matches. The API answers
+// the app: the ids must be 26 ULID-alphabet characters (Next matches rewrite
+// sources case-insensitively, so a lowercase id is proxied too and the API
+// refuses it) and no other path matches. The API answers
 // with its own headers (sandbox CSP, nosniff, no-store) and checks the
 // signature and view access on every request.
 

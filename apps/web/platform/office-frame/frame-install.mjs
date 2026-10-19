@@ -42,19 +42,29 @@ function manifestModule(dir) {
  * `<module>/<version>/` directories (the fork's `build:web:all`); one module's
  * directory holding its version (the docs-only `dist-web/docs` of UNI-1013);
  * or a version directory itself. In the last two the manifest's module decides.
+ * A source packed inside one wrapping directory (the web-0.1.0-5932073 release
+ * tarball's `dist-web/`) resolves to that directory and searches it the same
+ * way — exactly once: a module hidden under a second wrapper is not found.
+ * Two or more candidates are never guessed between.
  */
 export function locateModuleBundle(source, module) {
   assertModule(module);
-  if (existsSync(join(source, "manifest.json"))) return manifestModule(source) === module ? source : null;
-  const own = join(source, module);
-  if (existsSync(own) && statSync(own).isDirectory()) return locateBundleDir(own);
-  const versions = readdirSync(source, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && existsSync(join(source, e.name, "manifest.json")))
-    .map((e) => join(source, e.name));
-  if (versions.length === 0) return null;
-  const matching = versions.filter((dir) => manifestModule(dir) === module);
-  if (matching.length > 1) throw new Error(`${source} holds ${matching.length} ${module} versions; point the source at one`);
-  return matching[0] ?? null;
+  let root = source;
+  for (;;) {
+    if (existsSync(join(root, "manifest.json"))) return manifestModule(root) === module ? root : null;
+    const own = join(root, module);
+    if (existsSync(own) && statSync(own).isDirectory()) return locateBundleDir(own);
+    const children = readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory());
+    const versions = children.filter((e) => existsSync(join(root, e.name, "manifest.json"))).map((e) => join(root, e.name));
+    if (versions.length === 0) {
+      if (children.length !== 1 || root !== source) return null;
+      root = join(root, children[0].name);
+      continue;
+    }
+    const matching = versions.filter((dir) => manifestModule(dir) === module);
+    if (matching.length > 1) throw new Error(`${root} holds ${matching.length} ${module} versions; point the source at one`);
+    return matching[0] ?? null;
+  }
 }
 
 /** Reads and checks a bundle directory against its own manifest. Returns what the install needs. */

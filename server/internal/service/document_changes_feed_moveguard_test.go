@@ -99,18 +99,74 @@ var (
 	// updateDocuments finds the start of an UPDATE of the documents table.
 	updateDocuments = regexp.MustCompile(`(?i)\bupdate\s+documents\b`)
 	// setClause and whereClause bound the assignments: workspace_id must be
-	// assigned before WHERE (a WHERE workspace_id = ... is a tenant filter, not
-	// a write).
+	// assigned before the statement's top-level WHERE (a WHERE workspace_id =
+	// ... is a tenant filter, not a write; a WHERE inside a SET subquery does
+	// not end the region - BE-G6-1, topLevelWhereIndex).
 	setClause   = regexp.MustCompile(`(?i)\bset\b`)
 	whereClause = regexp.MustCompile(`(?i)\bwhere\b`)
 	// workspaceAssignment is the write itself.
 	workspaceAssignment = regexp.MustCompile(`(?i)\bworkspace_id\s*=`)
 	// insertDocuments finds an INSERT INTO documents statement (unanchored, as
-	// the r4 regex was, so a leading CTE does not hide it).
-	insertDocuments = regexp.MustCompile(`(?i)\binsert\s+into\s+documents\b`)
+	// the r4 regex was, so a leading CTE does not hide it). The schema
+	// qualifier is optional: `insert into public.documents` is the same write
+	// (BE-G6-2).
+	insertDocuments = regexp.MustCompile(`(?i)\binsert\s+into\s+(?:\w+\.)?documents\b`)
 	// workspaceColumn is the workspace_id column named anywhere in a statement.
 	workspaceColumn = regexp.MustCompile(`(?i)\bworkspace_id\b`)
 )
+
+// topLevelWhereIndex returns the offset of the first `where` keyword at
+// parenthesis depth 0, or -1. A SET assignment may carry its own subquery with
+// a WHERE (`SET title = (SELECT ... WHERE ...), workspace_id = ...`), and only
+// the statement's own WHERE ends the assignment region (BE-G6-1): bounding at
+// the first `where` token would stop before the workspace_id assignment and let
+// that spelling through.
+//
+// Single-quoted string contents are skipped, including doubled-quote escapes
+// (R2-D-1): a literal parenthesis is not SQL nesting (`SET title = '('`), and a
+// literal `where` is not the statement's WHERE.
+func topLevelWhereIndex(body string) int {
+	matches := whereClause.FindAllStringIndex(body, -1)
+	if len(matches) == 0 {
+		return -1
+	}
+	depth, next, quoted := 0, 0, false
+	for i := 0; i < len(body); i++ {
+		// Drop a match that started inside a string literal so it cannot stall
+		// the scan in front of the real WHERE.
+		for next < len(matches) && matches[next][0] < i {
+			next++
+		}
+		c := body[i]
+		if quoted {
+			if c == '\'' {
+				if i+1 < len(body) && body[i+1] == '\'' {
+					i++ // a doubled quote is an escape, not the closing quote
+				} else {
+					quoted = false
+				}
+			}
+			continue
+		}
+		if next < len(matches) && matches[next][0] == i {
+			if depth == 0 {
+				return i
+			}
+			next++
+		}
+		switch c {
+		case '\'':
+			quoted = true
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	return -1
+}
 
 // writesDocumentWorkspace answers whether one normalized SQL statement writes a
 // document's workspace_id.
@@ -119,8 +175,8 @@ func writesDocumentWorkspace(stmt string) bool {
 		rest := stmt[loc[1]:]
 		if set := setClause.FindStringIndex(rest); set != nil {
 			body := rest[set[1]:]
-			if w := whereClause.FindStringIndex(body); w != nil {
-				body = body[:w[0]]
+			if w := topLevelWhereIndex(body); w >= 0 {
+				body = body[:w]
 			}
 			if workspaceAssignment.MatchString(body) {
 				return true
@@ -529,6 +585,23 @@ ON CONFLICT (id) DO UPDATE SET workspace_id = sqlc.arg(workspace_id)`, []string{
 		{"INSERT ... SELECT naming workspace_id outside its column list is flagged", `-- name: CopyDocumentsInto :one
 INSERT INTO documents (id, title)
 SELECT id, title FROM documents WHERE workspace_id = sqlc.arg(workspace_id)`, []string{"CopyDocumentsInto"}},
+		{"a SET subquery's WHERE does not end the assignment region", `-- name: MoveDocumentWithSourceTitle :one
+UPDATE documents
+SET title = (SELECT t.title FROM documents t WHERE t.id = sqlc.arg(source_id)), workspace_id = sqlc.arg(workspace_id)
+WHERE id = sqlc.arg(id)`, []string{"MoveDocumentWithSourceTitle"}},
+		{"a quoted parenthesis in a SET value is not nesting", `-- name: RenameDocumentWithParenTitle :one
+UPDATE documents
+SET title = '('
+WHERE workspace_id = sqlc.arg(workspace_id)`, nil},
+		{"a quoted closing parenthesis in a SET subquery does not hide the assignment", `-- name: MoveDocumentWithQuotedParen :one
+UPDATE documents
+SET title = (SELECT ')' FROM documents t WHERE t.id = sqlc.arg(source_id)), workspace_id = sqlc.arg(workspace_id)
+WHERE id = sqlc.arg(id)`, []string{"MoveDocumentWithQuotedParen"}},
+		{"a doubled-quote escape in a SET value does not hide the statement's WHERE", `-- name: RenameDocumentWithApostrophe :one
+UPDATE documents SET title = 'it''s (' WHERE workspace_id = sqlc.arg(workspace_id)`, nil},
+		{"a schema-qualified INSERT is flagged", `-- name: CopyDocumentQualified :one
+INSERT INTO public.documents (id, workspace_id, source_document_id)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(source_document_id))`, []string{"CopyDocumentQualified"}},
 		{"an UPDATE that only filters on workspace_id is not flagged", `-- name: RenameDocument :one
 UPDATE documents
 SET title = sqlc.arg(title)

@@ -74,7 +74,7 @@ export interface DocumentWorkspaceProps {
    * never be assumed fresh.
    */
   refetch: () => Promise<{ data?: Document | null; isError?: boolean }>;
-  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean; officeFormat?: string | null }>;
 }
 
 /**
@@ -101,12 +101,14 @@ export function DocumentWorkspace({
   const { push } = useNavigation();
   // One live gate for the layout and the file view: a pending leave guard keeps both on the editor (R3).
   const officeGate = useDocumentOfficeGate(doc);
-  const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(doc, officeGate.editorOpen, Boolean(officeEditorHost));
+  const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(officeGate.editorOpen, Boolean(officeEditorHost), officeGate.format);
   // ARCHIVE-01: a shelved document is read-only at every level, and so is one whose autosave was just
   // refused with document_shelved (someone shelved it while this page was open): the unsaved editor
   // content stays, nothing more is sent, and the document is read again. The save machine lives in the
   // edit lock, which needs canEdit first, so the refusal reaches canEdit through this mirror.
   const [writeRefusedShelved, setWriteRefusedShelved] = useState(false);
+  // The page editor portals its formatting toolbar into this sticky slot above the scroll area.
+  const [toolbarHost, setToolbarHost] = useState<HTMLElement | null>(null);
   // Set when the refetch after that refusal reads the document live again (RAR-07): the page leaves
   // read-only so the edit lock is held again, and the held draft is then sent once more.
   const [liveAgain, setLiveAgain] = useState(false);
@@ -565,6 +567,8 @@ export function DocumentWorkspace({
       ) : null}
       {canEdit ? <DocumentEditLockBanner {...editLock.banner} /> : null}
 
+      {doc.kind === "page" && editable ? <div ref={setToolbarHost} className="sticky top-0 z-10 shrink-0 empty:hidden" /> : null}
+
       <div
         className={
           doc.kind === "page"
@@ -605,7 +609,7 @@ export function DocumentWorkspace({
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}
                 onPendingUploadsChange={setPendingUploads}
-                onContentError={handleContentError}
+                onContentError={handleContentError} toolbarHost={toolbarHost}
                 onFocusTitle={() => { titleRef.current?.focus(); const input = titleRef.current;
                   if (input) input.setSelectionRange(input.value.length, input.value.length); }}
               />

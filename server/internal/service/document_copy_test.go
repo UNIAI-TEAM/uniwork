@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -300,6 +303,57 @@ func TestDocumentCopy(t *testing.T) {
 				t.Fatal("a refused copy still wrote a document")
 			}
 		})
+	})
+}
+
+// G5-13 A98: a copy is a create in the source's workspace, so it is a tree
+// write and takes the workspace tree lock BEFORE the source row lock - the one
+// order every naming command keeps (appendix §3.3). The barrier holds the tree
+// lock in a test transaction; the copy can only reach the parent row lock after
+// the holder commits, so a waiter proves the tree lock comes first. With the
+// old envelope (no tree lock) the copy would take the source row lock and the
+// parent row lock and finish without ever waiting here.
+func TestDocumentCopyTakesTheTreeLockFirst(t *testing.T) {
+	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
+		ctx := context.Background()
+		member := human(env.tn.member)
+		src := env.createFile(t, member, "tree-order.md", []byte("# Khoa cay\n"))
+		folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc dich"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		watch, err := pgx.ConnectConfig(ctx, env.f.pool.Config().ConnConfig.Copy())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = watch.Close(ctx) }()
+		holder, err := env.f.pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = holder.Rollback(ctx) }()
+		if err := env.f.q.WithTx(holder).LockDocumentTree(ctx, env.tn.wsA); err != nil {
+			t.Fatal(err)
+		}
+		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		done := make(chan error, 1)
+		go func() {
+			_, err := env.svc.CopyDocument(cctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", ParentID: folder.Document.ID, IdempotencyKey: util.NewID(),
+			})
+			done <- err
+		}()
+		waitForLockWaitersOn(t, watch, 1)
+		if err := holder.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-done:
+			mustf(t, err, "copy after the tree lock was released")
+		case <-time.After(30 * time.Second):
+			t.Fatal("the copy did not finish after the tree lock was released")
+		}
 	})
 }
 

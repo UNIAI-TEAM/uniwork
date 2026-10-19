@@ -62,7 +62,6 @@ export interface LibraryRowHandlers {
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Image sources only: fetches the bytes and opens them view-only. */
-  onPreviewSource?: (sourceId: string, name: string) => void;
   /** Office formats the server marks openable (UNI-1869): opens the view-only module frame; absent falls back to download. */
   onViewSource?: (source: DocumentSourceFile) => void;
   onDownloadSource: (sourceId: string) => void;
@@ -176,11 +175,9 @@ export function LibraryRowView({
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") {
       // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
-      // row can (image preview, or the module frame for an Office format),
-      // else downloads it; "Xem nơi đính kèm" is a secondary.
+      // row can (the module frame for an Office format), else downloads it; "Xem nơi đính kèm" is a secondary.
       const open = sourceOpenAction(row.source);
-      if (open === "image" && handlers.onPreviewSource) handlers.onPreviewSource(row.source.id, row.source.name);
-      else if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
+      if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
       else handlers.onDownloadSource(row.source.id);
     }
   };
@@ -224,11 +221,12 @@ export function LibraryRowView({
       actions.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
     }
     if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
-      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
+      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words.
+      // Both are the trash command, so both draw the trash icon; Archive belongs to shelve above.
       actions.push(
         folder
           ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }
-          : { id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) },
+          : { id: "archive", label: t("documents.home.row.archive"), icon: Trash2, run: () => handlers.onArchive?.(doc) },
       );
     }
   }

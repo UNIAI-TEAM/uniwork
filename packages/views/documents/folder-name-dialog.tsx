@@ -66,6 +66,8 @@ export interface FolderNameDialogProps {
   submitLabel?: string;
   /** Focuses the name input with the whole draft selected (defaults to true in rename mode). */
   selectAllOnOpen?: boolean;
+  /** Extra form rows under the name (the first-save Location row); a picker rendered here nests as a child dialog. */
+  children?: React.ReactNode;
   "data-testid"?: string;
 }
 
@@ -97,6 +99,7 @@ export function FolderNameDialog({
   description,
   submitLabel,
   selectAllOnOpen = mode === "rename",
+  children,
   "data-testid": testId,
 }: FolderNameDialogProps) {
   const { t } = useTranslation();
@@ -300,6 +303,7 @@ export function FolderNameDialog({
               </p>
             ) : null}
           </div>
+          {children}
           {mode === "create" ? (
             <div className="flex flex-col gap-1">
               <label className="flex cursor-pointer items-center justify-between gap-3">

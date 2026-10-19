@@ -23,7 +23,8 @@
       "ignoreBinaries": [
         "rustc",
         "awk",
-        "go"
+        "go",
+        "dbus-run-session"
       ],
       "ignoreDependencies": [
         "@playwright/test",
