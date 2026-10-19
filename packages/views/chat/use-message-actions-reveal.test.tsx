@@ -31,7 +31,7 @@ describe("useMessageActionsReveal", () => {
     expect(screen.getByRole("button", { name: "Trả lời" })).toHaveFocus();
     fireEvent.pointerDown(screen.getByRole("button", { name: "Ngoài" }));
     expect(screen.getByText("closed")).toBeInTheDocument();
-    expect(screen.getByTestId("message")).not.toContainElement(document.activeElement);
+    expect(screen.getByTestId("message").contains(document.activeElement)).toBe(false);
   });
 
   it("opens on context menu and closes on Escape", () => {

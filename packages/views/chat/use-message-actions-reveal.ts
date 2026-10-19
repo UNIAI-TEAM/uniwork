@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 const LONG_PRESS_MS = 450;
 const MOVE_TOLERANCE_PX = 10;
@@ -64,7 +64,7 @@ export function useMessageActionsReveal() {
   }, []);
 
   const bind = {
-    onContextMenu: (event: React.PointerEvent<HTMLElement>) => {
+    onContextMenu: (event: ReactMouseEvent<HTMLElement>) => {
       event.preventDefault();
       setOpen(true);
       focusFirstAction();
