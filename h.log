@@ -1,0 +1,2 @@
+$ cd server && gofmt -l ./internal ./pkg | head; go vet ./internal/service ./pkg/db/... 2>&1 | tail -5; echo "VET_1973_EXIT=${PIPESTATUS[0]}"
+VET_1973_EXIT=0
