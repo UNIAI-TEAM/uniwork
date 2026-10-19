@@ -1,0 +1,30 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -v ./internal/service/ -run 'DocumentSource' 2>&1 | grep -E '^(--- |ok|FAIL|PASS)' ; echo "SVC_1967_EXIT=${PIPESTATUS[0]}"
+--- PASS: TestDocumentSourceSaveFollowsTheConfiguredCap (0.94s)
+--- PASS: TestDocumentSourceSaveableAgreesWithTheUpload (0.00s)
+--- PASS: TestDocumentSourceSaveable (0.00s)
+--- PASS: TestDocumentSourceByteRefusalsAreNotFound (0.21s)
+--- PASS: TestDocumentSourceDeactivatedMemberIsRefused (0.23s)
+--- PASS: TestDocumentSourceRowLookupIsTheGate (0.24s)
+--- PASS: TestDocumentSourceSaveRefusesWhatTheUploadWouldRefuse (0.24s)
+--- PASS: TestDocumentSourceSaveChecksTheParentFirst (0.20s)
+--- PASS: TestDocumentSourceTaskListSkipsDescriptionImages (0.22s)
+--- PASS: TestDocumentSourceEmailSkipsNamelessAndDuplicateParts (0.24s)
+--- PASS: TestDocumentSourceFoldAgreesWithGo (0.27s)
+--- PASS: TestDocumentSourceSearchIgnoresDiacritics (0.24s)
+--- FAIL: TestDocumentSourceListsDocumentFilesOnly (0.23s)
+--- PASS: TestDocumentSourceChatFollowsTheRoomGate (0.22s)
+--- PASS: TestDocumentSourceTaskFollowsTheWorkspaceGate (0.23s)
+--- PASS: TestDocumentSourceMeetingListsOnlyServableRecordings (0.24s)
+--- PASS: TestDocumentSourceEmailIsTheMailboxOwnersAlone (0.23s)
+--- PASS: TestDocumentSourceListPagesAcrossSources (0.27s)
+--- PASS: TestDocumentSourceListNamesTheChatMessage (0.20s)
+--- PASS: TestDocumentSourceItemNamesTheMessageOnlyForChat (0.00s)
+--- PASS: TestDocumentSourceSaveCopiesTheBytesIntoANewDocument (0.28s)
+--- PASS: TestDocumentSourceChatMarkdownOpens (0.25s)
+--- PASS: TestDocumentSourceTxtOpenGateAndPlainTextNarrowing (0.24s)
+--- PASS: TestDocumentSourceCursorAndFilters (0.00s)
+--- PASS: TestDocumentSourceChatParentIncludesMessageID (0.00s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	5.454s
+FAIL
+SVC_1967_EXIT=1

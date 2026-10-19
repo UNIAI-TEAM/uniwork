@@ -1,0 +1,7 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 ./internal/handler/ -run 'DocumentSource|Sources|OfficeFrameSource' 2>&1 | tail -5 ; echo "HDL_1967_EXIT=${PIPESTATUS[0]}"
+2026/10/19 07:45:21 WARN http request method=GET path=/api/v1/office-frame/sources/chat:01M59HYJ7PEM1ZS5387R6JX2M9 status=404 duration=154µs request_id=cursor/PStBgCV6Yo-000352 correlation_id=01M59HYJ7TSZM1YB72VRB3YMMS
+2026/10/19 07:45:21 WARN http request method=GET path=/api/v1/office-frame/sources/chat:01M59HYJ7PEM1ZS5387R6JX2M9/content status=404 duration=28µs request_id=cursor/PStBgCV6Yo-000353 correlation_id=01M59HYJ7TSZM1YB72VSMJSQWA
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	2.988s
+FAIL
+HDL_1967_EXIT=1

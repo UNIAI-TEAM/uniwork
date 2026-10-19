@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git checkout b54a49ac3 -- server/internal/service/document_sources.go && cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 ./internal/service/ -run 'TestDocumentSourceListsDocumentFilesOnly' 2>&1 | grep -E '^(--- |ok|FAIL)' | head -5; rc=${PIPESTATUS[0]}; cd .. && git checkout HEAD -- server/internal/service/document_sources.go; [ $rc -ne 0 ] && echo RED_OK || echo RED_MISSING; echo "RED_1967_EXIT=$([ $rc -ne 0 ] && echo 0 || echo 1)"
+FAIL	github.com/unicomhub/uniwork/server/internal/service [build failed]
+FAIL
+RED_OK
+RED_1967_EXIT=0
