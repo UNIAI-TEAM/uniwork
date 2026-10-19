@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { e2eApiUrl } from "./api-url";
 import { loginFolderUser, seedFolderWorkspace } from "./documents-folders-fixtures";
 
@@ -27,8 +27,8 @@ import { loginFolderUser, seedFolderWorkspace } from "./documents-folders-fixtur
  * staff's "My Folder" — that surface lands with UNI-1974 on the root; until
  * then there is nothing stable to pin the check on.
  *
- * Not run locally: it needs the server half of UNI-1966 and the office frame.
- * It runs in the cloud round after the server lands.
+ * The comments of a docx are served by the editor frame (its own Discussion
+ * panel is the page's only one), so steps 3 and 4 drive the frame.
  */
 test.describe.configure({ timeout: 360_000 });
 
@@ -40,6 +40,18 @@ const repoRoot =
   basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
 const DOCX_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-simple.docx");
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/**
+ * Opens the editor frame's Discussion panel. The frame loads asynchronously
+ * (its toolbar and the Discussion toggle appear after the document opens), and
+ * the toggle flips the panel, so click it once and only when it is closed.
+ */
+async function openFrameDiscussion(frame: FrameLocator, panel: Locator): Promise<void> {
+  const toggle = frame.getByRole("button", { name: /^(Thảo luận|Discussion)$/ });
+  await expect(toggle).toBeVisible({ timeout: 90_000 });
+  if (!(await panel.isVisible())) await toggle.click();
+  await expect(panel).toBeVisible({ timeout: 30_000 });
+}
 
 test("staff sends a docx in a DM at comment level; the manager comments and staff reads it", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -106,32 +118,30 @@ test("staff sends a docx in a DM at comment level; the manager comments and staf
   const documentId = /\/documents\/([^/]+)$/.exec(new URL(page.url()).pathname)?.[1];
   expect(documentId, "the document page carries its id").toBeTruthy();
 
-  // The comment surface: a docx page has the Bình luận + Thảo luận tabs.
-  await page.getByRole("button", { name: /^(Bình luận|Comments|Thảo luận|Discussion)$/ }).click();
-  const pane = page.getByTestId("document-comments-pane");
-  await expect(pane).toBeVisible({ timeout: 30_000 });
+  // The comment surface: the editor frame serves the comments of a docx, so
+  // its own panel is the page's only one (invariant 8) — the page's header
+  // trigger and panel go away once the frame says it has comments. The
+  // Discussion lives in the frame; the page's `document-comments-pane` does
+  // not exist for a docx, so the spec drives the frame, not the page.
+  const frame = page.frameLocator("iframe").first();
+  const discussion = frame.getByRole("complementary", { name: /^(Thảo luận|Discussion)$/ });
+  await openFrameDiscussion(frame, discussion);
 
   // Step 3 — the manager writes into the Discussion (the comment-level grant
-  // is write access to discussion, so the composer is not view-only). A docx
-  // opens the panel on its anchored Comments tab, whose threads start in the
-  // editor; the Discussion composer lives on the other tab.
-  await expect(pane.getByTestId("document-comments-view-only")).toHaveCount(0);
-  await pane.getByRole("tab", { name: /^(Thảo luận|Discussion)$/ }).click();
-  const composer = pane.getByTestId("document-discussion-composer");
-  const box = composer.getByRole("textbox", { name: /Viết vào thảo luận|Write in the discussion/ });
+  // is write access to discussion, so the composer is not view-only).
+  const box = discussion.getByRole("textbox", { name: /Viết vào thảo luận|Write in the discussion/ });
   await box.click();
   await box.pressSequentially(COMMENT_TEXT);
-  await composer.getByRole("button", { name: /^Gửi$|^Send$/ }).click();
-  await expect(pane.getByText(COMMENT_TEXT).first()).toBeVisible({ timeout: 30_000 });
+  await discussion.getByRole("button", { name: /^Gửi$|^Send$/ }).click();
+  await expect(discussion.getByText(COMMENT_TEXT).first()).toBeVisible({ timeout: 30_000 });
 
   // Step 4 — staff sees the comment on the same document.
   await loginFolderUser(page, staff.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents/${documentId}`);
-  await page.getByRole("button", { name: /^(Bình luận|Comments|Thảo luận|Discussion)$/ }).click();
-  const staffPane = page.getByTestId("document-comments-pane");
-  await expect(staffPane).toBeVisible({ timeout: 30_000 });
-  await staffPane.getByRole("tab", { name: /^(Thảo luận|Discussion)$/ }).click();
-  await expect(staffPane.getByText(COMMENT_TEXT).first()).toBeVisible({ timeout: 30_000 });
+  const staffFrame = page.frameLocator("iframe").first();
+  const staffDiscussion = staffFrame.getByRole("complementary", { name: /^(Thảo luận|Discussion)$/ });
+  await openFrameDiscussion(staffFrame, staffDiscussion);
+  await expect(staffDiscussion.getByText(COMMENT_TEXT).first()).toBeVisible({ timeout: 30_000 });
 });
 
 const DOCX_V2_FIXTURE = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-vietnamese.docx");
