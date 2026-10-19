@@ -47,10 +47,16 @@ func commentDTO(
 	return out
 }
 
-func commentDTOFromListRow(c db.ListTaskCommentsRow) sdo.CommentDTO {
+// commentDTOFromListRow renders a list row. resolved is the page's batched
+// Actors.Resolve answer: its avatar (which covers FileService uploads) wins and
+// the row's legacy users.avatar_url is only the fallback.
+func commentDTOFromListRow(c db.ListTaskCommentsRow, resolved map[service.ActorRef]service.ActorInfo) sdo.CommentDTO {
 	avatar := ""
 	if c.AvatarUrl.Valid {
 		avatar = c.AvatarUrl.String
+	}
+	if a, ok := resolved[service.ActorRef{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}]; ok && a.AvatarURL != "" {
+		avatar = a.AvatarURL
 	}
 	return commentDTO(
 		c.ID, c.TaskID, c.AuthorID, c.AuthorKind, c.Body, c.CommentType, c.Revision,
