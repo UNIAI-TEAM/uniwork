@@ -36,8 +36,11 @@ async function mention(page: Page, name: string) {
   const editor = page.getByRole("textbox", { name: "Nội dung tài liệu" });
   await editor.click();
   // The mention goes at the end of the body, below any filler the test seeded.
+  // The caret lands right after the last character, and the `@` picker (the
+  // editor's default suggestion prefix rule) opens only for an `@` at the start
+  // of a line or after whitespace, so a space comes first.
   await page.keyboard.press("Control+End");
-  await page.keyboard.type(`@${name}`);
+  await page.keyboard.type(` @${name}`);
   const row = page.getByRole("button", { name });
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.click();
