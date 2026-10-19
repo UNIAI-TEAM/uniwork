@@ -1,0 +1,6 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; cd server && go test -count=1 -v ./migrations/ 2>&1 | grep -E "^(--- FAIL|FAIL|ok|PASS)"; echo "MIGRATIONS_EXIT=${PIPESTATUS[0]}"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+PASS
+ok  	github.com/unicomhub/uniwork/server/migrations	6.671s
+MIGRATIONS_EXIT=0
