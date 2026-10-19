@@ -117,6 +117,45 @@ func TestDocumentAccessRequestedNotifiesTheManagers(t *testing.T) {
 	if n := f.unreadAccessRequestNotifications(t, f.owner.ID, KindDocumentAccessRequested); len(n) != 1 {
 		t.Fatalf("ACL owner unread notifications after the revoke = %d, want 1", len(n))
 	}
+
+	// A candidate whose live manage share is retained (so ListDocumentShares
+	// still returns them) but who is deactivated after the request is created
+	// and before consumption receives neither a notification nor a push, while
+	// the valid manager in the same run still receives both (BE-SD7-11).
+	retained := f.addMember(t, "ar-retained-deact@example.com", "Quản Lý Bị Khóa")
+	if _, err := f.docs.ShareDocument(f.ctx, service.Human(f.owner.ID), docID, service.DocumentShareInput{
+		PrincipalType: service.DocumentPrincipalUser, PrincipalID: retained.ID, Level: service.DocumentLevelManage,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE notifications SET read_at = now() WHERE kind = $1 AND user_id = $2`,
+		KindDocumentAccessRequested, f.owner.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `UPDATE document_access_requests SET status = 'cancelled' WHERE document_id = $1`, docID); err != nil {
+		t.Fatal(err)
+	}
+	f.sendAccessRequest(t, f.member.ID, docID)
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`,
+		f.orgID, retained.ID); err != nil {
+		t.Fatal(err)
+	}
+	if shares := f.liveSharesOf(t, docID, retained.ID); len(shares) != 1 {
+		t.Fatalf("retained manage share = %v, want it still live", shares)
+	}
+	pushBefore := len(f.events(t, TopicPush))
+	f.handleLast(t, "document.access_requested")
+	if n := f.unreadAccessRequestNotifications(t, retained.ID, KindDocumentAccessRequested); len(n) != 0 {
+		t.Fatalf("a deactivated manager with a retained share was notified: %v", n)
+	}
+	if n := f.unreadAccessRequestNotifications(t, f.owner.ID, KindDocumentAccessRequested); len(n) != 1 {
+		t.Fatalf("valid manager unread notifications = %d, want 1", len(n))
+	}
+	if n := len(f.events(t, TopicPush)) - pushBefore; n != 1 {
+		t.Fatalf("push events = %d, want 1 (valid manager only, none for deactivated candidate)", n)
+	}
 }
 
 // TestDocumentAccessRequestedFallbackToWorkspaceAdmins covers the §3.1
