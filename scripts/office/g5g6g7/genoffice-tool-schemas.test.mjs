@@ -286,3 +286,22 @@ test('the committed file leaves no name-only module and carries the required key
     }
   }
 });
+
+// Review r1 F5 (UNI-1964): the Go test transcribes the harness's TOOL_OPS mapping for slides, pdf, markdown and html
+// into uniworkMappedFormatTools. This test extracts that Go map literal and holds its four sets equal to
+// Object.keys(TOOL_OPS[module]), so adding or removing a mapped tool on either side fails here.
+const GO_SCHEMA_TABLE_TEST = path.join(repoRoot, 'server/internal/ai/openai_facade_schema_table_test.go');
+
+test('uniworkMappedFormatTools in openai_facade_schema_table_test.go matches TOOL_OPS for slides, pdf, markdown and html', () => {
+  const goSource = fs.readFileSync(GO_SCHEMA_TABLE_TEST, 'utf8');
+  const blockMatch = /var\s+uniworkMappedFormatTools\s*=\s*map\[string\]\[\]string\{([\s\S]*?)\n\}/.exec(goSource);
+  assert.ok(blockMatch, 'uniworkMappedFormatTools map literal is present in openai_facade_schema_table_test.go');
+  const fromGo = {};
+  for (const [, module, body] of blockMatch[1].matchAll(/"([^"]+)"\s*:\s*\{([^}]*)\}/g)) {
+    fromGo[module] = [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+  }
+  const fromJs = Object.fromEntries(
+    ['slides', 'pdf', 'markdown', 'html'].map((module) => [module, Object.keys(TOOL_OPS[module]).sort()]),
+  );
+  assert.deepEqual(fromGo, fromJs);
+});

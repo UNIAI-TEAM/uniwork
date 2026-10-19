@@ -1754,10 +1754,17 @@ describe('sessions, manifest and tool surface', () => {
     const surface = toolSurface(toolCatalogue(loaded.doc), { fileSha256: loaded.sha256 });
     assert.deepEqual(Object.entries(surface).filter(([, v]) => v.source === 'name-only').map(([m]) => m), []);
     assert.doesNotThrow(() => preflight({ redis: 'on', catalogue: toolCatalogue(loaded.doc), toolSchemas: loaded }));
-    // a rev that does not match the committed block fails preflight (readToolSchemasFile returns rev at the top level)
+    // a rev that is missing, empty, or does not match the committed block fails preflight, and so does a null committed block (review r1 F1)
+    assert.equal(committedBlockRev(), committedBlock().rev);
+    assert.equal(committedBlockRev(path.join(tmpRoot, 'missing-genoffice-tools.md')), null);
     const stale = { ...loaded, doc: { ...loaded.doc, header: { ...loaded.doc.header, rev: 'f'.repeat(40) } }, rev: 'f'.repeat(40) };
     assert.throws(() => preflight({ redis: 'on', catalogue: toolCatalogue(stale.doc), toolSchemas: stale }), /header\.rev .* does not match the committed §3 block rev/);
-
+    const missingRev = { ...loaded, doc: { ...loaded.doc, header: undefined }, rev: null };
+    assert.throws(() => preflight({ redis: 'on', catalogue: toolCatalogue(missingRev.doc), toolSchemas: missingRev }), /header\.rev .* does not match the committed §3 block rev/);
+    const emptyRev = { ...loaded, doc: { ...loaded.doc, header: { ...loaded.doc.header, rev: '' } }, rev: '' };
+    assert.throws(() => preflight({ redis: 'on', catalogue: toolCatalogue(emptyRev.doc), toolSchemas: emptyRev }), /header\.rev .* does not match the committed §3 block rev/);
+    assert.throws(() => preflight({ redis: 'on', catalogue: toolCatalogue(loaded.doc), toolSchemas: loaded, expectedRev: null }), /header\.rev .* does not match the committed §3 block rev/);
+    assert.throws(() => preflight({ redis: 'on', catalogue: toolCatalogue(missingRev.doc), toolSchemas: missingRev, expectedRev: null }), /header\.rev .* does not match the committed §3 block rev/);
     // the run config records the file's sha256 and header.rev, and the surface is the file's
     const { docs } = await runWith({ onlyIds: [cases[0].id], subset: cases, opts: { toolSchemas: loaded.doc, toolSchemasSha256: loaded.sha256, toolSchemasRev: loaded.rev } }, 'surface-default');
     assert.equal(docs[0].config.toolSchemas.sha256, loaded.sha256);
