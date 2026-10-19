@@ -236,7 +236,7 @@ export function ChatComposer({
             // chose on a visible picker (RFC-01): a mixed batch or a hidden
             // picker sends every file by the plain route, so no grant is
             // ever minted from a choice the user never made.
-            if (showSharePicker && shareChoice !== "file") {
+            if (showSharePicker && shareChoice !== "file" && onSendDocument) {
               await onSendDocument(file, shareChoice);
             } else {
               await onSendFile(file);
