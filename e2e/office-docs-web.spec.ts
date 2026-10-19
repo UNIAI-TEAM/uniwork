@@ -269,9 +269,9 @@ test.describe("open, edit, save", () => {
 
     const dialog = page.getByRole("dialog", { name: "Đặt tên tài liệu" });
     await expect(dialog).toBeVisible({ timeout: 30_000 });
-    // The Location row starts where the document is (My Folder) and Change opens the folder picker.
+    // The Location row starts where the document is (the API seed has no parent: the workspace root) and Change opens the folder picker.
     const location = dialog.getByTestId("first-save-location");
-    await expect(location).toContainText("Thư mục của tôi");
+    await expect(location).toContainText("Tài liệu (gốc)");
     await location.getByRole("button", { name: "Đổi" }).click();
     const picker = page.getByRole("dialog", { name: "Chọn nơi lưu" });
     await picker.getByRole("treeitem", { name: folderTitle }).click();
