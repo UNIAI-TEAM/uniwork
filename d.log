@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/views exec vitest run documents 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "VIEWS_1977F_EXIT=$rc"
+   Start at  16:50:59
+   Duration  104.30s (transform 8.11s, setup 17.40s, import 64.89s, tests 196.65s, environment 24.20s)
+
+undefined
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run documents
+VIEWS_1977F_EXIT=1
