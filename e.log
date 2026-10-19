@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/core exec eslint . --max-warnings 0; echo "CORE_LINT_EXIT=$?"
+CORE_LINT_EXIT=0

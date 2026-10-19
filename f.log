@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/ui exec eslint . --max-warnings 0; echo "UI_LINT_EXIT=$?"
+UI_LINT_EXIT=0
