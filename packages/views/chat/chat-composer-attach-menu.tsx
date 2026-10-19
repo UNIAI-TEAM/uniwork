@@ -8,7 +8,6 @@ import {
   CircleAlert,
   Megaphone,
   Paperclip,
-  Plus,
   StickyNote,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -77,7 +76,7 @@ export function ComposerToolbarButton({
       disabled={disabled}
       // An open popover keeps its trigger in the brand wash.
       className={cn(
-        "size-11 shrink-0 rounded-full text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground [&_svg:not([class*='size-'])]:size-5.5",
+        "size-10 shrink-0 rounded-full text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground [&_svg:not([class*='size-'])]:size-5.5",
         className,
       )}
       {...props}
@@ -129,10 +128,10 @@ export function ComposerAttachMenu({
           <ComposerToolbarButton
             label={t("chat.composer_attach")}
             disabled={disabled}
-            // Open, the + turns into an × on the brand wash (canvas).
-            className="size-12 bg-chat-bubble-other shadow-chat-bubble hover:bg-muted aria-expanded:text-brand aria-expanded:ring-2 aria-expanded:ring-primary aria-expanded:[&_svg]:rotate-45 [&_svg]:transition-transform [&_svg]:duration-(--duration-fast)"
+            // Telegram's clip: one way in to files, polls, reminders, notes, posts and the flags.
+            className="size-10"
           >
-            <Plus aria-hidden />
+            <Paperclip aria-hidden />
           </ComposerToolbarButton>
         }
       />

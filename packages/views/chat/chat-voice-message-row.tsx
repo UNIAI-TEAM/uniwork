@@ -12,15 +12,21 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
-import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
+import {
+  CHAT_BUBBLE_OTHER,
+  CHAT_BUBBLE_OWN,
+  CHAT_ROW_WASH,
+  chatBubbleShape,
+  chatBubbleTail,
+  ChatThreadRepliesLink,
+} from "./chat-message-row";
 import { useFreshChatMediaUrl } from "./use-chat-media-url";
 import { senderNameClass } from "./sender-colors";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
-import { useMessageActionsReveal } from "./use-message-actions-reveal";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
 import { useChatMessageLinksFor } from "./chat-message-links-context";
 import { MessageTaskCard } from "./message-task-card";
@@ -208,7 +214,6 @@ function ChatVoiceMessageRowImpl({
   /** A deep link jumped here: ring the row like the text row does. */
   highlighted?: boolean;
 }) {
-  const reveal = useMessageActionsReveal();
   // A task made from this message follows it as one more bubble of the run (canvas).
   const { links } = useChatMessageLinksFor(message.id);
   const taskLinks = taskLinksOf(links);
@@ -223,15 +228,15 @@ function ChatVoiceMessageRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
-        CHAT_ROW_HOVER,
+        CHAT_ROW_WASH,
         compactTop ? "mt-0.5" : "mt-3",
         isOwn ? "justify-end" : "justify-start gap-2",
         // A deep link jumped here: the row's brand wash, as the text row's (canvas).
-        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25 hover:before:bg-brand-subtle",
+        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
-      {!isOwn ? (
+      {!isOwn && showSenderName ? (
         <div className="w-8.5 shrink-0 self-end">
           {lastOfRun ? (
             <ChatSenderAvatar
@@ -243,11 +248,22 @@ function ChatVoiceMessageRowImpl({
           ) : null}
         </div>
       ) : null}
-      <div
-        ref={reveal.rootRef}
-        {...reveal.bind}
+      <ChatMessageActionsFrame
+        message={message}
+        isOwn={isOwn}
+        canEdit={false}
+        onReply={onReply}
+        onReact={onReact}
+        onToggleReaction={onToggleReaction}
+        onThread={onThread}
+        onPin={onPin}
+        onCopy={onCopy}
+        onDelete={onDelete}
+        onCreateTask={onCreateTask}
+        onLinkTask={onLinkTask}
+        onFollowUp={onFollowUp}
         className={cn(
-          "group/message relative flex max-w-[85%] flex-col gap-1 sm:max-w-[72%] pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
+          "flex max-w-[85%] flex-col gap-1 sm:max-w-[72%] pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
           isOwn ? "items-end" : "items-start",
         )}
       >
@@ -258,6 +274,7 @@ function ChatVoiceMessageRowImpl({
                 "w-85 max-w-full px-3 pt-[7px] pb-2",
                 chatBubbleShape(isOwn, !compactTop, lastOfRun && !taskCard),
                 isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
+                lastOfRun && !taskCard && chatBubbleTail(isOwn),
               )}
             >
               {!isOwn && showSenderName && showAvatar ? (
@@ -285,24 +302,8 @@ function ChatVoiceMessageRowImpl({
             <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
             <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
           </div>
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onToggleReaction={onToggleReaction}
-            onThread={onThread}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={onCreateTask}
-            onLinkTask={onLinkTask}
-            onFollowUp={onFollowUp}
-            canEdit={false}
-            forceOpen={reveal.open}
-          />
         </div>
-      </div>
+      </ChatMessageActionsFrame>
     </article>
   );
 }

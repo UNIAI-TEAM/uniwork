@@ -6,13 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { ChatRoomMemberRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { furthestReadAt, isMessageSeenByPeer } from "@uniwork/core/chat/read-receipt-utils";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
+import type { ChatMenuParts } from "./chat-message-menu-items";
 import type { ChatMessage } from "./chat-messages";
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import { chatPersonFaceClass } from "./chat-person-card";
@@ -72,7 +66,8 @@ export function ChatSeenByProvider({
  * "N người đã xem" at the top of an own message's ⋯ menu, opening the readers.
  * Nothing for a thread reply: the pointers follow the main timeline only.
  */
-export function ChatSeenByMenuItem({ message }: { message: ChatMessage }) {
+/** "Đã xem bởi N người", last in your own message's menu: the readers in a submenu. */
+export function ChatSeenByMenuItem({ message, parts: P }: { message: ChatMessage; parts: ChatMenuParts }) {
   const { t } = useTranslation();
   const seenBy = useContext(SeenByContext);
   if (!seenBy || message.threadRootId) return null;
@@ -83,16 +78,17 @@ export function ChatSeenByMenuItem({ message }: { message: ChatMessage }) {
   const names = new Map(seenBy.nameContext.map((entry) => [entry.user_id, entry.display_name.trim()]));
   return (
     <>
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
+      <P.Separator />
+      <P.Sub>
+        <P.SubTrigger>
           <CheckCheck className="size-4 text-brand" aria-hidden />
           {t("chat.seen_by_count", { count: readers.length })}
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="max-h-72 min-w-48 overflow-y-auto">
+        </P.SubTrigger>
+        <P.SubContent className="max-h-72 min-w-48 overflow-y-auto">
           {readers.map((member) => {
             const name = names.get(member.user_id) || member.display_name.trim() || member.email;
             return (
-              <DropdownMenuItem key={member.user_id}>
+              <P.Item key={member.user_id}>
                 <ActorAvatar
                   name={name}
                   initials={initialOf(name)}
@@ -101,12 +97,11 @@ export function ChatSeenByMenuItem({ message }: { message: ChatMessage }) {
                   className={chatPersonFaceClass(member.user_id)}
                 />
                 <span className="min-w-0 truncate">{name}</span>
-              </DropdownMenuItem>
+              </P.Item>
             );
           })}
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-      <DropdownMenuSeparator />
+        </P.SubContent>
+      </P.Sub>
     </>
   );
 }

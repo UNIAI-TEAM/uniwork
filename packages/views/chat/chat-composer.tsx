@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from "react";
-import { Check, Mic, Paperclip, Send } from "lucide-react";
+import { Check, Mic, Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
@@ -11,7 +11,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
-import { ComposerAttachMenu, ComposerToolbarButton, type ComposerAttachAction } from "./chat-composer-attach-menu";
+import { ComposerAttachMenu, type ComposerAttachAction } from "./chat-composer-attach-menu";
 import {
   ComposerCharCounter,
   ComposerDropOverlay,
@@ -24,7 +24,7 @@ import {
 } from "./chat-composer-parts";
 import { ChatExpressionPicker } from "./chat-expression-picker";
 import type { ChatMessage } from "./chat-messages";
-import { ChatReplyComposerBar } from "./chat-reply-quote";
+import { ChatReplyComposerBar, COMPOSER_QUOTE_CLIP_CLASS, COMPOSER_QUOTE_REVEAL_CLASS } from "./chat-reply-quote";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
@@ -36,6 +36,10 @@ import { useFileDropZone } from "../editor/use-file-drop-zone";
 
 /** Show the character count once a message gets this close to the limit. */
 const COUNTER_THRESHOLD = 200;
+
+/** Send and mic trade places by growing in (Telegram's morph); still under reduced motion. */
+const ICON_POP_IN =
+  "motion-safe:transition-[scale,rotate,opacity] motion-safe:duration-(--duration-standard) motion-safe:ease-(--ease-out-quart) starting:scale-30 starting:opacity-0";
 
 export type ChatComposerHandle = {
   /** Put the caret back in the message field (after reply, thread, cancel). */
@@ -275,7 +279,8 @@ export function ChatComposer({
   const saveLabel = t("chat.edit_dialog_save");
 
   return (
-    <div className="relative flex shrink-0 flex-col gap-1.5 bg-chat-wall px-3 pt-1 pb-3 sm:px-6 sm:pb-5" {...dropZoneProps}>
+    // Telegram's composer: one flat bar across the conversation's foot, not a pill on the wall.
+    <div className="relative flex shrink-0 flex-col gap-1.5 border-t border-border bg-surface px-2 py-2 sm:px-2.5" {...dropZoneProps}>
       {isDragOver ? <ComposerDropOverlay /> : null}
       <input
         ref={fileInputRef}
@@ -323,13 +328,39 @@ export function ChatComposer({
         />
       ) : (
         <form
-          className="mx-auto w-full max-w-183"
+          className="w-full"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
           }}
         >
-          <div className="flex items-end gap-2">
+          {/* Replying or editing: a row of its own above the field that grows open (Telegram). */}
+          {editing || replyTo ? (
+            <div className={COMPOSER_QUOTE_REVEAL_CLASS}>
+              <div className={COMPOSER_QUOTE_CLIP_CLASS}>
+                {editing ? (
+                  <ComposerEditBar
+                    preview={deserializeMessageBodyToComposerDraft(editing.message.body)}
+                    onCancel={() => {
+                      editing.onCancel();
+                      // The bar and its X go away; the caret stays in the field.
+                      textareaRef.current?.focus();
+                    }}
+                  />
+                ) : replyTo ? (
+                  <ChatReplyComposerBar
+                    message={replyTo}
+                    senderLabel={replyToSenderLabel}
+                    onCancel={() => {
+                      onCancelReply?.();
+                      textareaRef.current?.focus();
+                    }}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <div className="flex items-end gap-1">
             {textOnly ? null : (
               <ComposerAttachMenu
                 disabled={disabled || Boolean(editing)}
@@ -338,37 +369,13 @@ export function ChatComposer({
                 showCreatePoll={showCreatePoll}
               />
             )}
-            {/* The field's own ring is off, so the pill carries focus. */}
+            {/* The bar is the field: no pill, a ring only to say over the limit or editing. */}
             <div
               className={cn(
-                "flex min-h-12 min-w-0 flex-1 flex-col rounded-3xl bg-chat-bubble-other px-1.5 py-0.5 shadow-chat-bubble transition-shadow duration-(--duration-fast)",
-                remaining < 0
-                  ? "ring-2 ring-destructive"
-                  : editing
-                    ? "ring-2 ring-brand/30"
-                    : "focus-within:ring-2 focus-within:ring-ring/30",
+                "flex min-h-10 min-w-0 flex-1 flex-col rounded-xl",
+                remaining < 0 ? "ring-2 ring-destructive" : editing ? "ring-2 ring-brand/30" : undefined,
               )}
             >
-              {!editing && replyTo ? (
-                <ChatReplyComposerBar
-                  message={replyTo}
-                  senderLabel={replyToSenderLabel}
-                  onCancel={() => {
-                    onCancelReply?.();
-                    textareaRef.current?.focus();
-                  }}
-                />
-              ) : null}
-              {editing ? (
-                <ComposerEditBar
-                  preview={deserializeMessageBodyToComposerDraft(editing.message.body)}
-                  onCancel={() => {
-                    editing.onCancel();
-                    // The bar and its X go away; the caret stays in the field.
-                    textareaRef.current?.focus();
-                  }}
-                />
-              ) : null}
               {!editing && (composerPriority || stagedFiles.length > 0) ? (
                 <>
                   <div className="flex flex-col items-start gap-2 px-1.5 pt-2.5 pb-2">
@@ -399,13 +406,6 @@ export function ChatComposer({
                 </>
               ) : null}
               <div className="flex items-end gap-1">
-                <ChatExpressionPicker
-                  workspaceId={workspaceId}
-                  disabled={disabled}
-                  align="start"
-                  onSelectEmoji={insertEmoji}
-                  onSendMedia={handleSendMedia}
-                />
                 <div ref={mentionAnchorRef} className="relative min-w-0 flex-1">
                   {mentions.open ? (
                     <ChatMentionAutocomplete
@@ -454,7 +454,7 @@ export function ChatComposer({
                     aria-describedby={showCounter ? counterId : undefined}
                     disabled={disabled}
                     rows={1}
-                    className="max-h-40 min-h-11 w-full resize-none rounded-none border-0 bg-transparent px-1 py-2.5 shadow-none focus-visible:ring-0 disabled:bg-transparent md:text-body-lg dark:bg-transparent dark:disabled:bg-transparent"
+                    className="max-h-40 min-h-10 w-full resize-none rounded-none border-0 bg-transparent px-1.5 py-2.5 shadow-none focus-visible:ring-0 disabled:bg-transparent md:text-body dark:bg-transparent dark:disabled:bg-transparent"
                     onKeyDown={(e) => {
                       // A Vietnamese IME commits the pending syllable on Enter and the
                       // browser reports that commit as its own keydown, so acting on
@@ -462,9 +462,11 @@ export function ChatComposer({
                       // key repeats for the same reason.
                       if (e.nativeEvent.isComposing || e.keyCode === 229 || e.repeat) return;
                       if (mentions.onKeyDown(e)) return;
-                      if (editing && e.key === "Escape") {
+                      // Esc backs out of what heads the field: the edit, else the reply (Telegram).
+                      if (e.key === "Escape" && (editing || (replyTo && onCancelReply))) {
                         e.preventDefault();
-                        editing.onCancel();
+                        if (editing) editing.onCancel();
+                        else onCancelReply?.();
                         return;
                       }
                       if (e.key === "Enter" && !e.shiftKey) {
@@ -474,22 +476,21 @@ export function ChatComposer({
                     }}
                   />
                 </div>
-                {onSendFile ? (
-                  <ComposerToolbarButton
-                    label={t("chat.composer_attach_file")}
-                    disabled={disabled || Boolean(editing)}
-                    onClick={() => handleAttachAction("attach_file")}
-                  >
-                    <Paperclip aria-hidden />
-                  </ComposerToolbarButton>
-                ) : null}
               </div>
             </div>
+            {/* Emoji, stickers and GIFs on the right, as Telegram: the clip opens files and the rest. */}
+            <ChatExpressionPicker
+              workspaceId={workspaceId}
+              disabled={disabled}
+              align="end"
+              onSelectEmoji={insertEmoji}
+              onSendMedia={handleSendMedia}
+            />
             {canSend || editing || textOnly ? (
               <Button
                 type="submit"
                 size="icon-lg"
-                className="size-12 rounded-full shadow-md shadow-primary/30 hover:bg-primary/90"
+                className="size-10 rounded-full hover:bg-primary/90"
                 aria-label={editing ? saveLabel : sendLabel}
                 title={editing ? saveLabel : undefined}
                 disabled={!canSend}
@@ -498,18 +499,20 @@ export function ChatComposer({
                 onPointerDown={(event) => event.preventDefault()}
               >
                 {!editing ? (
-                  <Send className="size-5" aria-hidden />
+                  <Send className={cn("size-5 starting:-rotate-45", ICON_POP_IN)} aria-hidden />
                 ) : editing.saving ? (
                   <Spinner className="size-5" />
                 ) : (
-                  <Check className="size-5.5" aria-hidden />
+                  <Check className={cn("size-5.5", ICON_POP_IN)} aria-hidden />
                 )}
               </Button>
             ) : (
+              // Nothing to send: the mic waits quietly, as Telegram's does; send takes the brand.
               <Button
                 type="button"
+                variant="ghost"
                 size="icon-lg"
-                className="size-12 rounded-full shadow-md shadow-primary/30 hover:bg-primary/90"
+                className="size-10 rounded-full text-muted-foreground hover:text-foreground"
                 aria-label={recordLabel}
                 title={recordLabel}
                 disabled={disabled}
@@ -518,13 +521,13 @@ export function ChatComposer({
                   else void voiceRecorder.start();
                 }}
               >
-                <Mic className="size-5.5" aria-hidden />
+                <Mic className={cn("size-5.5", ICON_POP_IN)} aria-hidden />
               </Button>
             )}
           </div>
           {editing?.error ? (
             // Under the field, not the attach button beside it.
-            <p role="alert" className={cn("mt-1.5 mr-15 pl-4 text-caption text-destructive", !textOnly && "ml-14")}>
+            <p role="alert" className={cn("mt-1.5 mr-22 pl-1.5 text-caption text-destructive", !textOnly && "ml-11")}>
               {editing.error}
             </p>
           ) : null}

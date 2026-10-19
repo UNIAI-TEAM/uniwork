@@ -8,16 +8,15 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
 import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
-import { ChatMessageHoverActions } from "./chat-message-hover-actions";
+import { ChatMessageActionsFrame } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, chatMessageLabelId } from "./chat-message-parts";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape } from "./chat-message-row";
+import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_WASH, chatBubbleShape } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { MessageTaskCard } from "./message-task-card";
 import { senderNameClass } from "./sender-colors";
 import { useChatFileDownload } from "./use-chat-file-download";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media-url";
-import { useMessageActionsReveal } from "./use-message-actions-reveal";
 
 type MessageAction = (message: ChatMessage) => void;
 
@@ -116,7 +115,6 @@ function AlbumTile({
   actions: AlbumActions;
 }) {
   const { t } = useTranslation();
-  const reveal = useMessageActionsReveal();
   const file = message.file;
   const name = file?.filename || t("chat.file_untitled");
   const { src, status, onError } = useChatMediaSrc(
@@ -127,14 +125,15 @@ function AlbumTile({
     file?.url_expires_at,
   );
   return (
-    // Each photo is its own message: hover or long-press shows that photo's actions above it.
-    <div
-      ref={reveal.rootRef}
-      {...reveal.bind}
-      className={cn(
-        "group/message relative min-h-0 min-w-0 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
-        className,
-      )}
+    // Each photo is its own message: hovering shows that photo's actions over
+    // its corner (a neighbour sits beside it), a right click or long press its menu.
+    <ChatMessageActionsFrame
+      message={message}
+      isOwn={isOwn}
+      canEdit={false}
+      overlay
+      {...actions}
+      className={cn("min-h-0 min-w-0 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]", className)}
     >
       <button
         type="button"
@@ -161,8 +160,7 @@ function AlbumTile({
           </span>
         ) : null}
       </button>
-      <ChatMessageHoverActions message={message} isOwn={isOwn} {...actions} canEdit={false} forceOpen={reveal.open} />
-    </div>
+    </ChatMessageActionsFrame>
   );
 }
 
@@ -243,14 +241,14 @@ function ChatImageAlbumRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
-        CHAT_ROW_HOVER,
+        CHAT_ROW_WASH,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-0.5" : "mt-3",
       )}
     >
       <ChatMessageA11yLabel messageId={head.id} senderLabel={senderLabel} ts={head.ts} />
       <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
-        {isOwn ? null : showAvatar ? (
+        {isOwn || !showSenderName ? null : showAvatar ? (
           <span className="shrink-0 self-end">
             <ChatSenderAvatar userId={head.sender} name={senderLabel} avatarUrl={senderAvatarUrl} nameContext={nameContext} />
           </span>

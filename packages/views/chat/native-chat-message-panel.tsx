@@ -42,6 +42,7 @@ import {
   type NativeChatMessageContext,
 } from "./native-chat-message-item";
 import { buildMainTimelineMessages, buildThreadViewMessages, countNewSince } from "./native-chat-message-timeline";
+import { ChatIntroCompactContext } from "./chat-conversation-intro";
 import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 import { useNativeChatMessageActions } from "./use-native-chat-message-actions";
 import { useAnchorWindowLoad, useChatHighlightFlash, useOwnSendFollowsLatest, useTypingKeepsPinned } from "./use-chat-anchor-follow";
@@ -440,7 +441,8 @@ export function NativeChatMessagePanel({
     ) : canLoadOlder ? (
       <ChatLoadOlderButton onClick={() => void loadOlder()} />
     ) : !hasMore && !threadRoot && !anchorMessages && intro ? (
-      intro
+      // Above messages the intro is a one-line chip; an empty room keeps the card (the `empty` slot).
+      <ChatIntroCompactContext.Provider value>{intro}</ChatIntroCompactContext.Provider>
     ) : null;
 
   return (

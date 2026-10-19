@@ -5,13 +5,12 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
 import { isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
-import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
-import { useMessageActionsReveal } from "./use-message-actions-reveal";
+import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_WASH, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { senderNameClass } from "./sender-colors";
@@ -69,7 +68,6 @@ function ChatFileMessageRowImpl({
   /** A deep link jumped here: ring the row like the text row does. */
   highlighted?: boolean;
 }) {
-  const reveal = useMessageActionsReveal();
   const edgeToEdge = chatFileIsEdgeToEdge(message.file);
   // A GIF is the message itself, like a sticker: no bubble, its time on a chip
   // under it. A photo keeps a 3px rim and its time on its corner (canvas).
@@ -87,16 +85,16 @@ function ChatFileMessageRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
-        CHAT_ROW_HOVER,
+        CHAT_ROW_WASH,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-0.5" : "mt-3",
         // A deep link jumped here: the row's brand wash, as the text row's (canvas).
-        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25 hover:before:bg-brand-subtle",
+        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
       <div className={cn("flex max-w-[min(85%,27rem)] gap-2", isOwn && "flex-row-reverse")}>
-        {isOwn ? null : showAvatar ? (
+        {isOwn || !showSenderName ? null : showAvatar ? (
           // A file is a run of its own: its avatar sits at the foot, as a run's last bubble's does.
           <span className="shrink-0 self-end">
             <ChatSenderAvatar
@@ -109,11 +107,22 @@ function ChatFileMessageRowImpl({
         ) : (
           <span className="w-8.5 shrink-0" aria-hidden />
         )}
-        <div
-          ref={reveal.rootRef}
-          {...reveal.bind}
+        <ChatMessageActionsFrame
+          message={message}
+          isOwn={isOwn}
+          canEdit={false}
+          onReply={onReply}
+          onReact={onReact}
+          onToggleReaction={onToggleReaction}
+          onThread={onThread}
+          onPin={onPin}
+          onCopy={onCopy}
+          onDelete={onDelete}
+          onCreateTask={onCreateTask}
+          onLinkTask={onLinkTask}
+          onFollowUp={onFollowUp}
           className={cn(
-            "group/message relative flex min-w-0 flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
+            "flex min-w-0 flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
             isOwn ? "items-end" : "items-start",
           )}
         >
@@ -176,24 +185,8 @@ function ChatFileMessageRowImpl({
               <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
               <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
             </div>
-            <ChatMessageHoverActions
-              message={message}
-              isOwn={isOwn}
-              onReply={onReply}
-              onReact={onReact}
-              onToggleReaction={onToggleReaction}
-              onThread={onThread}
-              onPin={onPin}
-              onCopy={onCopy}
-              onDelete={onDelete}
-              onCreateTask={onCreateTask}
-              onLinkTask={onLinkTask}
-              onFollowUp={onFollowUp}
-              canEdit={false}
-              forceOpen={reveal.open}
-            />
           </div>
-        </div>
+        </ChatMessageActionsFrame>
       </div>
     </article>
   );
