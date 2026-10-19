@@ -24,6 +24,8 @@ func (h *handlers) putOfficeOfflineLease(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var in sdi.PutOfficeOfflineLeaseSDI
+	// An empty or absent body is a new grant (login-sync contract 6.2.1, G5-D1).
+	emptyBodyAsObject(r)
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}

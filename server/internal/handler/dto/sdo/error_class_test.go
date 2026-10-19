@@ -83,8 +83,8 @@ func TestErrorClassTable(t *testing.T) {
 		// wrong recovery path. commit_intent_unknown stays docs-only until
 		// G5-D2 fixes intent retention, so it is checked unclassified too.
 		"change_cursor_expired", "change_cursor_invalid", "run_limit_reached",
-		"run_expired", "ai_tool_result_too_large", "ai_uniwork_busy",
-		"ai_provider_timeout",
+		"run_expired", "conversation_expired", "ai_tool_result_too_large",
+		"ai_uniwork_busy", "ai_provider_timeout",
 		"office_capability_off", "commit_intent_unknown",
 		// The offline lease codes of G5-D1 row 15; offline_lease_expired is
 		// app-side only and stays unregistered.

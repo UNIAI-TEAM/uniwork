@@ -7,6 +7,8 @@ import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row
 import { libraryLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
 import { favoriteRow } from "./starred-rows";
+import type { User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../layout/workspace-context";
 
 // TRASH-01 Area 2 (UNI-1841): the documents table takes the board's six columns
 // (Tên · Truy cập · Người sửa gần nhất · Cập nhật · Dung lượng · Thao tác) at
@@ -60,7 +62,7 @@ const handlers: LibraryRowHandlers = {
   personName: () => "An",
 };
 
-function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers> = {}) {
+function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers> = {}, opts: { sharedByMe?: boolean } = {}) {
   return render(
     <DocumentsLibraryList
       groups={[{ key: "all", title: "", rows: rows.map(documentRow) }]}
@@ -73,6 +75,7 @@ function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers
       onRetry={vi.fn()}
       onClearFilters={vi.fn()}
       handlers={{ ...handlers, ...over }}
+      sharedByMe={opts.sharedByMe}
       empty={{ title: "empty", description: "empty" }}
     />,
   );
@@ -171,6 +174,86 @@ describe("access column", () => {
     const descId = badge.getAttribute("aria-describedby");
     expect(descId).toBeTruthy();
     expect(document.getElementById(descId!)?.textContent).toBe("Workspace · 2 người");
+  });
+});
+
+describe("shared by me scope line (SW-V2, SW-V4)", () => {
+  it("shows the plain home-workspace scope on the narrow line only on Shared by me", () => {
+    renderList([doc("a", "A.docx", { visibility: "workspace", share_scope: SCOPE_HOME })], {}, { sharedByMe: true });
+    const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;
+    const badge = within(line).getByTestId("document-share-scope-badge");
+    expect(badge.textContent).toBe("Workspace");
+    expect(badge.getAttribute("data-scope-kind")).toBe("workspace");
+  });
+
+  it("keeps the plain home-workspace scope off the narrow line on the other views", () => {
+    renderList([doc("a", "A.docx", { visibility: "workspace", share_scope: SCOPE_HOME })]);
+    const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;
+    expect(within(line).queryByTestId("document-share-scope-badge")).toBeNull();
+  });
+
+  it("points the name button's aria-describedby at the scope composition (SW-V4)", () => {
+    renderList([
+      doc("a", "Kế hoạch Q4", {
+        share_scope: { users: 2, home_workspace: true, workspaces: 0, organization: false, public_link: false },
+      }),
+    ]);
+    const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
+    const nameButton = within(row).getAllByRole("button")[0]!;
+    // The composition is a description, not part of the accessible name (R3-03).
+    expect(nameButton).toHaveAccessibleName(/Kế hoạch Q4/);
+    expect(nameButton).not.toHaveAccessibleName(/Workspace · 2 người/);
+    const descId = nameButton.getAttribute("aria-describedby");
+    expect(descId).toBeTruthy();
+    expect(document.getElementById(descId!)?.textContent).toBe("Workspace · 2 người");
+  });
+
+  it("exposes the scope composition to sighted keyboard/touch users in the ⋯ menu (SW-V4)", async () => {
+    renderList([
+      doc("a", "Kế hoạch Q4", {
+        share_scope: { users: 2, home_workspace: true, workspaces: 0, organization: false, public_link: false },
+      }),
+    ]);
+    await openMenu("a", "Kế hoạch Q4");
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByText("Workspace · 2 người")).toBeTruthy();
+  });
+
+  it("leaves a row without scope untouched: no describedby, no menu label (SW-V4)", async () => {
+    renderList([doc("a", "Kế hoạch Q4")]);
+    const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
+    const nameButton = within(row).getAllByRole("button")[0]!;
+    expect(nameButton.getAttribute("aria-describedby")).toBeNull();
+    await openMenu("a", "Kế hoạch Q4");
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByText(/người/)).toBeNull();
+  });
+
+  it("builds no scope composition for a plain home-workspace row off Shared by me, even with a resolved workspace name", async () => {
+    const workspace: Workspace = { id: "ws1", slug: "team", name: "Đội", organization_id: "org1", organization_slug: "acme", organization_name: "Acme" };
+    const sessionUser: User = {
+      id: "u1",
+      email: "an@acme.vn",
+      display_name: "An",
+      onboarded_at: "2026-08-25T00:00:00Z",
+      email_verified_at: "2026-08-25T00:00:00Z",
+      onboarding_questionnaire: {},
+      locale: "vi",
+    };
+    render(
+      <WorkspaceProvider workspace={workspace} user={sessionUser}>
+        <table>
+          <tbody>
+            <LibraryRowView row={documentRow(doc("a", "A.docx", { share_scope: SCOPE_HOME }))} handlers={handlers} ladder={libraryLadder()} />
+          </tbody>
+        </table>
+      </WorkspaceProvider>,
+    );
+    const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
+    expect(within(row).getAllByRole("button")[0]!.getAttribute("aria-describedby")).toBeNull();
+    await openMenu("a", "A.docx");
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByText(/Workspace|Đội/)).toBeNull();
   });
 });
 
@@ -281,6 +364,17 @@ describe("folder star menu (SV-4)", () => {
     expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.star") })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.unstar") })).toBeNull();
+  });
+});
+
+describe("trash vs archive icons", () => {
+  it("draws Move to trash with the trash icon and Archive with the archive icon on a document row", async () => {
+    renderList([doc("a", "A.docx", { my_level: "manage" })], { onArchive: vi.fn(), onShelve: vi.fn() });
+    await openMenu("a", "A.docx");
+    const trash = screen.getByRole("menuitem", { name: t("documents.home.row.archive") });
+    const shelve = screen.getByRole("menuitem", { name: t("documents.shelved_list.shelve") });
+    expect(trash.querySelector("svg.lucide-trash-2")).not.toBeNull();
+    expect(shelve.querySelector("svg.lucide-archive")).not.toBeNull();
   });
 });
 

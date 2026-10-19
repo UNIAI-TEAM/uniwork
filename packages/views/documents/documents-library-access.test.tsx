@@ -153,7 +153,7 @@ describe("access filter in the toolbar", () => {
     renderToolbar("all");
     const group = screen.getByRole("group", { name: t("documents.home.access_filter_label") });
     expect(ACCESS_FILTERS).toEqual(["all", "manage", "edit", "restricted"]);
-    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tất cả", "Tôi quản lý", "Tôi sửa được", "Hạn chế"]);
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tất cả", "Tôi quản lý", "Tôi sửa được", "Riêng tư"]);
     expect(within(group).getByRole("button", { name: "Tất cả" }).getAttribute("aria-pressed")).toBe("true");
     expect(within(group).getByRole("button", { name: "Tôi sửa được" }).getAttribute("aria-pressed")).toBe("false");
     // A visible caption sits before the group, and no divider is left to orphan when the groups wrap.

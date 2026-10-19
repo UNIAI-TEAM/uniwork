@@ -82,8 +82,8 @@ describe("vi/en parity", () => {
   });
 
   it("DOC-05 break-glass và thông báo document_break_glass có đủ bản vi/en đúng chuẩn", () => {
-    expect(VI["documents.breakGlass.lockedTitle"]).toBe("Tài liệu này ở chế độ hạn chế");
-    expect(EN["documents.breakGlass.lockedTitle"]).toBe("This document is restricted");
+    expect(VI["documents.breakGlass.lockedTitle"]).toBe("Tài liệu này là riêng tư");
+    expect(EN["documents.breakGlass.lockedTitle"]).toBe("This document is private");
     expect(VI["documents.breakGlass.reasonTooShort"]).toBe("Hãy nhập lý do ít nhất 10 ký tự.");
     expect(EN["documents.breakGlass.reasonTooShort"]).toBe(
       "Enter a reason of at least 10 characters.",
@@ -109,6 +109,19 @@ describe("vi/en parity", () => {
     );
     expect(EN["notifications.kindTitle.document_break_glass"]).toBe(
       "Emergency access to document",
+    );
+  });
+
+  it("trạng thái tài liệu riêng tư đọc là \"Riêng tư\"/\"Private\" ở mọi bề mặt, không còn \"Hạn chế\"/\"Restricted\"", () => {
+    expect(VI["documents.home.access_filters.restricted"]).toBe("Riêng tư");
+    expect(EN["documents.home.access_filters.restricted"]).toBe("Private");
+    expect(VI["documents.share.visibility_restricted"]).toBe("Riêng tư");
+    expect(EN["documents.share.visibility_restricted"]).toBe("Private");
+    expect(VI["org.members.transfer_docs.skipped_self_other"]).toBe(
+      "{{count}} tài liệu riêng tư không thể chuyển cho chính bạn.",
+    );
+    expect(EN["org.members.transfer_docs.skipped_self_other"]).toBe(
+      "{{count}} private documents can't be transferred to yourself.",
     );
   });
 });

@@ -4611,8 +4611,8 @@
         "done_other": "Transferred {{count}} documents to {{name}}.",
         "skipped_not_member_one": "{{count}} document in a workspace {{name}} hasn't joined wasn't transferred.",
         "skipped_not_member_other": "{{count}} documents in workspaces {{name}} hasn't joined weren't transferred.",
-        "skipped_self_one": "{{count}} restricted document can't be transferred to yourself.",
-        "skipped_self_other": "{{count}} restricted documents can't be transferred to yourself.",
+        "skipped_self_one": "{{count}} private document can't be transferred to yourself.",
+        "skipped_self_other": "{{count}} private documents can't be transferred to yourself.",
         "failed": "Couldn't transfer the documents. The account is deactivated; you can try again.",
         "failed_active": "Couldn't transfer the documents. You can try again.",
         "retry": "Try again",
@@ -9025,6 +9025,7 @@
       "versions": "Version history",
       "download_original": "Download original file",
       "upload_version": "Upload new version",
+      "print": "Print",
       "share": "Share",
       "access_log": "Access log",
       "copy": "Create a copy",
@@ -9087,7 +9088,7 @@
         "transfer_confirm": "Transfer",
         "transferred": "Ownership transferred to {{name}}",
         "target_not_member": "{{name}} isn't a member of this workspace, so they can't own this document.",
-        "self_transfer_error": "Admins can't take ownership of a restricted document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
+        "self_transfer_error": "Admins can't take ownership of a private document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
         "title_untitled": "Transfer document ownership",
         "search_placeholder": "Search workspace members",
         "no_candidates": "No other member can take this document.",
@@ -9185,12 +9186,13 @@
       "people_not_in_org_one": "Not shared: {{names}} is not in this organization. Remove them and try again.",
       "people_not_in_org_other": "Not shared: {{names}} are not in this organization. Remove them and try again.",
       "level_label": "Level",
+      "level_for": "Access level for {{name}}",
       "submit": "Share",
       "submitting": "Sharing…",
       "submit_failed": "Could not share. Check the principal and the level.",
       "grant_added": "Access updated.",
       "visibility_workspace": "Whole workspace",
-      "visibility_restricted": "Restricted",
+      "visibility_restricted": "Private",
       "links_title": "Public links",
       "links_description": "Anyone with the URL can read it, no sign-in needed.",
       "links_policy_enabled": "Your organization allows public links",
@@ -9571,8 +9573,8 @@
       "comment": "Comment"
     },
     "breakGlass": {
-      "lockedTitle": "This document is restricted",
-      "lockedBody": "Admins can manage this document, but can read its content only with emergency access.",
+      "lockedTitle": "This document is private",
+      "lockedBody": "Admins can manage this private document, but can read its content only with emergency access.",
       "openButton": "Open emergency access (24h)",
       "reasonLabel": "Reason for emergency access",
       "reasonHint": "The owner will be notified and this action is recorded in the audit log. View access expires after 24 hours.",
@@ -9589,7 +9591,7 @@
       "viaBreakGlass": "Emergency access",
       "selfShareError": "Admins can't grant themselves access through Share. Use Emergency access (24 hours, audited).",
       "memberTitle": "You need access to this document",
-      "memberBody": "This document is restricted. Contact the owner or a document manager to request access.",
+      "memberBody": "This document is private. Contact the owner or a document manager to request access.",
       "ownerLabel": "Owner: {{owner}}",
       "updatedLabel": "Updated {{time}}",
       "submitFailed": "Could not open emergency access. Try again.",
@@ -9680,7 +9682,7 @@
         "md": {
           "chip": "Markdown file",
           "hint": ".md",
-          "menu": "Markdown",
+          "menu": "Markdown file",
           "ext": ".md"
         },
         "html": {
@@ -9782,7 +9784,7 @@
         "all": "All",
         "manage": "I manage",
         "edit": "I can edit",
-        "restricted": "Restricted"
+        "restricted": "Private"
       },
       "access": {
         "view": "View only",

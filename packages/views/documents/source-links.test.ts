@@ -100,6 +100,10 @@ describe("sourceOpenAction", () => {
       file({ extension: "pdf", can_open_in_app: true }),
       file({ extension: "md", can_open_in_app: true }),
       file({ extension: "html", can_open_in_app: true }),
+      // UNI-1813: the server marks .txt openable only while office_txt_open is on.
+      file({ extension: "txt", can_open_in_app: true }),
+      file({ name: "ghi-chu.txt", extension: "", mime_type: "text/plain", can_open_in_app: true }),
+      file({ name: "README.TXT", extension: "", mime_type: "application/octet-stream", can_open_in_app: true }),
       file({ name: "Báo cáo.DOCX", extension: "", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", can_open_in_app: true }),
     ]) {
       expect(sourceOpenAction(f)).toBe("office");
@@ -117,6 +121,12 @@ describe("sourceOpenAction", () => {
       file({ extension: "md" }),
       file({ extension: "html" }),
       file({ extension: "zip", can_open_in_app: true }),
+      // A .txt source the server did not mark (flag off) still downloads, and a
+      // bare text/plain file that is not .txt never opens even when marked.
+      file({ extension: "txt" }),
+      file({ name: "ghi-chu.txt", mime_type: "text/plain" }),
+      file({ extension: "csv", can_open_in_app: true }),
+      file({ name: "app.log", mime_type: "text/plain", can_open_in_app: true }),
       file({ extension: "doc", can_open_in_app: true }),
       file({ can_open_in_app: true }),
       file(),

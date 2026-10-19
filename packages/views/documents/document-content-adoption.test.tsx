@@ -6,6 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { Document } from "@uniwork/core/types/document";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
+import "../test/lazy-document-editor";
 import { DocumentWorkspace } from "./document-workspace";
 
 const { t } = initI18n();

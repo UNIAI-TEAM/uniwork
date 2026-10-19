@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { Save } from "lucide-react";
+import { Printer, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { createOfficeFrameApi, createOfficeFrameSourceApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
@@ -11,6 +11,7 @@ import type { Document } from "@uniwork/core/types/document";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { HeaderActionsFill, useHeaderActionsSlotAvailable } from "../../layout/header-actions-slot";
@@ -262,10 +263,13 @@ export function OfficeModuleFrame({
   }, [controlsRef, print, save]);
 
   // Ctrl/Cmd+P while focus sits in the page (not the frame) prints the document, not the page.
+  // Focus inside the iframe is the frame's own document (UNI-1911): only the frame can hear
+  // Ctrl+P there, and the pinned md/html/sheets builds do not bind it — a fork follow-up.
   useEffect(() => {
     // The frame's own dialog is modal for the page: the page's shortcuts wait until it closes.
-    if (session.status !== "ready" || session.modal) return undefined;
+    if (session.status !== "ready" || session.modal || !session.canPrint) return undefined;
     const onKey = (event: KeyboardEvent) => {
+      if (event.repeat) return;
       if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
         void print();
@@ -273,7 +277,7 @@ export function OfficeModuleFrame({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [print, session.modal, session.status]);
+  }, [print, session.canPrint, session.modal, session.status]);
 
   // Unsaved edits: the in-app leave dialog, and the browser's own prompt on unload.
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -360,6 +364,27 @@ export function OfficeModuleFrame({
     [saveState, saveQuiet, saving, saveLabel, save, tRoot],
   );
 
+  // The page's overflow menu gains Print once the frame can answer it (UNI-1911): granted
+  // `print` and ready — a read-only user keeps it, a source viewer never mounts under a page
+  // header, and `!isSource` keeps it hidden even if one ever did. The same `print()` Ctrl+P
+  // calls, so the menu entry and Ctrl+P share the one `host.print` the session lets open at a
+  // time. The frame's own Print in Docs/Slides/PDF is an in-frame window.print, never
+  // `host.print`, but the browser print dialog is tab-modal, so it cannot stack a second one.
+  const printMenuItem = useMemo(() => {
+    if (!headerSlot || isSource || session.status !== "ready" || session.modal || !session.canPrint) return null;
+    return (
+      <DropdownMenuItem
+        className="gap-2 px-2 py-2"
+        disabled={session.printing}
+        onClick={() => void print()}
+        data-office-frame-print
+      >
+        {session.printing ? <Spinner className="size-3.5" /> : <Printer aria-hidden className="size-3.5" />}
+        {tRoot("documents.actions.print")}
+      </DropdownMenuItem>
+    );
+  }, [headerSlot, isSource, session.status, session.modal, session.canPrint, session.printing, print, tRoot]);
+
   // The server refused the token mint because the module's flag is off for this organization.
   const featureDisabled = session.failure?.details?.["apiCode"] === "feature_disabled";
   // `open_refused` from the frame (or Sheets `too_large` error) replaces the frame with the refusal notice.
@@ -404,6 +429,8 @@ export function OfficeModuleFrame({
         // The page header around the frame says whether the frame's edits are saved.
         <HeaderActionsFill actions={headerStatus} />
       ) : null}
+      {/* Print sits in the page's overflow menu; hidden until granted + ready (and while a frame dialog owns the page). */}
+      {printMenuItem ? <HeaderActionsFill menuItems={printMenuItem} /> : null}
       <FrameLagBanner
         open={lagOpen}
         onOpenApp={desktopOpen && !session.viewOnly ? () => { void appOpenRef.current?.(); } : undefined}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"path"
 	"strconv"
 	"time"
 
@@ -566,6 +567,18 @@ func (s *DocumentService) commitClaimedFileVersion(
 					Fields: map[string]any{"reason": "format_changed"}}
 			}
 			f.ContentType = current.MimeType.String
+		}
+		// A .txt document's engine output keeps the document's .txt name: the
+		// provider output carries no filename (FS-C1 §4), and text/plain is
+		// deliberately never mapped, so only the name can say .txt. Every other
+		// engine output resolves by its version mime and keeps the placeholder.
+		if job != nil && current != nil && current.FileID.Valid && path.Ext(f.Filename) == "" &&
+			files.NormalizeContentType(f.ContentType) == "text/plain" {
+			if base, rerr := resolveUpload(ctx, fs, scope, current.FileID.String); rerr == nil {
+				if name := s.versionFilename(ctx, locked, *current, base.Filename); isTxtFilename(name) {
+					f.Filename = name
+				}
+			}
 		}
 		if err := s.consumeStorage(ctx, q, actor, locked.OrganizationID, locked.WorkspaceID, f); err != nil {
 			return err

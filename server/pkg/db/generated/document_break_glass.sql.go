@@ -11,6 +11,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteDocumentBreakGlassGrants = `-- name: DeleteDocumentBreakGlassGrants :exec
+DELETE FROM document_break_glass_grants
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+`
+
+type DeleteDocumentBreakGlassGrantsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+// The purge deletes a document's grants with it: this table has no sweeper of
+// its own, so a live grant of a document that no longer exists would stay
+// forever and enter the tenant export (RETENTION-01, UNI-1904). Runs in the
+// purge transaction, next to the document's other dependent rows; no audit of
+// its own, the document.deleted row already records the deletion.
+func (q *Queries) DeleteDocumentBreakGlassGrants(ctx context.Context, arg DeleteDocumentBreakGlassGrantsParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentBreakGlassGrants, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	return err
+}
+
 const getDocumentBreakGlassGrant = `-- name: GetDocumentBreakGlassGrant :one
 SELECT id, organization_id, workspace_id, document_id, actor_id, actor_kind, level, reason, granted_at, expires_at, revoked_at, revoked_by
 FROM document_break_glass_grants
@@ -191,6 +214,39 @@ func (q *Queries) RevokeDocumentBreakGlassGrant(ctx context.Context, arg RevokeD
 		arg.WorkspaceID,
 		arg.DocumentID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const sweepDocumentBreakGlassGrants = `-- name: SweepDocumentBreakGlassGrants :execrows
+DELETE FROM document_break_glass_grants
+WHERE id IN (
+  SELECT g.id FROM document_break_glass_grants g
+  WHERE (g.revoked_at IS NOT NULL AND g.revoked_at < $1::timestamptz)
+     OR g.expires_at < $1::timestamptz
+  ORDER BY g.id
+  LIMIT $2
+  FOR UPDATE SKIP LOCKED
+)
+`
+
+type SweepDocumentBreakGlassGrantsParams struct {
+	Cutoff     pgtype.Timestamptz `json:"cutoff"`
+	BatchLimit int32              `json:"batch_limit"`
+}
+
+// Retention of ended grants (RETENTION-02, UNI-1921): an expired or revoked
+// grant is kept a window so a late revoke still answers its idempotent 200
+// from the row (GetDocumentBreakGlassGrant reads every state); past the window
+// that revoke answers not found, the documented consequence. Grants of a
+// purged document go with the document (DeleteDocumentBreakGlassGrants). The
+// window floor (breakGlassRetention > 0) is guarded in service code. No index
+// for now (row volume is admins x restricted documents).
+// tenant: system
+func (q *Queries) SweepDocumentBreakGlassGrants(ctx context.Context, arg SweepDocumentBreakGlassGrantsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepDocumentBreakGlassGrants, arg.Cutoff, arg.BatchLimit)
 	if err != nil {
 		return 0, err
 	}

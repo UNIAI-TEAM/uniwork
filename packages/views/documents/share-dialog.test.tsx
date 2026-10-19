@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
@@ -268,7 +268,7 @@ describe("ShareDialog", () => {
     expect(screen.getByText("Bình")).toBeInTheDocument();
     expect(screen.getByText("Design")).toBeInTheDocument();
     // A revoked/dead grant is marked, not hidden.
-    expect(screen.getByText(t("documents.share.inactive"))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(t("documents.share.inactive")))).toBeInTheDocument();
     // The effective level is shown when it differs from the grant's own level.
     expect(
       screen.getAllByText(new RegExp(t("documents.share.effective", { level: t("documents.share.level_edit") }))).length,
@@ -691,7 +691,7 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(`${t("documents.share.level_label")} Team`, t("documents.share.level_view"));
+    await pickOption(t("documents.share.level_for", { name: "Team" }), t("documents.share.level_view"));
 
     await waitFor(() => expect(puts.length).toBe(1));
     expect(puts[0]).toEqual({
@@ -718,7 +718,7 @@ describe("ShareDialog", () => {
     renderDialog();
     await screen.findByText(t("documents.share.access_title"));
 
-    await pickOption(`${t("documents.share.level_label")} Team`, t("documents.share.level_view"));
+    await pickOption(t("documents.share.level_for", { name: "Team" }), t("documents.share.level_view"));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("visibility failed");
   });
@@ -822,6 +822,21 @@ describe("ShareDialog", () => {
     const revokeButtons = within(links).getAllByRole("button", { name: new RegExp(`^${t("documents.share.link_revoke")}`) });
     fireEvent.click(revokeButtons[0]!);
     await waitFor(() => expect(calls).toContain("/api/v1/documents/d1/links/l1"));
+  });
+
+  it("does not open the people list when the dialog's initial focus lands on the picker", async () => {
+    // An open inline list collapses on the first pointer press elsewhere, so
+    // the revoke button below it moves away before the click completes.
+    renderDialog();
+    const input = await screen.findByRole("combobox", { name: t("documents.share.principal_placeholder") });
+    // The browser's dialog focus management does this; jsdom does not move focus on its own.
+    act(() => input.focus());
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    fireEvent.click(input);
+    expect(await screen.findByRole("listbox")).toBeInTheDocument();
   });
 
   it("offers the Comment level in the level picker and submits level='comment'", async () => {

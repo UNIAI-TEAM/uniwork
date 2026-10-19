@@ -23,12 +23,19 @@ const nextConfig = {
     NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION: frameVersions.docs ?? "",
     NEXT_PUBLIC_OFFICE_FRAME_VERSIONS: JSON.stringify(frameVersions),
   },
+  // The frame AI rewrite below proxies a turn that is one SSE body written only
+  // when the turn ends; Next cuts a silent upstream after experimental.proxyTimeout
+  // (default 30000), and the turn's budget is 55 s
+  // (server/internal/service/ai_uniwork.go UniworkDeadline), so the default would
+  // cut a slow real turn.
+  experimental: { proxyTimeout: 65000 },
   headers: async () => [
     ...officeFrameHeaderRules(framePins),
     { source: "/office-frame/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
   ],
   // The Markdown/HTML frames load a document's relative pictures and files from
-  // signed API byte routes; their CSP allows only 'self' (UNI-1232).
+  // signed API byte routes, and every frame calls its own AI routes; their CSP
+  // allows only 'self' (UNI-1232, UNI-1912).
   rewrites: async () => officeFrameAssetRewrites(),
 };
 export default nextConfig;

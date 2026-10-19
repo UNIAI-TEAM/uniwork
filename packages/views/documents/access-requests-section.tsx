@@ -144,6 +144,10 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
     }
   };
 
+  // null: the server has no access-requests route, so there is nothing to show
+  // (and nothing to retry).
+  if (requests.data === null) return null;
+
   return (
     <section aria-labelledby={titleId} className="rounded-lg border border-border">
       <div className="border-b border-border px-3 py-2">
@@ -228,7 +232,7 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
                   >
                     <SelectTrigger
                       className="w-32"
-                      aria-label={`${t("documents.share.level_label")} ${name}`}
+                      aria-label={t("documents.share.level_for", { name })}
                     >
                       <SelectValue />
                     </SelectTrigger>

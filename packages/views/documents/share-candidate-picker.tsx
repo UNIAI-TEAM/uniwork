@@ -292,7 +292,9 @@ export function ShareCandidatePicker({
           placeholder={t("documents.share.candidate_search")}
           value={query}
           disabled={disabled || atLimit}
-          onFocus={() => setDropdownOpen(true)}
+          // Not on focus: the dialog focuses this input when it opens, and an inline list
+          // that opened then collapses on the first press elsewhere, moving the control
+          // under the pointer before the click completes (UNI-1914).
           onClick={() => setDropdownOpen(true)}
           onChange={(event) => {
             onQueryChange(event.target.value);
@@ -407,13 +409,15 @@ export function ShareCandidatePicker({
                               {subtitle ? (
                                 <span className="truncate text-caption text-muted-foreground">{subtitle}</span>
                               ) : null}
+                              {/* TV2-03: the existing-access pill wraps under the name at narrow widths instead of taking half the option line. */}
+                              {candidate.direct_level ? (
+                                <Badge variant="outline" className="mt-0.5 w-fit shrink-0">
+                                  {t("documents.share.candidate_has_access", { level: levelLabel(candidate.direct_level) })}
+                                </Badge>
+                              ) : null}
                             </span>
                           </span>
-                          {candidate.direct_level ? (
-                            <Badge variant="outline" className="shrink-0">
-                              {t("documents.share.candidate_has_access", { level: levelLabel(candidate.direct_level) })}
-                            </Badge>
-                          ) : candidate.principal_type === "user" && alreadySharedSet.has(candidate.principal_id) ? (
+                          {candidate.direct_level ? null : candidate.principal_type === "user" && alreadySharedSet.has(candidate.principal_id) ? (
                             <span className="shrink-0 text-caption text-muted-foreground">
                               {t("documents.share.people_already_shared")}
                             </span>

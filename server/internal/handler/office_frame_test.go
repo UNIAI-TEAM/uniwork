@@ -415,3 +415,89 @@ func TestOfficeFrameCommitIdenticalBytesNoOp(t *testing.T) {
 		t.Fatalf("identical frame commit = %d %v, want revision %s url %s", res.StatusCode, saved, revision, download)
 	}
 }
+
+// TestOfficeFrameTxtOpenGateAndSaveRoundTrip (UNI-1813): a .txt document is
+// refused at capability and frame-token while office_txt_open is off (default);
+// once office_txt_open is on, it opens in the markdown module, a save round-trip
+// preserves filename ".txt" and mime_type "text/plain", and .csv / .log files
+// stay refused either way.
+func TestOfficeFrameTxtOpenGateAndSaveRoundTrip(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	txtID := w.createDocx(t, "ghi-chu.txt", []byte("dong 1\ndong 2\n"))
+	logID := w.createDocx(t, "server.log", []byte("a,b\n1,2\n"))
+
+	// Flag off (default): capability is 501 format_not_supported, frame-token is 404.
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+txtID+"/office/capabilities", w.token, nil)
+	if code, _ := errCodeClass(out); res.StatusCode != 501 || code != "unsupported_operation" {
+		t.Fatalf("flag-off .txt capability = %d %v", res.StatusCode, out)
+	}
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+txtID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
+		t.Fatalf("flag-off .txt mint = %d %v", res.StatusCode, out)
+	}
+
+	// Enable office_txt_open for the organization.
+	setOfficeFrameFlagFor(t, w.q, "office_txt_open", w.orgID, true)
+	t.Cleanup(func() { setOfficeFrameFlagFor(t, w.q, "office_txt_open", w.orgID, false) })
+
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+txtID+"/office/capabilities", w.token, nil)
+	if res.StatusCode != 200 || out["format"] != "md" {
+		t.Fatalf("flag-on .txt capability = %d %v", res.StatusCode, out)
+	}
+	// .log (text/plain) never opens even with office_txt_open enabled.
+	if res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+logID+"/office/capabilities", w.token, nil); res.StatusCode != 501 {
+		t.Fatalf("flag-on .log capability = %d %v", res.StatusCode, out)
+	}
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+logID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
+		t.Fatalf("flag-on .log mint = %d %v", res.StatusCode, out)
+	}
+
+	minted := w.mintFrameToken(t, txtID)
+	if minted["module"] != "markdown" {
+		t.Fatalf("minted module = %v, want markdown", minted["module"])
+	}
+	token := minted["token"].(string)
+	base := "/api/v1/office-frame/documents/" + txtID
+	res, opened := doJSON(t, w.srv, "GET", base, token, nil)
+	if res.StatusCode != 200 || opened["module"] != "markdown" {
+		t.Fatalf("open .txt = %d %v", res.StatusCode, opened)
+	}
+	file, _ := opened["file"].(map[string]any)
+	if file["filename"] != "ghi-chu.txt" || file["mime_type"] != "text/plain" {
+		t.Fatalf("open .txt file = %v", file)
+	}
+
+	// Save round-trip preserves .txt and text/plain.
+	edited := []byte("dong 1\ndong 2 moi\n")
+	res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", token, nil, "ghi-chu.txt", edited, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("upload .txt = %d %s", res.StatusCode, raw)
+	}
+	var up struct {
+		UploadID string `json:"upload_id"`
+	}
+	_ = json.Unmarshal(raw, &up)
+	res, saved := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token,
+		map[string]string{"Idempotency-Key": "txt-save-1"},
+		map[string]string{"upload_id": up.UploadID, "base_revision": opened["revision"].(string)})
+	if res.StatusCode != 200 {
+		t.Fatalf("commit .txt = %d %v", res.StatusCode, saved)
+	}
+	savedFile, _ := saved["file"].(map[string]any)
+	if savedFile["filename"] != "ghi-chu.txt" || savedFile["mime_type"] != "text/plain" || savedFile["version"].(float64) != 2 {
+		t.Fatalf("saved .txt file = %v", savedFile)
+	}
+
+	// Turning office_txt_open off closes existing frame tokens for .txt.
+	setOfficeFrameFlagFor(t, w.q, "office_txt_open", w.orgID, false)
+	if res, out := doJSON(t, w.srv, "GET", base, token, nil); res.StatusCode != 404 {
+		t.Fatalf("open .txt after flag off = %d %v", res.StatusCode, out)
+	}
+	if res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", token, nil, "ghi-chu.txt", edited, nil); res.StatusCode != 404 {
+		t.Fatalf("upload .txt after flag off = %d %s", res.StatusCode, raw)
+	}
+	if res, out := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token,
+		map[string]string{"Idempotency-Key": "txt-save-after-off"},
+		map[string]string{"upload_id": up.UploadID, "base_revision": saved["revision"].(string)}); res.StatusCode != 404 {
+		t.Fatalf("commit .txt after flag off = %d %v", res.StatusCode, out)
+	}
+}

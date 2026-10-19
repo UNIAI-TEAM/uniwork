@@ -4610,8 +4610,8 @@
         "done_other": "Đã chuyển {{count}} tài liệu cho {{name}}.",
         "skipped_not_member_one": "{{count}} tài liệu ở workspace mà {{name}} chưa tham gia chưa được chuyển.",
         "skipped_not_member_other": "{{count}} tài liệu ở workspace mà {{name}} chưa tham gia chưa được chuyển.",
-        "skipped_self_one": "{{count}} tài liệu hạn chế không thể chuyển cho chính bạn.",
-        "skipped_self_other": "{{count}} tài liệu hạn chế không thể chuyển cho chính bạn.",
+        "skipped_self_one": "{{count}} tài liệu riêng tư không thể chuyển cho chính bạn.",
+        "skipped_self_other": "{{count}} tài liệu riêng tư không thể chuyển cho chính bạn.",
         "failed": "Chưa chuyển được tài liệu. Tài khoản đã được vô hiệu hóa; bạn có thể thử lại.",
         "failed_active": "Chưa chuyển được tài liệu. Bạn có thể thử lại.",
         "retry": "Thử lại",
@@ -9020,6 +9020,7 @@
       "versions": "Lịch sử phiên bản",
       "download_original": "Tải tệp gốc",
       "upload_version": "Tải lên phiên bản mới",
+      "print": "In",
       "share": "Chia sẻ",
       "access_log": "Nhật ký truy cập",
       "copy": "Tạo bản sao",
@@ -9082,7 +9083,7 @@
         "transfer_confirm": "Chuyển",
         "transferred": "Đã chuyển quyền sở hữu cho {{name}}",
         "target_not_member": "{{name}} chưa là thành viên của workspace này nên không thể làm chủ sở hữu.",
-        "self_transfer_error": "Quản trị viên không thể tự nhận quyền sở hữu tài liệu hạn chế. Hãy nhờ một quản trị viên khác chuyển, hoặc mở truy cập khẩn cấp để kiểm tra.",
+        "self_transfer_error": "Quản trị viên không thể tự nhận quyền sở hữu tài liệu riêng tư. Hãy nhờ một quản trị viên khác chuyển, hoặc mở truy cập khẩn cấp để kiểm tra.",
         "title_untitled": "Chuyển quyền sở hữu tài liệu",
         "search_placeholder": "Tìm thành viên của workspace",
         "no_candidates": "Không có thành viên nào khác nhận được tài liệu này.",
@@ -9180,12 +9181,13 @@
       "people_not_in_org_one": "Không chia sẻ được: {{names}} không thuộc tổ chức này. Bỏ chọn rồi thử lại.",
       "people_not_in_org_other": "Không chia sẻ được: {{names}} không thuộc tổ chức này. Bỏ chọn rồi thử lại.",
       "level_label": "Mức quyền",
+      "level_for": "Mức quyền của {{name}}",
       "submit": "Chia sẻ",
       "submitting": "Đang chia sẻ…",
       "submit_failed": "Không chia sẻ được. Kiểm tra lại đối tượng và mức quyền.",
       "grant_added": "Đã cập nhật quyền.",
       "visibility_workspace": "Cả workspace",
-      "visibility_restricted": "Hạn chế",
+      "visibility_restricted": "Riêng tư",
       "links_title": "Liên kết công khai",
       "links_description": "Ai có URL đều xem được, không cần đăng nhập.",
       "links_policy_enabled": "Tổ chức cho phép liên kết công khai",
@@ -9565,8 +9567,8 @@
       "comment": "Bình luận"
     },
     "breakGlass": {
-      "lockedTitle": "Tài liệu này ở chế độ hạn chế",
-      "lockedBody": "Quản trị viên quản lý được tài liệu nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
+      "lockedTitle": "Tài liệu này là riêng tư",
+      "lockedBody": "Quản trị viên quản lý được tài liệu riêng tư này nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
       "openButton": "Mở truy cập khẩn cấp (24 giờ)",
       "reasonLabel": "Lý do truy cập khẩn cấp",
       "reasonHint": "Chủ tài liệu sẽ được thông báo và hành động này được ghi vào nhật ký kiểm toán. Quyền Xem hết hạn sau 24 giờ.",
@@ -9583,7 +9585,7 @@
       "viaBreakGlass": "Truy cập khẩn cấp",
       "selfShareError": "Quản trị viên không thể tự cấp quyền qua mục Chia sẻ. Hãy dùng Truy cập khẩn cấp (24 giờ, có ghi nhật ký).",
       "memberTitle": "Bạn cần quyền truy cập tài liệu này",
-      "memberBody": "Tài liệu này đang ở chế độ hạn chế. Hãy liên hệ chủ sở hữu hoặc người quản lý tài liệu để được cấp quyền.",
+      "memberBody": "Tài liệu này là riêng tư. Hãy liên hệ chủ sở hữu hoặc người quản lý tài liệu để được cấp quyền.",
       "ownerLabel": "Chủ sở hữu: {{owner}}",
       "updatedLabel": "Cập nhật {{time}}",
       "submitFailed": "Không mở được truy cập khẩn cấp. Thử lại.",
@@ -9674,7 +9676,7 @@
         "md": {
           "chip": "Tệp Markdown",
           "hint": ".md",
-          "menu": "Markdown",
+          "menu": "Tệp Markdown",
           "ext": ".md"
         },
         "html": {
@@ -9775,7 +9777,7 @@
         "all": "Tất cả",
         "manage": "Tôi quản lý",
         "edit": "Tôi sửa được",
-        "restricted": "Hạn chế"
+        "restricted": "Riêng tư"
       },
       "access": {
         "view": "Chỉ xem",

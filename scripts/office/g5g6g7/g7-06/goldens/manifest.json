@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-f6395d8",
-  "forkSha": "f6395d8",
-  "capturedOn": "2026-10-18T05:15:36.716Z",
+  "pinVersion": "0.1.0-5932073",
+  "forkSha": "5932073",
+  "capturedOn": "2026-10-18T18:41:42.140Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -60,7 +60,7 @@
       "masks": []
     },
     "web/fx-pdf-invoice-vi": {
-      "sha256": "3d85dcb298eae00da54d988d3bfc326e620f05c41f7dffdb2f2b486eba1d1497",
+      "sha256": "311838213c2f6914e82a689c1eed38c00a56905abc5c06a180b52f434c6fdb68",
       "masks": []
     },
     "web/fx-md-notes-vi": {
