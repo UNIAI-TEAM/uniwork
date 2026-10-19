@@ -3,21 +3,19 @@ import { officeFormats, type OfficeFormat } from "./formats.ts";
 import { engineOperations, type EngineOperation } from "./operations.ts";
 import { ENGINE_LIMITS } from "./limits.ts";
 import { EngineBoundaryError, EngineContractViolation } from "./errors.ts";
-import { decodeStrictBase64, sha256Hex } from "./canonical-json.ts";
 
 // Strict wire validation (engine-contract.md §5), ported from validateEnvelope
-// in engine-contract.mjs. Validation is async because measuring the input
-// checksum means hashing the decoded bytes (WebCrypto is the neutral hasher;
-// callers in Node may inject a synchronous hasher).
+// in engine-contract.mjs. Since protocol 2 (SIZE-OPS1) the envelope carries
+// only the input's declared tuple (input_checksum, input_length); the bytes
+// follow it in the framed body, and the host measures them while it streams
+// them (the engine refuses a digest or length that disagrees).
 //
 // Two failure classes are deliberate and both precede any job:
 //   * EngineContractViolation - the request does not satisfy the schema
-//     (unknown or caller-authority key, missing field, wrong type, declared
-//     value not even a safe non-negative integer).
-//   * EngineBoundaryError upload_* - schema-valid but the byte bound or the
-//     ACTUAL decoded bytes disagree with what was declared. A declared
-//     input_length already over the transport ceiling lands here too
-//     (size-cap:005): the refusal is the 413 byte bound, not a schema slip.
+//     (unknown or caller-authority key - input_bytes included -, missing
+//     field, wrong type, declared value not even a safe non-negative integer).
+//   * EngineBoundaryError upload_bounds - a declared input_length over the
+//     byte bound: the refusal is the 413 byte bound, not a schema slip.
 
 export const TRUSTED_ENGINE_VERSIONS = ["genoffice@09485f88+uniwork-office.0"] as const;
 
@@ -57,26 +55,25 @@ export const AUTHORITY_FIELDS = [
 /** Per-operation inbound payload allowlist. No operation inherits keys. */
 export const PAYLOAD_FIELDS: Record<EngineOperation, readonly string[]> = {
   capability: ["max_input_bytes"],
-  open: ["input_bytes", "input_checksum", "input_length", "base_revision", "base_version_id", "edits", "locale", "document_model_ref"],
-  edit: ["document_model_ref", "base_revision", "base_version_id", "edits", "input_bytes", "input_checksum", "input_length", "locale"],
-  serialize: ["document_model_ref", "base_revision", "base_version_id", "input_bytes", "input_checksum", "input_length"],
+  open: ["input_checksum", "input_length", "base_revision", "base_version_id", "edits", "locale", "document_model_ref"],
+  edit: ["document_model_ref", "base_revision", "base_version_id", "edits", "input_checksum", "input_length", "locale"],
+  serialize: ["document_model_ref", "base_revision", "base_version_id", "input_checksum", "input_length"],
   convert: [
     "source_version_id",
     "target_format",
     "overwrite_source",
     "options",
-    "input_bytes",
     "input_checksum",
     "input_length",
   ],
   // UNI-1013: export carries the bytes it renders like convert does - the
   // committed version, or the frame's unsaved edit of it - bound by the grant.
+  // (Every input tuple names bytes that ride the framed body, never the JSON.)
   export: [
     "source_version_id",
     "target_format",
     "overwrite_source",
     "options",
-    "input_bytes",
     "input_checksum",
     "input_length",
   ],
@@ -169,79 +166,39 @@ function requireNoAuthority(obj: unknown, fieldPath: string): Dict {
   return obj;
 }
 
-export interface MeasuredInput {
-  bytes: Uint8Array;
+/** The input tuple a protocol-2 envelope declares. The host measures the
+ * framed bytes against it; the grant binds the same pair. */
+export interface DeclaredInput {
   checksum: string;
   length: number;
 }
 
-export type Sha256HexFn = (bytes: Uint8Array) => string | Promise<string>;
-
-async function validateInputBytes(
+function validateInputTuple(
   payload: Dict,
   fieldPath: string,
-  { required = false, byteBound, hash = sha256Hex }: { required?: boolean; byteBound?: number; hash?: Sha256HexFn } = {},
-): Promise<MeasuredInput | null> {
+  { required = false, byteBound }: { required?: boolean; byteBound?: number } = {},
+): DeclaredInput | null {
   const bound = byteBound ?? ENGINE_LIMITS.max_input_bytes;
-  const hasBytes = Object.prototype.hasOwnProperty.call(payload, "input_bytes");
   const hasChecksum = Object.prototype.hasOwnProperty.call(payload, "input_checksum");
   const hasLength = Object.prototype.hasOwnProperty.call(payload, "input_length");
-  if (!hasBytes && !hasChecksum && !hasLength) {
+  if (!hasChecksum && !hasLength) {
     if (required) {
-      violation(fieldPath + ".input_bytes", "required", "this operation requires the caller to supply bytes");
+      violation(fieldPath + ".input_checksum", "required", "this operation requires the caller to supply bytes");
     }
     return null;
   }
-  if (!(hasBytes && hasChecksum && hasLength)) {
-    violation(
-      fieldPath,
-      "checksum_tuple_incomplete",
-      "input_bytes, input_checksum and input_length are validated together",
-    );
+  if (!(hasChecksum && hasLength)) {
+    violation(fieldPath, "checksum_tuple_incomplete", "input_checksum and input_length are validated together");
   }
-  // A DECLARED length past the transport ceiling is the byte bound itself,
-  // not a schema slip (size-cap:005): report it with the typed 413 before the
-  // checksum, the string check and the decode see a byte. Non-integer,
-  // negative or unsafe lengths stay contract violations.
-  const declaredLength = requireSafeInt(payload.input_length, fieldPath + ".input_length", { min: 0 });
-  if (declaredLength > bound) {
-    throw new EngineBoundaryError("upload_bounds", {
-      declared_length: declaredLength,
-      max_input_bytes: bound,
-    });
+  // A DECLARED length past the bound is the byte bound itself, not a schema
+  // slip (size-cap:005): the typed 413. Non-integer, negative or unsafe
+  // lengths stay contract violations.
+  const length = requireSafeInt(payload.input_length, fieldPath + ".input_length", { min: 0 });
+  if (length > bound) {
+    throw new EngineBoundaryError("upload_bounds", { declared_length: length, max_input_bytes: bound });
   }
-  const declaredChecksum = requireHex64(payload.input_checksum, fieldPath + ".input_checksum");
-  const text = requireString(payload.input_bytes, fieldPath + ".input_bytes", {
-    minLength: 0,
-    maxLength: ENGINE_LIMITS.max_output_bytes * 2,
-  });
-  let bytes: Uint8Array;
-  try {
-    bytes = decodeStrictBase64(text);
-  } catch (error) {
-    const code = (error as { code?: string }).code;
-    violation(fieldPath + ".input_bytes", code ?? "base64_alphabet", (error as Error).message);
-  }
-  if (bytes.length > bound) {
-    throw new EngineBoundaryError("upload_bounds", {
-      measured_length: bytes.length,
-      max_input_bytes: bound,
-    });
-  }
-  if (declaredLength !== bytes.length) {
-    throw new EngineBoundaryError("upload_checksum_mismatch", {
-      declared_length: declaredLength,
-      measured_length: bytes.length,
-    });
-  }
-  const measured = await hash(bytes);
-  if (declaredChecksum !== measured) {
-    throw new EngineBoundaryError("upload_checksum_mismatch", {
-      declared_checksum: declaredChecksum,
-      measured,
-    });
-  }
-  return { bytes, checksum: measured, length: bytes.length };
+  const checksum = requireHex64(payload.input_checksum, fieldPath + ".input_checksum");
+  return { checksum, length };
 }
 
 function validateEdits(edits: unknown): unknown[] {
@@ -262,7 +219,7 @@ export interface ValidatedEnvelope {
   operation: EngineOperation;
   format: OfficeFormat;
   deadlineMs: number | null;
-  inputs: MeasuredInput | null;
+  inputs: DeclaredInput | null;
   editCount?: number;
   targetFormat?: OfficeFormat;
   /** convert and export: the source version the grant must name as its base. */
@@ -272,22 +229,18 @@ export interface ValidatedEnvelope {
 /**
  * Validate an engine envelope BEFORE a grant or job is created. Returns the
  * borrowed values so a caller never re-derives them and never trusts its own
- * caller. Byte measurement (length + SHA-256) happens here on the DECODED
- * bytes, never on declared values.
+ * caller. The input tuple comes back as DECLARED: the host that receives the
+ * framed bytes measures them against it before a job exists.
  *
- * `opts.hash` lets a Node caller inject a synchronous SHA-256; the default is
- * WebCrypto, which keeps this package free of node: imports.
- *
- * `opts.inputByteBound` lets a host enforce a configured cap below the wire
- * ceiling (the engine's DOCUMENT_MAX_BYTES): the DECLARED length is refused
- * before the base64 decode reads a character, and the measured bound uses the
- * same value. Callers that omit it keep the transport ceiling.
+ * `opts.inputByteBound` lets a host enforce a configured cap below the
+ * contract ceiling (the engine's DOCUMENT_MAX_BYTES): a declared length over
+ * it is refused before a byte of input is read. Callers that omit it keep the
+ * contract ceiling.
  */
 export async function validateEnvelope(
   envelope: unknown,
-  opts: { hash?: Sha256HexFn; trustedEngineVersions?: readonly string[]; inputByteBound?: number } = {},
+  opts: { trustedEngineVersions?: readonly string[]; inputByteBound?: number } = {},
 ): Promise<ValidatedEnvelope> {
-  const hash = opts.hash ?? sha256Hex;
   const trusted = opts.trustedEngineVersions ?? TRUSTED_ENGINE_VERSIONS;
   const inputByteBound = opts.inputByteBound ?? ENGINE_LIMITS.max_input_bytes;
 
@@ -345,10 +298,9 @@ export async function validateEnvelope(
   if (operation === "open") {
     requireSafeInt(requireKey(p, "base_revision", "envelope.payload"), "envelope.payload.base_revision", { min: 0 });
     requireString(requireKey(p, "base_version_id", "envelope.payload"), "envelope.payload.base_version_id");
-    const inputs = await validateInputBytes(p, "envelope.payload", {
+    const inputs = validateInputTuple(p, "envelope.payload", {
       required: true,
       byteBound: inputByteBound,
-      hash,
     });
     if (p.locale !== undefined) requireString(p.locale, "envelope.payload.locale", { maxLength: 35 });
     if (p.edits !== undefined) validateEdits(p.edits);
@@ -370,18 +322,17 @@ export async function validateEnvelope(
       requireString(p.base_version_id, "envelope.payload.base_version_id");
     }
     if (p.locale !== undefined) requireString(p.locale, "envelope.payload.locale", { maxLength: 35 });
-    const inputs = await validateInputBytes(p, "envelope.payload", {
+    const inputs = validateInputTuple(p, "envelope.payload", {
       required: false,
       byteBound: inputByteBound,
-      hash,
     });
     return { operation, format, deadlineMs, inputs, editCount: edits.length };
   }
 
   if (operation === "convert") {
     // G2-07b binds the conversion source: like open/serialize, the source
-    // version's bytes ride the payload as a measured checksum tuple (the grant
-    // binds them), and target_format names the OOXML output. The source
+    // version's bytes ride the frame under a declared checksum tuple (the grant
+    // binds it), and target_format names the OOXML output. The source
     // version id is the grant's base: Go authorises converting exactly this
     // committed version.
     const sourceVersionId = requireString(
@@ -396,17 +347,16 @@ export async function validateEnvelope(
     if (p.overwrite_source !== undefined && p.overwrite_source !== false) {
       violation("envelope.payload.overwrite_source", "must_be_false", "Q7-B forbids overwriting the committed source");
     }
-    const inputs = await validateInputBytes(p, "envelope.payload", {
+    const inputs = validateInputTuple(p, "envelope.payload", {
       required: true,
       byteBound: inputByteBound,
-      hash,
     });
     return { operation, format, deadlineMs, targetFormat, sourceVersionId, inputs };
   }
 
   if (operation === "export") {
-    // UNI-1013 binds export like convert: the rendered bytes ride the payload
-    // as a measured tuple the grant binds, and the source version id is the
+    // UNI-1013 binds export like convert: the rendered bytes ride the frame
+    // under a declared tuple the grant binds, and the source version id is the
     // grant's base (the version the bytes were opened from).
     const sourceVersionId = requireString(
       requireKey(p, "source_version_id", "envelope.payload"),
@@ -420,10 +370,9 @@ export async function validateEnvelope(
     if (p.overwrite_source !== undefined && p.overwrite_source !== false) {
       violation("envelope.payload.overwrite_source", "must_be_false", "Q7-B forbids overwriting the committed source");
     }
-    const inputs = await validateInputBytes(p, "envelope.payload", {
+    const inputs = validateInputTuple(p, "envelope.payload", {
       required: true,
       byteBound: inputByteBound,
-      hash,
     });
     return { operation, format, deadlineMs, targetFormat, sourceVersionId, inputs };
   }
@@ -436,10 +385,9 @@ export async function validateEnvelope(
     if (p.base_version_id !== undefined) {
       requireString(p.base_version_id, "envelope.payload.base_version_id");
     }
-    const inputs = await validateInputBytes(p, "envelope.payload", {
+    const inputs = validateInputTuple(p, "envelope.payload", {
       required: false,
       byteBound: inputByteBound,
-      hash,
     });
     return { operation, format, deadlineMs, inputs };
   }

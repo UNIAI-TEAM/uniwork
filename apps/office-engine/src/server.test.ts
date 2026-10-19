@@ -1,16 +1,20 @@
-import { readFileSync } from "node:fs";
-import { once } from "node:events";
+import { createHash } from "node:crypto";
+import { createReadStream, readFileSync } from "node:fs";
 import { request, type ClientRequest } from "node:http";
-import type { Socket } from "node:net";
+import { join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PROVISIONAL_LIMITS } from "../src/index.ts";
-import { ENGINE_LIMITS } from "@uniwork/office-contracts";
+import { ENVELOPE_MAX_BYTES, OFFICE_JOB_CONTENT_TYPE } from "@uniwork/office-contracts";
 import { signGrant, type ServiceGrant } from "../src/grants.ts";
 import {
   call,
   errorCode,
   errorReason,
+  frame,
   GRANT_KEY,
+  jobDirs,
   makeGrant,
   makeJob,
   sha256,
@@ -19,6 +23,7 @@ import {
   submit,
   waitTerminal,
   type Harness,
+  type Job,
 } from "../test/harness.ts";
 
 let h: Harness;
@@ -138,7 +143,6 @@ describe("capability and unsupported operations", () => {
         document_model_ref: undefined,
         base_revision: undefined,
         base_version_id: undefined,
-        input_bytes: undefined,
         input_checksum: undefined,
         input_length: undefined,
         source_version_id: "ver-3",
@@ -299,9 +303,9 @@ describe("submit, status and output hand-off", () => {
     const token = signGrant(job.grant, GRANT_KEY);
     const envelope = {
       ...job.envelope,
-      payload: { ...(job.envelope.payload as object), input_bytes: bad.toString("base64"), input_checksum: sha256(bad), input_length: 3 },
+      payload: { ...(job.envelope.payload as object), input_checksum: sha256(bad), input_length: 3 },
     };
-    await submit(h, { token, envelope });
+    await submit(h, { token, envelope, bytes: bad });
     const done = await waitTerminal(h, { grant: job.grant, token });
     expect(done.body.error).toMatchObject({ code: "engine_result_invalid", reason: "invalid_utf8" });
   });
@@ -320,11 +324,10 @@ describe("input byte bounds (SIZE-S1)", () => {
 
   it("accepts an input above the old 50 MiB bound and completes end to end", { timeout: 120_000 }, async () => {
     // A document the server now accepts (50 MiB < size <= DOCUMENT_MAX_BYTES)
-    // must get past the body cap, the envelope bound and the service gate,
-    // and its output must PUT un-truncated past the 64 MiB read buffer. This
-    // is the suite's only big upload (~70 MB on the wire plus a real worker),
-    // so it keeps an explicit timeout above its waitTerminal budget instead
-    // of the 30 s default.
+    // must get past the frame bound and the service gate, and its output must
+    // PUT un-truncated past the 64 MiB read buffer. This is the suite's only
+    // big end-to-end job (a real worker), so it keeps an explicit timeout
+    // above its waitTerminal budget instead of the 30 s default.
     const bytes = Buffer.alloc(50 * MiB + 1, "a");
     const job = makeJob(h.target, { bytes, operation: "serialize", format: "md" });
     job.grant.output = bigGrant(h.target, job.grant.job_id);
@@ -337,125 +340,62 @@ describe("input byte bounds (SIZE-S1)", () => {
     expect(upload?.body.length).toBe(bytes.length);
   });
 
-  it("refuses an input over the document cap with upload_bounds and no job", async () => {
-    // The declared input_length is refused before the base64 decode reads a
-    // character (fix8): proving it needs the real DOCUMENT_MAX_BYTES cap,
-    // not 200 MiB of bytes on the wire — that cost used to exceed the 30 s
-    // default timeout on a 2-CPU VM because the refusal decoded and hashed
-    // the whole body against the 383 MiB transport ceiling first.
+  it("refuses a declared input_length over the document cap with upload_bounds and no job", async () => {
+    // The declared length is refused at envelope validation, before a byte of
+    // input is streamed: proving it needs the real cap, not 200 MiB on the wire.
     const job = makeJob(h.target, { text: "x" });
-    job.grant.output = bigGrant(h.target, job.grant.job_id);
-    job.token = signGrant(job.grant, GRANT_KEY);
     const envelope = {
       ...job.envelope,
-      payload: {
-        ...(job.envelope.payload as object),
-        input_length: 200 * MiB + 1,
-      },
+      payload: { ...(job.envelope.payload as object), input_length: 200 * MiB + 1 },
     };
-    const res = await submit(h, { token: job.token, envelope });
+    const res = await submit(h, { token: job.token, envelope, bytes: job.bytes });
     expect(res.status).toBe(413);
     expect(errorCode(res)).toBe("upload_bounds");
-    const err = res.body.error;
-    const maxBytes = err !== null && typeof err === "object" && "max_input_bytes" in err ? err.max_input_bytes : undefined;
-    expect(maxBytes).toBe(200 * MiB);
+    expect(res.body.error).toMatchObject({ max_input_bytes: 200 * MiB });
     const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
     expect(status.status).toBe(404);
   });
 
-  it("refuses decoded bytes over the configured cap as measured upload_bounds, no job", async () => {
-    // fix8: the measured bound is the configured cap too. A declared length
-    // inside the cap with actual bytes past it reaches the post-decode bound
-    // check (before the declared-vs-measured comparison), which answers the
-    // same typed 413 — pinned cheaply on a 64 KiB harness.
+  it("refuses a frame whose input part is over the configured cap before reading it", async () => {
+    // The frame's input length is Content-Length minus the envelope length:
+    // over the cap, the 413 goes out before a body byte is read.
     const h2 = await startHarness({ limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
     try {
       const bytes = Buffer.alloc(64 * 1024 + 1, "a");
       const job = makeJob(h2.target, { bytes, operation: "serialize", format: "md" });
-      const envelope = {
-        ...job.envelope,
-        payload: {
-          ...(job.envelope.payload as object),
-          input_length: 64 * 1024,
-        },
-      };
-      const res = await submit(h2, { token: job.token, envelope });
+      const { req, reply } = rawFramed(h2, job, { write: 0 });
+      const res = await reply;
+      req.destroy();
       expect(res.status).toBe(413);
-      expect(errorCode(res)).toBe("upload_bounds");
-      expect(res.body.error).toMatchObject({ measured_length: bytes.length, max_input_bytes: 64 * 1024 });
-      const status = await call(h2, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
-      expect(status.status).toBe(404);
+      expect(JSON.parse(res.body).error).toMatchObject({ code: "upload_bounds", max_input_bytes: 64 * 1024 });
+      expect(h2.service.jobs.inputBytesAdmitted).toBe(0);
     } finally {
       await h2.close();
     }
   });
 
-  it("refuses a body over the base64 envelope cap before buffering it", async () => {
-    // The envelope cap is ceil(input cap * 4/3) + 64 KiB: a body past it can
-    // only fail as upload_bounds, whatever it would have parsed to.
-    const bodyLimit = Math.ceil(((200 * MiB) * 4) / 3) + 64 * 1024;
-    const res = await call(h, "POST", "/v1/jobs", { rawBody: "x".repeat(bodyLimit + 1) });
+  it("refuses an envelope prefix over ENVELOPE_MAX_BYTES", async () => {
+    const json = rawSubmit(h, { contentLength: ENVELOPE_MAX_BYTES + 1, contentType: "application/json" });
+    const res = await json.reply;
+    json.req.destroy();
     expect(res.status).toBe(413);
-    expect(errorCode(res)).toBe("upload_bounds");
-  });
-
-  it("refuses a declared input_length over the transport ceiling with the typed 413, no job created", async () => {
-    // size-cap:005 + fix8: a body under the wire cap but declaring more than
-    // the 383 MiB engine ceiling gets upload_bounds, not contract_violation.
-    // The answer names the bound it was measured against — since fix8 that is
-    // the configured cap, which is below the ceiling.
-    const job = makeJob(h.target, { text: "x" });
-    const envelope = {
-      ...job.envelope,
-      payload: {
-        ...(job.envelope.payload as object),
-        input_bytes: Buffer.from("x").toString("base64"),
-        input_length: ENGINE_LIMITS.max_input_bytes + 1,
-      },
-    };
-    const res = await submit(h, { token: job.token, envelope });
-    expect(res.status).toBe(413);
-    expect(errorCode(res)).toBe("upload_bounds");
-    const err = res.body.error;
-    const maxBytes = err !== null && typeof err === "object" && "max_input_bytes" in err ? err.max_input_bytes : undefined;
-    expect(maxBytes).toBe(200 * MiB);
-    const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
-    expect(status.status).toBe(404);
-  });
-
-  it("lets a declared input_length at exactly the configured cap reach the checksum check - 409, never upload_bounds", async () => {
-    // R4-1 pin (size-cap:005), re-anchored by fix8 to the effective bound:
-    // the comparison is strict, so declaring the configured cap itself is
-    // NOT a 413 — the one-byte real payload then fails as
-    // upload_checksum_mismatch, and no job exists.
-    const job = makeJob(h.target, { text: "x" });
-    const envelope = {
-      ...job.envelope,
-      payload: {
-        ...(job.envelope.payload as object),
-        input_bytes: Buffer.from("x").toString("base64"),
-        input_length: 200 * MiB,
-      },
-    };
-    const res = await submit(h, { token: job.token, envelope });
-    expect(res.status).toBe(409);
-    expect(errorCode(res)).toBe("upload_checksum_mismatch");
-    const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
-    expect(status.status).toBe(404);
+    expect(JSON.parse(res.body).error.code).toBe("upload_bounds");
+    const framed = rawSubmit(h, {
+      contentLength: ENVELOPE_MAX_BYTES + 2,
+      contentType: OFFICE_JOB_CONTENT_TYPE,
+      envelopeLength: String(ENVELOPE_MAX_BYTES + 1),
+    });
+    const res2 = await framed.reply;
+    framed.req.destroy();
+    expect(res2.status).toBe(400);
+    expect(JSON.parse(res2.body).error).toMatchObject({ code: "contract_violation", rule: "framing" });
   });
 
   it("refuses a negative declared input_length as a contract violation, no job created", async () => {
     // R4-1 pin: -1 is a wire violation (below_min), not a boundary refusal.
     const job = makeJob(h.target, { text: "x" });
-    const envelope = {
-      ...job.envelope,
-      payload: {
-        ...(job.envelope.payload as object),
-        input_bytes: Buffer.from("x").toString("base64"),
-        input_length: -1,
-      },
-    };
-    const res = await submit(h, { token: job.token, envelope });
+    const envelope = { ...job.envelope, payload: { ...(job.envelope.payload as object), input_length: -1 } };
+    const res = await submit(h, { token: job.token, envelope, bytes: job.bytes });
     expect(res.status).toBe(400);
     expect(errorCode(res)).toBe("contract_violation");
     const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
@@ -468,182 +408,285 @@ describe("input byte bounds (SIZE-S1)", () => {
     const job = makeJob(h.target, { text: "x" });
     const envelope = {
       ...job.envelope,
-      payload: {
-        ...(job.envelope.payload as object),
-        input_bytes: Buffer.from("x").toString("base64"),
-        input_length: Number.MAX_SAFE_INTEGER + 1,
-      },
+      payload: { ...(job.envelope.payload as object), input_length: Number.MAX_SAFE_INTEGER + 1 },
     };
-    const res = await submit(h, { token: job.token, envelope });
+    const res = await submit(h, { token: job.token, envelope, bytes: job.bytes });
     expect(res.status).toBe(400);
     expect(errorCode(res)).toBe("contract_violation");
     const status = await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token });
     expect(status.status).toBe(404);
   });
-
 });
 
-describe("submit body memory bound (SIZE-S1 fix3)", () => {
-  interface RawReply {
-    status: number;
-    retryAfter: string | undefined;
-    body: string;
-  }
-  interface RawSubmit {
-    req: ClientRequest;
-    reply: Promise<RawReply>;
-  }
-  /** A submit over a raw request: headers leave at once, the body is whatever
-      the test chooses to write (including nothing at all). */
-  function rawSubmit(
-    target: Harness,
-    opts: { contentLength?: number; chunked?: boolean; grant?: string } = {},
-  ): RawSubmit {
-    const headers: Record<string, string | number> = {
-      authorization: "Bearer " + SERVICE_TOKEN,
-      "content-type": "application/json",
-    };
-    if (opts.chunked) headers["transfer-encoding"] = "chunked";
-    else headers["content-length"] = opts.contentLength ?? 0;
-    if (opts.grant) headers["x-office-grant"] = opts.grant;
-    // Executor form: the tsconfig lib predates Promise.withResolvers.
-    let resolveReply!: (r: RawReply) => void;
-    const reply = new Promise<RawReply>((resolve) => (resolveReply = resolve));
-    const req = request(target.base + "/v1/jobs", { method: "POST", headers }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on("data", (c: Buffer) => chunks.push(c));
-      res.on("end", () =>
-        resolveReply({ status: res.statusCode ?? 0, retryAfter: res.headers["retry-after"] as string | undefined, body: Buffer.concat(chunks).toString("utf8") }),
-      );
-    });
-    req.on("error", () => resolveReply({ status: 0, retryAfter: undefined, body: "" }));
-    req.flushHeaders();
-    return { req, reply };
-  }
+interface RawReply {
+  status: number;
+  retryAfter: string | undefined;
+  body: string;
+}
+interface RawSubmit {
+  req: ClientRequest;
+  reply: Promise<RawReply>;
+}
 
-  it("refuses a declared over-cap body without ever reading the request stream", async () => {
-    const bodyLimit = Math.ceil(((200 * 1024 * 1024) * 4) / 3) + 64 * 1024;
-    const { reply } = rawSubmit(h, { contentLength: bodyLimit + 1 });
-    const res = await reply;
-    expect(res.status).toBe(413);
-    expect(JSON.parse(res.body).error.code).toBe("upload_bounds");
+/** A submit over a raw request: headers leave at once, the body is whatever
+    the test chooses to write (including nothing at all). */
+function rawSubmit(
+  target: Harness,
+  opts: { contentLength?: number; chunked?: boolean; grant?: string; contentType?: string; envelopeLength?: string } = {},
+): RawSubmit {
+  const headers: Record<string, string | number> = {
+    authorization: "Bearer " + SERVICE_TOKEN,
+    "content-type": opts.contentType ?? OFFICE_JOB_CONTENT_TYPE,
+  };
+  if (opts.envelopeLength !== undefined) headers["x-office-envelope-length"] = opts.envelopeLength;
+  if (opts.chunked) headers["transfer-encoding"] = "chunked";
+  else headers["content-length"] = opts.contentLength ?? 0;
+  if (opts.grant) headers["x-office-grant"] = opts.grant;
+  // Executor form: the tsconfig lib predates Promise.withResolvers.
+  let resolveReply!: (r: RawReply) => void;
+  const reply = new Promise<RawReply>((resolve) => (resolveReply = resolve));
+  const req = request(target.base + "/v1/jobs", { method: "POST", headers }, (res) => {
+    const chunks: Buffer[] = [];
+    res.on("data", (c: Buffer) => chunks.push(c));
+    res.on("end", () =>
+      resolveReply({ status: res.statusCode ?? 0, retryAfter: res.headers["retry-after"] as string | undefined, body: Buffer.concat(chunks).toString("utf8") }),
+    );
   });
+  req.on("error", () => resolveReply({ status: 0, retryAfter: undefined, body: "" }));
+  req.flushHeaders();
+  return { req, reply };
+}
 
-  it("refuses a chunked body over the cap with 413 and destroys the request", async () => {
-    const h2 = await startHarness({ limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
-    try {
-      const { req, reply } = rawSubmit(h2, { chunked: true });
-      const sock = (await once(req, "socket"))[0] as Socket;
-      const closed = once(sock, "close");
-      // Push well past the 152 KiB body cap; a socket the server tore down
-      // stops the loop, and a destroyed request may throw on write.
-      const chunk = Buffer.alloc(64 * 1024, "x");
-      for (let i = 0; i < 12 && !sock.destroyed; i++) {
-        try {
-          req.write(chunk);
-        } catch {
-          break;
-        }
+/** A framed submit that writes only the first `write` bytes of its frame
+    (all of it when omitted) and leaves the request open. */
+function rawFramed(target: Harness, job: Job, opts: { write?: number; chunked?: boolean } = {}): RawSubmit & { body: Buffer } {
+  const framed = frame(job.envelope, job.bytes);
+  const raw = rawSubmit(target, {
+    ...(opts.chunked ? { chunked: true } : { contentLength: framed.body.length }),
+    grant: job.token,
+    envelopeLength: framed.headers["x-office-envelope-length"],
+  });
+  const write = opts.write ?? framed.body.length;
+  if (write > 0) raw.req.write(framed.body.subarray(0, write));
+  return { ...raw, body: framed.body };
+}
+
+async function until(check: () => boolean | Promise<boolean>, timeoutMs = 10_000): Promise<void> {
+  const end = Date.now() + timeoutMs;
+  while (!(await check())) {
+    if (Date.now() > end) throw new Error("condition not met in " + timeoutMs + " ms");
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+describe("framed job transport (SIZE-OPS1)", () => {
+  const MiB = 1024 * 1024;
+
+  it("streams a 400 MiB framed input to the job dir with the right digest and a flat heap", { timeout: 240_000 }, async () => {
+    const size = 400 * MiB;
+    const h2 = await startHarness({ maxWorkers: 1, limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 512 * MiB, maxJobMs: 30_000 } });
+    // A generated stream, never a fixture: a sleeper line, then filler. The
+    // filler chunk is one shared buffer, so the client side holds no copies.
+    const head = Buffer.from("uniwork-fault:sleep 60000\n");
+    const filler = Buffer.alloc(MiB, "a");
+    function* chunks(): Generator<Buffer> {
+      yield head;
+      let left = size - head.length;
+      while (left > 0) {
+        const n = Math.min(left, filler.length);
+        yield n === filler.length ? filler : filler.subarray(0, n);
+        left -= n;
       }
-      const res = await reply;
-      expect(res.status).toBe(413);
-      expect(JSON.parse(res.body).error.code).toBe("upload_bounds");
-      await closed;
-    } finally {
-      await h2.close();
     }
-  });
-
-  it("holds at most maxWorkers submit bodies: the next answers 503 + Retry-After before reading it, then frees", async () => {
-    const h2 = await startHarness({ limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
-    try {
-      const jobFor = () => {
-        const j = makeJob(h2.target, { text: "held" });
-        return { j, body: JSON.stringify(j.envelope) };
-      };
-      // Three slow writers race two body slots. Each sends headers only: the
-      // refusal must arrive before a single body byte is read, so the refused
-      // writer is the first to settle — no timer needed.
-      const candidates = [jobFor(), jobFor(), jobFor()].map((made) => ({
-        job: made.j,
-        body: made.body,
-        ...rawSubmit(h2, { contentLength: made.body.length, grant: made.j.token }),
-        res: undefined as RawReply | undefined,
-      }));
-      for (const c of candidates) void c.reply.then((r) => (c.res = r));
-      const refused = await Promise.any(candidates.map((c) => c.reply));
-      expect(refused.status).toBe(503);
-      expect(JSON.parse(refused.body).error.code).toBe("engine_overloaded");
-      const retryAfter = Number(refused.retryAfter);
-      expect(Number.isFinite(retryAfter) && retryAfter >= 1 && retryAfter <= 5).toBe(true);
-      const metrics = await (await fetch(h2.base + "/metrics", { headers: { authorization: "Bearer " + SERVICE_TOKEN } })).text();
-      expect(metrics).toContain('office_engine_rejections_total{code="engine_overloaded"} 1');
-      const held = candidates.filter((c) => c.res === undefined);
-      expect(held).toHaveLength(2);
-      // Freeing one slot admits the next submit.
-      held[0]!.req.end(held[0]!.body);
-      expect((await held[0]!.reply).status).toBe(202);
-      const c = jobFor();
-      expect((await submit(h2, c.j)).status).toBe(202);
-      held[1]!.req.end(held[1]!.body);
-      expect((await held[1]!.reply).status).toBe(202);
-      await waitTerminal(h2, held[0]!.job);
-      await waitTerminal(h2, c.j);
-    } finally {
-      await h2.close();
-    }
-  });
-
-  it("keeps the body slot until the job hand-off: a submit parked in post-parse processing still refuses the next", async () => {
-    const h2 = await startHarness({ maxWorkers: 1, limits: { ...PROVISIONAL_LIMITS, maxInputBytes: 64 * 1024, maxJobMs: 30_000 } });
-    const jobFor = () => {
-      const j = makeJob(h2.target, { text: "held" });
-      return { j, body: JSON.stringify(j.envelope) };
-    };
+    const hasher = createHash("sha256");
+    for (const c of chunks()) hasher.update(c);
+    const checksum = hasher.digest("hex");
+    const job = makeJob(h2.target, { text: "", grant: { input: { checksum, length: size } } });
+    (job.envelope.payload as Record<string, unknown>).input_checksum = checksum;
+    (job.envelope.payload as Record<string, unknown>).input_length = size;
+    // Hash the input file at the job hand-off: the job holds a path, so the
+    // file must be complete and right before the job exists.
     const jobs = h2.service.jobs;
     const orig = jobs.submit.bind(jobs);
-    // Executor form: the tsconfig lib predates Promise.withResolvers.
-    let enteredResolve!: () => void;
-    const entered = new Promise<void>((r) => (enteredResolve = r));
-    let releaseGate!: () => void;
-    const gate = new Promise<void>((r) => (releaseGate = r));
-    // Park the first request at the hand-off point: everything after the body
-    // is parsed (grant, envelope validation + decode, fingerprint) sits inside
-    // it, so a held slot here proves the window is covered end to end.
-    let parked = false;
-    jobs.submit = ((jobReq: Parameters<typeof orig>[0]) => {
-      if (parked) return orig(jobReq);
-      parked = true;
-      enteredResolve();
-      return gate.then(() => orig(jobReq));
-    }) as typeof orig;
+    let onDisk: string | undefined;
+    jobs.submit = (async (jobReq: Parameters<typeof orig>[0]) => {
+      const dir = (jobReq as { inputDir?: string | null }).inputDir;
+      if (dir) {
+        const fileHash = createHash("sha256");
+        for await (const c of createReadStream(join(dir, "input.bin"))) fileHash.update(c as Buffer);
+        onDisk = fileHash.digest("hex");
+      }
+      return orig(jobReq);
+    }) as unknown as typeof orig;
     try {
-      const a = jobFor();
-      const first = rawSubmit(h2, { contentLength: a.body.length, grant: a.j.token });
-      first.req.end(a.body);
-      await entered;
-      // The first submit is still processing its decoded input: a second
-      // submit must be refused at the gate, never reaching the body read.
-      const b = jobFor();
-      const second = rawSubmit(h2, { contentLength: b.body.length, grant: b.j.token });
-      second.req.end(b.body);
-      const res = await second.reply;
-      expect(res.status).toBe(503);
-      expect(JSON.parse(res.body).error.code).toBe("engine_overloaded");
-      releaseGate();
-      expect((await first.reply).status).toBe(202);
-      await waitTerminal(h2, a.j);
+      const envelope = Buffer.from(JSON.stringify(job.envelope), "utf8");
+      global.gc?.();
+      const mem = () => {
+        const m = process.memoryUsage();
+        return m.heapUsed + m.arrayBuffers;
+      };
+      const before = mem();
+      let peak = before;
+      const sampler = setInterval(() => (peak = Math.max(peak, mem())), 10);
+      const raw = rawSubmit(h2, {
+        contentLength: envelope.length + size,
+        grant: job.token,
+        envelopeLength: String(envelope.length),
+      });
+      await pipeline(
+        Readable.from(
+          (function* () {
+            yield envelope;
+            yield* chunks();
+          })(),
+        ),
+        raw.req,
+      );
+      const res = await raw.reply;
+      clearInterval(sampler);
+      expect(res.status, res.body).toBe(202);
+      expect(onDisk).toBe(checksum);
+      expect(peak - before).toBeLessThan(64 * MiB);
+      await call(h2, "POST", "/v1/jobs/" + job.grant.job_id + "/cancel", { grant: job.token });
+      await waitTerminal(h2, job);
+      await until(async () => jobs.inputBytesAdmitted === 0 && (await jobDirs(h2.tempRoot)).length === 0);
     } finally {
       jobs.submit = orig;
-      releaseGate();
       await h2.close();
     }
   });
 
-  it("still accepts a chunked submit whose body parses", async () => {
-    const j = makeJob(h.target, { text: "chunked-ok" });
+  it("refuses a wrong digest, a short frame and a long frame: no input file, budget back to 0", async () => {
+    const bytes = Buffer.from("framed input bytes");
+    const other = Buffer.from("framed input BYTES");
+    const wrongDigest = makeJob(h.target, { bytes });
+    const lie = await submit(h, { ...wrongDigest, bytes: other });
+    expect([lie.status, errorCode(lie)]).toEqual([409, "upload_checksum_mismatch"]);
+
+    const short = makeJob(h.target, { bytes });
+    const shortRes = await submit(h, { ...short, bytes: bytes.subarray(0, bytes.length - 1) });
+    expect(shortRes.status).toBe(400);
+    expect(shortRes.body.error).toMatchObject({ code: "contract_violation", rule: "framing" });
+
+    const long = makeJob(h.target, { bytes });
+    const longRes = await submit(h, { ...long, bytes: Buffer.concat([bytes, Buffer.from("+")]) });
+    expect(longRes.status).toBe(400);
+    expect(longRes.body.error).toMatchObject({ code: "contract_violation", rule: "framing" });
+
+    for (const job of [wrongDigest, short, long]) {
+      expect((await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token })).status).toBe(404);
+    }
+    expect(h.service.jobs.inputBytesAdmitted).toBe(0);
+    expect(await jobDirs(h.tempRoot)).toEqual([]);
+  });
+
+  it("budget: with room for one input, a second concurrent submit gets 503 input_budget before its body is read", async () => {
+    const bytes = Buffer.alloc(4096, "b");
+    const h2 = await startHarness({ inputBudgetBytes: bytes.length });
+    try {
+      const first = makeJob(h2.target, { bytes });
+      const held = rawFramed(h2, first, { write: 0 });
+      await until(() => h2.service.jobs.inputBytesAdmitted === bytes.length);
+      const second = makeJob(h2.target, { bytes });
+      const refused = rawFramed(h2, second, { write: 0 });
+      const res = await refused.reply;
+      refused.req.destroy();
+      expect(res.status).toBe(503);
+      expect(JSON.parse(res.body).error).toMatchObject({ code: "engine_overloaded", reason: "input_budget" });
+      expect(res.retryAfter).toBe("2");
+      held.req.end(held.body);
+      expect((await held.reply).status).toBe(202);
+      await waitTerminal(h2, first);
+      await until(() => h2.service.jobs.inputBytesAdmitted === 0);
+      // Once the first job's input is gone, the budget admits the next one.
+      const third = makeJob(h2.target, { bytes });
+      expect((await submit(h2, third)).status).toBe(202);
+      await waitTerminal(h2, third);
+    } finally {
+      await h2.close();
+    }
+  });
+
+  it("replays the same framed job: 200 replay, the body drained, one input file", async () => {
+    const bytes = Buffer.from("uniwork-fault:sleep 30000\n");
+    const job = makeJob(h.target, { bytes });
+    expect((await submit(h, job)).status).toBe(202);
+    const again = await submit(h, job);
+    expect(again.status).toBe(200);
+    expect(again.body).toMatchObject({ job_id: job.grant.job_id, replay: true });
+    expect(await jobDirs(h.tempRoot)).toHaveLength(1);
+    expect(h.service.jobs.inputBytesAdmitted).toBe(bytes.length);
+    await call(h, "POST", "/v1/jobs/" + job.grant.job_id + "/cancel", { grant: job.token });
+    await waitTerminal(h, job);
+    await until(async () => h.service.jobs.inputBytesAdmitted === 0 && (await jobDirs(h.tempRoot)).length === 0);
+  });
+
+  it("a cancelled queued job gives its input file and budget back", async () => {
+    const h2 = await startHarness({ maxWorkers: 1 });
+    try {
+      const running = makeJob(h2.target, { text: "uniwork-fault:sleep 30000\n" });
+      const queued = makeJob(h2.target, { text: "queued input" });
+      expect((await submit(h2, running)).status).toBe(202);
+      expect((await submit(h2, queued)).status).toBe(202);
+      expect(await jobDirs(h2.tempRoot)).toHaveLength(2);
+      await call(h2, "POST", "/v1/jobs/" + queued.grant.job_id + "/cancel", { grant: queued.token });
+      await until(async () => h2.service.jobs.inputBytesAdmitted === running.bytes.length && (await jobDirs(h2.tempRoot)).length === 1);
+      await call(h2, "POST", "/v1/jobs/" + running.grant.job_id + "/cancel", { grant: running.token });
+      await waitTerminal(h2, running);
+      await until(() => h2.service.jobs.inputBytesAdmitted === 0);
+    } finally {
+      await h2.close();
+    }
+  });
+
+  it("refuses input_bytes inside a protocol-2 envelope and a protocol-1 envelope", async () => {
+    const job = makeJob(h.target, { text: "p" });
+    const smuggled = {
+      ...job.envelope,
+      payload: { ...(job.envelope.payload as object), input_bytes: job.bytes.toString("base64") },
+    };
+    const res = await submit(h, { token: job.token, envelope: smuggled, bytes: job.bytes });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({ code: "contract_violation", field_path: "envelope.payload.input_bytes", rule: "unknown_field" });
+    const v1 = await submit(h, { token: job.token, envelope: { ...job.envelope, protocol_version: 1 }, bytes: job.bytes });
+    expect(v1.status).toBe(400);
+    expect(v1.body.error).toMatchObject({ code: "contract_violation", field_path: "envelope.protocol_version", rule: "must_equal" });
+    expect(h.service.jobs.inputBytesAdmitted).toBe(0);
+  });
+
+  it("a client abort mid-body leaves no job, no file and no budget", async () => {
+    const bytes = Buffer.alloc(256 * 1024, "c");
+    const job = makeJob(h.target, { bytes });
+    const framed = frame(job.envelope, bytes);
+    const envelopeLength = Number(framed.headers["x-office-envelope-length"]);
+    const half = rawFramed(h, job, { write: envelopeLength + bytes.length / 2 });
+    // The envelope passed every check once the input file exists.
+    await until(async () => (await jobDirs(h.tempRoot)).length === 1);
+    half.req.destroy();
+    await until(async () => h.service.jobs.inputBytesAdmitted === 0 && (await jobDirs(h.tempRoot)).length === 0);
+    expect((await call(h, "GET", "/v1/jobs/" + job.grant.job_id, { grant: job.token })).status).toBe(404);
+  });
+
+  it("refuses an input-bearing envelope sent as plain JSON with 415, and a chunked frame as framing", async () => {
+    const job = makeJob(h.target, { text: "json" });
+    const json = await call(h, "POST", "/v1/jobs", { grant: job.token, body: job.envelope });
+    expect(json.status).toBe(415);
+    expect(json.body.error).toMatchObject({ code: "contract_violation", rule: "content_type" });
+    const chunked = rawFramed(h, job, { chunked: true, write: 0 });
+    const res = await chunked.reply;
+    chunked.req.destroy();
+    expect(res.status).toBe(400);
+    expect(JSON.parse(res.body).error).toMatchObject({ code: "contract_violation", rule: "framing" });
+    expect(h.service.jobs.inputBytesAdmitted).toBe(0);
+  });
+
+  it("still accepts a chunked plain-JSON submit for a job without input", async () => {
+    const j = makeJob(h.target, { text: "", grant: { input: null } });
+    const payload = j.envelope.payload as Record<string, unknown>;
+    delete payload.input_checksum;
+    delete payload.input_length;
     const body = JSON.stringify(j.envelope);
-    const { req, reply } = rawSubmit(h, { chunked: true, grant: j.token });
+    const { req, reply } = rawSubmit(h, { chunked: true, grant: j.token, contentType: "application/json" });
     req.write(body.slice(0, 16));
     req.end(body.slice(16));
     expect((await reply).status).toBe(202);

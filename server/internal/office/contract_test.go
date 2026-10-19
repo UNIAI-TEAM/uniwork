@@ -41,7 +41,7 @@ func TestContractIdentityMatchesTypescript(t *testing.T) {
 	if ContractVersion != "uniwork-office-engine-contract/1" {
 		t.Fatalf("ContractVersion drifted: %q", ContractVersion)
 	}
-	if ProtocolVersion != 1 {
+	if ProtocolVersion != 2 {
 		t.Fatalf("ProtocolVersion drifted: %d", ProtocolVersion)
 	}
 }
@@ -107,8 +107,8 @@ func TestAuthorityFieldStaysRejectedByContract(t *testing.T) {
 		t.Fatalf("fixture drifted: %+v", expected)
 	}
 	payloadFields := map[string][]string{
-		"open":      {"input_bytes", "input_checksum", "input_length", "base_revision", "base_version_id", "edits", "locale", "document_model_ref"},
-		"serialize": {"document_model_ref", "base_revision", "base_version_id", "input_bytes", "input_checksum", "input_length"},
+		"open":      {"input_checksum", "input_length", "base_revision", "base_version_id", "edits", "locale", "document_model_ref"},
+		"serialize": {"document_model_ref", "base_revision", "base_version_id", "input_checksum", "input_length"},
 	}
 	authority := []string{"actor_id", "document_id", "organization_id", "workspace_id",
 		"output_object_key", "output_key", "object_key", "storage_key", "bucket",

@@ -7,8 +7,10 @@ import {
   ENGINE_LIMITS,
   ENGINE_PROTOCOL_VERSION,
   ENGINE_ERROR_CODES,
+  ENVELOPE_MAX_BYTES,
   EngineBoundaryError,
   EngineContractViolation,
+  PAYLOAD_FIELDS,
   canonicalJson,
   decodeStrictBase64,
   encodeBase64,
@@ -29,7 +31,9 @@ const sha256Sync = (bytes: Uint8Array) => createHash("sha256").update(bytes).dig
 describe("contract constants", () => {
   it("pins the G0 contract identity", () => {
     expect(ENGINE_CONTRACT_VERSION).toBe("uniwork-office-engine-contract/1");
-    expect(ENGINE_PROTOCOL_VERSION).toBe(1);
+    // SIZE-OPS1: protocol 2 moves the input bytes out of the JSON envelope
+    // into the framed body; a protocol-1 peer fails closed at negotiation.
+    expect(ENGINE_PROTOCOL_VERSION).toBe(2);
   });
 
   it("every error code carries the full spec", () => {
@@ -41,30 +45,32 @@ describe("contract constants", () => {
     }
   });
 
-  it("caps input at the 383 MiB JSON transport ceiling and output at the 2 GiB document cap", () => {
-    // SIZE-S1 (UNI-1859) + size-cap:005: output keeps the top of the
-    // DOCUMENT_MAX_BYTES range (2 GiB); input is bounded lower because a
-    // base64-in-JSON body can never exceed V8's string limit.
+  it("caps input and output at the 2 GiB document cap and the envelope prefix at 8 MiB", () => {
+    // SIZE-OPS1: the input rides the framed body as raw bytes, so no V8
+    // string bound applies any more; the JSON envelope prefix has its own cap.
     const TWO_GIB = 2 * 1024 * 1024 * 1024;
-    expect(ENGINE_LIMITS.max_input_bytes).toBe(401604608);
+    expect(ENGINE_LIMITS.max_input_bytes).toBe(TWO_GIB);
     expect(ENGINE_LIMITS.max_output_bytes).toBe(TWO_GIB);
+    expect(ENVELOPE_MAX_BYTES).toBe(8 * 1024 * 1024);
   });
 });
 
 describe("validateEnvelope", () => {
-  it("accepts the fixture open envelope and measures the bytes", async () => {
+  it("accepts the fixture open envelope and returns the declared input tuple", async () => {
     const fixture = loadFixture("envelope-open.v1.json");
-    const out = await validateEnvelope(fixture.value, { hash: sha256Sync });
+    const out = await validateEnvelope(fixture.value);
     expect(out.operation).toBe("open");
     expect(out.format).toBe("docx");
-    expect(out.inputs?.checksum).toBe("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
-    expect(out.inputs?.length).toBe(5);
+    expect(out.inputs).toEqual({
+      checksum: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      length: 5,
+    });
   });
 
   it("rejects a caller-authority-named field (fixture)", async () => {
     const fixture = loadFixture("envelope-authority-violation.v1.json");
     const expected = fixture.expected as { field_path: string; rule: string };
-    await expect(validateEnvelope(fixture.value, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(fixture.value)).rejects.toMatchObject({
       name: "EngineContractViolation",
       field_path: expected.field_path,
       rule: expected.rule,
@@ -74,22 +80,10 @@ describe("validateEnvelope", () => {
   it("rejects an untrusted engine build as engine_incompatible, not a schema slip", async () => {
     const fixture = loadFixture("envelope-open.v1.json") as { value: Record<string, unknown> };
     const envelope = { ...fixture.value, client_engine_version: "genoffice@deadbeef+local.0" };
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineBoundaryError",
       code: "engine_incompatible",
       retryable: false,
-    });
-  });
-
-  it("rejects a lying declared checksum as upload_checksum_mismatch", async () => {
-    const fixture = loadFixture("envelope-open.v1.json") as {
-      value: { payload: Record<string, unknown> };
-    };
-    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
-    envelope.payload.input_checksum = "0".repeat(64);
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
-      name: "EngineBoundaryError",
-      code: "upload_checksum_mismatch",
     });
   });
 
@@ -99,7 +93,7 @@ describe("validateEnvelope", () => {
     };
     const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
     delete envelope.payload.input_length;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineContractViolation",
       rule: "checksum_tuple_incomplete",
     });
@@ -119,7 +113,7 @@ describe("validateEnvelope", () => {
         overwrite_source: true,
       },
     };
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineContractViolation",
       field_path: "envelope.payload.overwrite_source",
       rule: "must_be_false",
@@ -132,7 +126,7 @@ describe("validateEnvelope", () => {
     };
     const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
     envelope.payload.surprise = 1;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineContractViolation",
       rule: "unknown_field",
     });
@@ -142,7 +136,7 @@ describe("validateEnvelope", () => {
     const fixture = loadFixture("envelope-open.v1.json") as { value: Record<string, unknown> };
     const envelope = structuredClone(fixture.value) as Record<string, unknown>;
     delete envelope.deadline_ms;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineContractViolation",
       field_path: "envelope.deadline_ms",
     });
@@ -155,7 +149,7 @@ describe("validateEnvelope", () => {
       format: "docx",
       payload: { job_id: "JOB00000000000000000000001" },
     };
-    const out = await validateEnvelope(cancel, { hash: sha256Sync });
+    const out = await validateEnvelope(cancel);
     expect(out.operation).toBe("cancel");
     expect(out.deadlineMs).toBeNull();
   });
@@ -168,60 +162,64 @@ describe("validateEnvelope", () => {
     };
     const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
     envelope.payload.input_length = ENGINE_LIMITS.max_input_bytes + 1;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineBoundaryError",
       code: "upload_bounds",
       fields: { max_input_bytes: ENGINE_LIMITS.max_input_bytes },
     });
   });
 
-  it("refuses a declared input_length over a host inputByteBound before the bytes are read", async () => {
-    // fix8 (SIZE-S1): the engine hands its configured cap to the validator,
-    // so a declared length over it is the typed 413 before the checksum, the
-    // string check or the decode touch input_bytes — proven by an alphabet-
-    // invalid body that must never reach the base64 checks.
+  it("refuses a declared input_length over a host inputByteBound", async () => {
+    // The engine hands its configured cap to the validator, so a declared
+    // length over it is the typed 413 before a body byte is streamed.
     const fixture = loadFixture("envelope-open.v1.json") as {
       value: { payload: Record<string, unknown> };
     };
     const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
-    envelope.payload.input_bytes = "%%%not-base64%%%";
     envelope.payload.input_length = 128;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync, inputByteBound: 64 })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope, { inputByteBound: 64 })).rejects.toMatchObject({
       name: "EngineBoundaryError",
       code: "upload_bounds",
-      fields: { max_input_bytes: 64 },
+      fields: { declared_length: 128, max_input_bytes: 64 },
     });
   });
 
-  it("refuses decoded bytes over a host inputByteBound with the measured length", async () => {
-    // fix8 (SIZE-S1): the same host bound applies after decode. A declared
-    // length inside the cap whose actual bytes cross it reaches the
-    // post-decode bound check (before the declared-vs-measured comparison):
-    // the fixture's real tuple is 5 bytes, declared as 4 against a 4-byte cap.
-    const fixture = loadFixture("envelope-open.v1.json") as {
-      value: { payload: Record<string, unknown> };
-    };
-    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
-    envelope.payload.input_length = 4;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync, inputByteBound: 4 })).rejects.toMatchObject({
-      name: "EngineBoundaryError",
-      code: "upload_bounds",
-      fields: { measured_length: 5, max_input_bytes: 4 },
-    });
-  });
-
-  it("lets a declared input_length at exactly the ceiling reach the checksum/length check, never upload_bounds", async () => {
-    // R4-1 pin (size-cap:005): the boundary is strict - declared == ceiling
-    // is NOT over, so a short real payload fails as upload_checksum_mismatch
-    // instead of the typed 413.
+  it("accepts a declared input_length at exactly the ceiling - the bound is strict", async () => {
     const fixture = loadFixture("envelope-open.v1.json") as {
       value: { payload: Record<string, unknown> };
     };
     const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
     envelope.payload.input_length = ENGINE_LIMITS.max_input_bytes;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
-      name: "EngineBoundaryError",
-      code: "upload_checksum_mismatch",
+    const out = await validateEnvelope(envelope);
+    expect(out.inputs?.length).toBe(ENGINE_LIMITS.max_input_bytes);
+  });
+
+  it("refuses input_bytes in a protocol-2 envelope: the bytes ride the framed body only", async () => {
+    const fixture = loadFixture("envelope-open.v1.json") as {
+      value: { payload: Record<string, unknown> };
+    };
+    const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
+    envelope.payload.input_bytes = "aGVsbG8=";
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.payload.input_bytes",
+      rule: "unknown_field",
+    });
+  });
+
+  it("no operation's payload allowlist names input_bytes", () => {
+    for (const [operation, fields] of Object.entries(PAYLOAD_FIELDS)) {
+      expect(fields, operation).not.toContain("input_bytes");
+    }
+  });
+
+  it("refuses a protocol-1 envelope with must_equal", async () => {
+    const fixture = loadFixture("envelope-open.v1.json") as { value: Record<string, unknown> };
+    const envelope = { ...structuredClone(fixture.value), protocol_version: 1 };
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
+      name: "EngineContractViolation",
+      field_path: "envelope.protocol_version",
+      rule: "must_equal",
     });
   });
 
@@ -233,7 +231,7 @@ describe("validateEnvelope", () => {
     };
     const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
     envelope.payload.input_length = -1;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineContractViolation",
       field_path: "envelope.payload.input_length",
       rule: "below_min",
@@ -248,7 +246,7 @@ describe("validateEnvelope", () => {
     };
     const envelope = structuredClone(fixture.value) as { payload: Record<string, unknown> };
     envelope.payload.input_length = Number.MAX_SAFE_INTEGER + 1;
-    await expect(validateEnvelope(envelope, { hash: sha256Sync })).rejects.toMatchObject({
+    await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineContractViolation",
       field_path: "envelope.payload.input_length",
       rule: "safe_integer_required",

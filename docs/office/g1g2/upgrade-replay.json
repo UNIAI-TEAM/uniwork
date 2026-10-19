@@ -3,7 +3,7 @@
   "note": "G2-07b (UNI-690). Committed-version shapes the pinned engine build must read back. Before ANY engine pin change: point OFFICE_ENGINE_TEST_URL at the candidate build, run TestDocumentOfficeUpgradeReplay, and only then add the candidate to office.ReadableEngineVersions and move engine_version here. scripts/office/integration.test.mjs fails when this pin and the Go/TS pin disagree.",
   "engine_version": "genoffice@09485f88+uniwork-office.0",
   "contract_version": "uniwork-office-engine-contract/1",
-  "protocol_version": 1,
+  "protocol_version": 2,
   "fixtures": [
     { "id": "F-DOCX-SIMPLE", "format": "docx", "replay": ["download"], "why": "no server-side docx handler in this build: recovery path only" },
     { "id": "F-PPTX-STD", "format": "pptx", "replay": ["download"], "why": "no server-side pptx handler in this build: recovery path only" },

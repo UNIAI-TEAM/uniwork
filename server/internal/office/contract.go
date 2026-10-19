@@ -14,9 +14,21 @@ import "encoding/json"
 // commit.
 const (
 	ContractVersion      = "uniwork-office-engine-contract/1"
-	ProtocolVersion      = 1
+	ProtocolVersion      = 2
 	WireFormat           = "snake_case"
 	TrustedEngineVersion = "genoffice@09485f88+uniwork-office.0"
+)
+
+// Protocol-2 job frame and contract byte ceilings (SIZE-OPS1), mirrors of
+// packages/office-contracts/src/limits.ts. A job with input is POSTed as
+// JobContentType: EnvelopeLengthHeader bytes of JSON envelope, then exactly
+// input_length raw input bytes, with Content-Length covering both.
+const (
+	JobContentType       = "application/vnd.uniwork.office-job"
+	EnvelopeLengthHeader = "X-Office-Envelope-Length"
+	EnvelopeMaxBytes     = 8 << 20
+	MaxInputBytes        = 2 << 30
+	MaxOutputBytes       = 2 << 30
 )
 
 // Format is a document format the boundary may be asked about.

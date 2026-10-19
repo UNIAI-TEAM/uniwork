@@ -95,19 +95,25 @@ describe("loadConfig", () => {
     ).toBe(4096);
   });
 
-  it("clamps the shared input cap to the engine transport ceiling but refuses an explicit override past it", () => {
-    // size-cap:005 (UNI-1859): the JSON transport can't carry a base64 input
-    // above 401604608 bytes, so the shared DOCUMENT_MAX_BYTES is clamped for
-    // input only — output keeps the server's byte-for-byte cap.
-    const clamped = loadConfig({ ...base, DOCUMENT_MAX_BYTES: "536870912" }, defaults);
-    expect(clamped.limits.maxInputBytes).toBe(401604608);
-    expect(clamped.limits.maxOutputBytes).toBe(536870912);
-    // The temp floor is computed from the clamped input: 383 MiB + 512 MiB + 64 MiB.
-    expect(clamped.limits.tempBytes).toBe(959 * 1024 * 1024);
-    expect(() => loadConfig({ ...base, OFFICE_ENGINE_MAX_INPUT_BYTES: "401604609" }, defaults)).toThrow(/OFFICE_ENGINE_MAX_INPUT_BYTES.*401604608/);
-    expect(loadConfig({ ...base, OFFICE_ENGINE_MAX_INPUT_BYTES: "401604608" }, defaults).limits.maxInputBytes).toBe(401604608);
-    // A shared cap under the ceiling is untouched.
-    expect(loadConfig({ ...base, DOCUMENT_MAX_BYTES: "209715200" }, defaults).limits.maxInputBytes).toBe(209715200);
+  it("takes a shared document cap above the old 383 MiB transport ceiling unclamped (SIZE-OPS1)", () => {
+    // Protocol 2 streams the input as raw bytes, so the input cap follows
+    // DOCUMENT_MAX_BYTES byte for byte, like the output cap.
+    const big = loadConfig({ ...base, DOCUMENT_MAX_BYTES: "536870912" }, defaults);
+    expect(big.limits.maxInputBytes).toBe(536870912);
+    expect(big.limits.maxOutputBytes).toBe(536870912);
+    expect(big.limits.tempBytes).toBe(1088 * 1024 * 1024);
+    expect(loadConfig({ ...base, OFFICE_ENGINE_MAX_INPUT_BYTES: "401604609" }, defaults).limits.maxInputBytes).toBe(401604609);
+    expect(() => loadConfig({ ...base, OFFICE_ENGINE_MAX_INPUT_BYTES: String(2 ** 31 + 1) }, defaults)).toThrow(/OFFICE_ENGINE_MAX_INPUT_BYTES/);
+  });
+
+  it("bounds admitted input bytes by OFFICE_ENGINE_INPUT_BUDGET_BYTES, default one max input per worker", () => {
+    expect(loadConfig(base, defaults).inputBudgetBytes).toBe(2 * 200 * 1024 * 1024);
+    expect(loadConfig({ ...base, OFFICE_ENGINE_MAX_WORKERS: "3" }, defaults).inputBudgetBytes).toBe(3 * 200 * 1024 * 1024);
+    expect(loadConfig({ ...base, OFFICE_ENGINE_INPUT_BUDGET_BYTES: String(300 * 1024 * 1024) }, defaults).inputBudgetBytes).toBe(300 * 1024 * 1024);
+    // A budget that cannot hold one max-size input would refuse every such job.
+    expect(() => loadConfig({ ...base, OFFICE_ENGINE_INPUT_BUDGET_BYTES: String(200 * 1024 * 1024 - 1) }, defaults)).toThrow(
+      /OFFICE_ENGINE_INPUT_BUDGET_BYTES/,
+    );
   });
 
   it("rejects a temp budget that cannot hold one job's input and output, and bad byte values", () => {

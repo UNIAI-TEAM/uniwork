@@ -38,6 +38,10 @@ export interface EngineServiceConfig {
   outputOrigins: readonly string[];
   maxWorkers: number;
   maxQueue: number;
+  /** Bound on input bytes admitted to disk at once: queued + running jobs plus
+   * uploads being received (OFFICE_ENGINE_INPUT_BUDGET_BYTES). The job dirs
+   * live under tempRoot, a tmpfs in the chart, so this is a memory bound. */
+  inputBudgetBytes: number;
   limits: JobLimits;
   /** Root under which each job gets its own private temp directory. */
   tempRoot: string;
@@ -120,12 +124,10 @@ function sharedDocumentMaxBytes(env: Record<string, string | undefined>, fallbac
 /** Per-job byte bound: the engine env wins, then the shared document cap
  *  (DOCUMENT_MAX_BYTES, the one value that also configures the server), then
  *  the provisional default. contractMax pins the top of the range the shared
- *  contract allows. An explicit engine value above contractMax refuses to
- *  start; the shared value is CLAMPED to it instead, so a document cap the
- *  transport cannot carry still boots with the tightest legal bound. */
+ *  contract allows; it equals the shared cap's own 2 GiB maximum. */
 function byteLimit(env: Record<string, string | undefined>, key: string, fallback: number, contractMax: number): number {
   const shared = env[key] === undefined || env[key] === "" ? env.DOCUMENT_MAX_BYTES : undefined;
-  if (shared !== undefined) return Math.min(sharedDocumentMaxBytes(env, fallback), contractMax);
+  if (shared !== undefined) return sharedDocumentMaxBytes(env, fallback);
   return positiveInt(env, key, fallback, contractMax);
 }
 
@@ -199,6 +201,12 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
       "OFFICE_ENGINE_TEMP_MB must be at least " + Math.ceil(tempFloorBytes / MiB) + " (input + output + 64 MiB headroom)",
     );
   }
+  // Unset, the budget holds one max-size input per worker slot; a budget below
+  // one input would refuse every job that size, so it refuses to start.
+  const inputBudgetBytes = positiveInt(env, "OFFICE_ENGINE_INPUT_BUDGET_BYTES", maxWorkers * maxInputBytes);
+  if (inputBudgetBytes < maxInputBytes) {
+    throw new ConfigError("OFFICE_ENGINE_INPUT_BUDGET_BYTES must be at least the input cap (" + maxInputBytes + ")");
+  }
   return {
     host: env.OFFICE_ENGINE_HOST ?? "0.0.0.0",
     port: positiveInt(env, "OFFICE_ENGINE_PORT", 8090, 65535),
@@ -207,6 +215,7 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
     outputOrigins: origins(env.OFFICE_ENGINE_OUTPUT_ORIGINS),
     maxWorkers,
     maxQueue: positiveInt(env, "OFFICE_ENGINE_MAX_QUEUE", 16, 4096),
+    inputBudgetBytes,
     limits: {
       maxJobMs: positiveInt(env, "OFFICE_ENGINE_MAX_JOB_MS", PROVISIONAL_LIMITS.maxJobMs, ENGINE_LIMITS.max_deadline_ms),
       cpuMs: positiveInt(env, "OFFICE_ENGINE_CPU_MS", PROVISIONAL_LIMITS.cpuMs, ENGINE_LIMITS.max_deadline_ms),

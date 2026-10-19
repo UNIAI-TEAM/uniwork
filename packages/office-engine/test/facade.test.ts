@@ -35,7 +35,7 @@ describe("office engine facade", () => {
     });
     expect(submitted[0]).toMatchObject({
       contract_version: "uniwork-office-engine-contract/1",
-      protocol_version: 1,
+      protocol_version: 2,
       operation: "capability",
       format: "xlsx",
     });
@@ -54,7 +54,6 @@ describe("office engine facade", () => {
         format: "docx",
         deadline_ms: 30000,
         payload: {
-          input_bytes: "aGVsbG8=",
           input_checksum: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
           input_length: 5,
           base_revision: 1,
