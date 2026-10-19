@@ -160,7 +160,7 @@ export function uniworkOption(frame: Frame): Locator {
 /**
  * Opens the picker popup and returns once the UniWork AI option is listed. The group's beforeAll has already proven
  * the frame token grants `uniwork_ai`, so a picker without the row is a failure of the pinned frame, never a skip:
- * the frame lists a provider with an empty model list since fork 7888df06c (in the pin since 0.1.0-fa22cd9; current pin 0.1.0-82c8381).
+ * the frame lists a provider with an empty model list since fork 7888df06c (in the pin since 0.1.0-fa22cd9; current pin 0.1.0-55b587b).
  */
 export async function openPicker(frame: Frame): Promise<void> {
   await openAiPanel(frame);
