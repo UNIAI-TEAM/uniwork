@@ -1,0 +1,10 @@
+$ pnpm typecheck > /tmp/tc361.log 2>&1; rc=$?; tail -8 /tmp/tc361.log; echo "TYPECHECK_EXIT=$rc"
+@uniwork/web:typecheck: > @uniwork/web@0.0.0 typecheck /workspace/apps/web
+@uniwork/web:typecheck: > tsc --noEmit
+@uniwork/web:typecheck: 
+
+ Tasks:    8 successful, 8 total
+Cached:    0 cached, 8 total
+  Time:    1m23.234s 
+
+TYPECHECK_EXIT=0

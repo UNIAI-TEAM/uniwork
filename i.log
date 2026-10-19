@@ -1,0 +1,2 @@
+$ pnpm lint > /tmp/lint361.log 2>&1; rc=$?; grep -E "error|✖" /tmp/lint361.log | head -15; echo "LINT_EXIT=$rc"
+LINT_EXIT=0

@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; true
+8bdff0490811c53f110d0350e49357db95c29fcd
+8bdff0490 chore: merge G5-G7 root fd8d8eebb (S-DOC07 + REPIN-2 + UNI-1964 harness) into the develop PR part 4
+f8a4b0099 test(chat): follow the context-menu message actions and clear the lint errors develop carries
+660d36ce3 fix(chat): type the message actions bind for React's MouseEvent
+5f95ae0e5 test(chat): repair the service chat tests red on develop
