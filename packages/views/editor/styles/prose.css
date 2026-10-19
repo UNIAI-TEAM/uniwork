@@ -432,6 +432,13 @@
   margin: 0 0.125rem;
 }
 
+/* The `?mention=1` deep link's two-second flash on the reader's own mention
+   (UNI-1968): the same soft tint trick as <mark>, so it reads in both themes. */
+.rich-text-editor .mention.is-mention-reveal {
+  background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+  border-radius: 0.2em;
+}
+
 /* Slash command pills */
 .rich-text-editor .slash-command {
   color: var(--primary);
