@@ -17,12 +17,14 @@ import (
 )
 
 type spySender struct {
-	sent []PushMessage
-	err  error
+	sent      []PushMessage
+	endpoints []string
+	err       error
 }
 
-func (s *spySender) Send(_ context.Context, _ db.PushSubscription, m PushMessage) error {
+func (s *spySender) Send(_ context.Context, sub db.PushSubscription, m PushMessage) error {
 	s.sent = append(s.sent, m)
+	s.endpoints = append(s.endpoints, sub.Endpoint)
 	return s.err
 }
 
