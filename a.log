@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK
+1b6d1dd6b555f3f37e6be04fe9c8d0065d509c93
+6f64a3f292ea7199cec91d8d26620fceeeae030d
+1b6d1dd6 merge: keyring chip helper + sheets-ai reset, test-only (FIX-CHIP-J, UNI-1930, defdbce73) into fork main
+6f64a3f2 merge: offline library boundary guard across store/manager awaits (FU-OFFLINE-SIGNOUT-RACE, UNI-1362, fbb43cb38) into fork main
+defdbce7 merge: fork main 82c8381e1 (UNI-1920, FU-PDFWEB-ISO) into feature/UNI-1930-fix-chip-j
+SYNCED_OK
