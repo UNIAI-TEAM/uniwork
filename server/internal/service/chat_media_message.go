@@ -27,6 +27,17 @@ var errChatFilesNotConfigured = errors.New("chat: files service is not configure
 // tests can plant filesfake.
 func (s *ChatService) SetFiles(f files.Service) { s.files = f }
 
+// SetDocuments installs the Documents service the document send files into
+// and the read path resolves the document block against (UNI-1966). It is the
+// SetTasks precedent: the command is refused with a 501-shaped error until
+// this runs, so a build that forgot the wiring fails closed instead of
+// half-working.
+func (s *ChatService) SetDocuments(docs *DocumentService) { s.docs = docs }
+
+// DocumentsService exposes the wired service for handler checks that must
+// refuse before reading a request body.
+func (s *ChatService) DocumentsService() *DocumentService { return s.docs }
+
 // FilesService exposes the wired service for handler checks that must refuse
 // before doing work (parity with the previous h.Storage nil check).
 func (s *ChatService) FilesService() files.Service { return s.files }

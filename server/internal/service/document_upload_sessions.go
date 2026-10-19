@@ -1121,9 +1121,9 @@ func (s *DocumentService) CreateFileDocumentFromUpload(ctx context.Context, acto
 	q := s.q.WithTx(tx)
 
 	docRes, _, err := s.createFileDocumentFromStagedUploadInTx(
-		ctx, q, fs, actor, orgID, workspaceID,
+		ctx, tx, q, fs, actor, orgID, workspaceID,
 		files.FileID(strings.TrimSpace(in.UploadID)),
-		in.Filename, in.Title, strings.TrimSpace(in.ParentID), in.Visibility,
+		in.Filename, in.Title, strings.TrimSpace(in.ParentID), strings.TrimSpace(in.Destination), in.Visibility,
 	)
 	if err != nil {
 		return DocumentFileResult{}, err
@@ -1136,12 +1136,13 @@ func (s *DocumentService) CreateFileDocumentFromUpload(ctx context.Context, acto
 
 func (s *DocumentService) createFileDocumentFromStagedUploadInTx(
 	ctx context.Context,
+	tx pgx.Tx,
 	q *db.Queries,
 	fs files.Service,
 	actor Actor,
 	orgID, workspaceID string,
 	fileID files.FileID,
-	fallbackFilename, rawTitle, parentID, rawVisibility string,
+	fallbackFilename, rawTitle, parentID, destination, rawVisibility string,
 ) (DocumentFileResult, files.File, error) {
 	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actor.ID); err != nil {
 		return DocumentFileResult{}, files.File{}, err
@@ -1160,6 +1161,18 @@ func (s *DocumentService) createFileDocumentFromStagedUploadInTx(
 
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentFileResult{}, files.File{}, err
+	}
+	// destination = "my_folder" files the new document in the caller's My
+	// Folder, the CreateFileDocument branch (UNI-1966): the folder is resolved
+	// inside this transaction, so a concurrent rename or move cannot race the
+	// create. ensureMyFolderInTx takes the tree lock itself, which is already
+	// held here, so it is the same lock taken twice.
+	if destination == DocumentSystemKindMyFolder {
+		mf, _, err := s.ensureMyFolderInTx(ctx, tx, q, actor, orgID, workspaceID)
+		if err != nil {
+			return DocumentFileResult{}, files.File{}, err
+		}
+		parentID = mf.ID
 	}
 	var parent *db.Document
 	if parentID != "" {
@@ -1278,8 +1291,8 @@ func (s *DocumentService) completeWorkspaceUploadSessionInTx(
 	}
 
 	docRes, file, err := s.createFileDocumentFromStagedUploadInTx(
-		ctx, q, fs, actor, sess.OrganizationID, sess.WorkspaceID,
-		stagedUp.File.ID, sess.Filename, sess.Title.String, sess.ParentID.String, sess.Visibility.String,
+		ctx, tx, q, fs, actor, sess.OrganizationID, sess.WorkspaceID,
+		stagedUp.File.ID, sess.Filename, sess.Title.String, sess.ParentID.String, "", sess.Visibility.String,
 	)
 	if err != nil {
 		return UploadSessionCompleteResult{}, err

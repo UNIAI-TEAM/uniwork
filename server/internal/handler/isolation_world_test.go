@@ -194,6 +194,10 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	// dispatcher does.
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
 	d.Documents = docs
+	// The chat document send files its bytes into the same Documents service
+	// (UNI-1966): without it the route answers 501 and the isolation row
+	// proves nothing.
+	d.Chat.SetDocuments(docs)
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
 	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
 	d.McpAuth.SetFlags(mcpTestFlags(true))

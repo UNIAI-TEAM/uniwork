@@ -35,14 +35,18 @@ func isWorkspaceDefaultRoom(room db.ChatRoom) bool {
 }
 
 type ChatService struct {
-	pool        *pgxpool.Pool
-	q           *db.Queries
-	ws          *WorkspaceService
-	pub         EventPublisher
-	tasks       *TaskService
-	conference  meetings.ConferenceProvider
-	ai          *ai.Gateway
-	files       files.Service
+	pool       *pgxpool.Pool
+	q          *db.Queries
+	ws         *WorkspaceService
+	pub        EventPublisher
+	tasks      *TaskService
+	conference meetings.ConferenceProvider
+	ai         *ai.Gateway
+	files      files.Service
+	// docs is the Documents service the document send and the viewer
+	// resolver use (UNI-1966): the bytes become a Document and the read path
+	// resolves each message's block against it. nil until SetDocuments.
+	docs        *DocumentService
 	TenorAPIKey string
 	// presenceTracker is installed by SetPresenceStore (chat_presence.go).
 	presenceTracker atomic.Pointer[presenceTracker]
@@ -99,8 +103,12 @@ type ChatMessageRow struct {
 	Reminder          *ChatReminderInfo
 	Note              *ChatNoteInfo
 	Post              *ChatPostInfo
-	Priority          string
-	EditedAt          *time.Time
+	// Document is the shared-document block on a document or
+	// document_version message (UNI-1966 §5): document_id always, the viewer
+	// fields filled by the batched resolver.
+	Document *DocumentMessageInfo
+	Priority string
+	EditedAt *time.Time
 	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
 	// its own queued copy without guessing from body and timestamp.
 	ClientMsgID string
@@ -345,7 +353,9 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID)), nil
+	row := s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID))
+	s.resolveChatDocuments(ctx, room, []ChatMessageRow{row}, userID)
+	return row, nil
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.
@@ -396,6 +406,7 @@ func (s *ChatService) listSignedMessages(
 		return nil, err
 	}
 	s.signChatMedia(ctx, room, rows)
+	s.resolveChatDocuments(ctx, room, rows, userID)
 	return rows, nil
 }
 

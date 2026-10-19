@@ -57,6 +57,11 @@ type ChatRoomSummary struct {
 	IsDefault             bool
 	// NotificationsMuted is the caller's own mute of this room (UNI-1697).
 	NotificationsMuted bool
+	// CanSendDocument is set on the room DETAIL read only (UNI-1966 L5): the
+	// caller may send a document here and the grantable audience is within one
+	// share batch. The room list never computes it - that would be a member
+	// read per list row.
+	CanSendDocument bool
 }
 
 type CreateGroupInput struct {
@@ -717,6 +722,22 @@ func (s *ChatService) roomSummaryWithPreview(
 	if err := s.attachLastMessagePreview(ctx, &summary, roomID, anchorWorkspaceID); err != nil {
 		return ChatRoomSummary{}, err
 	}
+	return summary, nil
+}
+
+// GetRoomSummary is the room DETAIL read (UNI-1966 L5): one room with
+// can_send_document, the one flag the composer needs before it offers the
+// document picker. The room list deliberately does not carry it.
+func (s *ChatService) GetRoomSummary(ctx context.Context, userID, workspaceID, roomID string) (ChatRoomSummary, error) {
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return ChatRoomSummary{}, err
+	}
+	summary, err := s.channelSummaryFromRoom(ctx, userID, room, 0)
+	if err != nil {
+		return ChatRoomSummary{}, err
+	}
+	summary.CanSendDocument = s.chatDocumentShareBatchCap(ctx, userID, room)
 	return summary, nil
 }
 

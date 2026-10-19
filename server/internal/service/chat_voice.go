@@ -803,6 +803,7 @@ func chatMessageRowFromMessageFields(
 		Reminder:         reminderFromMetadata(kind, meta),
 		Note:             noteFromMetadata(kind, meta, body),
 		Post:             postFromMetadata(kind, meta, body),
+		Document:         documentMessageFromMetadata(kind, metadata),
 		Priority:         priorityFromMetadata(meta),
 	}
 	if editedAt.Valid {
