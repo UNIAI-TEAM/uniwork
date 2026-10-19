@@ -2,11 +2,15 @@
 // Ionicons instead of SF symbols (Android has none). Four tabs of M1; the
 // MobileList board's bar: brand when active, the filled glyph on the active tab.
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs } from "expo-router";
 import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
+import { useChatWorkspace } from "@/components/chat/use-chat-workspace";
+import { unreadSummaryOptions } from "@/data/queries/chat";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
+import { badgeText, unreadForTabBadge } from "@/lib/workspace-unread";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -21,6 +25,9 @@ export default function TabsLayout() {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const { t } = useTranslation();
+  const chat = useChatWorkspace();
+  const summary = useQuery({ ...unreadSummaryOptions(), enabled: Boolean(chat) });
+  const chatBadge = chat ? badgeText(unreadForTabBadge(summary.data, chat.wsId)) : null;
 
   return (
     <Tabs
@@ -38,6 +45,10 @@ export default function TabsLayout() {
           name={tab.name}
           options={{
             title: t(tab.label),
+            // The MobileList board's red count on the Chat tab.
+            ...(tab.name === "chat" && chatBadge
+              ? { tabBarBadge: chatBadge, tabBarBadgeStyle: { backgroundColor: theme.destructiveSolid, color: theme.primaryForeground, fontSize: 11, fontWeight: "700" as const } }
+              : {}),
             tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? tab.icon : tab.iconOutline} size={size} color={color} />,
           }}
         />

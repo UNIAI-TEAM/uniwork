@@ -46,6 +46,16 @@ function serverUrl(name: "UNICHAT_API_URL" | "UNICHAT_APP_URL", env: AppEnv, dev
   throw new Error(`${name} is required when UNICHAT_ENV=${env}`);
 }
 
+const INTER = [400, 500, 600, 700, 800] as const;
+const JAKARTA = [400, 500, 600, 700, 800] as const;
+const WEIGHT_NAME: Record<number, string> = { 400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold" };
+const fontFile = (pkg: string, file: string, weight: number) => `node_modules/@expo-google-fonts/${pkg}/${weight}${WEIGHT_NAME[weight]}/${file}_${weight}${WEIGHT_NAME[weight]}.ttf`;
+const FONT_FAMILIES = [
+  { fontFamily: "Inter", fontDefinitions: INTER.map((weight) => ({ path: fontFile("inter", "Inter", weight), weight })) },
+  { fontFamily: "Plus Jakarta Sans", fontDefinitions: JAKARTA.map((weight) => ({ path: fontFile("plus-jakarta-sans", "PlusJakartaSans", weight), weight })) },
+];
+const FONT_FILES = FONT_FAMILIES.flatMap((family) => family.fontDefinitions.map((definition) => definition.path));
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const env = appEnv();
   const isProd = env === "production";
@@ -64,7 +74,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: isProd ? "UniChat" : isStaging ? "UniChat (Staging)" : "UniChat (Dev)",
     slug: "uniwork-chat",
-    version: "0.1.0",
+    version: "0.2.0",
     orientation: "portrait",
     userInterfaceStyle: "automatic",
     // The server allowlists both redirects for client uniwork-chat-mobile
@@ -118,6 +128,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       "expo-localization",
       "expo-web-browser",
       "expo-notifications",
+      // R4b (UNI-1916): the canvas types in Inter (body) and Plus Jakarta Sans
+      // (titles, names). Embedded natively so `fontFamily` + `fontWeight`
+      // resolve on both platforms without a runtime load.
+      ["expo-font", { ios: { fonts: FONT_FILES }, android: { fonts: FONT_FAMILIES } }],
       // SDK 57's scene runtime is required for Xcode 27 builds.
       ["expo-build-properties", { ios: { enableSceneSupport: true } }],
       // Every plugin that writes a usage string gets the same one: the last to

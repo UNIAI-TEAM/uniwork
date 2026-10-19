@@ -66,7 +66,7 @@ export function ReminderSheet({
         <SheetGrabber />
         <View className="mb-3 flex-row items-center gap-3">
           <TintTile tint="teal" icon="alarm-outline" size={36} iconSize={19} className="rounded-control" />
-          <Text className="flex-1 text-lg font-bold text-foreground" accessibilityRole="header">
+          <Text className="flex-1 text-lg font-display font-bold text-foreground" accessibilityRole="header">
             {t("chat.reminder_create_title")}
           </Text>
           <Pressable

@@ -13,12 +13,15 @@ import { CardPressable } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { api } from "@/data/api";
+import { unreadSummaryOptions } from "@/data/queries/chat";
 import { useAuthStore } from "@/data/auth/store";
 import { unregisterPushToken } from "@/data/push";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
+import { badgeText, unreadOfWorkspace } from "@/lib/workspace-unread";
+import { cn } from "@/lib/utils";
 
 export default function SelectWorkspace() {
   const { t } = useTranslation();
@@ -26,6 +29,7 @@ export default function SelectWorkspace() {
   const logout = useAuthStore((s) => s.logout);
   const setCurrent = useWorkspaceStore((s) => s.setCurrent);
   const { data, isLoading, error, refetch } = useQuery(workspaceListOptions());
+  const summary = useQuery(unreadSummaryOptions());
 
   const onSelect = async (ws: Workspace) => {
     await setCurrent({ orgSlug: ws.organization_slug, wsSlug: ws.slug, wsId: ws.id });
@@ -43,14 +47,15 @@ export default function SelectWorkspace() {
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView contentContainerClassName="gap-6 px-5 pb-6 pt-3">
         <View className="gap-2.5">
-          <Text accessibilityRole="header" className="text-[30px] font-extrabold leading-9 tracking-tight text-foreground">
+          <Text accessibilityRole="header" className="text-[30px] font-display font-extrabold leading-9 tracking-tight text-foreground">
             {t("workspace.pickTitle")}
           </Text>
           {organization ? (
             <View className="flex-row items-center gap-2">
-              <WorkspaceAvatar name={organization} size={24} />
-              <Text numberOfLines={1} className="flex-1 text-[15px] font-semibold text-foreground">
-                {organization}
+              <WorkspaceAvatar name={organization} size={24} seed={data?.[0]?.organization_id} />
+              <Text numberOfLines={1} className="flex-1 text-[15px] text-muted-foreground">
+                <Text className="text-[15px] font-semibold text-foreground">{organization}</Text>
+                {` · ${t("chat.mobile.workspace_count_only", { count: data?.length ?? 0 })}`}
               </Text>
             </View>
           ) : null}
@@ -70,26 +75,35 @@ export default function SelectWorkspace() {
           <Text className="text-sm text-muted-foreground">{t("common.empty")}</Text>
         ) : (
           <View className="gap-3">
-            {data.map((ws) => (
+            {data.map((ws) => {
+              const counts = unreadOfWorkspace(summary.data, ws.id);
+              const badge = badgeText(counts.unread);
+              return (
               <CardPressable
                 key={ws.id}
                 accessibilityRole="button"
-                accessibilityLabel={`${ws.name}, ${ws.organization_name}`}
-                className="min-h-[76px] flex-row items-center gap-3.5 py-3.5 pl-4 pr-3.5"
+                accessibilityLabel={[ws.name, ws.organization_name, counts.unread > 0 ? t("chat.mobile.workspace_unread", { count: counts.unread }) : null].filter(Boolean).join(", ")}
+                className="min-h-[76px] flex-row items-center gap-3.5 rounded-2xl py-3.5 pl-4 pr-3.5"
                 onPress={() => void onSelect(ws)}
               >
-                <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={48} />
+                <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={48} seed={ws.id} />
                 <View className="flex-1 gap-0.5">
-                  <Text numberOfLines={1} className="text-base font-bold text-foreground">
+                  <Text numberOfLines={1} className="text-base font-display font-bold text-foreground">
                     {ws.name}
                   </Text>
                   <Text numberOfLines={1} className="text-[13px] text-muted-foreground">
                     {ws.organization_name}
                   </Text>
                 </View>
+                {badge ? (
+                  <View className={cn("h-6 min-w-6 items-center justify-center rounded-full px-2", counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary")}>
+                    <Text className="text-xs font-display font-bold text-primary-foreground">{badge}</Text>
+                  </View>
+                ) : null}
                 <Ionicons name="chevron-forward" size={18} color={THEME[colorScheme].mutedForeground} />
               </CardPressable>
-            ))}
+              );
+            })}
           </View>
         )}
         <View className="border-t border-border pt-5">

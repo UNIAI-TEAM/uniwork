@@ -18,6 +18,7 @@ Thư mục này giữ bằng chứng của checklist trưởng thành. Ảnh, vi
 | [`security-review-2026-10-17.md`](security-review-2026-10-17.md) | Rà soát bảo mật hai app, server và workflow; phát hiện và bản sửa |
 | [`release-accounts.md`](release-accounts.md) | Tài khoản phát hành → tên khóa chính xác → nơi đặt |
 | [`go-no-go-template.md`](go-no-go-template.md) | Mẫu báo cáo một trang cho chủ sở hữu |
+| [`r4b-mobile/`](r4b-mobile/) | Ảnh simulator iPhone 16e (390×844) của app mobile sau đợt khớp canvas R4b (UNI-1916), sáng và tối; `00-tong-quan.jpg` là bảng gộp |
 | [`../../runbooks/unichat-pilot.md`](../../runbooks/unichat-pilot.md) | Runbook pilot: chuẩn bị, triage mỗi sáng, đo, điều kiện dừng |
 
 ## Checklist (spec Q1 §2 + epic UNI-1826)

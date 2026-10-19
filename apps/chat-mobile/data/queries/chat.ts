@@ -20,6 +20,13 @@ export const roomsOptions = (wsId: string) =>
     refetchOnReconnect: "always",
   });
 
+export const unreadSummaryOptions = () =>
+  queryOptions({
+    queryKey: chatKeys.unreadSummary(),
+    queryFn: ({ signal }) => chatApi.unreadSummary(signal),
+    refetchOnReconnect: "always",
+  });
+
 /**
  * One room's timeline (H4): older pages chain from the newest by cursor. The
  * list never advances the read pointer itself (mark_read=0); the screen marks
@@ -94,6 +101,12 @@ export const expressionsOptions = (wsId: string, kind: "stickers" | "gifs", q: s
 
 export const workspaceMembersOptions = (wsId: string) =>
   queryOptions({ queryKey: chatKeys.members(wsId), queryFn: () => chatApi.listWorkspaceMembers(wsId), staleTime: 5 * 60_000 });
+
+export const myChannelsOptions = (wsId: string) =>
+  queryOptions({ queryKey: chatKeys.myChannels(wsId), queryFn: () => chatApi.listChannels(wsId, "mine") });
+
+export const sharedSummaryOptions = (wsId: string, roomId: string) =>
+  queryOptions({ queryKey: chatKeys.sharedSummary(wsId, roomId), queryFn: ({ signal }) => chatApi.sharedSummary(wsId, roomId, signal) });
 
 export const discoverableChannelsOptions = (wsId: string) =>
   queryOptions({ queryKey: chatKeys.discoverableChannels(wsId), queryFn: () => chatApi.listChannels(wsId, "discoverable") });

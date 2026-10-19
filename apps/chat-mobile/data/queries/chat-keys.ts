@@ -3,6 +3,8 @@
 // right after "chat", so one workspace's chat drops with a single prefix.
 export const chatKeys = {
   rooms: (wsId: string) => ["chat", wsId, "rooms"] as const,
+  /** Unread per workspace for the signed-in person (every workspace at once: the switch and the pill badge). */
+  unreadSummary: () => ["chat", "unread-summary"] as const,
   /** One room's main timeline (`RoomTimeline`, patched in place by realtime and sends). */
   roomMessages: (wsId: string, roomId: string) => ["chat", wsId, "room-messages", roomId] as const,
   /** Prefix: every loaded room timeline of the workspace (reconnect). */
@@ -19,6 +21,9 @@ export const chatKeys = {
   roomMembers: (wsId: string, roomId: string) => ["chat", wsId, "room-members", roomId] as const,
   roomSearch: (wsId: string, roomId: string, q: string) => ["chat", wsId, "room-search", roomId, q] as const,
   discoverableChannels: (wsId: string) => ["chat", wsId, "channels", "discoverable"] as const,
+  /** The channels the reader is in, for the directory's "Đã tham gia" rows. */
+  myChannels: (wsId: string) => ["chat", wsId, "channels", "mine"] as const,
+  sharedSummary: (wsId: string, roomId: string) => ["chat", wsId, "shared-summary", roomId] as const,
   nicknames: (wsId: string) => ["chat", wsId, "nicknames"] as const,
   members: (wsId: string) => ["chat", wsId, "members"] as const,
   // M3 rich kinds.
