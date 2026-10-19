@@ -5,17 +5,29 @@
 -- name: AiInsertUsageEvent :one
 INSERT INTO ai_usage_events (
   id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id,
-  provider, model, status, reason_code, source_count, truncated, correlation_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+  provider, model, status, reason_code, source_count, truncated, correlation_id, run_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING *;
 
 -- name: AiFinishUsageEvent :one
 -- tenant: by-id
 UPDATE ai_usage_events SET
   status = $2, reason_code = $3, rate_id = $4, input_tokens = $5, output_tokens = $6,
-  cost_micros = $7, latency_ms = $8, tool_calls = $9, completed_at = now()
+  cost_micros = $7, latency_ms = $8, tool_calls = $9, completed_at = now(),
+  cache_read_tokens = $10, cache_write_tokens = $11
 WHERE id = $1
 RETURNING *;
+
+-- name: AiSumRunUsage :one
+-- What one Ask UNI run spent, across every call that carried its run id.
+SELECT COUNT(*)::bigint AS calls,
+  COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+  COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+  COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
+  COALESCE(SUM(cache_write_tokens), 0)::bigint AS cache_write_tokens,
+  COALESCE(SUM(cost_micros), 0)::bigint AS cost_micros
+FROM ai_usage_events
+WHERE organization_id = $1 AND run_id = sqlc.arg(run_id)::text;
 
 -- name: AiGetUsageEvent :one
 -- tenant: by-id

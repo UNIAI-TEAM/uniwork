@@ -69,21 +69,24 @@ func (q *Queries) AiDeleteMessages(ctx context.Context, conversationID string) e
 const aiFinishUsageEvent = `-- name: AiFinishUsageEvent :one
 UPDATE ai_usage_events SET
   status = $2, reason_code = $3, rate_id = $4, input_tokens = $5, output_tokens = $6,
-  cost_micros = $7, latency_ms = $8, tool_calls = $9, completed_at = now()
+  cost_micros = $7, latency_ms = $8, tool_calls = $9, completed_at = now(),
+  cache_read_tokens = $10, cache_write_tokens = $11
 WHERE id = $1
-RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at
+RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at, run_id, cache_read_tokens, cache_write_tokens
 `
 
 type AiFinishUsageEventParams struct {
-	ID           string      `json:"id"`
-	Status       string      `json:"status"`
-	ReasonCode   pgtype.Text `json:"reason_code"`
-	RateID       pgtype.Text `json:"rate_id"`
-	InputTokens  int32       `json:"input_tokens"`
-	OutputTokens int32       `json:"output_tokens"`
-	CostMicros   int64       `json:"cost_micros"`
-	LatencyMs    pgtype.Int4 `json:"latency_ms"`
-	ToolCalls    string      `json:"tool_calls"`
+	ID               string      `json:"id"`
+	Status           string      `json:"status"`
+	ReasonCode       pgtype.Text `json:"reason_code"`
+	RateID           pgtype.Text `json:"rate_id"`
+	InputTokens      int32       `json:"input_tokens"`
+	OutputTokens     int32       `json:"output_tokens"`
+	CostMicros       int64       `json:"cost_micros"`
+	LatencyMs        pgtype.Int4 `json:"latency_ms"`
+	ToolCalls        string      `json:"tool_calls"`
+	CacheReadTokens  int32       `json:"cache_read_tokens"`
+	CacheWriteTokens int32       `json:"cache_write_tokens"`
 }
 
 // tenant: by-id
@@ -98,6 +101,8 @@ func (q *Queries) AiFinishUsageEvent(ctx context.Context, arg AiFinishUsageEvent
 		arg.CostMicros,
 		arg.LatencyMs,
 		arg.ToolCalls,
+		arg.CacheReadTokens,
+		arg.CacheWriteTokens,
 	)
 	var i AiUsageEvent
 	err := row.Scan(
@@ -123,6 +128,9 @@ func (q *Queries) AiFinishUsageEvent(ctx context.Context, arg AiFinishUsageEvent
 		&i.CorrelationID,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.RunID,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
 	)
 	return i, err
 }
@@ -148,7 +156,7 @@ func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversat
 }
 
 const aiGetUsageEvent = `-- name: AiGetUsageEvent :one
-SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at FROM ai_usage_events WHERE id = $1
+SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at, run_id, cache_read_tokens, cache_write_tokens FROM ai_usage_events WHERE id = $1
 `
 
 // tenant: by-id
@@ -178,6 +186,9 @@ func (q *Queries) AiGetUsageEvent(ctx context.Context, id string) (AiUsageEvent,
 		&i.CorrelationID,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.RunID,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
 	)
 	return i, err
 }
@@ -267,9 +278,9 @@ const aiInsertUsageEvent = `-- name: AiInsertUsageEvent :one
 
 INSERT INTO ai_usage_events (
   id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id,
-  provider, model, status, reason_code, source_count, truncated, correlation_id
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at
+  provider, model, status, reason_code, source_count, truncated, correlation_id, run_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at, run_id, cache_read_tokens, cache_write_tokens
 `
 
 type AiInsertUsageEventParams struct {
@@ -287,6 +298,7 @@ type AiInsertUsageEventParams struct {
 	SourceCount    int32       `json:"source_count"`
 	Truncated      bool        `json:"truncated"`
 	CorrelationID  string      `json:"correlation_id"`
+	RunID          pgtype.Text `json:"run_id"`
 }
 
 // AI Gateway (F-09). Every query here is named Ai*: server/internal/arch_test.go
@@ -308,6 +320,7 @@ func (q *Queries) AiInsertUsageEvent(ctx context.Context, arg AiInsertUsageEvent
 		arg.SourceCount,
 		arg.Truncated,
 		arg.CorrelationID,
+		arg.RunID,
 	)
 	var i AiUsageEvent
 	err := row.Scan(
@@ -333,6 +346,9 @@ func (q *Queries) AiInsertUsageEvent(ctx context.Context, arg AiInsertUsageEvent
 		&i.CorrelationID,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.RunID,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
 	)
 	return i, err
 }
@@ -439,6 +455,46 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const aiSumRunUsage = `-- name: AiSumRunUsage :one
+SELECT COUNT(*)::bigint AS calls,
+  COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+  COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+  COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
+  COALESCE(SUM(cache_write_tokens), 0)::bigint AS cache_write_tokens,
+  COALESCE(SUM(cost_micros), 0)::bigint AS cost_micros
+FROM ai_usage_events
+WHERE organization_id = $1 AND run_id = $2::text
+`
+
+type AiSumRunUsageParams struct {
+	OrganizationID string `json:"organization_id"`
+	RunID          string `json:"run_id"`
+}
+
+type AiSumRunUsageRow struct {
+	Calls            int64 `json:"calls"`
+	InputTokens      int64 `json:"input_tokens"`
+	OutputTokens     int64 `json:"output_tokens"`
+	CacheReadTokens  int64 `json:"cache_read_tokens"`
+	CacheWriteTokens int64 `json:"cache_write_tokens"`
+	CostMicros       int64 `json:"cost_micros"`
+}
+
+// What one Ask UNI run spent, across every call that carried its run id.
+func (q *Queries) AiSumRunUsage(ctx context.Context, arg AiSumRunUsageParams) (AiSumRunUsageRow, error) {
+	row := q.db.QueryRow(ctx, aiSumRunUsage, arg.OrganizationID, arg.RunID)
+	var i AiSumRunUsageRow
+	err := row.Scan(
+		&i.Calls,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
+		&i.CostMicros,
+	)
+	return i, err
 }
 
 const aiTouchConversation = `-- name: AiTouchConversation :exec

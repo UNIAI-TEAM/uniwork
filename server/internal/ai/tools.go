@@ -46,7 +46,10 @@ type Tool struct {
 	Kind        ToolKind
 	Risk        RiskLevel
 	Schema      json.RawMessage
-	Handle      func(ctx context.Context, tc ToolContext, input json.RawMessage) (json.RawMessage, error)
+	// Strict asks the vendor to hold the model to Schema, which must then be
+	// strict-safe (every property required, no extras).
+	Strict bool
+	Handle func(ctx context.Context, tc ToolContext, input json.RawMessage) (json.RawMessage, error)
 	// Destructive marks a write that overwrites or removes what was there
 	// (MCP destructiveHint). Additive writes leave it false.
 	Destructive bool

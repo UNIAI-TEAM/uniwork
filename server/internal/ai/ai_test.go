@@ -579,7 +579,9 @@ func TestGatewayToolNotAllowed(t *testing.T) {
 		return provider.CompletionResponse{Text: "", ToolCalls: []provider.ToolCall{{Name: "delete_everything", Input: json.RawMessage(`{}`)}}, Model: "fake"}
 	}}
 	g, q := gatewayFixture(t, fp, &fakeQuota{})
-	req := askReq()
+	// A prompt with an output schema advertises no tools; the office pack has none.
+	req := Request{Actor: audit.User("u1"), OrganizationID: "org1", WorkspaceID: "ws1", Capability: CapOfficeUniworkAI,
+		PromptID: PromptOfficeUniworkAI, Module: "xlsx", History: []provider.Message{{Role: "user", Content: "q"}}}
 	req.Tools = Registry{{Name: "search_workspace", Kind: ToolRead, Risk: RiskLow}}
 	_, err := g.Complete(ctx, req)
 	if !errors.Is(err, ErrToolNotAllowed) {
@@ -1121,5 +1123,173 @@ func TestClaude55ModelsArePriced(t *testing.T) {
 		if r.InputMicrosPerMtok != w[0] || r.OutputMicrosPerMtok != w[1] {
 			t.Errorf("%s = %d/%d, want %d/%d", m, r.InputMicrosPerMtok, r.OutputMicrosPerMtok, w[0], w[1])
 		}
+	}
+}
+
+// ---- Ask UNI P1: model, effort, run id, continuation, cache, refusal -------
+
+func insertFakeRate(t *testing.T, q *db.Queries, model string, in, out int64) {
+	t.Helper()
+	if _, err := q.AiInsertRate(context.Background(), db.AiInsertRateParams{ID: util.NewID(), Provider: "fake", Model: model, InputMicrosPerMtok: in, OutputMicrosPerMtok: out, EffectiveAt: pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func okReply(provider.CompletionRequest) provider.CompletionResponse {
+	return provider.CompletionResponse{Text: "{}", UsagePresent: true, InputTokens: 1, OutputTokens: 1}
+}
+
+func TestGatewayUsesRequestedModelOnlyWhenAllowedAndPriced(t *testing.T) {
+	ctx := context.Background()
+	fp := &provider.Fake{Reply: okReply}
+	pool := testutil.DB(t)
+	if _, err := pool.Exec(ctx, "DELETE FROM ai_model_rates WHERE provider = 'fake'"); err != nil {
+		t.Fatal(err)
+	}
+	q := db.New(pool)
+	g := NewGateway(q, fp, nil, nil, Options{Timeout: time.Second, ExtraAllow: []string{"fake-b", "fake-c"}})
+	insertFakeRate(t, q, "fake-b", 1, 1)
+	for model, want := range map[string]string{"fake-b": "fake-b", "fake-c": "fake", "gpt-x": "fake", "": "fake"} {
+		req := askReq()
+		req.Model = model
+		if _, err := g.Complete(ctx, req); err != nil {
+			t.Fatal(err)
+		}
+		if fp.Last.Model != want {
+			t.Fatalf("Model %q: provider got %q, want %q", model, fp.Last.Model, want)
+		}
+	}
+	if !g.ModelSelectable(ctx, "fake-b") || g.ModelSelectable(ctx, "fake-c") || g.ModelSelectable(ctx, "gpt-x") {
+		t.Fatal("ModelSelectable")
+	}
+	if g.DefaultModel(CapCopilotAnswer) != "fake" {
+		t.Fatalf("DefaultModel %q", g.DefaultModel(CapCopilotAnswer))
+	}
+}
+
+func TestGatewayDropsUnknownEffort(t *testing.T) {
+	fp := &provider.Fake{Reply: okReply}
+	g, _ := gatewayFixture(t, fp, nil)
+	for effort, want := range map[string]string{"low": "low", "medium": "medium", "high": "high", "xhigh": "", "max": "", "": ""} {
+		req := askReq()
+		req.Effort = effort
+		if _, err := g.Complete(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+		if fp.Last.Effort != want {
+			t.Fatalf("Effort %q: provider got %q, want %q", effort, fp.Last.Effort, want)
+		}
+	}
+}
+
+func TestGatewayPricesCacheTokens(t *testing.T) {
+	ctx := context.Background()
+	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: "{}", Model: "fake", UsagePresent: true, InputTokens: 100, CacheReadTokens: 1000, CacheWriteTokens: 200, OutputTokens: 10}
+	}}
+	quota := &fakeQuota{}
+	g, q := gatewayFixture(t, fp, quota)
+	insertFakeRate(t, q, "fake", 1_000_000, 2_000_000)
+	resp, err := g.Complete(ctx, askReq())
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := q.AiGetUsageEvent(ctx, resp.UsageEventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.CostMicros != 470 || row.CacheReadTokens != 1000 || row.CacheWriteTokens != 200 || row.InputTokens != 100 {
+		t.Fatalf("%+v", row)
+	}
+	if len(quota.recorded) != 1 || quota.recorded[0].Tokens != 1310 {
+		t.Fatalf("quota %+v", quota.recorded)
+	}
+}
+
+func TestGatewayContinuationSendsHistoryAsIs(t *testing.T) {
+	ctx := context.Background()
+	fp := &provider.Fake{Reply: okReply}
+	g, q := gatewayFixture(t, fp, nil)
+	hist := []provider.Message{{Role: "user", Content: "q"}, {Role: "assistant", Content: "a"}, {Role: "user", Content: "reminder"}}
+	req := askReq()
+	req.Continuation, req.History, req.RunID = true, hist, "cont"
+	if _, err := g.Complete(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if len(fp.Last.Messages) != 3 || fp.Last.Messages[2].Content != "reminder" || fp.Last.Messages[1].Role != "assistant" {
+		t.Fatalf("messages %+v", fp.Last.Messages)
+	}
+	req.History = hist[:2]
+	if _, err := g.Complete(ctx, req); err == nil || !strings.Contains(err.Error(), "policy") {
+		t.Fatalf("err %v", err)
+	}
+	sum, err := q.AiSumRunUsage(ctx, db.AiSumRunUsageParams{OrganizationID: "org1", RunID: "cont"})
+	if err != nil || sum.Calls != 1 {
+		t.Fatalf("a refused continuation wrote a row: %+v %v", sum, err)
+	}
+}
+
+func TestGatewayRefusalIsPricedAndCoded(t *testing.T) {
+	ctx := context.Background()
+	fp := &provider.Fake{Err: provider.ErrRefused, Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Model: "fake", UsagePresent: true, InputTokens: 100, OutputTokens: 5}
+	}}
+	quota := &fakeQuota{}
+	g, q := gatewayFixture(t, fp, quota)
+	insertFakeRate(t, q, "fake", 1_000_000, 2_000_000)
+	_, err := g.Complete(ctx, askReq())
+	var ge *Error
+	if !errors.As(err, &ge) || ge.Code != "ai_refused" || ge.UsageEventID == "" || !errors.Is(err, ErrRefused) {
+		t.Fatalf("err %v", err)
+	}
+	row, _ := q.AiGetUsageEvent(ctx, ge.UsageEventID)
+	if row.Status != "failed" || row.ReasonCode.String != "ai_refused" || row.CostMicros <= 0 {
+		t.Fatalf("%+v", row)
+	}
+	if len(quota.recorded) != 1 || quota.recorded[0].Tokens != 105 {
+		t.Fatalf("quota %+v", quota.recorded)
+	}
+}
+
+func TestGatewayRecordsRunID(t *testing.T) {
+	ctx := context.Background()
+	fp := &provider.Fake{Reply: okReply}
+	g, q := gatewayFixture(t, fp, nil)
+	for range 2 {
+		req := askReq()
+		req.RunID = "run1"
+		if _, err := g.Complete(ctx, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := g.Complete(ctx, askReq()); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := q.AiSumRunUsage(ctx, db.AiSumRunUsageParams{OrganizationID: "org1", RunID: "run1"})
+	if err != nil || sum.Calls != 2 || sum.InputTokens != 2 {
+		t.Fatalf("%+v %v", sum, err)
+	}
+}
+
+func TestGatewayPassesStrictAndRaw(t *testing.T) {
+	ctx := context.Background()
+	raw := json.RawMessage(`[{"type":"thinking"}]`)
+	fp := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: "x", Model: "fake", UsagePresent: true, InputTokens: 1, CacheReadTokens: 7, CacheWriteTokens: 3, Raw: raw, StopReason: "end_turn"}
+	}}
+	g, _ := gatewayFixture(t, fp, nil)
+	// A prompt with an output schema advertises no tools; the office pack has none.
+	req := Request{Actor: audit.User("u1"), OrganizationID: "org1", WorkspaceID: "ws1", Capability: CapOfficeUniworkAI,
+		PromptID: PromptOfficeUniworkAI, Module: "xlsx", History: []provider.Message{{Role: "user", Content: "q"}}}
+	req.Tools = Registry{{Name: "t", Kind: ToolRead, Schema: json.RawMessage(`{}`), Strict: true}}
+	resp, err := g.Complete(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fp.Last.Tools) != 1 || !fp.Last.Tools[0].Strict {
+		t.Fatalf("tools %+v", fp.Last.Tools)
+	}
+	if string(resp.Raw) != string(raw) || resp.StopReason != "end_turn" || resp.CacheReadTokens != 7 || resp.CacheWriteTokens != 3 {
+		t.Fatalf("%+v", resp)
 	}
 }

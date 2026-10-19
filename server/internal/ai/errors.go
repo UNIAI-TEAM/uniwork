@@ -2,6 +2,7 @@ package ai
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 )
 
@@ -56,8 +57,11 @@ var (
 	ErrProviderError  = &Error{Code: "ai_provider_error", Status: 502, Msg: "nhà cung cấp AI không trả lời được"}
 	// ErrProviderTimeout is a call that ran out of time rather than failing:
 	// the façade's 55 s deadline (G6-03a A14) or the gateway's own timeout.
-	ErrProviderTimeout  = &Error{Code: "ai_provider_timeout", Status: 504, Msg: "nhà cung cấp AI trả lời quá hạn chờ"}
-	ErrOutputInvalid    = &Error{Code: "ai_output_invalid", Status: 502, Msg: "câu trả lời của mô hình không đúng định dạng"}
+	ErrProviderTimeout = &Error{Code: "ai_provider_timeout", Status: 504, Msg: "nhà cung cấp AI trả lời quá hạn chờ"}
+	ErrOutputInvalid   = &Error{Code: "ai_output_invalid", Status: 502, Msg: "câu trả lời của mô hình không đúng định dạng"}
+	// ErrRefused is a model that declined to answer (stop_reason refusal); the
+	// call is priced and charged because the vendor billed it.
+	ErrRefused          = &Error{Code: "ai_refused", Status: http.StatusUnprocessableEntity, Msg: "mô hình từ chối trả lời yêu cầu này"}
 	ErrContextForbidden = &Error{Code: "ai_context_forbidden", Status: 403, Msg: "bạn không có quyền xem dữ liệu này"}
 
 	// BYOK proxy (UNI-1008). Messages never carry the key or the vendor URL.

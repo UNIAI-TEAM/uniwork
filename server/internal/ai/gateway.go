@@ -94,6 +94,20 @@ type Request struct {
 	// MeterKey is the idempotency key of this call's charge when the caller
 	// can name it (G6-03b); empty uses the usage event's own id.
 	MeterKey string
+	// Model is a model the person picked. It is used only when allowlisted
+	// and priced for this provider (ModelSelectable); otherwise the policy
+	// default stands.
+	Model string
+	// Effort is "", "low", "medium" or "high"; anything else is dropped to
+	// "" with a warning, so xhigh and max never reach a vendor.
+	Effort string
+	// RunID groups the calls of one agent run on their usage rows
+	// (AiSumRunUsage reads it back).
+	RunID string
+	// Continuation sends History as is, ending with a user message the
+	// caller wrote (not ToolResultTurn), without rendering the prompt: the
+	// agent's reminder turn after a tool round.
+	Continuation bool
 }
 
 type Response struct {
@@ -108,6 +122,13 @@ type Response struct {
 	// reads it): false means the usage row is the unknown/reconciliation
 	// branch, not a zero-token call (A16, design §6.3).
 	UsagePresent bool
+	// StopReason, the cache token counts and Raw come straight from the
+	// vendor. Raw is its opaque assistant content (thinking blocks) the
+	// caller must hand back unchanged on the next turn.
+	StopReason       string
+	CacheReadTokens  int
+	CacheWriteTokens int
+	Raw              json.RawMessage
 }
 
 // The reason_code values of A16's unknown-usage branch (design §6.3): a row
@@ -144,6 +165,38 @@ func NewGateway(q *db.Queries, p provider.Provider, quota Quota, rec *audit.Reco
 
 func (g *Gateway) Enabled() bool { return g != nil && g.p != nil }
 
+// ModelSelectable reports whether a person may pick model: it is on the
+// allowlist (including AI_MODEL_ALLOW) and priced for this provider, so a pick
+// can never route to a model nobody priced.
+func (g *Gateway) ModelSelectable(ctx context.Context, model string) bool {
+	if !g.Enabled() || model == "" {
+		return false
+	}
+	allowed := false
+	for _, m := range append(append([]string{}, allowedModels...), g.opts.ExtraAllow...) {
+		if m == model {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return false
+	}
+	_, err := g.q.AiLatestRate(ctx, db.AiLatestRateParams{
+		Provider: g.p.Name(), Model: model, EffectiveAt: pgtype.Timestamptz{Time: g.now(), Valid: true},
+	})
+	return err == nil
+}
+
+// DefaultModel is the model a capability runs on when nobody picked one.
+func (g *Gateway) DefaultModel(c Capability) string {
+	if !g.Enabled() {
+		return ""
+	}
+	_, model, _ := ResolveModel(c, g.p.Name(), g.opts.Env, g.opts.ExtraAllow)
+	return model
+}
+
 func (g *Gateway) Provider() string {
 	if !g.Enabled() {
 		return ""
@@ -169,6 +222,16 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	if err != nil {
 		return Response{}, err
 	}
+	if req.Model != "" && req.Model != model && g.ModelSelectable(ctx, req.Model) {
+		model = req.Model
+	}
+	effort := req.Effort
+	switch effort {
+	case "", "low", "medium", "high":
+	default:
+		g.log.Warn("ai: unknown effort dropped", "effort", effort, "capability", req.Capability)
+		effort = ""
+	}
 	if g.quota != nil {
 		if err := g.quota.Check(ctx, req.OrganizationID); err != nil {
 			if errors.Is(err, ErrQuotaExceeded) {
@@ -188,7 +251,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	}
 	creq := provider.CompletionRequest{
 		Model: model, System: system, MaxTokens: officeMaxTokens(req, policy), Temperature: policy.Temperature,
-		JSONSchema: prompt.OutputSchema,
+		JSONSchema: prompt.OutputSchema, Effort: effort,
 	}
 	creq.Messages = msgs
 	// Structured JSON output and tool-calling fight each other on OpenAI-compatible
@@ -196,7 +259,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	// schema, context must already be in Vars — do not advertise tools.
 	if len(prompt.OutputSchema) == 0 {
 		for _, t := range req.Tools {
-			creq.Tools = append(creq.Tools, provider.ToolSpec{Name: t.Name, Description: t.Description, Schema: t.Schema})
+			creq.Tools = append(creq.Tools, provider.ToolSpec{Name: t.Name, Description: t.Description, Schema: t.Schema, Strict: t.Strict})
 		}
 	}
 	cctx, cancel := context.WithTimeout(ctx, g.opts.Timeout)
@@ -236,6 +299,15 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 		// the vendor answered and billed the tokens on resp, so the row is
 		// priced and the call charged exactly like an answered one. Otherwise
 		// a prompt that keeps the model rambling could be retried for free.
+		if errors.Is(perr, provider.ErrRefused) {
+			if err := g.settle(sctx, row.ID, row.OrganizationID, resp, "failed", ErrRefused.Code, latency, nil, true); err != nil {
+				g.log.Warn("ai: settle refused call", "usage_event_id", row.ID, "err", err)
+			}
+			g.charge(sctx, req, row.ID, resp)
+			g.observe(req.Capability, "failed", latency)
+			g.log.Warn("ai: model refused", "usage_event_id", row.ID, "capability", req.Capability)
+			return Response{}, ErrRefused.wrapUsage(perr, row.ID)
+		}
 		if errors.Is(perr, provider.ErrTruncated) {
 			if err := g.settle(sctx, row.ID, row.OrganizationID, resp, "failed", ErrOutputInvalid.Code, latency, nil, true); err != nil {
 				g.log.Warn("ai: settle truncated call", "usage_event_id", row.ID, "err", err)
@@ -306,7 +378,7 @@ func (g *Gateway) charge(ctx context.Context, req Request, usageEventID string, 
 	if g.quota != nil {
 		if err := g.quota.Record(ctx, UsageRecord{
 			OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID, Actor: req.Actor,
-			Tokens: int64(resp.InputTokens + resp.OutputTokens), UsageEventID: usageEventID,
+			Tokens: int64(resp.InputTokens + resp.OutputTokens + resp.CacheReadTokens + resp.CacheWriteTokens), UsageEventID: usageEventID,
 			MeterKey: req.MeterKey,
 		}); err != nil {
 			g.log.Warn("ai: quota record", "usage_event_id", usageEventID, "err", err)
@@ -330,6 +402,7 @@ func (g *Gateway) response(resp provider.CompletionResponse, usageEventID string
 	return Response{
 		Text: resp.Text, ToolCalls: resp.ToolCalls, UsageEventID: usageEventID, Model: resp.Model, Provider: g.p.Name(),
 		InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens, UsagePresent: resp.UsagePresent,
+		StopReason: resp.StopReason, CacheReadTokens: resp.CacheReadTokens, CacheWriteTokens: resp.CacheWriteTokens, Raw: resp.Raw,
 	}
 }
 
@@ -358,6 +431,15 @@ func systemText(req Request, prompt Prompt) (string, error) {
 // answer every call of the assistant message just before them, each exactly
 // once.
 func requestMessages(req Request, prompt Prompt) ([]provider.Message, error) {
+	if req.Continuation {
+		if req.ToolResultTurn || len(req.Attachments) > 0 {
+			return nil, errPolicy("continuation cannot be a tool-result turn or carry attachments")
+		}
+		if len(req.History) == 0 || req.History[len(req.History)-1].Role != "user" {
+			return nil, errPolicy("continuation needs History ending with the caller's user message")
+		}
+		return req.History, nil
+	}
 	if !req.ToolResultTurn && prompt.Render == nil {
 		if len(req.Attachments) > 0 {
 			return nil, errPolicy("prompt " + prompt.Key() + " renders no user message to carry attachments")
@@ -451,6 +533,7 @@ func (g *Gateway) insertUsage(ctx context.Context, req Request, model, status, r
 		ActorID: req.Actor.ID, ActorKind: kind, Capability: string(req.Capability), PromptID: req.PromptID,
 		Provider: g.p.Name(), Model: model, Status: status, ReasonCode: optText(reason),
 		SourceCount: int32(len(req.Sources)), Truncated: req.Truncated, CorrelationID: audit.CorrelationID(ctx),
+		RunID: optText(req.RunID),
 	})
 }
 
@@ -473,7 +556,11 @@ func (g *Gateway) settle(ctx context.Context, id, orgID string, resp provider.Co
 		})
 		if err == nil {
 			rateID = pgtype.Text{String: rate.ID, Valid: true}
-			cost = int64(resp.InputTokens)*rate.InputMicrosPerMtok/1_000_000 + int64(resp.OutputTokens)*rate.OutputMicrosPerMtok/1_000_000
+			// Cache tokens are priced off the input rate: a read costs 10%, a
+			// 5-minute write 125% (R12).
+			in := rate.InputMicrosPerMtok
+			cost = (int64(resp.InputTokens)*in + int64(resp.CacheWriteTokens)*in*5/4 +
+				int64(resp.CacheReadTokens)*in/10 + int64(resp.OutputTokens)*rate.OutputMicrosPerMtok) / 1_000_000
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
@@ -489,6 +576,7 @@ func (g *Gateway) settle(ctx context.Context, id, orgID string, resp provider.Co
 		ID: id, Status: status, ReasonCode: optText(reason), RateID: rateID,
 		InputTokens: int32(resp.InputTokens), OutputTokens: int32(resp.OutputTokens), CostMicros: cost,
 		LatencyMs: pgtype.Int4{Int32: int32(latency.Milliseconds()), Valid: true}, ToolCalls: string(callsJSON),
+		CacheReadTokens: int32(resp.CacheReadTokens), CacheWriteTokens: int32(resp.CacheWriteTokens),
 	})
 	return err
 }
