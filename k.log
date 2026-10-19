@@ -1,0 +1,7 @@
+$ pnpm knip; rc=$?; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+
+KNIP_EXIT=0
