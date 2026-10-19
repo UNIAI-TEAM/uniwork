@@ -303,6 +303,31 @@ type CreateDocumentLinkSDI struct {
 	ExpiresInDays *int `json:"expires_in_days" description:"Số ngày hiệu lực 1–90; bỏ trống = 7" example:"7"`
 }
 
+// CreateDocumentAccessRequestSDI is POST
+// /api/v1/documents/{documentID}/access-requests (DOC-07 §4.3): a signed-in
+// person asks the document's managers for a level. Every field is optional and
+// every well-formed id answers the same 202, so the body never proves the
+// document exists; a bad value (a level other than view/comment/edit, a
+// message over 500 characters, a lone or malformed source pair) is a 400,
+// because it depends on the body alone. The source pair is flat on purpose:
+// source_kind + source_id, so the isolation reference scanner sees source_id
+// without a nested object.
+type CreateDocumentAccessRequestSDI struct {
+	RequestedLevel *string `json:"requested_level" description:"view (mặc định), comment hoặc edit; giá trị khác (kể cả manage) -> 400 invalid_request" example:"view"`
+	Message        *string `json:"message" description:"Lời nhắn tùy chọn cho người quản lý, ≤ 500 ký tự sau khi cắt khoảng trắng hai đầu" example:"Mình cần xem để chuẩn bị họp thứ Hai"`
+	SourceKind     *string `json:"source_kind" description:"task hoặc meeting; phải đi cùng source_id, thiếu một trong hai -> 400 invalid_request" example:"task"`
+	SourceID       *string `json:"source_id" description:"ULID công việc hoặc cuộc họp chứa liên kết tài liệu; không phải ULID -> 400 invalid_request" example:"01J8X4TASK0N1P2Q3R4S5T6U7"`
+}
+
+// ApproveDocumentAccessRequestSDI is POST
+// /api/v1/documents/{documentID}/access-requests/{requestID}/approve
+// (DOC-07 §4.3): the level to grant the requester. It may be lower or higher
+// than the level asked for, up to edit; manage is a 400 (use the Share
+// dialog). Absent = the requested level.
+type ApproveDocumentAccessRequestSDI struct {
+	Level *string `json:"level" description:"view, comment hoặc edit; mặc định = mức người xin đã chọn; manage -> 400 invalid_request" example:"view"`
+}
+
 // ListDocumentAccessLogsSDI documents GET
 // /api/v1/documents/{documentID}/access-logs (C-01 §5.4, manage only):
 // newest first, actor kinds human/agent/anonymous, optional action filter.

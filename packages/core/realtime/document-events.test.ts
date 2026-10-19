@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { readDocumentAccessRequestSentAt, clearDocumentAccessRequestSent } from "../documents/hooks-access-requests";
 import { documentKeys } from "../documents/keys";
 import { documentFrameKeys } from "./document-events";
 
@@ -57,5 +58,49 @@ describe("documentFrameKeys - edit lock frames", () => {
   ] as const)("%s from another workspace or without a document id refreshes nothing", (type) => {
     expect(documentFrameKeys(ws, type, { ...frame, workspace_id: "ws2" })).toEqual([]);
     expect(documentFrameKeys(ws, type, { workspace_id: ws })).toEqual([]);
+  });
+});
+
+// DOC-07 (UNI-1631): the two access-request frames. `requested` is
+// workspace-scoped and refreshes the manager's list and the share overview;
+// `decided` is user-scoped and refreshes the requester's own document (the
+// locked card follows `detail`) while dropping the "sent" device flag.
+describe("documentFrameKeys - access request frames", () => {
+  const SENT_FLAG = "uniwork_document_access_request_sent:d1";
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("document.access_requested refreshes the pending list and the share overview", () => {
+    expect(documentFrameKeys(ws, "document.access_requested", { ...frame, request_id: "r1" })).toEqual([
+      documentKeys.accessRequests(ws, "d1"),
+      documentKeys.shares(ws, "d1"),
+    ]);
+  });
+
+  it("document.access_request_decided refreshes detail and drops the sent flag", () => {
+    localStorage.setItem(SENT_FLAG, String(Date.now() + 3600_000));
+    expect(readDocumentAccessRequestSentAt("d1")).not.toBeNull();
+
+    const keys = documentFrameKeys(ws, "document.access_request_decided", { ...frame, request_id: "r1", user_id: "u1" });
+    expect(keys).toEqual([documentKeys.detail(ws, "d1")]);
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
+  });
+
+  it("document.access_requested from another workspace or without a document id refreshes nothing", () => {
+    expect(documentFrameKeys(ws, "document.access_requested", { ...frame, workspace_id: "ws2" })).toEqual([]);
+    expect(documentFrameKeys(ws, "document.access_requested", { workspace_id: ws })).toEqual([]);
+  });
+
+  it("document.access_request_decided without a document id refreshes nothing and clears no flag", () => {
+    localStorage.setItem(SENT_FLAG, String(Date.now() + 3600_000));
+    expect(documentFrameKeys(ws, "document.access_request_decided", { workspace_id: ws })).toEqual([]);
+    expect(readDocumentAccessRequestSentAt("d1")).not.toBeNull();
+  });
+
+  it("leaves every other topic untouched", () => {
+    expect(documentFrameKeys(ws, "document.access_request_answered", frame)).toBeNull();
+    expect(documentFrameKeys(ws, "task.updated", frame)).toBeNull();
   });
 });

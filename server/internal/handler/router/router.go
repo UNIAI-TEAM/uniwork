@@ -269,7 +269,13 @@ func New(d Deps, h Routes) http.Handler {
 			// Edit requests (UNI-1645 R8) ping the holder: 20/min per signed-in
 			// person across every document, beside the per-hour database cap,
 			// refused with the same code and fields.retry_after_s as that cap.
-			registerDocuments(docs, h, d.FeatureFlags, mw.RateLimitByIdentityBucketRetryAfter(d.Redis, "document-edit-request", 20, time.Minute, proxies, bearerUser(d.Minter), "edit_request_rate_limited"))
+			registerDocuments(docs, h, d.FeatureFlags, mw.RateLimitByIdentityBucketRetryAfter(d.Redis, "document-edit-request", 20, time.Minute, proxies, bearerUser(d.Minter), "edit_request_rate_limited"),
+				// DOC-07 (UNI-1631, §3.1): 20 access requests an hour per
+				// signed-in person across every document (Q4: one budget per
+				// person, not per document, so a fresh id mints no fresh
+				// budget). No code, so the client tells this 429 from
+				// access_request_cooldown by the code's absence.
+				mw.RateLimitByIdentityBucket(d.Redis, "doc-access-request", 20, time.Hour, proxies, bearerUser(d.Minter)))
 			registerDocumentSources(docs, h, d.FeatureFlags)
 			registerSignatures(authed, h)
 			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).

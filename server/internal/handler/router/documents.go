@@ -56,6 +56,10 @@ import (
 //	POST   /api/v1/documents/{documentID}/edit-requests                     (R8)
 //	POST   /api/v1/documents/{documentID}/edit-requests/{requestID}/answer  (R9)
 //	DELETE /api/v1/documents/{documentID}/edit-requests/{requestID}         (R10)
+//	POST   /api/v1/documents/{documentID}/access-requests                   (DOC-07)
+//	GET    /api/v1/documents/{documentID}/access-requests                   (DOC-07)
+//	POST   /api/v1/documents/{documentID}/access-requests/{requestID}/approve (DOC-07)
+//	POST   /api/v1/documents/{documentID}/access-requests/{requestID}/decline (DOC-07)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/workspaces/{workspaceID}/documents/upload-sessions   (BIGUP-S1)
@@ -88,7 +92,7 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestLimit func(http.Handler) http.Handler) {
+func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	registerDocumentEditLock(d, h, editRequestLimit)
 
@@ -723,6 +727,48 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		tags:        []string{"documents"},
 		sdi:         sdi.ListDocumentAccessLogsSDI{},
 		sdo:         sdo.DocumentAccessLogListSDO{},
+		auth:        true,
+	})
+	// DOC-07 (UNI-1631, §4.3): ask the document's managers for access, and the
+	// managers' list/approve/decline. The create answer is deliberately uniform
+	// (202 {"status":"sent"} for every well-formed id) so the route never proves
+	// the document exists; only 409 access_request_pending and 429
+	// access_request_cooldown are specific, and both concern the caller's own
+	// requests on that document. The limiter is one budget per person across
+	// every document (Q4), so a fresh document id mints no fresh budget.
+	d.With(accessRequestLimit).Post("/documents/{documentID}/access-requests", h.CreateDocumentAccessRequest, apiOp{
+		summary: "Request access to a document",
+		description: "Người đã đăng nhập xin quyền truy cập tài liệu; không bao giờ tự cấp quyền. Trả 202 {\"status\":\"sent\"} cho mọi id hợp lệ cú pháp (tài liệu không tồn tại, khác tổ chức, Work Product, đã archive, người gửi đã đọc được, hoặc người gửi đã bị vô hiệu hóa — tất cả giống hệt nhau, không lộ tồn tại). " +
+			"requested_level view (mặc định), comment hoặc edit; message ≤ 500 ký tự sau khi cắt khoảng trắng; source_kind (task|meeting) + source_id (ULID) phải đi cùng nhau — sai cú pháp -> 400 invalid_request (chỉ phụ thuộc body). " +
+			"Người gửi đã có yêu cầu pending chưa hết hạn trên tài liệu này -> 409 access_request_pending (không đổi dòng nào). Yêu cầu trước bị từ chối chưa đủ 1 giờ -> 429 access_request_cooldown kèm fields.retry_after_seconds và header Retry-After. " +
+			"Agent -> 403 forbidden. Limiter riêng 20/giờ/người trên mọi tài liệu (429 không có code).",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateDocumentAccessRequestSDI{},
+		sdo:    sdo.DocumentAccessRequestSentSDO{},
+		status: http.StatusAccepted,
+		auth:   true,
+	})
+	d.Get("/documents/{documentID}/access-requests", h.ListDocumentAccessRequests, apiOp{
+		summary:     "List a document's pending access requests",
+		description: "Yêu cầu đang chờ và chưa hết hạn của tài liệu, mới nhất trước: người xin, mức xin, lời nhắn, nguồn (chỉ có title khi người gọi đọc được task/meeting đó, ngược lại source=null) và thời điểm. Người đọc thường (không quản trị tài liệu) nhận danh sách rỗng, không phải 403; tài liệu đã archive cũng rỗng.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentAccessRequestListSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/access-requests/{requestID}/approve", h.ApproveDocumentAccessRequest, apiOp{
+		summary: "Approve an access request",
+		description: "Người quản trị tài liệu duyệt yêu cầu: cấp mức cho người xin (mặc định = mức đã xin; có thể thấp hơn hoặc cao hơn, tối đa edit — manage -> 400) qua đường share có audit, rồi đóng yêu cầu thành approved. Người xin đã đủ mức -> approved với share_id rỗng, không tạo share mới. " +
+			"Yêu cầu không còn pending, đã hết hạn, hoặc tài liệu đã archive -> 409 access_request_closed (archive ghi cancelled). Admin chỉ có AdminScope tự duyệt yêu cầu của chính mình -> 403 break_glass_required. Người xin không còn là thành viên đang hoạt động -> 422 principal_not_in_organization và yêu cầu thành cancelled. requestID không thuộc tài liệu -> 404.",
+		tags: []string{"documents"},
+		sdi:  sdi.ApproveDocumentAccessRequestSDI{},
+		sdo:  sdo.DocumentAccessRequestDecisionSDO{},
+		auth: true,
+	})
+	d.Post("/documents/{documentID}/access-requests/{requestID}/decline", h.DeclineDocumentAccessRequest, apiOp{
+		summary:     "Decline an access request",
+		description: "Người quản trị tài liệu từ chối yêu cầu: đóng thành declined, không cấp gì; lời nhắn của người từ chối không gửi cho người xin (route không có body). Người xin nhận thông báo đã từ chối và phải chờ 1 giờ mới xin lại được. Yêu cầu không còn pending/đã hết hạn/tài liệu archive -> 409 access_request_closed (archive ghi cancelled); requestID không thuộc tài liệu -> 404.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentAccessRequestDecisionSDO{},
 		auth:        true,
 	})
 	d.Get("/orgs/{orgID}/documents/settings", h.GetDocumentSettings, apiOp{

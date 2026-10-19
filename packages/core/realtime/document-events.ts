@@ -1,3 +1,4 @@
+import { clearDocumentAccessRequestSent } from "../documents/hooks-access-requests";
 import { documentKeys } from "../documents/keys";
 
 /**
@@ -9,6 +10,12 @@ import { documentKeys } from "../documents/keys";
  * frame is ids-only (ADR 0015): it marks queries stale and nothing from it
  * is cached. Split out of use-realtime-sync (max-lines) when FD-06 wired the
  * three tree frames.
+ *
+ * `document.access_requested` and `document.access_request_decided` are
+ * DOC-07 (UNI-1631): the first refreshes the manager's request list and the
+ * share overview, the second refreshes the requester's own document (the
+ * locked card watches `detail`) and drops the "sent" device flag (F-08), so a
+ * requester who is granted access sees the card clear without a reload.
  */
 export function documentFrameKeys(
   wsId: string,
@@ -91,6 +98,26 @@ export function documentFrameKeys(
       // Inbox row they produce arrives as its own notification.created frame.
       if (!ownWorkspace || !payload.document_id) return [];
       return [documentKeys.editLock(wsId, payload.document_id)];
+    }
+    case "document.access_requested": {
+      // DOC-07: someone asked for access, so the manager's pending list and
+      // the share overview's count refresh. A frame without a document id, or
+      // one stamped for another workspace, refreshes nothing.
+      if (!ownWorkspace || !payload.document_id) return [];
+      return [
+        documentKeys.accessRequests(wsId, payload.document_id),
+        documentKeys.shares(wsId, payload.document_id),
+      ];
+    }
+    case "document.access_request_decided": {
+      // DOC-07 (F-08): the requester's own request was answered. The locked
+      // card follows `detail`, so that key refreshes; the "sent" device flag
+      // is dropped so the card stops claiming a request is still waiting.
+      // This frame is user-scoped, so it arrives whatever workspace the
+      // requester is looking at.
+      if (!payload.document_id) return [];
+      clearDocumentAccessRequestSent(payload.document_id);
+      return [documentKeys.detail(wsId, payload.document_id)];
     }
     default:
       return null;

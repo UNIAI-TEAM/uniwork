@@ -38,6 +38,10 @@ func (h *handlers) listDocumentShares(w http.ResponseWriter, r *http.Request) {
 		Via:        string(overview.My.Via),
 		MySources:  documentAccessSourceDTOs(overview.MySources),
 		AdminScope: overview.My.AdminScope,
+		// DOC-07 (§4.3): the manager's badge count. The overview fills it only
+		// when the caller may administer the document, so a reader below that
+		// level keeps the zero value the omitempty tag hides.
+		PendingAccessRequests: overview.PendingAccessRequests,
 	}
 	if overview.ACLOwner != nil {
 		out.ACLOwner = &sdo.DocumentPersonAccessDTO{

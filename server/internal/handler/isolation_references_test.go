@@ -202,6 +202,13 @@ var isoReferences = []isoReference{
 		}, covers: []string{"CreateUploadSessionSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "user principal", body: map[string]any{
 		"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentSDI.principal_id"}},
+	// DOC-07 (UNI-1631 §4.3): the source pair is kept only when the requester
+	// reads that task in the document's OWN organization, so a foreign task is
+	// dropped silently and the stored row's source_id stays empty. The body is
+	// flat on purpose, so the scanner sees source_id without a nested object.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/access-requests", what: "task source of another tenant", allow2xx: true,
+		body:   map[string]any{"requested_level": "view", "source_kind": "task", "source_id": isoRef("task")},
+		covers: []string{"CreateDocumentAccessRequestSDI.source_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares/batch", what: "user principals", body: map[string]any{
 		"principal_ids": []any{isoRef("peer")}, "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentBatchSDI.principal_ids"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "workspace principal", body: map[string]any{

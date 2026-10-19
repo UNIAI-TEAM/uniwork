@@ -359,6 +359,10 @@ type DocumentAccessSDO struct {
 	Shares        []DocumentShareDTO              `json:"shares,omitempty" description:"Grant sống; chỉ khi manage hoặc admin_scope"`
 	Links         []DocumentLinkDTO               `json:"links,omitempty" description:"Liên kết công khai sống; chỉ khi manage hoặc admin_scope"`
 	BreakGlass    []DocumentBreakGlassGrantDTO    `json:"break_glass,omitempty" description:"Grant truy cập khẩn cấp còn hiệu lực, mới nhất trước; chỉ khi manage hoặc admin_scope"`
+	// DOC-07 (§4.3, §9.2 #1): the count of pending, unexpired access requests,
+	// so the Share dialog shows its badge without a second call. Present only
+	// for a caller who may administer the document, like its neighbours.
+	PendingAccessRequests int `json:"pending_access_requests,omitempty" description:"Số yêu cầu truy cập đang chờ (chưa hết hạn) trên tài liệu; chỉ khi manage hoặc admin_scope" example:"2"`
 }
 
 // DocumentBreakGlassGrantDTO is one emergency view grant (DOC-05; UNI-1628): a
@@ -379,6 +383,55 @@ type DocumentBreakGlassGrantDTO struct {
 // answers 201 for a new grant and 200 for the caller's live one.
 type DocumentBreakGlassSDO struct {
 	Grant DocumentBreakGlassGrantDTO `json:"grant"`
+}
+
+// DocumentAccessRequestSentSDO is the 202 body of POST
+// /api/v1/documents/{documentID}/access-requests (DOC-07 §4.3): the request was
+// accepted for a manager to answer. The same body answers every well-formed id,
+// so it never proves the document exists.
+type DocumentAccessRequestSentSDO struct {
+	Status string `json:"status" description:"Luôn là sent; yêu cầu đã được ghi nhận để người quản lý trả lời" example:"sent"`
+}
+
+// DocumentAccessRequestSourceDTO is a request's source (DOC-07 §3.1): the task
+// or meeting whose link the requester followed. `title` is present only when
+// the CALLER reads that task or meeting; a source the caller cannot read reads
+// as null on the row, never as an empty object.
+type DocumentAccessRequestSourceDTO struct {
+	Kind  string `json:"kind" description:"task hoặc meeting" example:"task"`
+	ID    string `json:"id" description:"ULID công việc hoặc cuộc họp chứa liên kết" example:"01J8X4TASK0N1P2Q3R4S5T6U7"`
+	Title string `json:"title" description:"Tiêu đề nguồn; rỗng khi người gọi không đọc được nguồn" example:"Chuẩn bị họp thứ Hai"`
+}
+
+// DocumentAccessRequestDTO is one pending request row on GET
+// /api/v1/documents/{documentID}/access-requests (DOC-07 §4.3).
+type DocumentAccessRequestDTO struct {
+	ID             string                          `json:"id" description:"ULID yêu cầu" example:"01J8X4AREQ0N1P2Q3R4S5T6U7"`
+	RequesterID    string                          `json:"requester_id" description:"ULID người gửi yêu cầu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	RequesterName  string                          `json:"requester_name" description:"Tên hiển thị của người gửi; rỗng khi tài khoản không còn" example:"Nguyễn An"`
+	RequestedLevel string                          `json:"requested_level" description:"view, comment hoặc edit" example:"view"`
+	Message        string                          `json:"message" description:"Lời nhắn người gửi để lại; rỗng khi không có" example:"Mình cần xem để chuẩn bị họp thứ Hai"`
+	Source         *DocumentAccessRequestSourceDTO `json:"source" description:"Nguồn task/meeting; null khi không có hoặc người gọi không đọc được nguồn"`
+	CreatedAt      string                          `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	ExpiresAt      string                          `json:"expires_at" description:"Hết hạn sau 30 ngày; quá hạn coi như expired khi đọc" example:"2026-10-27T09:00:00Z"`
+}
+
+// DocumentAccessRequestListSDO is the 200 body of GET
+// /api/v1/documents/{documentID}/access-requests: the pending, unexpired
+// requests. A reader who may not administer the document gets an empty list,
+// never a 403.
+type DocumentAccessRequestListSDO struct {
+	Requests []DocumentAccessRequestDTO `json:"requests" description:"Yêu cầu đang chờ, chưa hết hạn; rỗng khi không có hoặc người gọi không quản trị tài liệu"`
+}
+
+// DocumentAccessRequestDecisionSDO is the 200 body of the approve and decline
+// routes (DOC-07 §4.3): the answered request and, on approval, the share it
+// created. `share_id` is empty when the requester already held the level and no
+// new share was written.
+type DocumentAccessRequestDecisionSDO struct {
+	ID      string `json:"id" description:"ULID yêu cầu vừa xử lý" example:"01J8X4AREQ0N1P2Q3R4S5T6U7"`
+	Status  string `json:"status" description:"approved hoặc declined" example:"approved"`
+	ShareID string `json:"share_id" description:"ULID grant được tạo khi duyệt; rỗng khi người xin đã đủ mức (không tạo share mới)" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
 }
 
 // DocumentAdminSummaryDocumentDTO is the metadata block of the admin summary:

@@ -101,7 +101,19 @@ func TestIsolationMatrix(t *testing.T) {
 			if !ok {
 				continue
 			}
-			w.attack(t, r.method+" "+r.pattern, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), spec.refused)
+			label := r.method + " " + r.pattern
+			if spec.uniformAnswer != "" {
+				// A uniform route answers an outsider with the same 202 it
+				// gives an unknown id: the check holds that equality and the
+				// no-row rule, then the ordinary change/leak/reference checks
+				// run through attackAs against the answer it produced.
+				w.attackAs(t, isoCaller{name: "B's owner", token: w.bravo.token}, label,
+					r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha),
+					func(status int, raw []byte) bool { return status < 500 })
+				w.isoUniformCheck(t, label, r.method, r.pattern, spec, path+isoQuery(spec.query, w.alpha))
+				continue
+			}
+			w.attack(t, label, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), spec.refused)
 		}
 	})
 
@@ -623,6 +635,13 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		return tn.get(t, "uploadSession")
 	case "{documentID}":
+		// DOC-07's manager routes act on the request the fixture seeded, which
+		// hangs on its own page; naming that page lets the owner's own call
+		// reach the request. The approve/decline pair is the only route with
+		// "/access-requests/" followed by another segment.
+		if strings.Contains(pattern, "/access-requests/") {
+			return tn.get(t, "accessRequestDocument")
+		}
 		// The restore and purge routes act on a folder in the trash (E6 FD-02,
 		// RESTORE-01 §2): the folder kind is what the matrix varies on it, so
 		// the name it has to place back among live siblings is part of every
@@ -679,6 +698,16 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{lockID}":
 		return tn.get(t, "docEditLock")
 	case "{requestID}":
+		// DOC-07 reuses the {documentID,requestID} pair for its approve and
+		// decline routes; the fixture keys are distinct so an edit request and
+		// an access request are never confused, and approve and decline each
+		// close a request of their own (two pending rows, two requesters).
+		if strings.HasSuffix(pattern, "/decline") {
+			return tn.get(t, "accessRequestDecline")
+		}
+		if under("/access-requests/") {
+			return tn.get(t, "accessRequest")
+		}
 		return tn.get(t, "docEditRequest")
 	case "{assetID}":
 		if under("/office-frame/") {
