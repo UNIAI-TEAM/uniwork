@@ -109,6 +109,9 @@ var rules = map[string]rule{
 	"task.updated":           ruleTaskUpdated,
 	"task.comment_added":     ruleTaskCommentAdded,
 	"document.comment_added": ruleDocumentCommentAdded,
+	// A page body that newly names a reader (UNI-1968): the save writes the
+	// event, this rule decides who may still read it.
+	"document.body_mentioned": ruleDocumentBodyMentioned,
 	// The edit-time mentions and the resolve notification of the UNI-1337
 	// table (contract-collab section 8.3, G8-05).
 	"document.comment_updated":  ruleDocumentCommentUpdated,
@@ -439,6 +442,63 @@ func documentCommentContext(ctx context.Context, e env, ev outbox.Row, p map[str
 		return db.Document{}, db.DocumentComment{}, false, err
 	}
 	return doc, comment, true, nil
+}
+
+// ruleDocumentBodyMentioned drafts the person a page-body mention newly named
+// (UNI-1968, BODY-MENTION-NOTIFY). The save already dropped the actor, an
+// agent, an id outside the document's organization and anybody past the
+// per-save cap (service.newBodyMentionRecipients); this rule is the
+// delivery-time half, so the recipient list is decided when the frame goes
+// out, never when the save was written:
+//
+//   - the document is re-read and must still be the event's own tenant pair,
+//     because the id in the payload came off the wire;
+//   - user_id == author_id is skipped, so a self-mention never notifies;
+//   - read access is re-checked with FilterDocumentReaders, so a person who
+//     lost the document between the save and this run gets no row and no push
+//     and no title leaks.
+//
+// The group key carries the person, so two mentions of one reader on two
+// saves merge into one open row and one push.
+func ruleDocumentBodyMentioned(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid := p["user_id"]
+	if e.docs == nil || p["document_id"] == "" || uid == "" {
+		return nil, nil
+	}
+	if uid == p["author_id"] || isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	return []Draft{{
+		UserID:         uid,
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Kind:           KindDocumentBodyMentioned,
+		GroupKey:       "document:" + doc.ID + ":body_mention:" + uid,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		ActorKind:      actorKindOf(ev),
+		ActorID:        ev.ActorID.String,
+		Params: map[string]string{
+			"actor":       actorName(ctx, e.q, ev),
+			"document":    doc.Title,
+			"document_id": doc.ID,
+		},
+	}}, nil
 }
 
 // ruleDocumentCommentAdded drafts the create-time recipients of the UNI-1337

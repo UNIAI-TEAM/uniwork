@@ -194,6 +194,15 @@ func documentResourceURL(ctx context.Context, q *db.Queries, origin string, n db
 		}
 		link += sep + "access=break_glass"
 	}
+	// A body mention opens the page scrolled to the reader's own mention
+	// (UNI-1968, W4 drops the param after use).
+	if n.Kind == KindDocumentBodyMentioned {
+		sep := "?"
+		if strings.Contains(link, "?") {
+			sep = "&"
+		}
+		link += sep + "mention=1"
+	}
 	return link, nil
 }
 

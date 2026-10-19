@@ -21,7 +21,7 @@ type Prefs struct {
 // An emergency access to a restricted document also pushes (DOC-05). A trash
 // notice stays out of the digest too (TRASH-NOTIFY-01, Q-R2: in-app only).
 func DefaultPrefs(kind string) Prefs {
-	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
+	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentBodyMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindDocumentShared ||
 		kind == KindTaskAssigned || kind == KindMeetingStarting ||
 		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM ||
