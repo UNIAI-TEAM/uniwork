@@ -1,0 +1,88 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/chat-document-share.spec.ts e2e/chat-smoke.spec.ts e2e/files-chat.spec.ts > /tmp/cds-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/cds-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/cds-E2E.log; grep -E "✘|\[failed\]" /tmp/cds-E2E.log | head -40; echo; echo "E2E_TARGETED_EXIT=$rc"
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 chat-smoke.spec.ts:11:1 › workspace chat sends and shows a text message (2.8s)
+(node:18301) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18301) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[api] 401 POST http://localhost:18550/api/v1/auth/refresh
+[api] 401 POST http://localhost:18550/api/v1/auth/refresh
+  ✘  3 files-chat.spec.ts:129:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke (22.0s)
+  -  4 files-chat.spec.ts:154:3 › chat file and voice messages › a voice message plays for the second member with its duration
+  -  5 files-chat.spec.ts:180:3 › chat file and voice messages › a resend with the same client_msg_id does not duplicate the message
+  -  6 files-chat.spec.ts:216:3 › chat file and voice messages › a member of another organization cannot reach the workspace or its files
+  -  7 files-chat.spec.ts:244:3 › chat file and voice messages › an unsupported file type is refused before it is sent
+  -  8 files-chat.spec.ts:266:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions
+
+
+  1) chat-document-share.spec.ts:44:1 › staff sends a docx in a DM at comment level; the manager comments and staff reads it 
+
+    Test timeout of 360000ms exceeded.
+
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Call log:
+      - waiting for getByTestId('document-comments-pane').getByTestId('document-discussion-composer').getByRole('textbox', { name: /Viết vào thảo luận|Write in the discussion/ })
+
+
+      116 |   const composer = pane.getByTestId("document-discussion-composer");
+      117 |   const box = composer.getByRole("textbox", { name: /Viết vào thảo luận|Write in the discussion/ });
+    > 118 |   await box.click();
+          |             ^
+      119 |   await box.pressSequentially(COMMENT_TEXT);
+      120 |   await composer.getByRole("button", { name: /^Gửi$|^Send$/ }).click();
+      121 |   await expect(pane.getByText(COMMENT_TEXT).first()).toBeVisible({ timeout: 30_000 });
+
+    Error Context: test-results/chat-document-share-staff--ebbff-comments-and-staff-reads-it/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/chat-document-share-staff--ebbff-comments-and-staff-reads-it/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/chat-document-share-staff--ebbff-comments-and-staff-reads-it/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) files-chat.spec.ts:129:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke 
+
+    TimeoutError: page.waitForEvent: Timeout 20000ms exceeded while waiting for event "download"
+    =========================== logs ===========================
+    waiting for event "download"
+    ============================================================
+
+      142 |     await expect(memberCard).toBeVisible({ timeout: 20_000 });
+      143 |     const [download] = await Promise.all([
+    > 144 |       member.waitForEvent("download", { timeout: 20_000 }),
+          |              ^
+      145 |       member.getByRole("button", { name: `Tải ${fileName} xuống` }).click(),
+      146 |     ]);
+      147 |     expect(download.suggestedFilename()).toBe(fileName);
+
+    Error Context: test-results/files-chat-chat-file-and-v-045f2-r-and-downloads-files-smoke/error-context.md
+
+    Error Context: test-results/files-chat-chat-file-and-v-045f2-r-and-downloads-files-smoke/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/files-chat-chat-file-and-v-045f2-r-and-downloads-files-smoke/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/files-chat-chat-file-and-v-045f2-r-and-downloads-files-smoke/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Slow test file: chat-document-share.spec.ts (6.0m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  2 failed
+    chat-document-share.spec.ts:44:1 › staff sends a docx in a DM at comment level; the manager comments and staff reads it 
+    files-chat.spec.ts:129:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke 
+  5 did not run
+  1 passed (7.1m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test e2e/chat-document-share.spec.ts e2e/chat-smoke.spec.ts e2e/files-chat.spec.ts
+  2 failed
+  5 did not run
+  1 passed (7.1m)
+  ✘  1 chat-document-share.spec.ts:44:1 › staff sends a docx in a DM at comment level; the manager comments and staff reads it (6.0m)
+  ✘  3 files-chat.spec.ts:129:3 › chat file and voice messages › a file sent in the room reaches the second member and downloads @files-smoke (22.0s)
+
+E2E_TARGETED_EXIT=1
