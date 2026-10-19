@@ -10,14 +10,12 @@ import { z } from "zod";
 // output up to 2 GiB is contract-legal and the running service's own
 // configured limit — plus the grant's output.max_bytes — does the real
 // gating.
-// The input ceiling is lower (size-cap:005): the submit body is one JSON
-// envelope carrying the input in base64, and the supervisor turns it into a
-// V8 string whose maximum length is 0x1fffffe8 = 536870888 chars;
-// 4*ceil(N/3) + 64 KiB envelope slack <= 536870888 gives N <= 402604014, and
-// 383 MiB = 401604608 is the round ceiling below it. A JSON wire format can
-// never transport a larger input, so the contract refuses it up front.
+// The input ceiling is the same 2 GiB (SIZE-OPS1): under job transport
+// framed/1 the input travels as raw bytes after the JSON envelope (see the
+// frame below),
+// so no V8 string bound applies to it any more.
 export const ENGINE_LIMITS = {
-  max_input_bytes: 401604608,
+  max_input_bytes: 2 * 1024 * 1024 * 1024,
   max_output_bytes: 2 * 1024 * 1024 * 1024,
   max_edit_ops: 20000,
   max_deadline_ms: 600000,
@@ -25,6 +23,15 @@ export const ENGINE_LIMITS = {
   max_warnings: 512,
   max_identifier_length: 128,
 } as const;
+
+/** Framed job body (ENGINE_JOB_TRANSPORT = "framed/1", SIZE-OPS1): POST /v1/jobs with this content type
+ * carries ENVELOPE_LENGTH_HEADER bytes of UTF-8 JSON envelope, immediately
+ * followed by exactly input_length raw input bytes; Content-Length covers both.
+ * A job without input may still send application/json. */
+export const OFFICE_JOB_CONTENT_TYPE = "application/vnd.uniwork.office-job";
+export const ENVELOPE_LENGTH_HEADER = "x-office-envelope-length";
+/** Upper bound of the JSON envelope prefix: edits[] at max_edit_ops fit with room. */
+export const ENVELOPE_MAX_BYTES = 8 * 1024 * 1024;
 
 export const engineLimitsSchema = z.object({
   max_input_bytes: z.number().int().positive(),

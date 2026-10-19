@@ -158,7 +158,7 @@ func officeExportInputWithCap(raw []byte, maxBytes int64) (officeInput, error) {
 		return officeInput{}, ErrOfficeExportInput
 	}
 	sum := sha256.Sum256(raw)
-	return officeInput{bytes: raw, checksum: hex.EncodeToString(sum[:])}, nil
+	return bytesInput(raw, hex.EncodeToString(sum[:])), nil
 }
 
 // officeExportPoll is the status poll interval while a request waits.

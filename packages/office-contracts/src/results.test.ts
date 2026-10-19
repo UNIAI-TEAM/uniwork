@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  ENGINE_JOB_TRANSPORT,
   EngineContractViolation,
   capabilityEntrySchema,
   capabilityResultSchema,
@@ -47,7 +48,8 @@ describe("capability honesty", () => {
 
   it("validates the capability result envelope", () => {
     const fixture = loadFixture("result-capability.v1.json");
-    expect(() => capabilityResultSchema.parse(fixture.value)).not.toThrow();
+    const parsed = capabilityResultSchema.parse(fixture.value);
+    expect(parsed.job_transport).toBe(ENGINE_JOB_TRANSPORT);
   });
 });
 
