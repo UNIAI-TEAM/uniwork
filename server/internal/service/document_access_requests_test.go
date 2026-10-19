@@ -651,6 +651,31 @@ func TestDocumentAccessRequestSource(t *testing.T) {
 		}
 	})
 
+	// The "another organization" case above is refused by the task gate alone
+	// (the requester is not a member of the other organization), so it cannot
+	// prove the organization check of resolveAccessRequestSource. This one
+	// can: the requester is a member of BOTH organizations - the legacy shape
+	// the isolation world inserts by raw SQL, since no API creates it any more
+	// (ADR 0032) - so the task gate passes and only the organization comparison
+	// drops the pair.
+	t.Run("a task of another organization the requester is also a member of is dropped", func(t *testing.T) {
+		if _, err := f.pool.Exec(f.ctx,
+			`INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
+			other.orgID, f.tn.member.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(f.ctx,
+			`INSERT INTO workspace_members (workspace_id, user_id, role, organization_id) VALUES ($1, $2, 'member', $3)`,
+			other.wsA, f.tn.member.ID, other.orgID); err != nil {
+			t.Fatal(err)
+		}
+		task := seedTask(t, other, other.wsA)
+		kind, id := send(t, AccessRequestSourceKindTask, task)
+		if kind.Valid || id.Valid {
+			t.Fatalf("source = %+v/%+v, want it dropped: the task is another organization's", kind, id)
+		}
+	})
+
 	t.Run("an id that does not exist is dropped", func(t *testing.T) {
 		if kind, id := send(t, AccessRequestSourceKindTask, util.NewID()); kind.Valid || id.Valid {
 			t.Fatalf("source = %+v/%+v, want it dropped", kind, id)

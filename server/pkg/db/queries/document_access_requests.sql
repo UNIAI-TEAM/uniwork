@@ -75,6 +75,15 @@ WHERE id = sqlc.arg(id)
   AND status = 'pending'
 RETURNING *;
 
+-- name: GetDocumentAccessRequest :one
+-- One request of one document, read without a lock: the notification rule
+-- needs the decision's status and requester and must not take a row lock
+-- outside a transaction (w2).
+SELECT * FROM document_access_requests
+WHERE organization_id = sqlc.arg(organization_id)
+  AND document_id = sqlc.arg(document_id)
+  AND id = sqlc.arg(id);
+
 -- name: GetLatestDeclinedDocumentAccessRequest :one
 -- The most recent decline of one (document, requester) pair: the 1h
 -- re-request cooldown counts from its decided_at. No row means no cooldown.

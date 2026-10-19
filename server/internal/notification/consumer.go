@@ -54,6 +54,12 @@ func (c *Consumer) SetOrgMembers(o OrgMemberChecker) { c.env.orgs = o }
 // the document rules deliver nothing rather than guessing.
 func (c *Consumer) SetDocumentReaders(d DocumentReadChecker) { c.env.docs = d }
 
+// SetDocumentAdministrators wires the administer port DOC-07's request rule
+// filters its recipient list through (R1-6). DocumentService satisfies it.
+// Unwired, the rule sends nothing: without it the package cannot tell a
+// document's manager from a stranger.
+func (c *Consumer) SetDocumentAdministrators(d DocumentAdministerChecker) { c.env.docAdmins = d }
+
 // SetMeetingSummaries wires the AI-summary availability port the meeting
 // summary nudge asks. MeetingService satisfies it. Unwired, the nudge is
 // never sent.

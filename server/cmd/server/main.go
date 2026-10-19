@@ -491,7 +491,12 @@ func main() {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
 	}
 	notifConsumer.SetDocumentReaders(documentSvc)
+	notifConsumer.SetDocumentAdministrators(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
+	// The optional task/meeting source a document access request may name
+	// (DOC-07): the narrow ports keep the document, task and meeting services
+	// from importing each other. Unwired, a source is dropped silently.
+	documentSvc.SetAccessRequestSources(taskSvc, meetingSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
 		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
