@@ -310,6 +310,43 @@ describe("folder layout (Folder.dc)", () => {
     expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
   });
 
+  it("gives up space in order on the header row: ancestors and home crumb first, the folder name last (UNI-1977 fix)", async () => {
+    route({
+      ...folderRoutes(),
+      detail: (id) =>
+        id === "fo1"
+          ? folderDetail({ breadcrumbs: [{ id: "fa", title: "Khách hàng" }, { id: "fo1", title: "Dự án CCB" }] })
+          : null,
+    });
+    renderView(`/acme/doi/documents?folder=fo1`);
+    const heading = await screen.findByRole("heading", { level: 1, name: "Dự án CCB" });
+    const crumb = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+    const home = within(crumb).getByRole("button", { name: t("documents.home.sidebar.home") });
+    const ancestor = within(crumb).getByRole("button", { name: "Khách hàng" });
+
+    // Flex shrink is weighted by factor x size: the home crumb and the ancestors carry a far
+    // higher factor than the leaf, and each keeps a minimum width so it never slides under
+    // its neighbour (jsdom has no layout: pin the classes, the e2e pins the pixels).
+    expect(home).toHaveClass("min-w-9", "shrink-[1000]", "truncate");
+    expect(ancestor.parentElement).toHaveClass("min-w-10", "shrink-[1000]");
+    expect(ancestor).toHaveClass("min-w-0", "truncate");
+    expect(heading.parentElement).not.toHaveClass("shrink-[1000]", "shrink-0");
+    expect(heading).toHaveClass("min-w-10", "truncate");
+
+    // The row is a size container (the sidebars decide the width, not the viewport): the
+    // breadcrumb and the actions share row one, the search box moves under them until the
+    // row is wide enough to hold it beside the actions.
+    const box = crumb.parentElement as HTMLElement;
+    const row = box.parentElement as HTMLElement;
+    expect(row).toHaveClass("@container", "flex-wrap");
+    expect(row).not.toHaveClass("flex-nowrap", "lg:flex-nowrap");
+    const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
+    expect(search).toHaveClass("order-last", "basis-full", "@min-[60rem]:order-none", "@min-[60rem]:w-56");
+    const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
+    expect(row.lastElementChild).toHaveClass("shrink-0");
+    expect(row.lastElementChild).toContainElement(create);
+  });
+
   it("lists subfolders as cards under their own section, and documents under Tài liệu", async () => {
     route(folderRoutes());
     renderView(`/acme/doi/documents?folder=fo1`);

@@ -132,6 +132,9 @@ func TestErrorClassTable(t *testing.T) {
 		// or permission denial - the locked card counts the wait down - so it
 		// is unclassified on purpose, like ai_rate_limited.
 		"access_request_cooldown",
+		// UNI-1974: a folder is never shared (422); a refusal of the request,
+		// neither a lost permission nor a conflict to reload.
+		"folder_not_shareable",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

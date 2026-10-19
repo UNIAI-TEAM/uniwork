@@ -198,7 +198,7 @@ describe("create toggle through the library page (F-W2-01, F-W2-03, F-W2-10)", (
     );
   }
 
-  it("carries the menu's toggle into the Folder dialog, and the folder is created shared with no level", async () => {
+  it("creates a folder with no visibility even when the menu's toggle is on, and the dialog has no toggle", async () => {
     const posts: Array<{ path: string; body: unknown }> = [];
     serve(posts);
     renderPage();
@@ -209,28 +209,17 @@ describe("create toggle through the library page (F-W2-01, F-W2-03, F-W2-10)", (
     fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(t("documents.home.create.folder.menu")) }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("switch", { name: toggleLabel() })).toBeChecked();
+    expect(within(dialog).queryByRole("switch")).toBeNull();
     fireEvent.change(within(dialog).getByLabelText(t("documents.home.folders.rename_label")), {
-      target: { value: "Chia sẻ sẵn" },
+      target: { value: "Thư mục riêng" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
 
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]).toEqual({
       path: LIST_BASE,
-      body: { kind: "folder", title: "Chia sẻ sẵn", parent_id: "fo-priv", visibility: "workspace" },
+      body: { kind: "folder", title: "Thư mục riêng", parent_id: "fo-priv" },
     });
-  });
-
-  it("opens the Folder dialog with the toggle off when the menu's was off", async () => {
-    serve([]);
-    renderPage();
-    await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
-
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(t("documents.home.create.folder.menu")) }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("switch", { name: toggleLabel() })).not.toBeChecked();
   });
 
   it("uploads with the toggle on as multipart visibility=workspace and no workspace_level", async () => {

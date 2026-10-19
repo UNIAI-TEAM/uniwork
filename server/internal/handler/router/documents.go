@@ -99,7 +99,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
 		summary: "Create a page or folder document",
 		description: "Tạo trang hoặc thư mục trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page|folder, parent_id (trang/thư mục; thư mục chỉ nằm ở gốc hoặc trong thư mục, sai -> 422 document_parent_kind), thư mục không nhận content (-> 422 folder_not_supported), icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
-			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha thì kế thừa cha (cả mức), ở gốc = restricted; giá trị khác -> 400 invalid_request. " +
+			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha trang thì kế thừa cha (cả mức), ở gốc hoặc dưới thư mục = restricted; giá trị khác -> 400 invalid_request; thư mục với visibility=workspace -> 422 folder_not_shareable (thư mục không bao giờ được chia sẻ). " +
 			"Idempotency-Key ràng create với fingerprint payload: replay trả lại trang đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentSDI{},
@@ -157,7 +157,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Patch("/documents/{documentID}", h.PatchDocument, apiOp{
 		summary: "Update a document",
 		description: "Autosave/metadata của working copy. revision bắt buộc (chuỗi thập phân của base client thấy); base cũ -> 422 revision_conflict kèm fields.current_revision. " +
-			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize.",
+			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize. Thư mục đặt visibility=workspace -> 422 folder_not_shareable (đóng một thư mục cũ về restricted vẫn được phép).",
 		tags: []string{"documents"},
 		sdi:  sdi.PatchDocumentSDI{},
 		sdo:  sdo.DocumentSDO{},
@@ -638,7 +638,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Post("/documents/{documentID}/shares", h.CreateDocumentShare, apiOp{
 		summary: "Share a document",
 		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409. " +
-			"Share cho chính workspace chứa tài liệu không tạo dòng document_shares: nó ghi vào dòng Workspace gốc (visibility=workspace, workspace_level=level) và câu trả lời mô tả dòng đó (id và created_at rỗng); manage -> 422 level_not_allowed (dòng gốc tối đa edit), và mở một tài liệu riêng tư khi người gọi chỉ có admin_scope -> 403 break_glass_required.",
+			"Share cho chính workspace chứa tài liệu không tạo dòng document_shares: nó ghi vào dòng Workspace gốc (visibility=workspace, workspace_level=level) và câu trả lời mô tả dòng đó (id và created_at rỗng); manage -> 422 level_not_allowed (dòng gốc tối đa edit), và mở một tài liệu riêng tư khi người gọi chỉ có admin_scope -> 403 break_glass_required. Thư mục không bao giờ được chia sẻ -> 422 folder_not_shareable.",
 		tags:   []string{"documents"},
 		sdi:    sdi.ShareDocumentSDI{},
 		sdo:    sdo.DocumentShareSDO{},
@@ -649,7 +649,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		summary: "Share a document with a batch of users",
 		description: "Cấp view/edit/manage cho 1–50 người dùng cùng tổ chức trong một transaction (all-or-nothing); trùng lặp được gộp và giữ thứ tự xuất hiện đầu. " +
 			"Danh sách rỗng, có phần tử rỗng hoặc level sai -> 400 invalid_request; không đọc được -> 404; dưới manage -> 403; tài liệu thuộc Work Product -> 409 document_owned_by_work_product; " +
-			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids).",
+			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids); thư mục -> 422 folder_not_shareable.",
 		tags:   []string{"documents"},
 		sdi:    sdi.ShareDocumentBatchSDI{},
 		sdo:    sdo.DocumentShareBatchSDO{},
@@ -669,7 +669,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		summary: "Batch update document access with dry-run preview",
 		description: "Cấp, cập nhật, giữ nguyên (on_existing=keep) hoặc thu hồi (level=null) quyền cho 1–100 mục hỗn hợp (user, workspace, organization) trong một transaction (SH-S2, UNI-1781). " +
 			"Mục nhắm vào workspace gốc của tài liệu được ghi vào dòng Workspace gốc (visibility/workspace_level), không tạo dòng document_shares. " +
-			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB.",
+			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB. Thư mục không bao giờ được chia sẻ: mục cấp quyền trên thư mục -> 422 folder_not_shareable (kể cả dry_run); mục thu hồi vẫn được phép.",
 		tags: []string{"documents"},
 		sdi:  sdi.UpdateDocumentAccessSDI{},
 		sdo:  sdo.DocumentAccessBatchSDO{},
