@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; true
+660d36ce3b2d4e3e78aba502e62f4a5cb066bb2d
+660d36ce3 fix(chat): type the message actions bind for React's MouseEvent
+5f95ae0e5 test(chat): repair the service chat tests red on develop
+0f16b06e0 chore(merge): origin/develop dd0a583f7 into the part 4 PR branch (UNI-923)
+dd0a583f7 feat(chat): multi-pin fixes and Telegram-style message menu

@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/views exec vitest run chat 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "VIEWS_CHAT_EXIT=$rc"
+   Start at  16:53:32
+   Duration  66.41s (transform 7.47s, setup 29.53s, import 72.73s, tests 44.30s, environment 37.80s)
+
+undefined
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run chat
+VIEWS_CHAT_EXIT=1
