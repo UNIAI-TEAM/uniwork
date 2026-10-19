@@ -6,6 +6,7 @@ import {
   Compass,
   Hash,
   ListChecks,
+  MessagesSquare,
   PanelLeftClose,
   Search,
   SquarePen,
@@ -52,6 +53,7 @@ const noopSubscribe = () => () => {};
  */
 export function SidebarHeader({
   onOpenFollowUps,
+  onOpenFollowedThreads,
   onCollapse,
   onStartDm,
   onCreateGroup,
@@ -59,6 +61,7 @@ export function SidebarHeader({
   onBrowseChannels,
 }: {
   onOpenFollowUps?: () => void;
+  onOpenFollowedThreads?: () => void;
   onCollapse?: () => void;
   onStartDm: () => void;
   /** Absent while groups cannot be created here: the item shows, disabled. */
@@ -97,6 +100,12 @@ export function SidebarHeader({
             <DropdownMenuItem className={MENU_ITEM} onClick={onOpenFollowUps}>
               <ListChecks aria-hidden />
               {t("chat.follow_up.list_title")}
+            </DropdownMenuItem>
+          ) : null}
+          {onOpenFollowedThreads ? (
+            <DropdownMenuItem className={MENU_ITEM} onClick={onOpenFollowedThreads}>
+              <MessagesSquare aria-hidden />
+              {t("chat.followed_threads.list_title")}
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem className={MENU_ITEM} onClick={onBrowseChannels}>

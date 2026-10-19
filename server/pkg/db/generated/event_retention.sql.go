@@ -108,36 +108,6 @@ func (q *Queries) DeleteExpiredProviderEvents(ctx context.Context, arg DeleteExp
 	return result.RowsAffected(), nil
 }
 
-const deleteOrphanNotificationDeliveries = `-- name: DeleteOrphanNotificationDeliveries :execrows
-DELETE FROM notification_deliveries nd
-WHERE (nd.event_id, nd.user_id) IN (
-  SELECT nd2.event_id, nd2.user_id
-  FROM notification_deliveries nd2
-  LEFT JOIN outbox_events o ON o.id = nd2.event_id
-  WHERE o.id IS NULL
-    AND nd2.event_id < $1::text
-  ORDER BY nd2.event_id, nd2.user_id
-  LIMIT $2
-  FOR UPDATE OF nd2 SKIP LOCKED
-)
-`
-
-type DeleteOrphanNotificationDeliveriesParams struct {
-	BeforeID string `json:"before_id"`
-	LimitN   int32  `json:"limit_n"`
-}
-
-// Idempotency rows whose outbox event was already purged; event_id is the
-// outbox ULID (reminder:* synthetic keys are not ULIDs and stay until manual
-// cleanup). Picked by primary key order from the oldest orphan.
-func (q *Queries) DeleteOrphanNotificationDeliveries(ctx context.Context, arg DeleteOrphanNotificationDeliveriesParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteOrphanNotificationDeliveries, arg.BeforeID, arg.LimitN)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteExpiredWebhookInbox = `-- name: DeleteExpiredWebhookInbox :execrows
 DELETE FROM webhook_inbox
 WHERE id = ANY(ARRAY(
@@ -170,6 +140,37 @@ func (q *Queries) DeleteExpiredWebhookInbox(ctx context.Context, arg DeleteExpir
 		arg.DeadBefore,
 		arg.LimitN,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteOrphanNotificationDeliveries = `-- name: DeleteOrphanNotificationDeliveries :execrows
+DELETE FROM notification_deliveries nd
+WHERE (nd.event_id, nd.user_id) IN (
+  SELECT nd2.event_id, nd2.user_id
+  FROM notification_deliveries nd2
+  LEFT JOIN outbox_events o ON o.id = nd2.event_id
+  WHERE o.id IS NULL
+    AND nd2.event_id < $1::text
+  ORDER BY nd2.event_id, nd2.user_id
+  LIMIT $2
+  FOR UPDATE OF nd2 SKIP LOCKED
+)
+`
+
+type DeleteOrphanNotificationDeliveriesParams struct {
+	BeforeID string `json:"before_id"`
+	LimitN   int32  `json:"limit_n"`
+}
+
+// tenant: system
+// Idempotency rows whose outbox event was already purged; event_id is the
+// outbox ULID (reminder:* synthetic keys are not ULIDs and stay until manual
+// cleanup). Picked by primary key order from the oldest orphan.
+func (q *Queries) DeleteOrphanNotificationDeliveries(ctx context.Context, arg DeleteOrphanNotificationDeliveriesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOrphanNotificationDeliveries, arg.BeforeID, arg.LimitN)
 	if err != nil {
 		return 0, err
 	}

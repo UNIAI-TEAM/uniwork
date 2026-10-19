@@ -21,6 +21,7 @@ import { useChatVoiceCall } from "./chat-voice-call-host";
 import { useChatPersonActions } from "./use-chat-person-actions";
 import { chatComposerBlockProps } from "./chat-composer-placeholder";
 import { useChatFollowUpUi } from "./use-chat-follow-up-ui";
+import { useChatFollowedThreadsUi } from "./use-chat-followed-threads-ui";
 import { useChatCatchUpUi } from "./use-chat-catch-up-ui";
 import { useChatPagePanels } from "./use-chat-page-panels";
 
@@ -112,6 +113,17 @@ export function ChatPageContent(props: ChatPageContentProps) {
     roomsReady: unreadBadgesReady,
     showLoading,
   });
+  const followedThreadsUi = useChatFollowedThreadsUi({
+    workspaceId,
+    workspaceRoomId: workspaceRoomId ?? null,
+    workspaceTitle: workspaceRoomTitle ?? t("chat.workspace_room"),
+    channels: channels ?? [],
+    groups,
+    contacts,
+    nicknamesByUserId: nicknamesByUserId ?? {},
+    onTargetChange: handleTargetChange,
+    onJumpToMessage: onJumpToMessageIdChange,
+  });
   // A thread open beside the timeline is the open thread for the brief and its read mark.
   const catchUpUi = useChatCatchUpUi(workspaceId, activeRoomId, activeThreadRootId ?? sideThread?.id ?? null);
 
@@ -124,6 +136,9 @@ export function ChatPageContent(props: ChatPageContentProps) {
   const openFollowUpsRef = useRef(followUpUi.openList);
   openFollowUpsRef.current = followUpUi.openList;
   const openFollowUps = useCallback(() => openFollowUpsRef.current(), []);
+  const openFollowedThreadsRef = useRef(followedThreadsUi.openList);
+  openFollowedThreadsRef.current = followedThreadsUi.openList;
+  const openFollowedThreads = useCallback(() => openFollowedThreadsRef.current(), []);
   // "Bắt kịp nhanh": open the busiest room, then its brief once it has opened.
   const quickCatchUpRef = useRef<(next: ChatSidebarTarget, roomId: string) => void>(() => undefined);
   quickCatchUpRef.current = (next, roomId) => {
@@ -269,6 +284,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
               groups={groups}
               channels={channels}
               onOpenFollowUps={openFollowUps}
+              onOpenFollowedThreads={openFollowedThreads}
               onQuickCatchUp={catchUpUi.enabled ? quickCatchUp : undefined}
               onCreateGroup={onCreateGroup}
               creatingGroup={creatingGroup}
@@ -375,6 +391,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
       </div>
       <ChatPageContentSheets
         followUpSheet={followUpUi.sheet}
+        followedThreadsSheet={followedThreadsUi.sheet}
         catchUpOpen={catchUpUi.open}
         onCatchUpOpenChange={catchUpUi.setOpen}
         catchUpLoading={catchUpUi.loading}
