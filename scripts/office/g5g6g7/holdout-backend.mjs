@@ -607,6 +607,7 @@ function tokenizeFormula(text) {
 function evaluateFormula(formula, sheet) {
   const tokens = tokenizeFormula(String(formula).trim().replace(/^=+/, ''));
   let pos = 0;
+  let dry = 0;
   const peek = () => tokens[pos];
   const take = (v) => { const tok = tokens[pos]; if (v !== undefined && (!tok || tok.v !== v)) throw new Unsupported(String(v)); pos += 1; return tok; };
   const cellValue = (ref) => {
@@ -639,7 +640,6 @@ function evaluateFormula(formula, sheet) {
     return { '=': x === y, '<>': x !== y, '<': x < y, '>': x > y, '<=': x <= y, '>=': x >= y }[op];
   };
   const call = (name, args) => {
-    if (name === 'IF') return truthy(args[0]) ? (args[1] ?? true) : (args.length > 2 ? args[2] : false);
     if (name === 'SUM') return numbersOf(args).reduce((a, b) => a + b, 0);
     if (name === 'SUBTOTAL') {
       const code = num(args[0]);
@@ -659,15 +659,31 @@ function evaluateFormula(formula, sheet) {
   const primary = () => {
     const tok = take();
     if (!tok) throw new Unsupported('end');
-    if (tok.t === 'num' || tok.t === 'str' || tok.t === 'bool') return tok.v;
-    if (tok.t === 'ref') return tok.v.includes(':') ? { range: true, cells: rangeCells(tok.v) } : cellValue(tok.v);
+    if (tok.t === 'num' || tok.t === 'str' || tok.t === 'bool') return dry ? 0 : tok.v;
+    if (tok.t === 'ref') return dry ? 0 : (tok.v.includes(':') ? { range: true, cells: rangeCells(tok.v) } : cellValue(tok.v));
     if (tok.t === 'fn') {
       if (!FORMULA_FUNCS.has(tok.v)) throw new Unsupported(tok.v);
       take('(');
+      if (tok.v === 'IF') {
+        const cond = dry ? (expr(), false) : truthy(expr());
+        take(',');
+        if (!cond) dry += 1;
+        const onTrue = expr();
+        if (!cond) dry -= 1;
+        let onFalse = false;
+        if (peek()?.v === ',') {
+          take(',');
+          if (cond) dry += 1;
+          onFalse = expr();
+          if (cond) dry -= 1;
+        }
+        take(')');
+        return dry ? 0 : (cond ? onTrue : onFalse);
+      }
       const args = [];
       if (peek()?.v !== ')') { args.push(expr()); while (peek()?.v === ',') { take(','); args.push(expr()); } }
       take(')');
-      return call(tok.v, args);
+      return dry ? 0 : call(tok.v, args);
     }
     if (tok.v === '(') { const v = expr(); take(')'); return v; }
     if (tok.v === '-') return -num(primary());
@@ -675,13 +691,13 @@ function evaluateFormula(formula, sheet) {
     throw new Unsupported(String(tok.v));
   };
   const power = () => { let v = primary(); while (peek()?.v === '^') { take(); v = num(v) ** num(primary()); } return v; };
-  const term = () => { let v = power(); while (peek()?.v === '*' || peek()?.v === '/') { const op = take().v; const r = num(power()); if (op === '/' && r === 0) throw new Unsupported('div0'); v = op === '*' ? num(v) * r : num(v) / r; } return v; };
+  const term = () => { let v = power(); while (peek()?.v === '*' || peek()?.v === '/') { const op = take().v; const r = num(power()); if (op === '/' && !dry && r === 0) throw new Unsupported('div0'); v = dry ? 0 : (op === '*' ? num(v) * r : num(v) / r); } return v; };
   const additive = () => { let v = term(); while (peek()?.v === '+' || peek()?.v === '-') { const op = take().v; const r = num(term()); v = op === '+' ? num(v) + r : num(v) - r; } return v; };
-  const concat = () => { let v = additive(); while (peek()?.v === '&') { take(); const r = additive(); v = `${v === BLANK ? '' : v}${r === BLANK ? '' : r}`; } return v; };
+  const concat = () => { let v = additive(); while (peek()?.v === '&') { take(); const r = additive(); v = dry ? 0 : `${v === BLANK ? '' : v}${r === BLANK ? '' : r}`; } return v; };
   function expr() {
     const left = concat();
     const op = peek()?.v;
-    if (['=', '<>', '<', '>', '<=', '>='].includes(op)) { take(); return compare(left, concat(), op); }
+    if (['=', '<>', '<', '>', '<=', '>='].includes(op)) { take(); const right = concat(); return dry ? 0 : compare(left, right, op); }
     return left;
   }
   const value = expr();
