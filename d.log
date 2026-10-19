@@ -1,0 +1,5 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -timeout 45m ./internal/handler/... -run 'AccessRequest|TestIsolationMatrix|TestIsolationRealtime|TestEveryBodyIDFieldHasAReferenceCase|TestUniformAnswer|OfficeFrame|Router|OpenAPI' 2>&1 | grep -E '^(--- FAIL|ok|FAIL)|_test.go:[0-9]+:' | head -40; echo "HDL2_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/handler	561.035s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.004s [no tests to run]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	0.594s
+HDL2_EXIT=0
