@@ -1,0 +1,6 @@
+$ (. scripts/local-env.sh && cd server && go test ./internal/ -count=1 > /tmp/arch.log 2>&1); rc=$?; tail -4 /tmp/arch.log; echo; echo "TEST_ARCH_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal	1.172s
+
+TEST_ARCH_EXIT=0

@@ -1,0 +1,7 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; gofmt -l internal pkg; go vet ./internal/handler && AI_PROVIDER=fake go test ./internal/handler -race -run "TestAIUniwork|TestAIU" -count=3 -timeout 40m -v > /tmp/aiu.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/aiu.log | tail -20; grep -cE "^\s*--- PASS" /tmp/aiu.log; echo; echo "TEST_AIU_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	72.296s
+93
+
+TEST_AIU_EXIT=0

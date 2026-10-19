@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -4; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+9e9dad3190c0c04e99313101de884a5c1bd5dee3
+9e9dad3190c0c04e99313101de884a5c1bd5dee3
+9e9dad319 chore: merge G712-A1-CONFIRM AI uniwork writes are proposals only test (UNI-1923 D half, d4a16d653) into the G5-G7 root
+62cd9ab99 chore(knip): ignore the dbus-run-session binary the keyring fault test calls
+c652d180b chore: merge UNINOTE-SLASH-LISTS slash menu + block shortcuts after hard breaks (UNI-1954, 4780ce121) into the G5-G7 root
+4780ce121 fix(documents): hard-break line promotion keeps typing marks and only splits where a rule can fire (UNI-1954 review)
+
+SYNCED_EXIT=0
