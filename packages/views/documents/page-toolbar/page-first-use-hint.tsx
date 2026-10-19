@@ -22,8 +22,8 @@ function wasDismissed(storage: HintStorage): boolean {
 
 /** A one-time card for someone's first editable UniNote page; dismissal is remembered per browser profile. */
 export function PageFirstUseHint({
-  onShowShortcuts, storage = defaultStorage,
-}: { onShowShortcuts: () => void; storage?: HintStorage }) {
+  onShowShortcuts, onDismissed, storage = defaultStorage,
+}: { onShowShortcuts: () => void; /** Called after a dismissal so focus can go back to the page instead of <body>. */ onDismissed?: () => void; storage?: HintStorage }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(() => !wasDismissed(storage));
   if (!open) return null;
@@ -34,6 +34,7 @@ export function PageFirstUseHint({
     } catch {
       // The hint simply returns next visit.
     }
+    onDismissed?.();
   };
   return (
     <section

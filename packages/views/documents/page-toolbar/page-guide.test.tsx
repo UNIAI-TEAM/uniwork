@@ -29,6 +29,13 @@ describe("PageFirstUseHint", () => {
     expect(screen.queryByRole("region", { name: k("hint.aria") })).not.toBeInTheDocument();
   });
 
+  it("reports the dismissal so focus can return to the page", () => {
+    const onDismissed = vi.fn();
+    render(wrap(<PageFirstUseHint onShowShortcuts={vi.fn()} onDismissed={onDismissed} storage={memory()} />));
+    fireEvent.click(screen.getByRole("button", { name: k("hint.got_it") }));
+    expect(onDismissed).toHaveBeenCalledTimes(1);
+  });
+
   it("the close button dismisses it for good too", () => {
     const storage = memory();
     render(wrap(<PageFirstUseHint onShowShortcuts={vi.fn()} storage={storage} />));

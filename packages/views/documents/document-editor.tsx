@@ -264,7 +264,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
 
     return (
       <div className="relative flex flex-1 flex-col" data-document-id={documentId} data-ws-id={wsId}>
-        {editable && toolbarHost ? <PageFirstUseHint onShowShortcuts={() => setHelpOpen(true)} /> : null}
+        {editable && toolbarHost ? <PageFirstUseHint onShowShortcuts={() => setHelpOpen(true)} onDismissed={() => editor.commands.focus()} /> : null}
         {editable && toolbarHost ? createPortal(
           <PageToolbar editor={editor} chooseImage={() => imageInputRef.current?.click()}
             helpOpen={helpOpen} onHelpOpenChange={setHelpOpen} />, toolbarHost) : null}

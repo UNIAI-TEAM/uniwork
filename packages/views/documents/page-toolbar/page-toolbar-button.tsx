@@ -2,6 +2,7 @@
 
 import type { ReactNode, Ref } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
@@ -31,25 +32,40 @@ export function ToolbarButton({
   const hint: ReactNode = tool.shortcut
     ? <ShortcutKeycaps shortcut={tool.shortcut} className="ml-1.5" />
     : tool.alias ? <Kbd className="ml-1.5">{tool.alias}</Kbd> : null;
+  // Only a tool with an on/off state is a toggle; undo, divider, table, image and
+  // mention are plain actions and must not announce "not pressed".
+  const trigger = tool.isActive ? (
+    <Toggle
+      ref={triggerRef}
+      data-tool={tool.id}
+      aria-label={label}
+      aria-expanded={popupOpen}
+      pressed={pressed}
+      disabled={disabled}
+      tabIndex={tabIndex}
+      className={cn(TOOLBAR_BUTTON_CLASS)}
+      onPressedChange={onRun}
+      onFocus={onFocus}
+      onMouseDown={(event) => event.preventDefault()}
+    />
+  ) : (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      data-tool={tool.id}
+      aria-label={label}
+      disabled={disabled}
+      tabIndex={tabIndex}
+      className={cn(TOOLBAR_BUTTON_CLASS)}
+      onClick={onRun}
+      onFocus={onFocus}
+      onMouseDown={(event) => event.preventDefault()}
+    />
+  );
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          <Toggle
-            ref={triggerRef}
-            data-tool={tool.id}
-            aria-label={label}
-            aria-expanded={popupOpen}
-            pressed={pressed}
-            disabled={disabled}
-            tabIndex={tabIndex}
-            className={cn(TOOLBAR_BUTTON_CLASS)}
-            onPressedChange={onRun}
-            onFocus={onFocus}
-            onMouseDown={(event) => event.preventDefault()}
-          />
-        }
-      >
+      <TooltipTrigger render={trigger}>
         <Icon aria-hidden />
       </TooltipTrigger>
       <TooltipContent side="bottom" sideOffset={6}>

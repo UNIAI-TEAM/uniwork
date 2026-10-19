@@ -153,8 +153,10 @@ describe("PageToolbar", () => {
     renderToolbar(instance);
     fireEvent.click(screen.getByRole("button", { name: label("more") }));
     const menu = await screen.findByRole("menu", { name: label("more_title") });
-    for (const tool of TOOL_GROUPS.flat()) expect(within(menu).getByRole("menuitem", { name: label(tool.id) })).toBeInTheDocument();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: label("bulletList") }));
+    for (const tool of TOOL_GROUPS.flat()) {
+      expect(within(menu).getByRole(tool.isActive ? "menuitemcheckbox" : "menuitem", { name: label(tool.id) })).toBeInTheDocument();
+    }
+    fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: label("bulletList") }));
     expect(instance.isActive("bulletList")).toBe(true);
   });
 
@@ -163,5 +165,64 @@ describe("PageToolbar", () => {
     renderToolbar(mount(), { onHelpOpenChange });
     fireEvent.click(button("help_button"));
     expect(onHelpOpenChange.mock.calls[0]?.[0]).toBe(true);
+  });
+  it("only on/off tools are toggle buttons; actions never announce a pressed state", () => {
+    renderToolbar(mount());
+    for (const tool of TOOL_GROUPS.flat()) {
+      const node = button(tool.id);
+      if (tool.isActive) expect(node).toHaveAttribute("aria-pressed");
+      else expect(node).not.toHaveAttribute("aria-pressed");
+    }
+  });
+
+  it("keeps a Tab stop when the focused button becomes disabled", async () => {
+    const instance = mount("<p>text</p>", false);
+    renderToolbar(instance);
+    act(() => { instance.commands.insertContent("x"); });
+    await waitFor(() => expect(button("undo")).toBeEnabled());
+    fireEvent.focus(button("undo"));
+    await waitFor(() => expect(button("undo")).toHaveAttribute("tabindex", "0"));
+    fireEvent.click(button("undo"));
+    await waitFor(() => expect(button("undo")).toBeDisabled());
+    const stops = within(screen.getByRole("toolbar")).getAllByRole("button").filter((node) => node.tabIndex === 0);
+    expect(stops).toHaveLength(1);
+    expect(stops[0]).not.toBeDisabled();
+  });
+
+  it("disables the table button inside a table", async () => {
+    const instance = mount("<p>text</p>", false);
+    renderToolbar(instance);
+    fireEvent.click(button("table"));
+    await waitFor(() => expect(button("table")).toBeDisabled());
+  });
+
+  it("does not steal the editor selection on mousedown", () => {
+    renderToolbar(mount());
+    for (const id of ["bold", "table", "image"]) {
+      expect(fireEvent.mouseDown(button(id))).toBe(false);
+    }
+  });
+
+  it("the link button toggles its popover instead of reopening it after an outside press", async () => {
+    renderToolbar(mount());
+    fireEvent.click(button("link"));
+    await screen.findByRole("textbox", { name: t("editor.bubble_menu.url_aria_label") });
+    // Base UI reports the outside press first, then the click lands on the same button.
+    fireEvent.pointerDown(button("link"));
+    fireEvent.mouseDown(button("link"));
+    fireEvent.click(button("link"));
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: t("editor.bubble_menu.url_aria_label") })).not.toBeInTheDocument());
+  });
+
+  it("arrow keys move through the style menu items", async () => {
+    renderToolbar(mount("<p>text</p>", false));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.page_ui.toolbar.style_aria", { style: t("documents.page_ui.blocks.paragraph.label") }) }));
+    const menu = await screen.findByRole("menu", { name: label("style_menu") });
+    const items = within(menu).getAllByRole("menuitemradio");
+    items[0]!.focus();
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[1]);
+    fireEvent.keyDown(menu, { key: "End" });
+    expect(document.activeElement).toBe(items[3]);
   });
 });

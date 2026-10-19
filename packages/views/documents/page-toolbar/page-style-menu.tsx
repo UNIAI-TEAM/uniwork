@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ShortcutKeycaps } from "../../editor/shortcut-keycaps";
+import { focusOnKeyboardOpen, menuArrowKeys } from "./menu-keys";
 import { TOOLBAR_BUTTON_CLASS } from "./page-toolbar-button";
 import { activeTextStyle, TEXT_STYLES } from "./page-toolbar-model";
 
@@ -41,8 +42,9 @@ export function PageStyleMenu({ editor, tabIndex, onFocus }: { editor: Editor; t
         align="start"
         sideOffset={6}
         className="w-64 gap-0.5 p-1"
-        initialFocus={false}
-        finalFocus={false}
+        initialFocus={focusOnKeyboardOpen}
+        finalFocus={focusOnKeyboardOpen}
+        onKeyDown={menuArrowKeys}
       >
         {TEXT_STYLES.map((style) => (
           <button

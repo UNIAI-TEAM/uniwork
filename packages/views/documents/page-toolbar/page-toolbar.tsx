@@ -10,6 +10,7 @@ import { Separator } from "@uniwork/ui/components/ui/separator";
 import { TooltipProvider } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { LinkEditBar } from "../../editor/bubble-menu-controls";
+import { focusOnKeyboardOpen, menuArrowKeys } from "./menu-keys";
 import { PageHelpPopover } from "./page-help-popover";
 import { PageStyleMenu } from "./page-style-menu";
 import { TOOLBAR_BUTTON_CLASS, ToolbarButton } from "./page-toolbar-button";
@@ -51,7 +52,17 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
     },
   });
 
-  const context: ToolContext = { chooseImage, openLink: () => setLinkOpen(true) };
+  // Base UI closes the link popover on the outside press that the Link button itself
+  // causes; the click that follows must not reopen it.
+  const linkClosedAt = useRef(0);
+  const changeLinkOpen = useCallback((open: boolean) => {
+    if (!open) linkClosedAt.current = Date.now();
+    setLinkOpen(open);
+  }, []);
+  const context: ToolContext = {
+    chooseImage,
+    openLink: () => { if (Date.now() - linkClosedAt.current > 250) setLinkOpen(true); },
+  };
   const run = (tool: ToolbarTool) => {
     setMoreOpen(false);
     tool.run(editor, context);
@@ -68,11 +79,14 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
     items[next]?.focus();
   }, []);
 
-  const tabIndexFor = (id: string) => (rovingId === id ? 0 : -1);
+  // The one Tab stop must survive its button turning disabled (undo emptied, caret in a table).
+  const enabledIds = [STYLE_ID, ...TOOL_GROUPS.flat().filter((tool) => !states?.[tool.id]?.disabled).map((tool) => tool.id), HELP_ID];
+  const stopId = enabledIds.includes(rovingId) ? rovingId : STYLE_ID;
+  const tabIndexFor = (id: string) => (stopId === id ? 0 : -1);
 
   return (
     <TooltipProvider delay={300}>
-      <div className="flex items-center border-b border-border bg-background px-2 py-1.5 sm:px-5">
+      <div className="@container flex items-center border-b border-border bg-background px-2 py-1.5 sm:px-5">
         <div
           ref={rowRef}
           role="toolbar"
@@ -113,7 +127,7 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
             aria-label={t("documents.page_ui.toolbar.more")}
             onMouseDown={(event) => event.preventDefault()}
             className={cn(
-              "ml-1 hidden size-8 shrink-0 items-center justify-center rounded-control outline-none hover:bg-muted max-md:inline-flex",
+              "ml-1 hidden size-8 shrink-0 items-center justify-center rounded-control outline-none hover:bg-muted @max-5xl:inline-flex",
               "focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-expanded:bg-muted", TOOLBAR_BUTTON_CLASS,
             )}
           >
@@ -126,8 +140,9 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
             align="end"
             sideOffset={6}
             className="max-h-[min(24rem,var(--available-height,24rem))] w-64 gap-0.5 overflow-y-auto p-1"
-            initialFocus={false}
-            finalFocus={false}
+            initialFocus={focusOnKeyboardOpen}
+            finalFocus={focusOnKeyboardOpen}
+            onKeyDown={menuArrowKeys}
           >
             {TOOL_GROUPS.flat().map((tool) => {
               const state = states?.[tool.id];
@@ -136,10 +151,10 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
                 <button
                   key={tool.id}
                   type="button"
-                  role="menuitem"
+                  role={tool.isActive ? "menuitemcheckbox" : "menuitem"}
                   disabled={state?.disabled}
-                  aria-current={state?.pressed || undefined}
-                  className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-body outline-hidden select-none hover:bg-muted focus-visible:bg-muted disabled:opacity-50 aria-[current=true]:bg-muted"
+                  aria-checked={tool.isActive ? Boolean(state?.pressed) : undefined}
+                  className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-body outline-hidden select-none hover:bg-muted focus-visible:bg-muted disabled:opacity-50 aria-checked:bg-muted"
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => run(tool)}
                 >
@@ -150,7 +165,7 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
             })}
           </PopoverContent>
         </Popover>
-        <Popover modal={false} open={linkOpen} onOpenChange={setLinkOpen}>
+        <Popover modal={false} open={linkOpen} onOpenChange={changeLinkOpen}>
           <PopoverContent
             anchor={linkAnchorRef}
             side="bottom"
@@ -160,7 +175,7 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
             initialFocus={false}
             finalFocus={false}
           >
-            <LinkEditBar editor={editor} onClose={() => setLinkOpen(false)} />
+            <LinkEditBar editor={editor} onClose={() => changeLinkOpen(false)} />
           </PopoverContent>
         </Popover>
       </div>
