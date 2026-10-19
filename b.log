@@ -1,0 +1,4 @@
+$ npx eslint e2e/uniwork-documents.spec.ts web/e2e/sheets-ai.spec.ts && npx prettier --check e2e/uniwork-documents.spec.ts web/e2e/sheets-ai.spec.ts && echo LINT_FMT_OK
+Checking formatting...
+All matched files use Prettier code style!
+LINT_FMT_OK

@@ -1,0 +1,14 @@
+$ git checkout -q origin/main -- web/e2e/sheets-ai.spec.ts; WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e sheets-ai sheets-aj-leak-probe sheets-ak-pdf-web 2>&1 | grep -aE "✘|✓ .*(leak-probe|vi ribbon)|passed|failed|Received|424" | head -40; rc=${PIPESTATUS[0]}; git checkout -q HEAD -- web/e2e/sheets-ai.spec.ts; echo "RED_LEAK_RC=$rc"; [ $rc -ne 0 ] && echo RED_LEAK_OK; echo; echo RED_LEAK_EXIT=0
+  ✓  10 [chromium] › web/e2e/sheets-ai.spec.ts:313:9 › sheets: web AI › grant on: HTTP 424 renders the provider_auth_failed state (1.5s)
+  ✘  19 [chromium] › web/e2e/sheets-aj-leak-probe.spec.ts:2:5 › fake-ai holds no state from an earlier spec (19ms)
+  ✓  23 [chromium] › web/e2e/sheets-ak-pdf-web.spec.ts:405:7 › pdf module on the web › vi ribbon with the AI panel open: the clipped band shows an overflow cue (395ms)
+  ✓  24 [chromium] › web/e2e/sheets-ak-pdf-web.spec.ts:424:7 › pdf module on the web › Sign dialog: the primary button is the brand blue, not black (451ms)
+    + Received  + 1387
+    + - **Never claim an action you did not perform**: any statement like \"I selected / located / highlighted / changed ...\" must be backed by a successful tool call in the same turn (selection via select_range, changes via propose_operations). If the tool was not called or failed, say so instead — the user sees the real screen and a false claim destroys trust.
+    + - **Never claim an action you did not perform**: any statement like \"I selected / located / highlighted / changed ...\" must be backed by a successful tool call in the same turn (selection via select_range, changes via propose_operations). If the tool was not called or failed, say so instead — the user sees the real screen and a false claim destroys trust.
+  1 failed
+  41 passed (1.0m)
+RED_LEAK_RC=1
+RED_LEAK_OK
+
+RED_LEAK_EXIT=0

@@ -1,0 +1,11 @@
+$ rm -f web/e2e/sheets-aj-leak-probe.spec.ts web/e2e/sheets-ak-pdf-web.spec.ts; git status --short | head; git diff --quiet HEAD && echo TREE_CLEAN
+ M docs/web-modules/screenshots/ai/sheets-390-open-en-light.png
+ M docs/web-modules/screenshots/ai/sheets-panel-dark-en.png
+ M docs/web-modules/screenshots/ai/sheets-panel-dark-vi.png
+ M docs/web-modules/screenshots/ai/sheets-panel-light-en.png
+ M docs/web-modules/screenshots/ai/sheets-panel-light-vi.png
+ M docs/web-modules/screenshots/ai/sheets-state-dark-en.png
+ M docs/web-modules/screenshots/ai/sheets-state-dark-vi.png
+ M docs/web-modules/screenshots/ai/sheets-state-light-en.png
+ M docs/web-modules/screenshots/ai/sheets-state-light-vi.png
+ M docs/web-modules/screenshots/pdf/conflict-en-dark.png
