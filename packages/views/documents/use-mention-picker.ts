@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listDocumentMentionCandidates } from "@uniwork/core/api/endpoints/document-comments";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import type { MentionCandidate } from "@uniwork/core/types/document-access";
+import { mentionDisplay } from "./document-comment-mention-draft";
 import { extractMentionTokens } from "./document-comments-model";
 
 // The S14 mention picker as a hook over a plain textarea (EXPERIENCE-G8 S14,
@@ -15,13 +16,6 @@ import { extractMentionTokens } from "./document-comments-model";
 // members). The textarea becomes an APG combobox only while the listbox is open.
 
 const DEBOUNCE_MS = 150;
-
-/** `[`, `]`, `(`, `)` and `\` are escaped in a token label (contract-collab 3). */
-const escapeLabel = (label: string) => label.replace(/[\\[\]()]/g, (ch) => `\\${ch}`);
-
-export function mentionToken(candidate: Pick<MentionCandidate, "user_id" | "display_name">): string {
-  return `[@${escapeLabel(candidate.display_name || candidate.user_id)}](mention://member/${candidate.user_id})`;
-}
 
 /** The `@query` the caret sits in, or null: `@` must start the text or follow whitespace. */
 function triggerAt(text: string, caret: number): { start: number; query: string } | null {
@@ -49,8 +43,12 @@ export type PickerRow =
 interface Options {
   wsId: string;
   documentId: string;
+  /** The composer text ("@Name"); the trigger and the caret live in it. */
   value: string;
-  setValue: (next: string) => void;
+  /** The stored body (tokens): which picked people are still mentioned. */
+  body: string;
+  /** `picked` is the person just inserted, not yet in the picked map. */
+  setValue: (next: string, picked?: MentionCandidate) => void;
   textarea: () => HTMLTextAreaElement | null;
   /** Whether the caller may list workspace members (`seeMembers`); gates `include=no_access` (G8-18, N1). */
   canSeeMembers?: boolean;
@@ -61,6 +59,7 @@ export function useMentionPicker({
   wsId,
   documentId,
   value,
+  body,
   setValue,
   textarea,
   canSeeMembers,
@@ -161,7 +160,7 @@ export function useMentionPicker({
   const choose = (candidate: MentionCandidate) => {
     if (!trigger) return;
     const caret = trigger.start + 1 + trigger.query.length;
-    const token = `${mentionToken(candidate)} `;
+    const token = `${mentionDisplay(candidate)} `;
     const next = value.slice(0, trigger.start) + token + value.slice(caret);
     setPickedCandidates((prev) => {
       const copy = new Map(prev);
@@ -169,7 +168,7 @@ export function useMentionPicker({
       return copy;
     });
     onPickCandidate?.(candidate);
-    setValue(next);
+    setValue(next, candidate);
     close();
     const position = trigger.start + token.length;
     window.requestAnimationFrame(() => {
@@ -209,14 +208,14 @@ export function useMentionPicker({
   };
 
   const pickedInBody = useMemo(() => {
-    const tokens = extractMentionTokens(value);
+    const tokens = extractMentionTokens(body);
     const list: MentionCandidate[] = [];
     for (const token of tokens) {
       const found = pickedCandidates.get(token.userId.toUpperCase());
       if (found) list.push(found);
     }
     return list;
-  }, [pickedCandidates, value]);
+  }, [pickedCandidates, body]);
 
   const clearPicked = useCallback(() => setPickedCandidates(new Map()), []);
 

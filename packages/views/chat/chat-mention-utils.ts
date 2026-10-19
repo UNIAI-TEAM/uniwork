@@ -48,7 +48,7 @@ function escapeRegExp(value: string): string {
  * label, so an address like a@all.com stays an address. An existing
  * `[@label](...)` token is left alone.
  */
-function replaceComposerMention(body: string, label: string, token: string): string {
+export function replaceComposerMention(body: string, label: string, token: string): string {
   if (!label) return body;
   const pattern = new RegExp(`(?<!\\[)@${escapeRegExp(label)}(?=$|[\\s,!?;:])`, "giu");
   return body.replace(pattern, () => token);

@@ -21,6 +21,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AgentBadge } from "../agents/agent-badge";
 import { CommentActorAvatar } from "../comments/comment-actor-avatar";
 import { DocumentCommentBody, type MentionNames } from "./document-comment-body";
+import { commentBodyToDisplay, commentDisplayToBody, mentionPeopleInBody } from "./document-comment-mention-draft";
 import { PostSendMentionNotice } from "./document-comment-mention-notice";
 import { DocumentCommentHistory } from "./document-comment-history";
 import { K } from "./document-comments-keys";
@@ -49,16 +50,18 @@ function DeletedFrame({ id, headingRef }: { id: string; headingRef?: Ref<HTMLPar
 
 function EditBox({ initial, onSave, onClose }: { initial: string; onSave: (body: string) => Promise<boolean>; onClose: () => void }) {
   const { t } = useTranslation();
-  const [value, setValue] = useState(initial);
+  // The textarea shows "@Name"; people mentioned in `initial` go back to their tokens on save.
+  const [value, setValue] = useState(() => commentBodyToDisplay(initial));
   const [saving, setSaving] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const changed = value !== initial;
+  const body = commentDisplayToBody(value, mentionPeopleInBody(initial));
+  const changed = body !== initial;
   const save = async () => {
     if (saving || value.trim() === "") return;
     if (!changed) return onClose();
     setSaving(true);
     try {
-      if (await onSave(value)) onClose();
+      if (await onSave(body)) onClose();
     } finally {
       setSaving(false);
     }
