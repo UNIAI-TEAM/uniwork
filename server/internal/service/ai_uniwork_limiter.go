@@ -156,9 +156,10 @@ func (c *uniworkConcurrency) takeOrgSlot(orgID string) (release func(), ok bool)
 // already full. Each lease carries its own expiry (leaseTTL: the caller's
 // deadline plus a margin, ≈ 65 s for UniWork AI's 55 s turn) in its score,
 // so a pod that dies mid-turn gives its slots back on their own and
-// continued traffic under other leases never keeps an abandoned slot counted. The release removes the lease and cleans
-// up an empty set, and it runs on a context detached from the request: a
-// client that hung up must still give its slot back.
+// continued traffic under other leases never keeps an abandoned slot
+// counted. The release removes the lease and cleans up an empty set, and it
+// runs on a context detached from the request: a client that hung up must
+// still give its slot back.
 func (c *uniworkConcurrency) takeLease(ctx context.Context, key string, max int) (release func(), ok bool, err error) {
 	member := util.NewID()
 	lctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)

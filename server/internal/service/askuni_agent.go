@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -36,6 +38,8 @@ const (
 	// rest are answered "error: too_many_calls", unrun.
 	askAgentMaxCallsPerRound = 6
 	// A run that has spent either budget, in tokens, answers on its next call.
+	// Input counts cache reads and writes too (ruling P12): Anthropic's
+	// input_tokens leaves them out.
 	askAgentInputBudget  = 60_000
 	askAgentOutputBudget = 4_000
 	// askAgentToolResultMax caps one tool result, and the focus block (ruling
@@ -176,9 +180,13 @@ func (b *sourceBook) render(items []agentItem) (out string, truncated bool) {
 	}
 	tail := strings.Join(notes, "\n")
 	room := askAgentToolResultMax - len(tail) - len("\n"+askAgentTruncated)
+	if room < 0 { // the notes alone are past the cap: cut them, and send no source
+		tail = strings.ToValidUTF8(tail[:len(tail)+room], "")
+		room, truncated = 0, true
+	}
 	var srcs strings.Builder
 	for _, it := range items {
-		if it.Key == "" {
+		if it.Key == "" || truncated {
 			continue
 		}
 		id, _ := b.number(it.Key)
@@ -237,6 +245,17 @@ func agentMalformed(r ai.Response) bool {
 		strings.TrimSpace(ai.StripUntrustedTags(r.Text)) == ""
 }
 
+// askAgentOrgCallScript counts a call and gives the key its window in one
+// step, so the count cannot outlive the window: a key without a TTL (a split
+// INCR/EXPIRE would leave one) is a permanent 429 for the organization.
+var askAgentOrgCallScript = redis.NewScript(`
+local count = redis.call('INCR', KEYS[1])
+if count == 1 or redis.call('PTTL', KEYS[1]) < 0 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`)
+
 // agentCallOver counts one model call against the organization's minute and
 // reports whether it is past askAgentOrgCallsPerMinute. Without Redis nothing
 // is counted; a Redis error fails open, in the limiters' 100 ms.
@@ -246,13 +265,9 @@ func (s *AskUNIService) agentCallOver(ctx context.Context, orgID string) bool {
 	}
 	ctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
 	defer cancel()
-	key := askAgentOrgCallKey + orgID
-	n, err := s.rdb.Incr(ctx, key).Result()
+	n, err := askAgentOrgCallScript.Run(ctx, s.rdb, []string{askAgentOrgCallKey + orgID}, askRateWindow.Milliseconds()).Int64()
 	if err != nil {
 		return false
-	}
-	if n == 1 {
-		_ = s.rdb.Expire(ctx, key, askRateWindow).Err()
 	}
 	return n > askAgentOrgCallsPerMinute
 }
@@ -269,7 +284,10 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	// The outcome is read once the run has returned, after the store, so a
 	// turn that failed to store is never reported answered.
 	defer func() {
+		p := recover()
 		switch {
+		case p != nil:
+			outcome = ai.NoticeAgentFailed
 		case outcome != "": // a gate refused the run
 		case err == nil && out.Message.Notice.String != "":
 			outcome = out.Message.Notice.String
@@ -285,6 +303,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		slog.Info("ask uni: agent run", "run_id", res.RunID, "organization_id", w.OrganizationID, "workspace_id", w.ID, "calls", calls, "rounds", rounds, "outcome", outcome)
 		if s.agentMetrics != nil {
 			s.agentMetrics.ObserveAskRun(outcome, rounds, s.now().Sub(started).Seconds())
+		}
+		if p != nil {
+			panic(p)
 		}
 	}()
 	release, err := s.agentRuns.Acquire(ctx, w.OrganizationID)
@@ -334,12 +355,14 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		Capability: ai.CapCopilotAgent, PromptID: ai.PromptCopilotAnswerV2, Vars: vars, History: hist,
 		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Effort: askAgentEffort, // Model "" is Auto
 	}
+	spentInput := 0 // the input budget's count, cached tokens included (P12)
 	call := func() (ai.Response, error) {
 		req.MeterKey = "ask-uni:" + res.RunID + ":" + strconv.Itoa(calls)
 		r, err := s.gw.Complete(runCtx, req)
 		calls++
 		res.InputTokens += r.InputTokens
 		res.OutputTokens += r.OutputTokens
+		spentInput += r.InputTokens + r.CacheReadTokens + r.CacheWriteTokens
 		return r, err
 	}
 	// A refusal on any call stores the notice. The gateway hands back no
@@ -363,7 +386,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			return AskResult{}, ai.RateLimited(askRateWindow)
 		}
 		if calls > 0 {
-			final = over || rounds == askAgentMaxToolRounds || res.InputTokens >= askAgentInputBudget ||
+			final = over || rounds == askAgentMaxToolRounds || spentInput >= askAgentInputBudget ||
 				res.OutputTokens >= askAgentOutputBudget || deadline.Sub(s.now()) < askAgentFinalReserve
 		}
 		if final {
@@ -443,6 +466,11 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 		var items []agentItem
 		if items, err = tools[j].run(ctx, tc, c.Input); err == nil {
 			content, status = b.toolResult(items)
+		}
+		// The run's deadline reached inside a tool is the same refusal as one
+		// reached inside a model call.
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = &ai.Error{Code: ai.ErrProviderTimeout.Code, Status: ai.ErrProviderTimeout.Status, Msg: ai.ErrProviderTimeout.Msg, Err: err}
 		}
 	}
 	if s.agentMetrics != nil {

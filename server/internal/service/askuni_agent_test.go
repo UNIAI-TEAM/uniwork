@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
-	"github.com/go-redis/redismock/v9"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
@@ -446,9 +448,14 @@ func TestAskAgentRetriesMalformedFinalOnce(t *testing.T) {
 
 func TestAskAgentBudgetForcesFinalRound(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		in, out int
-	}{{"input", 61_000, 5}, {"output", 10, 4_000}} {
+		name                  string
+		in, out, read, create int
+	}{
+		{"input", 61_000, 5, 0, 0},
+		{"output", 10, 4_000, 0, 0},
+		// Anthropic's input_tokens leaves cached tokens out (ruling P12).
+		{"cached input", 100, 5, 50_000, 10_000},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, fake, ua, w := agentAskFixture(t)
 			agentTask(t, s, ua, w, "Banner Tết")
@@ -456,7 +463,8 @@ func TestAskAgentBudgetForcesFinalRound(t *testing.T) {
 			fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
 				reqs = append(reqs, req)
 				if len(reqs) == 1 {
-					return provider.CompletionResponse{ToolCalls: []provider.ToolCall{searchCall("call-1")}, StopReason: "tool_use", UsagePresent: true, InputTokens: tc.in, OutputTokens: tc.out}
+					return provider.CompletionResponse{ToolCalls: []provider.ToolCall{searchCall("call-1")}, StopReason: "tool_use", UsagePresent: true,
+						InputTokens: tc.in, OutputTokens: tc.out, CacheReadTokens: tc.read, CacheWriteTokens: tc.create}
 				}
 				return provider.CompletionResponse{Text: "Xong [S1]", StopReason: "end_turn", UsagePresent: true, InputTokens: 10, OutputTokens: 5}
 			}
@@ -524,6 +532,11 @@ func TestAskAgentCapsToolResult(t *testing.T) {
 	if b.next != sent+1 {
 		t.Fatalf("book numbered %d sources, %d were sent", b.next-1, sent)
 	}
+	// Notes alone past the cap are cut too: the result never exceeds it.
+	out, status = newSourceBook(nil).toolResult([]agentItem{items[0], moreNote(strings.Repeat("ghi chú ", 10_000))})
+	if len(out) > 64<<10 || !strings.HasSuffix(out, "[truncated]") || status != "truncated" || !utf8.ValidString(out) {
+		t.Fatalf("notes past the cap: %d bytes, status %q", len(out), status)
+	}
 }
 
 func TestAskAgentLimitsCallsPerRound(t *testing.T) {
@@ -590,25 +603,53 @@ func TestAskAgentOrgCallLimit(t *testing.T) {
 	}
 }
 
-// The organization's call counter fails open on a Redis error and starts its
-// one-minute window on the first call.
+// The organization's call counter fails open on a Redis error, and its key
+// always expires: the first call opens a one-minute window, and a key left
+// without one gets it back, so no organization is refused for good.
 func TestAskAgentOrgCallCounter(t *testing.T) {
-	rdb, mock := redismock.NewClientMock()
-	s := &AskUNIService{rdb: rdb}
-	key := "uw:ai:ask:org:org-1"
-	mock.ExpectIncr(key).SetErr(errors.New("redis down"))
-	mock.ExpectIncr(key).SetVal(1)
-	mock.ExpectExpire(key, time.Minute).SetVal(true)
-	mock.ExpectIncr(key).SetVal(askAgentOrgCallsPerMinute + 1)
 	ctx := context.Background()
-	// Open on the Redis error, open on the first call, closed past the limit.
-	for i, want := range []bool{false, false, true} {
-		if got := s.agentCallOver(ctx, "org-1"); got != want {
-			t.Fatalf("call %d over = %v, want %v", i, got, want)
-		}
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
 		t.Fatal(err)
+	}
+	addr := l.Addr().String()
+	_ = l.Close()
+	dead := redis.NewClient(&redis.Options{Addr: addr, MaxRetries: 0})
+	defer func() { _ = dead.Close() }()
+	if (&AskUNIService{rdb: dead}).agentCallOver(ctx, "org-1") {
+		t.Fatal("a dead Redis must fail open")
+	}
+
+	rdb := uniworkRedis(t)
+	s := &AskUNIService{rdb: rdb}
+	org := util.NewID()
+	key := "uw:ai:ask:org:" + org
+	t.Cleanup(func() { _ = rdb.Del(context.Background(), key).Err() })
+	ttl := func() time.Duration {
+		t.Helper()
+		d, err := rdb.TTL(ctx, key).Result()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	if s.agentCallOver(ctx, org) {
+		t.Fatal("the first call is not past the limit")
+	}
+	if d := ttl(); d <= 0 || d > time.Minute {
+		t.Fatalf("TTL after the first call %v, want the one-minute window", d)
+	}
+	if err := rdb.Set(ctx, key, askAgentOrgCallsPerMinute-1, 0).Err(); err != nil { // no expiry
+		t.Fatal(err)
+	}
+	if s.agentCallOver(ctx, org) {
+		t.Fatal("call 600 is not past the limit")
+	}
+	if d := ttl(); d <= 0 || d > time.Minute {
+		t.Fatalf("a key without a TTL must get the window back, TTL %v", d)
+	}
+	if !s.agentCallOver(ctx, org) {
+		t.Fatal("call 601 is past the limit")
 	}
 }
 
@@ -774,5 +815,37 @@ func TestAskAgentFocusIsNumberedAndCapped(t *testing.T) {
 	calls := fake.Calls
 	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "?", Locale: "vi", Focus: &ai.Focus{Kind: "task", ID: other.ID}}); !errors.Is(err, ai.ErrContextForbidden) || fake.Calls != calls {
 		t.Fatalf("err %v, calls %d; want ai_context_forbidden before any call", err, fake.Calls-calls)
+	}
+}
+
+// A run that panics is not reported answered, and the panic goes on.
+func TestAskAgentPanicIsNotAnswered(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	fake.Reply = func(provider.CompletionRequest) provider.CompletionResponse { panic("provider bug") }
+	func() {
+		defer func() {
+			if p := recover(); p != "provider bug" {
+				t.Fatalf("recovered %v, want the panic to go on", p)
+			}
+		}()
+		_, _ = s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	}()
+	if !reflect.DeepEqual(m.runs, []string{"agent_failed/0"}) {
+		t.Fatalf("runs %v", m.runs)
+	}
+}
+
+// A tool still running at the deadline ends the run with the gateway's
+// timeout refusal, not a raw context error.
+func TestAskAgentToolDeadlineIsTimeout(t *testing.T) {
+	s, _, ua, w := agentAskFixture(t)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	tc := ai.ToolContext{ActorID: ua.ID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	_, err := s.agentToolCall(ctx, s.agentTools(), tc, searchCall("call-1"), newSourceBook(nil), 0)
+	if !errors.Is(err, ai.ErrProviderTimeout) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err %v, want ai_provider_timeout wrapping the deadline", err)
 	}
 }
