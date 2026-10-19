@@ -577,3 +577,61 @@ func cloneUniworkModuleTable(src map[string]uniworkModuleTools) map[string]uniwo
 func unboundUniworkAllowlist(module string, offered []UniworkToolSpec, viewOnly bool) UniworkAllowlist {
 	return UniworkModuleAllowlist(module, offered, viewOnly, false)
 }
+
+// uniworkMappedFormatTools is the harness's TOOL_OPS mapping for the four
+// formats that C6 ran name-only (scripts/office/g5g6g7/holdout-backend.mjs:31-75):
+// every tool the holdout offers a case of slides / pdf / markdown / html, and
+// therefore every name a real-schema run can put in front of the model for
+// those modules. The table is transcribed here on purpose (a Go test cannot read
+// the JS mapping), so a change to TOOL_OPS that a mapped name leaves the served
+// allowlist for fails here until both are updated together (G7-12-SCHEMA step 3,
+// UNI-1964).
+var uniworkMappedFormatTools = map[string][]string{
+	"slides":   {"read_slide", "apply_ops", "ask_clarification"},
+	"pdf":      {"read_pages", "search_text", "get_outline", "edit_text", "edit_block", "ask_clarification"},
+	"markdown": {"get_document_context", "read_blocks", "read_frontmatter", "apply_ops", "ask_clarification"},
+	"html":     {"get_outline", "read_source", "apply_ops", "ask_clarification"},
+}
+
+// TestUniworkMappedFormatToolsAreAllowlisted pins that every tool the harness
+// maps for slides / pdf / markdown / html is a real tool of the committed
+// genoffice-tool-schemas.json AND a name officeUniworkModulesV1 serves, so the
+// four formats' real-schema surface is the product's own allowlist and not a
+// harness-only name. A mapped name that is missing from either side is a product
+// gap (a tool the frame offers but the server would drop as not_allowlisted),
+// not something this test may paper over.
+func TestUniworkMappedFormatToolsAreAllowlisted(t *testing.T) {
+	schemasBytes, err := os.ReadFile(genofficeSchemasJSONPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", genofficeSchemasJSONPath, err)
+	}
+	var schemaDoc genofficeToolSchemasDoc
+	if err := json.Unmarshal(schemasBytes, &schemaDoc); err != nil {
+		t.Fatal(err)
+	}
+	specsByModule := schemaDoc.moduleSpecs()
+
+	for module, names := range uniworkMappedFormatTools {
+		offeredByFile := make(map[string]bool, len(specsByModule[module]))
+		for _, spec := range specsByModule[module] {
+			offeredByFile[spec.Function.Name] = true
+		}
+		served, ok := officeUniworkModulesV1[module]
+		if !ok {
+			t.Errorf("%s: officeUniworkModulesV1 has no %q module", module, module)
+			continue
+		}
+		servedNames := make(map[string]bool, len(served.Read)+len(served.Write))
+		for _, name := range append(append([]string(nil), served.Read...), served.Write...) {
+			servedNames[name] = true
+		}
+		for _, name := range names {
+			if !offeredByFile[name] {
+				t.Errorf("%s/%s: the harness maps it but %s does not offer it", module, name, genofficeSchemasJSONPath)
+			}
+			if !servedNames[name] {
+				t.Errorf("%s/%s: the harness maps it but officeUniworkModulesV1 does not serve it (a real-schema run would drop the call as not_allowlisted)", module, name)
+			}
+		}
+	}
+}

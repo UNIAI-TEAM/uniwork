@@ -11,14 +11,15 @@ import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { parseMechanicalTable } from '../instruction-pack-tools.mjs';
+import { committedBlockLines, parseExtractBlock } from './g7-06/extractor-check.mjs';
 import { ANSWER_MARKER, deriveAnswer, parseReport, reportingFooter } from './holdout-answer.mjs';
 import { quantitiesOf } from './holdout-figures.mjs';
 import {
   TOOL_OPS, createBackend, frameToolCounts, modulesOfCase, offeredTools, opsOfTool, toolCatalogue, toolSurface, unobtainableOps,
 } from './holdout-backend.mjs';
 import {
-  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, MANIFEST_KIND, MAX_STEPS, buildAsks, createServerSession, createUsageReader, firstMessages, fixtureEmails, httpTransport,
-  isInsideRepo, parseArgs, preflight, redactSecrets, runHoldout, sha256Hex,
+  DEFAULT_CASES_DIR, DEFAULT_OUT_DIR, DEFAULT_TOOL_SCHEMAS, MANIFEST_KIND, MAX_STEPS, buildAsks, committedBlockRev, createServerSession, createUsageReader,
+  firstMessages, fixtureEmails, httpTransport, isInsideRepo, parseArgs, preflight, readToolSchemasFile, redactSecrets, runHoldout, sha256Hex,
 } from './holdout-run.mjs';
 import { OPERATIONS, loadCases, score, valuesEqual } from './holdout-score.mjs';
 import { readWorkbook } from './holdout-xlsx-truth.mjs';
@@ -27,6 +28,7 @@ import { argumentsFor, referenceLine, scriptedModel, startStubFacade, toolsToCal
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const { cases } = loadCases(DEFAULT_CASES_DIR);
+const committedBlock = () => parseExtractBlock(committedBlockLines(fs.readFileSync(path.join(repoRoot, 'docs/office/g5g6g7/genoffice-tools.md'), 'utf8')));
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'g712-run-test-'));
 after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 
@@ -1728,6 +1730,40 @@ describe('sessions, manifest and tool surface', () => {
     const real = (name) => ({ type: 'function', function: { name, description: 'real', parameters: { type: 'object', properties: {} } } });
     const full = toolCatalogue(Object.fromEntries(['slides', 'pdf', 'markdown', 'html'].map((m) => [m, Object.keys(TOOL_OPS[m]).map(real)])));
     assert.doesNotThrow(() => preflight({ redis: 'off', catalogue: full }));
+  });
+
+  // G7-12-SCHEMA step 4 (UNI-1964): --tool-schemas defaults to the committed file, so a real run can no longer fall
+  // back to the hollow name-only surface by accident; --allow-name-only with no file stays the explicit escape; the run
+  // config records the file's sha256 and header.rev; and a header rev that does not match the committed §3 block fails
+  // preflight before any spend. No model call is made here: only parseArgs, preflight and the stub façade run.
+  it('defaults --tool-schemas to the committed file and fails preflight on a stale rev (G7-12-SCHEMA)', async () => {
+    const defaults = parseArgs(['--server-url', 'http://localhost:1/']);
+    assert.equal(defaults.toolSchemas, DEFAULT_TOOL_SCHEMAS, 'no flag: the committed file is used');
+    assert.equal(defaults.allowNameOnly, false);
+    // --allow-name-only with no file is still the explicit hollow escape
+    const hollow = parseArgs(['--server-url', 'http://localhost:1', '--allow-name-only']);
+    assert.equal(hollow.toolSchemas, undefined);
+    // an explicit --tool-schemas still wins
+    assert.equal(parseArgs(['--server-url', 'http://localhost:1', '--tool-schemas', '/tmp/other-schemas.json']).toolSchemas, path.resolve('/tmp/other-schemas.json'));
+    assert.equal(parseArgs(['--server-url', 'http://localhost:1', '--allow-name-only', '--tool-schemas', '/tmp/other-schemas.json']).toolSchemas, path.resolve('/tmp/other-schemas.json'));
+
+    const loaded = readToolSchemasFile(defaults.toolSchemas);
+    assert.equal(loaded.doc.header.rev, committedBlock().rev, 'the committed file pins the committed §3 block rev');
+    assert.equal(loaded.sha256, sha256Hex(fs.readFileSync(DEFAULT_TOOL_SCHEMAS)));
+    // the default file gives a real surface for every module, so preflight accepts it with no escape flag
+    const surface = toolSurface(toolCatalogue(loaded.doc), { fileSha256: loaded.sha256 });
+    assert.deepEqual(Object.entries(surface).filter(([, v]) => v.source === 'name-only').map(([m]) => m), []);
+    assert.doesNotThrow(() => preflight({ redis: 'on', catalogue: toolCatalogue(loaded.doc), toolSchemas: loaded }));
+    // a rev that does not match the committed block fails preflight (readToolSchemasFile returns rev at the top level)
+    const stale = { ...loaded, doc: { ...loaded.doc, header: { ...loaded.doc.header, rev: 'f'.repeat(40) } }, rev: 'f'.repeat(40) };
+    assert.throws(() => preflight({ redis: 'on', catalogue: toolCatalogue(stale.doc), toolSchemas: stale }), /header\.rev .* does not match the committed §3 block rev/);
+
+    // the run config records the file's sha256 and header.rev, and the surface is the file's
+    const { docs } = await runWith({ onlyIds: [cases[0].id], subset: cases, opts: { toolSchemas: loaded.doc, toolSchemasSha256: loaded.sha256, toolSchemasRev: loaded.rev } }, 'surface-default');
+    assert.equal(docs[0].config.toolSchemas.sha256, loaded.sha256);
+    assert.equal(docs[0].config.toolSchemas.rev, loaded.doc.header.rev);
+    assert.equal(docs[0].config.toolSurface.slides.source, `file:${loaded.sha256}`);
+    assert.equal(docs[0].config.toolSurface.pdf.source, `file:${loaded.sha256}`);
   });
 
   it('records a usage reader failure in the run instead of swallowing it, and the coverage of usage rows (G712-3, G712-15)', async () => {
