@@ -70,6 +70,10 @@ func newHandlerStubEngine(t *testing.T) service.OfficeEngine {
 			Format    string `json:"format"`
 		}
 		raw, _ := io.ReadAll(r.Body)
+		// The client sends a framed body (SIZE-OPS1): n envelope bytes, then input bytes.
+		if n, err := strconv.Atoi(r.Header.Get("X-Office-Envelope-Length")); err == nil && n >= 0 && n <= len(raw) {
+			raw = raw[:n]
+		}
 		_ = json.Unmarshal(raw, &env)
 		writeJSON(w, http.StatusAccepted, map[string]any{
 			"job_id": env.RequestID, "state": "accepted",
