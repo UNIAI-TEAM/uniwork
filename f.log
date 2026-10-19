@@ -1,0 +1,54 @@
+$ f=0; for i in 1 2 3; do WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e docs-mobile-390 --reporter=list || { f=$((f+1)); echo "MOBILE390_FAIL run=$i"; }; done; echo; echo "MOBILE390_REPEAT_EXIT=$f"; [ $f -eq 0 ]
+
+Running 10 tests using 1 worker
+
+(node:8056) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (editable) (769ms)
+  ✓   2 [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) (650ms)
+  ✓   3 [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) (1.1s)
+  ✓   4 [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) (574ms)
+  ✓   5 [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) (677ms)
+  ✓   6 [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) (539ms)
+  ✓   7 [chromium] › web/e2e/docs-mobile-390.spec.ts:189:5 › docs-mobile-390: a status message shows as a toast above the status bar (5.0s)
+  ✓   8 [chromium] › web/e2e/docs-mobile-390.spec.ts:249:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager (1.5s)
+  ✓   9 [chromium] › web/e2e/docs-mobile-390.spec.ts:281:5 › docs-mobile-390: print preview is usable in view-only too (1.9s)
+  ✓  10 [chromium] › web/e2e/docs-mobile-390.spec.ts:289:5 › docs-mobile-390: 1280 keeps the File menu under the File tab (614ms)
+
+  10 passed (14.7s)
+
+Running 10 tests using 1 worker
+
+(node:8270) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (editable) (741ms)
+  ✓   2 [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) (1.1s)
+  ✓   3 [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) (649ms)
+  ✓   4 [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) (543ms)
+  ✓   5 [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) (626ms)
+  ✓   6 [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) (544ms)
+  ✓   7 [chromium] › web/e2e/docs-mobile-390.spec.ts:189:5 › docs-mobile-390: a status message shows as a toast above the status bar (5.0s)
+  ✓   8 [chromium] › web/e2e/docs-mobile-390.spec.ts:249:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager (1.5s)
+  ✓   9 [chromium] › web/e2e/docs-mobile-390.spec.ts:281:5 › docs-mobile-390: print preview is usable in view-only too (1.4s)
+  ✓  10 [chromium] › web/e2e/docs-mobile-390.spec.ts:289:5 › docs-mobile-390: 1280 keeps the File menu under the File tab (603ms)
+
+  10 passed (14.2s)
+
+Running 10 tests using 1 worker
+
+(node:8483) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (editable) (644ms)
+  ✓   2 [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) (623ms)
+  ✓   3 [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) (634ms)
+  ✓   4 [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) (546ms)
+  ✓   5 [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) (643ms)
+  ✓   6 [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) (547ms)
+  ✓   7 [chromium] › web/e2e/docs-mobile-390.spec.ts:189:5 › docs-mobile-390: a status message shows as a toast above the status bar (5.0s)
+  ✓   8 [chromium] › web/e2e/docs-mobile-390.spec.ts:249:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager (1.4s)
+  ✓   9 [chromium] › web/e2e/docs-mobile-390.spec.ts:281:5 › docs-mobile-390: print preview is usable in view-only too (1.4s)
+  ✓  10 [chromium] › web/e2e/docs-mobile-390.spec.ts:289:5 › docs-mobile-390: 1280 keeps the File menu under the File tab (556ms)
+
+  10 passed (13.4s)
+
+MOBILE390_REPEAT_EXIT=0

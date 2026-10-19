@@ -1,0 +1,210 @@
+$ git checkout -q af1e03f75 -- apps/docs/src; [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"; npm run build:web -- --module docs >/dev/null 2>&1; echo "BASE_BUILD_RC=$?"; WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e docs-mobile-390 --reporter=list; r=$?; git reset -q --hard HEAD; echo; echo "RED_BASE_RC=$r"; [ $r -ne 0 ] && echo RED_OK
+BASE_BUILD_RC=0
+
+Running 10 tests using 1 worker
+
+(node:8780) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (editable) (655ms)
+(node:8853) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) (628ms)
+(node:8922) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) (661ms)
+(node:8989) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) (627ms)
+(node:9057) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) (619ms)
+(node:9125) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) (620ms)
+(node:9193) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › web/e2e/docs-mobile-390.spec.ts:189:5 › docs-mobile-390: a status message shows as a toast above the status bar (692ms)
+(node:9262) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › web/e2e/docs-mobile-390.spec.ts:249:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager (1.5s)
+(node:9332) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   9 [chromium] › web/e2e/docs-mobile-390.spec.ts:281:5 › docs-mobile-390: print preview is usable in view-only too (1.5s)
+  ✓  10 [chromium] › web/e2e/docs-mobile-390.spec.ts:289:5 › docs-mobile-390: 1280 keeps the File menu under the File tab (576ms)
+
+
+  1) [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (editable) 
+
+    Error: Save Ctrl+S
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "hitInMenu": true,
+    +   "hitInMenu": false,
+        "inViewport": true,
+        "label": "Save Ctrl+S",
+      }
+
+      75 |     expect(items.length).toBeGreaterThan(0)
+      76 |     for (const item of items) {
+    > 77 |       expect(item, item.label).toEqual({ label: item.label, inViewport: true, hitInMenu: true })
+         |                                ^
+      78 |     }
+      79 |     // the menu hangs under the tab row and stays inside the phone frame
+      80 |     const geo = await ed.evaluate(() => {
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:77:32
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-2790a--and-hit-testable-editable--chromium/error-context.md
+
+  2) [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) 
+
+    Error: Save As… Ctrl+Shift+S
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "hitInMenu": true,
+    +   "hitInMenu": false,
+        "inViewport": true,
+        "label": "Save As… Ctrl+Shift+S",
+      }
+
+      75 |     expect(items.length).toBeGreaterThan(0)
+      76 |     for (const item of items) {
+    > 77 |       expect(item, item.label).toEqual({ label: item.label, inViewport: true, hitInMenu: true })
+         |                                ^
+      78 |     }
+      79 |     // the menu hangs under the tab row and stays inside the phone frame
+      80 |     const geo = await ed.evaluate(() => {
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:77:32
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-e404a-and-hit-testable-view-only--chromium/error-context.md
+
+  3) [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 2
+    Received:    28
+
+      138 |     expect(geo.menuTop).toBeGreaterThanOrEqual(geo.tabBottom - 1)
+      139 |     expect(geo.menuTop - geo.tabBottom).toBeLessThanOrEqual(8)
+    > 140 |     expect(Math.abs(geo.menuLeft - Math.max(geo.tabLeft, 8))).toBeLessThanOrEqual(2)
+          |                                                               ^
+      141 |     const items = await hitTestMenu(ed)
+      142 |     expect(items.length).toBeGreaterThan(0)
+      143 |     for (const item of items) {
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:140:63
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-e6c2b-scrolled-sideways-editable--chromium/error-context.md
+
+  4) [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) 
+
+    Error: expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 0
+    Received:    -444
+
+      176 |     // inside the phone frame and hit-testable, not at the off-screen tab position
+      177 |     expect(geo.top).toBeGreaterThanOrEqual(tab.bottom - 1)
+    > 178 |     expect(geo.left).toBeGreaterThanOrEqual(0)
+          |                      ^
+      179 |     expect(Math.abs(geo.left - 8)).toBeLessThanOrEqual(2)
+      180 |     expect(geo.right).toBeLessThanOrEqual(geo.vw)
+      181 |     const items = await hitTestMenu(ed)
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:178:22
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-44a7d--tab-scrolled-off-editable--chromium/error-context.md
+
+  5) [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 2
+    Received:    28
+
+      138 |     expect(geo.menuTop).toBeGreaterThanOrEqual(geo.tabBottom - 1)
+      139 |     expect(geo.menuTop - geo.tabBottom).toBeLessThanOrEqual(8)
+    > 140 |     expect(Math.abs(geo.menuLeft - Math.max(geo.tabLeft, 8))).toBeLessThanOrEqual(2)
+          |                                                               ^
+      141 |     const items = await hitTestMenu(ed)
+      142 |     expect(items.length).toBeGreaterThan(0)
+      143 |     for (const item of items) {
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:140:63
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-296f9-crolled-sideways-view-only--chromium/error-context.md
+
+  6) [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) 
+
+    Error: expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 0
+    Received:    -412
+
+      176 |     // inside the phone frame and hit-testable, not at the off-screen tab position
+      177 |     expect(geo.top).toBeGreaterThanOrEqual(tab.bottom - 1)
+    > 178 |     expect(geo.left).toBeGreaterThanOrEqual(0)
+          |                      ^
+      179 |     expect(Math.abs(geo.left - 8)).toBeLessThanOrEqual(2)
+      180 |     expect(geo.right).toBeLessThanOrEqual(geo.vw)
+      181 |     const items = await hitTestMenu(ed)
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:178:22
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-9bb55-tab-scrolled-off-view-only--chromium/error-context.md
+
+  7) [chromium] › web/e2e/docs-mobile-390.spec.ts:189:5 › docs-mobile-390: a status message shows as a toast above the status bar 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 60
+    Received:    703
+
+      224 |   // just above the status bar (not the default top-centre pill), not over the page counter
+      225 |   expect(box.y + box.height).toBeLessThanOrEqual(geo.barTop + 1)
+    > 226 |   expect(geo.barTop - (box.y + box.height)).toBeLessThanOrEqual(60)
+          |                                             ^
+      227 |   const pageAfter = await statusPageRect(ed)
+      228 |   expect(pageAfter).toEqual(pageBefore)
+      229 |   // it goes away by itself
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:226:45
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-1a893--toast-above-the-status-bar-chromium/error-context.md
+
+  8) [chromium] › web/e2e/docs-mobile-390.spec.ts:249:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager 
+
+    Error: expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 200
+    Received:    20
+
+      272 |   expect(geo.paneH).toBeGreaterThanOrEqual(200)
+      273 |   // stacked: the preview takes the dialog's width, not a strip beside the options
+    > 274 |   expect(geo.paneW).toBeGreaterThanOrEqual(200)
+          |                     ^
+      275 |   expect(geo.dlgLeft).toBeGreaterThanOrEqual(0)
+      276 |   expect(geo.dlgRight).toBeLessThanOrEqual(geo.vw)
+      277 |   expect(geo.pagerText).toBe('1 / 1')
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:274:21
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-9a7d9-review-and-a-one-line-pager-chromium/error-context.md
+
+  8 failed
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (editable) 
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:69:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) 
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) 
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) 
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:123:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) 
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:157:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) 
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:189:5 › docs-mobile-390: a status message shows as a toast above the status bar 
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:249:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager 
+  2 passed (12.7s)
+
+RED_BASE_RC=1
+RED_OK
