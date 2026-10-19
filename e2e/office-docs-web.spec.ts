@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { e2eApiUrl, e2eBaseUrl } from "./api-url";
+import { createFolder } from "./documents-folders-fixtures";
 import {
   listVersions, openSeededDocument, readPinnedFrame, releaseSeededEditLock, seedDocx, seedUntitledDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
 } from "./office-docs-web-fixtures";
@@ -244,6 +245,57 @@ test.describe("open, edit, save", () => {
     await page.keyboard.press("Control+s");
     await expect(page.getByRole("dialog", { name: "Đặt tên tài liệu" })).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath("05-first-save-named.png") });
+  });
+
+  test("the first save can pick another folder: the document moves there, then uploads (UNI-1960)", async ({ page, request, browser }) => {
+    const context = await browser.newContext({ baseURL: baseUrl });
+    let blank: SeededDocx;
+    const folderTitle = `Hợp đồng ${Date.now().toString(36)}`;
+    let folderId = "";
+    try {
+      const seedPage = await context.newPage();
+      blank = await seedUntitledDocx(seedPage, baseUrl, `docs-web-folder-${Date.now().toString(36)}`);
+      folderId = (await createFolder(seedPage, blank.account.token, blank.account.wsId, folderTitle)).id;
+    } finally {
+      await context.close();
+    }
+    await signInAs(page, blank.account.email);
+    await openSeededDocument(page, blank);
+
+    const editor = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
+    await expect(editor).toBeVisible({ timeout: 60_000 });
+    await editor.click();
+    await page.keyboard.press("Control+s");
+
+    const dialog = page.getByRole("dialog", { name: "Đặt tên tài liệu" });
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    // The Location row starts where the document is (the API seed has no parent: the workspace root) and Change opens the folder picker.
+    const location = dialog.getByTestId("first-save-location");
+    await expect(location).toContainText("Tài liệu (gốc)");
+    await location.getByRole("button", { name: "Đổi" }).click();
+    const picker = page.getByRole("dialog", { name: "Chọn nơi lưu" });
+    await picker.getByRole("treeitem", { name: folderTitle }).click();
+    await picker.getByRole("button", { name: "Chọn" }).click();
+    await expect(picker).toBeHidden();
+    await expect(location).toContainText(folderTitle);
+
+    const title = `Hợp đồng mẫu ${Date.now().toString(36)}`;
+    await dialog.getByLabel("Tên tài liệu").fill(title);
+    await dialog.getByRole("button", { name: "Lưu" }).click();
+    await expect(dialog).toBeHidden({ timeout: 30_000 });
+
+    await expect.poll(
+      async () => (await listVersions(request, blank.account.token, blank.documentId)).length,
+      { timeout: 60_000, intervals: [1_000] },
+    ).toBeGreaterThan(0);
+    const detail = await request.get(`${e2eApiUrl}/api/v1/documents/${blank.documentId}`, {
+      headers: { authorization: `Bearer ${blank.account.token}` },
+    });
+    expect(detail.ok(), `document detail: HTTP ${detail.status()}`).toBeTruthy();
+    const { document } = (await detail.json()) as { document: { title: string; parent_id: string | null } };
+    expect(document.title).toBe(title);
+    expect(document.parent_id).toBe(folderId);
+    await page.screenshot({ path: test.info().outputPath("05-first-save-folder.png") });
   });
 
   test("an inserted image passes the frame CSP and is stored in the docx", async ({ page, request }) => {
