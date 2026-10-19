@@ -494,7 +494,7 @@ the d3-1 `settleRecord` guard `69e49ad0a`, FD-14 `7299f9619`, the G6-09d extract
 `fa22cd9d9`/`bf4ff7b07`, G6-09 and the OQ-F12 lows). It carries, beyond the history below, the UNI-1919 web AI bound
 signal (the shared `uniworkBoundForAi` rule: the PDF, Docs, Slides and HTML web frames read as UniWork-bound to the AI —
 HTML hides `plan_page`/`write_document` on a bound page and shows `BOUND_NOTE` only on an editable bound page, Markdown
-adds the note only; `55b587bfe` adds the SVR-1 fix over `82c8381e1` — the HTML `AiPanel` now forwards `uniworkBound` into
+adds the note only; `55b587bfe` adds over `82c8381e1` the fork-main merges up to `c5bf9f411` (UNI-1957 Docs parity, G5-13 batch 2 / UNI-1362 incl. the offline pin settle and library boundary guard, UNI-1922 Sheets AI grid growth, UNI-1953 create types, UNI-1948 web slidesApi parity, UNI-1931 mobile 390 Docs, UNI-1932 tab sidebar) and the SVR-1 fix — the HTML `AiPanel` now forwards `uniworkBound` into
 the document skill's access object (`66ac839f8` red test, `2946de792` fix), so a bound HTML page stops offering
 `plan_page`/`write_document` and `refuseBound` becomes reachable), UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
