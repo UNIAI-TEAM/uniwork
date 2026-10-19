@@ -336,6 +336,87 @@ function numberFormatOf(doc, cell) {
   return doc.workbook.formatKinds?.[cell.s ?? 0] ?? 'number';
 }
 
+// The frame's overview previews: whitespace-collapsed text, cut at 60 characters with an ellipsis
+// (apps/markdown and apps/html `PREVIEW_CHARS` in the uniwork-office frame).
+const PREVIEW_CHARS = 60;
+const preview = (text) => {
+  const flat = String(text ?? '').replace(/\s+/g, ' ').trim();
+  return flat.length > PREVIEW_CHARS ? `${flat.slice(0, PREVIEW_CHARS)}…` : flat;
+};
+
+/** The top-level blocks of a markdown text: front matter, headings, fenced code, and runs of non-blank lines. */
+function markdownBlocks(lines) {
+  const blocks = [];
+  const push = (type, body, style = null) => blocks.push({ index: blocks.length, type, style, lines: body, text: plainMarkdown(type, body) });
+  let i = 0;
+  if (lines[0] === '---') {
+    const close = lines.indexOf('---', 1);
+    if (close > 0) { push('frontmatter', lines.slice(0, close + 1)); i = close + 1; }
+  }
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === '') { i += 1; continue; }
+    const heading = /^ {0,3}(#{1,6})[ \t]+\S/.exec(line);
+    if (heading) { push(`h${heading[1].length}`, [line], `Heading${heading[1].length}`); i += 1; continue; }
+    const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trimStart().startsWith(fence[1])) j += 1;
+      push('codeBlock', lines.slice(i, Math.min(j + 1, lines.length)));
+      i = j + 1;
+      continue;
+    }
+    let j = i;
+    while (j < lines.length && lines[j].trim() !== '' && !/^ {0,3}#{1,6}[ \t]+\S/.test(lines[j]) && !/^ {0,3}(`{3,}|~{3,})/.test(lines[j])) j += 1;
+    const body = lines.slice(i, j);
+    const type = body[0].trimStart().startsWith('|') ? 'table' : /^\s*(?:[-*+]|\d+[.)])\s/.test(body[0]) ? 'list' : 'paragraph';
+    push(type, body);
+    i = j;
+  }
+  return blocks;
+}
+
+/** The text content of a markdown block, as the editor's node.textContent gives it (markup and table rules dropped). */
+function plainMarkdown(type, body) {
+  if (type === 'codeBlock') return body.slice(1, -1).join(' ');
+  if (type === 'table') return body.filter((l) => !/^\s*\|?\s*:?-{2,}/.test(l)).map((l) => l.replace(/\|/g, ' ')).join(' ');
+  return body.map((l) => l.replace(/^\s*(?:#{1,6}|[-*+]|\d+[.)]|>)\s+/, '').replace(/\[[ xX]\]\s*/, '').replace(/[*_`]/g, '')).join(' ');
+}
+
+const HTML_VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const OUTLINE_HIDDEN = new Set(['html', 'head', 'body', 'meta', 'link', 'title', 'noscript']);
+
+/**
+ * The frame's html outline (default depth 3, html at depth 0, a table's rows under an implied tbody): one entry per
+ * element with its line, tag and a 60-character preview of its text; style and script are listed without a preview.
+ */
+function htmlOutline(lines) {
+  const src = lines.join('\n');
+  const lineAt = (offset) => src.slice(0, offset).split('\n').length;
+  const stack = [];
+  const open = [];
+  for (const m of src.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g)) {
+    const tag = m[2].toLowerCase();
+    if (m[1]) {
+      const at = stack.map((e) => e.tag).lastIndexOf(tag);
+      if (at >= 0) for (const e of stack.splice(at)) e.end = m.index;
+      continue;
+    }
+    const parent = stack.at(-1);
+    const depth = stack.reduce((d, e) => d + 1 + (e.tbody ? 1 : 0), 0);
+    const el = { tag, depth: depth + (tag === 'tr' && parent?.tag === 'table' ? 1 : 0), start: m.index + m[0].length, line: lineAt(m.index), end: src.length, tbody: tag === 'tr' && parent?.tag === 'table' };
+    open.push(el);
+    if (!m[3] && !HTML_VOID.has(tag)) stack.push(el);
+  }
+  return open
+    .filter((e) => e.depth <= 3 && !OUTLINE_HIDDEN.has(e.tag))
+    .map((e, index) => {
+      const level = /^h([1-6])$/.exec(e.tag)?.[1];
+      const text = e.tag === 'style' || e.tag === 'script' ? '' : preview(src.slice(e.start, e.end).replace(/<[^>]*>/g, ' '));
+      return { index, line: e.line, tag: e.tag, ...(level ? { style: `Heading${level}` } : {}), preview: text };
+    });
+}
+
 /** A tool argument the real tool would refuse; the backend answers `invalid_arguments` and the runner marks the ask. */
 class InvalidArguments extends Error {}
 
@@ -440,6 +521,8 @@ function readTools(caseDoc, doc) {
       return { slideCount: doc.slides.length, slides };
     }
     if (doc.format === 'pdf') {
+      // The frame's get_outline is the bookmark tree, empty when the document has none (oracle2 O2-B2).
+      if (name === 'get_outline') return { pageCount: doc.pageCount, outline: doc.outline ?? [] };
       if (name === 'search_text') {
         const query = String(args.query ?? args.text ?? '').toLowerCase();
         return { pageCount: doc.pageCount, hits: doc.pages.flatMap((p) => p.lines.filter((l) => query && l.toLowerCase().includes(query)).map((line) => ({ page: p.page, line }))) };
@@ -448,6 +531,20 @@ function readTools(caseDoc, doc) {
     }
     if (doc.format === 'md' || doc.format === 'html') {
       if (name === 'read_frontmatter') return { frontmatter: doc.lines[0] === '---' ? doc.lines.slice(1, doc.lines.indexOf('---', 1)) : [] };
+      // The overview tools answer as the frame does, with a 60-character preview per block or element; the full text
+      // comes only from read_blocks / read_source (oracle2 O2-B2).
+      if (doc.format === 'md' && name === 'get_document_context') {
+        const blocks = markdownBlocks(doc.lines);
+        return { lineCount: doc.lines.length, blockCount: blocks.length, blocks: blocks.map(({ index, type, style, text: body }) => ({ index, type, ...(style ? { style } : {}), preview: preview(body) })) };
+      }
+      if (doc.format === 'html' && name === 'get_outline') return { lineCount: doc.lines.length, blocks: htmlOutline(doc.lines) };
+      if (doc.format === 'md' && name === 'read_blocks' && (args.startIndex !== undefined || args.endIndex !== undefined)) {
+        const blocks = markdownBlocks(doc.lines);
+        const start = Math.max(0, Number(args.startIndex ?? 0));
+        const end = Math.min(blocks.length - 1, Number(args.endIndex ?? blocks.length - 1));
+        const lines = blocks.slice(start, end + 1).flatMap((b) => b.lines);
+        return { blockCount: blocks.length, startIndex: start, endIndex: end, lines, text: lines.join('\n') };
+      }
       const from = Number(args.startBlockIndex ?? 0);
       return { lineCount: doc.lines.length, lines: doc.lines.slice(from), text: doc.lines.slice(from).join('\n') };
     }
