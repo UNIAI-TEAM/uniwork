@@ -373,6 +373,20 @@ func TestSendDocumentMessageRefusesOverCapRoom(t *testing.T) {
 	if !summary.CanSendDocument {
 		t.Fatal("can_send_document = false after a member was deactivated; the skipped member is not a recipient")
 	}
+	// Exactly the cap is a legal audience: the send answers and grants all 50.
+	atCap, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, group.ID, documentMessageInput("doc-capacity-50"))
+	if err != nil {
+		t.Fatalf("a room at exactly %d recipients refused the send: %v", maxDocumentShareBatch, err)
+	}
+	granted := 0
+	for _, share := range f.liveSharesOfDocument(t, atCap.Document.DocumentID) {
+		if share.PrincipalID != f.ua.ID {
+			granted++
+		}
+	}
+	if granted != maxDocumentShareBatch {
+		t.Fatalf("grants at the cap = %d, want %d", granted, maxDocumentShareBatch)
+	}
 	// The DM stays sendable.
 	dmSummary, err := f.svc.GetRoomSummary(ctx, f.ua.ID, f.ws.ID, room.ID)
 	if err != nil {
@@ -380,6 +394,38 @@ func TestSendDocumentMessageRefusesOverCapRoom(t *testing.T) {
 	}
 	if !dmSummary.CanSendDocument {
 		t.Fatal("can_send_document = false on a two-person DM")
+	}
+}
+
+// TestDocumentGrantRecipientsStopAtTheCap: the recipient walk stops one past
+// the cap instead of gating every member of a large room (BE-CDS-3). The
+// callers only compare the length to the cap, so cap+1 is all they need.
+func TestDocumentGrantRecipientsStopAtTheCap(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+
+	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	ids := make([]string, 0, maxDocumentShareBatch+3)
+	for i := 0; i < maxDocumentShareBatch+3; i++ {
+		u := registerVerified(t, f.q, as, fmt.Sprintf("chatdoc-walk-%d@example.com", i), fmt.Sprintf("Walk %d", i))
+		addOrgMember(t, f.q, f.orgID, u.ID)
+		addWorkspaceMember(t, f.q, f.ws.ID, u.ID)
+		ids = append(ids, u.ID)
+	}
+	group, err := f.svc.CreateGroup(ctx, f.ua.ID, f.ws.ID, CreateGroupInput{Name: "walk", MemberUserIDs: ids})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	room, err := f.q.GetChatRoomByID(ctx, group.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipients, err := f.svc.documentGrantRecipients(ctx, f.ua.ID, room)
+	if err != nil {
+		t.Fatalf("recipients: %v", err)
+	}
+	if len(recipients) != maxDocumentShareBatch+1 {
+		t.Fatalf("recipients = %d, want the walk to stop at %d", len(recipients), maxDocumentShareBatch+1)
 	}
 }
 
@@ -544,6 +590,44 @@ func TestDocumentCardViewerFields(t *testing.T) {
 	}
 	if lateBlock.Title != "" || lateBlock.Format != "" || lateBlock.Revision != 0 || lateBlock.VersionNumber != 0 || lateBlock.CanOpenInApp {
 		t.Fatalf("a block without access leaked fields: %+v", lateBlock)
+	}
+}
+
+// TestDocumentCardArchivedDocumentLeaksNothing: a receiver who still holds a
+// share on a document that went to the trash sees the id and the false flag,
+// never the title, format or revision (BE-CDS-12).
+func TestDocumentCardArchivedDocumentLeaksNothing(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+	room := f.dm(t)
+
+	sent, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, room.ID, documentMessageInput("doc-archived-1"))
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	rows, err := f.svc.ListRoomMessages(ctx, f.ub.ID, f.ws.ID, room.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatalf("receiver list: %v", err)
+	}
+	if block := documentBlockOf(t, rows, sent.ID); block == nil || !block.HasAccess || block.Title == "" {
+		t.Fatalf("receiver block before archive = %+v, want access with a title", block)
+	}
+	if _, err := f.docs.ArchiveDocument(ctx, Human(f.ua.ID), sent.Document.DocumentID, ArchiveDocumentInput{}); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	rows, err = f.svc.ListRoomMessages(ctx, f.ub.ID, f.ws.ID, room.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatalf("receiver list after archive: %v", err)
+	}
+	block := documentBlockOf(t, rows, sent.ID)
+	if block == nil {
+		t.Fatal("the receiver sees no document block after the archive")
+	}
+	if block.HasAccess || block.DocumentID != sent.Document.DocumentID {
+		t.Fatalf("archived block = %+v, want the id with has_access false", block)
+	}
+	if block.Title != "" || block.Format != "" || block.Revision != 0 || block.VersionNumber != 0 || block.CanOpenInApp {
+		t.Fatalf("an archived document leaked fields: %+v", block)
 	}
 }
 
