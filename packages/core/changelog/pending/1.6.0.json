@@ -1,21 +1,21 @@
 {
   "schemaVersion": 1,
   "version": "1.6.0",
-  "date": "2026-10-18",
+  "date": "2026-10-19",
   "ready": true,
-  "sourceRef": "22ea091760670c281c9996cbb45c136910655dd5",
+  "sourceRef": "65c909bed73758a152f42b9a47db1808fc92ac07",
   "previousSourceRef": "bcb332c5b378f8b32c02f97c2cb3dffad69753a7",
   "title": {
-    "vi": "Giao diện Chat mới, công cụ quản lý quyền truy cập tài liệu và bản sửa tạo việc từ tóm tắt cuộc họp",
-    "en": "A new Chat design, tools for managing document access, and fixes to creating tasks from meeting summaries"
+    "vi": "Chat mới, khóa sửa và Thùng rác cho Tài liệu, cài đặt trạng thái và nhãn công việc",
+    "en": "A new Chat, edit locks and Trash in Documents, and task status and label settings"
   },
   "summary": {
-    "vi": "Chat trên web có giao diện mới với bảng thông tin, trả lời và sửa tin ngay trong ô soạn, và trạng thái đã xem từng tin trong nhóm và kênh. Tài liệu có thêm công cụ quản lý quyền truy cập: thành viên gửi được yêu cầu truy cập, một tài liệu chia sẻ được cho nhiều người trong một lần, quyền sở hữu chuyển được cho thành viên khác, và người quản trị có báo cáo quyền truy cập. Thư viện Tài liệu hiện thêm các cột về quyền truy cập. Việc tạo task từ bản tóm tắt AI của cuộc họp được sửa để tạo đúng, đủ và chỉ một lần.",
-    "en": "Chat on the web has a new design with an info panel, replying and editing right in the composer, and per-message seen status in groups and channels. Documents gains tools for managing access: members can request access, a document can be shared with several people at once, ownership can be transferred to another member, and administrators get an access report. The Documents library shows new access columns. Creating tasks from a meeting's AI summary is fixed so tasks are created correctly, completely and only once."
+    "vi": "Chat trên web có giao diện mới, thêm chuyển tiếp tin, bản chép và tốc độ phát tin thoại, xem trước liên kết, dấu đã tới máy, và tách Tin nhắn khỏi kênh của workspace. Tài liệu có khóa sửa khi có người đang sửa, Thùng rác, Thư mục của tôi, chia sẻ cho cả workspace và tải tệp lớn theo từng phần, cùng các công cụ quản lý quyền truy cập: yêu cầu truy cập, chia sẻ cho nhiều người một lần, chuyển quyền sở hữu và báo cáo quyền truy cập. Cài đặt workspace có thêm tab Trạng thái công việc và Nhãn, và thẻ công việc hiện được nhãn. Hỏi UNI tìm nguồn tốt hơn và giữ chủ đề khi hỏi nối tiếp. Việc tạo task từ bản tóm tắt AI của cuộc họp được sửa để tạo đúng, đủ và chỉ một lần.",
+    "en": "Chat on the web has a new design and adds message forwarding, voice message transcripts and playback speed, link previews, delivered ticks, and separate Messages and workspace channels. Documents gains edit locks while someone is editing, a Trash, My Folder, sharing with a whole workspace and uploading large files in parts, plus tools for managing access: access requests, sharing with several people at once, ownership transfer and an access report. Workspace settings add Task statuses and Labels tabs, and task cards can show labels. Ask UNI finds sources better and keeps the topic across follow-up questions. Creating tasks from a meeting's AI summary is fixed so tasks are created correctly, completely and only once."
   },
   "note": {
-    "vi": "Báo cáo quyền truy cập chỉ gồm những tài liệu bạn có quyền quản trị. Việc từ bản tóm tắt cuộc họp chỉ được tạo sau khi chủ trì xác nhận, và tóm tắt AI tuân theo gói đang dùng của tổ chức.",
-    "en": "The access report only covers documents you administer. Tasks from a meeting summary are created only after the host confirms them, and AI summaries follow the organization's current plan."
+    "vi": "Báo cáo quyền truy cập chỉ gồm những tài liệu bạn có quyền quản trị. Việc từ bản tóm tắt cuộc họp chỉ được tạo sau khi chủ trì xác nhận, và tóm tắt AI tuân theo gói đang dùng của tổ chức. Chỉ chủ sở hữu và quản trị viên workspace sửa được trạng thái và nhãn. Bản chép tin thoại cần tổ chức bật AI và được tính vào hạn mức AI.",
+    "en": "The access report only covers documents you administer. Tasks from a meeting summary are created only after the host confirms them, and AI summaries follow the organization's current plan. Only workspace owners and admins can change statuses and labels. Voice message transcripts require AI to be turned on for your organization and count toward the AI quota."
   },
   "changes": [
     {
@@ -16801,6 +16801,972 @@
       "evidence": {
         "kind": "pr",
         "url": "https://github.com/UNIAI-TEAM/uniwork/pull/348"
+      }
+    },
+    {
+      "commit": "47af036cbfac3168db9c060bf2cb1bd375d5fe8a",
+      "subject": "docs(ai): Ask UNI v2 design and P0 plan",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "f45418e80c385fae6e9111adca807d334b8cbba0",
+      "subject": "fix(ai): keep source titles and replayed turns inside untrusted blocks",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gia cố xử lý nội dung không tin cậy và lưu notice trong PR #358; không đưa cam kết bảo mật vào bản công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "127ca7fa789193de1018154ea23fb1ec287aa8bb",
+      "subject": "fix(ai): make StripUntrustedTags idempotent and strip unclosed tags",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gia cố xử lý nội dung không tin cậy và lưu notice trong PR #358; không đưa cam kết bảo mật vào bản công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "68eebccc8ee4737c1b65690be0cd456605f7e8be",
+      "subject": "feat(ai): store a notice code instead of fixed Vietnamese text when no source matches",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "9fcead3fb1b3a7af6b58f8f3822a5a7f81097898",
+      "subject": "feat(ai): show the no-sources notice in the reader's language",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "fe8425e8f75f0ce71afc1a8c9e2cf8590dfdb344",
+      "subject": "fix(ai): match Ask UNI sources without Vietnamese diacritics",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "dec5e06e4555ece4793e69e986020020b8e4bbca",
+      "subject": "fix(ai): keep the MCP query rule, restore loosened MCP assertions",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Sửa quy tắc truy vấn và test của MCP trong PR #358; không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "4bd7d877f22235c40ed78d55d573c5ed20534669",
+      "subject": "feat(ai): let Ask UNI find a task by its PREFIX-N identifier",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "961ef62c74f6af3ca50adeb2153fd4c2b1b2c6bb",
+      "subject": "feat(ai): search documents and carry the previous question's sources in Ask UNI",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hỏi UNI tìm nguồn tốt hơn: gõ không dấu vẫn tìm được, gõ có dấu thì khớp đúng dấu; tìm được công việc theo mã như ORI-12; tìm cả trong tài liệu bạn có quyền xem. Câu hỏi nối tiếp như \"Ai đang nhận việc đó?\" giữ chủ đề của câu trước. Khi không tìm thấy nguồn, thông báo hiện theo ngôn ngữ bạn dùng. Bảng Hỏi UNI được sửa độ rộng; gõ bằng bộ gõ (IME) không còn gửi nhầm khi nhấn Enter, đổi workspace không còn lẫn hội thoại và không còn nháy khi gửi.",
+        "en": "Ask UNI finds sources better: searches without Vietnamese diacritics still match, searches with diacritics match them exactly, tasks can be found by their ID such as ORI-12, and documents you can view are searched too. Follow-up questions such as \"Who is working on that?\" keep the previous question's topic. When no source is found, the notice appears in your language. The Ask UNI panel's width is fixed; typing with an input method (IME) no longer sends early on Enter, switching workspace no longer mixes conversations, and the panel no longer flickers when sending."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "7406d20b7b165be2bac4706acc693164953953d2",
+      "subject": "fix(ai): reset Ask UNI on workspace switch and keep the turn visible while it refetches",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "f3ed8d1eaa364a83827dbb318a3393ac1a9f2458",
+      "subject": "fix(views): Ask UNI panel width, IME Enter, error codes and workspace switch",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "3766c0b20bcd08b9230e69b55c8521b29191fc9d",
+      "subject": "test(views): make the Ask UNI IME test fail without the guard",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "8a49feca247bbf19474dad32169565cbbf3f456c",
+      "subject": "test(ai): Ask UNI evaluation set with fake and live runners",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "34424d0d2e767f4391ff904bec7fdeea6f2fa1d1",
+      "subject": "test(ai): make the Ask UNI eval fail loudly and prove security cases can fail",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "27dbbbbc1596a500d8ef58b87e214aa273fdb38f",
+      "subject": "fix(deploy): make the production AI provider and model names agree",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "f02edae2118e9fbcf4decccc72c9a97571b0f5d3",
+      "subject": "fix(deploy): harden the AI env test and keep context extraction on haiku",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "5e76be0c26daea08699fce67c3edcf811d4eaea6",
+      "subject": "test(ai): ask the no-sources question in its own conversation",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "88450729038025bdc41166c190d3f433b6f29bc3",
+      "subject": "fix(ai): match accented question words as written, count \"trễ\" as overdue",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "9a399a7744e3731eedee475a0faf1d2f0d70fa89",
+      "subject": "fix(ai): merge the previous question's sources only into a follow-up without its own subject",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "ebaa824ff0c74b2c514f16f697b0fead675f1c69",
+      "subject": "fix(ai): store an empty_answer notice when the answer is empty after stripping tags",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gia cố xử lý nội dung không tin cậy và lưu notice trong PR #358; không đưa cam kết bảo mật vào bản công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "d88c1f681a999723df989226d0d205208da7bf59",
+      "subject": "fix(ai): skip a PREFIX-N hit whose task context is no longer readable",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "2ef9505bf5e713a9e42974ab7cb7e21da398aab6",
+      "subject": "fix(ai): give notice rows their old text before the down migration drops the column",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gia cố xử lý nội dung không tin cậy và lưu notice trong PR #358; không đưa cam kết bảo mật vào bản công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "927b7284ba01ee31f5481d8fd92dc15b3c605422",
+      "subject": "test(ai): fail an eval control without expectations, measure a no-data follow-up",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "496fc8bedc85d443f4a2334103daeedc1ffec75f",
+      "subject": "docs(ai): correct the eval doc and report cost per call and per question",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "9ef01203741a3eac74797ed5f074e38cd69c3eee",
+      "subject": "docs: mark the Ask UNI P0 plan's tasks 1-10 done on the branch",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "0f9d64d3426d64751e22d92b9fde65be9436a08c",
+      "subject": "fix(notification): batch workspace gate for channel reminder due (UNI-1727)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "9138dd10cf4ec713e49bc35b9b7bfdd181d24aba",
+      "subject": "fix(chat): align room mention badge with sidebar SQL (UNI-1719)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chat và thông báo: số lần nhắc tên trong một phòng nay khớp với số hiện ở danh sách phòng, và email tóm tắt thông báo chỉ gồm mục từ workspace và phòng chat bạn vẫn còn quyền truy cập.",
+        "en": "Chat and notifications: the mention count inside a room now matches the count shown in the room list, and notification digest emails only include items from workspaces and chat rooms you can still access."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/chat_mentions.go",
+          "server/pkg/db/queries/chat.sql",
+          "server/internal/notification/digest_filter.go",
+          "server/internal/service/chat_mention_badge_test.go",
+          "server/internal/notification/delivery_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "b49cf7aede78567026d64ef3579160343d812d75",
+      "subject": "refactor(notification): batch workspace gate for meeting reminders",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "f14efefb217bbde37f96d61c7339d4a1e8f12fc6",
+      "subject": "fix(chat): cut WS scope authorize to three DB statements (UNI-1711)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "96e6956966647822da9934ce76d43b9da68d8a79",
+      "subject": "fix(chat): batch channel and group member inserts (UNI-1720)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "5df10d26838f16d749b8289d6229ba3cdb21ce5f",
+      "subject": "fix(chat): one sidebar refresh and fewer ensure-room queries (UNI-1713)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "8cb2df9f259cea1aea34fdf373820368dd44ddd5",
+      "subject": "fix(ai): match an accented word wherever its tone mark sits",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "fcc74f10dc6e28b25b6f2b7bfbf6800911654642",
+      "subject": "fix(ai): keep the previous topic when a follow-up only hits a task body",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "082064cd41fba821ac2fc9290ac5de79c5900cf9",
+      "subject": "fix(notification): gate digest rows on membership (UNI-1710)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục sửa lỗi Chat và thông báo của PR #353 (9138dd10c): email tóm tắt chỉ gồm mục còn quyền truy cập. PR không có mô tả; xác định từ diff.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "5025b32f6a4fdbbe34a3bbb08882b5f53e94e29d",
+      "subject": "fix(chat): handle concurrent room creation races (UNI-1707)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "85af551bfbf30367c9a0a33fc29ca9241f8c3522",
+      "subject": "refactor(ai): name the tone marks and skip the tone key for plain words",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "ff45674c4b818f38e16129f34f2f5a5ac378ad1f",
+      "subject": "fix(ai): let a follow-up that points back keep its topic",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "ce01765df30e2f3c9362c562370be55414f7dc57",
+      "subject": "fix(ai): match pointing words as typed and keep the topic of a long drill-down",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "a29430196fe9df37823b4181f670528805336da2",
+      "subject": "fix(realtime): drop chat subscribe when revoke races authorize (UNI-1712)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "66d48f230b9a8176a11890c8b9335d5da74f8535",
+      "subject": "fix(chat): voice signals carry ids only per catalogue (UNI-1708)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "2a3d998e437ef00f8628071d35363a9443e0b969",
+      "subject": "fix(ai): carry a follow-up's topic in the last answer's citations",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "a3c431dfb95c19aabe7147d843f2f6125dbe6cff",
+      "subject": "UNI-1836: UniChat M4 phase 2 — ba luồng Maestro (#346)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #346 thêm luồng kiểm thử Maestro và testID cho app UniChat mobile chưa phát hành; mô tả PR ghi không đổi hành vi.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/346"
+      }
+    },
+    {
+      "commit": "9fccc520a0414af5b9002b19e7d118fb86b13f53",
+      "subject": "UNI-1908: UniChat R5 — Chuyển tiếp, bản chép và tốc độ tin thoại, xem trước liên kết, đã tới máy, người trả lời thread, trang PDF, tiến độ tải (#349)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chat có thêm: chuyển tiếp một tin tới tối đa 10 phòng cùng lúc, tin chuyển tiếp ghi tên người gửi gốc (quản trị viên có thể tắt trong cài đặt nhóm, kênh hoặc phòng workspace; khi tắt, chỉ người điều hành phòng chuyển tiếp được); xem bản chép của tin thoại khi tổ chức bật AI, mỗi tin chỉ chép khi có người yêu cầu và tính một lần vào hạn mức AI; nghe tin thoại ở tốc độ 1×, 1,5× hoặc 2×; thẻ xem trước cho liên kết trong tin; dấu đã tới máy bên cạnh đã gửi và đã xem; mặt những người đã trả lời trên nhãn thread; số trang và trang đầu của tệp PDF; thanh tiến độ và nút Hủy khi tải tệp xuống. Thanh thao tác của tin đầu tiên ngay dưới tiêu đề phòng nay bấm được.",
+        "en": "Chat adds: forwarding a message to up to 10 rooms at once, showing the original sender's name (administrators can turn this off in group, channel or workspace room settings; when off, only room moderators can forward); transcripts for voice messages when your organization has AI turned on, created only on request and counted once toward the AI quota; voice playback at 1×, 1.5× or 2×; preview cards for links in messages; a delivered tick alongside sent and seen; the faces of people who replied on thread labels; page count and first page for PDF files; and a progress bar with a Cancel button when downloading files. The action bar of the first message under the room header can now be clicked."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/349"
+      }
+    },
+    {
+      "commit": "49f79d47a9e42c0d65d5d9efc3051fcd2e6fd5a7",
+      "subject": "UNI-1913: UniChat L2 — Landing UniChat thiết kế lại và hub ứng dụng /apps (#350)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #350 làm lại trang giới thiệu UniChat và hub /apps trên site marketing, không thay đổi ứng dụng UniWork; chờ người duyệt xác nhận có giới thiệu trong Changelog không.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/350"
+      }
+    },
+    {
+      "commit": "2617f4db35bf27d8da2751729d2f0f69e42287e3",
+      "subject": "feat(web): rebuild the UniChat page on UniOffice's shared pieces (#351)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #351 dựng lại bố cục trang giới thiệu /apps/unichat trên site marketing; không thay đổi ứng dụng UniWork.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/351"
+      }
+    },
+    {
+      "commit": "1b94799a23868c61e69e2787027736a5a3561902",
+      "subject": "UNI-1916: UniChat R4b — Đợt khớp canvas mobile: font, token tối, sheet workspace, hội thoại, tính năng còn thiếu (#352)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #352 là đợt khớp giao diện app UniChat mobile chưa phát hành; phần web chỉ là cấu hình chạy dev.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/352"
+      }
+    },
+    {
+      "commit": "3a1de611e4fa58a567168018af3545c99950c51c",
+      "subject": "fix(notification): restore spySender endpoints after develop merge",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "356e8ffc953347979413a330e69c7710e6aa9868",
+      "subject": "UNI-923: Office G5-G7 accepted cards (PR 3) + develop sync (#347)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu: khi có người đang sửa, tài liệu được khóa sửa; người khác có thể gửi yêu cầu sửa hoặc tiếp quản, và người liên quan nhận thông báo. Thư viện Tài liệu có Thùng rác với khôi phục từng mục và thông báo khi tài liệu bị chuyển vào hoặc khôi phục khỏi thùng rác; lọc theo loại và theo quyền truy cập; mục \"Tôi đã chia sẻ\"; và \"Thư mục của tôi\" riêng tư, là nơi lưu mặc định và không hiện với người khác khi tìm kiếm. Lịch sử phiên bản ghi người tạo từng bản. Tài liệu chia sẻ được cho cả workspace. Tệp lớn được tải lên theo từng phần và tiếp tục được nếu bị gián đoạn, trong một giới hạn dung lượng chung cho mọi loại tài liệu; lưu lại nội dung không đổi không tạo phiên bản mới. Mục \"Trang\" đổi tên thành UniNote. Bản này cũng sửa nút gắn sao, và liên kết đi tới nguồn từ Chat nay mở đúng phòng.",
+        "en": "Documents: while someone is editing, the document is locked for editing; others can request to edit or take over, and the people involved are notified. The Documents library adds a Trash with per-item restore and notifications when a document is moved to or restored from the Trash; filters by type and by access; a \"Shared by me\" view; and a private \"My Folder\" that is the default save location and stays hidden from others in search. Version history shows who created each version. Documents can be shared with a whole workspace. Large files upload in parts and can resume after an interruption, within one size limit for all document types, and saving unchanged content no longer creates a new version. \"Pages\" is renamed UniNote. This release also fixes the star button, and go-to-source links from Chat now open the right room."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/347"
+      }
+    },
+    {
+      "commit": "05798f281cbf379e9851371469a76965fbd1b468",
+      "subject": "fix(notification): digest org gate and document share rows",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục sửa lỗi Chat và thông báo của PR #353 (9138dd10c): email tóm tắt chỉ gồm mục còn quyền truy cập. PR không có mô tả; xác định từ diff.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "f45ed4096bafc39845ef33fea75d676b393524a1",
+      "subject": "fix(notification): align trashed digest test with UNI-1710 scheduler API",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "db63b4df9e682f57b87bc238553a5c0210ec6f0f",
+      "subject": "test(notification): isolate member digest from channel owner rows",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "6f6c0da5417a0471c89b0223c5d866d9a3211618",
+      "subject": "test(notification): create task before org suspend in digest test",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "843ada48721d64d1a8d43b7fbf7210d84aedf4ec",
+      "subject": "fix(ai): keep the carried topic inside the context and bound its re-reads",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "ac0de6e795b026020868adb3ed841746cc06176a",
+      "subject": "fix(ai): walk back only through pointing turns, and filter the fallback",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục Hỏi UNI của PR #358 (961ef62c7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "e3ba48cfad087936f170c9c3b8d5f216a6b2ef3c",
+      "subject": "feat(tasks): admin-only task catalog with icons, groups and group ordering",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục tab Trạng thái công việc và Nhãn của PR #356 (9c8a3b746).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/356"
+      }
+    },
+    {
+      "commit": "1fae19cc66d6a774c432288ea1a5979e2e48ca10",
+      "subject": "feat(core): task catalog permission, group reorder and status icon",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục tab Trạng thái công việc và Nhãn của PR #356 (9c8a3b746).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/356"
+      }
+    },
+    {
+      "commit": "9c8a3b74619de2d85f0ec70d387853fd1affd587",
+      "subject": "feat(settings): task statuses and labels tabs modelled on UniAI",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Cài đặt › Workspace có thêm hai tab Trạng thái công việc và Nhãn. Chủ sở hữu và quản trị viên workspace tạo, sửa, lưu trữ và kéo thả sắp xếp trạng thái trong bốn nhóm (Chưa bắt đầu, Đã bắt đầu, Hoàn thành, Đã đóng), chọn màu và biểu tượng; tạo, sửa và xóa nhãn, kèm số công việc đang dùng mỗi nhãn. Thành viên khác xem hai tab ở chế độ chỉ xem và vẫn gán, gỡ nhãn trên công việc như trước. Trạng thái Đang chặn nay thuộc nhóm Đã bắt đầu.",
+        "en": "Settings › Workspace adds Task statuses and Labels tabs. Workspace owners and admins can create, edit, archive and drag to reorder statuses within four groups (Not started, Started, Completed, Closed) and pick a color and icon, and can create, edit and delete labels, with the number of tasks using each one. Other members see both tabs read-only and can still add and remove labels on tasks as before. The Blocked status now belongs to the Started group."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/356"
+      }
+    },
+    {
+      "commit": "c5eb375a973834410b320728b3addb650e57df36",
+      "subject": "test(service): fix chat tests for org peers and voice id-only frames",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #353 không có mô tả (template trống); theo diff, commit này tối ưu truy vấn, xử lý tranh chấp đồng thời hoặc sửa test phía server, không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/353"
+      }
+    },
+    {
+      "commit": "c8c30bbc1b3c7e641bfabf2d0e58a9ce3276ee1a",
+      "subject": "chore(deploy): offer UniChat 0.1.0-beta.1 on /apps/unichat (#354)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #354 đưa bản UniChat desktop 0.1.0-beta.1 chưa ký lên trang tải cho pilot nội bộ (cấu hình deploy); chờ người duyệt quyết định có công bố không.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/354"
+      }
+    },
+    {
+      "commit": "497a1a92cb69555f9f0519a09e3b923aace3583b",
+      "subject": "test(ai): create the Ask UNI test documents workspace-visible",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu, bộ đánh giá, test, cấu hình AI production hoặc refactor nội bộ của PR #358 (Hỏi UNI v2 P0); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/358"
+      }
+    },
+    {
+      "commit": "5307f2c7966dd8f2747009b6296ec6ddc985ed3c",
+      "subject": "feat(tasks): editable built-in statuses and workspace label links",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục sửa trạng thái có sẵn và hiện nhãn trên thẻ của PR #357 (e23e2771c).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/357"
+      }
+    },
+    {
+      "commit": "e23e2771c66928dccf84fbd9cda331f37404b685",
+      "subject": "feat(tasks): edit built-in statuses in settings and show labels on cards",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chủ sở hữu và quản trị viên workspace sửa được tên, mô tả, màu và biểu tượng của các trạng thái có sẵn (nhóm của chúng giữ nguyên); tên đã sửa hiện trong Cài đặt, bộ chọn trạng thái và tiêu đề cột, nhóm của các chế độ xem Kanban, Danh sách, Swimlane và Bảng. Thẻ trên Kanban và dòng trong Danh sách hiện tối đa hai nhãn kèm \"+n\" khi bật mục Nhãn trong menu Hiển thị.",
+        "en": "Workspace owners and admins can edit the name, description, color and icon of built-in statuses (their group stays the same); edited names appear in Settings, the status picker, and column and group headings in board, list, swimlane and table views. Board cards and list rows show up to two labels plus \"+n\" when Labels is turned on in the Display menu."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/357"
+      }
+    },
+    {
+      "commit": "39c59b3bc031c09dcfca8d74ea0e95a8105c8acc",
+      "subject": "test(tasks): built-in statuses are editable over HTTP but keep their group",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test của PR #357; không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/357"
+      }
+    },
+    {
+      "commit": "65c909bed73758a152f42b9a47db1808fc92ac07",
+      "subject": "UNI-1965: UniChat: thông báo tin nhắn kiểu Zalo, thanh tiêu đề macOS, tách Tin nhắn khỏi kênh workspace (#359)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chat tách Tin nhắn (trò chuyện riêng và nhóm, dùng chung cho cả tổ chức) khỏi kênh của workspace: trang chat hiện một phạm vi mỗi lúc, trên web có thanh chọn \"Tin nhắn | Kênh\", nên trò chuyện riêng và nhóm không còn lặp lại trong danh sách của mọi workspace. Thông báo tin nhắn mới có banner kèm dòng xem trước cho mọi phòng chưa tắt thông báo, kể cả tin nhóm; khi đang mở ứng dụng, chỉ phòng đang xem là không báo.",
+        "en": "Chat separates Messages (direct and group chats, shared across the organization) from workspace channels: the chat page shows one at a time, with a \"Messages | Channels\" switcher on the web, so direct and group chats no longer repeat in every workspace's list. New-message notifications show a banner with a preview line for every room you have not muted, group messages included; while the app is open, only the room you are viewing stays silent."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/359"
       }
     }
   ]
