@@ -1,0 +1,4 @@
+$ git rev-parse --short HEAD; git log --oneline -2
+57be4855
+57be4855 fix(pdf): a Save queued behind a write no longer commits what that write saved
+bad2306d test(pdf): red tests for a second Save committing the first save's edits again
