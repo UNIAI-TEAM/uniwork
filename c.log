@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+4580810585b9d7df3e57fd5b3a9d1506ebed91d0
+458081058 test(e2e): request access to a document against the real routes (UNI-1631)
+9b9cdf600 fix(documents): clear the locked card's sent state on a decision (UNI-1631)
+51f9a6647 test(documents): answer declines in mocks with the real SDO shape (UNI-1631)
+339c7b5ba chore: merge the G5-G7 root (5975d8f9e) into S-DOC07
