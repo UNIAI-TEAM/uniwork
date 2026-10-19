@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestCatalogStatusesHTTPSevenBuiltInsAndImmutable(t *testing.T) {
+func TestCatalogStatusesHTTPSevenBuiltInsEditableButKeepTheirGroup(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 
 	res, body := doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/task-statuses", token, nil)
@@ -23,11 +23,24 @@ func TestCatalogStatusesHTTPSevenBuiltInsAndImmutable(t *testing.T) {
 		t.Fatalf("first is_system = %v", first["is_system"])
 	}
 
+	// A built-in can be renamed; the edit marks it customized.
 	res, body = doJSON(t, srv, "PATCH", "/api/v1/workspaces/"+wsID+"/task-statuses/"+id, token, map[string]any{
-		"name": "Nope",
+		"name": "Chưa lên kế hoạch",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("rename built-in status = %d, want 200; body=%v", res.StatusCode, body)
+	}
+	st, _ := body["status"].(map[string]any)
+	if st["name"] != "Chưa lên kế hoạch" || st["customized"] != true || st["category"] != first["category"] {
+		t.Fatalf("renamed built-in = %v", st)
+	}
+
+	// Its category is its key: moving it to another group is refused.
+	res, body = doJSON(t, srv, "PATCH", "/api/v1/workspaces/"+wsID+"/task-statuses/"+id, token, map[string]any{
+		"category": "done",
 	})
 	if res.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("patch built-in status = %d, want 422; body=%v", res.StatusCode, body)
+		t.Fatalf("move built-in status = %d, want 422; body=%v", res.StatusCode, body)
 	}
 	errObj, _ := body["error"].(map[string]any)
 	if errObj["code"] != "system_status_immutable" {
