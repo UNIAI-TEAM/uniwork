@@ -57,16 +57,18 @@ func TestDocumentArchiveImpactHTTP(t *testing.T) {
 	}
 
 	// A member who manages the root through a share but not the restricted
-	// child: the whole read is refused and the body carries no number.
+	// child: the whole read is refused and the body carries no number. The root
+	// is a page: a folder takes no share (UNI-1974).
 	memberToken, memberID := docsJoinWorkspace(t, w, "docs-impact-member@example.com")
-	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+folderID+"/shares", w.token, map[string]any{
+	_, rootPageID := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Trang gốc", "kind": "page"})
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+rootPageID+"/shares", w.token, map[string]any{
 		"principal_type": "user", "principal_id": memberID, "level": "manage",
 	})
 	if res.StatusCode != 201 {
 		t.Fatalf("share: %d %v", res.StatusCode, out)
 	}
-	docsCreatePageBody(t, w, w.token, map[string]any{"title": "Hạn chế", "kind": "page", "parent_id": folderID, "visibility": "restricted"})
-	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+folderID+"/archive-impact", memberToken, nil)
+	docsCreatePageBody(t, w, w.token, map[string]any{"title": "Hạn chế", "kind": "page", "parent_id": rootPageID, "visibility": "restricted"})
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+rootPageID+"/archive-impact", memberToken, nil)
 	wantErr(t, res, out, http.StatusForbidden, "forbidden", "permission")
 	if _, ok := out["total"]; ok {
 		t.Fatalf("refused read carries numbers: %v", out)

@@ -135,9 +135,8 @@ func TestMyFolderSystemKindAndAdminHideRoutes(t *testing.T) {
 	}
 
 	resReg, outReg := doJSON(t, w.srv, "POST", docsBase, memberTok, map[string]any{
-		"kind":       "folder",
-		"title":      "Regular Folder",
-		"visibility": "workspace",
+		"kind":  "folder",
+		"title": "Regular Folder",
 	})
 	if resReg.StatusCode != 201 {
 		t.Fatalf("member POST regular folder = %d %v", resReg.StatusCode, outReg)
