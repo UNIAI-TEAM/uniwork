@@ -5,8 +5,10 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -21,8 +23,17 @@ type TaskQuery struct {
 	Status    string
 	ProjectID string // empty = no project filter
 	Relation  string // my-tasks: all | assigned | created | involved
-	Limit     int32
-	Offset    int32
+
+	AssigneeID string // empty = any
+	Priority   string // empty = any
+	DueFrom    string // YYYY-MM-DD, empty = open
+	DueTo      string // YYYY-MM-DD, empty = open
+	// Overdue keeps tasks due strictly before Today whose status category is
+	// not done/cancelled; the caller sets Today (a UTC date).
+	Overdue bool
+	Today   time.Time
+	Limit   int32
+	Offset  int32
 }
 
 // TaskPage is one filtered window plus the total matching count.
@@ -53,11 +64,29 @@ func (s *TaskService) QueryTasks(ctx context.Context, actor Actor, workspaceID s
 	if q.Offset < 0 {
 		q.Offset = 0
 	}
+	dueFrom, err := parseDate("due_from", &q.DueFrom)
+	if err != nil {
+		return TaskPage{}, err
+	}
+	dueTo, err := parseDate("due_to", &q.DueTo)
+	if err != nil {
+		return TaskPage{}, err
+	}
+	var overdueBefore pgtype.Date
+	if q.Overdue {
+		overdueBefore = pgtype.Date{Time: q.Today, Valid: true}
+	}
+	assignee, priority := nullText(strings.TrimSpace(q.AssigneeID)), nullText(strings.TrimSpace(q.Priority))
 	params := db.QueryTasksParams{
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    workspaceID,
 		Status:         nullText(strings.TrimSpace(q.Status)),
 		ProjectID:      nullText(strings.TrimSpace(q.ProjectID)),
+		AssigneeID:     assignee,
+		Priority:       priority,
+		DueFrom:        dueFrom,
+		DueTo:          dueTo,
+		OverdueBefore:  overdueBefore,
 		LimitN:         q.Limit,
 		OffsetN:        q.Offset,
 	}
@@ -70,6 +99,11 @@ func (s *TaskService) QueryTasks(ctx context.Context, actor Actor, workspaceID s
 		WorkspaceID:    workspaceID,
 		Status:         nullText(strings.TrimSpace(q.Status)),
 		ProjectID:      nullText(strings.TrimSpace(q.ProjectID)),
+		AssigneeID:     assignee,
+		Priority:       priority,
+		DueFrom:        dueFrom,
+		DueTo:          dueTo,
+		OverdueBefore:  overdueBefore,
 	})
 	if err != nil {
 		return TaskPage{}, err

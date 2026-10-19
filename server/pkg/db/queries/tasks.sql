@@ -170,19 +170,49 @@ WHERE organization_id = $1
 
 -- name: QueryTasks :many
 SELECT * FROM tasks
-WHERE organization_id = sqlc.arg('organization_id')
-  AND workspace_id = sqlc.arg('workspace_id')
+WHERE tasks.organization_id = sqlc.arg('organization_id')
+  AND tasks.workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
+  AND (sqlc.narg('assignee_id')::text IS NULL OR assignee_id = sqlc.narg('assignee_id'))
+  AND (sqlc.narg('priority')::text IS NULL OR priority = sqlc.narg('priority'))
+  AND (sqlc.narg('due_from')::date IS NULL OR due_date >= sqlc.narg('due_from'))
+  AND (sqlc.narg('due_to')::date IS NULL OR due_date <= sqlc.narg('due_to'))
+  AND (sqlc.narg('overdue_before')::date IS NULL OR (due_date < sqlc.narg('overdue_before') AND NOT EXISTS (
+    SELECT 1 FROM task_statuses s WHERE s.organization_id = tasks.organization_id
+      AND s.workspace_id = tasks.workspace_id AND s.key = tasks.status AND s.category IN ('done','cancelled'))))
 ORDER BY status, position, created_at
 LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 
 -- name: CountTasks :one
 SELECT count(*)::bigint FROM tasks
-WHERE organization_id = sqlc.arg('organization_id')
-  AND workspace_id = sqlc.arg('workspace_id')
+WHERE tasks.organization_id = sqlc.arg('organization_id')
+  AND tasks.workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
-  AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'));
+  AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
+  AND (sqlc.narg('assignee_id')::text IS NULL OR assignee_id = sqlc.narg('assignee_id'))
+  AND (sqlc.narg('priority')::text IS NULL OR priority = sqlc.narg('priority'))
+  AND (sqlc.narg('due_from')::date IS NULL OR due_date >= sqlc.narg('due_from'))
+  AND (sqlc.narg('due_to')::date IS NULL OR due_date <= sqlc.narg('due_to'))
+  AND (sqlc.narg('overdue_before')::date IS NULL OR (due_date < sqlc.narg('overdue_before') AND NOT EXISTS (
+    SELECT 1 FROM task_statuses s WHERE s.organization_id = tasks.organization_id
+      AND s.workspace_id = tasks.workspace_id AND s.key = tasks.status AND s.category IN ('done','cancelled'))));
+
+-- name: CountOpenTasksByAssignee :many
+-- Open (not done/cancelled) tasks per assignee; overdue = due before today.
+SELECT assignee_id::text AS assignee_id,
+       count(*)::bigint AS open_count,
+       (count(*) FILTER (WHERE due_date < sqlc.arg('today')::date))::bigint AS overdue_count
+FROM tasks
+WHERE tasks.organization_id = sqlc.arg('organization_id')
+  AND tasks.workspace_id = sqlc.arg('workspace_id')
+  AND assignee_id IS NOT NULL AND assignee_id <> ''
+  AND NOT EXISTS (
+    SELECT 1 FROM task_statuses s WHERE s.organization_id = tasks.organization_id
+      AND s.workspace_id = tasks.workspace_id AND s.key = tasks.status AND s.category IN ('done','cancelled'))
+GROUP BY assignee_id
+ORDER BY overdue_count DESC, open_count DESC, assignee_id
+LIMIT 200;
 
 -- name: ListTasksByIdentifier :many
 -- tenant: by-id

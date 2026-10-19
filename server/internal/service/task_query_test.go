@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -273,5 +276,116 @@ func TestGetTaskByIdentifierPrefersCurrentPrefixOverAlias(t *testing.T) {
 	movedRef := moved + "-" + strconv.FormatInt(t1.Number, 10)
 	if got, err := s.GetByRef(ctx, actor, movedRef); err != nil || got.ID != t1.ID {
 		t.Fatalf("GetByRef(%q): err=%v id=%s, want %s", movedRef, err, got.ID, t1.ID)
+	}
+}
+
+// taskTitles lists the titles of a page in a stable order for comparison.
+func taskTitles(tasks []db.Task) string {
+	out := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, t.Title)
+	}
+	slices.Sort(out)
+	return strings.Join(out, ",")
+}
+
+func TestQueryTasksFiltersByAssigneePriorityAndDue(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, s.q, w.ID, ub.ID)
+	d1, d2, d3 := "2026-10-01", "2026-10-10", "2026-10-20"
+	mk := func(title, prio string, assignee *string, due *string) {
+		t.Helper()
+		if _, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: title, Priority: prio, AssigneeID: assignee, DueDate: due}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("a-high-d1", "high", &ua.ID, &d1)
+	mk("a-low-d2", "low", &ua.ID, &d2)
+	mk("b-high-d3", "high", &ub.ID, &d3)
+	mk("none-undated", "low", nil, nil)
+
+	for name, tc := range map[string]struct {
+		q    TaskQuery
+		want string
+	}{
+		"assignee": {TaskQuery{AssigneeID: ua.ID}, "a-high-d1,a-low-d2"},
+		"priority": {TaskQuery{Priority: "high"}, "a-high-d1,b-high-d3"},
+		"due from": {TaskQuery{DueFrom: "2026-10-10"}, "a-low-d2,b-high-d3"},
+		"due to":   {TaskQuery{DueTo: "2026-10-10"}, "a-high-d1,a-low-d2"},
+		"combined": {TaskQuery{AssigneeID: ua.ID, Priority: "high", DueFrom: "2026-10-01", DueTo: "2026-10-05"}, "a-high-d1"},
+	} {
+		page, err := s.QueryTasks(ctx, actor, w.ID, tc.q)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got := taskTitles(page.Tasks); got != tc.want || page.Total != int64(len(page.Tasks)) {
+			t.Errorf("%s: tasks = %q (total %d), want %q", name, got, page.Total, tc.want)
+		}
+	}
+}
+
+func TestQueryTasksOverdueSkipsClosedCategories(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	if _, err := s.pool.Exec(ctx, `INSERT INTO task_statuses (id, organization_id, workspace_id, key, name, category, color, created_by)
+		VALUES ('st-shipped-q', $1, $2, 'shipped', 'Shipped', 'done', '#00aa00', $3)`, w.OrganizationID, w.ID, ua.ID); err != nil {
+		t.Fatal(err)
+	}
+	past, today := "2026-10-01", "2026-10-19"
+	mk := func(title, status, due string) {
+		t.Helper()
+		if _, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: title, Status: status, DueDate: &due}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("shipped-overdue", "shipped", past)
+	mk("todo-overdue", "todo", past)
+	mk("todo-due-today", "todo", today)
+	page, err := s.QueryTasks(ctx, actor, w.ID, TaskQuery{Overdue: true, Today: time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := taskTitles(page.Tasks); got != "todo-overdue" || page.Total != 1 {
+		t.Fatalf("overdue = %q (total %d), want only todo-overdue", got, page.Total)
+	}
+}
+
+func TestCountOpenTasksByAssignee(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, s.q, w.ID, ub.ID)
+	past, future := "2026-10-01", "2026-12-01"
+	mk := func(assignee *string, status string, due *string) {
+		t.Helper()
+		if _, err := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "t", Status: status, AssigneeID: assignee, DueDate: due, AllowDuplicate: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk(&ua.ID, "todo", &past)
+	mk(&ua.ID, "todo", &future)
+	mk(&ua.ID, "done", &past)
+	mk(&ub.ID, "in_progress", nil)
+	mk(&ub.ID, "cancelled", nil)
+	mk(nil, "todo", &past)
+
+	rows, err := s.q.CountOpenTasksByAssignee(ctx, db.CountOpenTasksByAssigneeParams{
+		OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
+		Today: pgtype.Date{Time: time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC), Valid: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][2]int64{}
+	for _, r := range rows {
+		got[r.AssigneeID] = [2]int64{r.OpenCount, r.OverdueCount}
+	}
+	if len(got) != 2 || got[ua.ID] != [2]int64{2, 1} || got[ub.ID] != [2]int64{1, 0} {
+		t.Fatalf("counts = %v, want A {2 open, 1 overdue}, B {1, 0}, no unassigned row", got)
 	}
 }

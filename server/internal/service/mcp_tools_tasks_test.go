@@ -1163,3 +1163,39 @@ func TestMcpStepErrorSaysOnlyWhatATransportWould(t *testing.T) {
 		}
 	}
 }
+
+func TestMcpListTasksAcceptsNewFilters(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	past := "2020-01-01"
+	mine, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Của tôi quá hạn", DueDate: &past, AssigneeID: &x.ua.ID, Priority: "high"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Của người khác quá hạn", DueDate: &past})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE tasks SET assignee_id = $1 WHERE id = $2`, x.ub.ID, other.ID); err != nil {
+		t.Fatal(err)
+	}
+	out, err := callMcpTool(t, x.tools, x.p, "list_tasks", `{"workspace_id":"`+x.w.ID+`","assignee_id":"me","overdue":true}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list McpTaskList
+	if err := json.Unmarshal(out, &list); err != nil || len(list.Tasks) != 1 || list.Tasks[0].ID != mine.ID {
+		t.Fatalf("assignee me + overdue = %s (%v), want only %s", out, err, mine.ID)
+	}
+	out, err = callMcpTool(t, x.tools, x.p, "list_tasks", `{"workspace_id":"`+x.w.ID+`","priority":"high","due_to":"2020-12-31"}`)
+	if err != nil || json.Unmarshal(out, &list) != nil || len(list.Tasks) != 1 || list.Tasks[0].ID != mine.ID {
+		t.Fatalf("priority + due_to = %s (%v)", out, err)
+	}
+	for _, bad := range []string{`"due_from":"2026-13-01"`, `"due_to":"tomorrow"`, `"priority":"critical"`} {
+		_, err := callMcpTool(t, x.tools, x.p, "list_tasks", `{"workspace_id":"`+x.w.ID+`",`+bad+`}`)
+		var inv McpInvalidArgs
+		if !errors.As(err, &inv) {
+			t.Errorf("%s: err = %v, want McpInvalidArgs", bad, err)
+		}
+	}
+}

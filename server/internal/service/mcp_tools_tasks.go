@@ -226,6 +226,11 @@ type mcpListTasksIn struct {
 	WorkspaceID string `json:"workspace_id"`
 	Status      string `json:"status"`
 	ProjectID   string `json:"project_id"`
+	AssigneeID  string `json:"assignee_id"`
+	Priority    string `json:"priority"`
+	DueFrom     string `json:"due_from"`
+	DueTo       string `json:"due_to"`
+	Overdue     bool   `json:"overdue"`
 	Limit       int32  `json:"limit"`
 }
 
@@ -245,7 +250,25 @@ func (s *McpToolService) ListTasks(ctx context.Context, p McpPrincipal, in mcpLi
 	if err := s.inGrant(ctx, p, in.WorkspaceID); err != nil {
 		return McpTaskList{}, err
 	}
-	page, err := s.ask.tasks.QueryTasks(ctx, Human(p.UserID), in.WorkspaceID, TaskQuery{Status: in.Status, ProjectID: in.ProjectID, Limit: mcpListLimit(in.Limit)})
+	for field, v := range map[string]string{"due_from": in.DueFrom, "due_to": in.DueTo} {
+		if v == "" {
+			continue
+		}
+		if err := mcpDate(field, v); err != nil {
+			return McpTaskList{}, err
+		}
+	}
+	if in.Priority != "" && !validPriority[in.Priority] {
+		return McpTaskList{}, McpInvalidArgs{Msg: "priority must be one of " + strings.Join(mcpPriorities, ", ")}
+	}
+	if in.AssigneeID == "me" {
+		in.AssigneeID = p.UserID
+	}
+	page, err := s.ask.tasks.QueryTasks(ctx, Human(p.UserID), in.WorkspaceID, TaskQuery{
+		Status: in.Status, ProjectID: in.ProjectID, AssigneeID: in.AssigneeID, Priority: in.Priority,
+		DueFrom: in.DueFrom, DueTo: in.DueTo, Overdue: in.Overdue, Today: time.Now().UTC().Truncate(24 * time.Hour),
+		Limit: mcpListLimit(in.Limit),
+	})
 	if err != nil {
 		return McpTaskList{}, err
 	}
@@ -710,7 +733,7 @@ func (s *McpToolService) UpdateTask(ctx context.Context, p McpPrincipal, in mcpU
 var (
 	mcpSchemaWorkspace   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaListMembers = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"query":{"type":"string","maxLength":200,"description":"Optional. Part of a name, any case."}},"required":["workspace_id"],"additionalProperties":false}`)
-	mcpSchemaListTasks   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"status":{"type":"string","description":"A status key from task_options."},"project_id":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},"required":["workspace_id"],"additionalProperties":false}`)
+	mcpSchemaListTasks   = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"status":{"type":"string","description":"A status key from task_options."},"project_id":{"type":"string"},"assignee_id":{"type":"string","description":"A member's user_id, or \"me\" for yourself."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"due_from":{"type":"string","description":"Earliest due date, YYYY-MM-DD."},"due_to":{"type":"string","description":"Latest due date, YYYY-MM-DD."},"overdue":{"type":"boolean","description":"Only tasks due before today (UTC) that are not done or cancelled."},"limit":{"type":"integer","minimum":1,"maximum":50}},"required":["workspace_id"],"additionalProperties":false}`)
 	mcpSchemaCreateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","maxLength":` + strconv.Itoa(mcpMaxItemRunes) + `,"description":"Markdown."},"status":{"type":"string","description":"A status key from task_options. Omit for the default open status."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":"string","description":"A user_id from list_members."},"start_date":{"type":"string","description":"YYYY-MM-DD"},"due_date":{"type":"string","description":"YYYY-MM-DD"},"project_id":{"type":"string"},"parent_task_id":{"type":"string","description":"Id or PREFIX-N of the parent task."},"label_ids":{"type":"array","items":{"type":"string"},"maxItems":20}},"required":["workspace_id","title"],"additionalProperties":false}`)
 	mcpSchemaUpdateTask  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"revision":{"type":"integer","description":"The revision you read with get_task or list_tasks."},"title":{"type":"string","minLength":1,"maxLength":500},"description":{"type":"string","maxLength":` + strconv.Itoa(mcpMaxItemRunes) + `,"description":"Markdown; replaces the whole description. Edit from the description get_task returns."},"status":{"type":"string","description":"A status key from task_options."},"priority":{"type":"string","enum":["none","low","medium","high","urgent"]},"assignee_id":{"type":["string","null"],"description":"A user_id from list_members; null unassigns."},"start_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"due_date":{"type":["string","null"],"description":"YYYY-MM-DD; null clears it."},"project_id":{"type":["string","null"],"description":"null takes the task out of its project."},"parent_task_id":{"type":["string","null"],"description":"Id or PREFIX-N of the parent task; null clears it."},"add_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Label ids from task_options."},"remove_label_ids":{"type":"array","items":{"type":"string"},"maxItems":20,"description":"Ids of labels on the task."}},"required":["workspace_id","task_id","revision"],"additionalProperties":false}`)
 	mcpSchemaAddComment  = json.RawMessage(`{"type":"object","properties":{"workspace_id":{"type":"string"},"task_id":{"type":"string","description":"Id or PREFIX-N."},"body":{"type":"string","minLength":1,"maxLength":20000,"description":"Markdown."},"reply_to":{"type":"string","description":"Id of the comment this answers, from get_task's comments."}},"required":["workspace_id","task_id","body"],"additionalProperties":false}`)
@@ -728,7 +751,7 @@ func mcpTaskTools(s *McpToolService) []ai.Tool {
 			}) (any, error) {
 				return s.TaskOptions(ctx, p, in.WorkspaceID)
 			}),
-		mcpReadTool("list_tasks", "List tasks", "Tasks in one workspace, each with its revision, ordered by status key alphabetically, then position; pass status to narrow. At most 50 (limit, default 20); truncated says more matched.", mcpSchemaListTasks,
+		mcpReadTool("list_tasks", "List tasks", "Tasks in one workspace, each with its revision, ordered by status key alphabetically, then position; pass status, assignee_id, priority, due_from, due_to or overdue to narrow. At most 50 (limit, default 20); truncated says more matched.", mcpSchemaListTasks,
 			func(ctx context.Context, p McpPrincipal, in mcpListTasksIn) (any, error) {
 				return s.ListTasks(ctx, p, in)
 			}),
