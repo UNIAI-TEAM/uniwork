@@ -1,6 +1,6 @@
 # Catalogue sự kiện UniWork
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-09 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-18 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
 
 Bảng dưới là hợp đồng giữa server và mọi client. Ba nơi phải khớp nhau —
 file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mjs`
@@ -72,12 +72,14 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `ai.usage.updated` | 1 | `organization_id`, `workspace_id` | — | workspace | outbox |
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
 | `file.thumbnail_requested` | 1 | `file_id`, `organization_id` | — | - | outbox |
+| `chat.link_preview.requested` | 1 | `room_id`, `message_id`, `organization_id` | — | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
 | `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id`, `thread_root_id` | — | user | ephemeral |
 | `chat.message` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `chat.message.created` | 1 | `room_id`, `message_id`, `sender_id`, `thread_root_id` | — | chat | ephemeral |
 | `chat.message.deleted` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.message.updated` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
+| `chat.message.preview_ready` | 1 | `room_id`, `message_id` | — | chat | ephemeral |
 | `chat.channel.archived` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |
 | `chat.channel.created` | 1 | `room_id`, `workspace_id` | — | workspace | outbox |
 | `chat.channel.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
@@ -92,6 +94,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.message.mentioned` | 1 | `room_id`, `message_id`, `user_id`, `thread_root_id` | — | - | outbox |
 | `chat.dm.received` | 1 | `room_id`, `message_id`, `user_id` | — | - | outbox |
 | `chat.thread.reply_received` | 1 | `room_id`, `message_id`, `user_id`, `thread_root_id` | — | - | outbox |
+| `chat.voice.invite_received` | 1 | `room_id`, `call_id`, `user_id` | — | - | outbox |
 | `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | — | - | outbox |
 | `chat.reminder.due` | 1 | `room_id`, `message_id` | — | room | outbox |
 | `chat.room.activity` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
@@ -100,6 +103,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.room.members_added` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_removed` | 1 | `room_id`, `user_id` | — | room | outbox |
 | `chat.room.read` | 1 | `room_id`, `user_id` | — | user | ephemeral |
+| `chat.room.member_read` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
+| `chat.room.member_delivered` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
 | `chat.room.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
 | `chat.typing` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.accept` | 1 | `room_id`, `user_id` | — | user | ephemeral |
@@ -202,7 +207,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `recording.stopped` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `session.revoked` | 1 | `user_id`, `session_id` | — | - | outbox |
 | `subscription.changed` | 1 | `organization_id`, `subscription_id`, `user_id` | — | user | outbox |
-| `summary.created` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `summary.created` | 1 | `meeting_id`, `summary_id`, `workspace_id` | — | workspace | outbox |
+| `summary.tasks_linked` | 1 | `meeting_id`, `summary_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_added` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_updated` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
 | `task.comment_deleted` | 1 | `task_id`, `comment_id`, `workspace_id` | — | workspace | outbox |

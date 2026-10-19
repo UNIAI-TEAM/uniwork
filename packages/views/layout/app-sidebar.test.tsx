@@ -278,3 +278,14 @@ describe("AppSidebar › home", () => {
     expect(screen.getByRole("link", { name: "Công việc" })).toHaveAttribute("aria-current", "page");
   });
 });
+
+describe("AppSidebar › nav data", () => {
+  it("fetches the nav's badges and pins", async () => {
+    renderSidebar("/acme/team/chat");
+    await vi.waitFor(() => {
+      const paths = requestMock.mock.calls.map((call) => String(call[0]));
+      expect(paths.some((p) => p.includes("email-hub/unread-count"))).toBe(true);
+      expect(paths.some((p) => p.includes("pins"))).toBe(true);
+    });
+  });
+});

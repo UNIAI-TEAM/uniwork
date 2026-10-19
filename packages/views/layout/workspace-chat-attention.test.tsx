@@ -74,6 +74,7 @@ beforeEach(() => {
 afterEach(() => {
   setHidden(false);
   vi.unstubAllGlobals();
+  delete (window as Window & { desktopAPI?: unknown }).desktopAPI;
 });
 
 describe("WorkspaceChatAttention", () => {
@@ -201,5 +202,43 @@ describe("WorkspaceChatAttention", () => {
       await client.invalidateQueries({ queryKey: ["notifications"] });
     });
     await waitFor(() => expect(shown).toEqual(["Bình đã nhắn tin cho bạn"]));
+  });
+
+  // Inside UniChat the tab is always visible: the shell window's focus decides.
+  it.each([
+    { focused: false, shown: ["Bình đã nhắn tin cho bạn"] },
+    { focused: true, shown: [] },
+  ])("inside UniChat banners by the window focus ($focused), not the tab", async ({ focused, shown: want }) => {
+    const shown: string[] = [];
+    class FakeNotification {
+      static permission = "granted";
+      onclick: (() => void) | null = null;
+      constructor(title: string) {
+        shown.push(title);
+      }
+      close() {}
+    }
+    vi.stubGlobal("Notification", FakeNotification);
+    (window as Window & { desktopAPI?: unknown }).desktopAPI = {
+      app: "unichat",
+      isFocused: async () => focused,
+      onFocusChange: () => () => {},
+    };
+    setHidden(false);
+    notifications = [dm("old", "2026-10-09T00:00:00Z")];
+    const { client } = renderAttention();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("/api/v1/me/notifications?")));
+    await act(async () => {
+      await client.refetchQueries();
+    });
+    await deliverToComponent();
+    expect(shown).toEqual([]);
+
+    notifications = [dm("new", "2026-10-09T01:00:00Z"), dm("old", "2026-10-09T00:00:00Z")];
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["notifications"] });
+    });
+    await deliverToComponent();
+    await waitFor(() => expect(shown).toEqual(want));
   });
 });

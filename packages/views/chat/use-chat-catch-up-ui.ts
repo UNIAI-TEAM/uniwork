@@ -55,15 +55,15 @@ function clearLocalUnread(
   });
 }
 
-/** The room's read pointer from the sidebar, while it still has unread messages. */
+/** The room's read pointer and unread count from the sidebar, while it still has unread messages. */
 function unreadSinceOf(
   qc: ReturnType<typeof useQueryClient>,
   workspaceId: string,
   roomId: string,
-): { roomId: string; since: string } | null {
+): { roomId: string; since: string; count: number } | null {
   const room = qc.getQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId))?.find((entry) => entry.id === roomId);
   const hasUnread = (room?.unread_count ?? 0) > 0 || (room?.mention_unread_count ?? 0) > 0;
-  return hasUnread && room?.last_read_at ? { roomId, since: room.last_read_at } : null;
+  return hasUnread && room?.last_read_at ? { roomId, since: room.last_read_at, count: room.unread_count ?? 0 } : null;
 }
 
 /**
@@ -72,6 +72,9 @@ function unreadSinceOf(
  * opening a room still calls MarkRoomRead so sidebar badges and peer receipts
  * match “đã xem”. CatchUp close also flushes read after a brief was shown.
  * Opening a thread marks it read here too, keeping the pointer it replaced.
+ * The list's "Bắt kịp nhanh" asks for a room's brief before that room is
+ * open (`requestCatchUp`); it runs once the room has opened and its pointer
+ * is kept, so the brief starts where the reader left off.
  */
 export function useChatCatchUpUi(workspaceId: string, roomId: string | null, threadRootId?: string | null) {
   const { t, i18n } = useTranslation();
@@ -91,8 +94,12 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
   const [error, setError] = useState<string | null>(null);
   // The read pointer as it was before this room opened (opening marks it
   // read): where "Tin mới" goes, and where the brief starts.
-  const [unread, setUnread] = useState<{ roomId: string; since: string } | null>(null);
+  const [unread, setUnread] = useState<{ roomId: string; since: string; count: number } | null>(null);
   const prevRoomRef = useRef<string | null>(null);
+  // The room whose pointer is kept above, and a room whose brief waits for that.
+  const [openedRoom, setOpenedRoom] = useState<string | null>(null);
+  const [pendingRoom, setPendingRoom] = useState<string | null>(null);
+  const lastRoomOnlyRef = useRef(false);
   // The same for the open thread; the server hands it back when marking read.
   const [threadUnread, setThreadUnread] = useState<{ rootId: string; since: string } | null>(null);
 
@@ -111,6 +118,7 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
       flushRead(prev);
     }
     prevRoomRef.current = roomId;
+    setOpenedRoom(roomId);
     if (roomId) {
       setUnread(unreadSinceOf(qc, workspaceId, roomId));
       clearLocalUnread(qc, workspaceId, roomId);
@@ -136,17 +144,20 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
       .catch(() => undefined);
   }, [threadRootId]);
 
-  const run = useCallback(async () => {
+  // `roomOnly`: the room's brief even while a thread is open (the unread line's button).
+  const run = useCallback(async (roomOnly: boolean) => {
     if (!roomId) return;
+    lastRoomOnlyRef.current = roomOnly;
+    const thread = roomOnly ? undefined : threadRootId || undefined;
     setOpen(true);
     setError(null);
     setResult(null);
     try {
       const res = await catchUp.mutateAsync({
         room_id: roomId,
-        thread_root_id: threadRootId || undefined,
+        thread_root_id: thread,
         locale: i18n.language?.startsWith("en") ? "en" : "vi",
-        since: (threadRootId ? threadSince : unreadSince) ?? undefined,
+        since: (thread ? threadSince : unreadSince) ?? undefined,
       });
       generatedAtByResult.set(res, Date.now());
       setResult(res);
@@ -154,6 +165,14 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
       setError(errorMessage(err, t));
     }
   }, [catchUp, i18n.language, roomId, t, threadRootId, threadSince, unreadSince]);
+
+  // shortcut: a request whose room never opens (AI off) waits until that room
+  // does; the card only shows when AI is on, so it opens at once in practice.
+  useEffect(() => {
+    if (!enabled || !pendingRoom || pendingRoom !== roomId || openedRoom !== roomId) return;
+    setPendingRoom(null);
+    void run(true);
+  }, [enabled, openedRoom, pendingRoom, roomId, run]);
 
   // Closing counts as "caught up" only when a brief was actually shown; a
   // failed or still-loading summary leaves the unread window for next time.
@@ -172,8 +191,13 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
     loading: catchUp.isPending,
     error,
     result,
-    onCatchUp: enabled ? () => void run() : undefined,
-    onRetry: () => void run(),
+    onCatchUp: enabled ? () => void run(false) : undefined,
+    onCatchUpRoom: enabled ? () => void run(true) : undefined,
+    onRetry: () => void run(lastRoomOnlyRef.current),
+    /** Opens this room's brief once the room is open (call it with the room being opened). */
+    requestCatchUp: setPendingRoom,
     unreadSince,
+    /** How many messages were unread when the room opened, or null. */
+    unreadCount: unread?.roomId === roomId ? unread.count : null,
   };
 }

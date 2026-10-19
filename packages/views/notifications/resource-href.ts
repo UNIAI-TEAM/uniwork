@@ -55,6 +55,11 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       if (n.params.kind === "discussion") query.set("kind", "discussion");
       return `${href}?${query.toString()}`;
     }
+    case "chat_room": {
+      // A ringing call opens its room, as the push does (notification.ResourceURL).
+      const q = new URLSearchParams({ room: n.resource_id });
+      return `${ws.chat()}?${q.toString()}`;
+    }
     case "email_account":
       return ws.email();
     default:

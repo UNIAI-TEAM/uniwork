@@ -59,7 +59,7 @@ function themeValue(token: string): string {
 
 const SCALED_STEPS = [
   "micro", "overline", "caption", "label", "body", "body-lg",
-  "title-sm", "title", "title-lg", "display-sm", "display",
+  "title-sm", "title", "title-lg", "title-xl", "display-sm", "display",
 ] as const;
 const FIXED_STEPS = [
   "hero-sm", "hero", "hero-lg", "hero-xl",
@@ -127,6 +127,7 @@ describe("token contract", () => {
       "--text-title-sm",
       "--text-title",
       "--text-title-lg",
+      "--text-title-xl",
       "--text-display-sm",
       "--text-display",
       "--text-hero-opening",
@@ -144,7 +145,7 @@ describe("token contract", () => {
     // than its neighbours. Body steps deliberately keep default tracking.
     const theme = definedVars(block("@theme inline"));
     for (const step of [
-      "title-sm", "title", "title-lg", "display-sm", "display",
+      "title-sm", "title", "title-lg", "title-xl", "display-sm", "display",
       "hero-sm", "hero", "hero-lg",
     ]) {
       expect(theme, `missing line-height for ${step}`).toContain(`--text-${step}--line-height`);
@@ -182,7 +183,7 @@ describe("token contract", () => {
   it("makes headings take the display family without touching views", () => {
     // 57 call sites use text-title*/text-display*/text-hero*; the family
     // rides on the utility so none of them has to add font-display.
-    for (const cls of ["text-title-sm", "text-title", "text-title-lg",
+    for (const cls of ["text-title-sm", "text-title", "text-title-lg", "text-title-xl",
       "text-display-sm", "text-display", "text-hero-sm", "text-hero", "text-hero-lg"]) {
       expect(css, `${cls} not bound to --font-display`).toMatch(
         new RegExp(`\\.${cls.replace(/-/g, "-")}\\b[^{]*\\{[^}]*font-family:\\s*var\\(--font-display\\)`),

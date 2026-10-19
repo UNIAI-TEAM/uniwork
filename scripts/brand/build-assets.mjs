@@ -24,6 +24,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const SVG = path.join(ROOT, "packages", "ui", "brand", "svg");
 const APP = path.join(ROOT, "apps", "web", "app");
 const PUBLIC = path.join(ROOT, "apps", "web", "public");
+const MOBILE = path.join(ROOT, "apps", "chat-mobile", "assets");
+const DESKTOP = path.join(ROOT, "apps", "chat-desktop", "resources");
 
 const pwt = require.resolve("@playwright/test", { paths: [path.join(ROOT, "e2e")] });
 const { chromium } = require(require.resolve("playwright-core", { paths: [path.dirname(pwt)] }));
@@ -55,6 +57,25 @@ const PNGS = [
     out: path.join(PUBLIC, "icon-maskable-512.png"),
     source: "app-icon-maskable.svg",
     size: 512,
+  },
+  // UniChat. The phone icon is the full-bleed tile (iOS masks it; squeeze.py
+  // drops its alpha, which the App Store refuses); Android takes the glyph and
+  // the ramp as the two adaptive layers.
+  { out: path.join(MOBILE, "icon.png"), source: "unichat-icon.svg", size: 1024 },
+  {
+    out: path.join(MOBILE, "adaptive-icon.png"),
+    source: "unichat-icon-foreground.svg",
+    size: 1024,
+    transparent: true,
+  },
+  { out: path.join(MOBILE, "adaptive-icon-background.png"), source: "unichat-icon-background.svg", size: 1024 },
+  // electron-builder makes .icns and .ico from it; the shell also sets it as
+  // the window icon (Windows, Linux) and the dock icon of an unpackaged run.
+  {
+    out: path.join(DESKTOP, "icon.png"),
+    source: "unichat-icon-desktop.svg",
+    size: 1024,
+    transparent: true,
   },
 ];
 

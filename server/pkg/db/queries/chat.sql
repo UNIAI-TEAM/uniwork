@@ -19,7 +19,7 @@ INSERT INTO chat_rooms (
 
 -- name: GetActiveChatRoomMember :one
 -- tenant: parent room_id
-SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, created_at, updated_at FROM chat_room_members
+SELECT id, room_id, workspace_id, user_id, role, status, send_restricted, notifications_muted, invited_by, joined_at, left_at, last_read_at, last_delivered_at, created_at, updated_at FROM chat_room_members
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active')
 LIMIT 1;
 
@@ -37,8 +37,9 @@ WHERE room_id = $1 AND status IN ('invited', 'active');
 
 -- name: UpdateChatRoomMemberLastRead :exec
 -- tenant: parent room_id
+-- A read implies delivered: the delivered cursor never trails the read one.
 UPDATE chat_room_members
-SET last_read_at = GREATEST(last_read_at, $3), updated_at = now()
+SET last_read_at = GREATEST(last_read_at, $3), last_delivered_at = GREATEST(last_delivered_at, $3), updated_at = now()
 WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active');
 
 -- name: SetChatRoomMemberNotificationsMuted :execrows
@@ -210,7 +211,10 @@ SELECT
   m.kind,
   m.sender_id,
   m.created_at,
-  u.display_name AS sender_display_name
+  u.display_name AS sender_display_name,
+  COALESCE(CASE WHEN m.kind = 'voice_call_log' THEN m.metadata ->> 'outcome' END, '')::text AS call_outcome,
+  COALESCE(CASE WHEN m.kind = 'voice' AND jsonb_typeof(m.metadata -> 'duration_ms') = 'number'
+    THEN (m.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS duration_ms
 FROM chat_messages m
 INNER JOIN users u ON u.id = m.sender_id
 WHERE m.room_id = $1
@@ -227,6 +231,8 @@ SELECT
   r.workspace_id,
   r.member_set_key,
   r.member_permissions,
+  r.avatar_file_id,
+  r.topic,
   r.updated_at,
   mem.last_read_at AS my_last_read_at,
   mem.notifications_muted,
@@ -273,10 +279,16 @@ SELECT
   COALESCE(peer.email, '') AS peer_email,
   COALESCE(peer.display_name, '') AS peer_display_name,
   peer.last_read_at AS peer_last_read_at,
+  peer.last_delivered_at AS peer_last_delivered_at,
   COALESCE(last_msg.body, '') AS last_message_body,
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
   COALESCE(last_msg.sender_display_name, '') AS last_message_sender_name,
+  -- What the list line needs beyond the body: a call log's outcome (a missed
+  -- call reads red) and a voice note's length ("· 0:42"); both live in metadata.
+  COALESCE(CASE WHEN last_msg.kind = 'voice_call_log' THEN last_msg.metadata ->> 'outcome' END, '')::text AS last_message_call_outcome,
+  COALESCE(CASE WHEN last_msg.kind = 'voice' AND jsonb_typeof(last_msg.metadata -> 'duration_ms') = 'number'
+    THEN (last_msg.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS last_message_duration_ms,
   last_msg.created_at AS last_message_at
 FROM chat_rooms r
 INNER JOIN chat_room_members mem
@@ -287,6 +299,7 @@ LEFT JOIN LATERAL (
     m.kind,
     m.sender_id,
     m.created_at,
+    m.metadata,
     u.display_name AS sender_display_name
   FROM chat_messages m
   INNER JOIN users u ON u.id = m.sender_id
@@ -298,8 +311,8 @@ LEFT JOIN LATERAL (
 ) last_msg ON true
 LEFT JOIN LATERAL (
   -- A DM's peer comes from its member set, so it survives the peer leaving;
-  -- their read cursor only while they are still in the room.
-  SELECT u.id, u.email, u.display_name, pm.last_read_at
+  -- their read and delivered cursors only while they are still in the room.
+  SELECT u.id, u.email, u.display_name, pm.last_read_at, pm.last_delivered_at
   FROM users u
   LEFT JOIN chat_room_members pm
     ON pm.room_id = r.id AND pm.user_id = u.id AND pm.status IN ('invited', 'active')
@@ -328,6 +341,8 @@ SELECT
   m.user_id,
   m.role,
   m.send_restricted,
+  m.last_read_at,
+  m.last_delivered_at,
   u.email,
   u.display_name
 FROM chat_room_members m
@@ -403,6 +418,26 @@ UPDATE chat_rooms SET updated_at = now() WHERE id = $1;
 -- name: UpdateChatRoomName :exec
 -- tenant: by-id
 UPDATE chat_rooms SET name = $2, updated_at = now() WHERE id = $1;
+
+-- name: UpdateChatRoomTopic :exec
+-- tenant: by-id
+UPDATE chat_rooms SET topic = $2, updated_at = now() WHERE id = $1;
+
+-- name: SetChatRoomAvatar :exec
+-- NULL drops the group avatar; the caller holds the row FOR UPDATE.
+UPDATE chat_rooms SET avatar_file_id = sqlc.narg('avatar_file_id'), updated_at = now()
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id');
+
+-- name: GetChatRoomAvatarFileIDForUpdate :one
+SELECT avatar_file_id FROM chat_rooms
+WHERE id = sqlc.arg('id') AND organization_id = sqlc.arg('organization_id')
+FOR UPDATE;
+
+-- name: ListChatRoomAvatarFileIDs :many
+-- tenant: system
+-- FileService asks which of these files a group still shows.
+SELECT avatar_file_id FROM chat_rooms
+WHERE avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: UpdateChatRoomMemberPermissions :exec
 -- tenant: by-id
@@ -494,6 +529,11 @@ SELECT
   COALESCE(last_msg.kind, '') AS last_message_kind,
   COALESCE(last_msg.sender_id, '') AS last_message_sender_id,
   COALESCE(last_msg.sender_display_name, '') AS last_message_sender_name,
+  -- What the list line needs beyond the body: a call log's outcome (a missed
+  -- call reads red) and a voice note's length ("· 0:42"); both live in metadata.
+  COALESCE(CASE WHEN last_msg.kind = 'voice_call_log' THEN last_msg.metadata ->> 'outcome' END, '')::text AS last_message_call_outcome,
+  COALESCE(CASE WHEN last_msg.kind = 'voice' AND jsonb_typeof(last_msg.metadata -> 'duration_ms') = 'number'
+    THEN (last_msg.metadata ->> 'duration_ms')::numeric::int END, 0)::int AS last_message_duration_ms,
   last_msg.created_at AS last_message_at
 FROM chat_rooms r
 INNER JOIN chat_room_members mem
@@ -504,6 +544,7 @@ LEFT JOIN LATERAL (
     m.kind,
     m.sender_id,
     m.created_at,
+    m.metadata,
     u.display_name AS sender_display_name
   FROM chat_messages m
   INNER JOIN users u ON u.id = m.sender_id
@@ -537,6 +578,8 @@ SELECT
   ''::text AS last_message_kind,
   ''::text AS last_message_sender_id,
   ''::text AS last_message_sender_name,
+  ''::text AS last_message_call_outcome,
+  0::int AS last_message_duration_ms,
   CAST(NULL AS timestamptz) AS last_message_at
 FROM chat_rooms r
 WHERE r.workspace_id = sqlc.arg(workspace_id)
@@ -569,6 +612,8 @@ SELECT
   ''::text AS last_message_kind,
   ''::text AS last_message_sender_id,
   ''::text AS last_message_sender_name,
+  ''::text AS last_message_call_outcome,
+  0::int AS last_message_duration_ms,
   CAST(NULL AS timestamptz) AS last_message_at
 FROM chat_rooms r
 WHERE r.workspace_id = sqlc.arg(workspace_id)
@@ -871,3 +916,63 @@ SELECT
   now(), now(), now()
 ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING;
 
+
+-- name: GetChatRoomSharedSummary :many
+-- The info panel's shared media in one scan of a room's main timeline (the
+-- rows ListChatMessagesByRoom pages): how many photos, GIFs, videos, files,
+-- links and voice messages it holds, and its newest photos. Sorted the way
+-- the client sorts a loaded timeline (packages/views/chat/chat-person-shared.ts):
+-- an attachment by its content type, a picker body (![alt](https://allowed
+-- host/…)) by its alt prefix (stickers do not count), and every http(s) URL
+-- in a text body as one link. One row per recent photo, each carrying the
+-- counts; a single row with a NULL id when the room has no photo.
+WITH timeline AS (
+  SELECT
+    m.id, m.kind, m.body, m.metadata, m.created_at,
+    CASE WHEN m.kind = 'file' THEN COALESCE(m.metadata->>'content_type', '') END AS content_type,
+    substring(m.body FROM '^\s*!\[[^]]*\]\((https://(?:media\.tenor\.com|media\.giphy\.com|cdn\.jsdelivr\.net)(?::[0-9]+)?(?:[/?#][^)\s]*)?)\)\s*$')::text AS media_url,
+    btrim(COALESCE(substring(m.body FROM '^\s*!\[([^]]*)\]'), '')) AS media_alt
+  FROM chat_messages m
+  WHERE m.room_id = sqlc.arg(room_id)
+    AND m.workspace_id = sqlc.arg(workspace_id)
+    AND m.deleted_at IS NULL
+    AND m.thread_root_id IS NULL
+), classified AS (
+  SELECT
+    t.id, t.kind, t.body, t.metadata, t.created_at, t.media_url, t.media_alt,
+    CASE
+      WHEN t.kind = 'file' THEN CASE
+        WHEN t.content_type = 'image/gif' THEN 'gif'
+        WHEN t.content_type LIKE 'video/%' THEN 'video'
+        WHEN t.content_type LIKE 'image/%' THEN 'photo'
+        WHEN btrim(COALESCE(t.metadata->>'filename', '') || t.body) <> '' THEN 'file'
+      END
+      WHEN t.media_url IS NULL THEN NULL
+      WHEN split_part(t.media_alt, ':', 1) = 'sticker' THEN NULL
+      WHEN split_part(t.media_alt, ':', 1) = 'video' THEN 'video'
+      WHEN split_part(t.media_alt, ':', 1) = 'gif' OR lower(split_part(t.media_url, '?', 1)) LIKE '%.gif' THEN 'gif'
+      ELSE 'photo'
+    END AS bucket
+  FROM timeline t
+), counts AS (
+  SELECT
+    (count(*) FILTER (WHERE c.bucket = 'photo'))::int AS photo_count,
+    (count(*) FILTER (WHERE c.bucket = 'gif'))::int AS gif_count,
+    (count(*) FILTER (WHERE c.bucket = 'video'))::int AS video_count,
+    (count(*) FILTER (WHERE c.bucket = 'file'))::int AS file_count,
+    (COALESCE(sum(regexp_count(c.body, 'https?://[^]\s<>)]+', 1, 'i')) FILTER (WHERE c.kind = 'text' AND c.media_url IS NULL), 0))::int AS link_count,
+    (count(*) FILTER (WHERE c.kind = 'voice'))::int AS voice_count
+  FROM classified c
+), recent AS (
+  SELECT c.id, c.kind, c.metadata, c.created_at, c.media_url, c.media_alt
+  FROM classified c
+  WHERE c.bucket = 'photo'
+  ORDER BY c.created_at DESC, c.id DESC
+  LIMIT 6
+)
+SELECT
+  n.photo_count, n.gif_count, n.video_count, n.file_count, n.link_count, n.voice_count,
+  r.id, r.kind, r.metadata, r.created_at, r.media_url, r.media_alt
+FROM counts n
+LEFT JOIN recent r ON true
+ORDER BY r.created_at DESC, r.id DESC;

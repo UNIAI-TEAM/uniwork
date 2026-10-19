@@ -82,6 +82,26 @@ top of the letters' sidebearings. `lockup` is the word with the mark in its tone
 - Don't put the light-ramp mark on a dark ground by hand. Use `<Logo>`, which
   swaps ramps, or `mark-dark.svg`.
 
+## UniChat
+
+UniChat's icon is the UniWork mark inside a speech bubble, on UniWork's own
+gradient tile (chosen 2026-10-17 over a bubble tucked between the two figures,
+which read as UniWork itself at dock size, and a pair of quote marks, which
+lost the family). The bubble says "chat" before the mark is legible; the mark
+says whose.
+
+| File | Use |
+| --- | --- |
+| `svg/unichat-icon.svg` | Phone icon, full bleed: `apps/chat-mobile/assets/icon.png` (no alpha). |
+| `svg/unichat-icon-foreground.svg`, `-background.svg` | Android adaptive layers; the glyph clears the 66dp safe circle. |
+| `svg/unichat-icon-desktop.svg` | Desktop icon on Apple's 1024 grid (824 body, 185.4 corner, shadow): `apps/chat-desktop/resources/icon.png`, which electron-builder turns into .icns and .ico. |
+| `unichat-icon.tsx` | `<UniChatIcon size={96} />`, the tile inside the product (the shell's sign-in screen). |
+
+The bubble's constants live in `scripts/brand/build-svg.py` beside the mark's;
+change them there and run `pnpm brand:build`. Like `Logo`, `UniChatIcon` swaps
+in the compact mark once the mark inside renders at 24px or less, which is a
+tile of about 88px.
+
 ## The mark
 
 Rebuilt from the original artwork on a 128×92 grid, with four corrections that

@@ -128,7 +128,7 @@ describe("PreConnectFloatingCall", () => {
   it("renders peer name and child controls", () => {
     render(
       wrap(
-        <PreConnectFloatingCall peerName="Long" statusLabel="Calling…" pulse>
+        <PreConnectFloatingCall peerName="Long" statusLabel="Calling…" pulse="outgoing">
           <button type="button">End</button>
         </PreConnectFloatingCall>,
       ),

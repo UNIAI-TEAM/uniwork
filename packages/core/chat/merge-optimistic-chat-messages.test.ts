@@ -122,4 +122,19 @@ describe("mergeOptimisticChatMessages", () => {
     );
     expect(optimistic.threadRootId).toBe("root1");
   });
+
+  it("shows an outbox entry as failed once an attempt reached the server and failed", () => {
+    const base = {
+      workspaceId: "ws1",
+      senderId: "u1",
+      roomId: "room1",
+      body: "hi",
+      client_msg_id: "cmid-f",
+      queued_at: "2026-09-05T08:00:00.000Z",
+    };
+    expect(outboxToOptimisticChatMessage(base, "u1").deliveryStatus).toBe("queued");
+    expect(
+      outboxToOptimisticChatMessage({ ...base, failed_at: "2026-09-05T08:00:05.000Z" }, "u1").deliveryStatus,
+    ).toBe("failed");
+  });
 });

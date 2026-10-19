@@ -353,6 +353,23 @@ func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
 			Scope:   ScopeOrgWorkspace,
 			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
 		},
+		{
+			// A group's avatar (UNI-1898): an organization room, so the
+			// workspace is optional like the other chat purposes.
+			Purpose: ChatRoomAvatar,
+			Prefix:  "chat/avatars",
+			Scope:   ScopeOrgWorkspaceOptional,
+			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
+		},
+		{
+			// A link preview's picture (ADR 0035): fetched by the server, kept
+			// once per URL per organization and shared by every room that
+			// links it, so it names no workspace.
+			Purpose: ChatLinkPreview,
+			Prefix:  "chat/link-previews",
+			Scope:   ScopeOrg,
+			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
+		},
 	}
 }
 

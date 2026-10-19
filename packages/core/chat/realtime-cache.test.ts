@@ -129,6 +129,20 @@ describe("patchRoomSidebarFromMessage", () => {
     expect(next[0]?.id).toBe("room-a");
     expect(next[0]?.last_message_body).toBe(message.body);
     expect(next[0]?.unread_count).toBe(1);
+
+    // A call log carries its outcome, a voice note its length, as the room list does.
+    const call = patchRoomSidebarFromMessage(rooms, "room-a", {
+      ...message,
+      kind: "voice_call_log",
+      voice_call: { outcome: "unanswered", caller_id: "u2" },
+    });
+    expect(call[0]?.last_message_call_outcome).toBe("unanswered");
+    const voice = patchRoomSidebarFromMessage(call, "room-a", {
+      ...message,
+      kind: "voice",
+      voice: { duration_ms: 42000, content_type: "", size_bytes: 0, url: "", url_expires_at: "" },
+    } as typeof message);
+    expect([voice[0]?.last_message_call_outcome, voice[0]?.last_message_duration_ms]).toEqual([undefined, 42000]);
   });
 });
 
@@ -463,6 +477,27 @@ describe("patchChatMessageDeleted", () => {
   });
 });
 
+describe("room shared summary", () => {
+  it("goes stale when a message is created or deleted, not when one is edited", async () => {
+    const qc = new QueryClient();
+    const key = chatKeys.roomSharedSummary("ws1", "room1");
+    const stale = () => qc.getQueryState(key)?.isInvalidated;
+    seed(qc, chatKeys.roomMessages("ws1", "room1"), timelineOf([sampleMessage("m1", "2026-01-01T10:00:00Z")]));
+    qc.setQueryData(key, { counts: {}, recent_photos: [] });
+
+    vi.spyOn(chatApi, "getChatRoomMessage").mockResolvedValue({ ...sampleMessage("m1", "2026-01-01T10:00:00Z"), body: "edited" });
+    await fetchAndPatchChatMessage(qc, "ws1", "room1", "m1", false);
+    expect(stale()).toBe(false);
+
+    insertCreatedRoomMessage(qc, "ws1", "room1", sampleMessage("m2", "2026-01-01T10:01:00Z"));
+    expect(stale()).toBe(true);
+
+    qc.setQueryData(key, { counts: {}, recent_photos: [] });
+    patchChatMessageDeleted(qc, "ws1", "room1", "m2");
+    expect(stale()).toBe(true);
+  });
+});
+
 // UNI-1077: an infinite query writes back the pages it started from when a
 // fetch ends, so a patch applied meanwhile was lost.
 describe("patches while the room timeline fetches", () => {
@@ -568,6 +603,15 @@ describe("thread reply cache patches", () => {
     expect(next?.[0]?.last_reply_at).toBe(reply.created_at);
   });
 
+  it("puts the replier first on the root's faces, once, three at most", () => {
+    const root = { ...sampleMessage("root1", "2026-01-01T10:00:00Z"), thread_participant_ids: ["u3", "u2", "u4"] };
+    const reply = { ...sampleMessage("r1", "2026-01-01T10:01:00Z"), thread_root_id: "root1", sender_id: "u2" };
+    expect(bumpThreadRootReplyCount([root], reply)?.[0]?.thread_participant_ids).toEqual(["u2", "u3", "u4"]);
+    const first = { ...sampleMessage("r2", "2026-01-01T10:02:00Z"), thread_root_id: "root1", sender_id: "u9" };
+    const bare = sampleMessage("root1", "2026-01-01T10:00:00Z");
+    expect(bumpThreadRootReplyCount([bare], first)?.[0]?.thread_participant_ids).toEqual(["u9"]);
+  });
+
   it("keeps thread replies off the main room list", async () => {
     const reply = {
       ...sampleMessage("r1", "2026-01-01T10:01:00Z"),
@@ -661,6 +705,9 @@ describe("message / thread link cache patches", () => {
 
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: chatKeys.messageLinks("ws1", "m1"),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: chatKeys.roomLinkedTasksRoot("ws1"),
     });
     expect(qc.getQueryData(chatKeys.roomMessages("ws1", "room1"))).toEqual(messages);
   });

@@ -116,3 +116,47 @@ func TestSanitizeMetadataPreservesUTF8AtByteLimit(t *testing.T) {
 		t.Fatalf("sanitized metadata = %q, want the complete rune prefix", got)
 	}
 }
+
+func TestDesktopRefreshTokenUserAgentNamesTheClient(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	minter := auth.TokenMinter{Secret: []byte("desktop-test"), TTL: time.Minute}
+	svc := NewDesktopAuthService(pool, q, minter, chatClientConfig())
+	ctx := context.Background()
+	for _, c := range []struct{ client, redirect, platform, want string }{
+		{chatMobileClient, chatRedirect, "ios", "uniwork-chat-mobile/ios"},
+		{stableClient, stableRedirect, "windows", "uniwork-office/windows"},
+	} {
+		u, err := NewAuthService(pool, q, minter, time.Hour, nil).Register(ctx, c.client+"-ua@example.com", "password123", "UA", "en")
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256([]byte(clientVerifier))
+		attempt, err := svc.Start(ctx, DesktopStartInput{ClientID: c.client, CodeChallenge: base64.RawURLEncoding.EncodeToString(sum[:]), CodeChallengeMethod: "S256", State: "ua-" + c.client, RedirectURI: c.redirect, DeploymentID: "default", Platform: c.platform})
+		if err != nil {
+			t.Fatal(err)
+		}
+		consent, err := svc.Consent(ctx, u.User.ID, attempt.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		code, _, err := svc.Approve(ctx, u.User.ID, attempt.ID, consent.CSRFToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sess, err := svc.Exchange(ctx, c.client, code, clientVerifier, c.redirect, "default")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rt, err := q.GetRefreshTokenByHash(ctx, hashToken(sess.RefreshToken)); err != nil || rt.UserAgent != c.want {
+			t.Fatalf("exchange UA = %q (%v), want %q", rt.UserAgent, err, c.want)
+		}
+		next, err := svc.Refresh(ctx, sess.DeviceSessionID, sess.RefreshToken, "default")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rt, err := q.GetRefreshTokenByHash(ctx, hashToken(next.RefreshToken)); err != nil || rt.UserAgent != c.want {
+			t.Fatalf("refresh UA = %q (%v), want %q", rt.UserAgent, err, c.want)
+		}
+	}
+}

@@ -1,15 +1,17 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { wrap } from "../test/api-mock";
+import { requestMock, wrap } from "../test/api-mock";
 import { GroupSettingsSheet } from "./group-settings-sheet";
 
 vi.mock("@uniwork/core/chat", () => ({
   useChatRoomMembers: () => ({ data: [] }),
   useChatRooms: () => ({ data: [] }),
   useSetChatRoomMuted: () => ({ mutate: vi.fn() }),
+  useSetChatRoomAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useRemoveChatRoomMember: () => ({ mutateAsync: vi.fn() }),
+  useChatRoomSharedSummary: () => ({ data: undefined, isPending: false, isError: false }),
   useUpdateChatRoomSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
@@ -89,5 +91,32 @@ describe("GroupSettingsSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rời cuộc trò chuyện" }));
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Rời cuộc trò chuyện" }));
     expect(onLeave).toHaveBeenCalled();
+  });
+
+  it("lists the room's shared media between the bulletin rows and the members", async () => {
+    requestMock.mockResolvedValue({ messages: [] });
+    render(
+      wrap(
+        <GroupSettingsSheet
+          open
+          onOpenChange={vi.fn()}
+          workspaceId="ws1"
+          group={{ id: "g1", name: "Design", room_id: "room-g1", member_user_ids: ["u2"] }}
+          currentUserId="self"
+          youLabel="Bạn"
+          memberProfiles={{}}
+          onAddMembers={vi.fn()}
+          onLeave={vi.fn()}
+        />,
+      ),
+    );
+    const photos = await screen.findByRole("button", { name: "0 ảnh" });
+    // The GIF row's mark is the word itself, so its name starts with it.
+    for (const name of [/^0 video$/, /^0 tệp$/, /0 GIF$/]) expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    const bulletin = screen.getByRole("button", { name: /Ghi chú, ghim, bình chọn/ });
+    const members = screen.getByText("Thành viên nhóm");
+    expect(bulletin.compareDocumentPosition(photos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(photos.compareDocumentPosition(members) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(requestMock).not.toHaveBeenCalledWith(expect.stringContaining("/chat/rooms/room-g1/messages"));
   });
 });

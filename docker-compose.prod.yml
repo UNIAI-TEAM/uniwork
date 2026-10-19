@@ -33,5 +33,8 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8080}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      # UniChat mobile universal links (/.well-known/*); empty answers 404.
+      UNICHAT_IOS_TEAM_ID: ${UNICHAT_IOS_TEAM_ID:-}
+      UNICHAT_ANDROID_SHA256: ${UNICHAT_ANDROID_SHA256:-}
     ports: ["3000:3000"]
     depends_on: [server]

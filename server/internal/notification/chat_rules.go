@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -76,6 +77,58 @@ func chatMessageRule(kind string) rule {
 		params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name}
 		return r.drafts(room.OrganizationID, kind, groupKey, "chat_message", msg.ID, params)
 	}
+}
+
+// callRingWindow is how long a ring is worth a push: the push's TTL, past the
+// 45 s a client rings for (voice-call-overlay-types.ts).
+const callRingWindow = 60 * time.Second
+
+// ruleChatVoiceInviteReceived rings one invitee's devices (spec M3 §2): a
+// ringing call, read at delivery, so a row the lane reaches after the window,
+// for someone who already answered or joined, or for a call that ended, gets
+// nothing. A DM peer who hid the conversation is still rung, as the realtime
+// invite and the pending-invite list ring them; a muted room is not.
+func ruleChatVoiceInviteReceived(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	userID, roomID, callID := p["user_id"], p["room_id"], p["call_id"]
+	if userID == "" || roomID == "" || callID == "" {
+		return nil, nil
+	}
+	if ev.CreatedAt.Valid && time.Since(ev.CreatedAt.Time) > callRingWindow {
+		return nil, nil
+	}
+	if e.calls != nil && !e.calls.VoiceCallRinging(roomID, callID, userID) {
+		return nil, nil
+	}
+	room, err := e.q.GetChatRoomByID(ctx, roomID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// GetChatRoomByID is by-id: the room must belong to the event's tenant.
+	if ev.OrganizationID.Valid && room.OrganizationID != ev.OrganizationID.String {
+		return nil, nil
+	}
+	mem, err := e.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{RoomID: room.ID, UserID: userID})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		if room.Kind != "dm" {
+			return nil, nil
+		}
+	case err != nil:
+		return nil, err
+	case mem.NotificationsMuted:
+		return nil, nil
+	}
+	wsID, err := chatRecipientWorkspace(ctx, e, room, userID)
+	if err != nil || wsID == "" {
+		return nil, err
+	}
+	r := newRecipients(ctx, e, ev, wsID)
+	r.add(userID)
+	params := map[string]string{"actor": actorName(ctx, e.q, ev), "room": room.Name, "call_id": callID}
+	return r.drafts(room.OrganizationID, KindChatCallIncoming, service.ChatCallNotifyGroup(room.ID), "chat_room", room.ID, params)
 }
 
 // chatRecipientWorkspace is the workspace a chat notification for userID

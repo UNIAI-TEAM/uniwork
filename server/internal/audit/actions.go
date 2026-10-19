@@ -128,6 +128,8 @@ const (
 	ActionChatRoomMemberUpdated   = "chat.room.member_updated"
 	ActionChatRoomSettingsUpdated = "chat.room.settings_updated"
 	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
+	ActionChatVoiceTranscribed    = "chat.voice_message.transcribed"
+	ActionChatMessageForwarded    = "chat.message.forwarded"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
@@ -282,6 +284,16 @@ const (
 
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
+
+	// A host turned action items of a meeting summary into tasks: one row
+	// for the batch, beside the task.created row of each task
+	// (MeetingService.CreateTasksFromSummary, UNI-1853).
+	ActionMeetingSummaryTasksCreated = "meeting_summary.tasks_created"
+
+	// A host or admin generated the meeting's AI summary
+	// (MeetingService.Summarize); metadata names the summary and the usage
+	// row that paid for it.
+	ActionMeetingSummaryCreated = "meeting.summary_created"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"

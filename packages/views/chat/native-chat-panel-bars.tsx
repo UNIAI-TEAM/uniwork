@@ -1,21 +1,27 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Bell, BellOff, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bell, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFollowChatThread, useUnfollowChatThread } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { toastChatError } from "./chat-error-message";
 
-/** Above the timeline while a thread is open: its name, Follow / Unfollow and the way out. */
+/**
+ * Above the timeline while a thread is open: its name, Follow / Unfollow and
+ * the way out. In the side panel the room's name sits under the title.
+ */
 export function ChatThreadBar({
   workspaceId,
   threadRootId,
+  subtitle,
   following,
   onClose,
 }: {
   workspaceId: string;
   threadRootId: string;
+  subtitle?: string;
   following: boolean;
   onClose: () => void;
 }) {
@@ -24,25 +30,42 @@ export function ChatThreadBar({
   const unfollow = useUnfollowChatThread(workspaceId);
   const toggle = following ? unfollow : follow;
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-1.5">
-      <p className="min-w-0 truncate text-label font-semibold text-foreground">{t("chat.thread_title")}</p>
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-between gap-2 border-b border-border bg-surface pr-2 pl-4 sm:pr-3 sm:pl-5",
+        subtitle ? "h-16" : "h-13",
+      )}
+    >
+      <div className="min-w-0">
+        <p className="truncate font-display text-title-sm font-bold text-foreground">{t("chat.thread_title")}</p>
+        {subtitle ? <p className="truncate text-label text-muted-foreground">{subtitle}</p> : null}
+      </div>
       <div className="flex shrink-0 items-center gap-1">
+        {/* A pill toggle (canvas): "Theo dõi" pressed in the brand wash while followed; the title says what a tap does. */}
         <Button
           type="button"
-          variant="ghost"
+          variant={following ? "brandSubtle" : "secondary"}
           size="sm"
-          className="text-muted-foreground"
+          className="h-8.5 gap-1.5 rounded-full pr-3.5 pl-2.5 font-semibold"
+          aria-pressed={following}
+          title={following ? t("chat.thread_unfollow") : undefined}
           disabled={toggle.isPending}
           onClick={() =>
             toggle.mutate(threadRootId, { onError: (err) => toastChatError(err, t, t("chat.errors.internal")) })
           }
         >
-          {following ? <BellOff aria-hidden /> : <Bell aria-hidden />}
-          {following ? t("chat.thread_unfollow") : t("chat.thread_follow")}
+          <Bell aria-hidden />
+          {t("chat.thread_follow")}
         </Button>
-        <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onClose}>
-          <X aria-hidden />
-          {t("chat.close_thread")}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-lg"
+          className="size-11 rounded-lg text-muted-foreground hover:text-foreground"
+          aria-label={t("chat.close_thread")}
+          onClick={onClose}
+        >
+          <X className="size-5" aria-hidden />
         </Button>
       </div>
     </div>
@@ -53,29 +76,52 @@ export function ChatThreadBar({
 export function ChatAnchorBar({ onBackToLatest }: { onBackToLatest: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border bg-info-soft px-4 py-1.5 text-info-soft-foreground">
-      <p className="min-w-0 truncate text-caption font-medium">{t("chat.search_jump_banner")}</p>
-      <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onBackToLatest}>
+    <div className="flex min-h-13 shrink-0 items-center gap-2.5 border-b border-border bg-info-soft py-1.5 pr-2.5 pl-4 text-info-soft-foreground">
+      <Search aria-hidden className="size-4.5 shrink-0" />
+      <p className="min-w-0 flex-1 truncate text-body font-semibold">{t("chat.search_jump_banner")}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8.5 shrink-0 gap-1.5 rounded-full border-brand/25 bg-surface pr-3.5 pl-2.5 font-semibold text-brand hover:text-brand"
+        onClick={onBackToLatest}
+      >
+        <ArrowDown aria-hidden />
         {t("chat.search_back_to_latest")}
       </Button>
     </div>
   );
 }
 
-/** Floats over the timeline once the reader has scrolled away from the newest message. */
-export function ChatJumpToLatestButton({ onClick }: { onClick: () => void }) {
+/**
+ * Floats over the timeline's bottom-right once the reader has scrolled away
+ * from the newest message: a round button, with how many messages arrived
+ * since on a brand badge (canvas).
+ */
+export function ChatJumpToLatestButton({ onClick, newCount = 0 }: { onClick: () => void; newCount?: number }) {
   const { t } = useTranslation();
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
-      className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-surface-raised shadow-[var(--menu-shadow)]"
+      aria-label={newCount > 0 ? t("chat.jump_latest_new", { count: newCount }) : t("chat.search_back_to_latest")}
+      // A pill centred over the foot of the timeline: what it does in words, and how many are new (canvas).
+      className={cn(
+        "absolute bottom-3 left-1/2 flex h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface-raised pl-3.5 text-body font-semibold whitespace-nowrap text-chat-chip-foreground shadow-menu transition-colors duration-(--duration-fast) hover:bg-surface-hover",
+        newCount > 0 ? "pr-2" : "pr-3.5",
+      )}
       onClick={onClick}
     >
-      <ArrowDown aria-hidden />
-      {t("chat.search_back_to_latest")}
-    </Button>
+      <ArrowDown className="size-4.5" aria-hidden />
+      <span aria-hidden>{t("chat.search_back_to_latest")}</span>
+      {newCount > 0 ? (
+        <span
+          aria-hidden
+          className="h-6 min-w-6 rounded-full bg-primary px-1.75 text-center text-caption leading-6 font-semibold text-primary-foreground tabular-nums"
+        >
+          {newCount > 99 ? "99+" : newCount}
+        </span>
+      ) : null}
+    </button>
   );
 }
 
@@ -87,7 +133,14 @@ export function ChatLoadOlderButton({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
   return (
     <div className="flex justify-center pb-2">
-      <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onClick}>
+      {/* A chip on the chat wall, like the day separators. */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full bg-chat-chip px-3 text-chat-chip-foreground hover:bg-chat-chip hover:text-foreground"
+        onClick={onClick}
+      >
         <ArrowUp aria-hidden />
         {t("chat.message_list.load_older")}
       </Button>
@@ -101,7 +154,7 @@ export function ChatOlderMessagesSkeleton({ label }: { label: string }) {
     <div className="pb-3" role="status" aria-busy>
       <span className="sr-only">{label}</span>
       <div className="flex items-start gap-2">
-        <Skeleton className="size-8 shrink-0 rounded-full" />
+        <Skeleton className="size-8.5 shrink-0 rounded-full" />
         <div className="flex flex-col gap-1.5">
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-9 w-56 rounded-2xl" />

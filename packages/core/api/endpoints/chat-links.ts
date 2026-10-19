@@ -105,6 +105,45 @@ export async function listChatRoomMessageLinks(
   return parsed.links ?? [];
 }
 
+const ChatRoomLinkedTaskSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  number: z.number().catch(0),
+  title: z.string().catch(""),
+  status: z.string().catch(""),
+  priority: z.string().catch(""),
+  assignee_id: z.string().optional().catch(undefined),
+  assignee_kind: z.string().optional().catch(undefined),
+  assignee_name: z.string().optional().catch(undefined),
+  due_date: z.string().optional().catch(undefined),
+  linked_at: z.string().catch(""),
+});
+
+const ChatRoomLinkedTasksSchema = z.object({
+  tasks: z.array(ChatRoomLinkedTaskSchema).catch([]),
+  total: z.number().catch(0),
+});
+
+/** One task linked from a room's messages; `due_date` is YYYY-MM-DD. */
+export type ChatRoomLinkedTask = z.infer<typeof ChatRoomLinkedTaskSchema>;
+
+type ChatRoomLinkedTasks = z.infer<typeof ChatRoomLinkedTasksSchema>;
+
+/** Tasks linked from this room, each once, most recently linked first (max 50). */
+export async function listChatRoomLinkedTasks(
+  workspaceId: string,
+  roomId: string,
+  limit?: number,
+): Promise<ChatRoomLinkedTasks> {
+  const query = limit ? `?limit=${limit}` : "";
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/linked-tasks${query}`,
+  );
+  return parseWithFallback(raw, ChatRoomLinkedTasksSchema, { tasks: [], total: 0 }, {
+    endpoint: "GET .../chat/rooms/{roomID}/linked-tasks",
+  });
+}
+
 export async function createChatMessageLink(
   workspaceId: string,
   messageId: string,

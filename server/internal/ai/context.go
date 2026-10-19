@@ -78,11 +78,14 @@ func BuildContext(sources []Source) (pack []Source, truncated bool) {
 
 // RenderSources is the prompt fragment: every excerpt wrapped as untrusted
 // data with its number, so a citation can be checked and an instruction
-// inside a task description is never obeyed.
+// inside a task description is never obeyed. The title line stays outside the
+// tag (the fake provider and the citation check read "[S#] title"), so the
+// title is forced onto that one line and, like the excerpt, cannot open or
+// close a tag.
 func RenderSources(pack []Source) string {
 	var b strings.Builder
 	for _, s := range pack {
-		fmt.Fprintf(&b, "[%s] %s (%s)\n<untrusted source=\"%s\">\n%s\n</untrusted>\n\n", s.ID, s.Title, s.Kind, s.ID, s.Excerpt)
+		fmt.Fprintf(&b, "[%s] %s (%s)\n%s\n\n", s.ID, EscapeUntrustedLine(s.Title), EscapeUntrustedLine(s.Kind), Untrusted(s.ID, s.Excerpt))
 	}
 	return b.String()
 }

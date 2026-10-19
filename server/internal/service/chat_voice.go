@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -59,6 +60,9 @@ type voiceCallSession struct {
 	invitedAt      time.Time
 	acceptedAt     *time.Time
 	participantIDs []string
+	// inviteeIDs were sent a chat.voice.invite_received row (a push); the
+	// answer and the end of the call close their ring notifications.
+	inviteeIDs []string
 }
 
 const voiceCallInvitePendingTTL = 5 * time.Minute
@@ -167,7 +171,7 @@ func (s *ChatService) trackVoiceCallParticipant(roomID, callID, userID string) {
 
 // trackVoiceCallInvite refuses a call_id that is still live: every room member
 // receives it in chat.voice.invite, so overwriting would hand them the call.
-func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string, video bool) error {
+func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, callerName string, video bool, inviteeIDs []string) error {
 	key := voiceCallSessionKey(room.ID, callID)
 	voiceCallSessionsMu.Lock()
 	defer voiceCallSessionsMu.Unlock()
@@ -185,10 +189,27 @@ func (s *ChatService) trackVoiceCallInvite(room db.ChatRoom, callID, callerID, c
 		video:          video,
 		invitedAt:      now,
 		participantIDs: []string{callerID},
+		inviteeIDs:     inviteeIDs,
 	}
 	voiceCallSessions.Store(key, sess)
 	sweepVoiceCallSessions(now)
 	return nil
+}
+
+// dropVoiceCallInvite forgets an invite whose ring rows could not be written,
+// so the abandoned call never comes back as a pending invite.
+func dropVoiceCallInvite(roomID, callID string) {
+	voiceCallSessionsMu.Lock()
+	defer voiceCallSessionsMu.Unlock()
+	voiceCallSessions.Delete(voiceCallSessionKey(roomID, callID))
+}
+
+// VoiceCallRinging reports whether a call still rings for userID: it is live
+// on this node and they have not joined it (answered here or on another
+// device). The notification consumer asks before it rings a phone.
+func (s *ChatService) VoiceCallRinging(roomID, callID, userID string) bool {
+	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
+	return ok && !slices.Contains(sess.participantIDs, userID)
 }
 
 // trackVoiceCallAccept starts the call clock when someone other than the
@@ -553,6 +574,7 @@ func (s *ChatService) finalizeVoiceCall(
 		return nil
 	}
 	sess := raw.(voiceCallSession)
+	s.closeVoiceCallRings(ctx, room.ID, sess.inviteeIDs)
 	outcome, duration := voiceCallOutcome(sess, userID, time.Now())
 	participantIDs := voiceCallParticipantIDsForLog(room, sess)
 	participants, err := s.resolveVoiceCallParticipants(ctx, participantIDs)
@@ -804,6 +826,7 @@ func chatMessageRowFromMessageFields(
 		Note:             noteFromMetadata(kind, meta, body),
 		Post:             postFromMetadata(kind, meta, body),
 		Priority:         priorityFromMetadata(meta),
+		ForwardedFrom:    meta.ForwardedFrom,
 	}
 	if editedAt.Valid {
 		t := editedAt.Time

@@ -130,6 +130,15 @@ func (f *fixture) inbox(t *testing.T, userID string) []db.Notification {
 	return rows
 }
 
+// readAll marks every unread notification of userID read, so the next event
+// opens a fresh row instead of merging into the open one.
+func (f *fixture) readAll(t *testing.T, userID string) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx, `UPDATE notifications SET read_at = now() WHERE user_id = $1 AND read_at IS NULL`, userID); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (f *fixture) newTask(t *testing.T, title string) db.Task {
 	t.Helper()
 	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: title})

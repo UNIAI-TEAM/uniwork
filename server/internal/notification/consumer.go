@@ -22,6 +22,7 @@ type Metrics interface {
 	IncNotificationMerged()
 	IncPushSent(result string)
 	IncDigestSent()
+	IncPushSuppressed(kind string)
 }
 
 // Consumer is the single source of notifications: it reads committed events
@@ -58,6 +59,10 @@ func (c *Consumer) SetDocumentReaders(d DocumentReadChecker) { c.env.docs = d }
 // summary nudge asks. MeetingService satisfies it. Unwired, the nudge is
 // never sent.
 func (c *Consumer) SetMeetingSummaries(s SummaryChecker) { c.env.summaries = s }
+
+// SetCallRinging lets the call rule skip a person the call no longer rings.
+// Without it every ring inside its window is delivered.
+func (c *Consumer) SetCallRinging(r CallRingChecker) { c.env.calls = r }
 
 // Name identifies the consumer in dispatcher errors.
 func (*Consumer) Name() string { return "notification" }

@@ -144,6 +144,10 @@ describe("formatBulletinTime", () => {
     expect(formatBulletinTime(new Date(2025, 0, 2, 9, 5).toISOString(), "en", now)).toMatch(/2025/);
   });
 
+  it("puts the date before the time in Vietnamese too", () => {
+    expect(formatBulletinTime(new Date(2026, 8, 12, 9, 5).toISOString(), "vi", now)).toBe("12 thg 9, 09:05");
+  });
+
   it("returns an empty string for an unparseable date", () => {
     expect(formatBulletinTime("nope", "vi", now)).toBe("");
   });

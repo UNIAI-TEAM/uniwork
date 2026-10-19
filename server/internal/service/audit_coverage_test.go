@@ -11,12 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -935,6 +938,19 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatVoiceTranscribed: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			withTranscriber(f.chat, f.pool, f.q, &provider.FakeTranscriber{})
+			voice, err := f.chat.SendVoiceMessage(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, SendVoiceMessageInput{
+				DurationMS: 4000, Body: bytes.NewReader(tinyFSVoiceBytes),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.TranscribeVoiceMessage(f.ctx, f.member.ID, f.workspace.ID, voice.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatVoiceCallLogged: func(t *testing.T, f *auditFixture) {
 			dm := f.newDM(t)
 			if err := f.chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call", false); err != nil {
@@ -944,6 +960,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := f.chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.workspace.ID, dm.ID, "audit-call"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatMessageForwarded: func(t *testing.T, f *auditFixture) {
+			dm := f.newDM(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, f.workspace.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, f.workspace.ID, room.RoomID, SendChatMessageInput{Body: "forward me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.ForwardChatMessage(f.ctx, f.owner.ID, f.workspace.ID, msg.ID, ForwardChatMessageInput{
+				TargetRoomIDs: []string{dm.ID},
+			}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1564,6 +1596,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-1853: the host turns action items of a meeting summary into tasks.
+		audit.ActionMeetingSummaryTasksCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			svc.Tasks = f.tasks
+			m, err := svc.CreateInstant(f.ctx, f.owner.ID, w.ID, "Giao ban")
+			if err != nil {
+				t.Fatal(err)
+			}
+			sum := seedSummary(t, svc, m, f.owner.ID, ai.ActionItem{Title: "Gửi báo cáo"})
+			if _, err := svc.CreateTasksFromSummary(f.ctx, f.owner.ID, m.ID, SummaryTasksInput{
+				SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1132: the owner connects a mailbox.
 		audit.ActionEmailHubAccountConnected: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -1581,6 +1629,24 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			svc := NewEmailHubService(f.q, f.ws, testEmailHubBox(t))
 			acc := seedEmailHubAccount(t, f.q, svc.box, f.owner.ID, f.orgID)
 			if err := svc.Disconnect(f.ctx, Human(f.owner.ID), workspace.ID, acc.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1853 M7: the host generates the meeting's AI summary.
+		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: 2 * time.Minute, HMACKey: []byte("t")})
+			s.AI = ai.NewGateway(f.q, &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+				return provider.CompletionResponse{Text: `{"summary":"Đã chốt.","decisions":[],"action_items":[]}`, Model: "fake"}
+			}}, NewAIQuota(s.ent), nil, ai.Options{})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.AddNote(f.ctx, f.owner.ID, m.ID, "Chốt lịch"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.Summarize(f.ctx, f.owner.ID, m.ID, "vi"); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1758,6 +1824,8 @@ func auditActions() []string {
 		audit.ActionChatRoomMemberUpdated,
 		audit.ActionChatRoomSettingsUpdated,
 		audit.ActionChatVoiceCallLogged,
+		audit.ActionChatVoiceTranscribed,
+		audit.ActionChatMessageForwarded,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
@@ -1835,6 +1903,8 @@ func auditActions() []string {
 		audit.ActionMcpGrantScopeChanged,
 		audit.ActionMcpTokenFamilyRevoked,
 		audit.ActionMeetingRestored,
+		audit.ActionMeetingSummaryTasksCreated,
+		audit.ActionMeetingSummaryCreated,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
 	}

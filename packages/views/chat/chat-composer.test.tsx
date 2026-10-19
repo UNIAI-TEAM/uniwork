@@ -21,6 +21,8 @@ vi.mock("sonner", () => ({
 }));
 
 import { toast } from "sonner";
+import { clipShape } from "./chat-composer-parts";
+import { rmsLevel } from "./use-chat-voice-recorder";
 
 describe("ChatComposer", () => {
   it("renders composer toolbar and opens attach menu", async () => {
@@ -279,6 +281,50 @@ describe("ChatComposer", () => {
     expect(onSendFile).not.toHaveBeenCalled();
   });
 
+  it("shows a read-only room as one line with the same disabled field", () => {
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          disabled
+          readOnlyReason="muted"
+          placeholder="Bạn bị cấm gửi tin trong phòng này — chỉ xem được."
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    expect(screen.getByPlaceholderText("Bạn bị cấm gửi tin trong phòng này — chỉ xem được.")).toBeDisabled();
+    expect(screen.queryByLabelText("Đính kèm")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Ghi âm tin nhắn thoại")).not.toBeInTheDocument();
+  });
+
+  it("shows a blocked DM as a pill that says who blocked whom, with Bỏ chặn only when it was me", () => {
+    const onUnblock = vi.fn();
+    const props = {
+      workspaceId: "ws1",
+      draft: "",
+      onDraftChange: vi.fn(),
+      onSend: vi.fn(),
+      disabled: true,
+      readOnlyReason: "blocked" as const,
+      placeholder: "Không thể nhắn tin",
+      sendLabel: "Gửi",
+    };
+    const { rerender } = render(wrap(<ChatComposer {...props} blockedByMe onUnblock={onUnblock} />));
+    expect(screen.getByRole("status")).toHaveTextContent("Bạn đã chặn người này — không thể nhắn tin riêng.");
+    expect(screen.getByLabelText("Không thể nhắn tin")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ chặn" }));
+    expect(onUnblock).toHaveBeenCalledTimes(1);
+
+    rerender(wrap(<ChatComposer {...props} blockedByMe={false} onUnblock={onUnblock} />));
+    expect(screen.getByRole("status")).toHaveTextContent("Người này đã chặn bạn — không thể nhắn tin riêng.");
+    expect(screen.queryByRole("button", { name: "Bỏ chặn" })).not.toBeInTheDocument();
+  });
+
   it("rejects unsupported paste types", () => {
     const onSendFile = vi.fn();
     render(
@@ -302,5 +348,19 @@ describe("ChatComposer", () => {
     });
     expect(onSendFile).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+describe("voice wave helpers", () => {
+  it("folds a clip's loudness into a fixed number of bars, the loudest of each slice", () => {
+    expect(clipShape([0.1, 0.9, 0.2, 0.4], 2)).toEqual([0.9, 0.4]);
+    expect(clipShape([0.5], 3)).toEqual([0.5, 0.5, 0.5]);
+    expect(clipShape([], 2)).toEqual([0, 0]);
+  });
+
+  it("reads silence as 0 and a full-scale wave as 1", () => {
+    expect(rmsLevel(new Uint8Array([128, 128, 128]))).toBe(0);
+    expect(rmsLevel(new Uint8Array([0, 255, 0, 255]))).toBe(1);
+    expect(rmsLevel(new Uint8Array([]))).toBe(0);
   });
 });

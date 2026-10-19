@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useEffect, useState } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import {
   FeatureFlagsProvider,
@@ -77,7 +77,13 @@ function pageDocument(over: Record<string, unknown> = {}): Document {
   }));
 }
 
-/** The editor arrives through React.lazy; the first TipTap import is slow. */
+// The editor arrives through React.lazy, and the first TipTap import ran past
+// a 15s findBy on a loaded CI runner. Pay it here, under hookTimeout, so the
+// lazy import() hits the module cache and findEditor only waits on rendering.
+beforeAll(async () => {
+  await import("./document-editor");
+});
+
 function findEditor() {
   return screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
 }

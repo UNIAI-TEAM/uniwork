@@ -231,7 +231,7 @@ func (q *Queries) InsertNotificationDelivery(ctx context.Context, arg InsertNoti
 }
 
 const listActivePushSubscriptions = `-- name: ListActivePushSubscriptions :many
-SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
+SELECT id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL
 `
 
 func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string) ([]PushSubscription, error) {
@@ -253,6 +253,7 @@ func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string
 			&i.LastUsedAt,
 			&i.RevokedAt,
 			&i.CreatedAt,
+			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}
@@ -815,6 +816,19 @@ func (q *Queries) MarkNotificationsUnread(ctx context.Context, arg MarkNotificat
 	return result.RowsAffected(), nil
 }
 
+const revokeDevicePushSubscriptionsForUser = `-- name: RevokeDevicePushSubscriptionsForUser :exec
+UPDATE push_subscriptions p SET revoked_at = now()
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND p.session_id IN (SELECT d.session_family_id FROM device_sessions d WHERE d.user_id = $1)
+`
+
+// A user-wide revoke closes every push registered from a native device
+// session; browser subscriptions stay, the web has no way to re-register them.
+func (q *Queries) RevokeDevicePushSubscriptionsForUser(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, revokeDevicePushSubscriptionsForUser, userID)
+	return err
+}
+
 const revokePushSubscription = `-- name: RevokePushSubscription :exec
 UPDATE push_subscriptions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL
 `
@@ -840,6 +854,22 @@ func (q *Queries) RevokePushSubscriptionByEndpoint(ctx context.Context, arg Revo
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const revokePushSubscriptionsForSession = `-- name: RevokePushSubscriptionsForSession :exec
+UPDATE push_subscriptions SET revoked_at = now()
+WHERE user_id = $1 AND session_id = $2 AND revoked_at IS NULL
+`
+
+type RevokePushSubscriptionsForSessionParams struct {
+	UserID    string      `json:"user_id"`
+	SessionID pgtype.Text `json:"session_id"`
+}
+
+// Revoking a native device family closes the pushes registered from it.
+func (q *Queries) RevokePushSubscriptionsForSession(ctx context.Context, arg RevokePushSubscriptionsForSessionParams) error {
+	_, err := q.db.Exec(ctx, revokePushSubscriptionsForSession, arg.UserID, arg.SessionID)
+	return err
 }
 
 const unarchiveNotifications = `-- name: UnarchiveNotifications :execrows
@@ -1076,12 +1106,12 @@ func (q *Queries) UpsertNotificationsForUsers(ctx context.Context, arg UpsertNot
 }
 
 const upsertPushSubscription = `-- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, now())
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, last_used_at = now()
-RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
+RETURNING id, user_id, endpoint, p256dh, auth, user_agent, last_used_at, revoked_at, created_at, session_id
 `
 
 type UpsertPushSubscriptionParams struct {
@@ -1091,6 +1121,7 @@ type UpsertPushSubscriptionParams struct {
 	P256dh    string      `json:"p256dh"`
 	Auth      string      `json:"auth"`
 	UserAgent pgtype.Text `json:"user_agent"`
+	SessionID pgtype.Text `json:"session_id"`
 }
 
 func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error) {
@@ -1101,6 +1132,7 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		arg.P256dh,
 		arg.Auth,
 		arg.UserAgent,
+		arg.SessionID,
 	)
 	var i PushSubscription
 	err := row.Scan(
@@ -1113,6 +1145,7 @@ func (q *Queries) UpsertPushSubscription(ctx context.Context, arg UpsertPushSubs
 		&i.LastUsedAt,
 		&i.RevokedAt,
 		&i.CreatedAt,
+		&i.SessionID,
 	)
 	return i, err
 }

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { seedMeetingSummary } from "./db";
 import {
   createInstantMeeting,
   createRecordingAccount,
@@ -16,8 +17,15 @@ test("a task made from a meeting shows where it came from and who owned it", asy
   const auth = { authorization: `Bearer ${host.token}`, "content-type": "application/json" };
   const meeting = await createInstantMeeting(page, api, host.token, host.wsId, "Giao ban đồ thị");
 
+  // CI runs without an AI provider, so the summary the host would generate is
+  // seeded; the tasks are then made the way the host makes them, by summary
+  // id and item index.
+  const summaryId = await seedMeetingSummary(meeting.id, [{ title: "Gửi báo giá e2e" }]);
+  const latest = await page.request.get(`${api}/api/v1/meetings/${meeting.id}/summary`, { headers: auth });
+  expect(latest.ok(), await latest.text()).toBeTruthy();
+  expect(((await latest.json()) as { summary?: { id?: string } }).summary?.id).toBe(summaryId);
   const created = await page.request.post(`${api}/api/v1/meetings/${meeting.id}/summary/tasks`, {
-    headers: auth, data: { items: [{ title: "Gửi báo giá e2e" }] },
+    headers: auth, data: { summary_id: summaryId, items: [{ index: 0, assignee_id: null, due_date: null }] },
   });
   expect(created.ok(), await created.text()).toBeTruthy();
   const { task_ids: [taskId] } = (await created.json()) as { task_ids: string[] };

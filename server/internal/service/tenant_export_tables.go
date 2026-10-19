@@ -30,6 +30,8 @@ var tenantExportExcluded = map[string]string{
 	"file_jobs":                      "Job kỹ thuật của tệp.",
 	"file_backfill_items":            "Sổ công cụ chuyển tệp, không phải nội dung.",
 	"file_derivatives":               "Bản dẫn xuất kỹ thuật; byte tệp không nằm trong gói.",
+	"chat_link_previews":             "Bộ đệm thẻ xem trước liên kết (ADR 0035) máy chủ đọc từ trang công khai; URL đã nằm trong tin nhắn đi kèm gói.",
+	"chat_message_link_previews":     "Ánh xạ tin nhắn → thẻ xem trước của bộ đệm trên, không phải nội dung.",
 	"office_jobs":                    "Job kỹ thuật Office.",
 	"office_launch_sessions":         "Phiên mở ứng dụng desktop, có bí mật phiên.",
 	"document_commit_intents":        "Sổ kỹ thuật đối soát lần lưu tệp (G5-07).",
@@ -40,6 +42,7 @@ var tenantExportExcluded = map[string]string{
 	"document_change_snapshots":      "Snapshot đồng bộ tạm (TTL vài phút), chỉ id và revision.",
 	"document_change_snapshot_items": "Snapshot đồng bộ tạm (TTL vài phút), chỉ id và revision.",
 	"meeting_audit_logs":             "Nhật ký họp cũ, cùng lớp với audit.",
+	"meeting_summary_runs":           "Khóa tạm của lượt tạo tóm tắt AI (hết hạn sau vài phút), sổ kỹ thuật.",
 	"mcp_tokens":                     "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
 }
 
@@ -71,6 +74,7 @@ var tenantExportIncludedTables = []string{
 	"chat_thread_task_links",
 	"chat_user_nicknames",
 	"chat_voice_recordings",
+	"chat_voice_transcripts",
 	"comment_reactions",
 	"data_subject_requests",
 	"departments",
@@ -112,6 +116,7 @@ var tenantExportIncludedTables = []string{
 	"meeting_recordings",
 	"meeting_reminders",
 	"meeting_summaries",
+	"meeting_summary_task_links",
 	"meeting_transcript_segments",
 	"meetings",
 	"notifications",

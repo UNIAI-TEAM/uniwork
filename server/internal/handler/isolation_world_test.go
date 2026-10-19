@@ -685,6 +685,8 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 		fields: map[string]string{"client_msg_id": util.NewID(), "duration_ms": "4000"}, filename: "voice.webm", contentType: "audio/webm", content: tinyWebM,
 	})
 	tn.ids["voiceMessage"] = isoID(t, out, "message")
+	// Its transcript (UNI-1908 F2), on the fake transcriber the world runs.
+	w.call(t, "POST", ws+"/chat/messages/"+tn.ids["voiceMessage"]+"/transcript", tn.token, nil)
 	out = w.call(t, "POST", ws+"/chat/messages/"+tn.ids["message"]+"/follow-ups", tn.token, map[string]any{"note": m + " follow up"})
 	tn.ids["followUp"] = isoID(t, out, "follow_up")
 	out = w.call(t, "POST", ws+"/chat/messages/"+tn.ids["message"]+"/links", tn.token, map[string]any{"target_type": "task", "target_id": tn.ids["task"]})
@@ -1099,6 +1101,37 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		tn.orgID, tn.ids["meeting"], tn.peerID); err != nil {
 		t.Fatalf("meeting attendee: %v", err)
 	}
+
+	// A summary of the scheduled meeting with action items to convert - the
+	// fake model answers with none. The reference cases convert items 0-2;
+	// item 3 becomes a task here, so meeting_summary_task_links holds a row.
+	items := make([]map[string]string, 0, 4)
+	for i := range 4 {
+		items = append(items, map[string]string{"title": fmt.Sprintf("%s summary item %d", m, i), "owner": m + " Peer"})
+	}
+	rawItems, err := json.Marshal(items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tn.ids["meetingSummary"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_summaries
+		(id, organization_id, meeting_id, summary, decisions, action_items, model, created_by)
+		VALUES ($1, $2, $3, $4, '[]', $5, 'fake', $6)`,
+		tn.ids["meetingSummary"], tn.orgID, tn.ids["meeting"], m+" summary", string(rawItems), tn.userID); err != nil {
+		t.Fatalf("meeting summary: %v", err)
+	}
+	// A summary run's lease lives only while the run does; an expired one is
+	// what a node that died mid-run leaves, so meeting_summary_runs holds a
+	// row without holding the meeting's summaries up.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_summary_runs
+		(organization_id, meeting_id, run_id, expires_at)
+		VALUES ($1, $2, $3, now() - interval '1 minute')`,
+		tn.orgID, tn.ids["meeting"], util.NewID()); err != nil {
+		t.Fatalf("meeting summary run: %v", err)
+	}
+	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/summary/tasks", tn.token, map[string]any{
+		"summary_id": tn.ids["meetingSummary"], "items": []any{map[string]any{"index": 3, "assignee_id": tn.peerID}},
+	})
 }
 
 // buildEditLocks seeds the document edit lock (UNI-1645 §6 step 1): two pages

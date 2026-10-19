@@ -1,0 +1,236 @@
+name: UniChat mobile verify
+
+# Nightly end-to-end run of UniChat mobile (apps/chat-mobile) with Maestro on an
+# iOS simulator and an Android emulator (UNI-1836). Each job builds a Release
+# binary of the staging variant on the runner (JS embedded: no Metro, no EAS,
+# no account), signs in through the real system browser sheet with a test
+# account on the staging server and runs the three golden flows in
+# apps/chat-mobile/maestro/flows: sign in → read/send, a push opens its room,
+# join a call (what each proves is written at its top).
+# Typecheck, lint and unit tests stay in mobile-verify.yml on every PR.
+#
+# Repository settings it reads (names only; Maestro picks up every MAESTRO_*
+# variable of its environment):
+#   vars     MAESTRO_API_URL, MAESTRO_APP_URL     the staging server
+#            MAESTRO_ORG_SLUG, MAESTRO_WS_SLUG    the test workspace
+#            MAESTRO_ROOM_ID                      a group room the account is in (a
+#                                                 group calls without a second party)
+#   secrets  MAESTRO_TEST_EMAIL, MAESTRO_TEST_PASSWORD
+# Without all of them the run ends green with a notice. The staging server must
+# list uniworkchat://auth/callback for uniwork-chat-mobile in
+# DESKTOP_AUTH_CLIENTS. Runbook: docs/runbooks/unichat-mobile-release.md.
+#
+# GitHub reads a scheduled workflow from the default branch only, so the
+# schedule takes effect once this file reaches main; workflow_dispatch runs it
+# on any branch.
+
+on:
+  schedule:
+    - cron: "0 20 * * *" # 03:00 Asia/Ho_Chi_Minh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  EXPO_NO_TELEMETRY: "1"
+  UNICHAT_ENV: staging
+  UNICHAT_API_URL: ${{ vars.MAESTRO_API_URL }}
+  UNICHAT_APP_URL: ${{ vars.MAESTRO_APP_URL }}
+  APP_ID: com.uniworkos.chat.staging
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        name: Skip without a staging server and test account
+        env:
+          MAESTRO_API_URL: ${{ vars.MAESTRO_API_URL }}
+          MAESTRO_APP_URL: ${{ vars.MAESTRO_APP_URL }}
+          MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
+          MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
+          MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        run: |
+          missing=""
+          for name in MAESTRO_API_URL MAESTRO_APP_URL MAESTRO_ORG_SLUG MAESTRO_WS_SLUG MAESTRO_ROOM_ID MAESTRO_TEST_EMAIL MAESTRO_TEST_PASSWORD; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice::Maestro skipped, not set:$missing. Setup: docs/runbooks/unichat-mobile-release.md"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  ios:
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
+      MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
+      MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # Maestro runs on the JVM.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      # SDK 57 needs Xcode 27; take the newest the image has.
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+      - name: Build for the simulator
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild -p ios
+          workspace="$(ls -d ios/*.xcworkspace)"
+          # Ad-hoc signing: the applinks entitlement needs a signature even on a
+          # simulator, and an unsigned app cannot reach the keychain (SecureStore).
+          xcodebuild -workspace "$workspace" -scheme "$(basename "$workspace" .xcworkspace)" \
+            -configuration Release -sdk iphonesimulator -derivedDataPath build \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            build
+      - name: Boot a simulator and install the app
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          udid="$(xcrun simctl list devices available --json | jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name | startswith("iPhone"))] | last | .udid')"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
+          echo "UDID=$udid" >> "$GITHUB_ENV"
+      - name: Install Maestro
+        # shortcut: latest Maestro; pin MAESTRO_VERSION once a night is green on Xcode 27.
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Sign in, read and send
+        working-directory: apps/chat-mobile/maestro
+        env:
+          # The test account reaches the Maestro runs only, not install or build.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        run: maestro --device "$UDID" test flows/chat-read-send.yaml
+      - name: Push opens the room
+        working-directory: apps/chat-mobile/maestro
+        env:
+          # The test account reaches the Maestro runs only, not install or build.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Background the app: a push to the foreground app is not presented.
+          xcrun simctl launch "$UDID" com.apple.Preferences
+          # The payload the server's Expo sender produces: data travels as `body`.
+          # `url` is repeated at the top level for runtimes that read userInfo whole.
+          url="$UNICHAT_APP_URL/$MAESTRO_ORG_SLUG/$MAESTRO_WS_SLUG/chat?room=$MAESTRO_ROOM_ID"
+          jq -n --arg url "$url" '{aps: {alert: {title: "UniChat Maestro", body: "Nightly push"}}, body: {url: $url}, url: $url}' > "$RUNNER_TEMP/push.apns"
+          xcrun simctl push "$UDID" "$APP_ID" "$RUNNER_TEMP/push.apns"
+          maestro --device "$UDID" test -e PUSH_DELIVERED=true flows/push-open-room.yaml
+      - name: Join a call
+        working-directory: apps/chat-mobile/maestro
+        env:
+          # The test account reaches the Maestro runs only, not install or build.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        run: maestro --device "$UDID" test flows/call-join.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maestro-ios
+          # Screenshots only: Maestro's command log records the typed test password.
+          path: ~/.maestro/tests/**/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
+  android:
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
+      MAESTRO_WS_SLUG: ${{ vars.MAESTRO_WS_SLUG }}
+      MAESTRO_ROOM_ID: ${{ vars.MAESTRO_ROOM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # Gradle and Maestro both want JDK 17.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Build the release APK for the emulator
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild -p android
+          # Signed with the debug key the template wires into release; x86_64 is the emulator's ABI.
+          (cd android && ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=x86_64)
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Maestro
+        # shortcut: latest Maestro; pin MAESTRO_VERSION once a night is green.
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Run the flows on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # The test account reaches the Maestro runs only, not install or build.
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+        with:
+          api-level: 35
+          # google_apis carries Chrome, which hosts the sign-in Custom Tab.
+          target: google_apis
+          arch: x86_64
+          script: |
+            adb install apps/chat-mobile/android/app/build/outputs/apk/release/app-release.apk
+            adb shell am set-debug-app --persistent com.android.chrome
+            adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
+            cd apps/chat-mobile/maestro && maestro test flows/chat-read-send.yaml
+            cd apps/chat-mobile/maestro && maestro test flows/push-open-room.yaml
+            cd apps/chat-mobile/maestro && maestro test flows/call-join.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: maestro-android
+          # Screenshots only: Maestro's command log records the typed test password.
+          path: ~/.maestro/tests/**/*.png
+          if-no-files-found: ignore
+          retention-days: 14

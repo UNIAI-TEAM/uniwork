@@ -31,6 +31,16 @@ describe("public dictionary boundary", () => {
     expect(dictionary).not.toHaveProperty("email_hub");
     expect(JSON.stringify(dictionary).length).toBeLessThan(JSON.stringify(full.landing).length);
   });
+  it("serves the UniChat page its own copy and the installer labels, and only there", async () => {
+    const dictionary = await loadMarketingDictionary("vi", "/unichat");
+    const full = await loadDictionary("vi");
+    expect(dictionary).toHaveProperty("landing.unichat.hero.title");
+    expect(dictionary).toHaveProperty("office.desktop.install.fmt.mac_arm");
+    expect(dictionary).not.toHaveProperty("landing.office.hero");
+    expect(dictionary).not.toHaveProperty("chat");
+    expect(JSON.stringify(dictionary).length).toBeLessThan(JSON.stringify(full.landing).length);
+    expect(await loadMarketingDictionary("vi", "/office")).not.toHaveProperty("landing.unichat");
+  });
   it("also supplies the standalone email preview without the account connection wizard", async () => {
     const dictionary = await loadMarketingDictionary("vi", "/features/email");
     expect(dictionary).toHaveProperty("email_hub.folder_menu");

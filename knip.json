@@ -42,6 +42,22 @@
         "public/sw.js"
       ]
     },
+    "apps/chat-desktop": {
+      "entry": [
+        "electron-builder.ts"
+      ]
+    },
+    "apps/chat-mobile": {
+      "ignoreDependencies": [
+        "@rn-primitives/avatar",
+        "@rn-primitives/switch",
+        "expo-updates",
+        "react-native-css-interop"
+      ],
+      "entry": [
+        "scripts/sync-i18n.mjs"
+      ]
+    },
     "packages/*": {},
     "packages/office-engine": {
       "entry": [

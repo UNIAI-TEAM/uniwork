@@ -152,6 +152,8 @@ var isoReferences = []isoReference{
 	{method: "PATCH", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels/{roomID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"UpdateChatChannelSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/links", what: "linked task", body: map[string]any{
 		"target_type": "task", "target_id": isoRef("task2")}, covers: []string{"CreateChatMessageLinkSDI.target_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/forward", what: "target room", body: map[string]any{
+		"target_room_ids": []any{isoRef("room")}}, covers: []string{"ForwardChatMessageSDI.target_room_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/threads/{messageID}/task-sync", what: "synced task", body: map[string]any{"task_id": isoRef("task2")}, covers: []string{"SyncThreadTaskSDI.task_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/tasks", what: "project", body: map[string]any{
 		"title": isoUnique("ref"), "project_id": isoRef("project")}, covers: []string{"CreateTaskFromMessageSDI.project_id"}},
@@ -160,6 +162,8 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", what: "reply to", body: map[string]any{
 		"body": "ref", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatMessageSDI.reply_to_message_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/delivered", what: "room", allow2xx: true,
+		body: map[string]any{"rooms": []any{map[string]any{"room_id": isoRef("room"), "up_to": isoAt(0)}}}, covers: []string{"ChatDeliveredRoomSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "conversation", body: map[string]any{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
 
@@ -177,10 +181,18 @@ var isoReferences = []isoReference{
 		noControl: "handing B's meeting to B's peer would take the owner's host role for later cases", covers: []string{"HostTransferSDI.new_host_user_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/join", what: "invite link", body: map[string]any{"invite_link_id": isoRef("inviteLink"), "secret": isoRef("inviteSecret")},
 		covers: []string{"JoinMeetingSDI.invite_link_id"}},
+	// Each case converts its own item of the meeting's summary (the world
+	// seeds four), so its control leaves the others free. The people and
+	// projects named are checked before whether an item was converted.
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "assignee", body: map[string]any{
-		"items": []any{map[string]any{"title": isoUnique("ref"), "assignee_id": isoRef("peer")}}}, covers: []string{"SummaryTaskItemSDI.assignee_id"}},
+		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 0, "assignee_id": isoRef("peer")}}},
+		covers: []string{"MeetingSummaryTaskItemSDI.assignee_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "project", body: map[string]any{
-		"items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}}, covers: []string{"SummaryTaskItemSDI.project_id"}},
+		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 1, "project_id": isoRef("project")}}},
+		covers: []string{"MeetingSummaryTaskItemSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "summary", body: map[string]any{
+		"summary_id": isoRef("meetingSummary"), "items": []any{map[string]any{"index": 2}}},
+		covers: []string{"SummaryTasksSDI.summary_id"}},
 
 	// Documents.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent page", body: map[string]any{
@@ -356,9 +368,11 @@ var isoReferences = []isoReference{
 		"account_id": isoOwn("emailAccount"), "reply_to_thread_id": isoRef("emailThread"), "to": []any{"someone@example.com"}, "subject": "ref", "body_text": "ref"},
 		noControl: "sending needs an SMTP server", covers: []string{"SendEmailHubSDI.reply_to_thread_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", what: "assignee", body: map[string]any{
-		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "assignee_id": isoRef("peer")}}}},
+		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "assignee_id": isoRef("peer")}}},
+		covers: []string{"SummaryTaskItemSDI.assignee_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", what: "project", body: map[string]any{
-		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}}},
+		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}},
+		covers: []string{"SummaryTaskItemSDI.project_id"}},
 }
 
 // referenceControls sends each reference case with B's own rows: the request

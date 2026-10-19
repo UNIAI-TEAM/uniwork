@@ -49,7 +49,8 @@ const THEME_ICONS = {
   system: Monitor,
 } as const;
 
-export function WorkspaceChrome({ children }: { children: ReactNode }) {
+/** `bare` is the UniChat shell: no top bar (the rail holds its menus), the shortcuts and dialogs stay. */
+export function WorkspaceChrome({ children, bare = false }: { children: ReactNode; bare?: boolean }) {
   const [createOpen, setCreateOpen] = useState(false);
   // Stable, so the shortcut listener is not re-registered on every render.
   const openCreate = useCallback(() => setCreateOpen(true), []);
@@ -60,7 +61,11 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
   const [firstPathname] = useState(pathname);
   return (
     <PreferenceToastProvider>
-      <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
+      {bare ? (
+        <NewTaskDialog workspaceId={workspace.id} open={createOpen} onOpenChange={setCreateOpen} showTrigger={false} />
+      ) : (
+        <WorkspaceTopBar createOpen={createOpen} onCreateOpenChange={setCreateOpen} />
+      )}
       <GlobalShortcuts onCreateTask={openCreate} />
       <SearchCommand onCreateTask={openCreate} />
       <AskUniPanel />
@@ -112,16 +117,13 @@ function TopBarMenuTrigger({ label, className, children }: { label: string; clas
   );
 }
 
-export function WorkspaceTopBar({
-  createOpen,
-  onCreateOpenChange,
-}: {
-  createOpen: boolean;
-  onCreateOpenChange: (open: boolean) => void;
-}) {
+/**
+ * Theme and language as menu radio groups, saved with the preference toast:
+ * the top bar's menus and the UniChat rail's settings menu share them.
+ */
+export function usePreferenceMenuItems() {
   const { t, i18n } = useTranslation();
   const notifySaved = usePreferenceSavedToast();
-  const { workspace } = useWorkspace();
   const { theme, setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
 
@@ -161,9 +163,6 @@ export function WorkspaceTopBar({
   };
 
   const ThemeIcon = THEME_ICONS[themeValue];
-  const createLabel = t("topbar.createTask");
-  const themeLabel = t("topbar.theme");
-  const languageLabel = t("topbar.language");
 
   // The folded menu names each group; a menu of one group needs no heading.
   const themeItems = (label?: string) => (
@@ -190,6 +189,22 @@ export function WorkspaceTopBar({
       ))}
     </DropdownMenuRadioGroup>
   );
+  return { ThemeIcon, themeItems, languageItems };
+}
+
+export function WorkspaceTopBar({
+  createOpen,
+  onCreateOpenChange,
+}: {
+  createOpen: boolean;
+  onCreateOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const { workspace } = useWorkspace();
+  const { ThemeIcon, themeItems, languageItems } = usePreferenceMenuItems();
+  const createLabel = t("topbar.createTask");
+  const themeLabel = t("topbar.theme");
+  const languageLabel = t("topbar.language");
 
   return (
     // A query container in rem, so the bar answers to its own width and to

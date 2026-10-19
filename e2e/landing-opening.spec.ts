@@ -71,7 +71,9 @@ for (const width of [1440, 1280, 1240, 1239, 1100, 768, 390]) {
       await expect(page.locator('#header-directory-office a[href$="/office#office-business"]')).toBeVisible();
       // Office for Personal is announced, not offered: a label without a link (office-header.test.tsx).
       await expect(page.locator("#header-directory-office [data-office-personal]")).toContainText("Đang phát triển");
-      await expect(page.locator("#header-directory-office a")).toHaveCount(1);
+      // The other link is UniChat's page; the bar itself has no room for it at 1240px.
+      await expect(page.locator('#header-directory-office a[href$="/unichat"]')).toBeVisible();
+      await expect(page.locator("#header-directory-office a")).toHaveCount(2);
       await page.keyboard.press("Escape");
       await header.getByRole("button", { name: "Tìm hiểu", exact: true }).click();
       await expect(page.locator('#header-directory-learn a[href$="/why-uniwork"]')).toBeVisible();
@@ -95,7 +97,8 @@ for (const width of [1440, 1280, 1240, 1239, 1100, 768, 390]) {
       await page.locator('#landing-mobile-menu summary').filter({ hasText: /^Office$/ }).click();
       await expect(page.locator('#landing-mobile-menu a[href$="/office#office-business"]')).toBeVisible();
       await expect(page.locator("#landing-mobile-menu [data-office-personal]")).toContainText("Đang phát triển");
-      await expect(page.locator("#landing-mobile-menu .header-office-links a")).toHaveCount(1);
+      await expect(page.locator("#landing-mobile-menu .header-office-links a")).toHaveCount(2);
+      await expect(page.locator('#landing-mobile-menu .header-office-links a[href$="/unichat"]')).toBeVisible();
       await page.locator('#landing-mobile-menu summary').filter({ hasText: "Tìm hiểu" }).click();
       await expect(page.locator('#landing-mobile-menu a[href$="/changelog"]')).toBeVisible();
       await page.keyboard.press("Escape");

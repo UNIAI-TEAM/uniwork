@@ -7,7 +7,8 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
+import { chatPersonFaceClass } from "./chat-person-card";
 
 /**
  * People picked so far, each removable. `summary` is a plain-words count
@@ -60,14 +61,14 @@ export function SelectedMemberChips({
       {title || summary ? (
         <div className="flex items-baseline justify-between gap-2">
           {title ? (
-            <p id={titleId} className="text-label font-medium text-foreground">
+            <p id={titleId} className="text-label font-semibold text-foreground">
               {title}
             </p>
           ) : (
             <span />
           )}
           {summary ? (
-            <p className="text-caption text-muted-foreground tabular-nums" aria-live="polite">
+            <p className="text-caption font-semibold text-brand tabular-nums" aria-live="polite">
               {summary}
             </p>
           ) : null}
@@ -83,20 +84,25 @@ export function SelectedMemberChips({
             return (
               <li
                 key={member.user_id}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted py-0.5 pr-0.5 pl-1"
+                className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-full bg-brand-subtle pr-1 pl-1 text-brand-subtle-foreground"
               >
-                <ActorAvatar name={label} initials={initialOf(label)} size="md" />
-                <span className="min-w-0 truncate text-label font-medium text-foreground">{label}</span>
+                <ActorAvatar
+                  name={label}
+                  initials={initialsOf(label)}
+                  size="fluid"
+                  className={`size-7 text-micro ${chatPersonFaceClass(member.user_id)}`}
+                />
+                <span className="min-w-0 truncate text-body font-semibold">{label}</span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  className="rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
+                  className="size-7 rounded-full text-brand-subtle-foreground hover:bg-brand/15 hover:text-brand-subtle-foreground dark:hover:bg-brand/25"
                   aria-label={t("chat.unselect_member", { name: label })}
                   data-chip-remove=""
                   onClick={() => remove(member.user_id, index)}
                 >
-                  <X aria-hidden />
+                  <X aria-hidden className="size-3.75" strokeWidth={2.4} />
                 </Button>
               </li>
             );

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, apiErrorMessage, errorClassOf, request } from "./http";
-import { setAccessToken } from "./session";
+import { getAccessToken, setAccessToken } from "./session";
+import { registerSessionProvider } from "../auth/session-provider";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 
 const okJson = (body: unknown, status = 200) =>
@@ -179,5 +180,83 @@ describe("request", () => {
   it("returns undefined for an empty 204", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
     await expect(request("/api/v1/x", { method: "DELETE" })).resolves.toBeUndefined();
+  });
+});
+
+describe("request with a session provider", () => {
+  const provider = (refresh: () => Promise<string | null>) => ({
+    login: vi.fn(async () => undefined),
+    getAccessToken: vi.fn(async () => "tok-p1"),
+    refresh: vi.fn(refresh),
+    logout: vi.fn(async () => undefined),
+    onChange: vi.fn(() => () => undefined),
+  });
+  const refreshCalls = () =>
+    vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith("/api/v1/auth/refresh"));
+
+  beforeEach(() => {
+    setAccessToken("tok-p1");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    registerSessionProvider(null);
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("refreshes through the provider on 401 and retries with its token, never the cookie route", async () => {
+    const p = provider(async () => "tok-p2");
+    registerSessionProvider(p);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(okJson({ error: { code: "unauthorized", message: "x" } }, 401))
+      .mockResolvedValueOnce(okJson({ ok: true }));
+    const out = (await request("/api/v1/x")) as { ok: boolean };
+    expect(out.ok).toBe(true);
+    expect(p.refresh).toHaveBeenCalledTimes(1);
+    expect(refreshCalls()).toHaveLength(0);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    const retryInit = vi.mocked(fetch).mock.calls[1]![1]!;
+    expect((retryInit.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok-p2");
+    expect(getAccessToken()).toBe("tok-p2");
+  });
+
+  it("two requests failing together share one provider refresh", async () => {
+    let release: (t: string) => void = () => undefined;
+    const p = provider(() => new Promise<string>((resolve) => (release = resolve)));
+    registerSessionProvider(p);
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      const auth = (init!.headers as Record<string, string>)["Authorization"];
+      return auth === "Bearer tok-p2"
+        ? okJson({ ok: true })
+        : okJson({ error: { code: "unauthorized", message: "x" } }, 401);
+    });
+    const pending = Promise.all([request("/api/v1/a"), request("/api/v1/b")]);
+    await vi.waitFor(() => expect(p.refresh).toHaveBeenCalledTimes(1));
+    release("tok-p2");
+    await expect(pending).resolves.toEqual([{ ok: true }, { ok: true }]);
+    expect(p.refresh).toHaveBeenCalledTimes(1);
+    expect(refreshCalls()).toHaveLength(0);
+  });
+
+  it("a provider refresh that returns null ends the session without a retry", async () => {
+    registerSessionProvider(provider(async () => null));
+    vi.mocked(fetch).mockResolvedValueOnce(okJson({ error: { code: "unauthorized", message: "x" } }, 401));
+    await expect(request("/api/v1/x")).rejects.toMatchObject({ status: 401 });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it("a provider refresh that throws is treated like null", async () => {
+    registerSessionProvider(
+      provider(async () => {
+        throw new Error("ipc down");
+      }),
+    );
+    vi.mocked(fetch).mockResolvedValueOnce(okJson({ error: { code: "unauthorized", message: "x" } }, 401));
+    await expect(request("/api/v1/x")).rejects.toMatchObject({ status: 401 });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(getAccessToken()).toBeNull();
   });
 });
