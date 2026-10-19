@@ -1,0 +1,15 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -6; git diff --stat 479a478cd..HEAD
+8c0148dace94ba34bfbd42cfb4826fcfe0fc49b6
+8c0148dac chore: merge G5-G7 root 479a478cd (UNI-1981 PACK4) into FU-G7-12-ORACLE round 2 (UNI-1874)
+075ef13af fix(office): tokenise string literals first and carry reference evidence from formulaCallEnd
+33cdee6b4 test(office): add quoted-string reference regressions for formula masking
+c0c7cc530 fix(office): accept valid spreadsheet formula syntax classes in prose masking
+5bb8a2bdb test(office): add valid spreadsheet formula syntax regressions for formula masking
+f2fe8d247 fix(office): mask allowlisted spreadsheet function calls with a single scalar argument
+ scripts/office/g5g6g7/holdout-answer.mjs       |   7 +-
+ scripts/office/g5g6g7/holdout-backend.mjs      | 315 ++++++++++++++++--
+ scripts/office/g5g6g7/holdout-figures.mjs      | 153 ++++++++-
+ scripts/office/g5g6g7/holdout-oracle2.test.mjs | 424 +++++++++++++++++++++++++
+ scripts/office/g5g6g7/holdout-run.test.mjs     |   4 +-
+ scripts/office/g5g6g7/holdout-score.mjs        |  34 +-
+ 6 files changed, 887 insertions(+), 50 deletions(-)
