@@ -1,6 +1,8 @@
 export const chatKeys = {
   room: (wsId: string) => ["chat", "room", wsId] as const,
   rooms: (wsId: string) => ["chat", "rooms", wsId] as const,
+  /** One room's detail read (UNI-1966 L5): viewer-scoped flags the list omits. */
+  roomDetail: (wsId: string, roomId: string) => ["chat", "room-detail", wsId, roomId] as const,
   channels: (wsId: string, scope: string, projectId = "") =>
     ["chat", "channels", wsId, scope, projectId] as const,
   projectChannels: (wsId: string, projectId: string) =>

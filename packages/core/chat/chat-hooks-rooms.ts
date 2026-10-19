@@ -76,6 +76,19 @@ export function useChatRooms(workspaceId: string) {
   });
 }
 
+/**
+ * The room DETAIL read (UNI-1966 L5): viewer-scoped state like
+ * `can_send_document`, which the room list never carries.
+ */
+export function useChatRoom(workspaceId: string, roomId: string, enabled = true) {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  return useQuery({
+    queryKey: chatKeys.roomDetail(workspaceId, roomId),
+    queryFn: () => chat.getChatRoom(workspaceId, roomId),
+    enabled: enabled && authReady && Boolean(workspaceId && roomId),
+  });
+}
+
 /** The Chat nav badge and tab-title count for one workspace (see chatUnreadBadge). */
 export function useChatUnreadBadge(workspaceId: string): number {
   const rooms = useChatRooms(workspaceId).data;
@@ -139,6 +152,8 @@ export function useInviteChatGroupMembers(workspaceId: string) {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
       // A channel's roster lives only here, not in the sidebar row.
       void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(workspaceId, input.roomId) });
+      // The detail's can_send_document folds the grantable roster size in.
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, input.roomId) });
     },
   });
 }
@@ -151,6 +166,7 @@ export function useLeaveChatRoom(workspaceId: string) {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
       void qc.invalidateQueries({ queryKey: ["chat", "channels", workspaceId] });
       void qc.removeQueries({ queryKey: chatKeys.roomMessages(workspaceId, roomId) });
+      void qc.removeQueries({ queryKey: chatKeys.roomDetail(workspaceId, roomId) });
     },
   });
 }
@@ -169,6 +185,7 @@ export function useRemoveChatRoomMember(workspaceId: string) {
       void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(workspaceId, variables.roomId) });
       void qc.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) });
       void qc.invalidateQueries({ queryKey: workspaceKeys.me(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
     },
   });
 }
@@ -197,6 +214,8 @@ export function useUpdateChatRoomMember(workspaceId: string) {
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(workspaceId, variables.roomId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      // send_restricted changes whether the member can send at all.
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
     },
   });
 }
@@ -214,8 +233,9 @@ export function useUpdateChatRoomSettings(workspaceId: string) {
         member_permissions: input.member_permissions,
       }),
     // Settings change no message (the server writes none): the timeline stays.
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, variables.roomId) });
     },
   });
 }

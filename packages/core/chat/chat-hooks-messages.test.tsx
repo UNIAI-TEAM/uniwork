@@ -10,6 +10,8 @@ import {
   useEditChatMessage,
   useRefreshChatMessageMedia,
   useSendChatFileMessage,
+  useSendChatDocumentMessage,
+  useShareChatMessageAsDocument,
 } from "./chat-hooks-messages";
 import { flattenRoomTimeline, type RoomTimeline } from "./room-timeline";
 import { useSendChatThreadMessage } from "./thread-hooks";
@@ -60,6 +62,59 @@ describe("chat message mutations patch the room timeline instead of refetching i
     );
 
     expect(timeline().map((m) => m.id)).toEqual(["m1", "f1"]);
+    expect(refetchedTimeline()).toBe(false);
+  });
+  it("inserts a sent document message with its share level", async () => {
+    const send = vi
+      .spyOn(chatApi, "sendChatDocumentMessage")
+      .mockResolvedValue(row("d1", 2, { kind: "document" }));
+    const { wrapper, timeline, refetchedTimeline } = setup([row("m1", 1)]);
+    const { result } = renderHook(() => useSendChatDocumentMessage("ws1"), { wrapper });
+
+    await act(() =>
+      result.current.mutateAsync({
+        roomId: "room1",
+        file: new Blob(["x"]),
+        filename: "plan.docx",
+        share_level: "comment",
+        client_msg_id: "c1",
+      }),
+    );
+
+    expect(send).toHaveBeenCalledWith(
+      "ws1",
+      "room1",
+      expect.objectContaining({ share_level: "comment", client_msg_id: "c1" }),
+    );
+    expect(timeline().map((m) => [m.id, m.kind])).toEqual([
+      ["m1", "text"],
+      ["d1", "document"],
+    ]);
+    expect(refetchedTimeline()).toBe(false);
+  });
+
+  it("share-as-document replaces the message in place, never adds a row", async () => {
+    const share = vi
+      .spyOn(chatApi, "shareChatMessageAsDocument")
+      .mockResolvedValue(row("m1", 1, { kind: "document" }));
+    const { wrapper, timeline, refetchedTimeline } = setup([
+      row("m1", 1, { kind: "file" }),
+      row("m2", 2),
+    ]);
+    const { result } = renderHook(() => useShareChatMessageAsDocument("ws1", "room1"), { wrapper });
+
+    await act(() =>
+      result.current.mutateAsync({ messageId: "m1", share_level: "view", client_msg_id: "link-1" }),
+    );
+
+    expect(share).toHaveBeenCalledWith("ws1", "room1", "m1", {
+      share_level: "view",
+      client_msg_id: "link-1",
+    });
+    expect(timeline().map((m) => [m.id, m.kind])).toEqual([
+      ["m1", "document"],
+      ["m2", "text"],
+    ]);
     expect(refetchedTimeline()).toBe(false);
   });
 
