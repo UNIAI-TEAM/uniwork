@@ -93,6 +93,30 @@ describe("documentFrameKeys - access request frames", () => {
     expect(documentFrameKeys(ws, "document.access_requested", { workspace_id: ws })).toEqual([]);
   });
 
+  it("document.access_request_decided from another workspace still refreshes ws1 detail and drops the sent flag", () => {
+    localStorage.setItem(SENT_FLAG, String(Date.now() + 3600_000));
+    expect(readDocumentAccessRequestSentAt("d1")).not.toBeNull();
+
+    expect(
+      documentFrameKeys("ws1", "document.access_requested", {
+        document_id: "d1",
+        workspace_id: "ws2",
+        request_id: "r1",
+      }),
+    ).toEqual([]);
+    expect(readDocumentAccessRequestSentAt("d1")).not.toBeNull();
+
+    expect(
+      documentFrameKeys("ws1", "document.access_request_decided", {
+        document_id: "d1",
+        workspace_id: "ws2",
+        request_id: "r1",
+        user_id: "u1",
+      }),
+    ).toEqual([documentKeys.detail("ws1", "d1")]);
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
+  });
+
   it("document.access_request_decided without a document id refreshes nothing and clears no flag", () => {
     localStorage.setItem(SENT_FLAG, String(Date.now() + 3600_000));
     expect(documentFrameKeys(ws, "document.access_request_decided", { workspace_id: ws })).toEqual([]);
