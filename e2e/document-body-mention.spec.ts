@@ -105,9 +105,14 @@ test("the mentioned member's inbox row deep-links to the document at her mention
   // The document opens on her own mention — selected, so the reveal marker is
   // there even once the two-second flash has faded — and the URL drops the
   // parameter after use. The pathname check ignores any other query params.
+  // TipTap puts ProseMirror-selectednode on the node view's outer element
+  // (span.node-mention), not on the inner [data-node-view-wrapper], so the
+  // selected node is matched through the chip it holds.
   const chip = memberPage.locator(`.mention[data-mention-id="${scene.member.id}"]`);
   await expect(chip).toBeVisible({ timeout: 60_000 });
-  await expect(memberPage.locator("[data-node-view-wrapper].ProseMirror-selectednode")).toHaveCount(1, { timeout: 15_000 });
+  await expect(
+    memberPage.locator(`.ProseMirror-selectednode .mention[data-mention-id="${scene.member.id}"]`),
+  ).toHaveCount(1, { timeout: 15_000 });
   await memberPage.waitForURL((url) => url.pathname.endsWith(`/${docId}`), { timeout: 30_000 });
 
   await member.context.close();
