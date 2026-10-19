@@ -28,6 +28,13 @@ const NoticeNoSources = "no_sources"
 // tags were stripped, so the client shows a notice instead of an empty bubble.
 const NoticeEmptyAnswer = "empty_answer"
 
+// NoticeAgentFailed marks an Ask UNI agent run that ended without an answer.
+const NoticeAgentFailed = "agent_failed"
+
+// NoticeRefused marks a turn the model declined to answer (stop_reason
+// refusal); the row stores no content.
+const NoticeRefused = "refused"
+
 // NoSourcesAnswer is what the caller says when the pack is empty: the
 // model is not even asked, so it cannot assert anything (spec §3.6).
 const NoSourcesAnswer = "Chưa đủ dữ liệu trong workspace để trả lời."

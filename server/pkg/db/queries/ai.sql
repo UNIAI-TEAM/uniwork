@@ -103,3 +103,10 @@ RETURNING *;
 -- name: AiListMessages :many
 -- tenant: parent conversation_id
 SELECT * FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200;
+
+-- name: AiListConversationCitations :many
+-- Every citation set a conversation's answers stored, oldest first and with
+-- no limit: the Ask UNI agent rebuilds its stable [S#] numbers from them (R2).
+SELECT citations FROM ai_messages
+WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant'
+ORDER BY created_at ASC, id ASC;

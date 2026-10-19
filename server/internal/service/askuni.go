@@ -98,6 +98,9 @@ type AskResult struct {
 	Citations      []AskCitation
 	InputTokens    int
 	OutputTokens   int
+	// RunID is the agent run's id, the run_id on its usage rows; empty on
+	// the P0 path.
+	RunID string
 }
 
 const (
@@ -183,6 +186,11 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	conv, err := s.conversation(ctx, userID, w, in.ConversationID)
 	if err != nil {
 		return AskResult{}, err
+	}
+	// Behind ask_uni_agent the model looks its sources up itself; P0's
+	// lookup below does not run.
+	if s.agentOn(ctx, ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}) {
+		return s.askAgent(ctx, userID, w, conv, question, in)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
 	if err != nil {

@@ -382,6 +382,39 @@ func (q *Queries) AiLatestRate(ctx context.Context, arg AiLatestRateParams) (AiM
 	return i, err
 }
 
+const aiListConversationCitations = `-- name: AiListConversationCitations :many
+SELECT citations FROM ai_messages
+WHERE organization_id = $1 AND conversation_id = $2 AND role = 'assistant'
+ORDER BY created_at ASC, id ASC
+`
+
+type AiListConversationCitationsParams struct {
+	OrganizationID string `json:"organization_id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// Every citation set a conversation's answers stored, oldest first and with
+// no limit: the Ask UNI agent rebuilds its stable [S#] numbers from them (R2).
+func (q *Queries) AiListConversationCitations(ctx context.Context, arg AiListConversationCitationsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, aiListConversationCitations, arg.OrganizationID, arg.ConversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var citations string
+		if err := rows.Scan(&citations); err != nil {
+			return nil, err
+		}
+		items = append(items, citations)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const aiListConversations = `-- name: AiListConversations :many
 SELECT id, organization_id, workspace_id, user_id, title, created_at, updated_at FROM ai_conversations
 WHERE workspace_id = $1 AND user_id = $2
