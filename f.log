@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/views exec eslint documents 2>&1 | tail -8; rc=${PIPESTATUS[0]}; echo "LINT_1970_EXIT=$rc"
+LINT_1970_EXIT=0

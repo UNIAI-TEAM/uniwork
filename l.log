@@ -1,0 +1,176 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19286 FRONTEND_ORIGIN=http://localhost:14286 API_PUBLIC_URL=http://localhost:19286 PREVIEW_ORIGIN=http://localhost:14287 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19286 NEXT_PUBLIC_WS_URL=ws://localhost:19286 NEXT_PUBLIC_APP_URL=http://localhost:14286 E2E_BASE_URL=http://localhost:14286 E2E_API_URL=http://localhost:19286 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-comments.spec.ts --reporter=list > /tmp/r70-docs.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/r70-docs.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/r70-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/r70-docs.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/r70-docs.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_1970_EXIT=$rc"
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:19337) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload (6.0m)
+
+
+  1) documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload 
+
+    Test timeout of 360000ms exceeded.
+
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Call log:
+      - waiting for getByTestId('document-comments-pane').getByRole('button', { name: /^Đã sửa/ }).first()
+
+
+      124 |   await rail.getByRole("button", { name: "Lưu", exact: true }).click();
+      125 |   await expect(rail.getByText("Bài thảo luận đã sửa").first()).toBeVisible({ timeout: 30_000 });
+    > 126 |   await rail.getByRole("button", { name: /^Đã sửa/ }).first().click();
+          |                                                               ^
+      127 |   await expect(rail.getByText("Bản hiện tại")).toBeVisible({ timeout: 30_000 });
+      128 |   await expect(rail.getByText("Bài thảo luận đầu tiên").first()).toBeVisible({ timeout: 30_000 });
+      129 |
+
+    Error Context: test-results/documents-comments-discuss-0b2e9-opens-and-survives-a-reload/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-comments-discuss-0b2e9-opens-and-survives-a-reload/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-comments-discuss-0b2e9-opens-and-survives-a-reload/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Slow test file: documents-comments.spec.ts (6.0m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 failed
+    documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload 
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-comments.spec.ts --reporter=list
+===== e2e/test-results/documents-comments-discuss-0b2e9-opens-and-survives-a-reload/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-comments.spec.ts >> discussion panel posts, replies, edits, resolves, reopens and survives a reload
+- Location: documents-comments.spec.ts:90:1
+
+# Error details
+
+```
+Test timeout of 360000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 360000ms exceeded.
+Call log:
+  - waiting for getByTestId('document-comments-pane').getByRole('button', { name: /^Đã sửa/ }).first()
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Comments panel 1792398227681, Team panel 1792398227681: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: T
+            - generic [ref=f1e13]:
+              - generic "Comments panel 1792398227681" [ref=f1e14]
+              - generic "Team panel 1792398227681" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /comments-panel-1792398227681/team-panel-1792398227681
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /comments-panel-1792398227681/team-panel-1792398227681/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "Comments panel, comments-panel-1792398227681@example.com: tài khoản" [ref=f1e110] [cursor=pointer]':
+            - generic [ref=f1e111]: C
+            - generic [ref=f1e112]:
+              - generic "Comments panel" [ref=f1e113]
+              - generic "comments-panel-1792398227681@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f1e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f1e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f1e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f1e124] [cursor=pointer]
+          - button "Thông báo" [ref=f1e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f1e126] [cursor=pointer]
+          - button "Giao diện" [ref=f1e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f1e128] [cursor=pointer]
+      - generic [ref=f1e131]:
+        - generic [ref=f1e132]:
+          - generic [ref=f1e133]:
+            - button "Về thư viện tài liệu" [ref=f1e134] [cursor=pointer]
+            - generic [ref=f1e135]:
+              - link "Tài liệu" [ref=f1e136] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/documents
+              - link "My Folder" [ref=f1e139] [cursor=pointer]:
+                - /url: /comments-panel-1792398227681/team-panel-1792398227681/documents/01M59M5131N7J78XZFJZJNK6BW
+              - generic "UniNote mới" [ref=f1e144]
+            - generic [ref=f1e145]:
+              - status "Đã lưu 08:23" [ref=f1e146]
+              - generic [ref=f1e150]:
+                - button "Thêm vào yêu thích" [ref=f1e151] [cursor=pointer]
+                - button "Thảo luận" [expanded] [ref=f1e152] [cursor=pointer]
+              - button "Hành động khác" [ref=f1e154] [cursor=pointer]
+          - status [ref=f1e155]
+          - generic [ref=f1e157]:
+            - toolbar "Định dạng UniNote" [ref=f1e158]:
+              - generic [ref=f1e159]:
+                - button "Hoàn tác" [ref=f1e160] [cursor=pointer]
+                - button "Làm lại" [disabled]
+                - separator [ref=f1e161]
+                - 'button "Kiểu chữ: Văn bản" [ref=f1e162] [cursor=pointer]': Văn bản
+                - separator [ref=f1e165]
+ ===== S9_SERVER_AI
+08:21:56.914 INF local storage adapter ready dir=/tmp/uniwork-uploads
+08:21:56.919 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+08:21:56.921 INF ai gateway enabled component=server provider=fake
+08:23:49.453 INF http request method=OPTIONS path=/api/v1/workspaces/01M59M4ZFQG8PQ46WGQT71ZGY2/ai/capabilities status=200 duration=6µs request_id=cursor/1fBmbB03Cs-000066 correlation_id=8a2a6a1709394a51e9af13b64c160dfd trace_id=8a2a6a1709394a51e9af13b64c160dfd span_id=49383c609cd5a65c
+08:23:49.472 INF http request method=GET path=/api/v1/workspaces/01M59M4ZFQG8PQ46WGQT71ZGY2/ai/capabilities status=200 duration=17.404ms request_id=cursor/1fBmbB03Cs-000069 correlation_id=c9e33b5bf3f2acce55804cf7d96ca06e trace_id=c9e33b5bf3f2acce55804cf7d96ca06e span_id=0de8787920dec721 organization_id=01M59M4ZD547RZC7PVJY4Z9BTT workspace_id=01M59M4ZFQG8PQ46WGQT71ZGY2 actor_id=01M59M4YZR8F4NTV79D36RQH06 actor_kind=human
+08:23:50.490 INF http request method=GET path=/api/v1/workspaces/01M59M4ZFQG8PQ46WGQT71ZGY2/ai/capabilities status=200 duration=15.438ms request_id=cursor/1fBmbB03Cs-000109 correlation_id=1e46c1a35511d3ab510a392d818f1c72 trace_id=1e46c1a35511d3ab510a392d818f1c72 span_id=541fb13149621bb7 organization_id=01M59M4ZD547RZC7PVJY4Z9BTT workspace_id=01M59M4ZFQG8PQ46WGQT71ZGY2 actor_id=01M59M4YZR8F4NTV79D36RQH06 actor_kind=human
+no passing test matched documents
+
+E2E_1970_EXIT=1
