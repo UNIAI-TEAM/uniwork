@@ -156,6 +156,12 @@ describe('O2-F2: the literals of a spreadsheet formula quoted in prose are no fi
     assert.equal(verdict(c, say('A2 is 25 (=B2*(1-0.1)):31.')), 'fail', 'P-F2-OUTSIDE-ADJACENT after closing paren');
     assert.equal(verdict(c, say('A2 is 25 via =B2*(1-0.1), 31.')), 'fail', 'P-F2-OUTSIDE-SPACED control');
   });
+
+  it('O2R1-02: masks a bare UPPERCASE(...) span only when its body has formula syntax', () => {
+    assert.equal(verdict(c, say('A2 is 25, NOTE(see 31).')), 'fail', 'P-F2-NONFORMULA-CAPS prose inside parentheses');
+    assert.equal(verdict(c, say('A2 is 25, TOTAL(31).')), 'fail', 'P-F2-NONFORMULA-CAPS bare number inside parentheses');
+    assert.equal(verdict(c, say('A2 is 25, NOTE(A2 is 31).')), 'fail', 'P-F2-NONFORMULA-CAPS cell and prose inside parentheses');
+  });
 });
 
 describe('O2-F3: a block or row ordinal that a read holds is a location, not a figure', () => {
