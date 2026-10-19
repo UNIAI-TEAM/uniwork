@@ -359,6 +359,20 @@ func TestSendDocumentMessageRefusesOverCapRoom(t *testing.T) {
 	if summary.CanSendDocument {
 		t.Fatal("can_send_document = true on an over-cap room")
 	}
+	// A deactivated member is not a grantable recipient, so deactivating one
+	// of the 51 brings the room back under the cap and the flag flips: the
+	// count is the audience the send would actually reach (L5).
+	if _, err := f.pool.Exec(ctx, `UPDATE organization_members SET deactivated_at = now()
+		WHERE organization_id = $1 AND user_id = $2`, f.orgID, ids[len(ids)-1]); err != nil {
+		t.Fatal(err)
+	}
+	summary, err = f.svc.GetRoomSummary(ctx, f.ua.ID, f.ws.ID, group.ID)
+	if err != nil {
+		t.Fatalf("room summary after deactivation: %v", err)
+	}
+	if !summary.CanSendDocument {
+		t.Fatal("can_send_document = false after a member was deactivated; the skipped member is not a recipient")
+	}
 	// The DM stays sendable.
 	dmSummary, err := f.svc.GetRoomSummary(ctx, f.ua.ID, f.ws.ID, room.ID)
 	if err != nil {
