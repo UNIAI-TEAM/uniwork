@@ -1,0 +1,36 @@
+$ node --test scripts/office-g0/*.test.mjs 2>&1 | grep -E "^not ok|^# (pass|fail)|error:" ; echo "OFFICE_G0_EXIT=${PIPESTATUS[0]}"
+not ok 8 - scripts/office-g0/engine-contract-adapter-faults.test.mjs
+  error: 'test failed'
+not ok 179 - T1 the accepted plan gives the engine lab and the lab server labDir ONE root
+  error: '[office-g0-xlsx] missing prepared xlsx sidecar binary: /tmp/office-g0-xlsx-hold-sp12WP/ws-1/bootstrap-source/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar'
+not ok 256 - disk save and distinct reopen preserve exact UTF-8, attachments and reject cross-view/path writes
+  error: 'The "path" argument must be of type string. Received undefined'
+not ok 17 - scripts/office-g0/pptx-image-evidence.test.mjs
+  error: 'test failed'
+not ok 323 - RT-02 evidence, document and register pins match the actual source bytes
+  error: |-
+not ok 355 - stopping an already-exited child is honest and a fabricated pid never reaches a real kill
+  error: 'child.kill is not a function'
+not ok 365 - the work directory must live under the workspace root
+  error: '[uni668-lab] no workspace root (a directory holding .uniwork-dev) above /workspace'
+not ok 372 - N4: --work must not adopt another run managed tree
+  error: |-
+  error: '[uni668-lab] no workspace root (a directory holding .uniwork-dev) above /workspace'
+not ok 373 - a work dir holding only caller inputs is still accepted (freshness is about our trees)
+  error: '[uni668-lab] no workspace root (a directory holding .uniwork-dev) above /workspace'
+not ok 378 - discovery: the real integration layout resolves to the shared root (real filesystem)
+  error: '[uni668-lab] --work overlaps this git checkout and must be a separate fresh directory: /workspace/.uniwork-dev/uni-668-lab-test/discovery-shared-9entvO/.uniwork-dev/uni-668-lab-test/default-layout-run'
+not ok 381 - the pin is verified against the manifest, the lockfile and the frozen adapter
+  error: |-
+not ok 417 - a missing prepared source refuses the run and still writes a truthful failure record
+  error: |-
+not ok 451 - child cleanup: an owned child tree is stopped and an unrelated live PID is never the target
+  error: |-
+not ok 469 - resolveRunnerPlan fails on each missing required input file
+  error: |-
+  error: '[office-g0-xlsx] missing prepared xlsx sidecar binary: /tmp/office-g0-xlsx-runner-eXa1Y4/ws3/source/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar'
+not ok 26 - scripts/office-g0/sheets-save-formula-values.test.mjs
+  error: 'test failed'
+# pass 554
+# fail 15
+OFFICE_G0_EXIT=1
