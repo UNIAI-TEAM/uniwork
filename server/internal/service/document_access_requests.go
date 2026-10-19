@@ -21,13 +21,13 @@ import (
 // a document they cannot read asks its managers for access; nothing is granted
 // by following the link, only a manager's approval creates a share (w2).
 //
-// The create path is deliberately uniform. Every answer that says nothing about
+// The create path returns a uniform answer. Every case that says nothing about
 // the document - an id that does not exist, another organization's document, a
 // requester who is not an active member of the document's organization, a Work
 // Product document, an archived document, a requester who already reads it -
-// costs the same one lookup by id and comes back as the same
-// DocumentAccessRequestResult{Status: sent}, with no row, no audit and no
-// event. Only two answers are specific, and both concern the requester's own
+// comes back as the same DocumentAccessRequestResult{Status: sent}, with no
+// row, no audit and no event (the answer is uniform; equal lookup work across
+// no-store paths is not claimed). Only two answers are specific, and both
 // requests on that document: 409 access_request_pending (a live pending one)
 // and 429 access_request_cooldown (a decline less than an hour ago). Neither
 // reveals whether the document exists, because neither is reachable without
