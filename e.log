@@ -1,0 +1,13 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test -race ./internal/handler -run '^TestAIUniworkWriteCallsAreProposalsOnly$' -count=1 -v > /tmp/a1.log 2>&1); rc=$?; grep -E "^\s*--- (PASS|FAIL|SKIP)|changed tables|^(ok|FAIL)" /tmp/a1.log; echo "A1_TEST_EXIT=$rc"; echo "A1_SKIP_COUNT=$(grep -c -- '--- SKIP' /tmp/a1.log)"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+    ai_uniwork_proposal_test.go:572: changed tables: [ai_uniwork_conversations ai_uniwork_runs ai_uniwork_turns ai_usage_events usage_counters usage_events]
+    ai_uniwork_proposal_test.go:572: changed tables: [ai_uniwork_conversations ai_uniwork_runs ai_uniwork_turns ai_usage_events outbox_events usage_counters usage_events]
+    ai_uniwork_proposal_test.go:572: changed tables: [ai_uniwork_conversations ai_uniwork_runs ai_uniwork_turns ai_usage_events outbox_events usage_counters usage_events]
+--- PASS: TestAIUniworkWriteCallsAreProposalsOnly (2.07s)
+    --- PASS: TestAIUniworkWriteCallsAreProposalsOnly/R1_org_route,_a_local_spreadsheet_file (0.05s)
+    --- PASS: TestAIUniworkWriteCallsAreProposalsOnly/R2_frame_route,_a_spreadsheet_document (0.02s)
+    --- PASS: TestAIUniworkWriteCallsAreProposalsOnly/R3_document_route,_a_DOCX_the_owner_edits (0.02s)
+ok  	github.com/unicomhub/uniwork/server/internal/handler	3.129s
+A1_TEST_EXIT=0
+A1_SKIP_COUNT=0

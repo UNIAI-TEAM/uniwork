@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git log --oneline -3; git diff --stat 73d2b5038..HEAD
+d4a16d653fb688b29c321085a6eff30d5fa7a35a
+d4a16d653 test(ai): bind the proposal-only oracle to complete rows and this turn's charge (UNI-1923)
+ea5e1f4a5 test(ai): pin the proposal-only claim of a UniWork AI write turn (UNI-1923)
+73d2b5038 chore: merge RETENTION-02 retention sweeps (UNI-1921, dbd78836f) into the G5-G7 root
+ .../internal/handler/ai_uniwork_proposal_test.go   | 575 +++++++++++++++++++++
+ 1 file changed, 575 insertions(+)

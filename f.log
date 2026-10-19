@@ -1,0 +1,5 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test -race ./internal/handler -run '^TestAIUniwork' -count=1 -v -timeout 30m > /tmp/aiu.log 2>&1); rc=$?; echo "PASS_LINES=$(grep -cE '^\s*--- PASS' /tmp/aiu.log)"; grep -E "^\s*--- (FAIL|SKIP)|DATA RACE|panic:" /tmp/aiu.log | head -30; echo "AIU_FAMILY_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+PASS_LINES=31
+AIU_FAMILY_EXIT=0
