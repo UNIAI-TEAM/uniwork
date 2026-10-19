@@ -22,6 +22,8 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 	}
 	var text string
 	switch {
+	case strings.Contains(req.System, "You are UNI") && len(req.Tools) > 0:
+		return fakeAgentReply(req)
 	case strings.Contains(req.System, "You are UNI"):
 		matches := sourceTag.FindAllStringSubmatch(last, -1)
 		ans := Answer{Citations: []Citation{}}
@@ -86,4 +88,48 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 func itoa(n int) string {
 	b, _ := json.Marshal(n)
 	return string(b)
+}
+
+// fakeAgentReply is the copilot_answer@2 fake: search once with the question,
+// then cite whatever sources the tool results carried.
+func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse {
+	var tool, first string
+	for _, m := range req.Messages {
+		if m.Role == "tool" {
+			tool += m.Content + "\n"
+		} else if first == "" && m.Role == "user" {
+			first = m.Content
+		}
+	}
+	resp := provider.CompletionResponse{Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + first + tool), StopReason: "end_turn"}
+	if tool == "" {
+		in, _ := json.Marshal(map[string]string{"query": fakeQuestion(first)})
+		resp.ToolCalls = []provider.ToolCall{{ID: "fake-search-1", Name: "search", Input: in}}
+		resp.StopReason = "tool_use"
+	} else if matches := sourceTag.FindAllStringSubmatch(tool, -1); len(matches) == 0 {
+		resp.Text = "Không tìm thấy dữ liệu nào bạn được xem về câu này."
+	} else {
+		var refs []string
+		for _, m := range matches {
+			refs = append(refs, "["+m[1]+"] "+strings.TrimSpace(m[2]))
+		}
+		resp.Text = "Tôi tìm thấy " + itoa(len(matches)) + " nguồn liên quan: " + strings.Join(refs, "; ")
+	}
+	resp.OutputTokens = estimateTokens(resp.Text)
+	return resp
+}
+
+// fakeQuestion pulls the asker's question out of the rendered user message and
+// undoes EscapeUntrusted's tag escaping.
+func fakeQuestion(rendered string) string {
+	const open = `<untrusted source="question">`
+	i := strings.Index(rendered, open)
+	if i < 0 {
+		return rendered
+	}
+	q := rendered[i+len(open):]
+	if j := strings.LastIndex(q, "</untrusted>"); j >= 0 {
+		q = q[:j]
+	}
+	return strings.ReplaceAll(q, "&lt;", "<")
 }
