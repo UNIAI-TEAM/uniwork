@@ -283,15 +283,24 @@ describe("folder layout (Folder.dc)", () => {
 
     const crumb = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     expect(within(crumb).getByRole("button", { name: t("documents.home.sidebar.home") })).toBeInTheDocument();
+    // One row (UNI-1977): the folder name is the breadcrumb leaf, once; the
+    // rename pencil and the folder menu sit right beside it, and the actions
+    // share the header row container.
     const heading = await screen.findByRole("heading", { level: 1, name: "Dự án CCB" });
+    expect(crumb).toContainElement(heading);
     const menuButton = screen.getByRole("button", { name: t("documents.home.folder.menu") });
+    expect(crumb).toContainElement(menuButton);
+    expect(crumb).toContainElement(screen.getByRole("button", { name: t("documents.home.folders.rename") }));
     expect(within(heading).queryByRole("button")).toBeNull();
-    expect(heading.parentElement).toContainElement(menuButton);
+    const row = crumb.parentElement?.parentElement;
+    expect(within(row as HTMLElement).getAllByText("Dự án CCB")).toHaveLength(1);
+    expect(row).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
+    expect(row).toContainElement(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toHaveAttribute(
       "placeholder",
       t("documents.home.search.placeholder_folder"),
     );
-    expect(screen.getByText(t("documents.home.folder.info_banner", { folder: "Dự án CCB" }))).toBeInTheDocument();
+    expect(screen.queryByText(/Dự án CCB”/)).toBeNull();
 
     // No Tạo nhanh strip, no scope tabs, no chip group, no filters inside a folder.
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
