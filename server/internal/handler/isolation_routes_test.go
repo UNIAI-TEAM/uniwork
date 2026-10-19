@@ -2,7 +2,11 @@ package handler
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
+	"strings"
+	"testing"
 	"time"
 )
 
@@ -56,6 +60,15 @@ type isoSpec struct {
 	// one, so the answer reveals nothing. The leak, change and reference
 	// checks still apply.
 	mixedOK string
+	// uniformAnswer explains why the cross-tenant pass may answer: the route
+	// is deliberately uniform, so an outsider naming a foreign row is served
+	// the same answer it gets for an id that names no row at all. The reason
+	// is required; the pass then makes BOTH calls itself and holds the route
+	// to a byte-identical status and body (isoUniformCheck), keeps every
+	// change, leak and reference check, and fails if a document_access_requests
+	// row appears in either organization. It is for a route whose single path
+	// id is the whole attack surface, which the mixed pass never reaches.
+	uniformAnswer string
 	// controlAs names the tenant member the write control sends as when the
 	// owner is not the one the route serves ("peer" answers an invitation,
 	// "third" cancels the knock they made) or must stay ("third" leaves the
@@ -65,6 +78,9 @@ type isoSpec struct {
 	// for a route guarded by something other than a membership (a machine
 	// secret); the reason says what.
 	refusedAlso []int
+	// checkControl inspects a successful GET control body on routes whose
+	// populated envelope must be proven over HTTP (BE-SD7-14).
+	checkControl func(t *testing.T, tn *isoTenant, raw []byte)
 }
 
 func (s isoSpec) bodyFor(w *isoWorld, tn *isoTenant) isoBody {
@@ -97,6 +113,11 @@ func (s isoSpec) controlOK(status int, raw []byte) bool {
 // 2xx/3xx served the request; 400/409/422 means the handler reached its
 // validation or state checks before deciding who is asking, which proves
 // nothing about isolation — fix the order, or give the row a valid body.
+//
+// A uniformAnswer row is not exempted here on purpose: the anonymous and
+// member-of-both passes keep requiring a real refusal (401 with no session),
+// and only the cross-tenant pass relaxes the class, holding the route to
+// byte-identical answers instead (isoUniformCheck).
 func (s isoSpec) refused(status int, raw []byte) bool {
 	for _, r := range s.refusedAlso {
 		if r == status {
@@ -164,6 +185,168 @@ func isoIdemOnly(_ *isoWorld, tn *isoTenant) isoBody {
 
 func isoJSON(v any) func(*isoWorld, *isoTenant) isoBody {
 	return func(*isoWorld, *isoTenant) isoBody { return isoBody{json: v} }
+}
+
+// isoAccessRequestCreate is the DOC-07 create body: a valid level, a short
+// message and no source. Every field is body-only, so a foreign document id
+// cannot turn this into a 400 and the answer stays the uniform 202.
+func isoAccessRequestCreate(_ *isoWorld, _ *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"requested_level": "view", "message": "isolation matrix"}}
+}
+
+// isoUnknownDocumentID is a well-formed ULID that names no row: the id the
+// uniformAnswer check pairs with the foreign one, so the route's answer cannot
+// depend on whether the document exists.
+const isoUnknownDocumentID = "01J8X4NONEN1P2Q3R4S5T6U7V8"
+
+// accessRequestSnapshot captures one organization's document_access_requests
+// rows (id and mutable columns, across every document) so isoUniformCheck can
+// prove neither the foreign-id call nor the unknown-id comparison stored or
+// altered a row in either organization (BE-SD7-8).
+func (w *isoWorld) accessRequestSnapshot(t *testing.T, orgID string) string {
+	t.Helper()
+	var snap string
+	if err := w.pool.QueryRow(context.Background(), `
+		SELECT coalesce(string_agg(
+			id || ':' || document_id || ':' || created_by || ':' || requested_level || ':' || message || ':' || status || ':' ||
+			coalesce(source_kind, '') || ':' || coalesce(source_id, '') || ':' || coalesce(decided_at::text, '') || ':' || coalesce(updated_at::text, ''),
+			',' ORDER BY id
+		), '')
+		FROM document_access_requests
+		WHERE organization_id = $1`, orgID).Scan(&snap); err != nil {
+		t.Fatal(err)
+	}
+	return snap
+}
+
+// isoAccessRequestsListCheck asserts the populated manager list on
+// GET /documents/{documentID}/access-requests (BE-SD7-14): the two seeded
+// pending requests on accessRequestDocument carry their requester ids,
+// levels, messages, and the readable-object vs null source pair.
+func isoAccessRequestsListCheck(t *testing.T, tn *isoTenant, raw []byte) {
+	t.Helper()
+	var out struct {
+		Requests []struct {
+			ID             string `json:"id"`
+			RequesterID    string `json:"requester_id"`
+			RequestedLevel string `json:"requested_level"`
+			Message        string `json:"message"`
+			Source         *struct {
+				Kind  string `json:"kind"`
+				ID    string `json:"id"`
+				Title string `json:"title"`
+			} `json:"source"`
+		} `json:"requests"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Errorf("GET /documents/{documentID}/access-requests (%s): unmarshal: %v (%s)", tn.tag, err, isoClip(raw))
+		return
+	}
+	if len(out.Requests) != 2 {
+		t.Errorf("GET /documents/{documentID}/access-requests (%s): len(requests) = %d, want 2: %s", tn.tag, len(out.Requests), isoClip(raw))
+		return
+	}
+	byID := map[string]int{}
+	for i, r := range out.Requests {
+		byID[r.ID] = i
+	}
+	idxPeer, okPeer := byID[tn.ids["accessRequest"]]
+	idxThird, okThird := byID[tn.ids["accessRequestDecline"]]
+	if !okPeer || !okThird {
+		t.Errorf("GET /documents/{documentID}/access-requests (%s): missing seeded ids (%s, %s) in %s",
+			tn.tag, tn.ids["accessRequest"], tn.ids["accessRequestDecline"], isoClip(raw))
+		return
+	}
+	peerReq := out.Requests[idxPeer]
+	if peerReq.RequesterID != tn.peerID || peerReq.RequestedLevel != "view" || peerReq.Message != tn.marker+" access request message" {
+		t.Errorf("GET /documents/{documentID}/access-requests (%s) peer row = %+v, want requester=%s level=view message=%q",
+			tn.tag, peerReq, tn.peerID, tn.marker+" access request message")
+	}
+	if peerReq.Source == nil || peerReq.Source.Kind != "task" || peerReq.Source.ID != tn.ids["task"] || peerReq.Source.Title == "" {
+		t.Errorf("GET /documents/{documentID}/access-requests (%s) peer source = %+v, want task %s with title",
+			tn.tag, peerReq.Source, tn.ids["task"])
+	}
+	thirdReq := out.Requests[idxThird]
+	if thirdReq.RequesterID != tn.thirdID || thirdReq.RequestedLevel != "edit" || thirdReq.Message != tn.marker+" decline access request message" {
+		t.Errorf("GET /documents/{documentID}/access-requests (%s) third row = %+v, want requester=%s level=edit message=%q",
+			tn.tag, thirdReq, tn.thirdID, tn.marker+" decline access request message")
+	}
+	if thirdReq.Source != nil {
+		t.Errorf("GET /documents/{documentID}/access-requests (%s) third source = %+v, want nil", tn.tag, thirdReq.Source)
+	}
+}
+
+// isoUniformCheck holds a route marked uniformAnswer to the rule its reason
+// claims: the caller's answer for a foreign row must be byte-identical (status
+// and body) to the same call with an id that names no row, and the attack must
+// leave no new or changed document_access_requests row in either organization
+// across all documents (BE-SD7-8). It returns the foreign answer so the caller
+// can keep its other checks.
+//
+// The route is deliberately uniform (§3.1), so a mismatch means the answer
+// reveals whether the document exists, and a changed snapshot means the attack
+// stored or mutated a request in either tenant.
+func (w *isoWorld) isoUniformCheck(t *testing.T, label, method, pattern string, spec isoSpec, foreignPath string) []byte {
+	t.Helper()
+	before := map[string]string{
+		w.alpha.orgID: w.accessRequestSnapshot(t, w.alpha.orgID),
+		w.bravo.orgID: w.accessRequestSnapshot(t, w.bravo.orgID),
+	}
+	foreignBody := spec.bodyFor(w, w.alpha)
+	foreignStatus, foreignRaw := w.do(t, method, foreignPath, w.bravo.token, foreignBody)
+
+	unknownPath := strings.Replace(foreignPath, w.alpha.ids["accessRequestDocument"], isoUnknownDocumentID, 1)
+	if unknownPath == foreignPath {
+		unknownPath = strings.Replace(foreignPath, w.alpha.ids["document"], isoUnknownDocumentID, 1)
+	}
+	if unknownPath == foreignPath {
+		t.Errorf("%s: the pattern names no {documentID} to swap; isoUniformCheck cannot build the unknown-id call", label)
+		return foreignRaw
+	}
+	unknownStatus, unknownRaw := w.do(t, method, unknownPath, w.bravo.token, foreignBody)
+	if !isoUniformEqual(foreignStatus, foreignRaw, unknownStatus, unknownRaw) {
+		t.Errorf("%s: foreign id answers %d %s, unknown id answers %d %s — a uniform route must answer both identically",
+			label, foreignStatus, isoClip(foreignRaw), unknownStatus, isoClip(unknownRaw))
+	}
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		if after := w.accessRequestSnapshot(t, tn.orgID); after != before[tn.orgID] {
+			t.Errorf("%s: %s's document_access_requests rows changed (%q -> %q); the attack must store or change none",
+				label, tn.tag, before[tn.orgID], after)
+		}
+	}
+	return foreignRaw
+}
+
+// isoUniformEqual is the whole rule of a uniformAnswer row: two answers are
+// interchangeable when both the status and the body are the same. A 404 for
+// the foreign id, or a 202 whose body names the document, fails it.
+func isoUniformEqual(foreignStatus int, foreignRaw []byte, unknownStatus int, unknownRaw []byte) bool {
+	return foreignStatus == unknownStatus && bytes.Equal(bytes.TrimSpace(foreignRaw), bytes.TrimSpace(unknownRaw))
+}
+
+// TestUniformAnswerComparisonIsNotATautology is the harness self-test of the
+// uniformAnswer row: the comparison must accept two identical answers and
+// reject a foreign id that answers anything else — a different 202 body or a
+// 404 where the unknown id answered 202. It runs no server: the rule is the
+// comparison, and the matrix itself is what proves the real route obeys it.
+func TestUniformAnswerComparisonIsNotATautology(t *testing.T) {
+	sent := []byte(`{"status":"sent"}` + "\n")
+	for name, tc := range map[string]struct {
+		foreignStatus int
+		foreignRaw    []byte
+		want          bool
+	}{
+		"identical answers pass":            {http.StatusAccepted, sent, true},
+		"a different 202 body fails":        {http.StatusAccepted, []byte(`{"status":"sent","document_id":"01J8X4DOC0N1P2Q3R4S5T6U7"}`), false},
+		"a 404 where the unknown id is 202": {http.StatusNotFound, []byte(`{"error":{"code":"not_found"}}`), false},
+		"a 403 fails":                       {http.StatusForbidden, []byte(`{"error":{"code":"forbidden"}}`), false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := isoUniformEqual(tc.foreignStatus, tc.foreignRaw, http.StatusAccepted, sent); got != tc.want {
+				t.Fatalf("isoUniformEqual = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 const (
@@ -458,9 +641,26 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
 	"PUT /api/v1/documents/{documentID}/access":                                    {body: isoWith(map[string]string{}, map[string]any{"items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}})},
 	// DOC-05: a valid reason, so the cross-tenant refusal is the gate and never the 422.
-	"POST /api/v1/documents/{documentID}/break-glass":     {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
-	"POST /api/v1/documents/{documentID}/uploads":         {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
-	"POST /api/v1/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	"POST /api/v1/documents/{documentID}/break-glass": {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
+	// DOC-07 (UNI-1631 §4.3). The create answers every well-formed id with the
+	// same uniform 202, so the cross-tenant pass cannot ask for a refusal: the
+	// uniformAnswer row holds B's answer byte-identical to the same call with a
+	// nonexistent id, keeps every hash, leak and reference check, and fails if
+	// a document_access_requests row appears in either organization. Its one
+	// path id means the mixed pass never reaches it, which is why the
+	// exception sits on the cross-tenant pass and not on mixedOK.
+	"POST /api/v1/documents/{documentID}/access-requests": {body: isoAccessRequestCreate,
+		uniformAnswer: "the create is uniform by design (§3.1): every well-formed document id answers 202 {\"status\":\"sent\"}, foreign or unknown alike, because the answer must never reveal whether a document exists. B holds no request row on A's document, so the 409/429 answers that are specific to the requester's own rows cannot appear; the pass still holds the answer byte-identical to a nonexistent id, hashes every A row, and asserts no document_access_requests row was created in either organization"},
+	// The manager routes refuse an outsider like any other document route: A's
+	// request id under B's own document is not found, and the control is B's
+	// manager on B's document (the write-control pass). Their {documentID} names
+	// the page the seeded request hangs on, so the owner's own call reaches the
+	// request instead of 404ing on a document it does not belong to.
+	"GET /api/v1/documents/{documentID}/access-requests":                      {checkControl: isoAccessRequestsListCheck},
+	"POST /api/v1/documents/{documentID}/access-requests/{requestID}/approve": {body: isoJSON(map[string]any{"level": "view"})},
+	"POST /api/v1/documents/{documentID}/access-requests/{requestID}/decline": {},
+	"POST /api/v1/documents/{documentID}/uploads":                             {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
+	"POST /api/v1/documents/{documentID}/versions/commit":                     {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
 	// Large upload sessions (BIGUP-S1, contract §5). The owner's seeded session
 	// is the control of each session route; the complete routes answer 422 on
 	// it because no part was ever PUT, which still proves the owner reached the

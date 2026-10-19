@@ -189,6 +189,15 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
+		// A folder takes no grant, dry run included; an item without a level
+		// is a revoke and stays allowed so a legacy share can be removed.
+		if doc.Kind == DocumentKindFolder {
+			for _, it := range items {
+				if it.Level != nil {
+					return errFolderNotShareable()
+				}
+			}
+		}
 		rejected, err := s.validateAccessBatchSemantics(ctx, q, doc, access, actor, items)
 		if err != nil {
 			return err

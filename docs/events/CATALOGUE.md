@@ -166,6 +166,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.lock_taken_over` | 1 | `document_id`, `workspace_id`, `user_id` | — | user | outbox |
 | `document.edit_requested` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
 | `document.edit_request_answered` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
+| `document.access_requested` | 1 | `document_id`, `workspace_id`, `request_id` | — | workspace | outbox |
+| `document.access_request_decided` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
 | `document.updated` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.moved` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.archived` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |

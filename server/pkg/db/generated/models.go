@@ -604,6 +604,28 @@ type DocumentAccessLog struct {
 	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
 }
 
+type DocumentAccessRequest struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	RequestedLevel string             `json:"requested_level"`
+	Message        string             `json:"message"`
+	SourceKind     pgtype.Text        `json:"source_kind"`
+	SourceID       pgtype.Text        `json:"source_id"`
+	Status         string             `json:"status"`
+	GrantedLevel   pgtype.Text        `json:"granted_level"`
+	ShareID        pgtype.Text        `json:"share_id"`
+	DecidedBy      pgtype.Text        `json:"decided_by"`
+	DecidedByKind  pgtype.Text        `json:"decided_by_kind"`
+	DecidedAt      pgtype.Timestamptz `json:"decided_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DocumentAsset struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

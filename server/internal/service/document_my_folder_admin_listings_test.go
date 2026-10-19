@@ -75,28 +75,10 @@ func TestAdminListingsHideForeignMyFolderSubtree(t *testing.T) {
 		t.Fatalf("CreatePage(wsVisible): %v", err)
 	}
 
-	// BE-MFS-8: a folder inside A's My Folder that the admin may open through a
-	// live manage share, holding a child nothing shares. The admin's real
-	// access to the root must not carry down to the child, so
-	// ListDocumentAccessReportSubtreeCandidates (not the root refusal, which
-	// the share admits) is the only guard left.
-	sharedFolder, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
-		Title: "Shared Folder Inside My Folder", Destination: DocumentSystemKindMyFolder, Kind: DocumentKindFolder,
-	})
-	if err != nil {
-		t.Fatalf("CreatePage(sharedFolder): %v", err)
-	}
-	if _, err := env.svc.ShareDocument(ctx, memberA, sharedFolder.Document.ID, DocumentShareInput{
-		PrincipalType: DocumentPrincipalUser, PrincipalID: admin.ID, Level: DocumentLevelManage,
-	}); err != nil {
-		t.Fatalf("ShareDocument(sharedFolder -> admin): %v", err)
-	}
-	sharedFolderChild, err := env.svc.CreatePage(ctx, memberA, env.tn.wsA, CreatePageInput{
-		Title: "mfs-unshared-child", ParentID: sharedFolder.Document.ID,
-	})
-	if err != nil {
-		t.Fatalf("CreatePage(sharedFolderChild): %v", err)
-	}
+	// BE-MFS-8 (a folder inside A's My Folder opened to the admin through a live
+	// manage share) cannot be built any more: a folder is never shared
+	// (UNI-1974), and TestUnshareFoldersCleansLegacyAndKeepsDocuments covers the
+	// rows that were shared before.
 
 	// BE-MFS-9: an archived workspace-visible page at workspace_level = 'view'
 	// inside A's My Folder. The trash admits workspace-visible rows only at the
@@ -337,26 +319,6 @@ func TestAdminListingsHideForeignMyFolderSubtree(t *testing.T) {
 		}
 		if reportHas(report, wsVisible.Document.ID) == nil {
 			t.Error("admin access report missing a workspace-visible page inside the member's My Folder")
-		}
-	})
-
-	// BE-MFS-8: a folder-scoped report whose root the admin may open for real
-	// (a live manage share) is admitted by refuseAdminForeignMyFolderScope, so
-	// ListDocumentAccessReportSubtreeCandidates is the only guard left for an
-	// unshared child under that root. The root is listed; the child is absent.
-	t.Run("folder-scoped report on a manage-shared folder inside a foreign My Folder", func(t *testing.T) {
-		page, err := env.svc.DocumentAccessReport(ctx, admin, env.tn.wsA, DocumentAccessReportQuery{FolderID: sharedFolder.Document.ID})
-		if err != nil {
-			t.Fatalf("folder-scoped report on the manage-shared folder: %v", err)
-		}
-		if page.FolderID != sharedFolder.Document.ID || page.FolderTitle != sharedFolder.Document.Title {
-			t.Errorf("scope = %q %q, want the shared folder's own id and title", page.FolderID, page.FolderTitle)
-		}
-		if reportHas(page, sharedFolder.Document.ID) == nil {
-			t.Error("folder-scoped report missing its root, which the admin opens through the live manage share")
-		}
-		if it := reportHas(page, sharedFolderChild.Document.ID); it != nil {
-			t.Errorf("folder-scoped report leaked the unshared child %q of a manage-shared folder inside A's My Folder", it.Item.Document.Title)
 		}
 	})
 

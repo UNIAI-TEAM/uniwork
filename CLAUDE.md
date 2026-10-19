@@ -260,7 +260,15 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   through the same route without being refused, so a broken route cannot
   pass for an isolated one. A route whose path names a tenant row is covered
   the day it is registered; one without fails until `isoRoutes` classifies it
-  with a reason. A request field ending in `_id`/`_ids` fails
+  with a reason. A row marked `uniformAnswer` — today only `POST
+  /documents/{documentID}/access-requests`, whose whole answer is one uniform
+  `202 {"status":"sent"}` that must never reveal whether a document exists —
+  lets the cross-tenant pass accept any non-5xx, but only after it makes both
+  calls itself and holds the foreign-id answer byte-identical to the same call
+  with an id that names no row, still hashes every A row, and fails if a
+  `document_access_requests` row appears in either organization; the anonymous
+  and member-of-both passes keep requiring a real refusal. A request field
+  ending in `_id`/`_ids` fails
   `TestEveryBodyIDFieldHasAReferenceCase` until it has an `isoReferences`
   case or an exemption with a reason. `TestIsolationRealtime` holds the two
   WebSockets, delivery included. `TestIsolationMCP` holds `/mcp` (ADR 0031): a
