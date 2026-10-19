@@ -1,0 +1,2 @@
+$ cd packages/views && npx tsc --noEmit -p .; echo "VIEWS_TSC_EXIT=$?"
+VIEWS_TSC_EXIT=0
