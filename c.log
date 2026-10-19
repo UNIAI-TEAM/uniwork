@@ -1,0 +1,785 @@
+$ . "$HOME/.cargo/env"; npm run build:web -- --all; rc=$?; echo; echo "BUILD_WEB_ALL_EXIT=$rc"; exit $rc
+bash: line 1: /home/ubuntu/.cargo/env: No such file or directory
+
+> genoffice@0.1.0 build:web
+> node web/scripts/build-web.mjs --all
+
+
+== build:web --module docs
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 829 modules transformed.
+rendering chunks...
+computing gzip size...
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficePUABlank-DhfF4Y_f.woff2                     0.31 kB
+../../dist-web/docs/0.1.0-bad2306/index.html                                                 0.85 kB │ gzip:     0.52 kB
+../../dist-web/docs/0.1.0-bad2306/assets/send-enter-off-B0IfWMyy.png                         4.25 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeCheLatinKR-CFVfemg_.woff2                   8.30 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficePoppins-Bold-subset-CLJyStaw.woff2         14.13 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficePoppins-Regular-subset-RElVmxhA.woff2      14.16 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/Caladea-Bold-CZKSWaR4.woff2                         18.43 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/Caladea-Regular-DaybilA1.woff2                      18.85 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/Caladea-BoldItalic-Ba27xK_q.woff2                   19.33 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/Caladea-Italic-BlypM-0H.woff2                       19.62 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeUIKanaJP-Regular-Bj_7JzTT.woff2            25.29 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeUIKanaJP-Bold-DbcaglVT.woff2               26.20 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeDMSans-Bold-subset-DVFBF4J5.woff2          28.43 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeDMSans-Regular-subset-DEQZCK4K.woff2       28.63 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeTamil-Regular-DLISHPmH.woff2               33.07 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/NotoSansArabic-Regular-subset-D207GVuU.woff2        63.67 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/NotoNaskhArabic-Regular-subset-DQSqx2ZA.woff2       69.62 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationMono-Italic-Bprp0jhy.woff2               114.73 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationMono-BoldItalic-BTDQyQp_.woff2           117.03 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationMono-Bold-BZxqunF8.woff2                 122.93 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationMono-Regular-Bv_fWIHn.woff2              126.00 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationSerif-Bold-DS5JG3CL.woff2                141.07 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationSerif-Regular-Bm6iK1hG.woff2             146.88 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationSans-Regular-r-gFvyde.woff2              147.11 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationSerif-BoldItalic-DqILcGx7.woff2          147.13 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationSerif-Italic-BdGY3XA4.woff2              147.54 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationSans-Bold-BlSkeIb-.woff2                 148.76 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationSans-BoldItalic-BYHlqTuw.woff2           150.91 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/LiberationSans-Italic-B67WhyiB.woff2               153.14 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/Carlito-Regular-fal-2WfU.woff2                     190.60 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/Carlito-Bold-DN11iCUU.woff2                        198.47 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/Carlito-Italic-CcV9hCBk.woff2                      202.00 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/Carlito-BoldItalic-BqaEwLjh.woff2                  207.12 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeSansKR-Regular-subset-CVxxonE8.woff2      266.13 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeGothicKR-Regular-subset-Bkvj_MFZ.woff2    281.98 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/GenOfficeSerifKR-Regular-subset-BkQyd75u.woff2     512.44 kB
+../../dist-web/docs/0.1.0-bad2306/assets/parse-worker-Bi7ay5ZX.js                          628.62 kB
+../../dist-web/docs/0.1.0-bad2306/assets/pdf.worker.min-CLrFZWeq.mjs                     1,312.45 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/NotoSansCJKsc-Regular-subset-BuHGXxnc.woff2      2,533.16 kB
+../../dist-web/docs/0.1.0-bad2306/fonts/NotoSerifCJKsc-Regular-subset-CLPB6QGT.woff2     3,495.93 kB
+../../dist-web/docs/0.1.0-bad2306/assets/index-BY08KSGI.css                                331.46 kB │ gzip:    52.53 kB
+../../dist-web/docs/0.1.0-bad2306/assets/pdf.worker.min-D8Djv3Xg.js                          0.09 kB │ gzip:     0.11 kB
+../../dist-web/docs/0.1.0-bad2306/assets/pdf-Db4OFiBi.js                                   489.68 kB │ gzip:   148.85 kB
+../../dist-web/docs/0.1.0-bad2306/assets/index-4DQxF_Up.js                               5,726.09 kB │ gzip: 1,768.03 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-docs 0.1.0-bad2306: 46 files, 17.58 MiB (gzip 11.92); initial 5.78 MiB (gzip 1.72), deferred 11.80 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/docs/0.1.0-bad2306
+✓ built in 8.85s
+
+== build:web --module pdf
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 726 modules transformed.
+rendering chunks...
+computing gzip size...
+[vite-plugin-static-copy] Copied 3 items.
+../../../dist-web/pdf/0.1.0-bad2306/index.html                                         0.92 kB │ gzip:     0.55 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/send-enter-off-B0IfWMyy.png                 4.25 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationMono-Italic-BaW6sbi8.ttf         281.54 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationMono-BoldItalic-CW50-m9W.ttf     284.07 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationMono-Bold-JpIqZVyK.ttf           308.00 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationMono-Regular-CscJ8ftk.ttf        319.51 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationSerif-Bold-CT7WGLoV.ttf          370.10 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationSerif-Italic-Bwtmn-ni.ttf        375.63 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationSerif-BoldItalic-DHf5skZ4.ttf    376.77 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationSerif-Regular-DREh6cMU.ttf       393.58 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationSans-BoldItalic-BC07J_j6.ttf     409.00 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationSans-Regular-CqxnOoBp.ttf        410.71 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationSans-Bold-CAnzDFU4.ttf           414.46 kB
+../../../dist-web/pdf/0.1.0-bad2306/fonts/LiberationSans-Italic-D6GtLuAT.ttf         415.82 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/hb-subset-_PGx1ra3.wasm                   634.89 kB │ gzip:   251.98 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/pdf.worker.min-CLrFZWeq.mjs             1,312.45 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/pdfium-BJ2Yip8Q.wasm                    4,646.93 kB │ gzip: 2,150.22 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/index-CBSafBZN.css                        146.13 kB │ gzip:    25.33 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/blank-pdf-C-Yiuugn.js                       0.23 kB │ gzip:     0.21 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/_commonjsHelpers-Cpj98o6Y.js                0.24 kB │ gzip:     0.18 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/font-cmap-L73PrRvk.js                       1.16 kB │ gzip:     0.61 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/annot-delete-CSldyr13.js                    2.18 kB │ gzip:     1.07 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/image-edit-DzCancJk.js                      8.16 kB │ gzip:     3.03 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/save-pdf-CAYYZluU.js                       28.23 kB │ gzip:     9.89 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/text-edit-KX1O5N6l.js                      35.98 kB │ gzip:    13.20 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/jszip.min-DXD3Oxvq.js                      97.16 kB │ gzip:    30.09 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/index.browser-ptmcIt33.js                 156.79 kB │ gzip:    38.68 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/PDFButton-BqhJDxMv.js                     428.67 kB │ gzip:   177.69 kB
+../../../dist-web/pdf/0.1.0-bad2306/assets/index-BnDUnCOh.js                       2,638.25 kB │ gzip:   806.93 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-pdf 0.1.0-bad2306: 229 files, 17.16 MiB (gzip 7.99); initial 2.66 MiB (gzip 0.79), deferred 14.51 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/pdf/0.1.0-bad2306
+✓ built in 4.66s
+
+== build:web --module markdown
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 2761 modules transformed.
+node_modules/wavedrom/lib/eva.js (17:21): Use of eval in "node_modules/wavedrom/lib/eva.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+node_modules/wavedrom/lib/eva.js (23:21): Use of eval in "node_modules/wavedrom/lib/eva.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+rendering chunks...
+computing gzip size...
+../../../dist-web/markdown/0.1.0-bad2306/index.html                                           0.94 kB │ gzip:     0.55 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Size3-Regular-gV2CO0n9.woff2             3.62 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/send-enter-off-B0IfWMyy.png                   4.25 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Size4-Regular-Dl5lxZxV.woff2             4.93 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Size2-Regular-Dy4dx90m.woff2             5.21 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Size1-Regular-mCD8mA8B.woff2             5.47 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2       6.91 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2          6.91 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Script-Regular-D3wIWfF6.woff2            9.64 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2        10.34 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Fraktur-Regular-CTYiF6lA.woff2          11.32 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Fraktur-Bold-CL6g_b3V.woff2             11.35 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_SansSerif-Italic-C3H0VqGB.woff2         12.03 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_SansSerif-Bold-D1sUS0GD.woff2           12.22 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Typewriter-Regular-CO6r4hn1.woff2       13.57 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2          16.40 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Math-Italic-t53AETM-.woff2              16.44 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2          16.78 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Main-Italic-NWA7e6Wa.woff2              16.99 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Main-Bold-Cx986IdX.woff2                25.32 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_Main-Regular-B22Nviop.woff2             26.27 kB
+../../../dist-web/markdown/0.1.0-bad2306/fonts/KaTeX_AMS-Regular-BQhdFMY1.woff2              28.08 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/pdf.worker.min-CLrFZWeq.mjs               1,312.45 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/index-B1hcfdWg.css                          162.86 kB │ gzip:    28.33 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/pdf.worker.min-D8Djv3Xg.js                    0.09 kB │ gzip:     0.11 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/channel-JC_E3ZLx.js                           0.12 kB │ gzip:     0.13 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/init-Gi6I4Gst.js                              0.15 kB │ gzip:     0.13 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-2Q5K7J3B-DNHr3Bdu.js                    0.19 kB │ gzip:     0.16 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-JWPE2WC7-bkuA4dWI.js                    0.23 kB │ gzip:     0.17 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-XXDRQBXY-DouU69CI.js                    0.23 kB │ gzip:     0.21 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-5VM5RSS4-D9oRDdlo.js                    0.37 kB │ gzip:     0.27 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/stateDiagram-v2-MP3YSRHH-Bmyc0cjp.js          0.43 kB │ gzip:     0.30 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/classDiagram-ZZMXUADV-B1CoMosJ.js             0.47 kB │ gzip:     0.32 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/classDiagram-v2-VYDZK3BY-B1CoMosJ.js          0.47 kB │ gzip:     0.32 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-POPQ4Y6H-BPj6PXAu.js                    0.51 kB │ gzip:     0.36 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/swimlanesDiagram-VR7AAH4N-Cc9yvFYm.js         0.55 kB │ gzip:     0.37 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/infoDiagram-27XIBGKW-CLQ0uGun.js              0.59 kB │ gzip:     0.41 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/sizeCapture-INFHLROL-BO7-a3_X.js              0.94 kB │ gzip:     0.53 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/ordinal-Cboi1Yqb.js                           1.19 kB │ gzip:     0.57 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/railroadDiagram-O6MQD6OU-CXSmuaZY.js          1.61 kB │ gzip:     0.76 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/abnfDiagram-VCTEODGH-B9i8un0v.js              1.81 kB │ gzip:     0.89 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-F27PBJKO-B_Pdwf6x.js                    1.88 kB │ gzip:     0.83 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/pegDiagram-XKGWAZYB-Cv4wb2eN.js               1.96 kB │ gzip:     0.92 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/ebnfDiagram-PWID7BFC-KPYCoM6j.js              2.01 kB │ gzip:     0.88 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/arc-B8H_sZxM.js                               3.44 kB │ gzip:     1.49 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/diagram-Z3DM3KII-BjvF_857.js                  4.21 kB │ gzip:     1.83 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/defaultLocale-DX6XiGOO.js                     4.69 kB │ gzip:     2.18 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/linear-Bx_5Fxpb.js                            5.66 kB │ gzip:     2.31 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/diagram-UQ7AKVKN-sxjiUN3E.js                  6.08 kB │ gzip:     2.62 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/pieDiagram-E7YTZNPT-DsR_aLIp.js               6.29 kB │ gzip:     2.63 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/diagram-S7CK7UJ4-BpDqNdSd.js                  8.22 kB │ gzip:     3.67 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/cynefinDiagram-5FMLGOSQ-YCaYFw8b.js          10.10 kB │ gzip:     3.63 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/stateDiagram-D77RDMKH-CeGFEcPA.js            10.36 kB │ gzip:     3.62 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/dagre-GXQ25YYZ-0UKqC2Ge.js                   10.68 kB │ gzip:     4.03 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/diagram-VSXAHHWV-C7mh_C7R.js                 10.72 kB │ gzip:     4.13 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-SVP7TREG-Cx6oZcG_.js                   15.74 kB │ gzip:     4.41 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/diagram-VX7I27RA-Ds1A55BQ.js                 15.96 kB │ gzip:     5.70 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/ishikawaDiagram-5VMMS53U-D7XIwXih.js         17.47 kB │ gzip:     6.64 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/kanban-definition-UXKFOSKX-Zbs04zNW.js       20.29 kB │ gzip:     7.20 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/mindmap-definition-YA3MSWOX-DqgwAlqo.js      23.18 kB │ gzip:     7.83 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/sankeyDiagram-P5KCCOFB-zitMZOy3.js           23.20 kB │ gzip:     8.56 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/journeyDiagram-3NMN7TZE-DAueZb5J.js          23.57 kB │ gzip:     8.35 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/wardleyDiagram-VM6X3IG4-DFr1FdDI.js          25.50 kB │ gzip:     6.79 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/index-CfVoXhG5.js                            27.06 kB │ gzip:     7.80 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/gitGraphDiagram-WWUBYQGX-CQwPN469.js         29.42 kB │ gzip:     8.70 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/erDiagram-RLTQ6QDP-Czf-y398.js               30.79 kB │ gzip:    10.59 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/timeline-definition-24CTP7MA-Brxe9Iks.js     30.83 kB │ gzip:    10.15 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/requirementDiagram-BXWQKSXE-aoq74YeZ.js      31.00 kB │ gzip:     9.73 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/quadrantDiagram-AXDQQJYC-DiVlUOty.js         34.01 kB │ gzip:     9.98 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/layout-Coi_eyLA.js                           35.44 kB │ gzip:    12.75 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-IMKFNOWR-8RUNnfyy.js                   38.08 kB │ gzip:    12.51 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/blockDiagram-I7D4REHJ-B_mNKYpu.js            41.76 kB │ gzip:    13.58 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/vennDiagram-4TSXK5OY-trgMVpt1.js             41.96 kB │ gzip:    15.70 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/xychartDiagram-S5SC5T6Z-CPEQZZGm.js          44.51 kB │ gzip:    12.60 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/chunk-TICWLB2K-Bv-InIbT.js                   49.18 kB │ gzip:    15.74 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/flowDiagram-HODETNUW-CNtEQX49.js             61.85 kB │ gzip:    19.87 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/c4Diagram-7LVT6UL2-IXA0g3T-.js               65.47 kB │ gzip:    18.79 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/ganttDiagram-EL5Y4UJY-Cie11q8Q.js            69.70 kB │ gzip:    23.56 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/cose-bilkent-JH36ORCC-CttJGKSw.js            81.70 kB │ gzip:    22.48 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/index-9v1xRN6Z.js                           104.67 kB │ gzip:    23.77 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/swimlanes-42K2YHIH-DEnfRFHl.js              115.79 kB │ gzip:    42.51 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/sequenceDiagram-WJ2MYXX4-C4UpEk9Y.js        116.96 kB │ gzip:    31.14 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/architectureDiagram-5GKGNRK7-BiVQsk6X.js    151.83 kB │ gzip:    43.15 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/cytoscape.esm-BB4DxJjf.js                   443.04 kB │ gzip:   141.98 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/pdf-Db4OFiBi.js                             489.68 kB │ gzip:   148.85 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/mermaid.core-BhuLYyw-.js                    683.41 kB │ gzip:   169.13 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/cynefin-OW5HDTMX-BlzJIdLC.js                688.15 kB │ gzip:   154.16 kB
+../../../dist-web/markdown/0.1.0-bad2306/assets/index-rk8Vzm5m.js                         3,641.16 kB │ gzip: 1,159.40 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-markdown 0.1.0-bad2306: 90 files, 8.73 MiB (gzip 2.78); initial 3.63 MiB (gzip 1.13), deferred 5.10 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/markdown/0.1.0-bad2306
+✓ built in 11.76s
+
+== build:web --module html
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 491 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../dist-web/html/0.1.0-bad2306/index.html                              0.92 kB │ gzip:   0.55 kB
+../../../dist-web/html/0.1.0-bad2306/assets/send-enter-off-B0IfWMyy.png      4.25 kB
+../../../dist-web/html/0.1.0-bad2306/assets/index-CNhQrPhB.css             131.79 kB │ gzip:  22.29 kB
+../../../dist-web/html/0.1.0-bad2306/assets/index-FfXLCmf0.js            2,451.63 kB │ gzip: 787.58 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-html 0.1.0-bad2306: 7 files, 2.48 MiB (gzip 0.78); initial 2.46 MiB (gzip 0.77), deferred 0.01 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/html/0.1.0-bad2306
+✓ built in 2.78s
+
+== build:web --module slides
+vite v7.3.6 building client environment for production...
+(node:4200) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/ubuntu/work/uniwork-office/web/modules/slides/vite-web.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/ubuntu/work/uniwork-office/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+transforming...
+✓ 1029 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/export-render.tsx is dynamically imported by /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/zoom-actions.ts but also statically imported by /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/ai/AiPanel.tsx, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/clipboard-actions.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/components/PrintDialog.tsx, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/export-pages.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/file-actions.ts, /home/ubuntu/work/uniwork-office/apps/slides/src/renderer/slide-actions.ts, dynamic import will not move module into another chunk.
+
+computing gzip size...
+../../../dist-web/slides/0.1.0-bad2306/index.html                                   0.95 kB │ gzip:     0.55 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/send-enter-off-B0IfWMyy.png           4.25 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/marble-D7ttTB12.png                   9.07 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/parchment-BKiptb7w.png               17.39 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/paper-DUijYpax.png                   19.39 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/canvas-BRJXZk8M.png                  23.00 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/wood-D70XEBVa.png                    23.40 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/denim-DTrT_oct.png                   29.17 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/cork-BseXy6tu.png                    29.53 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/granite--1xJtYY3.png                 41.09 kB
+../../../dist-web/slides/0.1.0-bad2306/fonts/Carlito-Regular-fal-2WfU.woff2       190.60 kB
+../../../dist-web/slides/0.1.0-bad2306/fonts/Carlito-Bold-DN11iCUU.woff2          198.47 kB
+../../../dist-web/slides/0.1.0-bad2306/fonts/Carlito-Italic-CcV9hCBk.woff2        202.00 kB
+../../../dist-web/slides/0.1.0-bad2306/fonts/Carlito-BoldItalic-BqaEwLjh.woff2    207.12 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/index-BvulIp6Y.css                  206.11 kB │ gzip:    35.69 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/AiPanel-6rq0KqP7.js                 466.69 kB │ gzip:   166.91 kB
+../../../dist-web/slides/0.1.0-bad2306/assets/index-BnaxqPlp.js                 4,858.20 kB │ gzip: 1,463.96 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-slides 0.1.0-bad2306: 19 files, 6.23 MiB (gzip 2.46); initial 4.83 MiB (gzip 1.42), deferred 1.39 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/slides/0.1.0-bad2306
+✓ built in 6.42s
+
+== build:web --module sheets
+vite v7.3.6 building client environment for production...
+[build-wasm] cargo fetch --manifest-path /tmp/uniwork-xlsx-sidecar-wasm/1f00ba113edc1c1a/xlsx-engine/Cargo.toml
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded android_system_properties v0.1.5
+  Downloaded windows-implement v0.60.2
+  Downloaded autocfg v1.5.1
+  Downloaded siphasher v1.0.3
+  Downloaded windows-result v0.4.1
+  Downloaded cfg-if v1.0.4
+  Downloaded debug_unsafe v0.1.4
+  Downloaded rand_chacha v0.3.1
+  Downloaded bitcode_derive v0.6.9
+  Downloaded wasm-bindgen-macro v0.2.126
+  Downloaded approx v0.5.1
+  Downloaded windows-interface v0.59.3
+  Downloaded codepage v0.1.2
+  Downloaded atoi_simd v0.18.1
+  Downloaded phf v0.12.1
+  Downloaded iana-time-zone v0.1.65
+  Downloaded windows-core v0.62.2
+  Downloaded arrayvec v0.7.8
+  Downloaded fast-float2 v0.2.3
+  Downloaded base64 v0.22.1
+  Downloaded typed-path v0.12.3
+  Downloaded itoa v1.0.18
+  Downloaded zerocopy-derive v0.8.55
+  Downloaded quick-xml v0.41.0
+  Downloaded zip v8.6.0
+  Downloaded inout v0.1.4
+  Downloaded constant_time_eq v0.1.5
+  Downloaded block-buffer v0.10.4
+  Downloaded chrono v0.4.45
+  Downloaded either v1.17.0
+  Downloaded password-hash v0.4.2
+  Downloaded zerocopy v0.8.55
+  Downloaded thiserror-impl v1.0.69
+  Downloaded roxmltree v0.19.0
+  Downloaded getrandom v0.4.3
+  Downloaded regex-syntax v0.8.11
+  Downloaded aes v0.8.4
+  Downloaded zip v4.6.1
+  Downloaded itertools v0.12.1
+  Downloaded futures-util v0.3.32
+  Downloaded serde_json v1.0.150
+  Downloaded hashbrown v0.17.1
+  Downloaded quick-xml v0.38.4
+  Downloaded typenum v1.20.1
+  Downloaded zlib-rs v0.6.6
+  Downloaded time v0.3.54
+  Downloaded syn v2.0.119
+  Downloaded ironcalc_base v0.7.1
+  Downloaded cc v1.4.0
+  Downloaded regex-automata v0.4.16
+  Downloaded zip v0.6.6
+  Downloaded rustix v1.1.4
+  Downloaded roxmltree v0.21.1
+  Downloaded serde v1.0.228
+  Downloaded js-sys v0.3.103
+  Downloaded wasm-bindgen-macro-support v0.2.126
+  Downloaded flate2 v1.1.9
+  Downloaded indexmap v2.14.0
+  Downloaded chrono-tz v0.10.4
+  Downloaded memchr v2.8.3
+  Downloaded bumpalo v3.20.3
+  Downloaded csv v1.4.0
+  Downloaded glam v0.33.2
+  Downloaded wasm-bindgen v0.2.126
+  Downloaded bzip2-sys v0.1.13+1.0.8
+  Downloaded bzip2 v0.4.4
+  Downloaded crossbeam-utils v0.8.22
+  Downloaded hmac v0.12.1
+  Downloaded wasi v0.11.1+wasi-snapshot-preview1
+  Downloaded getrandom v0.2.17
+  Downloaded zstd v0.11.2+zstd.1.5.2
+  Downloaded zstd-sys v2.0.16+zstd.1.5.7
+  Downloaded serde_derive v1.0.228
+  Downloaded serde_core v1.0.228
+  Downloaded libc v0.2.186
+  Downloaded bitflags v2.13.1
+  Downloaded r-efi v6.0.0
+  Downloaded proc-macro2 v1.0.106
+  Downloaded unicode-ident v1.0.24
+  Downloaded miniz_oxide v0.8.9
+  Downloaded log v0.4.33
+  Downloaded zopfli v0.8.3
+  Downloaded thiserror v1.0.69
+  Downloaded base64ct v1.8.3
+  Downloaded rand_core v0.6.4
+  Downloaded sha2 v0.10.9
+  Downloaded digest v0.10.7
+  Downloaded find-msvc-tools v0.1.9
+  Downloaded jobserver v0.1.35
+  Downloaded pkg-config v0.3.33
+  Downloaded zstd-safe v5.0.2+zstd.1.5.2
+  Downloaded tempfile v3.27.0
+  Downloaded uuid v1.24.0
+  Downloaded arbitrary v1.4.2
+  Downloaded crc32fast v1.5.0
+  Downloaded deranged v0.5.8
+  Downloaded shlex v2.0.1
+  Downloaded zmij v1.0.23
+  Downloaded pin-project-lite v0.2.17
+  Downloaded once_cell v1.21.4
+  Downloaded encoding_rs v0.8.35
+  Downloaded rustversion v1.0.23
+  Downloaded quote v1.0.46
+  Downloaded cipher v0.4.4
+  Downloaded byteorder v1.5.0
+  Downloaded pbkdf2 v0.11.0
+  Downloaded generic-array v0.14.7
+  Downloaded sha1 v0.10.7
+  Downloaded num-conv v0.2.2
+  Downloaded time-core v0.1.9
+  Downloaded version_check v0.9.5
+  Downloaded crypto-common v0.1.7
+  Downloaded subtle v2.6.1
+  Downloaded ironcalc v0.7.1
+  Downloaded powerfmt v0.2.0
+  Downloaded aho-corasick v1.1.4
+  Downloaded fastrand v2.4.1
+  Downloaded windows-link v0.2.1
+  Downloaded slab v0.4.12
+  Downloaded wasm-bindgen-shared v0.2.126
+  Downloaded simd-adler32 v0.3.10
+  Downloaded calamine v0.36.0
+  Downloaded regex v1.13.1
+  Downloaded statrs v0.18.0
+  Downloaded derive_arbitrary v1.4.2
+  Downloaded adler2 v2.0.1
+  Downloaded equivalent v1.0.2
+  Downloaded cpufeatures v0.2.17
+  Downloaded rand v0.8.7
+  Downloaded num-traits v0.2.19
+  Downloaded bytemuck v1.25.2
+  Downloaded bitcode v0.6.9
+  Downloaded core-foundation-sys v0.8.7
+  Downloaded ppv-lite86 v0.2.21
+  Downloaded ryu v1.0.23
+  Downloaded errno v0.3.14
+  Downloaded futures-core v0.3.32
+  Downloaded futures-task v0.3.32
+  Downloaded csv-core v0.1.13
+  Downloaded iana-time-zone-haiku v0.1.2
+  Downloaded windows-strings v0.5.1
+  Downloaded phf_shared v0.12.1
+  Downloaded windows-sys v0.61.2
+  Downloaded linux-raw-sys v0.12.1
+[build-wasm] cargo build --release --locked --target wasm32-wasip1 --target-dir /home/ubuntu/work/uniwork-office/apps/sheets/native/xlsx-engine/wasm/target
+   Compiling proc-macro2 v1.0.106
+   Compiling cfg-if v1.0.4
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.46
+   Compiling memchr v2.8.3
+   Compiling wasm-bindgen-shared v0.2.126
+   Compiling rustversion v1.0.23
+   Compiling autocfg v1.5.1
+   Compiling crc32fast v1.5.0
+   Compiling serde_core v1.0.228
+   Compiling num-traits v0.2.19
+   Compiling simd-adler32 v0.3.10
+   Compiling syn v2.0.119
+   Compiling adler2 v2.0.1
+   Compiling miniz_oxide v0.8.9
+   Compiling bumpalo v3.20.3
+   Compiling zlib-rs v0.6.6
+   Compiling wasm-bindgen v0.2.126
+   Compiling serde v1.0.228
+   Compiling siphasher v1.0.3
+   Compiling phf_shared v0.12.1
+   Compiling flate2 v1.1.9
+   Compiling aho-corasick v1.1.4
+   Compiling encoding_rs v0.8.35
+   Compiling wasm-bindgen-macro-support v0.2.126
+   Compiling serde_derive v1.0.228
+   Compiling once_cell v1.21.4
+   Compiling itoa v1.0.18
+   Compiling equivalent v1.0.2
+   Compiling zmij v1.0.23
+   Compiling chrono-tz v0.10.4
+   Compiling regex-syntax v0.8.11
+   Compiling log v0.4.33
+   Compiling futures-task v0.3.32
+   Compiling futures-core v0.3.32
+   Compiling hashbrown v0.17.1
+   Compiling wasm-bindgen-macro v0.2.126
+   Compiling pin-project-lite v0.2.17
+   Compiling slab v0.4.12
+   Compiling futures-util v0.3.32
+   Compiling regex-automata v0.4.16
+   Compiling indexmap v2.14.0
+   Compiling zopfli v0.8.3
+   Compiling bitcode_derive v0.6.9
+   Compiling phf v0.12.1
+   Compiling chrono v0.4.45
+   Compiling approx v0.5.1
+   Compiling csv-core v0.1.13
+   Compiling bytemuck v1.25.2
+   Compiling getrandom v0.4.3
+   Compiling ryu v1.0.23
+   Compiling byteorder v1.5.0
+   Compiling serde_json v1.0.150
+   Compiling thiserror v1.0.69
+   Compiling csv v1.4.0
+   Compiling regex v1.13.1
+   Compiling bitcode v0.6.9
+   Compiling statrs v0.18.0
+   Compiling js-sys v0.3.103
+   Compiling thiserror-impl v1.0.69
+   Compiling debug_unsafe v0.1.4
+   Compiling either v1.17.0
+   Compiling typed-path v0.12.3
+   Compiling itertools v0.12.1
+   Compiling zip v8.6.0
+   Compiling atoi_simd v0.18.1
+   Compiling zip v0.6.6 (/tmp/uniwork-xlsx-sidecar-wasm/1f00ba113edc1c1a/xlsx-engine/wasm/.vendor/zip-0.6.6)
+warning: unused import: `std::time::SystemTime`
+  --> .vendor/zip-0.6.6/src/types.rs:11:5
+   |
+11 | use std::time::SystemTime;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `std::convert::TryInto`
+  --> .vendor/zip-0.6.6/src/write.rs:10:5
+   |
+10 | use std::convert::TryInto;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> .vendor/zip-0.6.6/src/write.rs:414:17
+    |
+414 |             let mut crypto_header = [0u8; 12];
+    |                 ----^^^^^^^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: eliding a lifetime that's named elsewhere is confusing
+    --> .vendor/zip-0.6.6/src/read.rs:1033:14
+     |
+1033 |     reader: &'a mut R,
+     |              ^^ the lifetime is named here
+1034 | ) -> ZipResult<Option<ZipFile<'_>>> {
+     |                               -- the same lifetime is elided here
+     |
+     = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+     = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: consistently use `'a`
+     |
+1034 - ) -> ZipResult<Option<ZipFile<'_>>> {
+1034 + ) -> ZipResult<Option<ZipFile<'a>>> {
+     |
+
+   Compiling quick-xml v0.41.0
+warning: `zip` (lib) generated 4 warnings (run `cargo fix --lib -p zip` to apply 2 suggestions)
+   Compiling codepage v0.1.2
+   Compiling roxmltree v0.19.0
+   Compiling fast-float2 v0.2.3
+   Compiling calamine v0.36.0
+   Compiling uuid v1.24.0
+   Compiling zip v4.6.1
+   Compiling quick-xml v0.38.4
+   Compiling ironcalc_base v0.7.1
+   Compiling roxmltree v0.21.1
+   Compiling base64 v0.22.1
+   Compiling ironcalc v0.7.1
+   Compiling xlsx-sidecar v0.1.0 (/tmp/uniwork-xlsx-sidecar-wasm/1f00ba113edc1c1a/xlsx-engine)
+   Compiling xlsx-sidecar-wasm v0.1.0 (/tmp/uniwork-xlsx-sidecar-wasm/1f00ba113edc1c1a/xlsx-engine/wasm)
+    Finished `release` profile [optimized] target(s) in 1m 02s
+[build-wasm] verified 51042bf3e0145fdddb46a58832fbf5e1369e212ef7ca028b694a007a67d14e3e (5224093 bytes)
+transforming...
+✓ 4231 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../dist-web/sheets/0.1.0-bad2306/index.html                                      0.93 kB │ gzip:     0.55 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/send-enter-off-B0IfWMyy.png              4.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/engine.worker-DtHCiJnC.js               26.14 kB
+../../../dist-web/sheets/0.1.0-bad2306/fonts/Carlito-Regular-fal-2WfU.woff2          190.60 kB
+../../../dist-web/sheets/0.1.0-bad2306/fonts/Carlito-Bold-DN11iCUU.woff2             198.47 kB
+../../../dist-web/sheets/0.1.0-bad2306/fonts/Carlito-Italic-CcV9hCBk.woff2           202.00 kB
+../../../dist-web/sheets/0.1.0-bad2306/fonts/Carlito-BoldItalic-BqaEwLjh.woff2       207.12 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/xlsx-sidecar-D8YSPIU9.wasm           5,224.09 kB │ gzip: 1,751.85 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/App-lluOJ4Jf.css                        15.17 kB │ gzip:     3.29 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/index-C7hmBIHU.css                     266.51 kB │ gzip:    44.38 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-C2U-68gz.js                        0.30 kB │ gzip:     0.27 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-Bdsh1qqD.js                        0.30 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-CFH0IjCk.js                        0.30 kB │ gzip:     0.27 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-Bfj5VLJw.js                        0.30 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-DjO-TIeK.js                        0.30 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-DrCvKJbx.js                        0.30 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-BTn6PP5Z.js                        0.31 kB │ gzip:     0.27 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-C9PimQmZ.js                        0.31 kB │ gzip:     0.26 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-BqEEhL8o.js                        0.31 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-CC6qE0Qd.js                        0.31 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-By7pkbV9.js                        0.31 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-D6_DqXCX.js                        0.33 kB │ gzip:     0.28 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-hyfzuwGI.js                        0.34 kB │ gzip:     0.28 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-C4lEFetN.js                        0.40 kB │ gzip:     0.31 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pa-C54UG8eN-EW_8hrTF.js                  0.53 kB │ gzip:     0.23 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/or-50rxpoq4-B_XNinj_.js                  0.57 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/gu-Bjl0l-cf-Bb_OSiMJ.js                  0.58 kB │ gzip:     0.24 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/hi-DsAaTPCC-lc1bUHMk.js                  0.61 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/mr-CjWJPVmH-BKMRnoAc.js                  0.61 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/as-BPtSu6VN-CYxxmKqh.js                  0.63 kB │ gzip:     0.26 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/bn-NCLZcWHi-CsgykzQM.js                  0.63 kB │ gzip:     0.26 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/te-B5Spl2Jk-DYnT8Dmf.js                  0.63 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/kn-C6Lov-DP-D7dHjlY1.js                  0.63 kB │ gzip:     0.26 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ta-BcghgTbD-D3SGVeDl.js                  0.71 kB │ gzip:     0.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ml-2xLVYkVY-CBhOFsDv.js                  0.81 kB │ gzip:     0.30 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pi-B9cgjyG1-v-IB86gp.js                  0.86 kB │ gzip:     0.35 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-BK-sUUc5.js                        1.02 kB │ gzip:     0.62 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-BrTPVXsG.js                        1.02 kB │ gzip:     0.62 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-B9RkqjS_.js                        1.14 kB │ gzip:     0.63 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-BjF3Kqrh.js                        1.15 kB │ gzip:     0.54 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-CNns_arH.js                        1.16 kB │ gzip:     0.59 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-B0Dk9UC7.js                        1.20 kB │ gzip:     0.56 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-JatDPK4w.js                        1.21 kB │ gzip:     0.57 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-eg49t5q7.js                        1.21 kB │ gzip:     0.57 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-C4OLsMsZ.js                        1.22 kB │ gzip:     0.56 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-DZ4vQeGV.js                        1.23 kB │ gzip:     0.58 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-latn-pinyin-BdYb-Ey_-BpSBSv6m.js      1.28 kB │ gzip:     0.22 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-BL0ty4MJ.js                        1.29 kB │ gzip:     0.78 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-CjLPHwi1.js                        1.29 kB │ gzip:     0.68 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-CkyXVv58.js                        1.30 kB │ gzip:     0.63 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-3SmXxkJD.js                        1.32 kB │ gzip:     0.71 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-DW1QglrN.js                        1.33 kB │ gzip:     0.83 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-Cy8Pb_hs.js                        1.40 kB │ gzip:     0.73 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-IrbC8Yc2.js                        1.40 kB │ gzip:     0.67 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-CegFD0gu.js                        1.48 kB │ gzip:     0.85 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-BtWKyN8q.js                        1.48 kB │ gzip:     0.73 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-3n4LXhVV.js                        1.50 kB │ gzip:     0.80 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/eu-Ctv_kq9Z-DMhU9kwg.js                  1.52 kB │ gzip:     0.22 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-Dp2wUvXP.js                        1.53 kB │ gzip:     0.75 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-DNbivD5G.js                        1.53 kB │ gzip:     0.89 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-gg4TG5R8.js                        1.57 kB │ gzip:     0.78 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-BQpvGBGS.js                        1.63 kB │ gzip:     0.77 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-BCUT191M.js                        1.66 kB │ gzip:     0.87 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-DTJ2kdjT.js                        1.76 kB │ gzip:     0.84 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-BMw1itRG.js                        1.88 kB │ gzip:     0.73 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-DyYnZhE8.js                        1.96 kB │ gzip:     0.93 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-DOJsLvFR.js                        1.99 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-SfMTUp5d.js                        1.99 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-Cum2_NUC-D8aZaPM_.js                  2.29 kB │ gzip:     0.31 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-yJHpGhjO.js                        2.34 kB │ gzip:     1.05 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-C6GzYkrP.js                        2.34 kB │ gzip:     1.16 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-BI0C-LwD.js                        2.34 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-D41noZK-.js                        2.36 kB │ gzip:     1.07 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-DSIBH577.js                        2.37 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-kIqBrOHn.js                        2.38 kB │ gzip:     1.04 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-C4yz8Vei.js                        2.43 kB │ gzip:     1.18 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-2XyHiI33.js                        2.45 kB │ gzip:     1.15 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-BPocgErJ.js                        2.45 kB │ gzip:     1.10 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-BlRjxHLh.js                        2.47 kB │ gzip:     1.22 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-DifDyWg9-1QUBE4o0.js                  2.52 kB │ gzip:     0.64 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/oc-P_i3-xLA-Cg0Gj-PC.js                  2.56 kB │ gzip:     0.68 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/kmr-Cfwhwuff-DNWs8Gbk.js                 2.73 kB │ gzip:     0.80 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-BmEaHeB9.js                        2.74 kB │ gzip:     1.21 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-D7K820xo.js                        2.84 kB │ gzip:     1.59 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-D2L_t5Pm.js                        2.84 kB │ gzip:     1.59 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-nv6Al0Xi.js                        3.00 kB │ gzip:     1.47 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-CjcpvXPR.js                        3.00 kB │ gzip:     1.46 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-GqLk51oc.js                        3.04 kB │ gzip:     1.45 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fi-RW5VB8Yp-C_52fTOR.js                  3.19 kB │ gzip:     0.78 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/la-DuvHjUWw-BcBNkSEh.js                  3.19 kB │ gzip:     0.63 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-B4J0B6zI.js                        3.21 kB │ gzip:     1.31 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-CDVkpJJa.js                        3.30 kB │ gzip:     1.51 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-Dhl4Og6w.js                        3.31 kB │ gzip:     1.52 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-r8w5Xwlp.js                        3.31 kB │ gzip:     1.55 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-DHFcEi2X.js                        3.32 kB │ gzip:     1.62 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-CAs6W_z_.js                        3.35 kB │ gzip:     1.55 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-BUO9j0Bs.js                        3.35 kB │ gzip:     1.57 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-DypH4gwQ.js                        3.36 kB │ gzip:     1.73 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pms-BRGfm5gS-DtZRgBhp.js                 3.38 kB │ gzip:     0.91 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-BeBbJZ9Q.js                        3.40 kB │ gzip:     1.61 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-COncGQr8.js                        3.46 kB │ gzip:     1.57 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-CvULx-ez.js                        3.50 kB │ gzip:     1.82 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-CyyT3_M-.js                        3.50 kB │ gzip:     1.37 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-DUjMhCOr.js                        3.50 kB │ gzip:     1.68 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-lc1ync22.js                        3.53 kB │ gzip:     1.48 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-BvWoe9_5.js                        3.56 kB │ gzip:     1.53 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-Bo-1KMdQ.js                        3.56 kB │ gzip:     1.45 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-BffYyC6U.js                        3.57 kB │ gzip:     1.45 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-Dl0FbLq-.js                        3.58 kB │ gzip:     1.67 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-Cd5zy_7q.js                        3.58 kB │ gzip:     1.67 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-Bt_Meacx-BwawXXgW.js                  3.63 kB │ gzip:     0.88 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-7QP18Ksv.js                        3.64 kB │ gzip:     1.50 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-9lI69wZc.js                        3.66 kB │ gzip:     1.54 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/rm-C0MIK9N4-DeBfDBrx.js                  3.67 kB │ gzip:     0.95 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/mul-ethi-D_CMSMEq-2TGBnG-Z.js            3.69 kB │ gzip:     0.92 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-C3ApYD0V.js                        3.73 kB │ gzip:     1.50 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-DOOSVYK5.js                        3.82 kB │ gzip:     1.68 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-CdbAxvug.js                        3.84 kB │ gzip:     1.68 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fur-AC12wySk-Ulg0Fy5V.js                 3.90 kB │ gzip:     1.02 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/tr-CIHIuzqc-ZkOY1dVp.js                  3.97 kB │ gzip:     0.34 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-CXNl5sBh.js                        4.09 kB │ gzip:     1.56 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-BbOviSBn.js                        4.11 kB │ gzip:     1.48 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-C6-QsHvp.js                        4.13 kB │ gzip:     1.54 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-Zz4c0-F3.js                        4.15 kB │ gzip:     1.58 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-BcGHWOZD.js                        4.15 kB │ gzip:     1.51 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-DV_IRKin.js                        4.17 kB │ gzip:     1.79 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-kAHYCNgL.js                        4.20 kB │ gzip:     1.66 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-Nk_qJRod.js                        4.29 kB │ gzip:     1.61 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-CphK5Vmn.js                        4.39 kB │ gzip:     1.62 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-CpiSWPfL.js                        4.55 kB │ gzip:     1.74 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/mn-cyrl-x-lmc-3aetruI8-mEBV16An.js       4.83 kB │ gzip:     1.21 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/el-monoton-D3aKqTz2-DpMW17GV.js          4.87 kB │ gzip:     0.89 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-CGoUvZbP.js                        4.92 kB │ gzip:     1.91 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-C-Dicsj4.js                        5.04 kB │ gzip:     1.82 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-mQ5bHLoM.js                        5.08 kB │ gzip:     1.77 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-C1dD58_8.js                        5.77 kB │ gzip:     1.97 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ia-Cr4TJH0c-BcFKNbxH.js                  6.49 kB │ gzip:     1.83 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/cop-C3sk0IUo-Cj8cOj0I.js                 6.89 kB │ gzip:     0.71 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ro-0fmdH0HA-1lLksn9e.js                  7.27 kB │ gzip:     2.14 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ca-SUf6Y2Om-Dp4lcbPL.js                  7.86 kB │ gzip:     1.13 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/la-x-classic-yTyAOQEt-DuDJBVty.js        8.93 kB │ gzip:     2.31 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/sa-CKY9c_Vq-DzgpFnfw.js                  9.71 kB │ gzip:     1.66 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-K-mDaNjp.js                       10.85 kB │ gzip:     1.89 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-CSnafSMb.js                       11.09 kB │ gzip:     1.89 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/hr-DT1SBBes-CkK3TemH.js                 11.36 kB │ gzip:     0.95 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/hy-e995ysyO-Cf-NYmW5.js                 11.93 kB │ gzip:     0.31 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/mn-cyrl-lHM4n0oC-QhYuXAWB.js            12.15 kB │ gzip:     2.15 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-DbyqshR5.js                       12.18 kB │ gzip:     1.93 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/sl-DpiklF-D-_46w5B9b.js                 12.60 kB │ gzip:     3.40 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-DrchkNDp.js                       12.61 kB │ gzip:     1.92 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-obPBFSBB.js                       12.70 kB │ gzip:     1.84 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/da-CCDXfXtG-C3O8h2wc.js                 12.72 kB │ gzip:     3.45 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-DK8Bzm4n.js                       12.74 kB │ gzip:     1.92 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-D83M59rt.js                       12.92 kB │ gzip:     1.99 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-C0j0vkj4.js                       12.95 kB │ gzip:     2.00 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-DBVS5tiE.js                       13.26 kB │ gzip:     2.04 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-ByEV0rnB.js                       13.36 kB │ gzip:     1.88 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/hsb-DC_ITc1e-C4pa9vvS.js                14.01 kB │ gzip:     1.94 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-RpB5bU0_.js                       14.26 kB │ gzip:     2.01 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/lt-BBe8DlDF-CObMPDIF.js                 14.77 kB │ gzip:     3.60 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-BaOsMxvk.js                       14.83 kB │ gzip:     2.08 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-CGPJbWiP.js                       15.29 kB │ gzip:     2.08 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/tk-BMbKB10q-cqtw6prh.js                 16.96 kB │ gzip:     0.99 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/el-polyton-ogVWcTzh-BOWLBXgh.js         17.63 kB │ gzip:     2.87 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-ByMbnSrJ.js                       18.07 kB │ gzip:     2.21 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/la-x-liturgic-CXeQb4FY-DNU_Uk5t.js      22.82 kB │ gzip:     5.72 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-BC2onEz9-BGmqATrI.js                 24.14 kB │ gzip:     4.29 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ka-jyoLzyDE-CZftRBZr.js                 26.19 kB │ gzip:     4.51 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/be-CrQ0smca-B2EeXxUh.js                 27.83 kB │ gzip:     2.23 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/sh-latn-sRy4Tuaj-DcyoDtEt.js            29.78 kB │ gzip:     5.29 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/sr-cyrl-Dpzrbd0W-DKfS_grW.js            31.60 kB │ gzip:     5.56 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/sk-_iOeDNrQ-BXQc18Za.js                 31.69 kB │ gzip:     6.79 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/sh-cyrl-BpCRFOmq-Cv4-R-p6.js            32.50 kB │ gzip:     5.45 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/gl-DZGc-K_G-DLl5jmsP.js                 33.64 kB │ gzip:     4.26 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/cs-CmAteokq-TjIVgNl6.js                 39.76 kB │ gzip:     9.95 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-DcaaHPU_-sYKznHcq.js                 44.13 kB │ gzip:     6.27 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-9fg-ESVt-DpPW5ISU.js                 46.09 kB │ gzip:     7.70 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/et-B_spaleu-BaO20FM2.js                 47.21 kB │ gzip:    11.42 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/is-BT8UVRze-BXloJ18M.js                 48.41 kB │ gzip:    12.72 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/sv-CFm5y56M-I8ncZ9Nb.js                 56.81 kB │ gzip:    14.42 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/bg-CrQqGwni-Pt9yPLke.js                 56.93 kB │ gzip:     4.83 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/uk-Dir3oxLs-BVEQM3Jf.js                 63.99 kB │ gzip:     8.64 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/th-DWX5iPSo-BI_G36o8.js                 68.62 kB │ gzip:    13.26 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/grc-DOlGgO8T-C7K_Bcib.js                71.61 kB │ gzip:     8.92 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/xlsx-threaded-comments-DMEOXPyn.js      79.24 kB │ gzip:    25.14 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/cy-BBPa6z2x-BONU7bVJ.js                 80.20 kB │ gzip:    19.05 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ga-Cn6LkudM-WsF4_z3Y.js                 82.15 kB │ gzip:    20.04 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-v4l-ayaq-BZkHNr9F.js                 85.31 kB │ gzip:    16.94 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/en-gb-B7Al27b_-BFFr9zKP.js             105.38 kB │ gzip:    26.11 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/lv-Q2BBHnzp-DRPSUjhQ.js                112.68 kB │ gzip:    16.09 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/nl-BHQJ6Gvn-BMWl-SdQ.js                138.51 kB │ gzip:    36.10 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/save-plan-BACkYc5l.js                  157.74 kB │ gzip:    48.28 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/cu-CBUlrW6Y-BrxB2kb-.js                168.80 kB │ gzip:    26.17 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/af-DK_CjRn6-C81U6qP1.js                179.89 kB │ gzip:    38.97 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-ch-1901-hVThVHVb-CC5Yf8hX.js        264.34 kB │ gzip:    70.50 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-1996-BL6awyxG-BSuIomZy.js           266.94 kB │ gzip:    71.07 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-1901-CWoAOigE-yOXirf_M.js           270.04 kB │ gzip:    71.86 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-TW-DrGhRAdQ.js                      292.09 kB │ gzip:    64.32 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/zh-CN-BYv91fxn.js                      294.08 kB │ gzip:    63.09 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ko-KR-CASS30p4.js                      319.32 kB │ gzip:    60.88 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/id-ID-CTmx3_Ly.js                      324.34 kB │ gzip:    60.23 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pl-PL-DeGnjmEK.js                      325.08 kB │ gzip:    61.25 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/it-IT-BcmqHK5i.js                      325.81 kB │ gzip:    60.57 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/pt-BR-DPI9SRh9.js                      326.01 kB │ gzip:    60.76 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/de-DE-DrKbhjz7.js                      326.86 kB │ gzip:    60.97 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/fr-FR-HqaePWgy.js                      327.82 kB │ gzip:    61.07 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ar-SA-CHgQnbjk.js                      330.72 kB │ gzip:    61.72 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/no-B8ItS0F3-BlrHaK3Z.js                341.90 kB │ gzip:    87.84 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/nb-DI8u59ch-S2a9vUN_.js                341.92 kB │ gzip:    87.85 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/nn-ntZvarUK-cMBifkqM.js                341.92 kB │ gzip:    87.85 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/es-ES-cbr0jYLp.js                      344.89 kB │ gzip:    62.78 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ja-JP-BoTlj634.js                      369.84 kB │ gzip:    66.69 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/vi-VN-bUYW_5w4.js                      383.86 kB │ gzip:    69.08 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/ru-RU-mLEddKlV.js                      548.64 kB │ gzip:    79.41 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/hu-DVk7Y_ka-CCTZJfqn.js                765.41 kB │ gzip:   172.84 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/index-C_ax6FK7.js                    4,059.34 kB │ gzip: 1,150.63 kB
+../../../dist-web/sheets/0.1.0-bad2306/assets/App-Bl4F_tHO.js                      8,570.15 kB │ gzip: 2,438.20 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+web-sheets 0.1.0-bad2306: 219 files, 27.70 MiB (gzip 7.90); initial 4.13 MiB (gzip 1.13), deferred 23.57 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/sheets/0.1.0-bad2306
+✓ built in 1m 26s
+
+BUILD_WEB_ALL_EXIT=0

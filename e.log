@@ -1,0 +1,75 @@
+$ WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e pdf-web; rc=$?; echo; echo "WEB_E2E_PDF_EXIT=$rc"; exit 0
+
+Running 25 tests using 1 worker
+
+(node:5713) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/pdf-web.spec.ts:198:7 › pdf module on the web › edit round trip: annotate, fill, save, conflict, reopen, page ops, Save As, print (2.8s)
+  ✓   2 [chromium] › web/e2e/pdf-web.spec.ts:352:7 › pdf module on the web › view-only (no save grant): edit UI disabled, nothing can be saved, print works (904ms)
+  ✓   3 [chromium] › web/e2e/pdf-web.spec.ts:380:7 › pdf module on the web › phone width: the tab row stays on one line and scrolls (393ms)
+  ✓   4 [chromium] › web/e2e/pdf-web.spec.ts:405:7 › pdf module on the web › vi ribbon with the AI panel open: the clipped band shows an overflow cue (400ms)
+  ✓   5 [chromium] › web/e2e/pdf-web.spec.ts:424:7 › pdf module on the web › Sign dialog: the primary button is the brand blue, not black (455ms)
+  ✓   6 [chromium] › web/e2e/pdf-web.spec.ts:439:9 › pdf module on the web › renders sample.pdf with zero CSP violations (1.9s)
+  ✓   7 [chromium] › web/e2e/pdf-web.spec.ts:439:9 › pdf module on the web › renders pdf-scanned.pdf with zero CSP violations (1.9s)
+  ✓   8 [chromium] › web/e2e/pdf-web.spec.ts:439:9 › pdf module on the web › renders pdf-fonts.pdf with zero CSP violations (1.9s)
+  ✓   9 [chromium] › web/e2e/pdf-web.spec.ts:439:9 › pdf module on the web › renders pdf-form.pdf with zero CSP violations (1.9s)
+  ✓  10 [chromium] › web/e2e/pdf-web.spec.ts:449:7 › pdf module on the web › encrypted PDF: password prompt, then it renders (read-only) (746ms)
+  ✓  11 [chromium] › web/e2e/pdf-web.spec.ts:465:7 › pdf module on the web › screenshots: light + dark, vi + en (7.8s)
+  ✓  12 [chromium] › web/e2e/pdf-web.spec.ts:505:9 › pdf module on the web › Insert text draws "Hello": dialog takes the typing, text is placed and saved (750ms)
+  ✓  13 [chromium] › web/e2e/pdf-web.spec.ts:505:9 › pdf module on the web › Insert text draws "Xin chào": dialog takes the typing, text is placed and saved (744ms)
+  ✘  14 [chromium] › web/e2e/pdf-web.spec.ts:563:7 › pdf module on the web: a second Save commits nothing › Save, wait, Save again: the second Save commits nothing (4.0m)
+(node:5988) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 [chromium] › web/e2e/pdf-web.spec.ts:578:7 › pdf module on the web: a second Save commits nothing › second Save pressed while the first is still saving commits nothing (6.7s)
+  ✓  16 [chromium] › web/e2e/pdf-web.spec.ts:607:9 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office stays visible and explains (en); no app button without the grant (483ms)
+  ✓  17 [chromium] › web/e2e/pdf-web.spec.ts:607:9 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office stays visible and explains (vi); no app button without the grant (440ms)
+  ✓  18 [chromium] › web/e2e/pdf-web.spec.ts:628:9 › pdf module on the web: use-the-app messages and narrow zoom › Redact stays visible and explains (en); no app button without the grant (472ms)
+  ✓  19 [chromium] › web/e2e/pdf-web.spec.ts:628:9 › pdf module on the web: use-the-app messages and narrow zoom › Redact stays visible and explains (vi); no app button without the grant (462ms)
+  ✓  20 [chromium] › web/e2e/pdf-web.spec.ts:648:7 › pdf module on the web: use-the-app messages and narrow zoom › Redact: Open in app sends one app.open when the host grants desktopOpen (591ms)
+  ✓  21 [chromium] › web/e2e/pdf-web.spec.ts:662:7 › pdf module on the web: use-the-app messages and narrow zoom › Convert to Office: Open in app sends one app.open when the host grants desktopOpen (561ms)
+  ✓  22 [chromium] › web/e2e/pdf-web.spec.ts:676:7 › pdf module on the web: use-the-app messages and narrow zoom › a scanned document says OCR is an app feature, once, and OK dismisses it (521ms)
+  ✓  23 [chromium] › web/e2e/pdf-web.spec.ts:694:7 › pdf module on the web: use-the-app messages and narrow zoom › a text document shows no OCR notice (1.9s)
+  ✓  24 [chromium] › web/e2e/pdf-web.spec.ts:701:7 › pdf module on the web: use-the-app messages and narrow zoom › at 390 px the page opens at the 60 % floor, not 26 % (355ms)
+  ✓  25 [chromium] › web/e2e/pdf-web.spec.ts:722:7 › pdf module on the web: narrow slot › at 390 px the 60 % page is inside the slot and any overflow pans inside the page area (424ms)
+
+
+  1) [chromium] › web/e2e/pdf-web.spec.ts:563:7 › pdf module on the web: a second Save commits nothing › Save, wait, Save again: the second Save commits nothing 
+
+    Test timeout of 240000ms exceeded.
+
+    Error: locator.click: Test timeout of 240000ms exceeded.
+    Call log:
+      - waiting for locator('.qa-btn').first()
+        - locator resolved to <button disabled class="qa-btn" aria-label="Save" data-tip="Save (Ctrl+S)">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is not enabled
+        - retrying click action
+          - waiting 100ms
+        451 × waiting for element to be visible, enabled and stable
+            - element is not enabled
+          - retrying click action
+            - waiting 500ms
+
+
+      184 | async function clickSave(frame: Frame): Promise<void> {
+      185 |   // the first quick-access button is Save in every UI language
+    > 186 |   await frame.locator('.qa-btn').first().click()
+          |                                          ^
+      187 | }
+      188 |
+      189 | async function waitVersion(page: Page, versionId: string): Promise<void> {
+        at clickSave (/home/ubuntu/work/uniwork-office/web/e2e/pdf-web.spec.ts:186:42)
+        at /home/ubuntu/work/uniwork-office/web/e2e/pdf-web.spec.ts:571:11
+
+    Error Context: web/e2e/.results/pdf-web-pdf-module-on-the--58a3f-second-Save-commits-nothing-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/pdf-web.spec.ts:563:7 › pdf module on the web: a second Save commits nothing › Save, wait, Save again: the second Save commits nothing 
+  24 passed (4.6m)
+
+WEB_E2E_PDF_EXIT=1
