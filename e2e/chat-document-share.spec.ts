@@ -197,7 +197,11 @@ test("the sender turns an old file message into a document card in place", async
   // The same message turns into the document card — same article, no second
   // row for the file.
   await expect(row.getByRole("button", { name: /^Mở trong Tài liệu:/ })).toBeVisible({ timeout: 60_000 });
-  await expect(row.getByText("Nhận xét")).toBeVisible({ timeout: 30_000 });
+  // The card shows the viewer's own level, and the sender owns the document:
+  // "Quản lý" plus the share count. The level the peer got (Nhận xét) is pinned
+  // from the peer's side by the first test.
+  await expect(row.getByText("Quản lý", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(row.getByText(/Đã chia sẻ với 1 người/)).toBeVisible({ timeout: 30_000 });
   await expect(row.getByRole("button", { name: "Chia sẻ dạng tài liệu" })).toHaveCount(0);
   await expect(page.locator('article[id^="chat-msg-"]').filter({ hasText: name })).toHaveCount(1);
 });
