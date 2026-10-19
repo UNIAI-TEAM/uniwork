@@ -23,12 +23,25 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+)
+
+// uniworkScriptedIn and uniworkScriptedOut are the usage the fake provider
+// reports: the turn is priced, and the meter's delta is known exactly.
+const (
+	uniworkScriptedIn  = 1200
+	uniworkScriptedOut = 64
+	// uniworkScriptedTokens is what the meter records for one turn — the
+	// vendor's input plus output tokens (ai/gateway.go, quota.Record).
+	uniworkScriptedTokens = uniworkScriptedIn + uniworkScriptedOut
 )
 
 // uniworkProposalPermitted is the accounting set the claim permits a
@@ -50,14 +63,47 @@ var uniworkProposalTopics = map[string]bool{
 	"quota.threshold":  true,
 }
 
+// uniworkOutboxRow is one outbox row as the claim reads it: the complete
+// canonical row (so any column moving fails, not just the topic or payload)
+// and the topic the new-row rule names.
+type uniworkOutboxRow struct {
+	canonical string // to_jsonb(x)::text — every column
+	topic     string
+}
+
+// uniworkUsageRow is one usage_events row: the complete canonical row, plus
+// the meter, delta and idempotency key the turn's own charge is named by.
+type uniworkUsageRow struct {
+	canonical string
+	meter     string
+	delta     int64
+	key       string // idempotency_key, "" when NULL
+}
+
+// uniworkCounterRow is one usage_counters row: the complete canonical row,
+// plus the total and the notified pair the one allowed counter moves.
+type uniworkCounterRow struct {
+	canonical string
+	total     int64
+	notified  string // notified_80_at|notified_100_at, "" when NULL
+}
+
 // uniworkProposalSnapshot is the baseline a case is measured against: the
-// whole-tenant digest, plus the rows the claim makes a finer promise about.
+// whole-tenant digest, plus complete canonical rows of the tables the claim
+// makes a finer promise about.
 type uniworkProposalSnapshot struct {
 	digest   map[string]string
-	outbox   map[string]string // outbox id -> topic|payload
-	usage    map[string]string // usage_events id -> meter|delta|idempotency_key
-	counters map[string]string // meter|period_start -> total|notified_80|notified_100
+	outbox   map[string]uniworkOutboxRow  // outbox id -> row
+	usage    map[string]uniworkUsageRow   // usage_events id -> row
+	counters map[string]uniworkCounterRow // meter|period -> row
 	audit    int
+}
+
+// uniworkCounterKey names one counter by its meter and the instant its period
+// starts, formatted in UTC so the same instant is the same key however the
+// session renders timestamptz.
+func uniworkCounterKey(meter string, period time.Time) string {
+	return meter + "|" + period.UTC().Format(time.RFC3339Nano)
 }
 
 func uniworkProposalTake(t *testing.T, w *isoWorld, tn *isoTenant) uniworkProposalSnapshot {
@@ -65,53 +111,57 @@ func uniworkProposalTake(t *testing.T, w *isoWorld, tn *isoTenant) uniworkPropos
 	ctx := context.Background()
 	snap := uniworkProposalSnapshot{
 		digest:   w.tenantDigest(t, tn),
-		outbox:   map[string]string{},
-		usage:    map[string]string{},
-		counters: map[string]string{},
+		outbox:   map[string]uniworkOutboxRow{},
+		usage:    map[string]uniworkUsageRow{},
+		counters: map[string]uniworkCounterRow{},
 	}
 	rows, err := w.pool.Query(ctx,
-		`SELECT id, topic, payload::text FROM outbox_events WHERE organization_id = $1 ORDER BY id`, tn.orgID)
+		`SELECT id, topic, to_jsonb(x)::text FROM outbox_events x WHERE organization_id = $1 ORDER BY id`, tn.orgID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for rows.Next() {
-		var id, topic, payload string
-		if err := rows.Scan(&id, &topic, &payload); err != nil {
+		var id string
+		var row uniworkOutboxRow
+		if err := rows.Scan(&id, &row.topic, &row.canonical); err != nil {
 			t.Fatal(err)
 		}
-		snap.outbox[id] = topic + "|" + payload
+		snap.outbox[id] = row
 	}
 	rows.Close()
 
 	rows, err = w.pool.Query(ctx,
-		`SELECT id, meter_key, delta, coalesce(idempotency_key, '')
-		 FROM usage_events WHERE organization_id = $1 ORDER BY id`, tn.orgID)
+		`SELECT id, meter_key, delta, coalesce(idempotency_key, ''), to_jsonb(x)::text
+		 FROM usage_events x WHERE organization_id = $1 ORDER BY id`, tn.orgID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for rows.Next() {
-		var id, meter, idem string
-		var delta int64
-		if err := rows.Scan(&id, &meter, &delta, &idem); err != nil {
+		var id string
+		var row uniworkUsageRow
+		if err := rows.Scan(&id, &row.meter, &row.delta, &row.key, &row.canonical); err != nil {
 			t.Fatal(err)
 		}
-		snap.usage[id] = meter + "|" + idem + "|" + strconv.FormatInt(delta, 10)
+		snap.usage[id] = row
 	}
 	rows.Close()
 
 	rows, err = w.pool.Query(ctx,
-		`SELECT meter_key, period_start::text, total, coalesce(notified_80_at::text, ''), coalesce(notified_100_at::text, '')
-		 FROM usage_counters WHERE organization_id = $1 ORDER BY meter_key, period_start`, tn.orgID)
+		`SELECT meter_key, period_start, total, coalesce(notified_80_at::text, '') || '|' || coalesce(notified_100_at::text, ''),
+		        to_jsonb(x)::text
+		 FROM usage_counters x WHERE organization_id = $1 ORDER BY meter_key, period_start`, tn.orgID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for rows.Next() {
-		var meter, period, n80, n100 string
-		var total int64
-		if err := rows.Scan(&meter, &period, &total, &n80, &n100); err != nil {
+		var meter, notified string
+		var period time.Time
+		var row uniworkCounterRow
+		if err := rows.Scan(&meter, &period, &row.total, &notified, &row.canonical); err != nil {
 			t.Fatal(err)
 		}
-		snap.counters[meter+"|"+period] = strconv.FormatInt(total, 10) + "|" + n80 + "|" + n100
+		row.notified = notified
+		snap.counters[uniworkCounterKey(meter, period)] = row
 	}
 	rows.Close()
 
@@ -122,10 +172,66 @@ func uniworkProposalTake(t *testing.T, w *isoWorld, tn *isoTenant) uniworkPropos
 	return snap
 }
 
+// uniworkProposalPeriod answers the counter key the tenant's meter is charged
+// into right now, exactly as service.meterPeriodStart does: the paid term when
+// the subscription has one, else the calendar month in Vietnam time.
+func uniworkProposalPeriod(t *testing.T, w *isoWorld, tn *isoTenant, now time.Time) string {
+	t.Helper()
+	var start, end pgtype.Timestamptz
+	if err := w.pool.QueryRow(context.Background(),
+		`SELECT current_period_start, current_period_end FROM subscriptions
+		 WHERE organization_id = $1 AND status <> 'canceled'`, tn.orgID).Scan(&start, &end); err != nil {
+		t.Fatalf("subscription of %s: %v", tn.tag, err)
+	}
+	if end.Valid {
+		return uniworkCounterKey("ai.tokens", start.Time)
+	}
+	loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+	if err != nil {
+		loc = time.FixedZone("Asia/Ho_Chi_Minh", 7*60*60)
+	}
+	n := now.In(loc)
+	return uniworkCounterKey("ai.tokens", time.Date(n.Year(), n.Month(), 1, 0, 0, 0, 0, loc))
+}
+
+// uniworkProposalRunKey answers the idempotency key of the charge this turn
+// made: the run the returned conversation opened, and the model call this turn
+// reserved (service/ai_uniwork.go uniworkMeterKey). Reading the run back binds
+// the allowance to this turn rather than to any token accounting in the tenant.
+func uniworkProposalRunKey(t *testing.T, w *isoWorld, tn *isoTenant, conversationID string) string {
+	t.Helper()
+	rows, err := w.pool.Query(context.Background(),
+		`SELECT id, model_calls FROM ai_uniwork_runs
+		 WHERE organization_id = $1 AND conversation_id = $2 ORDER BY id`, tn.orgID, conversationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var id string
+	var calls int
+	n := 0
+	for rows.Next() {
+		if err := rows.Scan(&id, &calls); err != nil {
+			t.Fatal(err)
+		}
+		n++
+	}
+	if n != 1 {
+		t.Fatalf("ai_uniwork_runs rows for conversation %s = %d, want exactly one run", conversationID, n)
+	}
+	return fmt.Sprintf("uniwork-ai:%s:%d", id, calls)
+}
+
 // uniworkProposalCheck measures one case against its baseline: the digest
 // classification, the usage rows, the counters, the outbox and audit_events.
 // want is the set of permitted tables the turn must have changed.
-func uniworkProposalCheck(t *testing.T, tn *isoTenant, before, after uniworkProposalSnapshot, want []string) {
+//
+// runKey is the idempotency key of the charge this turn must have made
+// (uniwork-ai:<run id>:<model call no>) and periodKey is the counter the
+// charge lands in; both are read from the database by the caller, so the
+// allowance is bound to this turn and its period, not to any token accounting
+// in the tenant.
+func uniworkProposalCheck(t *testing.T, tn *isoTenant, before, after uniworkProposalSnapshot, want []string, runKey, periodKey string) {
 	t.Helper()
 	changed := isoDiff(before.digest, after.digest)
 	seen := map[string]bool{}
@@ -147,55 +253,87 @@ func uniworkProposalCheck(t *testing.T, tn *isoTenant, before, after uniworkProp
 		t.Errorf("audit_events rows = %d, want %d: a proposal-only turn writes no audit row", after.audit, before.audit)
 	}
 
-	// usage_events: pre-existing rows byte-identical, new rows only the
-	// ai.tokens meter.
+	// usage_events: every pre-existing row byte-identical (the complete row,
+	// not a projection), and exactly one new row — this turn's charge, on the
+	// ai.tokens meter, under this run's key, for the scripted token delta.
 	for id, row := range before.usage {
-		if after.usage[id] != row {
-			t.Errorf("usage_events %s = %q, want %q: a pre-existing usage row changed", id, after.usage[id], row)
+		if after.usage[id].canonical != row.canonical {
+			t.Errorf("usage_events %s = %s, want %s: a pre-existing usage row changed", id, after.usage[id].canonical, row.canonical)
 		}
 	}
+	var newUsage []string
 	for id, row := range after.usage {
 		if _, ok := before.usage[id]; ok {
 			continue
 		}
-		if !strings.HasPrefix(row, "ai.tokens|") {
-			t.Errorf("new usage_events %s = %q; only the ai.tokens meter may be recorded", id, row)
+		newUsage = append(newUsage, id)
+		if row.meter != "ai.tokens" {
+			t.Errorf("new usage_events %s carries meter %q; only ai.tokens may be recorded", id, row.meter)
 		}
+		if row.key != runKey {
+			t.Errorf("new usage_events %s idempotency key = %q, want %q: the charge must be this turn's", id, row.key, runKey)
+		}
+		if row.delta != uniworkScriptedTokens {
+			t.Errorf("new usage_events %s delta = %d, want %d (the scripted input+output tokens)", id, row.delta, uniworkScriptedTokens)
+		}
+	}
+	if len(newUsage) != 1 {
+		t.Errorf("new usage_events rows = %d (%v), want exactly this turn's one ai.tokens charge", len(newUsage), newUsage)
 	}
 
-	// usage_counters: only the ai.tokens row for this turn's period may move.
+	// usage_counters: the one counter of this turn's period moves by exactly
+	// the scripted delta; every other counter — other ai.tokens periods
+	// included — stays byte-identical, and no counter is added beside it.
+	moved := false
 	for key, row := range before.counters {
 		got, ok := after.counters[key]
-		if ok && got == row {
+		if key != periodKey {
+			if !ok || got.canonical != row.canonical {
+				t.Errorf("usage_counters %s = %s, want %s: only this turn's period may move", key, got.canonical, row.canonical)
+			}
 			continue
 		}
-		if !strings.HasPrefix(key, "ai.tokens|") {
-			t.Errorf("usage_counters %s = %q (was %q); only the ai.tokens meter may move", key, got, row)
+		moved = true
+		if got.total != row.total+uniworkScriptedTokens {
+			t.Errorf("usage_counters %s total = %d, want %d (was %d, +%d)", key, got.total, row.total+uniworkScriptedTokens, row.total, uniworkScriptedTokens)
+		}
+		if got.notified != row.notified {
+			t.Errorf("usage_counters %s notified = %q, want %q: a charge that crosses no threshold marks none", key, got.notified, row.notified)
 		}
 	}
-	for key := range after.counters {
+	for key, row := range after.counters {
 		if _, ok := before.counters[key]; ok {
 			continue
 		}
-		if !strings.HasPrefix(key, "ai.tokens|") {
-			t.Errorf("new usage_counters %s; only the ai.tokens meter may be recorded", key)
+		if key != periodKey {
+			t.Errorf("new usage_counters %s; only this turn's period counter may be recorded", key)
+			continue
+		}
+		moved = true
+		if row.total != uniworkScriptedTokens {
+			t.Errorf("new usage_counters %s total = %d, want %d", key, row.total, uniworkScriptedTokens)
+		}
+		if row.notified != "|" {
+			t.Errorf("new usage_counters %s notified = %q, want no threshold marked", key, row.notified)
 		}
 	}
+	if !moved {
+		t.Errorf("usage_counters has no row for this turn's period %s; the turn's charge did not land", periodKey)
+	}
 
-	// outbox_events: pre-existing rows byte-identical, new rows only the
-	// permitted topics.
+	// outbox_events: every pre-existing row byte-identical (the complete row),
+	// new rows only the permitted topics.
 	for id, row := range before.outbox {
-		if after.outbox[id] != row {
-			t.Errorf("outbox_events %s = %q, want %q: a pre-existing outbox row changed", id, after.outbox[id], row)
+		if after.outbox[id].canonical != row.canonical {
+			t.Errorf("outbox_events %s = %s, want %s: a pre-existing outbox row changed", id, after.outbox[id].canonical, row.canonical)
 		}
 	}
 	for id, row := range after.outbox {
 		if _, ok := before.outbox[id]; ok {
 			continue
 		}
-		topic, _, _ := strings.Cut(row, "|")
-		if !uniworkProposalTopics[topic] {
-			t.Errorf("new outbox_events %s carries topic %q; only ai.usage.updated or quota.threshold may be emitted", id, topic)
+		if !uniworkProposalTopics[row.topic] {
+			t.Errorf("new outbox_events %s carries topic %q; only ai.usage.updated or quota.threshold may be emitted", id, row.topic)
 		}
 	}
 }
@@ -364,10 +502,11 @@ func TestAIUniworkWriteCallsAreProposalsOnly(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			before := uniworkProposalTake(t, w, tn)
+			periodKey := uniworkProposalPeriod(t, w, tn, time.Now())
 			w.uniworkProvider.Reply = func(provider.CompletionRequest) provider.CompletionResponse {
 				return provider.CompletionResponse{
 					Text: "", ToolCalls: tc.calls, UsagePresent: true,
-					InputTokens: 1200, OutputTokens: 64, StopReason: "tool_calls",
+					InputTokens: uniworkScriptedIn, OutputTokens: uniworkScriptedOut, StopReason: "tool_calls",
 				}
 			}
 
@@ -407,9 +546,18 @@ func TestAIUniworkWriteCallsAreProposalsOnly(t *testing.T) {
 			// step 0 is the first turn: no tool round was consumed, so no
 			// editor ran and no tool result was posted.
 			ext, _ := out["x_uniwork"].(map[string]any)
-			if step, _ := ext["step"].(float64); step != 0 {
+			step, ok := ext["step"].(float64)
+			if !ok {
+				t.Fatalf("x_uniwork.step = %v; want a numeric 0 (no tool round ran)", ext["step"])
+			}
+			if step != 0 {
 				t.Errorf("x_uniwork.step = %v; want 0 (no tool round ran)", ext["step"])
 			}
+
+			// The charge this turn must have made is named by the run it
+			// opened for the returned conversation, so the allowance is bound
+			// to this turn rather than to any token accounting in the tenant.
+			runKey := uniworkProposalRunKey(t, w, tn, conv)
 
 			after := uniworkProposalTake(t, w, tn)
 			newRows := 0
@@ -421,7 +569,7 @@ func TestAIUniworkWriteCallsAreProposalsOnly(t *testing.T) {
 			if newRows != tc.outbox {
 				t.Errorf("new outbox_events rows = %d, want %d", newRows, tc.outbox)
 			}
-			uniworkProposalCheck(t, tn, before, after, tc.want)
+			uniworkProposalCheck(t, tn, before, after, tc.want, runKey, periodKey)
 		})
 	}
 }
