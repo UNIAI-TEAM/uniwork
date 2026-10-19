@@ -326,6 +326,16 @@ const stripFormulaNote = (v) => String(v ?? '')
   .replace(/\s*\[formula\s*=[^\]]*\]/gi, '')
   .replace(/^(.*?\S)\s*[;,]\s*(?:formula|công thức|cong thuc)\s*[:=].*$/is, '$1');
 
+const EMPTY_CELL_WORDS = new Set(['', 'blank', 'empty', 'trong', 'rong']);
+
+/** Cell-only presentations of the same value: an empty cell written as an empty-cell word (oracle2 O2-S2). */
+function cellPresentationEqual(expected, actual) {
+  if (String(expected ?? '').trim() === '') {
+    return EMPTY_CELL_WORDS.has(foldDiacritics(String(actual ?? '')).toLowerCase().replace(/^\((.*)\)$/, '$1').trim());
+  }
+  return false;
+}
+
 export function valuesEqual(expected, actual, kind = null, anchor = '') {
   if (kind === 'formula') {
     const a = normalizeFormulaText(expected);
@@ -346,6 +356,7 @@ export function valuesEqual(expected, actual, kind = null, anchor = '') {
     const normActual = normalizeTopicText(String(actual ?? ''));
     if (segs.length > 0 && segs.every((seg) => normActual.includes(seg))) return true;
   }
+  if (kind === 'cell' && cellPresentationEqual(expected, actual)) return true;
   if (kind === 'count') {
     if (typeof expected === 'string' && expected.includes('|')) {
       const parts = expected.split('|').map((s) => s.trim()).filter(Boolean);
