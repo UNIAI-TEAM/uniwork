@@ -361,4 +361,16 @@ describe('O2-B3: a written formula is filled and evaluated as the editor would',
     assert.equal(cell(backend, 'H3'), '-1.3 [formula =ROUND(-1.25,1)]');
     assert.equal(cell(backend, 'H4'), '2 [formula =ROUND(1.5,0)]');
   });
+
+  it('O2R1-09: shifting a relative reference out of range produces #REF!', () => {
+    const backend = createBackend(xlsx, { views: [view()] });
+    backend.execute('propose_operations', { operations: [
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'E2', formula: '=B1*$A$2' },
+      { op: 'fill_range', sheetId: 'sheet-1', range: 'E1', fillType: 'series', sourceRange: 'E2' },
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'B3', formula: '=A3' },
+      { op: 'fill_range', sheetId: 'sheet-1', range: 'A3', fillType: 'series', sourceRange: 'B3' },
+    ] });
+    assert.equal(cell(backend, 'E1'), '#REF! [formula =#REF!*$A$2]', 'P-B3-SHIFT-REF-UNDERFLOW row < 1');
+    assert.equal(cell(backend, 'A3'), '#REF! [formula =#REF!]', 'P-B3-SHIFT-REF-UNDERFLOW col < 1');
+  });
 });
