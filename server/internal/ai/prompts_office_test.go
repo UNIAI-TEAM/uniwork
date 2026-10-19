@@ -246,6 +246,68 @@ func TestOfficePackV4Rules(t *testing.T) {
 	}
 }
 
+// TestOfficePackV5 checks that office_uniwork_ai@5 (FU-G7-12-WRAP, UNI-1985)
+// is registered with the exact system text and module sections of @4, its own
+// v5 goldens, pin and token-cap entry, while the frozen goldens of @1..@4 stay
+// untouched. The @5 bump versions the wire shape where the façade wraps tool
+// results in <untrusted> tags on the way to the vendor.
+func TestOfficePackV5(t *testing.T) {
+	p5, ok := LookupPrompt("office_uniwork_ai@5")
+	if !ok {
+		t.Fatal("office_uniwork_ai@5 is not registered")
+	}
+	if p5.ID != "office_uniwork_ai" || p5.Version != 5 {
+		t.Fatalf("registry entry is %s, want office_uniwork_ai@5", p5.Key())
+	}
+	p4, ok := LookupPrompt("office_uniwork_ai@4")
+	if !ok {
+		t.Fatal("office_uniwork_ai@4 is not registered")
+	}
+	if p5.System != p4.System {
+		t.Errorf("office_uniwork_ai@5 common differs from @4: %s", firstDiff(p4.System, p5.System))
+	}
+	if cv := officeGoldenVersion(t, 5, "common"); cv != p5.System {
+		t.Errorf("v5 common golden drift: %s", firstDiff(cv, p5.System))
+	}
+	for _, m := range officeModuleSections {
+		if p5.Sections[m.section] != p4.Sections[m.section] {
+			t.Errorf("office_uniwork_ai@5 %s section differs from @4: %s", m.section, firstDiff(p4.Sections[m.section], p5.Sections[m.section]))
+		}
+		if sv := officeGoldenVersion(t, 5, m.section); sv != p5.Sections[m.section] {
+			t.Errorf("v5 %s golden drift: %s", m.section, firstDiff(sv, p5.Sections[m.section]))
+		}
+		got5, err := officeAssemble(p5, m.module)
+		if err != nil {
+			t.Fatalf("v5 %s: %v", m.module, err)
+		}
+		got4, err := officeAssemble(p4, m.module)
+		if err != nil {
+			t.Fatalf("v4 %s: %v", m.module, err)
+		}
+		if got5 != got4 {
+			t.Errorf("v5 %s assembled differs from v4: %s", m.module, firstDiff(got4, got5))
+		}
+	}
+	if _, pinned := officePackPins["office_uniwork_ai@5"]; !pinned {
+		t.Error("office_uniwork_ai@5 has no entry in officePackPins")
+	}
+	for _, version := range []int{1, 2, 3, 4} {
+		key := fmt.Sprintf("office_uniwork_ai@%d", version)
+		pv, ok := LookupPrompt(key)
+		if !ok {
+			t.Fatalf("%s is not registered", key)
+		}
+		if cv := officeGoldenVersion(t, version, "common"); cv != pv.System {
+			t.Errorf("frozen v%d common golden drift: %s", version, firstDiff(cv, pv.System))
+		}
+		for _, m := range officeModuleSections {
+			if sv := officeGoldenVersion(t, version, m.section); sv != pv.Sections[m.section] {
+				t.Errorf("frozen v%d %s golden drift: %s", version, m.section, firstDiff(sv, pv.Sections[m.section]))
+			}
+		}
+	}
+}
+
 // TestOfficeSystemPromptUnknownModule: the module key is the contract; an
 // unroutable name is an error, never a silently defaulted section.
 func TestOfficeSystemPromptUnknownModule(t *testing.T) {
