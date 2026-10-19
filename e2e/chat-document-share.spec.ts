@@ -112,7 +112,11 @@ test("staff sends a docx in a DM at comment level; the manager comments and staf
   await expect(pane).toBeVisible({ timeout: 30_000 });
 
   // Step 3 — the manager writes into the Discussion (the comment-level grant
-  // is write access to discussion, so the composer is not view-only).
+  // is write access to discussion, so the composer is not view-only). A docx
+  // opens the panel on its anchored Comments tab, whose threads start in the
+  // editor; the Discussion composer lives on the other tab.
+  await expect(pane.getByTestId("document-comments-view-only")).toHaveCount(0);
+  await pane.getByRole("tab", { name: /^(Thảo luận|Discussion)$/ }).click();
   const composer = pane.getByTestId("document-discussion-composer");
   const box = composer.getByRole("textbox", { name: /Viết vào thảo luận|Write in the discussion/ });
   await box.click();
@@ -126,5 +130,6 @@ test("staff sends a docx in a DM at comment level; the manager comments and staf
   await page.getByRole("button", { name: /^(Bình luận|Comments|Thảo luận|Discussion)$/ }).click();
   const staffPane = page.getByTestId("document-comments-pane");
   await expect(staffPane).toBeVisible({ timeout: 30_000 });
+  await staffPane.getByRole("tab", { name: /^(Thảo luận|Discussion)$/ }).click();
   await expect(staffPane.getByText(COMMENT_TEXT).first()).toBeVisible({ timeout: 30_000 });
 });

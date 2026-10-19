@@ -74,13 +74,30 @@ async function createWorkspaceInviting(page: Page, email: string) {
   await page.getByRole("button", { name: "Để sau" }).click();
 }
 
-/** Sends one staged file through the composer (attach → send). */
+/**
+ * Sends one staged file through the composer (attach → send) as a plain file.
+ * A text/plain file is in the document subset, so in a room that may send
+ * documents the share-level picker shows and its default would send a shared
+ * document (no download button); "Chỉ gửi tệp" keeps it a plain file.
+ */
 async function sendFile(page: Page, name: string, mimeType: string, body: string) {
   await page.locator('input[type="file"]').setInputFiles({
     name,
     mimeType,
     buffer: Buffer.from(body, "utf8"),
   });
+  // The picker follows the room detail's can_send_document, so it can land a
+  // beat after the chip; a room that does not allow documents never shows it.
+  const picker = page.getByRole("button", { name: "Quyền cho mọi người trong cuộc trò chuyện" });
+  const pickerShown = await picker.waitFor({ state: "visible", timeout: 5_000 }).then(
+    () => true,
+    () => false,
+  );
+  if (pickerShown) {
+    await picker.click();
+    await page.getByRole("menuitemradio", { name: "Chỉ gửi tệp" }).click();
+    await expect(picker).toHaveText(/Chỉ gửi tệp/);
+  }
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
 }
 
