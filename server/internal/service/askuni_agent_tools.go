@@ -68,6 +68,30 @@ func agentSchema(props map[string]agentProp) json.RawMessage {
 func strArg(desc string) agentProp  { return agentProp{"string", desc} }
 func boolArg(desc string) agentProp { return agentProp{"boolean", desc} }
 
+// agentRunFunc is agentTool.run.
+type agentRunFunc = func(ctx context.Context, tc ai.ToolContext, args json.RawMessage) ([]agentItem, error)
+
+// errAskReadsNotWired is a server fault, never the model's: main did not call
+// SetReadTools.
+var errAskReadsNotWired = errors.New("ask uni: read tools not wired")
+
+// needsReads guards a tool that reads through the MCP connector's methods.
+func (s *AskUNIService) needsReads(run agentRunFunc) agentRunFunc {
+	return func(ctx context.Context, tc ai.ToolContext, args json.RawMessage) ([]agentItem, error) {
+		if s.reads == nil {
+			return nil, errAskReadsNotWired
+		}
+		return run(ctx, tc, args)
+	}
+}
+
+// moreNote ends a list the service cut short. The loop does not number it as
+// a source: it has no Key.
+func moreNote(text string) agentItem { return agentItem{Kind: "note", Text: text} }
+
+// oneLine keeps a body on its "- author (date): body" line.
+func oneLine(v string) string { return strings.Join(strings.Fields(v), " ") }
+
 // agentError is the code a tool failure reads as, when the model can act on
 // it: absent or not the asker's to see (one answer for both), a bad argument
 // with what to fix, or a refusal code such as documents_unavailable. Anything
@@ -87,7 +111,7 @@ func agentError(err error) (string, bool) {
 	return "", false
 }
 
-func readTool(name, desc string, props map[string]agentProp, run func(context.Context, ai.ToolContext, json.RawMessage) ([]agentItem, error)) agentTool {
+func readTool(name, desc string, props map[string]agentProp, run agentRunFunc) agentTool {
 	return agentTool{
 		Tool: ai.Tool{Name: name, Description: desc, Kind: ai.ToolRead, Risk: ai.RiskLow, Schema: agentSchema(props), Strict: true},
 		run: func(ctx context.Context, tc ai.ToolContext, args json.RawMessage) ([]agentItem, error) {
@@ -127,27 +151,27 @@ func (s *AskUNIService) agentTools() []agentTool {
 				"due_to":      strArg("Due on or before this date, YYYY-MM-DD; \"\" for no bound."),
 				"overdue":     boolArg("true for overdue tasks only."),
 				"limit":       {"integer", "How many tasks, 1-50; 0 for 20."},
-			}, s.agentListTasks),
+			}, s.needsReads(s.agentListTasks)),
 		readTool("get_task", "One task with its description and latest comments.",
-			map[string]agentProp{"task": strArg("The task's id or its PREFIX-N reference.")}, s.agentGetTask),
+			map[string]agentProp{"task": strArg("The task's id or its PREFIX-N reference.")}, s.needsReads(s.agentGetTask)),
 		readTool("list_meetings", "Meetings of the workspace starting between two times, in calendar order.",
 			map[string]agentProp{
 				"from":         strArg("ISO 8601 with offset, e.g. 2026-10-15T00:00:00+07:00; \"\" for 7 days before now (or 14 days before to)."),
 				"to":           strArg("ISO 8601 with offset; \"\" for 7 days after now (or 14 days after from). At most 92 days after from."),
 				"hosted_by_me": boolArg("true for meetings the user asking hosts."),
 				"status":       strArg("SCHEDULED, IN_PROGRESS, ENDED, CANCELED or MISSED; \"\" for any."),
-			}, s.agentListMeetings),
+			}, s.needsReads(s.agentListMeetings)),
 		readTool("get_meeting", "One meeting with its attendees, description and AI summary (decisions and action items). No transcript.",
-			map[string]agentProp{"meeting_id": strArg("The meeting's id.")}, s.agentGetMeeting),
+			map[string]agentProp{"meeting_id": strArg("The meeting's id.")}, s.needsReads(s.agentGetMeeting)),
 		readTool("list_projects", "Projects of the workspace, open ones unless asked otherwise, with task counts.",
 			map[string]agentProp{
 				"query":          strArg("Words in the title or description; \"\" lists all."),
 				"include_closed": boolArg("true to include completed and cancelled projects."),
-			}, s.agentListProjects),
+			}, s.needsReads(s.agentListProjects)),
 		readTool("get_project", "One project with its description and its first 20 tasks.",
-			map[string]agentProp{"project_id": strArg("The project's id.")}, s.agentGetProject),
+			map[string]agentProp{"project_id": strArg("The project's id.")}, s.needsReads(s.agentGetProject)),
 		readTool("get_document", "One document: a page as Markdown, a text file's text, or another file's name and type.",
-			map[string]agentProp{"document_id": strArg("The document's id.")}, s.agentGetDocument),
+			map[string]agentProp{"document_id": strArg("The document's id.")}, s.needsReads(s.agentGetDocument)),
 		readTool("list_chat_rooms", "Chat rooms the user belongs to in the workspace: name, type and last activity.", nil, s.agentListChatRooms),
 		readTool("read_chat_room", "The latest 30 messages of one chat room the user may read.",
 			map[string]agentProp{
@@ -155,7 +179,7 @@ func (s *AskUNIService) agentTools() []agentTool {
 				"query":   strArg("Keep only messages with these words; \"\" keeps all."),
 			}, s.agentReadChatRoom),
 		readTool("list_members", "Members of the workspace: name, role and user id.",
-			map[string]agentProp{"query": strArg("Part of a name; \"\" lists everyone.")}, s.agentListMembers),
+			map[string]agentProp{"query": strArg("Part of a name; \"\" lists everyone.")}, s.needsReads(s.agentListMembers)),
 		readTool("member_workload", "Open and overdue task counts per member of the workspace, most overdue first.", nil, s.agentMemberWorkload),
 	}
 }
@@ -262,6 +286,9 @@ func (s *AskUNIService) agentListTasks(ctx context.Context, tc ai.ToolContext, r
 	for _, t := range list.Tasks {
 		out = append(out, s.taskItem(l, t, t.Excerpt))
 	}
+	if list.Truncated {
+		out = append(out, moreNote("More tasks match than are listed; narrow the filters, or raise limit up to 50."))
+	}
 	return out, nil
 }
 
@@ -269,6 +296,9 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 	var a struct{ Task string }
 	if err := agentArgs(raw, &a); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(a.Task) == "" {
+		return nil, McpInvalidArgs{Msg: "task is required"}
 	}
 	t, err := s.reads.GetTask(ctx, principalOf(tc), tc.WorkspaceID, a.Task)
 	if err != nil {
@@ -288,7 +318,7 @@ func (s *AskUNIService) agentGetTask(ctx context.Context, tc ai.ToolContext, raw
 		}
 		b.WriteString("Comments:")
 		for _, c := range t.Comments {
-			fmt.Fprintf(&b, "\n- %s (%s): %s", c.Author, c.CreatedAt[:len("2006-01-02")], c.Body)
+			fmt.Fprintf(&b, "\n- %s (%s): %s", c.Author, c.CreatedAt[:len("2006-01-02")], oneLine(c.Body))
 		}
 	}
 	return []agentItem{s.taskItem(l, t, b.String())}, nil
@@ -335,6 +365,9 @@ func (s *AskUNIService) agentListMeetings(ctx context.Context, tc ai.ToolContext
 	for _, m := range list.Meetings {
 		out = append(out, s.meetingItem(names, m, "", m.Excerpt))
 	}
+	if list.Truncated {
+		out = append(out, moreNote("More meetings match than are listed; narrow from and to, or filter by status."))
+	}
 	return out, nil
 }
 
@@ -378,18 +411,20 @@ func (s *AskUNIService) agentListProjects(ctx context.Context, tc ai.ToolContext
 		return nil, err
 	}
 	in.WorkspaceID = tc.WorkspaceID
+	// A search honours include_closed itself; a plain list drops closed
+	// projects before its cut, so open ones past it are not lost.
+	in.openOnly = in.Query == "" && !in.IncludeClosed
 	list, err := s.reads.ListProjects(ctx, principalOf(tc), in)
 	if err != nil {
 		return nil, err
 	}
 	names := s.memberNames(ctx, tc)
-	out := make([]agentItem, 0, len(list.Projects))
+	out := make([]agentItem, 0, len(list.Projects)+1)
 	for _, p := range list.Projects {
-		// A search honours include_closed itself; a plain list returns every status.
-		if in.Query == "" && !in.IncludeClosed && (p.Status == "completed" || p.Status == "cancelled") {
-			continue
-		}
 		out = append(out, s.projectItem(names, p, p.Excerpt))
+	}
+	if list.Truncated {
+		out = append(out, moreNote("More projects match than are listed; narrow the query."))
 	}
 	return out, nil
 }
@@ -499,7 +534,7 @@ func (s *AskUNIService) agentReadChatRoom(ctx context.Context, tc ai.ToolContext
 		if a.Query != "" && score(m.Body, ts) == 0 {
 			continue
 		}
-		body := m.Body
+		body := oneLine(m.Body)
 		if body == "" {
 			body = "[" + m.Kind + "]"
 		}
@@ -542,14 +577,15 @@ func (s *AskUNIService) agentListMembers(ctx context.Context, tc ai.ToolContext,
 	for _, m := range list.Members {
 		fmt.Fprintf(&b, "- %s (%s), user id %s\n", m.Name, m.Role, m.UserID)
 	}
-	if list.Truncated {
-		b.WriteString("More members match; narrow the query.\n")
-	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-	return []agentItem{{Kind: "members", Key: base + "/members", Title: "Thành viên workspace", Href: base + "/members", Text: strings.TrimSuffix(b.String(), "\n")}}, nil
+	out := []agentItem{{Kind: "members", Key: base + "/members", Title: "Thành viên workspace", Href: base + "/members", Text: strings.TrimSuffix(b.String(), "\n")}}
+	if list.Truncated {
+		out = append(out, moreNote("More members match; narrow the query."))
+	}
+	return out, nil
 }
 
 // agentMemberWorkload counts open tasks per assignee. The query is not a

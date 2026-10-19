@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -152,6 +154,37 @@ func TestAskAgentToolsStayInTheAskedWorkspace(t *testing.T) {
 			t.Errorf("get_task of %s = %+v; want error: not_found", name, items)
 		}
 	}
+	// A project, a document and a chat room of workspace two and of
+	// organization B, each holding text a leak would show.
+	docs := x.docs(t)
+	for _, other := range []struct {
+		name, userID, workspaceID string
+	}{{"workspace two", x.ua.ID, v2.Workspace.ID}, {"organization B", x.ub.ID, wsB.ID}} {
+		pr, err := s.tasks.CreateProject(ctx, Human(other.userID), other.workspaceID, CreateProjectInput{Title: "Dự án mật " + other.name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc, err := docs.CreatePage(ctx, Human(other.userID), other.workspaceID, CreatePageInput{Title: "Tài liệu mật " + other.name, Visibility: documentVisibilityWorkspace, Content: json.RawMessage(mcpTestPage)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		room, err := s.chat.CreateChannel(ctx, other.userID, other.workspaceID, CreateChannelInput{Name: "kenh-mat", Visibility: "public"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.chat.SendRoomMessage(ctx, other.userID, other.workspaceID, room.ID, SendChatMessageInput{Body: "Tin mật " + other.name}); err != nil {
+			t.Fatal(err)
+		}
+		for tool, args := range map[string]string{
+			"get_project":    `{"project_id":"` + pr.ID + `"}`,
+			"get_document":   `{"document_id":"` + doc.Document.ID + `"}`,
+			"read_chat_room": `{"room_id":"` + room.ID + `","query":""}`,
+		} {
+			if items := runAgentTool(t, s, tc, tool, args); !isError(items, "not_found") {
+				t.Errorf("%s of %s = %+v; want error: not_found", tool, other.name, items)
+			}
+		}
+	}
 	if items := runAgentTool(t, s, tc, "get_meeting", `{"meeting_id":"`+meeting2.ID+`"}`); !isError(items, "not_found") {
 		t.Errorf("get_meeting of workspace two = %+v", items)
 	}
@@ -213,7 +246,7 @@ func TestAskAgentChatReadDoesNotMarkRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, body := range []string{"Báo giá ACME gửi chưa?", "Nhớ hạn thứ sáu"} {
+	for _, body := range []string{"Báo giá ACME gửi chưa?", "Nhớ hạn\nthứ sáu"} {
 		if _, err := s.chat.SendRoomMessage(ctx, x.ub.ID, x.w.ID, dm.ID, SendChatMessageInput{Body: body}); err != nil {
 			t.Fatal(err)
 		}
@@ -249,8 +282,13 @@ func TestAskAgentChatReadDoesNotMarkRead(t *testing.T) {
 	}
 
 	all := runAgentTool(t, s, tc, "read_chat_room", `{"room_id":"`+dm.ID+`","query":""}`)
-	if len(all) != 1 || !strings.Contains(all[0].Text, "ACME") || !strings.Contains(all[0].Text, "thứ sáu") {
+	if len(all) != 1 || !strings.Contains(all[0].Text, "ACME") || !strings.Contains(all[0].Text, "): Nhớ hạn thứ sáu") {
 		t.Fatalf("read_chat_room = %+v", all)
+	}
+	for _, line := range strings.Split(all[0].Text, "\n") {
+		if !strings.HasPrefix(line, "- ") {
+			t.Errorf("a message spills over its line: %q", line)
+		}
 	}
 	some := runAgentTool(t, s, tc, "read_chat_room", `{"room_id":"`+dm.ID+`","query":"ACME"}`)
 	if len(some) != 1 || !strings.Contains(some[0].Text, "ACME") || strings.Contains(some[0].Text, "thứ sáu") || some[0].Key != all[0].Key {
@@ -363,5 +401,61 @@ func TestAskAgentToolsReadEveryKind(t *testing.T) {
 	}
 	if items := runAgentTool(t, s, tc, "list_members", `{"query":""}`); len(items) != 1 || !strings.Contains(items[0].Text, "- A (") || !strings.Contains(items[0].Text, x.ua.ID) {
 		t.Errorf("list_members = %+v", items)
+	}
+
+	if _, err := s.tasks.AddComment(ctx, Human(x.ua.ID), x.taskID, "dòng một\ndòng hai"); err != nil {
+		t.Fatal(err)
+	}
+	if items := runAgentTool(t, s, tc, "get_task", `{"task":"`+x.taskID+`"}`); len(items) != 1 || !strings.Contains(items[0].Text, "\nComments:\n- A (") || !strings.Contains(items[0].Text, "): dòng một dòng hai") {
+		t.Errorf("get_task with a two-line comment = %+v", items)
+	}
+	if items := runAgentTool(t, s, tc, "get_task", `{"task":" "}`); !isError(items, "invalid_args: task is required") {
+		t.Errorf("get_task without a task = %+v", items)
+	}
+}
+
+// A list the service cut ends with a note the loop does not number (no Key),
+// telling the model to narrow it. Closed projects are dropped before the cut,
+// so an open project past fifty closed ones is still listed.
+func TestAskAgentListsSayWhenCut(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	ctx := context.Background()
+	x.task(t, x.ua.ID, x.w.ID, "Việc thứ hai")
+	items := runAgentTool(t, s, tc, "list_tasks", `{"status":"","project_id":"","assignee_id":"","priority":"","due_from":"","due_to":"","overdue":false,"limit":1}`)
+	if len(items) != 2 || items[0].Kind != "task" || items[1].Kind != "note" || items[1].Key != "" || items[1].Href != "" || !strings.Contains(items[1].Text, "narrow") {
+		t.Fatalf("list_tasks cut at 1 = %+v", items)
+	}
+
+	open, err := s.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: "Dự án đang chạy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Newer than the open one, so a list ordered by update puts them first.
+	for i := range mcpMaxList {
+		if _, err := s.tasks.CreateProject(ctx, Human(x.ua.ID), x.w.ID, CreateProjectInput{Title: fmt.Sprintf("Dự án xong %d", i), Status: "completed"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if items := runAgentTool(t, s, tc, "list_projects", `{"query":"","include_closed":false}`); len(items) != 1 || items[0].Title != open.Title {
+		t.Errorf("open projects behind %d closed ones = %+v", mcpMaxList, items)
+	}
+	all := runAgentTool(t, s, tc, "list_projects", `{"query":"","include_closed":true}`)
+	if len(all) != mcpMaxList+1 || all[mcpMaxList].Kind != "note" || all[mcpMaxList].Key != "" {
+		t.Errorf("every project, cut at %d = %d items, last %+v", mcpMaxList, len(all), all[len(all)-1])
+	}
+}
+
+// Without SetReadTools a tool that reads through the connector is a server
+// fault, never a panic and never an answer the model could act on.
+func TestAskAgentToolsNeedTheReadPath(t *testing.T) {
+	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_members"}
+	for _, tool := range (&AskUNIService{}).agentTools() {
+		if !slices.Contains(needs, tool.Name) {
+			continue
+		}
+		items, err := tool.run(context.Background(), ai.ToolContext{}, json.RawMessage(`{}`))
+		if !errors.Is(err, errAskReadsNotWired) || items != nil {
+			t.Errorf("%s without read tools = %+v, %v", tool.Name, items, err)
+		}
 	}
 }

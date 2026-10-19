@@ -80,6 +80,9 @@ type mcpListProjectsIn struct {
 	Query         string `json:"query"`
 	Status        string `json:"status"`
 	IncludeClosed bool   `json:"include_closed"`
+	// openOnly drops completed and cancelled projects from a plain list before
+	// it is cut. Ask UNI's list_projects sets it; no MCP input can.
+	openOnly bool
 }
 
 func (s *McpToolService) ListProjects(ctx context.Context, p McpPrincipal, in mcpListProjectsIn) (McpProjectList, error) {
@@ -113,6 +116,15 @@ func (s *McpToolService) ListProjects(ctx context.Context, p McpPrincipal, in mc
 		var err error
 		if rows, err = s.ask.tasks.ListProjects(ctx, actor, in.WorkspaceID, ListProjectsFilter{Status: optString(in.Status)}); err != nil {
 			return McpProjectList{}, err
+		}
+		if in.openOnly {
+			open := rows[:0]
+			for _, pr := range rows {
+				if pr.Status != "completed" && pr.Status != "cancelled" {
+					open = append(open, pr)
+				}
+			}
+			rows = open
 		}
 		if truncated = len(rows) > mcpMaxList; truncated {
 			rows = rows[:mcpMaxList]
