@@ -35,10 +35,14 @@ export function ChatComposerShareLevelPicker({
   value,
   onChange,
   disabled,
+  allowFileChoice = true,
 }: {
   value: ChatComposerShareChoice;
   onChange: (choice: ChatComposerShareChoice) => void;
   disabled?: boolean;
+  /** False while a staged file cannot go by the plain route — the levels
+      are the only real choices, so "Chỉ gửi tệp" hides (RFC-02). */
+  allowFileChoice?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -75,10 +79,14 @@ export function ChatComposerShareLevelPicker({
                 {choiceLabel(t, level)}
               </DropdownMenuRadioItem>
             ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioItem value="file" className="pointer-coarse:min-h-11">
-              {t("chat.composer_send_as_file")}
-            </DropdownMenuRadioItem>
+            {allowFileChoice ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioItem value="file" className="pointer-coarse:min-h-11">
+                  {t("chat.composer_send_as_file")}
+                </DropdownMenuRadioItem>
+              </>
+            ) : null}
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
       </DropdownMenuContent>

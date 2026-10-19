@@ -24,6 +24,7 @@ import {
   CHAT_DOCUMENT_MAX_LABEL,
   CHAT_FILE_ACCEPT,
   CHAT_FILE_MAX_LABEL,
+  isChatAcceptedFile,
   isChatDocumentShareableFile,
   isChatDocumentTooLarge,
   isChatFileTooLarge,
@@ -114,9 +115,20 @@ export function ChatComposer({
     Boolean(onSendDocument) &&
     stagedFiles.length > 0 &&
     stagedFiles.every((file) => isChatDocumentShareableFile(file));
+  // "Chỉ gửi tệp" is offered only while every staged file could also go by
+  // the plain route — a document-only kind or a file over the 25 MB chat
+  // ceiling would only earn a 415/413 there (RFC-02).
+  const sharePickerAllowsFile =
+    showSharePicker &&
+    stagedFiles.every((file) => isChatAcceptedFile(file) && !isChatFileTooLarge(file));
   useEffect(() => {
-    if (!showSharePicker) setShareChoice("comment");
-  }, [showSharePicker]);
+    // Back to the level default when the picker hides, and off "file" when
+    // the plain route stops being a real choice (a stale "file" choice
+    // would otherwise route a document-only kind to the refusing route).
+    if (!showSharePicker || (!sharePickerAllowsFile && shareChoice === "file")) {
+      setShareChoice("comment");
+    }
+  }, [showSharePicker, sharePickerAllowsFile, shareChoice]);
 
   useImperativeHandle(ref, () => ({
     focus: () => window.requestAnimationFrame(() => textareaRef.current?.focus()),
@@ -220,15 +232,14 @@ export function ChatComposer({
       void (async () => {
         for (const file of files) {
           try {
-            if (
-              shareChoice === "file" ||
-              !canSendDocument ||
-              !onSendDocument ||
-              !isChatDocumentShareableFile(file)
-            ) {
-              await onSendFile(file);
-            } else {
+            // The document route runs only from the level the user saw and
+            // chose on a visible picker (RFC-01): a mixed batch or a hidden
+            // picker sends every file by the plain route, so no grant is
+            // ever minted from a choice the user never made.
+            if (showSharePicker && shareChoice !== "file") {
               await onSendDocument(file, shareChoice);
+            } else {
+              await onSendFile(file);
             }
           } catch {
             // The sender reports its own failure; the next file still goes.
@@ -294,7 +305,12 @@ export function ChatComposer({
         </div>
       ) : null}
       {showSharePicker ? (
-        <ChatComposerShareLevelPicker value={shareChoice} onChange={setShareChoice} disabled={disabled} />
+        <ChatComposerShareLevelPicker
+          value={shareChoice}
+          onChange={setShareChoice}
+          disabled={disabled}
+          allowFileChoice={sharePickerAllowsFile}
+        />
       ) : null}
       {composerPriority ? (
         <div>

@@ -398,4 +398,77 @@ describe("ChatComposer document share picker", () => {
     expect(onSendDocument).toHaveBeenCalledTimes(3);
     unmount();
   });
+
+  it("labels the picker's default choice Nhận xét", () => {
+    renderComposer({ canSendDocument: true, onSendDocument: vi.fn() });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [docx()] } });
+    // The closed trigger itself reads the level it will send at.
+    expect(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).toHaveTextContent("Nhận xét");
+  });
+
+  it("sends a mixed batch (pdf + png) as plain files and never shows the picker", async () => {
+    // RFC-01: the picker is hidden the moment one staged file cannot be a
+    // document, and nothing may take the document route without that visible
+    // level choice — the share grant has to be a decision the user saw.
+    const onSendDocument = vi.fn();
+    const onSendFile = vi.fn();
+    renderComposer({ canSendDocument: true, onSendDocument, onSendFile });
+    const pdf = new File(["%PDF"], "bao-cao.pdf", { type: "application/pdf" });
+    const png = new File(["png"], "anh.png", { type: "image/png" });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [pdf, png] },
+    });
+    expect(screen.queryByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(onSendFile).toHaveBeenCalledTimes(2));
+    expect(onSendFile).toHaveBeenNthCalledWith(1, pdf);
+    expect(onSendFile).toHaveBeenNthCalledWith(2, png);
+    expect(onSendDocument).not.toHaveBeenCalled();
+  });
+
+  it("offers no 'Chỉ gửi tệp' choice when a staged file cannot go by the plain route", async () => {
+    // RFC-02: a document-only kind and a pdf over the 25 MB chat ceiling both
+    // take the document route or nothing — the plain route would only refuse.
+    const cases: { name: string; file: File }[] = [
+      {
+        name: "a document-only kind (.pptx)",
+        file: new File(
+          ["x"],
+          "trinh-bay.pptx",
+          { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+        ),
+      },
+      {
+        name: "a pdf over the 25 MB chat ceiling",
+        file: (() => {
+          const f = new File(["x"], "nang.pdf", { type: "application/pdf" });
+          Object.defineProperty(f, "size", { value: 26 * 1024 * 1024 });
+          return f;
+        })(),
+      },
+    ];
+    for (const { name, file } of cases) {
+      const { unmount } = renderComposer({ canSendDocument: true, onSendDocument: vi.fn(), onSendFile: vi.fn() });
+      fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [file] } });
+      fireEvent.click(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện"));
+      expect(
+        await screen.findByRole("menuitemradio", { name: "Chỉ xem" }),
+        `${name}: the levels still show`,
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("menuitemradio", { name: "Chỉ gửi tệp" }),
+        `${name}: no file choice`,
+      ).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("keeps the 'Chỉ gửi tệp' choice for a file the plain route accepts", async () => {
+    renderComposer({ canSendDocument: true, onSendDocument: vi.fn(), onSendFile: vi.fn() });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [new File(["%PDF"], "bao-cao.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện"));
+    expect(await screen.findByRole("menuitemradio", { name: "Chỉ gửi tệp" })).toBeInTheDocument();
+  });
 });
