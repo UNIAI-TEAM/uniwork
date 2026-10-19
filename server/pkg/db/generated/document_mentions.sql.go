@@ -11,6 +11,45 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const listActiveOrganizationMemberIds = `-- name: ListActiveOrganizationMemberIds :many
+SELECT user_id FROM organization_members
+WHERE organization_id = $1::text
+  AND deactivated_at IS NULL
+  AND user_id = ANY($2::text[])
+`
+
+type ListActiveOrganizationMemberIdsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	UserIds        []string `json:"user_ids"`
+}
+
+// The mentioned ids a page-body mention may notify (UNI-1968,
+// BODY-MENTION-NOTIFY): those that are an active human member of the
+// document's own organization. A deactivated member is out - both membership
+// gates refuse them (F-03) - and an agent id is out with them, because an
+// agent is never an organization_members row. The service reads the ids from
+// the page content and passes them in, so the query only filters; the
+// organization is the one on the document row the caller already authorized.
+func (q *Queries) ListActiveOrganizationMemberIds(ctx context.Context, arg ListActiveOrganizationMemberIdsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveOrganizationMemberIds, arg.OrganizationID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentMentionCandidates = `-- name: ListDocumentMentionCandidates :many
 
 SELECT

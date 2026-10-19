@@ -817,6 +817,19 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			out = view
 			return err
 		}
+		// A page body that newly names somebody notifies them (UNI-1968): the
+		// save writes one event per person, on the same audit row as the
+		// change, so an autosave still fans out no document.updated frame
+		// (C-01 §5.1) while a mention still reaches its reader.
+		var bodyMentionRecipients []string
+		bodyMentionsAdded := 0
+		if contentChanged && doc.Kind == DocumentKindPage {
+			recipients, named, err := s.newBodyMentionRecipients(ctx, q, actor, doc, doc.Content, page.content)
+			if err != nil {
+				return err
+			}
+			bodyMentionRecipients, bodyMentionsAdded = recipients, named
+		}
 		updated := doc
 		if metaChanged || contentChanged {
 			next.SearchText = documentSearchText(next.Title, next.ContentText)
@@ -853,6 +866,12 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
 				}})
 			}
+			for _, uid := range bodyMentionRecipients {
+				emit = append(emit, audit.Event{Topic: "document.body_mentioned", Payload: map[string]string{
+					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+					"user_id": uid, "author_id": actor.ID,
+				}})
+			}
 			if err := auditRecorder.Record(ctx, q, audit.Entry{
 				OrganizationID: updated.OrganizationID,
 				WorkspaceID:    updated.WorkspaceID,
@@ -865,6 +884,9 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 					"revision":        strconv.FormatInt(updated.Revision, 10),
 					"content_changed": contentChanged,
 					"content_bytes":   updated.ContentBytes,
+					// How many people this save newly named in the page body,
+					// before the per-save cap (UNI-1968).
+					"mentions_added": bodyMentionsAdded,
 				},
 			}, emit...); err != nil {
 				return err
