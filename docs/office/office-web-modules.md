@@ -483,8 +483,9 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, fork main `b5da4d4dc` (`0.1.0-b5da4d4`, the provisional REPIN-4 pin of
-UNI-1919: a final re-pin to the fork main that carries UNI-1989 follows with the same steps), replacing `0.1.0-9f867d9`
+All six modules are pinned to one fork commit, fork main `b1cbd5db4` (`0.1.0-b1cbd5d`, the current and final REPIN-4 pin of
+UNI-1919: AIPANEL-FU slice A, UNI-1984 and UNI-1989), replacing `0.1.0-b5da4d4` (the provisional REPIN-4 pin: fork main
+`b5da4d4dc`, slice A and UNI-1984 only, no root ever shipped it as final), `0.1.0-9f867d9`
 (REPIN-3: fork main `9f867d992`), `0.1.0-3d4ccd1` (an unmerged intermediate of REPIN-3: fork main `3d4ccd18f`, built and pinned on the REPIN-3 lane
 but never merged into the D root, so no root ever shipped it) and `0.1.0-55b587b` (the second REPIN-2 pin: fork main `55b587bfe`, the SVR-1 fix plus the fork-main merges up to
 `c5bf9f411`), `0.1.0-82c8381` (the first REPIN-2 pin: UNI-1919 `uniworkBoundForAi` on the web frames + UNI-1920, fork main
@@ -513,11 +514,13 @@ asked for) and slice C (Ctrl/Cmd+P inside the HTML Preview is relayed once to th
 the frame-host protocol); `b5da4d4dc` adds over `9f867d992` AIPANEL-FU slice A (the AI composer and model picker CSS:
 `packages/ui/src/ai-model-picker.css` and the html, markdown and pdf `styles.css`, with the fork's `ai-composer-390.spec.ts`) and
 UNI-1984 (the PDF frame's `App.tsx`, `edit-state.ts` and `uniwork-save.ts`: a PDF save with nothing changed is a no-op, plus a
-queued-save belt; the fork test host and `pdf-web.spec.ts` follow), no frame protocol change), UNI-1920 (the locked-out Docs "Save as a copy" the
+queued-save belt; the fork test host and `pdf-web.spec.ts` follow); `b1cbd5db4` adds over `b5da4d4dc` UNI-1989 (Sheets only:
+`web/modules/sheets/engine/{cached-values,stale-values,save-plan,wasm-transport}.ts`: a web save keeps the cached value of the
+formulas it did not change, so an error or float cached value stays as it was; no frame protocol change), UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
 frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 frame protocol and UI events (with
 `protocolSha256` matching the vendored `packages/core/office/docs-frame-{protocol,endpoint,host}.ts`; the fork touched
-nothing under `web/docs/protocol` between `82c8381e1` and `b5da4d4dc` (and only its README between `5932073ee` and
+nothing under `web/docs/protocol` between `82c8381e1` and `b1cbd5db4` (and only its README between `5932073ee` and
 `82c8381e1`), so the protocol hash and the `f6395d85d` vendored headers are unchanged), the AI model picker that keeps a
 provider with an empty model list (`7888df06c`, the UniWork AI row; the S7-S9 UX floor checks no longer skip), the UXF-01/08/09
 fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-1824) web-frame UX floor fixes (UXF-03 Docs S5
@@ -526,8 +529,8 @@ fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-18
 UXF-07 full-width S5 below 768 px, UXF-10 fixed window live nodes created at frame init, and the `ConflictIo.saveCopy` contract
 for UXF-02), the G8-11 Discussion panel web side, the G6-09 AI edit-undo tables, and the DOC-05 comment level,
 `comments.shareView` and `canActOnComment` root author. Built clean (no `-dirty` suffix) with `npm run build:web -- --all` in a
-detached worktree of `b5da4d4dc` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
-checksum file), published at `web-0.1.0-b5da4d4` (`dist-web-0.1.0-b5da4d4.tar.gz`, sha256 `b1fc88e6...1950`), and
+detached worktree of `b1cbd5db4` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
+checksum file), published at `web-0.1.0-b1cbd5d` (`dist-web-0.1.0-b1cbd5d.tar.gz`, sha256 `b6d00851...f88a`), and
 written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` alongside `source.json`.
 UXF-03/04/05/06/07/10 have their expected-fail markers removed in `e2e/office-ux-floor.spec.ts` (since `0.1.0-5a72c13`, waiting
 for the cloud e2e run to confirm); UXF-02's marker left with UNI-1872 (`09da7ebb9`): the D web host supplies
@@ -547,7 +550,7 @@ headers did not change from `36e9e23`, only version, SHA and manifest digest. Wr
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
-Sizes of the `0.1.0-b5da4d4` bundles (only the `pdf` unpacked size and the `html` initial download moved, each by 0.01 MiB, against `0.1.0-9f867d9`):
+Sizes of the `0.1.0-b1cbd5d` bundles (identical to `0.1.0-b5da4d4`; only the `pdf` unpacked size and the `html` initial download moved, each by 0.01 MiB, against `0.1.0-9f867d9`):
 
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -615,7 +618,7 @@ is byte-different on linux-arm64 and linux-x64 from the same inputs, so the fork
 keeps one checksum line per platform
 (`apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256`) and
 `manifestSha256` in `sheets.pin.json` covers the wasm bytes. The pin is therefore
-the **linux-arm64 build made on bro** (wasm sha256 `bd3873bc...7445` at `b5da4d4`, `9f867d9`, `3d4ccd1`, `55b587b`, `82c8381`, `5932073`, `c9181fa`, `cc35602` and `5a72c13`, `e56985bc...27cd` up to `0d03b18`; the arm64
+the **linux-arm64 build made on bro** (wasm sha256 `bd3873bc...7445` at `b1cbd5d`, `b5da4d4`, `9f867d9`, `3d4ccd1`, `55b587b`, `82c8381`, `5932073`, `c9181fa`, `cc35602` and `5a72c13`, `e56985bc...27cd` up to `0d03b18`; the arm64
 line of the fork file). A tarball built on an x64 machine holds a different Sheets
 wasm, so `office-frame-sync` refuses it against this pin: publish the release
 asset from the bro tarball
