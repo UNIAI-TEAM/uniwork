@@ -162,8 +162,19 @@ describe("EAS project and release servers", () => {
     ["production", "UNICHAT_APP_URL"],
   ])("%s refuses to build without %s instead of shipping localhost", (env, missing) => {
     vi.stubEnv("UNICHAT_ENV", env);
+    vi.stubEnv("EAS_BUILD", "true");
     stubServers();
     vi.stubEnv(missing, undefined);
     expect(build).toThrow(missing);
+  });
+
+  // eas-cli reads the config once with only the profile env, to find the
+  // project id, before it loads the EAS environment that holds the URLs.
+  it("lets eas-cli read a release variant without its servers off the EAS builder", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    vi.stubEnv("EAS_BUILD", undefined);
+    vi.stubEnv("UNICHAT_API_URL", undefined);
+    vi.stubEnv("UNICHAT_APP_URL", undefined);
+    expect(build().extra).toMatchObject({ apiUrl: "", appUrl: "", eas: { projectId: expect.any(String) } });
   });
 });

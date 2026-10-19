@@ -38,11 +38,16 @@ function appEnv(): AppEnv {
   return value === "staging" || value === "production" ? value : "dev";
 }
 
-/** A release variant pointing at localhost is a broken store build: fail the build, not the phone. */
+/**
+ * A release variant pointing at localhost is a broken store build: fail the build, not the phone.
+ * Only on the EAS builder, though: eas-cli first reads this file locally with just the profile env,
+ * to find the project id, and loads the EAS environment holding the URLs only after that.
+ */
 function serverUrl(name: "UNICHAT_API_URL" | "UNICHAT_APP_URL", env: AppEnv, devDefault: string): string {
   const value = process.env[name];
   if (value) return value;
   if (env === "dev") return devDefault;
+  if (process.env.EAS_BUILD !== "true") return "";
   throw new Error(`${name} is required when UNICHAT_ENV=${env}`);
 }
 
