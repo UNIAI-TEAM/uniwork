@@ -31,4 +31,6 @@ npm run fixtures
 git diff --exit-code -- fixtures/generated
 command -v xmllint >/dev/null || { sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils; }
 extra=$(dpkg -l | awk '/^ii/ && $2 ~ /^fonts-/ {print $2}' | grep -vxE 'fonts-dejavu-core|fonts-liberation'); sudo apt-get purge -y $extra xfonts-base xfonts-cyrillic xfonts-encodings xfonts-scalable xfonts-terminus xfonts-utils >/dev/null 2>&1; rm -rf apps/sheets/native/xlsx-engine/target; npm test
+# test:web: the fork ci.yml runs it after npm test (ci.yml:211); added 2026-10-19 after UNI-1948 made fork main green on it.
+npm run test:web
 npm run fixtures -w @genoffice/sheets && npm run compat -w @genoffice/sheets
