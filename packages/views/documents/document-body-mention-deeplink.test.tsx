@@ -68,7 +68,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
 
     act(() => editorRef.current!.revealMention(ME));
 
-    await waitFor(() => expect(mention).toHaveClass("is-mention-reveal"));
+    await waitFor(() => expect(mention.closest(".node-mention")).toHaveClass("is-mention-reveal"));
     expect(mention).toHaveAttribute("data-mention-id", ME);
     // The reveal selects the mention node (EditorContent attaches the Editor).
     const editor = (document.querySelector("[contenteditable]") as HTMLElement & { editor?: Editor }).editor;
@@ -76,7 +76,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     expect(selection).toBeInstanceOf(NodeSelection);
     expect(selection && (selection as NodeSelection).node.attrs.id).toBe(ME);
     // The other person's mention is untouched.
-    expect(screen.getByText("@Bình")).not.toHaveClass("is-mention-reveal");
+    expect(screen.getByText("@Bình").closest(".node-mention")).not.toHaveClass("is-mention-reveal");
   });
 
   it("the workspace wiring reveals on the element the e2e asserts (RFM e2e r2)", async () => {
@@ -105,13 +105,45 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     await waitFor(() => expect(nav.searchParams.get("mention")).toBeNull());
   });
 
+  it("scrolls the mention element itself and flashes it as soon as the editor is ready (visual r1 F-01)", async () => {
+    // ProseMirror's own scrollIntoView starts from the DOM selection, which
+    // sits outside an unfocused read-only editor, so it never reaches the page
+    // scroller: the reveal must scroll the mention's DOM node. jsdom has no
+    // layout, so the spy proves the call and its target.
+    const scrolled: { el: Element; arg: unknown }[] = [];
+    Element.prototype.scrollIntoView = function scrollIntoView(this: Element, arg?: unknown) {
+      scrolled.push({ el: this, arg });
+    };
+    function Page({ body }: { body: unknown }) {
+      const editorRef = useRef<DocumentEditorHandle | null>(null);
+      const { onEditorReady } = useBodyMentionDeepLink({ doc: { kind: "page" } as Document, editorRef });
+      return (
+        <DocumentEditor ref={editorRef} wsId="ws1" documentId="d1" initialContent={body} content={body}
+          contentRevision="1" dirty={false} editable={false} onChange={vi.fn()} onUploadAsset={vi.fn()}
+          onReady={onEditorReady} />
+      );
+    }
+    const nav = fakeNav("/acme/team/documents/d1?mention=1");
+    render(wrapWithNav(<Page body={content([{ id: OTHER, label: "Bình" }, { id: ME, label: "An" }])} />, nav));
+
+    await waitFor(() => expect(nav.searchParams.get("mention")).toBeNull());
+    // No waiting for the chip to appear: the flash has to be on the node the
+    // editor selected the moment the reveal ran, even before its node view paints.
+    const selected = document.querySelector(".ProseMirror-selectednode");
+    expect(selected).not.toBeNull();
+    expect(selected).toHaveClass("is-mention-reveal");
+    expect(scrolled.map((s) => s.el)).toContain(selected);
+    expect(scrolled.find((s) => s.el === selected)?.arg).toMatchObject({ block: "center" });
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
   it("revealMention is a no-op when the reader has no mention in the page", async () => {
     const editorRef = { current: null as DocumentEditorHandle | null };
     const body = content([{ id: OTHER, label: "Bình" }]);
     render(editorView(editorRef, body, fakeNav("/acme/team/documents/d1?mention=1")));
     await screen.findByText("@Bình");
     act(() => editorRef.current!.revealMention(ME));
-    expect(screen.getByText("@Bình")).not.toHaveClass("is-mention-reveal");
+    expect(document.querySelector(".is-mention-reveal")).toBeNull();
     expect(document.querySelector(".ProseMirror-selectednode")).toBeNull();
   });
 
@@ -123,7 +155,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     render(editorView(editorRef, body, fakeNav("/acme/team/documents/d1?mention=1")));
     await screen.findByText("@An");
     act(() => editorRef.current!.revealMention(ME));
-    expect(screen.getByText("@An")).not.toHaveClass("is-mention-reveal");
+    expect(document.querySelector(".is-mention-reveal")).toBeNull();
     expect(document.querySelector(".ProseMirror-selectednode")).toBeNull();
   });
 

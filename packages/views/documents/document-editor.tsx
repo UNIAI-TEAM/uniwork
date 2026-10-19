@@ -135,6 +135,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const [pendingUploads, setPendingUploads] = useState(0);
     // Fires `is-mention-reveal` removal once; a second reveal retriggers it.
     const revealTimerRef = useRef<number | null>(null);
+    const revealedRef = useRef<HTMLElement | null>(null);
 
     onChangeRef.current = onChange;
     onAssetErrorRef.current = onAssetError;
@@ -279,19 +280,22 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
             return true;
           });
           if (pos < 0) return;
-          const target = editor.view.nodeDOM(pos) as HTMLElement | null;
-          // Node selection marks the node and scrolls it into view; the flash
-          // below fades on its own while the selection stays as the marker.
-          editor.chain().setNodeSelection(pos).scrollIntoView().run();
-          const flash = target?.querySelector(".mention") ?? null;
-          if (flash instanceof HTMLElement) {
-            if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
-            flash.classList.add("is-mention-reveal");
-            revealTimerRef.current = window.setTimeout(
-              () => flash.classList.remove("is-mention-reveal"),
-              2000,
-            );
-          }
+          const target = editor.view.nodeDOM(pos);
+          // The node selection marks the mention. ProseMirror's own
+          // scrollIntoView starts from the DOM selection, which sits outside an
+          // unfocused read-only editor and so never reaches the page scroller;
+          // scroll the node itself, which finds whichever ancestor scrolls.
+          editor.chain().setNodeSelection(pos).run();
+          if (!(target instanceof HTMLElement)) return;
+          target.scrollIntoView({ block: "center" });
+          // The flash goes on the node view's outer element, the one the editor
+          // selects: its inner `.mention` span paints after the first commit, so
+          // a class put there at reveal time would find nothing to land on.
+          if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
+          revealedRef.current?.classList.remove("is-mention-reveal");
+          target.classList.add("is-mention-reveal");
+          revealedRef.current = target;
+          revealTimerRef.current = window.setTimeout(() => target.classList.remove("is-mention-reveal"), 2000);
         },
       }),
       [editor],
