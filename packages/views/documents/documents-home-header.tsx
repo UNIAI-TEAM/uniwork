@@ -95,8 +95,8 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
       </DropdownMenu>
     ) : null;
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex min-w-0 flex-1 basis-64 items-center">
+    <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap">
+      <div className="flex min-w-0 flex-1 basis-64 items-center lg:flex-auto">
         {folderDoc ? (
           <FolderBreadcrumb
             path={[
@@ -129,7 +129,7 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
       <DocumentsSearchBox
         search={search}
         folderPlaceholder={Boolean(folderDoc)}
-        className="order-last basis-full sm:order-none sm:w-56 sm:basis-auto md:w-64"
+        className="order-last basis-full sm:order-none sm:w-56 sm:basis-auto md:w-64 lg:min-w-32 lg:shrink-[100]"
       />
       <div className="flex shrink-0 items-center gap-2">
         {actions}

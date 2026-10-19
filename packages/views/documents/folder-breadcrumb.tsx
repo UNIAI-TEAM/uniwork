@@ -48,6 +48,8 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
   const collapsed = path.length > MAX_UNCOLLAPSED_FOLDER_LEVELS;
   const hiddenAncestors = collapsed ? path.slice(0, -2) : [];
   const visibleAncestors = collapsed ? [path.at(-2)!] : path.slice(0, -1);
+  // Space is given up in order (UNI-1977): search box, then the ancestors (shrink-[100]
+  // against the leaf's 1), and the leaf name only once the ancestors are at their minimum.
   const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11";
   return (
     <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 items-center gap-1">
@@ -80,7 +82,7 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
         </span>
       ) : null}
       {visibleAncestors.map((node) => (
-        <span key={node.id} className="flex min-w-0 shrink-[3] items-center gap-1">
+        <span key={node.id} className="flex min-w-0 shrink-[100] items-center gap-1">
           <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           <button
             type="button"

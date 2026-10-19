@@ -339,7 +339,8 @@ describe("folder layout (Folder.dc)", () => {
     const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
     expect(search).toHaveClass("lg:shrink-[100]", "lg:min-w-32");
     const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
-    expect(create.closest(".shrink-0")?.parentElement).toBe(row);
+    expect(row.lastElementChild).toHaveClass("shrink-0");
+    expect(row.lastElementChild).toContainElement(create);
   });
 
   it("lists subfolders as cards under their own section, and documents under Tài liệu", async () => {
