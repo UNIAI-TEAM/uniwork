@@ -7,7 +7,7 @@
   "homepage": "https://uniworkos.com",
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/sign-dev-electron.mjs && electron-vite dev",
     "build": "electron-vite build",
     "package": "electron-builder --publish never",
     "typecheck": "tsc --noEmit",
