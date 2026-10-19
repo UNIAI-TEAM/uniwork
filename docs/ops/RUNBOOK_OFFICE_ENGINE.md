@@ -44,13 +44,14 @@ caller run their own idle timeouts and close first; shutdown still reaps via `cl
 | `OFFICE_ENGINE_GRANT_KEY` | — (required, ≥ 32 chars, ≠ token) | Grant signing key, shared with Go |
 | `OFFICE_ENGINE_OUTPUT_ORIGINS` | empty (no output allowed) | Comma list of bare origins of the object store |
 | `OFFICE_ENGINE_HOST` / `OFFICE_ENGINE_PORT` | `0.0.0.0` / `8090` | Listen address |
-| `OFFICE_ENGINE_MAX_WORKERS` | `2` | Worker processes at once (max 64); also the bound on submit bodies being read and parsed at once — a submit beyond it answers `503 engine_overloaded` + `Retry-After: 2` before its body is read (the refusal that bounds peak supervisor memory) |
+| `OFFICE_ENGINE_MAX_WORKERS` | `2` | Worker processes at once (max 64) |
+| `OFFICE_ENGINE_INPUT_BUDGET_BYTES` | workers x `OFFICE_ENGINE_MAX_INPUT_BYTES`; boot fails below one max input | Input bytes admitted to the temp root at once: queued and running jobs' input files plus uploads being received. A submit whose framed input would go over it answers `503 engine_overloaded` (`reason: input_budget`) + `Retry-After: 2` before its body is read; Go keeps the job accepted and retries. The temp root is tmpfs in the chart, so this is the memory bound for inputs |
 | `OFFICE_ENGINE_MAX_QUEUE` | `16` | Accepted jobs waiting for a worker; beyond it `503 engine_overloaded` |
 | `OFFICE_ENGINE_MAX_JOB_MS` | `120000` | Wall-clock ceiling per job (contract max 600000) |
 | `OFFICE_ENGINE_CPU_MS` | `60000` | CPU time per job tree |
 | `OFFICE_ENGINE_MEMORY_MB` | `512` | RSS per job tree; the handler's V8 heap is capped at 75 % of it |
 | `OFFICE_ENGINE_TEMP_MB` | `512`, never below input + output + 64 MiB (boot fails otherwise) | Bytes a job may leave in its temp dir |
-| `OFFICE_ENGINE_MAX_INPUT_BYTES` / `_MAX_OUTPUT_BYTES` | `DOCUMENT_MAX_BYTES`, else 200 MiB / 200 MiB | Byte bounds; unset, they follow the document cap the server enforces. Input is further clamped to the contract's 383 MiB JSON transport ceiling (401604608 — a base64 body cannot exceed V8's max string length), so a `DOCUMENT_MAX_BYTES` above it boots the engine with input 383 MiB; an explicit `OFFICE_ENGINE_MAX_INPUT_BYTES` past it refuses to start. The shared value itself must stay inside the server's [1 MiB, 2 GiB] range or the engine refuses to boot |
+| `OFFICE_ENGINE_MAX_INPUT_BYTES` / `_MAX_OUTPUT_BYTES` | `DOCUMENT_MAX_BYTES`, else 200 MiB / 200 MiB | Byte bounds; unset, they follow the document cap the server enforces, byte for byte. Both are bounded by the contract's 2 GiB (protocol 2 streams the input as raw bytes, so no transport ceiling sits below it); an explicit value past it refuses to start, and the shared value must stay inside the server's [1 MiB, 2 GiB] range or the engine refuses to boot |
 | `OFFICE_ENGINE_TEMP_DIR` | `$TMPDIR/uniwork-office-engine` | Root of per-job temp dirs |
 | `OFFICE_ENGINE_SAMPLE_MS` | `100` | Usage / temp sampling period |
 | `OFFICE_ENGINE_RETENTION_MS` / `_MAX_RETAINED_JOBS` | 15 min / 1024 | How long a settled job answers status |
@@ -191,10 +192,14 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   Memory `emptyDir`; it is created `0777` without the sticky bit, so an init container (`tmp-sticky`) runs
   `chmod 1777 /tmp` first, matching compose's `mode=1777`. Without it any worker uid could rename or delete the
   supervisor's `uniwork-office-engine` temp root.
-- The submit path parses and hashes the envelope on the service's event loop; a large input stalls other requests
-  briefly (measured in `reports/g2-02-engine-service/limits-measurement.md`). A declared `input_length` over the
-  configured `maxInputBytes` is refused before the base64 decode reads a character, so a refused upload never pays
-  the decode+hash cost an accepted one does.
+- Protocol 2 (SIZE-OPS1): a job with input is `POST /v1/jobs` with `Content-Type: application/vnd.uniwork.office-job`,
+  `X-Office-Envelope-Length: <n>` (1..8 MiB) and a `Content-Length`: `n` bytes of JSON envelope, then exactly
+  `input_length` raw bytes. The service checks the frame, the input budget, the envelope, the grant and the binding
+  first, then streams the input to `<jobdir>/input.bin` while hashing it; a length or digest that disagrees with the
+  grant deletes the file (`contract_violation` `framing` / `upload_checksum_mismatch`), and a client that goes away
+  mid-body leaves no file, no job and no budget behind. A queued job holds that file, not its bytes, so heap no longer
+  grows with queued inputs. A replayed submit drains its body without writing it. An input-bearing envelope sent as
+  `application/json` is `415 contract_violation` (`content_type`); a job without input may still send JSON.
 
 ### Restart and replay (Go side)
 
@@ -208,9 +213,8 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   leaves the job `accepted`; only a client retry with the **same** idempotency key dispatches it again. Without one
   the reconciler times it out (`never_dispatched`) at its deadline, and until then the same work under another key
   answers `in_flight`.
-- The submit carries the base as base64 inside JSON; the client scales its request timeout with the payload
-  (+250 ms per MiB over `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`) because the engine's decode of a large envelope takes
-  seconds (see the N5 measurement).
+- The submit carries the base as raw bytes after the JSON envelope (protocol 2); the client scales its request
+  timeout with the input (+250 ms per MiB of input over `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`).
 - A cancel or shutdown can land after the output PUT succeeded, so the object exists for a cancelled job. It is never
   claimed (`ClaimOfficeJobOutputInTx` requires `completed`), and FileService collects it after its claim window.
 - `/v1/capability` needs only the service credential: it describes the build and touches no job, so there is no
