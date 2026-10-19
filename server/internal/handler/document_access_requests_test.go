@@ -12,11 +12,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 
+	"github.com/redis/go-redis/v9"
+
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // accessRequestCreate posts one create as the world's owner and returns the raw
@@ -247,5 +255,117 @@ func TestDocumentAccessRequestPendingCountOnShares(t *testing.T) {
 	}
 	if v, ok := out["pending_access_requests"]; ok {
 		t.Fatalf("a reader below administer must omit pending_access_requests, got %v", v)
+	}
+}
+
+// BE-SD7-3: POST /documents/{documentID}/access-requests evaluates the
+// `documents` flag at the caller's own active organization (ADR 0032), never at
+// the named document's organization, so an existing restricted document and a
+// well-formed unknown id see the same flag gate and spend the caller's limiter
+// bucket identically under split global/organization overrides.
+func TestDocumentAccessRequestFlagEvaluatesCallerOrganization(t *testing.T) {
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	rdb := byokHandlerRedis(t)
+	d.Redis = rdb
+	q := db.New(pool)
+	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
+	docs.SetEntitlements(service.NewEntitlementService(pool, q))
+	docs.SetFiles(filesfake.New(filesfake.Options{}))
+	if d.FeatureFlags != nil {
+		docs.SetFlags(d.FeatureFlags)
+	}
+	d.Documents = docs
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+
+	w := &docsWorld{srv: srv}
+	setDocumentsOverride(t, featureflags.ScopeGlobal, "", true)
+	w.token, w.userID = filesRegister(t, srv, "docs-flag-owner@example.com")
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Docs Flag Org", "slug": "docs-flag-org"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create org: %d %v", res.StatusCode, out)
+	}
+	w.orgID = out["organization"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/workspaces", w.token, map[string]string{"name": "Docs Flag WS", "slug": "docs-flag-ws"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create ws: %d %v", res.StatusCode, out)
+	}
+	w.wsID = out["workspace"].(map[string]any)["id"].(string)
+	memberToken, memberID := docsJoinWorkspace(t, w, "docs-flag-member@example.com")
+	docRestricted1 := unreadablePage(t, w)
+	docRestricted2 := unreadablePage(t, w)
+	unknownID := util.NewID()
+	reqBody := map[string]any{"requested_level": "view", "message": "flag uniformity check"}
+
+	bucketKey := "uw:ratelimit:20:~doc-access-request:id:user:" + memberID
+	bucketCount := func(t *testing.T) int64 {
+		t.Helper()
+		n, err := rdb.Get(t.Context(), bucketKey).Int64()
+		if errors.Is(err, redis.Nil) {
+			return 0
+		}
+		if err != nil {
+			t.Fatalf("read limiter bucket: %v", err)
+		}
+		return n
+	}
+
+	// 1. global-on / org-off: both the caller's own-org restricted document and
+	// a nonexistent id must be closed by the flag gate with identical 404
+	// status+body, and neither may spend the per-person limiter bucket.
+	setDocumentsOverride(t, featureflags.ScopeGlobal, "", true)
+	setDocumentsOverride(t, featureflags.ScopeOrganization, w.orgID, false)
+	resExist, _, rawExist := accessRequestCreateAs(t, w, memberToken, docRestricted1, reqBody)
+	countAfterExist := bucketCount(t)
+	resUnknown, _, rawUnknown := accessRequestCreateAs(t, w, memberToken, unknownID, reqBody)
+	countAfterUnknown := bucketCount(t)
+	if resExist.StatusCode != http.StatusNotFound || resUnknown.StatusCode != http.StatusNotFound {
+		t.Fatalf("global-on/org-off statuses = (%d, %d), want (404, 404): exist=%s unknown=%s",
+			resExist.StatusCode, resUnknown.StatusCode, rawExist, rawUnknown)
+	}
+	if !bytes.Equal(bytes.TrimSpace(rawExist), bytes.TrimSpace(rawUnknown)) {
+		t.Fatalf("global-on/org-off bodies differ: exist=%s unknown=%s", rawExist, rawUnknown)
+	}
+	if countAfterExist != 0 || countAfterUnknown != 0 {
+		t.Fatalf("global-on/org-off limiter counts = (%d, %d), want (0, 0)", countAfterExist, countAfterUnknown)
+	}
+
+	// 2. global-off / org-on: both must pass the flag gate with identical 202
+	// status+body and spend one limiter token each.
+	setDocumentsOverride(t, featureflags.ScopeGlobal, "", false)
+	setDocumentsOverride(t, featureflags.ScopeOrganization, w.orgID, true)
+	resExist, _, rawExist = accessRequestCreateAs(t, w, memberToken, docRestricted1, reqBody)
+	countAfterExist = bucketCount(t)
+	resUnknown, _, rawUnknown = accessRequestCreateAs(t, w, memberToken, unknownID, reqBody)
+	countAfterUnknown = bucketCount(t)
+	if resExist.StatusCode != http.StatusAccepted || resUnknown.StatusCode != http.StatusAccepted {
+		t.Fatalf("global-off/org-on statuses = (%d, %d), want (202, 202): exist=%s unknown=%s",
+			resExist.StatusCode, resUnknown.StatusCode, rawExist, rawUnknown)
+	}
+	if !bytes.Equal(bytes.TrimSpace(rawExist), bytes.TrimSpace(rawUnknown)) {
+		t.Fatalf("global-off/org-on bodies differ: exist=%s unknown=%s", rawExist, rawUnknown)
+	}
+	if countAfterExist != 1 || countAfterUnknown != 2 {
+		t.Fatalf("global-off/org-on limiter counts = (%d, %d), want (1, 2)", countAfterExist, countAfterUnknown)
+	}
+
+	// 3. global-on / org-off / user-on: user override reopens the route for
+	// both ids identically and spends one limiter token each.
+	setDocumentsOverride(t, featureflags.ScopeGlobal, "", true)
+	setDocumentsOverride(t, featureflags.ScopeOrganization, w.orgID, false)
+	setDocumentsOverride(t, featureflags.ScopeUser, memberID, true)
+	resExist, _, rawExist = accessRequestCreateAs(t, w, memberToken, docRestricted2, reqBody)
+	countAfterExist = bucketCount(t)
+	resUnknown, _, rawUnknown = accessRequestCreateAs(t, w, memberToken, unknownID, reqBody)
+	countAfterUnknown = bucketCount(t)
+	if resExist.StatusCode != http.StatusAccepted || resUnknown.StatusCode != http.StatusAccepted {
+		t.Fatalf("user-on statuses = (%d, %d), want (202, 202): exist=%s unknown=%s",
+			resExist.StatusCode, resUnknown.StatusCode, rawExist, rawUnknown)
+	}
+	if !bytes.Equal(bytes.TrimSpace(rawExist), bytes.TrimSpace(rawUnknown)) {
+		t.Fatalf("user-on bodies differ: exist=%s unknown=%s", rawExist, rawUnknown)
+	}
+	if countAfterExist != 3 || countAfterUnknown != 4 {
+		t.Fatalf("user-on limiter counts = (%d, %d), want (3, 4)", countAfterExist, countAfterUnknown)
 	}
 }

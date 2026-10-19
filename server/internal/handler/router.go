@@ -227,6 +227,7 @@ func New(d Deps) http.Handler {
 		PlatformRoles:        platformRoles(d.Admin),
 		FeatureFlags:         d.FeatureFlags,
 		DocumentOrganization: h.documentFlagOrganization,
+		CallerOrganization:   h.callerFlagOrganization,
 		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
 			if d.DesktopAuth == nil {
 				return nil

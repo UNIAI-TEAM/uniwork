@@ -92,7 +92,7 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit func(http.Handler) http.Handler) {
+func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	registerDocumentEditLock(d, h, editRequestLimit)
 
@@ -735,13 +735,16 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 	// the document exists; only 409 access_request_pending and 429
 	// access_request_cooldown are specific, and both concern the caller's own
 	// requests on that document. The limiter is one budget per person across
-	// every document (Q4), so a fresh document id mints no fresh budget.
-	d.With(accessRequestLimit).Post("/documents/{documentID}/access-requests", h.CreateDocumentAccessRequest, apiOp{
+	// every document (Q4), so a fresh document id mints no fresh budget. Its
+	// `documents` flag evaluates at the caller's active organization (callerDocs,
+	// BE-SD7-3), never at {documentID}'s, so existing and unknown ids pass the
+	// same gate.
+	callerDocs.With(mw.RequireFeatureFlag(flags, "documents"), accessRequestLimit).Post("/documents/{documentID}/access-requests", h.CreateDocumentAccessRequest, apiOp{
 		summary: "Request access to a document",
 		description: "Người đã đăng nhập xin quyền truy cập tài liệu; không bao giờ tự cấp quyền. Trả 202 {\"status\":\"sent\"} cho mọi id hợp lệ cú pháp (tài liệu không tồn tại, khác tổ chức, Work Product, đã archive, người gửi đã đọc được, hoặc người gửi đã bị vô hiệu hóa — tất cả giống hệt nhau, không lộ tồn tại). " +
 			"requested_level view (mặc định), comment hoặc edit; message ≤ 500 ký tự sau khi cắt khoảng trắng; source_kind (task|meeting) + source_id (ULID) phải đi cùng nhau — sai cú pháp -> 400 invalid_request (chỉ phụ thuộc body). " +
 			"Người gửi đã có yêu cầu pending chưa hết hạn trên tài liệu này -> 409 access_request_pending (không đổi dòng nào). Yêu cầu trước bị từ chối chưa đủ 1 giờ -> 429 access_request_cooldown kèm fields.retry_after_seconds và header Retry-After. " +
-			"Agent -> 403 forbidden. Limiter riêng 20/giờ/người trên mọi tài liệu (429 không có code).",
+			"Agent -> 403 forbidden. Limiter riêng 20/giờ/người trên mọi tài liệu (429 rate_limited).",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentAccessRequestSDI{},
 		sdo:    sdo.DocumentAccessRequestSentSDO{},

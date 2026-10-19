@@ -15,8 +15,8 @@ import (
 // fresh document id mints no fresh budget (RateLimitByIdentityBucket, not
 // RateLimitByIdentity, which would key the counter by the path and hand each
 // document its own 20) - an office NAT does not pool them, and the limiter's
-// 429 carries no code, so the client tells it from access_request_cooldown by
-// the code's absence.
+// 429 carries code rate_limited, so the client tells it from
+// access_request_cooldown by its code.
 func TestDocumentAccessRequestsBudgetEachSignedInUserAcrossDocuments(t *testing.T) {
 	t.Setenv("FF_DOCUMENTS", "true")
 	minter := auth.TokenMinter{Secret: []byte(limiterTestSecret), TTL: time.Hour}

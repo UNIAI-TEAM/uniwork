@@ -40,7 +40,11 @@ type Deps struct {
 	// route acts in (one the caller is a member of), so the `documents` flag
 	// honours organization overrides; nil evaluates it per user.
 	DocumentOrganization func(*http.Request) string
-	DeviceStatus         func(context.Context, string, string) error
+	// CallerOrganization names the signed-in caller's active organization (ADR
+	// 0032), independent of any id in the path, for routes whose uniform answer
+	// must not depend on whether the path's row exists (DOC-07 create, BE-SD7-3).
+	CallerOrganization func(*http.Request) string
+	DeviceStatus       func(context.Context, string, string) error
 	// OfficeFrameAuth checks the Office Docs frame token on
 	// /api/v1/office-frame/*; nil refuses every frame route with 404.
 	OfficeFrameAuth func(http.Handler) http.Handler
@@ -266,15 +270,16 @@ func New(d Deps, h Routes) http.Handler {
 			// in, so an organization override closes these routes like it
 			// closes public links and MCP tools (UNI-1800).
 			docs := authed.With(mw.FlagOrganization(d.DocumentOrganization))
+			callerDocs := authed.With(mw.FlagOrganization(d.CallerOrganization))
 			// Edit requests (UNI-1645 R8) ping the holder: 20/min per signed-in
 			// person across every document, beside the per-hour database cap,
 			// refused with the same code and fields.retry_after_s as that cap.
-			registerDocuments(docs, h, d.FeatureFlags, mw.RateLimitByIdentityBucketRetryAfter(d.Redis, "document-edit-request", 20, time.Minute, proxies, bearerUser(d.Minter), "edit_request_rate_limited"),
+			registerDocuments(docs, callerDocs, h, d.FeatureFlags, mw.RateLimitByIdentityBucketRetryAfter(d.Redis, "document-edit-request", 20, time.Minute, proxies, bearerUser(d.Minter), "edit_request_rate_limited"),
 				// DOC-07 (UNI-1631, §3.1): 20 access requests an hour per
 				// signed-in person across every document (Q4: one budget per
 				// person, not per document, so a fresh id mints no fresh
-				// budget). No code, so the client tells this 429 from
-				// access_request_cooldown by the code's absence.
+				// budget). Refused with 429 rate_limited, so the client tells this
+				// 429 from access_request_cooldown by its code.
 				mw.RateLimitByIdentityBucket(d.Redis, "doc-access-request", 20, time.Hour, proxies, bearerUser(d.Minter)))
 			registerDocumentSources(docs, h, d.FeatureFlags)
 			registerSignatures(authed, h)
