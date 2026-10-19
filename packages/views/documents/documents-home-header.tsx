@@ -94,9 +94,11 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
         </DropdownMenuContent>
       </DropdownMenu>
     ) : null;
+  // The row is a size container: the content width is the viewport minus the app and documents
+  // sidebars, so only the row itself says whether the search box fits beside the actions.
   return (
-    <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap">
-      <div className="flex min-w-0 flex-1 basis-64 items-center lg:flex-auto">
+    <div className="@container flex flex-wrap items-center gap-3">
+      <div className="flex min-w-0 flex-1 basis-72 items-center">
         {folderDoc ? (
           <FolderBreadcrumb
             path={[
@@ -129,7 +131,7 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
       <DocumentsSearchBox
         search={search}
         folderPlaceholder={Boolean(folderDoc)}
-        className="order-last basis-full sm:order-none sm:w-56 sm:basis-auto md:w-64 lg:min-w-32 lg:shrink-[100]"
+        className="order-last basis-full @min-[60rem]:order-none @min-[60rem]:w-56 @min-[60rem]:basis-auto"
       />
       <div className="flex shrink-0 items-center gap-2">
         {actions}
