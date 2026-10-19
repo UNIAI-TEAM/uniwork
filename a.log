@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+8325fe8dc69d75f7abe360748ef94c3f8a7cafe6
+04f084fe5806a2594406cc0dd20dc2418cf5d6e0
+8325fe8dc test(notification): prove body-mention reader gate, cap and MCP path (UNI-1968)
+3932c4f0a test(e2e): wait on the save state instead of a fixed sleep
+9b3f6eede test(documents): cover agent, self and partial-share cases of the body-mention hint
+860485c3a fix(documents): resolve no-access body mentions per new id, not one candidates page (UNI-1968)
+c39cd02c6 fix(documents): keep create_document's no-notification wording (UNI-1968)
+8fb8391f1 feat(notification): document_body_mentioned kind (UNI-1968)
+c5622f08a feat(documents): notify people newly named in a page body (UNI-1968)
+936fa75a5 feat(documents): post-save hint when a body mention cannot view the page (UNI-1968 W2)
+f3adcf60f feat(documents): scroll to the reader's own mention on ?mention=1 (UNI-1968 W4)
+ed7bb2c44 feat(notifications): render document_body_mentioned and deep-link it with ?mention=1
