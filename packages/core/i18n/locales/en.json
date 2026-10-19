@@ -1642,12 +1642,13 @@
       "group_completed": "Completed",
       "group_closed": "Closed",
       "category": "Group",
+      "category_locked": "A built-in status stays in this group: the system relies on it.",
       "icon": "Icon",
       "icon_default": "Default",
       "icon_option": "{{name}} icon",
       "workspace_chip": "Workspace {{name}}",
       "drag": "Reorder {{name}}",
-      "system_locked": "Built-in statuses drive system behaviour, so they can't be edited or archived. You can still reorder them.",
+      "system_locked": "Built-in statuses can't be archived or moved to another group. You can still rename, recolour, re-icon and reorder them.",
       "group_hint_not_started": "Work not started yet or waiting.",
       "group_hint_started": "Work in progress, in review or blocked.",
       "group_hint_completed": "Finished work.",
@@ -2421,8 +2422,7 @@
       "card_dueDate": "Due date",
       "card_project": "Project",
       "card_childProgress": "Sub-task progress",
-      "card_labels": "Labels",
-      "labels_unavailable": "The task list does not return label relations yet."
+      "card_labels": "Labels"
     },
     "card": {
       "child_progress": "Sub-task progress",

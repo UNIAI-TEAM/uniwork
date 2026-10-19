@@ -58,6 +58,8 @@ export const taskKeys = {
   tableFacets: (wsId: string, filterHash: string) => ["tasks-table", wsId, "facets", filterHash] as const,
   statuses: (wsId: string) => ["task-statuses", wsId] as const,
   labels: (wsId: string) => ["task-labels", wsId] as const,
+  /** Under `labels` so every label write and attach/detach refreshes it too. */
+  labelLinks: (wsId: string) => ["task-labels", wsId, "links"] as const,
   label: (wsId: string, labelId: string) => ["task-label", wsId, labelId] as const,
   properties: (wsId: string) => ["task-properties", wsId] as const,
   taskLabels: (taskId: string) => ["task-labels-on-task", taskId] as const,

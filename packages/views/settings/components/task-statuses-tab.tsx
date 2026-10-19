@@ -40,7 +40,7 @@ import {
   SettingsSkeletonRows,
   SettingsTab,
 } from "./settings-layout";
-import { TaskStatusRow } from "./task-status-row";
+import { statusRowText, TaskStatusRow } from "./task-status-row";
 
 /**
  * A key for a new status. The server keeps only a–z, 0–9 and `_` (and would
@@ -158,7 +158,9 @@ export function TaskStatusesTab() {
     const body = { name, description, color, category: category ?? target.category, icon: icon ?? "" };
     try {
       if (target.status) {
-        await patch.mutateAsync({ id: target.status.id, body });
+        // A built-in's category is its key; the server refuses to move it.
+        const { category: _category, ...fields } = body;
+        await patch.mutateAsync({ id: target.status.id, body: target.status.is_system ? fields : body });
         toast.success(t("settings.taskStatuses.updated"));
       } else {
         await create.mutateAsync({ ...body, key: statusKeyFrom(name) });
@@ -255,8 +257,7 @@ export function TaskStatusesTab() {
         onOpenChange={setDialogOpen}
         title={target.status ? t("settings.taskStatuses.edit_title") : t("settings.taskStatuses.create_title")}
         initial={{
-          name: target.status?.name ?? "",
-          description: target.status?.description ?? "",
+          ...(target.status ? statusRowText(target.status, t) : { name: "", description: "" }),
           color: target.status?.color || SWATCH_HEX.blue,
           category: target.category,
           icon: target.status?.icon ?? "",
@@ -266,12 +267,14 @@ export function TaskStatusesTab() {
         colorPreview={(draft, hex) => <StatusIcon status={draft.icon || draft.category || "todo"} color={hex} />}
         afterName={(draft, set) => {
           const group = groupOf(draft.category);
+          const locked = Boolean(target.status?.is_system);
           return (
             <Field>
               <FieldLabel>{t("settings.taskStatuses.category")}</FieldLabel>
               <Select
                 aria-label={t("settings.taskStatuses.category")}
                 value={group.id}
+                disabled={locked}
                 onValueChange={(v) => {
                   const next = STATUS_GROUPS.find((g) => g.id === v) ?? group;
                   // Staying in the status's own group keeps its category.
@@ -279,7 +282,9 @@ export function TaskStatusesTab() {
                 }}
                 items={STATUS_GROUPS.map((g) => ({ value: g.id, label: groupName(g.id) }))}
               />
-              <FieldDescription>{t(`settings.taskStatuses.group_hint_${group.id}`)}</FieldDescription>
+              <FieldDescription>
+                {locked ? t("settings.taskStatuses.category_locked") : t(`settings.taskStatuses.group_hint_${group.id}`)}
+              </FieldDescription>
             </Field>
           );
         }}

@@ -25,7 +25,7 @@ var (
 )
 
 func errSystemStatusImmutable() error {
-	return coded(http.StatusUnprocessableEntity, "system_status_immutable", "trạng thái hệ thống không thể sửa hoặc xóa")
+	return coded(http.StatusUnprocessableEntity, "system_status_immutable", "trạng thái hệ thống không thể đổi nhóm hoặc xóa")
 }
 
 func normalizeHexColor(c string) (string, error) {
@@ -202,7 +202,9 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, actor Actor, workspa
 	if err != nil {
 		return db.TaskStatus{}, err
 	}
-	if existing.IsSystem {
+	// A built-in may be renamed, recoloured and re-iconed, but its category is
+	// its key: the board and the agents read behaviour from it.
+	if existing.IsSystem && in.Category != nil && *in.Category != existing.Category {
 		return db.TaskStatus{}, errSystemStatusImmutable()
 	}
 	if existing.ArchivedAt.Valid {
@@ -257,7 +259,7 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, actor Actor, workspa
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, ID: statusID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return db.TaskStatus{}, errSystemStatusImmutable()
+		return db.TaskStatus{}, ErrNotFound
 	}
 	if err != nil {
 		if isUniqueViolation(err) {

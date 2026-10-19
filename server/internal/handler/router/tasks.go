@@ -225,7 +225,7 @@ func registerTasksSuite(r api, h Routes) {
 			tags: []string{"tasks"}, sdi: sdi.ReorderTaskStatusesSDI{}, sdo: sdo.TaskStatusListSDO{}, auth: true,
 		})
 		suite.Patch("/workspaces/{workspaceID}/task-statuses/{id}", h.PatchTaskStatus, apiOp{
-			summary: "Update task status", description: "Sửa trạng thái tùy chỉnh; built-in → 422 system_status_immutable.",
+			summary: "Update task status", description: "Sửa trạng thái; built-in đổi được tên, mô tả, màu, biểu tượng, đổi category → 422 system_status_immutable.",
 			tags: []string{"tasks"}, sdi: sdi.PatchTaskStatusSDI{}, sdo: sdo.TaskStatusSDO{}, auth: true,
 		})
 		suite.Delete("/workspaces/{workspaceID}/task-statuses/{id}", h.DeleteTaskStatus, apiOp{
@@ -236,6 +236,10 @@ func registerTasksSuite(r api, h Routes) {
 		suite.Get("/workspaces/{workspaceID}/task-labels", h.ListTaskLabels, apiOp{
 			summary: "List task labels", description: "Danh sách nhãn workspace.",
 			tags: []string{"tasks"}, sdo: sdo.TaskLabelListSDO{}, auth: true,
+		})
+		suite.Get("/workspaces/{workspaceID}/task-label-links", h.ListTaskLabelLinks, apiOp{
+			summary: "List task label links", description: "Mọi cặp (task, nhãn đang dùng) trong workspace, để vẽ nhãn trên thẻ.",
+			tags: []string{"tasks"}, sdo: sdo.TaskLabelLinkListSDO{}, auth: true,
 		})
 		suite.Post("/workspaces/{workspaceID}/task-labels", h.CreateTaskLabel, apiOp{
 			summary: "Create task label", description: "Tạo nhãn.",
