@@ -372,4 +372,16 @@ func init() {
 			"html":     officeHtml,
 		},
 	})
+	register(Prompt{
+		ID: "office_uniwork_ai", Version: 5,
+		System: officeCommonV4,
+		Sections: map[string]string{
+			"sheets":   officeSheetsV3,
+			"docs":     officeDocsV2,
+			"slides":   officeSlidesV4,
+			"pdf":      officePdf,
+			"markdown": officeMarkdown,
+			"html":     officeHtml,
+		},
+	})
 }

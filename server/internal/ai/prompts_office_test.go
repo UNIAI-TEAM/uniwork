@@ -131,8 +131,9 @@ func TestOfficePackGoldens(t *testing.T) {
 		})
 	}
 
-	// @1, @2 and @3 stay registered and match their goldens untouched.
-	for _, version := range []int{1, 2, 3} {
+	// @1, @2 and @3 stay registered and match their goldens untouched; @5
+	// (UNI-1985 draft) is registered beside @4 and matches its v5 goldens.
+	for _, version := range []int{1, 2, 3, 5} {
 		key := fmt.Sprintf("office_uniwork_ai@%d", version)
 		pv, ok := LookupPrompt(key)
 		if !ok {
@@ -402,6 +403,13 @@ func TestOfficePackTokenCaps(t *testing.T) {
 			},
 			worst: 1989,
 		},
+		{
+			key: "office_uniwork_ai@5",
+			wantEst: map[string]int{
+				"common": 800, "sheets": 1189, "docs": 595, "slides": 267, "pdf": 252, "markdown": 224, "html": 164,
+			},
+			worst: 1989,
+		},
 	}
 	for _, v := range versions {
 		v := v
@@ -451,6 +459,7 @@ var officePackPins = map[string]string{
 	"office_uniwork_ai@2": "1e47cf912b53dfb5c481f34bce6c27cc0c7e2e310f1ba22088083c8b0a3e5a82",
 	"office_uniwork_ai@3": "77b6054056439605542050baacb959c91e7586dbdf78303e8fd4ff9277a217f2",
 	"office_uniwork_ai@4": "639e8d2757f396224ae768b0b142828795b0728a68a40b97bf2749bbf1a68c0b",
+	"office_uniwork_ai@5": "639e8d2757f396224ae768b0b142828795b0728a68a40b97bf2749bbf1a68c0b",
 }
 
 // officePackDigest is sha256 over the released text of one pack version in
