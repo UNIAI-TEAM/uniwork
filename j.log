@@ -1,0 +1,113 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --shard=3/6 > /tmp/bmn-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/bmn-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/bmn-E2E.log; grep -E "✘|\[failed\]" /tmp/bmn-E2E.log | head -40; echo; echo "E2E_SUITE3_EXIT=$rc"
+          |                                                      ^
+      160 |           if (process.env.LANDING_CAPTURE === "1" && locale === "vi" && theme === "light" && ["tasks", "meetings", "documents", "email"].includes(key)) {
+      161 |             const dir = resolve(import.meta.dirname, "../.impeccable/review");
+      162 |             await mkdir(dir, { recursive: true });
+
+    Error Context: test-results/landing-playback-scripted-views-brand-and-contrast-mobile-vi/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-playback-scripted-views-brand-and-contrast-mobile-vi/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-playback-scripted-views-brand-and-contrast-mobile-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-en ───────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 5
+
+    - Array []
+    + Array [
+    +   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
+    +   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
+    +   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
+    + ]
+
+      157 |           await expect(page.locator("body")).not.toContainText(/landing\.[a-zA-Z][\w.]+/);
+      158 |           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    > 159 |           expect.soft((await auditText(page)).fails).toEqual([]);
+          |                                                      ^
+      160 |           if (process.env.LANDING_CAPTURE === "1" && locale === "vi" && theme === "light" && ["tasks", "meetings", "documents", "email"].includes(key)) {
+      161 |             const dir = resolve(import.meta.dirname, "../.impeccable/review");
+      162 |             await mkdir(dir, { recursive: true });
+
+    Error Context: test-results/landing-playback-scripted-views-brand-and-contrast-mobile-en/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-playback-scripted-views-brand-and-contrast-mobile-en/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-playback-scripted-views-brand-and-contrast-mobile-en/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27 failed
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 1910px ─────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px ─────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px ──────────────────
+    landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px ──────────────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: en ──────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: vi ──────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: en ───────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: vi ───────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light ──────────────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark ───────────────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark ────────────────────
+    landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence 
+    landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls 
+    landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it 
+    landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace ────────────────
+    landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up 
+    landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes 
+    landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable 
+    landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening ─
+    landing-motion.spec.ts:150:1 › nonessential motion stops offscreen ─────────────────────────────
+    landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact ─────
+    landing-playback.spec.ts:31:1 › reduced motion is still by default and manual exploration retains local actions 
+    landing-playback.spec.ts:51:3 › every storyboard reaches its last beat without clipping at 1440px 
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-vi ────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-en ────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-vi ─────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-en ─────────────────
+  3 skipped
+  39 passed (10.3m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=3/6
+  27 failed
+  3 skipped
+  39 passed (10.3m)
+  ✘   9 landing-density.spec.ts:5:3 › product stage shares the landing frame at 1910px (5.8s)
+  ✘  10 landing-density.spec.ts:5:3 › product stage shares the landing frame at 1440px (6.0s)
+  ✘  11 landing-density.spec.ts:5:3 › product stage shares the landing frame at 768px (5.9s)
+  ✘  12 landing-density.spec.ts:5:3 › product stage shares the landing frame at 390px (5.9s)
+  ✘  13 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: en (8.2s)
+  ✘  14 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: vi (8.2s)
+  ✘  15 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: en (7.8s)
+  ✘  16 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: vi (7.9s)
+  ✘  27 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light (6.5s)
+  ✘  28 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark (6.6s)
+  ✘  29 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark (6.6s)
+  ✘  30 landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence (8.7s)
+  ✘  31 landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls (1.0m)
+  ✘  32 landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it (1.0m)
+  ✘  33 landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace (6.7s)
+  ✘  34 landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up (6.5s)
+  ✘  35 landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes (7.1s)
+  ✘  36 landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable (1.0m)
+  ✘  37 landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening (6.6s)
+  ✘  40 landing-motion.spec.ts:150:1 › nonessential motion stops offscreen (1.0m)
+  ✘  41 landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact (8.0s)
+  ✘  62 landing-playback.spec.ts:31:1 › reduced motion is still by default and manual exploration retains local actions (6.0s)
+  ✘  63 landing-playback.spec.ts:51:3 › every storyboard reaches its last beat without clipping at 1440px (11.1s)
+  ✘  66 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-vi (21.4s)
+  ✘  67 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-en (21.0s)
+  ✘  68 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-vi (24.3s)
+  ✘  69 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-en (24.8s)
+
+E2E_SUITE3_EXIT=1
