@@ -1,0 +1,12 @@
+$ git checkout -q origin/main -- web/modules/slides/web-slides-api.ts; npx vitest run --root web/modules/slides web-slides-api.test.ts 2>&1 | grep -aE "FAIL|AssertionError|Expected|Received|^\s+[-+] |Tests " | head -30; rc=${PIPESTATUS[0]}; git checkout -q HEAD -- web/modules/slides/web-slides-api.ts; git diff --quiet HEAD && echo TREE_CLEAN; echo "RED_WEB_RC=$rc"; [ $rc -ne 0 ] && echo RED_WEB_OK; echo; echo RED_WEB_EXIT=0
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  web-slides-api.test.ts > slidesApi contract > implements every preload method (no Proxy fallback)
+AssertionError: expected [ 'onUniworkStateChanged', …(1) ] to deeply equal []
+- Expected
++ Received
+      Tests  1 failed | 52 passed (53)
+TREE_CLEAN
+RED_WEB_RC=1
+RED_WEB_OK
+
+RED_WEB_EXIT=0
