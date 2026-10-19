@@ -149,6 +149,9 @@ describe("UNI-1968 body mention no-access hint", () => {
     await waitFor(() => expect(notice()).toBeInTheDocument());
     expect(notice()).toHaveTextContent("Bình chưa xem được tài liệu này nên đã không nhận thông báo.");
     expect(notice()).not.toHaveTextContent("Hà");
+    // Visual r1 F-03: the card below it (the UniNote tip) sits flush without a
+    // bottom gap on the hint; mb-4 is the tip card's own gap token.
+    expect(notice()).toHaveClass("mb-4");
   });
 
   it("fires no candidates request on open or on a save without new mentions", async () => {

@@ -78,7 +78,7 @@ export function BodyMentionNotice({
     <div
       role="status"
       data-testid={testId}
-      className="mx-auto mt-2 flex w-full max-w-3xl items-start gap-2 rounded-md border border-border bg-muted/40 p-2.5 text-caption text-foreground"
+      className="mx-auto mb-4 mt-2 flex w-full max-w-3xl items-start gap-2 rounded-md border border-border bg-muted/40 p-2.5 text-caption text-foreground"
     >
       <div className="min-w-0 flex-1 space-y-1.5">
         <p>{t(K.collabBodyMentionNoAccess, { names })}</p>
