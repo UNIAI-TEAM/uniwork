@@ -80,6 +80,8 @@ func TestIsolationMatrix(t *testing.T) {
 				status, raw := w.do(t, r.method, path, tn.token, spec.bodyFor(w, tn))
 				if !spec.controlOK(status, raw) {
 					t.Errorf("%s %s as %s owner = %d, want success on own ids: %s", r.method, r.pattern, tn.tag, status, isoClip(raw))
+				} else if spec.checkControl != nil {
+					spec.checkControl(t, tn, raw)
 				}
 			}
 		}
@@ -107,10 +109,10 @@ func TestIsolationMatrix(t *testing.T) {
 				// gives an unknown id: the check holds that equality and the
 				// no-row rule, then the ordinary change/leak/reference checks
 				// run through attackAs against the answer it produced.
+				w.isoUniformCheck(t, label, r.method, r.pattern, spec, path+isoQuery(spec.query, w.alpha))
 				w.attackAs(t, isoCaller{name: "B's owner", token: w.bravo.token}, label,
 					r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha),
 					func(status int, raw []byte) bool { return status < 500 })
-				w.isoUniformCheck(t, label, r.method, r.pattern, spec, path+isoQuery(spec.query, w.alpha))
 				continue
 			}
 			w.attack(t, label, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), spec.refused)
@@ -225,6 +227,9 @@ func TestIsolationMatrix(t *testing.T) {
 					t.Errorf("%s: answer holds %q: %s", label, bad, isoClip(raw))
 				}
 			}
+			if c.afterAttack != nil {
+				c.afterAttack(t, w, label)
+			}
 		}
 	})
 
@@ -263,7 +268,11 @@ func TestIsolationMatrix(t *testing.T) {
 			if c.allow2xx {
 				refused = func(status int, _ []byte) bool { return status < 500 }
 			}
-			w.attackAs(t, both, "member-of-both references "+c.method+" "+c.pattern+" "+c.what, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
+			label := "member-of-both references " + c.method + " " + c.pattern + " " + c.what
+			w.attackAs(t, both, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
+			if c.afterAttack != nil {
+				c.afterAttack(t, w, label)
+			}
 		}
 	})
 
@@ -635,11 +644,10 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		return tn.get(t, "uploadSession")
 	case "{documentID}":
-		// DOC-07's manager routes act on the request the fixture seeded, which
-		// hangs on its own page; naming that page lets the owner's own call
-		// reach the request. The approve/decline pair is the only route with
-		// "/access-requests/" followed by another segment.
-		if strings.Contains(pattern, "/access-requests/") {
+		// DOC-07's access-request routes act on the requests the fixture
+		// seeded, which hang on their own page; naming that page lets the
+		// owner's own GET list and approve/decline calls reach those requests.
+		if strings.Contains(pattern, "/access-requests") {
 			return tn.get(t, "accessRequestDocument")
 		}
 		// The restore and purge routes act on a folder in the trash (E6 FD-02,

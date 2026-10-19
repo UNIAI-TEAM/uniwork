@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"go/ast"
 	"go/parser"
@@ -43,6 +44,11 @@ type isoReference struct {
 	// mustNotContain lists strings the attack's answer may not hold even
 	// when it is 2xx (a URL, a ticket).
 	mustNotContain []string
+	// afterControl runs after the own-rows control in referenceControls.
+	afterControl func(t *testing.T, w *isoWorld)
+	// afterAttack runs after each cross-tenant / member-of-both reference
+	// attack to assert the stored state (e.g. an empty source on a stored row).
+	afterAttack func(t *testing.T, w *isoWorld, label string)
 }
 
 type isoRef string       // the referenced tenant's row
@@ -99,7 +105,11 @@ func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
 	if !ok || c.docKey == "" {
 		return path, ok
 	}
-	return strings.Replace(path, tn.ids["document"], tn.get(t, c.docKey), 1), true
+	replaced := strings.Replace(path, tn.ids["document"], tn.get(t, c.docKey), 1)
+	if replaced == path {
+		replaced = strings.Replace(path, tn.ids["accessRequestDocument"], tn.get(t, c.docKey), 1)
+	}
+	return replaced, true
 }
 
 func isoHash(s string) string {
@@ -202,13 +212,18 @@ var isoReferences = []isoReference{
 		}, covers: []string{"CreateUploadSessionSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "user principal", body: map[string]any{
 		"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentSDI.principal_id"}},
-	// DOC-07 (UNI-1631 §4.3): the source pair is kept only when the requester
-	// reads that task in the document's OWN organization, so a foreign task is
-	// dropped silently and the stored row's source_id stays empty. The body is
-	// flat on purpose, so the scanner sees source_id without a nested object.
-	{method: "POST", pattern: "/api/v1/documents/{documentID}/access-requests", what: "task source of another tenant", allow2xx: true,
-		body:   map[string]any{"requested_level": "view", "source_kind": "task", "source_id": isoRef("task")},
-		covers: []string{"CreateDocumentAccessRequestSDI.source_id"}},
+	// DOC-07 (UNI-1631 §4.3, BE-SD7-10): the source pair is kept only when the
+	// requester reads that task in the document's OWN organization, so a
+	// foreign task is dropped silently and the stored row's source_id stays
+	// empty. The case targets restrictedDocument at edit (B's owner holds only
+	// a view break-glass grant on it), so the create reaches source validation
+	// and stores a pending row instead of exiting early as already sufficient.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/access-requests", what: "task source of another tenant",
+		docKey: "restrictedDocument", allow2xx: true,
+		body:         map[string]any{"requested_level": "edit", "source_kind": "task", "source_id": isoRef("task")},
+		afterControl: isoAccessRequestSourceAfterControl,
+		afterAttack:  isoAccessRequestSourceAfterAttack,
+		covers:       []string{"CreateDocumentAccessRequestSDI.source_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares/batch", what: "user principals", body: map[string]any{
 		"principal_ids": []any{isoRef("peer")}, "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentBatchSDI.principal_ids"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "workspace principal", body: map[string]any{
@@ -384,7 +399,63 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, c.build(w, w.bravo, w.bravo))
 		if status < 200 || status >= 300 {
 			t.Errorf("reference control %s %s %s with B's own rows = %d: %s", c.method, c.pattern, c.what, status, isoClip(raw))
+		} else if c.afterControl != nil {
+			c.afterControl(t, w)
 		}
+	}
+}
+
+// isoAccessRequestSourceAfterControl verifies the own-rows control stored B's
+// task on the pending request row and removes that row so the attack passes do
+// not hit 409 access_request_pending before reaching source validation.
+func isoAccessRequestSourceAfterControl(t *testing.T, w *isoWorld) {
+	t.Helper()
+	ctx := context.Background()
+	docID := w.bravo.ids["restrictedDocument"]
+	var sourceKind, sourceID string
+	if err := w.pool.QueryRow(ctx, `
+		SELECT coalesce(source_kind, ''), coalesce(source_id, '')
+		FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3 AND status = 'pending'`,
+		w.bravo.orgID, docID, w.bravo.userID).Scan(&sourceKind, &sourceID); err != nil {
+		t.Fatalf("reference control access request stored row: %v", err)
+	}
+	if sourceKind != "task" || sourceID != w.bravo.ids["task"] {
+		t.Errorf("reference control access request source = (%q, %q), want (\"task\", %q)",
+			sourceKind, sourceID, w.bravo.ids["task"])
+	}
+	if _, err := w.pool.Exec(ctx, `
+		DELETE FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3`,
+		w.bravo.orgID, docID, w.bravo.userID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// isoAccessRequestSourceAfterAttack requires the foreign-source attack to have
+// stored a pending request row on B's restrictedDocument with an empty source,
+// and removes the row so the member-of-both pass reaches the same code path.
+func isoAccessRequestSourceAfterAttack(t *testing.T, w *isoWorld, label string) {
+	t.Helper()
+	ctx := context.Background()
+	docID := w.bravo.ids["restrictedDocument"]
+	var sourceKind, sourceID string
+	if err := w.pool.QueryRow(ctx, `
+		SELECT coalesce(source_kind, ''), coalesce(source_id, '')
+		FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3 AND status = 'pending'`,
+		w.bravo.orgID, docID, w.bravo.userID).Scan(&sourceKind, &sourceID); err != nil {
+		t.Errorf("%s: expected a stored pending document_access_requests row on B's restrictedDocument: %v", label, err)
+		return
+	}
+	if sourceKind != "" || sourceID != "" {
+		t.Errorf("%s: stored pending request has source (%q, %q), want empty source", label, sourceKind, sourceID)
+	}
+	if _, err := w.pool.Exec(ctx, `
+		DELETE FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3`,
+		w.bravo.orgID, docID, w.bravo.userID); err != nil {
+		t.Fatal(err)
 	}
 }
 

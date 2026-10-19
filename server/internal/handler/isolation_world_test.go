@@ -193,6 +193,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	// back to 2 minutes. No DocumentEditLockSweeper runs here, as no
 	// dispatcher does.
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
+	docs.SetAccessRequestSources(d.Tasks, d.Meetings)
 	d.Documents = docs
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
 	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
@@ -1159,17 +1160,21 @@ func (w *isoWorld) buildEditLocks(t *testing.T, tn *isoTenant) {
 	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{"title": m + " Access-request page", "kind": "page", "visibility": "workspace"})
 	tn.ids["accessRequestDocument"] = isoID(t, out, "document")
 	for _, r := range []struct {
-		key       string
-		requester string
+		key        string
+		requester  string
+		level      string
+		message    string
+		sourceKind any
+		sourceID   any
 	}{
-		{"accessRequest", tn.peerID},
-		{"accessRequestDecline", tn.thirdID},
+		{"accessRequest", tn.peerID, "view", m + " access request message", "task", tn.ids["task"]},
+		{"accessRequestDecline", tn.thirdID, "edit", m + " decline access request message", nil, nil},
 	} {
 		tn.ids[r.key] = util.NewID()
 		if _, err := w.pool.Exec(ctx, `INSERT INTO document_access_requests
-			(id, organization_id, workspace_id, document_id, created_by, created_by_kind, requested_level, message, status, expires_at)
-			VALUES ($1, $2, $3, $4, $5, 'human', 'view', $6, 'pending', now() + interval '30 days')`,
-			tn.ids[r.key], tn.orgID, tn.wsID, tn.ids["accessRequestDocument"], r.requester, m+" access request message"); err != nil {
+			(id, organization_id, workspace_id, document_id, created_by, created_by_kind, requested_level, message, source_kind, source_id, status, expires_at)
+			VALUES ($1, $2, $3, $4, $5, 'human', $6, $7, $8, $9, 'pending', now() + interval '30 days')`,
+			tn.ids[r.key], tn.orgID, tn.wsID, tn.ids["accessRequestDocument"], r.requester, r.level, r.message, r.sourceKind, r.sourceID); err != nil {
 			t.Fatalf("access request: %v", err)
 		}
 	}
