@@ -474,3 +474,124 @@ func TestMutedRoomSendsNoChatNotification(t *testing.T) {
 		t.Fatalf("the dm after unmuting pushed %d times, want 1", n)
 	}
 }
+
+// Recipients who lost room, org or workspace access before delivery get
+// nothing (UNI-1717).
+func TestChatRuleDropsRecipientsWhoLostAccess(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+
+	t.Run("left_room", func(t *testing.T) {
+		ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+			Name: "kenh-rieng", Visibility: "private", MemberUserIDs: []string{f.member.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+			Body: "[@Thành Viên](mention://member/" + f.member.ID + ") xem",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		ev := f.lastEvent(t, "chat.message.mentioned")
+		if err := chat.LeaveChatRoom(f.ctx, f.member.ID, f.wsID, ch.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+		if got := f.inbox(t, f.member.ID); len(got) != 0 {
+			t.Fatalf("left_room inbox = %+v", got)
+		}
+	})
+
+	t.Run("deactivated", func(t *testing.T) {
+		ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+			Name: "deact-mention", Visibility: "public", MemberUserIDs: []string{f.member.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+			Body: "[@Thành Viên](mention://member/" + f.member.ID + ") ping",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		ev := f.lastEvent(t, "chat.message.mentioned")
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`,
+			f.orgID, f.member.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+		if got := f.inbox(t, f.member.ID); len(got) != 0 {
+			t.Fatalf("deactivated inbox = %+v", got)
+		}
+	})
+
+	t.Run("other_org", func(t *testing.T) {
+		// Prior subtests may deactivate or remove the member from a room; org
+		// membership must be active to add them to a new channel.
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE organization_members SET deactivated_at = NULL WHERE organization_id = $1 AND user_id = $2`,
+			f.orgID, f.member.ID); err != nil {
+			t.Fatal(err)
+		}
+		ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+			Name: "org-gate", Visibility: "public", MemberUserIDs: []string{f.member.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+			Body: "[@Thành Viên](mention://member/" + f.member.ID + ") cross",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		ev := f.lastEvent(t, "chat.message.mentioned")
+		orgs := service.NewOrganizationService(f.pool, f.q)
+		other := f.register(t, service.NewAuthService(f.pool, f.q, authpkg.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil), "other@example.com", "Other")
+		otherOrg, err := orgs.Create(f.ctx, other.ID, "Other Org", "other-org")
+		if err != nil {
+			t.Fatal(err)
+		}
+		ev.OrganizationID.String = otherOrg.ID
+		ev.OrganizationID.Valid = true
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+		if got := f.inbox(t, f.member.ID); len(got) != 0 {
+			t.Fatalf("other_org inbox = %+v", got)
+		}
+	})
+}
+
+// A mention row for someone who left the private channel before delivery
+// must not reach their inbox (UNI-1717).
+func TestChatMentionSkipsRecipientWhoLeftRoom(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "kenh-rieng", Visibility: "private", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+		Body: "[@Thành Viên](mention://member/" + f.member.ID + ") xem",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ev := f.lastEvent(t, "chat.message.mentioned")
+	if err := chat.RemoveChatRoomMember(f.ctx, f.owner.ID, f.wsID, ch.ID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.consumer.Handle(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.inbox(t, f.member.ID); len(got) != 0 {
+		t.Fatalf("kicked member inbox = %+v", got)
+	}
+}

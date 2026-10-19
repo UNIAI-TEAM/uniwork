@@ -4471,6 +4471,16 @@
       "from": "Chuyển tiếp từ {{name}}",
       "from_unknown": "Tin được chuyển tiếp"
     },
+    "followed_threads": {
+      "list_title": "Thread của tôi",
+      "list_description": "Các thread bạn đang theo dõi trong workspace này.",
+      "empty": "Chưa theo dõi thread nào",
+      "empty_hint": "Mở một thread và bật Theo dõi trên thanh thread để nhận thông báo khi có trả lời mới.",
+      "load_failed": "Không tải được danh sách thread.",
+      "untitled": "Thread",
+      "reply_count": "{{count}} trả lời",
+      "unread_aria": "Có trả lời chưa đọc"
+    },
     "follow_up": {
       "group_overdue": "Quá hạn",
       "group_upcoming": "Sắp tới",

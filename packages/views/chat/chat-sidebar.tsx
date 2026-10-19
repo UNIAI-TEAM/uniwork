@@ -68,6 +68,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   groups,
   channels = EMPTY_CHANNELS,
   onOpenFollowUps,
+  onOpenFollowedThreads,
   onQuickCatchUp,
   onCreateGroup,
   creatingGroup = false,
@@ -240,6 +241,7 @@ export const ChatSidebar = memo(function ChatSidebar({
         <SidebarHeader
           scope={scope}
           onOpenFollowUps={onOpenFollowUps}
+          onOpenFollowedThreads={onOpenFollowedThreads}
           onCollapse={onCollapse}
           onStartDm={openStartDm}
           onCreateGroup={openCreateGroup}

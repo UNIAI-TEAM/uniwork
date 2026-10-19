@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import {
   createChatGroup,
+  inviteChatGroupMembers,
+  patchChatRoom,
+  voteChatPollMessage,
   uploadChatRoomAvatar,
   removeChatRoomAvatar,
   ensureWorkspaceChatRoom,
@@ -787,6 +790,28 @@ describe("chat endpoints", () => {
       recent_photos: [],
     });
     expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("/chat/rooms/r1/shared-summary");
+  });
+
+  it("voteChatPollMessage degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ message: 1 }));
+    expect(await voteChatPollMessage("ws1", "room1", "msg1", "opt1")).toBeNull();
+  });
+
+  it("inviteChatGroupMembers degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ room: 42 }));
+    expect(await inviteChatGroupMembers("ws1", "room1", ["u2"])).toBeNull();
+  });
+
+  it("patchChatRoom degrades on malformed response with permissive defaults", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ allow_send_messages: "yes" }));
+    expect(await patchChatRoom("ws1", "room1", { name: "x" })).toEqual({
+      allow_change_profile: true,
+      allow_pin_content: true,
+      allow_create_notes: true,
+      allow_create_polls: true,
+      allow_send_messages: true,
+      allow_forward: true,
+    });
   });
 
   it("getChatRoomSharedSummary keeps a count and a photo whose optional fields drift", async () => {

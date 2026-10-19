@@ -68,3 +68,20 @@ WHERE id = ANY(ARRAY(
   LIMIT sqlc.arg('limit_n')
   FOR UPDATE SKIP LOCKED
 ));
+
+-- name: DeleteOrphanNotificationDeliveries :execrows
+-- tenant: system
+-- Idempotency rows whose outbox event was already purged; event_id is the
+-- outbox ULID (reminder:* synthetic keys are not ULIDs and stay until manual
+-- cleanup). Picked by primary key order from the oldest orphan.
+DELETE FROM notification_deliveries nd
+WHERE (nd.event_id, nd.user_id) IN (
+  SELECT nd2.event_id, nd2.user_id
+  FROM notification_deliveries nd2
+  LEFT JOIN outbox_events o ON o.id = nd2.event_id
+  WHERE o.id IS NULL
+    AND nd2.event_id < sqlc.arg('before_id')::text
+  ORDER BY nd2.event_id, nd2.user_id
+  LIMIT sqlc.arg('limit_n')
+  FOR UPDATE OF nd2 SKIP LOCKED
+);

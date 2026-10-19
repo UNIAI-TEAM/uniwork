@@ -199,6 +199,7 @@ theo chuỗi shutdown. Nó xóa các dòng không còn đường code nào đọ
 | `outbox_events` | `DEAD_LETTER` đã nằm quá 30 ngày (`dead_at`) | Dead letter trẻ hơn 30 ngày, để phát lại tay |
 | `webhook_inbox` | `DONE` nhận quá 7 ngày, `DEAD_LETTER` nhận quá 30 ngày | `PENDING`, `PROCESSING` |
 | `meeting_provider_events` | Dòng nhận quá 14 ngày | Sổ chống trùng: provider chỉ gửi lại trong vài phút |
+| `notification_deliveries` | Dòng `event_id` không còn trong `outbox_events` và ULID cũ hơn 30 ngày | Chỉ còn tác dụng khi outbox row còn tồn tại |
 
 `audit_events` **không bao giờ** bị đụng tới: bảng này append-only (ADR 0012).
 Hệ quả cần biết:
