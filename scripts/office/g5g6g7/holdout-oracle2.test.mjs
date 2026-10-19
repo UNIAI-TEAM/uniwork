@@ -62,6 +62,12 @@ describe('O2-S1: a cell value followed by its formula after a separator is the v
     assert.equal(valuesEqual(120, '121; formula =SUM(A1:A3)', 'cell'), false);
     assert.equal(valuesEqual('#DIV/0!', 'formula =B2/C2', 'cell'), false, 'a formula alone is no value');
   });
+
+  it('O2R1-03: strips separator formula notes for kind === "cell" only', () => {
+    assert.equal(valuesEqual('Approved', 'Approved; formula =B2/C2', 'table_cell'), false, 'P-S1-NONCELL-NO-LOOSEN table_cell');
+    assert.equal(valuesEqual('Approved', 'Approved; formula =B2/C2', 'heading'), false, 'P-S1-NONCELL-NO-LOOSEN heading');
+    assert.equal(valuesEqual('Approved', 'Approved; formula =B2/C2', null), false, 'P-S1-NONCELL-NO-LOOSEN default kind');
+  });
 });
 
 describe('O2-S2: an empty cell reported with an empty-cell word', () => {
