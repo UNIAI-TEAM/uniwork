@@ -169,11 +169,11 @@ describe("ChatFileMessageRow", () => {
       },
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Trả lời" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Trả lời" }));
     expect(onReply).toHaveBeenCalledTimes(1);
     expect(screen.getByText("👍")).toBeInTheDocument();
     // A file cannot be edited, so the action is left out rather than shown disabled.
-    expect(screen.queryByRole("button", { name: "Sửa" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Sửa" })).not.toBeInTheDocument();
   });
 
   it("formats byte sizes and shows peer sender chrome", () => {

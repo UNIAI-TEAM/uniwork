@@ -100,7 +100,7 @@ describe("ChatThreadSidePanel", () => {
   it("edits my reply in its own field, and closing hands back to the page", () => {
     const props = renderPanel();
     const panel = screen.getByRole("complementary", { name: "Chủ đề" });
-    fireEvent.click(within(document.getElementById("chat-msg-m2")!).getByRole("button", { name: "Sửa" }));
+    fireEvent.click(within(document.getElementById("chat-msg-m2")!).getByRole("menuitem", { name: "Sửa" }));
     expect(within(panel).getByRole("textbox", { name: "Sửa tin nhắn" })).toHaveValue("Cắt còn 30 giây");
 
     fireEvent.click(within(panel).getByRole("button", { name: "Đóng chủ đề" }));

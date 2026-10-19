@@ -1,4 +1,4 @@
-/* global fetch, Buffer, AbortSignal, console */
+/* global fetch, Buffer, AbortSignal, console, process */
 // Install side of the genoffice web frame bundles (UNI-1013 docs, UNI-1014
 // modules): locate, verify and copy a fork build into public/. Used by
 // scripts/office-frame-sync.mjs.

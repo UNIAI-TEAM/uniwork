@@ -295,6 +295,8 @@ export function ChatMessageHoverActions({
     <div
       ref={barRef}
       data-message-actions
+      // Only relays the roving-tabindex keys of the toolbar and menu inside it.
+      role="presentation"
       onKeyDown={onKeyDown}
       onFocusCapture={onFocusCapture}
       className={cn(

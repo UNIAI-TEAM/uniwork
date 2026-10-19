@@ -1,3 +1,4 @@
+/* global URL, process */
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { OFFICE_MODULES } from "./platform/office-frame/frame-bundle.mjs";

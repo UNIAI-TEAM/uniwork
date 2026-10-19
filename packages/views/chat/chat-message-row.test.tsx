@@ -134,7 +134,7 @@ describe("ChatMessageRow", () => {
     );
 
     fireEvent.click(screen.getByLabelText("Thả 👍"));
-    fireEvent.click(screen.getByLabelText("Trả lời"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Trả lời" }));
     expect(onReact).toHaveBeenCalledWith(row);
     expect(onReply).toHaveBeenCalledWith(row);
   });
