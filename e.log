@@ -1,0 +1,2 @@
+$ cd packages/views && npx eslint --max-warnings 0 documents/documents-home-folder-layout.test.tsx documents/documents-home-header.tsx documents/documents-page-view.tsx documents/documents-visual-r1.test.tsx documents/folder-breadcrumb.tsx; echo "ESLINT_TOUCHED_EXIT=$?"
+ESLINT_TOUCHED_EXIT=0
