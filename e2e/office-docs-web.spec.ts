@@ -407,11 +407,21 @@ async function readPrintCounts(scope: Page | FrameLocator): Promise<PrintCounts>
   });
 }
 
-/** Focus leaves the frame for the page chrome: the document title field. */
+/**
+ * Focus leaves the frame for the page chrome: the header's Save button
+ * (`office.shell.save_to_cloud`, `aria-disabled` when clean so `.focus()` puts
+ * keyboard focus on it without firing an action; `document-page-header`'s
+ * `<textarea>` only mounts on `kind === "page"`, not on file documents).
+ */
 async function focusPageChrome(page: Page): Promise<void> {
-  const title = page.locator("textarea").first();
-  await expect(title).toBeVisible({ timeout: 30_000 });
-  await title.click();
+  const saveButton = page.getByRole("button", { name: /^(Lưu vào UniWork|Save to UniWork)$/ });
+  await expect(saveButton).toBeVisible({ timeout: 30_000 });
+  await saveButton.focus();
+  await expect(saveButton).toBeFocused();
+  expect(
+    await page.evaluate(() => document.activeElement !== null && document.activeElement.tagName !== "IFRAME"),
+    "page chrome holds focus outside the iframe before pressing Ctrl+P",
+  ).toBe(true);
 }
 
 test.describe("Ctrl/Cmd+P", () => {
@@ -514,9 +524,16 @@ test.describe("Ctrl/Cmd+P", () => {
     const frame = page.frameLocator('iframe[src*="/office-frame/html/"]');
     await installPrintProbe(frame);
     await installPrintProbe(page);
-    // A tab in the module's own chrome keeps the focus in this document: the preview
-    // body is itself an iframe, and a keydown inside it never reaches the accelerator.
-    await frame.getByRole("tab").first().click();
+    // Ribbon view tabs have onMouseDown preventDefault (Ribbon.tsx:634) so a tab
+    // click does not move focus out of the nested preview.html iframe. Switch to
+    // the Source tab and click `.cm-content` so focus sits in the HTML module's
+    // own document where `installPrintAccelerator` listens on `window`.
+    await frame.getByRole("tab").nth(2).click();
+    await frame.locator(".cm-content").click();
+    expect(
+      await frame.locator("body").evaluate(() => document.activeElement !== null && document.activeElement.tagName !== "IFRAME"),
+      "HTML module document holds focus outside preview.html before pressing Ctrl+P",
+    ).toBe(true);
     await page.keyboard.press("Control+p");
     await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
     // The frame's accelerator must have claimed the press: a missing preventDefault
