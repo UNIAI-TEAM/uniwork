@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19673 14673; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19673/tcp 14673/tcp 2>/dev/null; sleep 1; for p in 19673 14673; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+e1181a8ce3d07f931a6f99086f3afd7a1d467de3
+e1181a8ce test(e2e): open My Folder from its tree row now that the collection row is gone
+6469c06a4 chore: merge UNINOTE-TOOLBAR formatting toolbar, first-use tip and shortcuts help (UNI-1955, e5d8f674b) into the G5-G7 root
+9e9dad319 chore: merge G712-A1-CONFIRM AI uniwork writes are proposals only test (UNI-1923 D half, d4a16d653) into the G5-G7 root
+62cd9ab99 chore(knip): ignore the dbus-run-session binary the keyring fault test calls
