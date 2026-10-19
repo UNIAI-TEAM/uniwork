@@ -49,6 +49,9 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       if (n.kind === "document_trashed_by_other") {
         return paths.workspace(target.organization_slug, target.slug).documentsTrash(n.resource_id);
       }
+      // A body mention (UNI-1968) opens the page on the reader's own mention,
+      // which the document reveals itself (useMentionDeepLink); no comment id rides.
+      if (n.kind === "document_body_mentioned") return `${href}?mention=1`;
       const commentId = n.params.comment_id;
       if (!commentId) return href;
       const query = new URLSearchParams({ comment: commentId });

@@ -18,6 +18,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   chat_reminder: "mentions",
   document_commented: "mentions",
   document_mentioned: "mentions",
+  document_body_mentioned: "mentions",
   document_comment_replied: "mentions",
   document_discussion_mentioned: "mentions",
   document_discussion_replied: "mentions",

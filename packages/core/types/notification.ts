@@ -17,6 +17,7 @@ export const NOTIFICATION_KINDS = [
   "email_hub_new_mail",
   "document_commented",
   "document_mentioned",
+  "document_body_mentioned",
   "document_comment_replied",
   "document_discussion_mentioned",
   "document_discussion_replied",
