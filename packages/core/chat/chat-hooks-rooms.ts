@@ -303,6 +303,18 @@ export function useMarkChatRoomRead(workspaceId: string) {
   });
 }
 
+/** The sidebar's search: text messages across my rooms in one scope, from two characters. */
+export function useSearchChatMessages(workspaceId: string, scope: chat.ChatSearchScope, query: string) {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  const normalized = query.trim();
+  return useQuery({
+    queryKey: chatKeys.messageSearch(workspaceId, scope, normalized),
+    queryFn: () => chat.searchChatMessages(workspaceId, { q: normalized, scope, limit: 20 }),
+    enabled: !!workspaceId && authReady && normalized.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
 export function useSearchChatRoomMessages(
   workspaceId: string,
   roomId: string | null,

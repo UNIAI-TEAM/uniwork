@@ -19,6 +19,7 @@ import {
   setChatRoomMuted,
   olderThan,
   searchChatRoomMessages,
+  searchChatMessages,
   listChatRoomMessagesAround,
   listChatRooms,
   getChatUnreadSummary,
@@ -704,6 +705,20 @@ describe("chat endpoints", () => {
   it("searchChatRoomMessages degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await searchChatRoomMessages("ws1", "room1", { q: "hello" })).toEqual([]);
+  });
+
+  it("searchChatMessages degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await searchChatMessages("ws1", { q: "ra mat", scope: "messages" })).toEqual([]);
+  });
+
+  it("searchChatMessages asks one scope of my rooms", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [] }));
+    await searchChatMessages("ws1", { q: "ra mắt", scope: "workspace", limit: 20 });
+    const url = String(vi.mocked(fetch).mock.calls.at(-1)?.[0]);
+    expect(url).toContain("/api/v1/workspaces/ws1/chat/messages/search?");
+    expect(new URL(url, "http://x").searchParams.get("scope")).toBe("workspace");
+    expect(new URL(url, "http://x").searchParams.get("q")).toBe("ra mắt");
   });
 
   it("listChatRoomMessagesAround degrades on malformed response", async () => {

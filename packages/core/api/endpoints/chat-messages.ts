@@ -93,6 +93,26 @@ export async function searchChatRoomMessages(
   return parsed.messages ?? [];
 }
 
+/** Which of the sidebar's lists a search covers: Tin nhắn (DMs and groups) or a workspace's room and channels. */
+export type ChatSearchScope = "messages" | "workspace";
+
+/** Text messages across every room of mine in one scope, newest first (the sidebar's search). */
+export async function searchChatMessages(
+  workspaceId: string,
+  options: { q: string; scope: ChatSearchScope; before?: string; limit?: number },
+): Promise<ChatMessageRecord[]> {
+  const params = new URLSearchParams();
+  params.set("q", options.q);
+  params.set("scope", options.scope);
+  if (options.before) params.set("before", options.before);
+  if (options.limit) params.set("limit", String(options.limit));
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/messages/search?${params.toString()}`);
+  const parsed = parseWithFallback(raw, ChatMessagesListSchema, { messages: [] }, {
+    endpoint: "GET /api/v1/workspaces/{ws}/chat/messages/search",
+  });
+  return parsed.messages ?? [];
+}
+
 export async function listChatRoomMessagesAround(
   workspaceId: string,
   roomId: string,
