@@ -245,7 +245,15 @@ describe("home layout (Main.dc)", () => {
     });
     renderView();
     const section = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
-    fireEvent.click(await within(section).findByRole("button", { name: t("documents.home.row.menu", { title: "Sai đẹp chiêu" }) }));
+    const trigger = await within(section).findByRole("button", { name: t("documents.home.row.menu", { title: "Sai đẹp chiêu" }) });
+    // The ⋯ sits inside the card's right edge, not in the gap between cards:
+    // pinned over the card (absolute in a relative item) with room reserved on the card.
+    const card = within(section).getByRole("button", { name: /^Sai đẹp chiêu/ });
+    expect(trigger.parentElement).toBe(card.parentElement);
+    expect(card.parentElement).toHaveClass("relative");
+    expect(trigger).toHaveClass("absolute", "right-2");
+    expect(card).toHaveClass("pr-12");
+    fireEvent.click(trigger);
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.star") }));
     await waitFor(() =>
       expect(

@@ -367,6 +367,17 @@ describe("folder star menu (SV-4)", () => {
   });
 });
 
+describe("trash vs archive icons", () => {
+  it("draws Move to trash with the trash icon and Archive with the archive icon on a document row", async () => {
+    renderList([doc("a", "A.docx", { my_level: "manage" })], { onArchive: vi.fn(), onShelve: vi.fn() });
+    await openMenu("a", "A.docx");
+    const trash = screen.getByRole("menuitem", { name: t("documents.home.row.archive") });
+    const shelve = screen.getByRole("menuitem", { name: t("documents.shelved_list.shelve") });
+    expect(trash.querySelector("svg.lucide-trash-2")).not.toBeNull();
+    expect(shelve.querySelector("svg.lucide-archive")).not.toBeNull();
+  });
+});
+
 describe("starred view rows (SV-1)", () => {
   const fav = { document_id: "f1", workspace_id: "ws1", title: "Bản nháp", kind: "page" };
 
