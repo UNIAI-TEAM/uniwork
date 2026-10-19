@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-82c8381",
-  "forkSha": "82c8381",
-  "capturedOn": "2026-10-19T04:13:50.385Z",
+  "pinVersion": "0.1.0-55b587b",
+  "forkSha": "55b587b",
+  "capturedOn": "2026-10-19T10:31:05.320Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -48,7 +48,7 @@
       "masks": []
     },
     "web/fx-xlsx-revenue-xyz": {
-      "sha256": "467601a50ba16a617c7ecd44014a888b5e7260a7f74522fb54f8388e0467ea72",
+      "sha256": "64568597085e10fb4b1cf8c456ae2458b8e8706cc5b7be5a3b66218943b246ac",
       "masks": []
     },
     "web/fx-docx-report-vi": {
@@ -68,7 +68,7 @@
       "masks": []
     },
     "web/fx-html-page-vi": {
-      "sha256": "1f9f074005cdd4859fe67d9fd989a006ea8ac6c2e807f825394aa505b2292939",
+      "sha256": "8ea678562fbd0c502c9751d612678dacb04d0469bc122f017d7c4e57555933db",
       "masks": []
     }
   }
