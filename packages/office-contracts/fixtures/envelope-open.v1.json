@@ -1,10 +1,10 @@
 {
   "fixture": "uniwork-office-contract-fixture/envelope-open@1",
-  "description": "A schema-valid protocol-2 open envelope; its input tuple names the literal string \"hello\", whose bytes ride the framed body after the envelope.",
+  "description": "A schema-valid open envelope; its input tuple names the literal string \"hello\", whose bytes ride the framed body after the envelope.",
   "value": {
     "request_id": "01J8Z2ABCDE00000000000000X",
     "contract_version": "uniwork-office-engine-contract/1",
-    "protocol_version": 2,
+    "protocol_version": 1,
     "operation": "open",
     "format": "docx",
     "deadline_ms": 30000,

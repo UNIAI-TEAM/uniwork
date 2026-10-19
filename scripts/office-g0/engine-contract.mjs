@@ -49,13 +49,15 @@ import { pathToFileURL } from "node:url";
 
 /** Model revision of this reference contract. Bumped whenever the wire changes. */
 export const CONTRACT_VERSION = "uniwork-office-engine-contract/1";
-/** Engine wire protocol version the boundary negotiates against. Protocol 2
- * (SIZE-OPS1) moves a job's input bytes out of the JSON envelope into a framed
- * body (OFFICE_JOB_CONTENT_TYPE below). This in-memory model has no HTTP body,
- * so its envelopes still carry the input as payload.input_bytes, standing in
- * for the bytes the frame streams after the envelope; the TypeScript contract
- * (packages/office-contracts) is the wire schema. */
-export const PROTOCOL_VERSION = 2;
+/** Engine wire protocol version the boundary negotiates against. */
+export const PROTOCOL_VERSION = 1;
+/** Engine job transport capability (SIZE-OPS1): a job with input rides a
+ * framed body (OFFICE_JOB_CONTENT_TYPE below) instead of base64 in JSON. This
+ * in-memory model has no HTTP body, so its envelopes still carry the input as
+ * payload.input_bytes, standing in for the bytes the frame streams after the
+ * envelope; the TypeScript contract (packages/office-contracts) is the wire
+ * schema. */
+export const ENGINE_JOB_TRANSPORT = "framed/1";
 /** Every wire field and enum value is snake_case; asserted, not assumed. */
 export const WIRE_FORMAT = "snake_case";
 
@@ -78,7 +80,7 @@ export const LIMITS = Object.freeze({
   // The output ceiling mirrors the document cap's configured maximum (SIZE-S1,
   // UNI-1859): DOCUMENT_MAX_BYTES may reach 2 GiB, so a job this size is
   // contract-legal and the deployed service's own limit does the gating.
-  // The input ceiling is the same 2 GiB (SIZE-OPS1): protocol 2 streams the
+  // The input ceiling is the same 2 GiB (SIZE-OPS1): job transport framed/1 streams the
   // input as raw bytes after the envelope, so no V8 string bound applies.
   max_input_bytes: 2 * 1024 * 1024 * 1024,
   max_output_bytes: 2 * 1024 * 1024 * 1024,
@@ -89,7 +91,7 @@ export const LIMITS = Object.freeze({
   max_identifier_length: 128,
 });
 
-/** Protocol-2 job frame: the JSON envelope (at most ENVELOPE_MAX_BYTES, its
+/** Framed job body (ENGINE_JOB_TRANSPORT): the JSON envelope (at most ENVELOPE_MAX_BYTES, its
  * length in ENVELOPE_LENGTH_HEADER), then exactly input_length raw bytes. */
 export const OFFICE_JOB_CONTENT_TYPE = "application/vnd.uniwork.office-job";
 export const ENVELOPE_LENGTH_HEADER = "x-office-envelope-length";
@@ -1128,6 +1130,7 @@ export function createBoundary({ now = () => 0, engine, objectStore, documents, 
   /** Catalogue an operation answers for capability without touching storage. */
   function capabilityFor(format) {
     return {
+      job_transport: ENGINE_JOB_TRANSPORT,
       format,
       capabilities: OPERATIONS.filter((op) => op !== "cancel").map((op) => ({
         operation: op,
@@ -1622,7 +1625,7 @@ export const FAULT_CASES = [
     id: "protocol-version-mismatch",
     requirement: "an unsupported protocol_version is refused rather than negotiated down",
     expect: { kind: "contract_violation", field_path: "envelope.protocol_version", revision_delta: 0, jobs: 0 },
-    run: (b) => { const env = baseEnvelope({ protocol_version: PROTOCOL_VERSION - 1 }); let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
+    run: (b) => { const env = baseEnvelope({ protocol_version: 2 }); let error = null; try { b.submit(env); } catch (e) { error = e; } return { error, snapshot: b.record() }; },
   },
   {
     id: "engine-version-incompatible-is-typed",

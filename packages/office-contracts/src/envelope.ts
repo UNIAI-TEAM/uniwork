@@ -5,7 +5,7 @@ import { ENGINE_LIMITS } from "./limits.ts";
 import { EngineBoundaryError, EngineContractViolation } from "./errors.ts";
 
 // Strict wire validation (engine-contract.md §5), ported from validateEnvelope
-// in engine-contract.mjs. Since protocol 2 (SIZE-OPS1) the envelope carries
+// in engine-contract.mjs. Under job transport framed/1 (SIZE-OPS1) the envelope carries
 // only the input's declared tuple (input_checksum, input_length); the bytes
 // follow it in the framed body, and the host measures them while it streams
 // them (the engine refuses a digest or length that disagrees).
@@ -166,7 +166,7 @@ function requireNoAuthority(obj: unknown, fieldPath: string): Dict {
   return obj;
 }
 
-/** The input tuple a protocol-2 envelope declares. The host measures the
+/** The input tuple a framed-transport envelope declares. The host measures the
  * framed bytes against it; the grant binds the same pair. */
 export interface DeclaredInput {
   checksum: string;

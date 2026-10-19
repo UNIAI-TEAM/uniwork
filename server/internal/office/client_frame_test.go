@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-// frameEngine is an in-process fake of the engine's framed submit (protocol 2):
+// frameEngine is an in-process fake of the engine's framed submit (framed/1):
 // it reads exactly X-Office-Envelope-Length envelope bytes, then counts and
 // hashes the rest of the body without keeping it, and refuses a body that does
 // not match the envelope's input_length / input_checksum.

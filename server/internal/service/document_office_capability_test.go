@@ -289,6 +289,22 @@ func TestDocumentOfficeNegotiationGates(t *testing.T) {
 		t.Fatalf("drift wrote %d office_jobs rows", n)
 	}
 
+	// An engine lacking or advertising a different job_transport is refused before mutation.
+	for _, tr := range []string{"", "json/1"} {
+		badTransport := newScriptedEngine()
+		v := tr
+		badTransport.jobTransport = &v
+		svc = f.service(badTransport)
+		if _, err := svc.StartOfficeJob(ctx, f.actor, f.input("gate-transport-"+tr)); err == nil {
+			t.Fatalf("job_transport %q started a job", tr)
+		} else if ee := wantOfficeCode(t, err, "engine_incompatible"); ee.Reason != "job_transport:"+tr {
+			t.Fatalf("job_transport %q refusal = %+v", tr, ee)
+		}
+		if n := f.officeJobCount(t, f.doc); n != 0 {
+			t.Fatalf("job_transport %q wrote %d office_jobs rows", tr, n)
+		}
+	}
+
 	// An operation the build does not bind is refused before mutation too.
 	unbound := newScriptedEngine()
 	unbound.bound = map[office.Operation]bool{office.OperationOpen: true}

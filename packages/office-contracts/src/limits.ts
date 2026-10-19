@@ -10,8 +10,9 @@ import { z } from "zod";
 // output up to 2 GiB is contract-legal and the running service's own
 // configured limit — plus the grant's output.max_bytes — does the real
 // gating.
-// The input ceiling is the same 2 GiB (SIZE-OPS1): since protocol 2 the
-// input travels as raw bytes after the JSON envelope (see the frame below),
+// The input ceiling is the same 2 GiB (SIZE-OPS1): under job transport
+// framed/1 the input travels as raw bytes after the JSON envelope (see the
+// frame below),
 // so no V8 string bound applies to it any more.
 export const ENGINE_LIMITS = {
   max_input_bytes: 2 * 1024 * 1024 * 1024,
@@ -23,7 +24,7 @@ export const ENGINE_LIMITS = {
   max_identifier_length: 128,
 } as const;
 
-/** Protocol-2 job frame (SIZE-OPS1): POST /v1/jobs with this content type
+/** Framed job body (ENGINE_JOB_TRANSPORT = "framed/1", SIZE-OPS1): POST /v1/jobs with this content type
  * carries ENVELOPE_LENGTH_HEADER bytes of UTF-8 JSON envelope, immediately
  * followed by exactly input_length raw input bytes; Content-Length covers both.
  * A job without input may still send application/json. */

@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   ENGINE_CONTRACT_VERSION,
+  ENGINE_JOB_TRANSPORT,
   ENGINE_LIMITS,
   ENGINE_PROTOCOL_VERSION,
   ENGINE_ERROR_CODES,
@@ -31,9 +32,8 @@ const sha256Sync = (bytes: Uint8Array) => createHash("sha256").update(bytes).dig
 describe("contract constants", () => {
   it("pins the G0 contract identity", () => {
     expect(ENGINE_CONTRACT_VERSION).toBe("uniwork-office-engine-contract/1");
-    // SIZE-OPS1: protocol 2 moves the input bytes out of the JSON envelope
-    // into the framed body; a protocol-1 peer fails closed at negotiation.
-    expect(ENGINE_PROTOCOL_VERSION).toBe(2);
+    expect(ENGINE_PROTOCOL_VERSION).toBe(1);
+    expect(ENGINE_JOB_TRANSPORT).toBe("framed/1");
   });
 
   it("every error code carries the full spec", () => {
@@ -194,7 +194,7 @@ describe("validateEnvelope", () => {
     expect(out.inputs?.length).toBe(ENGINE_LIMITS.max_input_bytes);
   });
 
-  it("refuses input_bytes in a protocol-2 envelope: the bytes ride the framed body only", async () => {
+  it("refuses input_bytes in an envelope: the bytes ride the framed body only", async () => {
     const fixture = loadFixture("envelope-open.v1.json") as {
       value: { payload: Record<string, unknown> };
     };
@@ -213,9 +213,9 @@ describe("validateEnvelope", () => {
     }
   });
 
-  it("refuses a protocol-1 envelope with must_equal", async () => {
+  it("refuses a mismatched protocol_version with must_equal", async () => {
     const fixture = loadFixture("envelope-open.v1.json") as { value: Record<string, unknown> };
-    const envelope = { ...structuredClone(fixture.value), protocol_version: 1 };
+    const envelope = { ...structuredClone(fixture.value), protocol_version: ENGINE_PROTOCOL_VERSION + 1 };
     await expect(validateEnvelope(envelope)).rejects.toMatchObject({
       name: "EngineContractViolation",
       field_path: "envelope.protocol_version",

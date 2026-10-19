@@ -193,7 +193,7 @@ export function makeJob(target: TargetServer, spec: JobSpec): Job {
   return { grant, token: signGrant(grant, GRANT_KEY), envelope, bytes };
 }
 
-/** The protocol-2 frame: the JSON envelope, then the raw input bytes. */
+/** The framed job body (framed/1): the JSON envelope, then the raw input bytes. */
 export function frame(envelope: Record<string, unknown>, bytes: Uint8Array): { headers: Record<string, string>; body: Buffer } {
   const head = Buffer.from(JSON.stringify(envelope), "utf8");
   return {

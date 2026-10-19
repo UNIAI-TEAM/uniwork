@@ -14,12 +14,13 @@ import "encoding/json"
 // commit.
 const (
 	ContractVersion      = "uniwork-office-engine-contract/1"
-	ProtocolVersion      = 2
+	ProtocolVersion      = 1
+	JobTransport         = "framed/1"
 	WireFormat           = "snake_case"
 	TrustedEngineVersion = "genoffice@09485f88+uniwork-office.0"
 )
 
-// Protocol-2 job frame and contract byte ceilings (SIZE-OPS1), mirrors of
+// Framed job body (JobTransport, SIZE-OPS1) and contract byte ceilings, mirrors of
 // packages/office-contracts/src/limits.ts. A job with input is POSTed as
 // JobContentType: EnvelopeLengthHeader bytes of JSON envelope, then exactly
 // input_length raw input bytes, with Content-Length covering both.
@@ -206,7 +207,7 @@ type FidelityWarning struct {
 }
 
 // InputTuple is the caller-declared input byte description. The bytes travel
-// after the envelope in the protocol-2 frame; the boundary counts and hashes
+// after the envelope in the framed job body; the boundary counts and hashes
 // them against these fields, which are never trusted on their own.
 type InputTuple struct {
 	InputChecksum string `json:"input_checksum"`

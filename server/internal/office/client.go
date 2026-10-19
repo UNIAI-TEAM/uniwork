@@ -198,7 +198,7 @@ type InputSource struct {
 	Open     func() (io.ReadCloser, error)
 }
 
-// jobFrameType is the Content-Type of a protocol-2 job body: the JSON
+// jobFrameType is the Content-Type of a framed job body (JobTransport): the JSON
 // envelope (X-Office-Envelope-Length bytes) immediately followed by the raw
 // input bytes, no separator.
 const jobFrameType = "application/vnd.uniwork.office-job"

@@ -53,6 +53,7 @@ type scriptedEngine struct {
 	// engineVersion and capabilityErr drive the negotiation tests.
 	bound         map[office.Operation]bool
 	engineVersion string
+	jobTransport  *string
 	capabilityErr error
 	// submitHook, when set, sees every submit's envelope and input source
 	// after the grant checks; its error is the engine's answer.
@@ -194,7 +195,11 @@ func (e *scriptedEngine) Capability(_ context.Context, format office.Format) (of
 	if e.engineVersion != "" {
 		version = e.engineVersion
 	}
-	return office.CapabilityResult{EngineVersion: version, Format: format, Capabilities: rows}, nil
+	transport := office.JobTransport
+	if e.jobTransport != nil {
+		transport = *e.jobTransport
+	}
+	return office.CapabilityResult{EngineVersion: version, JobTransport: transport, Format: format, Capabilities: rows}, nil
 }
 
 type countingMetrics struct {

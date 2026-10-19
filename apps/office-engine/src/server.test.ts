@@ -7,7 +7,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PROVISIONAL_LIMITS } from "../src/index.ts";
-import { ENVELOPE_MAX_BYTES, OFFICE_JOB_CONTENT_TYPE } from "@uniwork/office-contracts";
+import { ENGINE_JOB_TRANSPORT, ENVELOPE_MAX_BYTES, OFFICE_JOB_CONTENT_TYPE } from "@uniwork/office-contracts";
 import { signGrant, type ServiceGrant } from "../src/grants.ts";
 import {
   call,
@@ -71,6 +71,7 @@ describe("capability and unsupported operations", () => {
   it("reports honest rows: the xls/odt converters claim their pair, other rows stay honest", async () => {
     const md = await call(h, "GET", "/v1/capability?format=md");
     expect(md.status).toBe(200);
+    expect(md.body.job_transport).toBe(ENGINE_JOB_TRANSPORT);
     const mdRows = md.body.capabilities as { operation: string; supported: boolean; evidence_level: string; reason?: string }[];
     expect(mdRows.find((r) => r.operation === "convert")).toMatchObject({ supported: false, reason: "no Q7 converter is bound from md" });
     expect(mdRows.find((r) => r.operation === "serialize")).toMatchObject({ supported: true, evidence_level: "pending" });
@@ -736,7 +737,7 @@ describe("framed job transport (SIZE-OPS1)", () => {
     }
   });
 
-  it("refuses input_bytes inside a protocol-2 envelope and a protocol-1 envelope", async () => {
+  it("refuses input_bytes inside an envelope and a mismatched protocol_version", async () => {
     const job = makeJob(h.target, { text: "p" });
     const smuggled = {
       ...job.envelope,
@@ -745,9 +746,9 @@ describe("framed job transport (SIZE-OPS1)", () => {
     const res = await submit(h, { token: job.token, envelope: smuggled, bytes: job.bytes });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatchObject({ code: "contract_violation", field_path: "envelope.payload.input_bytes", rule: "unknown_field" });
-    const v1 = await submit(h, { token: job.token, envelope: { ...job.envelope, protocol_version: 1 }, bytes: job.bytes });
-    expect(v1.status).toBe(400);
-    expect(v1.body.error).toMatchObject({ code: "contract_violation", field_path: "envelope.protocol_version", rule: "must_equal" });
+    const wrongProtocol = await submit(h, { token: job.token, envelope: { ...job.envelope, protocol_version: 2 }, bytes: job.bytes });
+    expect(wrongProtocol.status).toBe(400);
+    expect(wrongProtocol.body.error).toMatchObject({ code: "contract_violation", field_path: "envelope.protocol_version", rule: "must_equal" });
     expect(h.service.jobs.inputBytesAdmitted).toBe(0);
   });
 

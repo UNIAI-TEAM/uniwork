@@ -51,7 +51,7 @@ caller run their own idle timeouts and close first; shutdown still reaps via `cl
 | `OFFICE_ENGINE_CPU_MS` | `60000` | CPU time per job tree |
 | `OFFICE_ENGINE_MEMORY_MB` | `512` | RSS per job tree; the handler's V8 heap is capped at 75 % of it |
 | `OFFICE_ENGINE_TEMP_MB` | `512`, never below input + output + 64 MiB (boot fails otherwise) | Bytes a job may leave in its temp dir |
-| `OFFICE_ENGINE_MAX_INPUT_BYTES` / `_MAX_OUTPUT_BYTES` | `DOCUMENT_MAX_BYTES`, else 200 MiB / 200 MiB | Byte bounds; unset, they follow the document cap the server enforces, byte for byte. Both are bounded by the contract's 2 GiB (protocol 2 streams the input as raw bytes, so no transport ceiling sits below it); an explicit value past it refuses to start, and the shared value must stay inside the server's [1 MiB, 2 GiB] range or the engine refuses to boot |
+| `OFFICE_ENGINE_MAX_INPUT_BYTES` / `_MAX_OUTPUT_BYTES` | `DOCUMENT_MAX_BYTES`, else 200 MiB / 200 MiB | Byte bounds; unset, they follow the document cap the server enforces, byte for byte. Both are bounded by the contract's 2 GiB (job transport `framed/1` streams the input as raw bytes, so no transport ceiling sits below it); an explicit value past it refuses to start, and the shared value must stay inside the server's [1 MiB, 2 GiB] range or the engine refuses to boot |
 | `OFFICE_ENGINE_TEMP_DIR` | `$TMPDIR/uniwork-office-engine` | Root of per-job temp dirs |
 | `OFFICE_ENGINE_SAMPLE_MS` | `100` | Usage / temp sampling period |
 | `OFFICE_ENGINE_RETENTION_MS` / `_MAX_RETAINED_JOBS` | 15 min / 1024 | How long a settled job answers status |
@@ -192,7 +192,7 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   Memory `emptyDir`; it is created `0777` without the sticky bit, so an init container (`tmp-sticky`) runs
   `chmod 1777 /tmp` first, matching compose's `mode=1777`. Without it any worker uid could rename or delete the
   supervisor's `uniwork-office-engine` temp root.
-- Protocol 2 (SIZE-OPS1): a job with input is `POST /v1/jobs` with `Content-Type: application/vnd.uniwork.office-job`,
+- Job transport `framed/1` (protocol stays 1, SIZE-OPS1): `/v1/capability` advertises `job_transport: "framed/1"` (Go `Negotiate` refuses a missing or different value as `engine_incompatible` `job_transport:<value>` before any mutation), and a job with input is `POST /v1/jobs` with `Content-Type: application/vnd.uniwork.office-job`,
   `X-Office-Envelope-Length: <n>` (1..8 MiB) and a `Content-Length`: `n` bytes of JSON envelope, then exactly
   `input_length` raw bytes. The service checks the frame, the input budget, the envelope, the grant and the binding
   first, then streams the input to `<jobdir>/input.bin` while hashing it; a length or digest that disagrees with the
@@ -213,7 +213,7 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   leaves the job `accepted`; only a client retry with the **same** idempotency key dispatches it again. Without one
   the reconciler times it out (`never_dispatched`) at its deadline, and until then the same work under another key
   answers `in_flight`.
-- The submit carries the base as raw bytes after the JSON envelope (protocol 2); the client scales its request
+- The submit carries the base as raw bytes after the JSON envelope (job transport `framed/1`, protocol stays 1); the client scales its request
   timeout with the input (+250 ms per MiB of input over `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`).
 - A cancel or shutdown can land after the output PUT succeeded, so the object exists for a cancelled job. It is never
   claimed (`ClaimOfficeJobOutputInTx` requires `completed`), and FileService collects it after its claim window.

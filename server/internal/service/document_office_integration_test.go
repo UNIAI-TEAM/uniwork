@@ -304,7 +304,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		// a wrong contract, a wrong protocol type, a wrong protocol value and an
 		// untrusted engine build are each refused with zero jobs, while the
 		// accepted control (a real job) lives in the format rows above. These
-		// probes post a raw protocol-2 frame (envelope only, input_length 0)
+		// probes post a raw framed job body (envelope only, input_length 0)
 		// because the Go client cannot even represent a
 		// string protocol_version - the claim under test is that the REAL
 		// engine refuses wire drift, not that Go can send it. Go's own
@@ -381,7 +381,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 			wantKind string
 		}{
 			{"contract version outside the pin", func(m map[string]any) { m["contract_version"] = "uniwork-office-engine-contract/999" }, http.StatusBadRequest, "", "contract_violation"},
-			{"protocol version sent as a string", func(m map[string]any) { m["protocol_version"] = "2" }, http.StatusBadRequest, "", "contract_violation"},
+			{"protocol version sent as a string", func(m map[string]any) { m["protocol_version"] = "1" }, http.StatusBadRequest, "", "contract_violation"},
 			{"protocol version outside the pin", func(m map[string]any) { m["protocol_version"] = office.ProtocolVersion + 1 }, http.StatusBadRequest, "", "contract_violation"},
 			{"untrusted engine build", func(m map[string]any) { m["client_engine_version"] = "untrusted@0" }, http.StatusConflict, "engine_incompatible", ""},
 		} {

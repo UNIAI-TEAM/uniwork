@@ -96,7 +96,7 @@ describe("loadConfig", () => {
   });
 
   it("takes a shared document cap above the old 383 MiB transport ceiling unclamped (SIZE-OPS1)", () => {
-    // Protocol 2 streams the input as raw bytes, so the input cap follows
+    // Job transport framed/1 streams the input as raw bytes, so the input cap follows
     // DOCUMENT_MAX_BYTES byte for byte, like the output cap.
     const big = loadConfig({ ...base, DOCUMENT_MAX_BYTES: "536870912" }, defaults);
     expect(big.limits.maxInputBytes).toBe(536870912);

@@ -4,7 +4,7 @@
 //   credential -> declared frame bounds -> input byte budget -> envelope ->
 //   JSON -> grant signature -> envelope schema -> operation bound? ->
 //   grant binding -> stream the input to the job dir (sha256 + count) -> job.
-// A job with input arrives as a protocol-2 frame (SIZE-OPS1): the JSON
+// A job with input arrives as a framed body (job transport framed/1, SIZE-OPS1): the JSON
 // envelope, then the raw input bytes, never base64 inside the JSON. The input
 // goes straight to <jobdir>/input.bin while it is hashed, so no request holds
 // an input in memory, and the job holds a path. The input byte budget

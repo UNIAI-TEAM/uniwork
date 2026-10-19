@@ -41,8 +41,11 @@ func TestContractIdentityMatchesTypescript(t *testing.T) {
 	if ContractVersion != "uniwork-office-engine-contract/1" {
 		t.Fatalf("ContractVersion drifted: %q", ContractVersion)
 	}
-	if ProtocolVersion != 2 {
+	if ProtocolVersion != 1 {
 		t.Fatalf("ProtocolVersion drifted: %d", ProtocolVersion)
+	}
+	if JobTransport != "framed/1" {
+		t.Fatalf("JobTransport drifted: %q", JobTransport)
 	}
 }
 
@@ -127,10 +130,14 @@ func TestAuthorityFieldStaysRejectedByContract(t *testing.T) {
 func TestCapabilityFixtureHonestyRule(t *testing.T) {
 	f := loadFixture(t, "result-capability.v1.json")
 	var result struct {
+		JobTransport string            `json:"job_transport"`
 		Capabilities []CapabilityEntry `json:"capabilities"`
 	}
 	if err := json.Unmarshal(f.Value, &result); err != nil {
 		t.Fatalf("capability fixture failed to decode: %v", err)
+	}
+	if result.JobTransport != JobTransport {
+		t.Fatalf("capability fixture job_transport = %q, want %q", result.JobTransport, JobTransport)
 	}
 	var expected struct {
 		ProductSupported map[string]bool `json:"product_supported"`

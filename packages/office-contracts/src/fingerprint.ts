@@ -10,7 +10,7 @@ export type Sha256HexFn = (bytes: Uint8Array) => string | Promise<string>;
  * provably the same work while a changed payload is provably different.
  *
  * It hashes the input tuple validateEnvelope returned (`inputs`), never the
- * bytes: since protocol 2 the bytes ride the framed body, and the engine
+ * bytes: under job transport framed/1 the bytes ride the framed body, and the engine
  * refuses a job whose streamed bytes disagree with that tuple, so a job only
  * ever exists under the digest and length of its real input.
  *

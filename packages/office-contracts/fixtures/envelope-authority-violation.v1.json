@@ -4,7 +4,7 @@
   "value": {
     "request_id": "01J8Z2ABCDE00000000000000Y",
     "contract_version": "uniwork-office-engine-contract/1",
-    "protocol_version": 2,
+    "protocol_version": 1,
     "operation": "open",
     "format": "docx",
     "deadline_ms": 30000,
