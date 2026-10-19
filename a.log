@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+3050b14f7ecc7ff9aaa2187a36e6f51309a1e40b
+5975d8f9e4532e8c33f5564462386d65c701258c
+3050b14f7 chore(merge): e6-server CHAT-DOC-SHARE fx1 3528bbb64 into the web half (UNI-1966)
+3528bbb64 chore: merge review-r1 fix slice fx1 into CHAT-DOC-SHARE
+5c52a8408 test(chat): the handler send test expects the stored title
+3be3c4e74 chore(merge): e6-server CHAT-DOC-SHARE fx2 dde7ca07b into the web half (UNI-1966)
+c80d4443f test(e2e): share an old file as a document and post a version from the card (UNI-1966)
+259548934 test(e2e): send plain files as files and open the comments pane (UNI-1966)
+db2b96c90 fix(chat): mint a new share-as-document key when the level changes (UNI-1966)
+2356ff8be fix(chat): refresh the room timeline after a version is committed from the card (UNI-1966)
+c0c35d5b7 fix(chat): name the share-as-document 422 for a file that cannot become a document (UNI-1966)
+dde7ca07b chore: merge review-r1 fix slice fx2 into CHAT-DOC-SHARE
