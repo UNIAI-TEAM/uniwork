@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+4477043d75c76bbc3004113d3f3c6c91609066a1
+479a478cd8a0e3d912fb9ff76e849b17d192159d
+4477043d7 fix(chat): plural share count and one level order (UNI-1966)
+1a7cd6e2d fix(chat): give the document and locked cards room for their text (UNI-1966)
+7f2d74f0e fix(chat): keep the document card title tappable on phones (UNI-1966)
+464e99f1a test(chat): pin the document block across reaction and pin answers (UNI-1966)
+1885c9ddc test(e2e): wait for the room read before choosing the send kind (UNI-1966)
+8dd829d04 feat(chat): offer the access request on the locked document card (UNI-1966)
+afb34cc6c chore(merge): G5-G7 root 479a478cd into CHAT-DOC-SHARE web
+c0bd0a819 test(e2e): assert the sender's own level on the converted card (UNI-1966)
+a06b22f26 test(e2e): drive the editor frame's Discussion for a docx (UNI-1966)
+479a478cd chore: merge UNI-1981 FU-G7-12-PACK4 (office prompt @4: injected instructions named by location only; fefa1f0d9) into the G5-G7 root
