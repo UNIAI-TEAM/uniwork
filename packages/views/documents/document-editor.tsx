@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { createDocument, type JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -24,6 +25,8 @@ import {
 } from "./document-asset-upload";
 import { DocumentImageExtension } from "./document-image-extension";
 import { DocumentAssetScopeProvider } from "./document-asset-context";
+import { PageFirstUseHint } from "./page-toolbar/page-first-use-hint";
+import { PageToolbar } from "./page-toolbar/page-toolbar";
 
 /**
  * The page editor: TipTap over the G1-01 page schema, persisted as JSON.
@@ -74,6 +77,12 @@ export interface DocumentEditorProps {
   onContentError?: (error: unknown) => void;
   onReady?: () => void;
   onFocusTitle?: () => void;
+  /**
+   * Where the formatting toolbar is mounted: a sticky slot above the scrolling
+   * page. Without one (version preview, public view) the editor shows no toolbar
+   * and no first-use hint.
+   */
+  toolbarHost?: HTMLElement | null;
 }
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(
@@ -93,6 +102,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       onContentError,
       onReady,
       onFocusTitle,
+      toolbarHost,
     },
     ref,
   ) {
@@ -104,6 +114,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const translateRef = useRef(t);
     translateRef.current = t;
     const imageInputRef = useRef<HTMLInputElement>(null);
+    const [helpOpen, setHelpOpen] = useState(false);
     const focusTitleRef = useRef(onFocusTitle);
     focusTitleRef.current = onFocusTitle;
     const onChangeRef = useRef(onChange);
@@ -253,6 +264,10 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
 
     return (
       <div className="relative flex flex-1 flex-col" data-document-id={documentId} data-ws-id={wsId}>
+        {editable && toolbarHost ? <PageFirstUseHint onShowShortcuts={() => setHelpOpen(true)} onDismissed={() => editor.commands.focus()} /> : null}
+        {editable && toolbarHost ? createPortal(
+          <PageToolbar editor={editor} chooseImage={() => imageInputRef.current?.click()}
+            helpOpen={helpOpen} onHelpOpenChange={setHelpOpen} />, toolbarHost) : null}
         <DocumentAssetScopeProvider scope={{ wsId, documentId }}>
           <EditorContent editor={editor} className="flex flex-1 flex-col" />
         </DocumentAssetScopeProvider>
