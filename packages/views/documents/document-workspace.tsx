@@ -5,6 +5,7 @@ import { ArrowLeft, Eye, FileExclamationPoint } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
+
 import { useUploadDocumentAsset } from "@uniwork/core/documents/hooks";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import { isShelved, type Document } from "@uniwork/core/types/document";
@@ -35,6 +36,7 @@ import { DocumentPageHeader } from "./document-page-header";
 import { DocumentShelvedBadge, DocumentShelvedBanner } from "./document-shelved-banner";
 import { useShelvedWriteGuard } from "./use-shelved-write-guard";
 import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
+import { BodyMentionGate, useBodyMentionDeepLink } from "./document-body-mention-gate";
 
 /**
  * The editor chunk. The document route must stay inside the bundle budget, so
@@ -118,6 +120,8 @@ export function DocumentWorkspace({
   shelvedRef.current = shelved;
   const wasShelvedRef = useRef(false);
   const editorRef = useRef<DocumentEditorHandle>(null);
+  const { onEditorReady } = useBodyMentionDeepLink({ doc, editorRef });
+
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [pageTitle, setPageTitle] = useState(doc.title);
   // The edit lock (UNI-1645) owns the save machine: every gated write carries the held id.
@@ -128,6 +132,7 @@ export function DocumentWorkspace({
   const { save, editable } = editLock;
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
+
   // One live-again retry per refusal run, so a server that keeps refusing never loops.
   const liveRetryRef = useRef(false);
   if (state.phase === "saved") liveRetryRef.current = false;
@@ -461,16 +466,14 @@ export function DocumentWorkspace({
   const ownerCrumb: BreadcrumbSegment[] = owned
     ? [{ href: ownerCrumbHref ?? undefined, label: t("documents.detail.breadcrumb_work_product") }]
     : [];
+  const crumbRows: BreadcrumbSegment[] = documentHref
+    ? (doc.breadcrumbs ?? [])
+        .filter((crumb) => crumb.id)
+        .map((crumb) => ({ href: documentHref(crumb.id), label: crumb.title }))
+    : [];
   const breadcrumbSegments: BreadcrumbSegment[] = owned
     ? ownerCrumb
-    : [
-        { href: libraryHref, label: t("documents.detail.breadcrumb_library") },
-        ...(documentHref
-          ? (doc.breadcrumbs ?? [])
-              .filter((crumb) => crumb.id)
-              .map((crumb) => ({ href: documentHref(crumb.id), label: crumb.title }))
-          : []),
-      ];
+    : [{ href: libraryHref, label: t("documents.detail.breadcrumb_library") }, ...crumbRows];
   /** Owner route when there is one; otherwise no back control for owned docs. */
   const backHref = ownerCrumbHref ?? (owned ? null : libraryHref);
   const backLabel = ownerCrumbHref
@@ -586,6 +589,7 @@ export function DocumentWorkspace({
               canPersist={!dirty && state.phase !== "saving" && pendingUploads === 0}
               getRevision={() => stateRef.current.revision}
               onStatusChange={handleMetadataStatus} onSaved={(saved) => save.updateBase(saved.revision, saved)} />
+          <BodyMentionGate wsId={wsId} doc={doc} state={state} />
           <Suspense
             fallback={
               <div className="min-h-64 space-y-3" aria-busy>
@@ -609,9 +613,8 @@ export function DocumentWorkspace({
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}
                 onPendingUploadsChange={setPendingUploads}
-                onContentError={handleContentError} toolbarHost={toolbarHost}
-                onFocusTitle={() => { titleRef.current?.focus(); const input = titleRef.current;
-                  if (input) input.setSelectionRange(input.value.length, input.value.length); }}
+                onContentError={handleContentError} toolbarHost={toolbarHost} onReady={onEditorReady}
+                onFocusTitle={() => { titleRef.current?.focus(); titleRef.current?.setSelectionRange(titleRef.current.value.length, titleRef.current.value.length); }}
               />
             </div>
           </Suspense>

@@ -97,6 +97,7 @@ export const K = {
   collabPostSendNoAccess: `${C}.collabPostSendNoAccess`,
   collabPostSendShareAction: `${C}.collabPostSendShareAction`,
   collabPostSendNoRetroNote: `${C}.collabPostSendNoRetroNote`,
+  collabBodyMentionNoAccess: `${C}.collabBodyMentionNoAccess`,
   // S15 page level (web only): a document opened from the Inbox that cannot show.
   inboxDocGone: `${C}.inboxDocGone`,
   inboxDocNoAccess: `${C}.inboxDocNoAccess`,

@@ -448,3 +448,35 @@ function fragOf(node: JsonObject): string {
   }
   return out;
 }
+
+/**
+ * Body-mention collection (UNI-1968): the `@`-mentions a saved page body
+ * carries, so a post-save check can diff "mentions before" against "mentions
+ * after". The walk is the plain JSON tree the PATCH sends — not a ProseMirror
+ * doc — so it accepts `unknown` and ignores anything that is not a
+ * `{"type":"mention"}` node with a non-empty `attrs.id`. Agent mentions
+ * (`attrs.type === "agent"` or the legacy `attrs.kind === "agent"`) do not
+ * notify a person, so they are never collected. The caller filters the ids
+ * against `can_view === false` itself: a mention that names a task or a
+ * project simply finds no candidate row and is ignored.
+ */
+export function collectUserMentionIds(content: unknown): Set<string> {
+  const ids = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child);
+      return;
+    }
+    if (!isPlainObject(node)) return;
+    const record = node as JsonObject;
+    if (record.type === "mention") {
+      const attrs = isPlainObject(record.attrs) ? (record.attrs as JsonObject) : undefined;
+      const id = typeof attrs?.id === "string" ? attrs.id : "";
+      const kind = attrs?.type ?? attrs?.kind;
+      if (id && kind !== "agent") ids.add(id);
+    }
+    visit(record.content);
+  };
+  visit(content);
+  return ids;
+}
