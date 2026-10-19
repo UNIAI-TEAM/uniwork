@@ -3,7 +3,8 @@
 // chat-pinned-messages-bar.tsx reads them: a tap jumps to the shown pin and
 // moves on to the next older one.
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useState } from "react";
+import { comparePinnedMessages } from "@uniwork/core/chat/pin-utils";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
@@ -21,10 +22,19 @@ export function PinnedBar({ messages, onJump }: { messages: readonly TimelineMes
     () =>
       messages
         .filter((m) => m.record?.pinned)
-        .map((m) => ({ id: m.id, preview: m.record ? messagePreviewText(m.record, t) : m.body }))
-        .reverse(),
+        .sort((a, b) =>
+          comparePinnedMessages(
+            { pinned_at: a.record?.pinned_at, created_at: a.record?.created_at ?? "" },
+            { pinned_at: b.record?.pinned_at, created_at: b.record?.created_at ?? "" },
+          ),
+        )
+        .map((m) => ({ id: m.id, preview: m.record ? messagePreviewText(m.record, t) : m.body })),
     [messages, t],
   );
+  const pinnedKey = pinned.map((row) => row.id).join(",");
+  useEffect(() => {
+    setCursor(0);
+  }, [pinnedKey]);
   const position = pinned.length > 0 ? cursor % pinned.length : 0;
   const item = pinned[position];
   if (!item) return null;

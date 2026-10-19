@@ -22,6 +22,7 @@ const sp = ws("w3", "san-pham", "Sản phẩm");
 const ns = ws("w4", "nhan-su", "Nhân sự");
 
 beforeEach(() => {
+  localStorage.clear();
   requestMock.mockReset();
   resetAuthStoreForTests();
   setSessionUser(me);
@@ -29,7 +30,7 @@ beforeEach(() => {
     if (path.startsWith("/api/v1/workspaces")) return Promise.resolve({ workspaces: [tt, kd, sp, ns] });
     if (path === "/api/v1/me/chat/unread-summary") {
       return Promise.resolve({
-        direct: { unread: 0, mentions: 0 },
+        direct: { unread: 5, mentions: 1 },
         workspaces: [
           { workspace_id: "w1", unread: 4, mentions: 0 },
           { workspace_id: "w2", unread: 7, mentions: 1 },
@@ -42,8 +43,8 @@ beforeEach(() => {
   });
 });
 
-function renderRail() {
-  const nav = fakeNav("/unicom/truyen-thong/chat");
+function renderRail(url = "/unicom/truyen-thong/chat") {
+  const nav = fakeNav(url);
   render(
     wrapWithNav(
       <WorkspaceProvider workspace={tt} user={me}>
@@ -81,6 +82,39 @@ describe("WorkspaceRail", () => {
     expect(nav.push).toHaveBeenCalledWith("/unicom/kinh-doanh/chat");
     fireEvent.click(screen.getByRole("button", { name: "Truyền thông" }));
     expect(nav.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("puts the organization's DMs and groups first, counted once, red when they mention the reader", async () => {
+    const nav = renderRail();
+    const messages = await screen.findByRole("button", { name: "Tin nhắn, riêng và nhóm, 5 tin nhắn chưa đọc, 1 tin nhắn nhắc bạn" });
+    expect(messages.querySelector(".bg-destructive-solid")).toHaveTextContent("5");
+    fireEvent.click(messages);
+    expect(nav.push).toHaveBeenCalledWith("/unicom/truyen-thong/chat?view=messages");
+  });
+
+  it("marks Tin nhắn open instead of the workspace, and leads back to the workspace's channels", async () => {
+    const nav = renderRail("/unicom/truyen-thong/chat?view=messages");
+    expect(await screen.findByRole("button", { name: "Tin nhắn, riêng và nhóm" })).toHaveAttribute("aria-current", "page");
+    const current = await screen.findByRole("button", { name: /^Truyền thông, 4 tin nhắn chưa đọc/ });
+    expect(current).not.toHaveAttribute("aria-current");
+    fireEvent.click(current);
+    expect(nav.push).toHaveBeenCalledWith("/unicom/truyen-thong/chat?view=channels");
+  });
+
+  it("says once what moved to Tin nhắn, and remembers it was read", async () => {
+    const first = render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={tt} user={me}>
+          <WorkspaceRail />
+        </WorkspaceProvider>,
+      ),
+    );
+    expect(screen.getByRole("dialog", { name: "Tin nhắn riêng và nhóm giờ ở đây" })).toHaveTextContent("Dùng chung cho mọi workspace của UNICOM");
+    fireEvent.click(screen.getByRole("button", { name: "Đã hiểu" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    first.unmount();
+    renderRail();
+    expect(screen.queryByRole("dialog", { name: "Tin nhắn riêng và nhóm giờ ở đây" })).not.toBeInTheDocument();
   });
 
   it("keeps the account actions: settings, theme, language, new workspace, sign out", async () => {

@@ -60,6 +60,7 @@ type AiMessage struct {
 	Citations      string             `json:"citations"`
 	UsageEventID   pgtype.Text        `json:"usage_event_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Notice         pgtype.Text        `json:"notice"`
 }
 
 type AiModelRate struct {
@@ -2252,6 +2253,7 @@ type TaskStatus struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	Icon           string             `json:"icon"`
+	Customized     bool               `json:"customized"`
 }
 
 type TaskSubscriber struct {

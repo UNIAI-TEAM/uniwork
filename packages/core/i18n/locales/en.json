@@ -192,6 +192,32 @@
         "fixes": {
           "cb13d6b99001d8be5b4c49a8fe32dde8ad182f59d": "On the marketing site, each entry in the Product menu now opens that feature's own page, and the Watch demo button on a feature page opens the demo right there. The illustration at the end of the home page uses the product's current interface."
         }
+      },
+      "v1_6_0": {
+        "title": "A new Chat, edit locks and Trash in Documents, and task status and label settings",
+        "summary": "Chat on the web has a new design and adds message forwarding, voice message transcripts and playback speed, link previews, delivered ticks, and separate Messages and workspace channels. Documents gains edit locks while someone is editing, a Trash, My Folder, sharing with a whole workspace and uploading large files in parts, plus tools for managing access: access requests, sharing with several people at once, ownership transfer and an access report. Workspace settings add Task statuses and Labels tabs, and task cards can show labels. Ask UNI finds sources better and keeps the topic across follow-up questions. Creating tasks from a meeting's AI summary is fixed so tasks are created correctly, completely and only once.",
+        "note": "The access report only covers documents you administer. Tasks from a meeting summary are created only after the host confirms them, and AI summaries follow the organization's current plan. Only workspace owners and admins can change statuses and labels. Voice message transcripts require AI to be turned on for your organization and count toward the AI quota.",
+        "features": {
+          "cca3275dc8b0fb0b2296db9529abe6546bec9b1f4": "Share a document with several people at once instead of adding them one by one.",
+          "c637118da6a7728102ae5a117c56babe0e609d88e": "Administrators get a document access report showing who has access to the documents they administer.",
+          "c896171fc59d1de0c535d2cd0febe6ca41e7738b9": "Document ownership can now be transferred to another member.",
+          "ca9583ec607f78bedf7a94c006620f1ee5d7c1081": "When a member opens a document they have no access to, they can request access. The document's managers get a notification and can approve or decline the request.",
+          "c9fccc520a0414af5b9002b19e7d118fb86b13f53": "Chat adds: forwarding a message to up to 10 rooms at once, showing the original sender's name (administrators can turn this off in group, channel or workspace room settings; when off, only room moderators can forward); transcripts for voice messages when your organization has AI turned on, created only on request and counted once toward the AI quota; voice playback at 1×, 1.5× or 2×; preview cards for links in messages; a delivered tick alongside sent and seen; the faces of people who replied on thread labels; page count and first page for PDF files; and a progress bar with a Cancel button when downloading files. The action bar of the first message under the room header can now be clicked.",
+          "c356e8ffc953347979413a330e69c7710e6aa9868": "Documents: while someone is editing, the document is locked for editing; others can request to edit or take over, and the people involved are notified. The Documents library adds a Trash with per-item restore and notifications when a document is moved to or restored from the Trash; filters by type and by access; a \"Shared by me\" view; and a private \"My Folder\" that is the default save location and stays hidden from others in search. Version history shows who created each version. Documents can be shared with a whole workspace. Large files upload in parts and can resume after an interruption, within one size limit for all document types, and saving unchanged content no longer creates a new version. \"Pages\" is renamed UniNote. This release also fixes the star button, and go-to-source links from Chat now open the right room.",
+          "c9c8a3b74619de2d85f0ec70d387853fd1affd587": "Settings › Workspace adds Task statuses and Labels tabs. Workspace owners and admins can create, edit, archive and drag to reorder statuses within four groups (Not started, Started, Completed, Closed) and pick a color and icon, and can create, edit and delete labels, with the number of tasks using each one. Other members see both tabs read-only and can still add and remove labels on tasks as before. The Blocked status now belongs to the Started group."
+        },
+        "improvements": {
+          "ccccea0fc160226064e08619e8012695125b2dc91": "The Documents library has new columns showing each document's access.",
+          "c22ea091760670c281c9996cbb45c136910655dd5": "Chat on the web has a new design. The room list is split into tabs with counts and shows missed calls, voice message length and seen ticks. An info panel on the right shows the description, tasks from the conversation, photos, files, links, voice messages and members. You can reply to and edit messages right in the composer, threads open in the right panel, messages that fail to send are kept with a \"Retry\" button, and photos sent together are grouped into an album. Groups and channels show who has seen each message, and groups can have a photo and a description. This release also fixes several issues: opening a link to a room no longer marks the workspace room as read, rooms with images open at the latest message, links and jumps to a specific message are no longer pulled to the bottom, the emoji picker follows light/dark mode, and single-choice polls no longer show as \"multiple choice\".",
+          "c961ef62c74f6af3ca50adeb2153fd4c2b1b2c6bb": "Ask UNI finds sources better: searches without Vietnamese diacritics still match, searches with diacritics match them exactly, tasks can be found by their ID such as ORI-12, and documents you can view are searched too. Follow-up questions such as \"Who is working on that?\" keep the previous question's topic. When no source is found, the notice appears in your language. The Ask UNI panel's width is fixed; typing with an input method (IME) no longer sends early on Enter, switching workspace no longer mixes conversations, and the panel no longer flickers when sending.",
+          "ce23e2771c66928dccf84fbd9cda331f37404b685": "Workspace owners and admins can edit the name, description, color and icon of built-in statuses (their group stays the same); edited names appear in Settings, the status picker, and column and group headings in board, list, swimlane and table views. Board cards and list rows show up to two labels plus \"+n\" when Labels is turned on in the Display menu.",
+          "c65c909bed73758a152f42b9a47db1808fc92ac07": "Chat separates Messages (direct and group chats, shared across the organization) from workspace channels: the chat page shows one at a time, with a \"Messages | Channels\" switcher on the web, so direct and group chats no longer repeat in every workspace's list. New-message notifications show a banner with a preview line for every room you have not muted, group messages included; while the app is open, only the room you are viewing stays silent."
+        },
+        "fixes": {
+          "c15cfad8411e546621d6df9d7b6503a128bac61cd": "If the Share dialog fails to load the member list, you can retry right in the dialog.",
+          "cdefc46087dd47e7b2e383fa681b092a855e46e0f": "Creating tasks from a meeting's AI summary: tasks are created exactly as the host confirmed, once and as a whole batch; an item already turned into a task, or an outdated summary, no longer creates tasks again. The review dialog lets you adjust the assignee, due date, priority and project; assignee suggestions match whole words and are left empty when names are ambiguous, and due dates read phrases like \"next Tuesday\" correctly and reject dates in the past. Created items link to their task, each error explains what to do, and a meeting runs only one summary at a time.",
+          "c9138dd10cf4ec713e49bc35b9b7bfdd181d24aba": "Chat and notifications: the mention count inside a room now matches the count shown in the room list, and notification digest emails only include items from workspaces and chat rooms you can still access."
+        }
       }
     }
   },
@@ -602,7 +628,11 @@
       "email_all": "Email for every eligible kind",
       "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
       "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
-      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden"
+      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden",
+      "desktop_section": "Desktop notifications",
+      "desktop_description": "UniChat shows new messages as system notifications. If you don't see them, send a test, then check your computer's notification settings.",
+      "desktop_row": "This computer",
+      "desktop_test": "Send a test"
     },
     "page": {
       "title": "Settings",
@@ -1642,12 +1672,13 @@
       "group_completed": "Completed",
       "group_closed": "Closed",
       "category": "Group",
+      "category_locked": "A built-in status stays in this group: the system relies on it.",
       "icon": "Icon",
       "icon_default": "Default",
       "icon_option": "{{name}} icon",
       "workspace_chip": "Workspace {{name}}",
       "drag": "Reorder {{name}}",
-      "system_locked": "Built-in statuses drive system behaviour, so they can't be edited or archived. You can still reorder them.",
+      "system_locked": "Built-in statuses can't be archived or moved to another group. You can still rename, recolour, re-icon and reorder them.",
       "group_hint_not_started": "Work not started yet or waiting.",
       "group_hint_started": "Work in progress, in review or blocked.",
       "group_hint_completed": "Finished work.",
@@ -2421,8 +2452,7 @@
       "card_dueDate": "Due date",
       "card_project": "Project",
       "card_childProgress": "Sub-task progress",
-      "card_labels": "Labels",
-      "labels_unavailable": "The task list does not return label relations yet."
+      "card_labels": "Labels"
     },
     "card": {
       "child_progress": "Sub-task progress",
@@ -3833,6 +3863,24 @@
     "search_hide_weekends": "Hide weekends"
   },
   "chat": {
+    "scope": {
+      "messages_title": "Messages",
+      "messages_hint": "Direct and group, shared by every workspace",
+      "channels_tab": "Channels",
+      "channels_hint": "This workspace's channels",
+      "search_channels": "Search channels and messages in {{name}}…",
+      "workspace_overline": "{{org}} · Workspace",
+      "switch_aria": "Messages or channels",
+      "create_channel_in": "Create a channel in {{name}}",
+      "channel_of": "Channel in {{name}}",
+      "room_of": "{{name}}'s shared room",
+      "group_line": "Group",
+      "rail_label": "Messages, direct and group",
+      "rail_tooltip": "Messages · direct and group, shared by every workspace",
+      "intro_title": "Direct messages and groups live here now",
+      "intro_body": "They're shared by every {{org}} workspace. Each workspace now keeps just its channels.",
+      "intro_dismiss": "Got it"
+    },
     "message_list": {
       "gifs_failed": "Couldn't load GIFs.",
       "search_results_total_one": "{{count}} result",
@@ -3873,6 +3921,10 @@
       "live_new_message": "{{sender}}: {{preview}}",
       "react_failed": "Couldn't add the reaction. Try again.",
       "pin_failed": "Couldn't pin the message. Try again.",
+      "pinned": "Message pinned",
+      "pin_limit_title": "Pin limit reached",
+      "pin_limit_description": "Each room can have at most {{max}} pinned messages. Unpin the oldest one to pin this message?",
+      "pin_replace_confirm": "Replace oldest pin",
       "unpin_failed": "Couldn't unpin the message. Try again.",
       "unpinned": "Message unpinned",
       "undo": "Undo",
@@ -4449,6 +4501,16 @@
       "kind_refused": "This kind of message can't be forwarded.",
       "from": "Forwarded from {{name}}",
       "from_unknown": "Forwarded message"
+    },
+    "followed_threads": {
+      "list_title": "My threads",
+      "list_description": "Threads you follow in this workspace.",
+      "empty": "No followed threads yet",
+      "empty_hint": "Open a thread and turn on Follow in the thread bar to get notified about new replies.",
+      "load_failed": "Could not load your followed threads.",
+      "untitled": "Thread",
+      "reply_count": "{{count}} replies",
+      "unread_aria": "Unread replies"
     },
     "follow_up": {
       "group_overdue": "Overdue",
@@ -5411,6 +5473,14 @@
   },
   "notifications": {
     "title": "Inbox",
+    "desktop": {
+      "prompt": "Turn on notifications so you don't miss new messages.",
+      "enable": "Turn on notifications",
+      "check": "When macOS asks, choose Allow. If no test notification appeared, turn UniChat on in your computer's notification settings.",
+      "open_settings": "Open notification settings",
+      "test_title": "Notifications are on",
+      "test_body": "New messages will show up here."
+    },
     "filter": "Filter",
     "filter_all": "All",
     "filter_unread": "Unread",
@@ -5555,13 +5625,19 @@
     "you": "You",
     "uni": "UNI",
     "usage_tokens": "{{in}} in · {{out}} out",
+    "notice": {
+      "no_sources": "Nothing you can see in this workspace matches this question yet.",
+      "unavailable": "UNI couldn't answer this one."
+    },
     "errors": {
       "ai_quota_exceeded": "The organization has used its AI token quota for this month.",
       "ai_rate_limited": "You are asking too fast; try again in a minute.",
       "ai_disabled": "AI is not configured on this server.",
       "ai_context_forbidden": "You do not have access to this data.",
       "ai_output_invalid": "UNI answered in an unexpected format; please ask again.",
-      "ai_provider_error": "Could not reach the AI provider. Check the API key/model and try again.",
+      "ai_provider_error": "The AI service isn't responding. Try again in a few minutes.",
+      "ai_provider_timeout": "UNI took too long to answer. Try again.",
+      "ai_tool_not_allowed": "UNI tried something it isn't allowed to do. Ask again.",
       "default": "Could not ask right now; try again later."
     },
     "close": "Close",

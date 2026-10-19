@@ -169,6 +169,7 @@ type Routes struct {
 	DeleteTaskStatus        http.HandlerFunc
 	ReorderTaskStatuses     http.HandlerFunc
 	ListTaskLabels          http.HandlerFunc
+	ListTaskLabelLinks      http.HandlerFunc
 	GetTaskLabel            http.HandlerFunc
 	CreateTaskLabel         http.HandlerFunc
 	PutTaskLabel            http.HandlerFunc

@@ -177,7 +177,7 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
         docked ? "w-75 shrink-0" : "absolute inset-y-0 right-0 z-30 w-full shadow-floating sm:max-w-85",
       )}
     >
-      <div className="flex h-16 shrink-0 items-center border-b border-border pr-2 pl-5">
+      <div data-window-drag className="flex h-16 shrink-0 items-center border-b border-border pr-2 pl-5">
         <h2 className="min-w-0 flex-1 truncate font-display text-title-sm font-bold text-foreground">{heading}</h2>
         <Button
           ref={closeRef}

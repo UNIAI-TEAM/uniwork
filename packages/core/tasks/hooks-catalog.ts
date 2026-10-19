@@ -64,6 +64,14 @@ export function useTaskLabels(workspaceId: string) {
   });
 }
 
+export function useTaskLabelLinks(workspaceId: string, enabled = true) {
+  return useQuery({
+    queryKey: taskKeys.labelLinks(workspaceId),
+    queryFn: () => catalog.listTaskLabelLinks(workspaceId),
+    enabled: !!workspaceId && enabled,
+  });
+}
+
 export function useCreateTaskLabel(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -5,9 +5,10 @@ import { useTranslation } from "react-i18next";
 import { BellOff, BellRing, TriangleAlert } from "lucide-react";
 import { usePushConfig } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
-import { getWebNotificationPermission, requestWebNotificationPermission } from "@uniwork/core/platform";
+import { getDesktopBridge, getWebNotificationPermission, requestWebNotificationPermission } from "@uniwork/core/platform";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { sendDesktopTestNotification } from "../../layout/desktop-notifications-prompt";
 import { NotificationsMatrix, type Channel } from "./notifications-matrix";
 import {
   SettingsCard,
@@ -27,6 +28,10 @@ import {
 export function NotificationsTab() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.notifications" });
   const { t: tSave } = useTranslation(undefined, { keyPrefix: "settings.save" });
+  const { t: tDesktop } = useTranslation(undefined, { keyPrefix: "notifications.desktop" });
+  const desktop = getDesktopBridge();
+  // Linux has no OS page to open; an older shell has no channel for it.
+  const openDesktopSettings = desktop?.appInfo.os === "linux" ? undefined : desktop?.openNotificationSettings;
   const push = usePush();
   const pushConfig = usePushConfig();
   const [pushStatus, setPushStatus] = useState<SettingsSaveStatus>("idle");
@@ -142,6 +147,29 @@ export function NotificationsTab() {
                 </SettingsCardBody>
               ) : null}
             </div>
+          </SettingsCard>
+        </SettingsSection>
+      ) : null}
+
+      {desktop ? (
+        <SettingsSection title={t("desktop_section")} description={t("desktop_description")}>
+          <SettingsCard>
+            <SettingsRow label={t("desktop_row")} size="none">
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => sendDesktopTestNotification(tDesktop("test_title"), tDesktop("test_body"))}
+                >
+                  {t("desktop_test")}
+                </Button>
+                {openDesktopSettings ? (
+                  <Button size="sm" variant="outline" onClick={() => void openDesktopSettings()}>
+                    {tDesktop("open_settings")}
+                  </Button>
+                ) : null}
+              </div>
+            </SettingsRow>
           </SettingsCard>
         </SettingsSection>
       ) : null}

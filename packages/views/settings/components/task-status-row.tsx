@@ -16,9 +16,12 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { StatusIcon } from "../../tasks/icons/status-icon";
 
-/** What a row shows: built-ins read from i18n, custom statuses from the catalog. */
+/** A built-in nobody has edited follows the locale and the theme. */
+export const showsDefaults = (status: TaskCatalogStatus) => status.is_system && !status.customized;
+
+/** What a row shows: untouched built-ins read from i18n, the rest from the catalog. */
 export function statusRowText(status: TaskCatalogStatus, t: (key: string) => string) {
-  return status.is_system
+  return showsDefaults(status)
     ? { name: t(`tasks.status_${status.category}`), description: t(`settings.taskStatuses.system_${status.category}`) }
     : { name: status.name, description: status.description };
 }
@@ -26,8 +29,8 @@ export function statusRowText(status: TaskCatalogStatus, t: (key: string) => str
 /**
  * One status in its group, laid out like UniAI's: drag handle (or a spacer in
  * a group of one), icon, name over a one-line description, and a "⋯" menu
- * that appears on hover or focus (always on touch). A built-in's menu keeps
- * edit and archive visible but disabled, with the reason under them.
+ * that appears on hover or focus (always on touch). A built-in can be edited
+ * but not archived; its menu says so under the actions.
  */
 export function TaskStatusRow({
   status,
@@ -81,8 +84,8 @@ export function TaskStatusRow({
       )}
       <StatusIcon
         status={status.key}
-        category={status.is_system ? status.category : status.icon || status.category}
-        color={status.is_system ? undefined : status.color}
+        category={showsDefaults(status) ? status.category : status.icon || status.category}
+        color={showsDefaults(status) ? undefined : status.color}
       />
       <div className="min-w-0 flex-1">
         <span data-slot="status-name" className="block truncate text-body font-medium">
@@ -115,7 +118,7 @@ export function TaskStatusRow({
               {t("settings.taskStatuses.move_down")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={status.is_system} onClick={onEdit}>
+            <DropdownMenuItem onClick={onEdit}>
               <Pencil aria-hidden />
               {t("settings.taskStatuses.edit")}
             </DropdownMenuItem>

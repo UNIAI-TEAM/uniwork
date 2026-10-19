@@ -264,8 +264,7 @@ function ChatMessageRowImpl({
         </div>
       ) : null}
 
-      {/* Long press opens the actions on touch; the copy callout is off there
-          because "Sao chép" lives in that same bar. */}
+      {/* Right-click (desktop) or long press (touch) opens the actions bar. */}
       <div
         ref={reveal.rootRef}
         {...reveal.bind}

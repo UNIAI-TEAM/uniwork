@@ -2,15 +2,18 @@
 import { memo } from "react";
 import { CalendarClock, CalendarDays, FolderKanban } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { TableRowLabel } from "@uniwork/core/api/endpoints/tasks-table";
 import type { ChildProgress, Task } from "@uniwork/core/types";
 import type { CardProperties } from "@uniwork/core/tasks/stores/view-store";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PriorityFlag } from "./status-pill";
+import { TaskLabelChips } from "./task-label-chips";
 
 export interface BoardCardMeta {
   projectName?: string;
   childProgress?: ChildProgress;
+  labels?: TableRowLabel[];
 }
 
 function actorInitial(name: string): string {
@@ -153,6 +156,10 @@ export const TaskBoardCardContent = memo(function TaskBoardCardContent({
           <FolderKanban className="size-3 shrink-0" aria-hidden />
           <span className="truncate">{meta.projectName}</span>
         </div>
+      ) : null}
+
+      {cardProperties.labels && meta?.labels ? (
+        <TaskLabelChips labels={meta.labels} className="mt-1.5" />
       ) : null}
 
       {showMeta ? (

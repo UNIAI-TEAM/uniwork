@@ -125,6 +125,10 @@ export const paths = {
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
+      /** Chat's direct messages and groups, which belong to the organization (UniChat's Tin nhắn). */
+      chatMessages: () => `${base}/chat?view=messages`,
+      /** Chat's channels of this workspace. */
+      chatChannels: () => `${base}/chat?view=channels`,
       /** Opens a room (and optionally scrolls to a message) on the chat page. */
       chatConversation: (roomId: string, messageId?: string) => {
         const params = new URLSearchParams();

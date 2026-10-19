@@ -168,7 +168,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/chat/groups", h.CreateChatGroup, apiOp{
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/groups", h.CreateChatGroup, apiOp{
 		summary:     "Create group chat",
 		description: "Tạo hoặc lấy phòng nhóm chat.",
 		tags:        []string{"chat"},

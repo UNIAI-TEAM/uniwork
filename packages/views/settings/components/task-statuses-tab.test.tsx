@@ -54,7 +54,16 @@ const POSITIONS: Record<string, number> = {
 
 const statuses = [
   ...BUILT_INS.map((key) =>
-    status({ id: `sys-${key}`, key, name: key, category: key, is_system: true, position: POSITIONS[key] }),
+    status({
+      id: `sys-${key}`,
+      key,
+      name: key,
+      category: key,
+      is_system: true,
+      position: POSITIONS[key],
+      // An admin renamed this one; the rest still read their defaults.
+      ...(key === "todo" ? { name: "Sẵn sàng", description: "Đã lên lịch", color: "#14b8a6", customized: true } : {}),
+    }),
   ),
   status({ id: "s-qa", key: "cho_duyet_ab12", name: "Chờ duyệt", category: "in_review", position: 3073, description: "Đợi QA" }),
   status({ id: "s-uat", key: "uat_cd34", name: "UAT", category: "in_review", position: 3074 }),
@@ -155,15 +164,41 @@ describe("TaskStatusesTab", () => {
     expect(screen.getByRole("button", { name: "Thao tác cho Hoàn thành" })).toBeInTheDocument();
   });
 
-  it("offers a built-in only the moves, saying why it cannot be edited or archived", async () => {
+  it("lets an admin edit a built-in but not archive it or move it to another group", async () => {
     mockApi("admin");
     renderTab();
     const menu = await openMenu("Backlog");
     expect(within(menu).getByRole("menuitem", { name: "Di chuyển lên" })).toHaveAttribute("aria-disabled", "true");
     expect(within(menu).getByRole("menuitem", { name: "Di chuyển xuống" })).not.toHaveAttribute("aria-disabled", "true");
-    expect(within(menu).getByRole("menuitem", { name: "Sửa" })).toHaveAttribute("aria-disabled", "true");
+    expect(within(menu).getByRole("menuitem", { name: "Sửa" })).not.toHaveAttribute("aria-disabled", "true");
     expect(within(menu).getByRole("menuitem", { name: "Lưu trữ" })).toHaveAttribute("aria-disabled", "true");
-    expect(menu).toHaveTextContent("Trạng thái có sẵn điều khiển hành vi hệ thống nên không sửa hay lưu trữ được. Bạn vẫn sắp xếp lại được.");
+    expect(menu).toHaveTextContent("Trạng thái có sẵn không lưu trữ hay đổi nhóm được.");
+  });
+
+  it("edits a built-in from what it shows, keeping its category", async () => {
+    mockApi("admin", () => Promise.resolve({ status: statuses[2] }));
+    renderTab();
+    const menu = await openMenu("Đang làm");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Sửa" }));
+    const dialog = await screen.findByRole("dialog", { name: "Sửa trạng thái" });
+    expect(within(dialog).getByLabelText("Tên")).toHaveValue("Đang làm");
+    expect(within(dialog).getByRole("combobox", { name: "Nhóm" })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Tên"), { target: { value: "Đang triển khai" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0]).toMatchObject({
+      path: "/api/v1/workspaces/ws1/task-statuses/sys-in_progress",
+      method: "PATCH",
+      body: { name: "Đang triển khai", icon: "" },
+    });
+    expect(writes()[0]!.body).not.toHaveProperty("category");
+  });
+
+  it("shows a customized built-in with its own name and description", async () => {
+    mockApi("member");
+    renderTab();
+    const row = (await screen.findByText("Sẵn sàng")).closest("li")!;
+    expect(row).toHaveTextContent("Đã lên lịch");
   });
 
   it("moves a built-in within its group, sending the whole group", async () => {

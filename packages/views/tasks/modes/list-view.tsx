@@ -57,6 +57,7 @@ import { useDragSettle } from "./use-drag-settle";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelectionOptional } from "../surface/selection-context";
 import type { TaskSurfacePagination } from "../surface/use-task-surface-data";
+import { useStatusLabel } from "../pickers/status-catalog";
 
 const EMPTY_IDS: string[] = [];
 const LIST_ROW_HEIGHT = 36;
@@ -105,9 +106,7 @@ function ListStatusSection({
     : 0;
   const allSelected = tasks.length > 0 && selectedCount === tasks.length;
   const cfg = STATUS_CONFIG[status as TaskStatus];
-  const labelKey = `tasks.status_${status}`;
-  const translated = t(labelKey);
-  const label = translated === labelKey ? status : translated;
+  const label = useStatusLabel()(status);
 
   const renderRow = (_index: number, task: Task) =>
     dragEnabled ? (

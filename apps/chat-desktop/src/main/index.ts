@@ -95,11 +95,20 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === "darwin" ? {} : { icon: ICON }),
+    // The window keeps the app's name; the web's "(n) UniWork" tab title is for
+    // browser tabs, and the dock badge carries the count here.
+    title: app.getName(),
+    // macOS: no grey title bar. The web draws the top edge (headers marked
+    // data-window-drag move the window) and the traffic lights sit centred
+    // over the 72px workspace rail.
+    ...(process.platform === "darwin"
+      ? { titleBarStyle: "hidden" as const, trafficLightPosition: { x: 10, y: 14 } }
+      : { icon: ICON }),
     webPreferences: createRendererWebPreferences(join(__dirname, "../preload/index.js")),
   });
   win = window;
 
+  window.on("page-title-updated", (event) => event.preventDefault());
   window.on("ready-to-show", () => {
     if (opts.isFullScreen) window.setFullScreen(true);
     else if (opts.isMaximized) window.maximize();

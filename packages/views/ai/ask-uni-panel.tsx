@@ -40,6 +40,8 @@ const KNOWN_ERRORS = new Set([
   "ai_context_forbidden",
   "ai_output_invalid",
   "ai_provider_error",
+  "ai_provider_timeout",
+  "ai_tool_not_allowed",
 ]);
 
 const SUGGESTIONS = ["suggestion_overdue", "suggestion_meetings", "suggestion_chat"] as const;
@@ -73,9 +75,22 @@ function Citations({ citations }: { citations: AiCitation[] }) {
   );
 }
 
-export function AskUniMessageTurn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" | "citations"> }) {
+/** One question or answer. `notice` is optional so a static preview (the landing demo) can render a turn. */
+export function AskUniMessageTurn({
+  message,
+}: {
+  message: Pick<AiMessage, "id" | "role" | "content" | "citations"> & Partial<Pick<AiMessage, "notice">>;
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const mine = message.role === "user";
+  const noticeText = (code: string) => {
+    switch (code) {
+      case "no_sources":
+        return t("notice.no_sources");
+      default:
+        return t("notice.unavailable");
+    }
+  };
   return (
     <li className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
       <span className="px-1 text-caption font-medium text-muted-foreground">{mine ? t("you") : t("uni")}</span>
@@ -85,7 +100,7 @@ export function AskUniMessageTurn({ message }: { message: Pick<AiMessage, "id" |
           mine ? "bg-surface-selected text-surface-selected-foreground" : "border border-border bg-surface text-foreground",
         )}
       >
-        {message.content}
+        {message.content === "" && message.notice ? noticeText(message.notice) : message.content}
         {mine ? null : <Citations citations={message.citations} />}
       </div>
     </li>
@@ -98,9 +113,12 @@ export function AskUniPanel() {
   const { workspace } = useWorkspace();
   const caps = useAiCapabilities(workspace.id);
   const enabled = !!caps.data?.enabled;
-  const { open, setOpen, conversationId, select, pendingFocus, clearPendingFocus } = useAiPanelStore();
+  const { open, setOpen, conversationId, workspaceId, bindWorkspace, select, pendingFocus, clearPendingFocus } =
+    useAiPanelStore();
+  // Until bindWorkspace runs, the stored conversation may belong to the previous workspace.
+  const activeConversationId = workspaceId === workspace.id ? conversationId : null;
   const conversations = useAiConversations(workspace.id, open && enabled);
-  const messages = useAiMessages(conversationId);
+  const messages = useAiMessages(activeConversationId);
   const ask = useAskUni(workspace.id);
   const remove = useDeleteAiConversation(workspace.id);
   const [question, setQuestion] = useState("");
@@ -109,8 +127,9 @@ export function AskUniPanel() {
   const askReset = ask.reset;
   const answeredConversation = ask.data?.conversation_id;
   useEffect(() => {
-    if (answeredConversation && answeredConversation !== conversationId) askReset();
-  }, [conversationId, answeredConversation, askReset]);
+    if (answeredConversation && answeredConversation !== activeConversationId) askReset();
+  }, [activeConversationId, answeredConversation, askReset]);
+  useEffect(() => bindWorkspace(workspace.id), [workspace.id, bindWorkspace]);
 
   if (!enabled) return null;
 
@@ -123,12 +142,14 @@ export function AskUniPanel() {
     ask.mutate(
       {
         question: q,
-        conversation_id: conversationId ?? undefined,
+        conversation_id: activeConversationId ?? undefined,
         locale: i18n.language,
         focus: focus ? { kind: focus.kind, id: focus.id } : undefined,
       },
       {
         onSuccess: (res) => {
+          // A late answer from the workspace we left must not open its conversation here.
+          if (useAiPanelStore.getState().workspaceId !== workspace.id) return;
           select(res.conversation_id);
           if (focus) clearPendingFocus();
         },
@@ -142,19 +163,21 @@ export function AskUniPanel() {
     askQuestion(question);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // An IME commits its syllable on Enter; that keydown must not send.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       submit();
     }
   };
-  const turns: Pick<AiMessage, "id" | "role" | "content" | "citations">[] = [...(messages.data ?? [])];
-  if (pendingQuestion) turns.push({ id: "pending", role: "user", content: pendingQuestion, citations: [] });
-  const showHome = !conversationId && !pendingQuestion;
+  const turns: Pick<AiMessage, "id" | "role" | "content" | "notice" | "citations">[] = [...(messages.data ?? [])];
+  if (pendingQuestion) turns.push({ id: "pending", role: "user", content: pendingQuestion, notice: "", citations: [] });
+  const showHome = !activeConversationId && !pendingQuestion;
   const recent = conversations.data ?? [];
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg" closeLabel={t("close")}>
+      <SheetContent side="right" className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg" closeLabel={t("close")}>
         <SheetHeader className="border-b border-border px-4 py-3">
           <div className="flex items-center gap-2 pr-8">
             {!showHome ? (
@@ -187,7 +210,7 @@ export function AskUniPanel() {
               >
                 <MessageSquarePlus aria-hidden className="size-4" />
               </Button>
-              {conversationId ? (
+              {activeConversationId ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -213,8 +236,8 @@ export function AskUniPanel() {
                 <AlertDialogAction
                   disabled={remove.isPending}
                   onClick={() => {
-                    if (!conversationId) return;
-                    remove.mutate(conversationId, {
+                    if (!activeConversationId) return;
+                    remove.mutate(activeConversationId, {
                       onSuccess: () => {
                         setConfirmDelete(false);
                         select(null);

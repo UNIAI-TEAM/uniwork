@@ -41,11 +41,11 @@ UPDATE task_statuses SET
   icon = COALESCE(sqlc.narg('icon'), icon),
   category = COALESCE(sqlc.narg('category'), category),
   position = COALESCE(sqlc.narg('position'), position),
+  customized = TRUE,
   updated_at = now()
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
   AND id = sqlc.arg('id')
-  AND is_system = FALSE
   AND archived_at IS NULL
 RETURNING *;
 

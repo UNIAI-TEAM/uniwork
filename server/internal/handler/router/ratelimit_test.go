@@ -264,6 +264,7 @@ func TestChatWritesBudgetEachUserPerRoute(t *testing.T) {
 		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r1/messages/m%d/poll/vote", ws, i) }, 60},
 		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r%d/voice/invite", ws, i) }, 20},
 		{http.MethodPost, func(i int) string { return fmt.Sprintf("%s/rooms/r%d/members", ws, i) }, 20},
+		{http.MethodPost, func(int) string { return ws + "/groups" }, 20},
 		{http.MethodPatch, func(i int) string { return fmt.Sprintf("%s/rooms/r%d", ws, i) }, 20},
 		{http.MethodPatch, func(i int) string { return fmt.Sprintf("%s/rooms/r1/members/u%d", ws, i) }, 20},
 		{http.MethodDelete, func(i int) string { return fmt.Sprintf("%s/rooms/r1/members/u%d", ws, i) }, 20},

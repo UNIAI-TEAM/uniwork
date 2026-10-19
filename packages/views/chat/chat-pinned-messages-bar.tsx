@@ -12,7 +12,8 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { comparePinnedMessages } from "@uniwork/core/chat/pin-utils";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
@@ -96,14 +97,19 @@ export function ChatPinnedMessagesBar({
     () =>
       rows
         .filter((row) => row.pinned)
+        .sort(comparePinnedMessages)
         .map((row) => ({
           id: row.id,
           ...kindOf(row.kind),
           preview: pinnedPreviewText(row, voiceCallLabel, mediaLabels),
-        }))
-        .reverse(),
+        })),
     [rows, voiceCallLabel, mediaLabels],
   );
+
+  const pinnedKey = pinned.map((row) => row.id).join(",");
+  useEffect(() => {
+    setCursor(0);
+  }, [pinnedKey]);
 
   const position = pinned.length > 0 ? cursor % pinned.length : 0;
   const item = pinned[position];

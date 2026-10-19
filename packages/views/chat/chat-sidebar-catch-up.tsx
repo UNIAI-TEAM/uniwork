@@ -3,8 +3,9 @@
 import { ChevronRight, Sparkle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
-import { displayLabelForChatContact, type ChatContact } from "@uniwork/core/chat/contacts-store";
+import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import { resolveChatRoomTarget } from "./chat-room-target";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 
 type QuickCatchUp = {
@@ -39,16 +40,15 @@ export function pickQuickCatchUp({
   contacts: ChatContact[];
   nicknamesByUserId: Record<string, string>;
 }): QuickCatchUp {
-  const resolve = (roomId: string): { target: ChatSidebarTarget; title: string } | null => {
-    if (roomId === workspaceRoomId) return { target: { kind: "workspace" }, title: workspaceTitle };
-    const channel = channels.find((entry) => entry.id === roomId);
-    if (channel) return { target: { kind: "channel", channel }, title: channel.name };
-    const group = groups.find((entry) => entry.room_id === roomId);
-    if (group) return { target: { kind: "group", group }, title: group.name };
-    const contact = contacts.find((entry) => entry.dm_room_id === roomId);
-    if (contact) return { target: { kind: "dm", contact }, title: displayLabelForChatContact(contact, nicknamesByUserId) };
-    return null;
-  };
+  const resolve = (roomId: string): { target: ChatSidebarTarget; title: string } | null =>
+    resolveChatRoomTarget(roomId, {
+      workspaceRoomId,
+      workspaceTitle,
+      channels,
+      groups,
+      contacts,
+      nicknamesByUserId,
+    });
   let total = 0;
   let rooms = 0;
   let top: (QuickCatchUp["top"] & { count: number }) | null = null;

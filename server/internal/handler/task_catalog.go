@@ -34,7 +34,7 @@ func taskStatusDTO(st db.TaskStatus) sdo.TaskStatusDTO {
 	return sdo.TaskStatusDTO{
 		ID: st.ID, OrganizationID: st.OrganizationID, WorkspaceID: st.WorkspaceID,
 		Key: st.Key, Name: st.Name, Description: st.Description, Category: st.Category,
-		Color: st.Color, Icon: st.Icon, IsSystem: st.IsSystem, Position: st.Position,
+		Color: st.Color, Icon: st.Icon, IsSystem: st.IsSystem, Customized: st.Customized, Position: st.Position,
 		ArchivedAt: catalogArchivedAt(st.ArchivedAt),
 		CreatedAt:  catalogTime(st.CreatedAt), UpdatedAt: catalogTime(st.UpdatedAt),
 	}
@@ -155,6 +155,20 @@ func (h *handlers) listTaskLabels(w http.ResponseWriter, r *http.Request) {
 		out = append(out, taskLabelDTO(l.TaskLabel, l.UsageCount))
 	}
 	respondJSON(w, 200, sdo.TaskLabelListSDO{Labels: out, Total: len(out)})
+}
+
+func (h *handlers) listTaskLabelLinks(w http.ResponseWriter, r *http.Request) {
+	links, err := h.Tasks.ListTaskLabelLinks(r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.TaskLabelLinkDTO, 0, len(links))
+	for _, l := range links {
+		out = append(out, sdo.TaskLabelLinkDTO{TaskID: l.TaskID, LabelID: l.LabelID})
+	}
+	respondJSON(w, 200, sdo.TaskLabelLinkListSDO{Links: out})
 }
 
 func (h *handlers) getTaskLabel(w http.ResponseWriter, r *http.Request) {

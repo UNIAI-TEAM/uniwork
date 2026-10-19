@@ -5,7 +5,7 @@ vi.mock("electron", () => ({
 }));
 
 import { shell, type BrowserWindow } from "electron";
-import { downloadURLSafely, isSafeExternalUrl, openExternalSafely } from "./external-url";
+import { downloadURLSafely, isSafeExternalUrl, openExternalSafely, openNotificationSettings } from "./external-url";
 
 const PROD = { allowHttpLoopback: false };
 const DEV = { allowHttpLoopback: true };
@@ -73,6 +73,19 @@ describe("openExternalSafely", () => {
     expect(shell.openExternal).not.toHaveBeenCalled();
     expect(console.warn).toHaveBeenCalledTimes(4);
     expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining("secret"));
+  });
+});
+
+describe("openNotificationSettings", () => {
+  beforeEach(() => vi.mocked(shell.openExternal).mockClear());
+
+  it("opens the OS notification page on macOS and Windows, nothing on Linux", async () => {
+    await openNotificationSettings("darwin");
+    expect(shell.openExternal).toHaveBeenLastCalledWith("x-apple.systempreferences:com.apple.preference.notifications");
+    await openNotificationSettings("win32");
+    expect(shell.openExternal).toHaveBeenLastCalledWith("ms-settings:notifications");
+    await openNotificationSettings("linux");
+    expect(shell.openExternal).toHaveBeenCalledTimes(2);
   });
 });
 

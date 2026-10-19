@@ -3,7 +3,7 @@ import type { DesktopBridge } from "../../shared/bridge";
 import type { ShellSession } from "../auth/session";
 import { applyBadge } from "../badge";
 import { DEEP_LINK_CHANNEL, type MainRendererQueue } from "../deep-link";
-import { downloadURLSafely, openExternalSafely } from "../external-url";
+import { downloadURLSafely, openExternalSafely, openNotificationSettings } from "../external-url";
 import type { ShellConfig } from "../runtime-config";
 import { expectBoolean, expectCount, expectUrl, guard, isTrustedSender, sendToApp } from "./schema";
 
@@ -67,6 +67,7 @@ export function registerIpc(deps: IpcDeps): void {
       if (win) downloadURLSafely(win, url, external);
     }),
   );
+  ipcMain.handle("shell:open-notification-settings", guard(origin, nothing, () => openNotificationSettings()));
 
   ipcMain.handle("link:ready", guard(origin, expectBoolean, (ready) => queue.setReady(DEEP_LINK_CHANNEL, ready, send)));
 }

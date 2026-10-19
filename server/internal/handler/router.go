@@ -433,6 +433,7 @@ func New(d Deps) http.Handler {
 		DeleteTaskStatus:        h.deleteTaskStatus,
 		ReorderTaskStatuses:     h.reorderTaskStatuses,
 		ListTaskLabels:          h.listTaskLabels,
+		ListTaskLabelLinks:      h.listTaskLabelLinks,
 		GetTaskLabel:            h.getTaskLabel,
 		CreateTaskLabel:         h.createTaskLabel,
 		PutTaskLabel:            h.putTaskLabel,

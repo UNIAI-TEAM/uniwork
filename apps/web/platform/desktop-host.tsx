@@ -21,6 +21,17 @@ if (typeof window !== "undefined") {
   if (bridge) {
     registerSessionProvider(bridge.session);
     configureRuntime({ clientPlatform: "desktop" });
+    // The macOS shell hides its title bar; globals.css turns `data-window-drag`
+    // regions into its drag handle. Fullscreen hides the traffic lights, so
+    // their strip goes too: only a fullscreen window is as tall as the screen
+    // (a windowed one stops at the menu bar), and no media query reports it.
+    if (bridge.appInfo.os === "macos") {
+      const syncWindowChrome = () => {
+        document.documentElement.dataset.windowChrome = window.innerHeight >= window.screen.height ? "fullscreen" : "inset";
+      };
+      syncWindowChrome();
+      window.addEventListener("resize", syncWindowChrome);
+    }
   }
 }
 

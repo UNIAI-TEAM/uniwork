@@ -50,6 +50,9 @@ Shell mở `/auth/unichat` (không phải `/`, là landing): trang đó render r
 rồi chuyển sang `/login`, nơi host UniChat hiện màn chào kiểu messenger khi
 chưa đăng nhập, hoặc vào thẳng chat khi đã có phiên. Không có web dev server
 thì shell hiện `resources/offline.html` và tự thử lại.
+Trên macOS, `dev` ký ad hoc Electron.app trong `node_modules` khi nó chưa có chữ
+ký (`scripts/sign-dev-electron.mjs`): bản x64 tải về không ký, và macOS từ chối
+thông báo hệ thống của app chưa ký (`UNErrorDomain 1`).
 Chạy từ terminal nhúng trong VS Code/Electron thì `unset ELECTRON_RUN_AS_NODE`
 trước, nếu không `require("electron")` trả về đường dẫn binary và main chết ở
 `app.setName`.

@@ -143,6 +143,24 @@
     "pickTitle": "Choose a workspace"
   },
   "chat": {
+    "scope": {
+      "messages_title": "Messages",
+      "messages_hint": "Direct and group, shared by every workspace",
+      "channels_tab": "Channels",
+      "channels_hint": "This workspace's channels",
+      "search_channels": "Search channels and messages in {{name}}…",
+      "workspace_overline": "{{org}} · Workspace",
+      "switch_aria": "Messages or channels",
+      "create_channel_in": "Create a channel in {{name}}",
+      "channel_of": "Channel in {{name}}",
+      "room_of": "{{name}}'s shared room",
+      "group_line": "Group",
+      "rail_label": "Messages, direct and group",
+      "rail_tooltip": "Messages · direct and group, shared by every workspace",
+      "intro_title": "Direct messages and groups live here now",
+      "intro_body": "They're shared by every {{org}} workspace. Each workspace now keeps just its channels.",
+      "intro_dismiss": "Got it"
+    },
     "message_list": {
       "gifs_failed": "Couldn't load GIFs.",
       "search_results_total_one": "{{count}} result",
@@ -759,6 +777,16 @@
       "kind_refused": "This kind of message can't be forwarded.",
       "from": "Forwarded from {{name}}",
       "from_unknown": "Forwarded message"
+    },
+    "followed_threads": {
+      "list_title": "My threads",
+      "list_description": "Threads you follow in this workspace.",
+      "empty": "No followed threads yet",
+      "empty_hint": "Open a thread and turn on Follow in the thread bar to get notified about new replies.",
+      "load_failed": "Could not load your followed threads.",
+      "untitled": "Thread",
+      "reply_count": "{{count}} replies",
+      "unread_aria": "Unread replies"
     },
     "follow_up": {
       "group_overdue": "Overdue",

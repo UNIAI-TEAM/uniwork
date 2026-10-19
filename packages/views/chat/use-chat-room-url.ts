@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useOptionalNavigation } from "../navigation";
+import { CHAT_VIEW_PARAM } from "./chat-scope";
 
 const ROOM_PARAM = "room";
 /** Opens a one-to-one conversation by person, from outside Chat (the directory). */
@@ -75,6 +76,8 @@ export function useChatRoomUrl({
       // list and `?room=` alone cannot bring it back after a remount. Any
       // other room the reader moves to drops it.
       if (!keepDeepLink) params.delete(DM_PARAM);
+      // The rail's scope instruction is spent: the room now open names the scope.
+      params.delete(CHAT_VIEW_PARAM);
       if (roomId) params.set(ROOM_PARAM, roomId);
       else params.delete(ROOM_PARAM);
       const qs = params.toString();

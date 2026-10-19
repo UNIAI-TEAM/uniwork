@@ -6,9 +6,9 @@ const LONG_PRESS_MS = 450;
 const MOVE_TOLERANCE_PX = 10;
 
 /**
- * Touch has no hover, so a message's actions open on a long press instead.
- * The bar stays open until a tap lands outside the message or Escape is
- * pressed. Mouse and pen keep the hover behaviour and are ignored here.
+ * Desktop opens the actions bar on right-click (Telegram-style); touch opens
+ * on a long press. The bar stays open until a click/tap outside the message
+ * or Escape.
  */
 export function useMessageActionsReveal() {
   const [open, setOpen] = useState(false);
@@ -24,14 +24,32 @@ export function useMessageActionsReveal() {
 
   useEffect(() => clear, [clear]);
 
+  const dismiss = useCallback(() => {
+    setOpen(false);
+    const root = rootRef.current;
+    const active = document.activeElement;
+    if (root && active instanceof HTMLElement && root.contains(active)) active.blur();
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (rootRef.current && event.target instanceof Node && rootRef.current.contains(event.target)) return;
-      setOpen(false);
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (rootRef.current?.contains(target)) return;
+      // Dropdown / emoji picker content is portalled outside the message node.
+      if (
+        target instanceof Element &&
+        (target.closest('[data-slot="dropdown-menu-content"]') ||
+          target.closest('[data-slot="dropdown-menu-sub-content"]') ||
+          target.closest('[data-slot="popover-content"]'))
+      ) {
+        return;
+      }
+      dismiss();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") dismiss();
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -39,17 +57,25 @@ export function useMessageActionsReveal() {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [dismiss, open]);
+
+  const focusFirstAction = useCallback(() => {
+    rootRef.current?.querySelector<HTMLButtonElement>("[data-message-actions] button")?.focus();
+  }, []);
 
   const bind = {
+    onContextMenu: (event: React.PointerEvent<HTMLElement>) => {
+      event.preventDefault();
+      setOpen(true);
+      focusFirstAction();
+    },
     onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
       if (event.pointerType !== "touch") return;
       startRef.current = { x: event.clientX, y: event.clientY };
       timerRef.current = window.setTimeout(() => {
         timerRef.current = null;
         setOpen(true);
-        // Put focus on the first action so a screen reader lands in the bar.
-        rootRef.current?.querySelector<HTMLButtonElement>("[data-message-actions] button")?.focus();
+        focusFirstAction();
       }, LONG_PRESS_MS);
     },
     onPointerMove: (event: ReactPointerEvent<HTMLElement>) => {

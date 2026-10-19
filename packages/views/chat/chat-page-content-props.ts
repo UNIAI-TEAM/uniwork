@@ -9,8 +9,11 @@ import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
 import type { ChatMessage } from "./chat-messages";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
+import type { ChatScope } from "./chat-scope";
 
 export type ChatPageContentProps = {
+  /** Which list the sidebar shows: the organization's DMs and groups, or this workspace's channels. */
+  scope: ChatScope;
   target: ChatSidebarTarget;
   setTarget: React.Dispatch<React.SetStateAction<ChatSidebarTarget>>;
   currentUserId: string;

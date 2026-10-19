@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { createContext, use, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useTaskStatuses } from "@uniwork/core/tasks";
 import { TASK_STATUSES } from "@uniwork/core/types";
@@ -28,8 +28,8 @@ const BUILT_IN = new Set<string>(TASK_STATUSES);
 /**
  * The workspace's status catalog as every status picker reads it. Until the
  * catalog loads (or when it is empty) the seven built-ins stand in, so a
- * picker is never empty. Built-in labels come from `tasks.status_*`, a custom
- * status shows its own name.
+ * picker is never empty. An untouched built-in reads `tasks.status_*`; a
+ * custom status, or a built-in an admin edited, shows its own name.
  */
 export function useStatusCatalog(workspaceId: string): StatusCatalog {
   const { t } = useTranslation();
@@ -43,7 +43,7 @@ export function useStatusCatalog(workspaceId: string): StatusCatalog {
     const entries = (data?.statuses ?? []).map((status) => ({
       archived: Boolean(status.archived_at),
       position: status.position,
-      option: status.is_system && BUILT_IN.has(status.key)
+      option: status.is_system && BUILT_IN.has(status.key) && !status.customized
         ? builtIn(status.key)
         : {
             key: status.key,
@@ -63,4 +63,25 @@ export function useStatusCatalog(workspaceId: string): StatusCatalog {
       byKey.get(key) ?? (BUILT_IN.has(key) ? builtIn(key) : { key, label: key, category: key });
     return { options, optionOf };
   }, [data, t]);
+}
+
+/**
+ * The catalog the task surface already loaded, for column and group headers
+ * deeper in the tree; outside a surface they fall back to `tasks.status_*`.
+ */
+export const StatusCatalogContext = createContext<StatusCatalog | null>(null);
+
+/** A status key as its header reads: the catalog's name, else the built-in's. */
+export function useStatusLabel(): (key: string) => string {
+  const { t } = useTranslation();
+  const catalog = use(StatusCatalogContext);
+  return useCallback(
+    (key: string) => {
+      if (catalog) return catalog.optionOf(key).label;
+      const i18nKey = `tasks.status_${key}`;
+      const text = t(i18nKey);
+      return text === i18nKey ? key : text;
+    },
+    [catalog, t],
+  );
 }

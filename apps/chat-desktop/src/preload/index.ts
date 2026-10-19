@@ -40,6 +40,7 @@ const api = {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke("shell:open-external", url),
   // shortcut: `name` is dropped — webContents.downloadURL cannot name the file; add a will-download handler when a caller needs it
   downloadURL: (url: string): Promise<void> => ipcRenderer.invoke("shell:download-url", url),
+  openNotificationSettings: (): Promise<void> => ipcRenderer.invoke("shell:open-notification-settings"),
   onDeepLink: (cb: (url: string) => void) => {
     // Main holds deep links until the renderer's listener is mounted (link:ready handshake).
     const off = subscribe("link:deep-link", cb);

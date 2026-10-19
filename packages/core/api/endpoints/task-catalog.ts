@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   TaskCatalogStatusSchema,
+  TaskLabelLinkSchema,
   TaskLabelSchema,
   TaskPropertySchema,
   type TaskCatalogStatus,
@@ -21,6 +22,7 @@ const LabelListResponse = z.object({
   labels: z.array(TaskLabelSchema),
   total: z.number(),
 });
+const LabelLinkListResponse = z.object({ links: z.array(TaskLabelLinkSchema) });
 const LabelResponse = z.object({ label: TaskLabelSchema });
 const PropertyListResponse = z.object({
   properties: z.array(TaskPropertySchema),
@@ -31,6 +33,7 @@ const TaskResponse = z.object({ task: TaskSchema });
 
 export type TaskStatusList = z.infer<typeof StatusListResponse>;
 export type TaskLabelList = z.infer<typeof LabelListResponse>;
+export type TaskLabelLinkList = z.infer<typeof LabelLinkListResponse>;
 export type TaskPropertyList = z.infer<typeof PropertyListResponse>;
 
 export interface CreateTaskStatusBody {
@@ -151,6 +154,14 @@ export async function createTaskLabel(
   return parseWithFallback<{ label: TaskLabel } | null>(raw, LabelResponse, null, {
     endpoint: "POST /api/v1/workspaces/{ws}/task-labels",
   })?.label ?? null;
+}
+
+/** Every (task, active label) pair in the workspace, for label chips on cards. */
+export async function listTaskLabelLinks(workspaceId: string): Promise<TaskLabelLinkList> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/task-label-links`);
+  return parseWithFallback(raw, LabelLinkListResponse, { links: [] }, {
+    endpoint: "GET /api/v1/workspaces/{ws}/task-label-links",
+  });
 }
 
 export async function getTaskLabel(workspaceId: string, id: string): Promise<TaskLabel | null> {

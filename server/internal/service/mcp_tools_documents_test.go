@@ -522,13 +522,13 @@ func TestMcpGetDocumentReadsTextFiles(t *testing.T) {
 	}
 
 	// A file that is not text is not read: name, type and the reason.
-	pdf := x.textFile(t, "bao-cao.pdf", []byte("%PDF-1.7\n% bao cao\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"))
+	pdf := x.textFile(t, "tai-lieu.pdf", []byte("%PDF-1.7\n% bao cao\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"))
 	d = x.getDoc(t, pdf)
-	if d.Format != "" || d.Content != "" || d.Truncated || d.Filename != "bao-cao.pdf" || d.MimeType != "application/pdf" || !strings.Contains(d.Note, "not a text file") {
+	if d.Format != "" || d.Content != "" || d.Truncated || d.Filename != "tai-lieu.pdf" || d.MimeType != "application/pdf" || !strings.Contains(d.Note, "not a text file") {
 		t.Fatalf("pdf = %+v", d)
 	}
 	// A file is found by its name, not by what its bytes say.
-	if ids := x.searchIDs(t, x.p, "bao-cao.pdf"); len(ids) != 1 || ids[0] != pdf {
+	if ids := x.searchIDs(t, x.p, "tai-lieu.pdf"); len(ids) != 1 || ids[0] != pdf {
 		t.Errorf("a file is found by its name: %v", ids)
 	}
 }

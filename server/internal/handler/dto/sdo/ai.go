@@ -29,6 +29,7 @@ type AiMessageDTO struct {
 	Role      string          `json:"role" description:"user hoặc assistant" example:"assistant"`
 	Content   string          `json:"content" example:"Có 1 việc quá hạn: [S1] Viết spec F-09."`
 	Citations []AiCitationDTO `json:"citations"`
+	Notice    string          `json:"notice,omitempty" description:"Mã thông báo thay cho nội dung: no_sources, empty_answer" example:"no_sources"`
 	CreatedAt string          `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 

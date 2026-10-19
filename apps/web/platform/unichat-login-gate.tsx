@@ -39,7 +39,7 @@ export function UniChatLoginGate() {
   };
   // Canvas DeskGateStates (A): mark, 26px welcome, one line, then the one action as a 44px pill.
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background px-12 py-8">
+    <main data-window-drag className="flex min-h-dvh items-center justify-center bg-background px-12 py-8">
       <div className="flex w-full max-w-md flex-col items-center text-center">
         <UniChatIcon size={96} decorative />
         <h1 className="mt-7 font-display text-display-sm leading-8 font-extrabold tracking-[-0.01em] text-foreground">

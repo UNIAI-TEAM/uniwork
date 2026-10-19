@@ -106,6 +106,14 @@ describe("ai endpoints", () => {
     expect((vi.mocked(fetch).mock.calls[4]![1] as RequestInit).method).toBe("DELETE");
   });
 
+  it("listAiMessages keeps a message whose notice is malformed and defaults it to empty", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [{ ...message, notice: 42 }, { ...message, id: "m2", content: "", notice: "no_sources" }] }));
+    const msgs = await listAiMessages("c1");
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0]!.notice).toBe("");
+    expect(msgs[1]!.notice).toBe("no_sources");
+  });
+
   it("usage builds the window query and degrades to no rows", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ from: "a", to: "b", rows: [{ day: "2026-09-06", capability: "copilot_answer", calls: 2, input_tokens: 10, output_tokens: 3, cost_micros: 40 }] }));
     const usage = await getAiUsage("ws1", "2026-08-01", "2026-09-06");

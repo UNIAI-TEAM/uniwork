@@ -205,7 +205,6 @@ type FilterActiveOrganizationMemberUserIDsParams struct {
 	UserIds        []string `json:"user_ids"`
 }
 
-// tenant: self
 func (q *Queries) FilterActiveOrganizationMemberUserIDs(ctx context.Context, arg FilterActiveOrganizationMemberUserIDsParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, filterActiveOrganizationMemberUserIDs, arg.OrganizationID, arg.UserIds)
 	if err != nil {

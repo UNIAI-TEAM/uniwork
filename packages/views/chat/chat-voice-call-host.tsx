@@ -59,6 +59,19 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
       ),
     [rooms],
   );
+  const mutedRoomIds = useMemo(
+    () => new Set(rooms.filter((room) => room.notifications_muted).map((room) => room.id)),
+    [rooms],
+  );
+  const roomKindById = useMemo(() => {
+    const map = new Map<string, VoiceCallKind>();
+    for (const room of rooms) {
+      if (room.kind === "dm" || room.kind === "group" || room.kind === "channel") {
+        map.set(room.id, room.kind);
+      }
+    }
+    return map;
+  }, [rooms]);
   // mutateAsync is stable across renders; the mutation object is not.
   const { mutateAsync: mintVoiceTokenAsync } = useChatVoiceToken();
   const mintVoiceToken = useCallback(
@@ -70,6 +83,8 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
     currentUserId,
     mintToken: mintVoiceToken,
     allowedRoomIds,
+    mutedRoomIds,
+    roomKindById,
   });
   const { startCall: ringCall, acceptCall: answerCall, reportStartFailure } = voice;
   // A device that would not start while answering: the call keeps ringing

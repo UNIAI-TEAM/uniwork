@@ -30,28 +30,45 @@ func TestListTaskStatusesReturnsSevenBuiltIns(t *testing.T) {
 	}
 }
 
-func TestPatchBuiltInTaskStatusFails(t *testing.T) {
+func TestPatchBuiltInTaskStatusCustomizesItButKeepsItsCategory(t *testing.T) {
 	s, _, ua, _, w := taskFixture(t)
 	ctx := context.Background()
 	list, err := s.ListTaskStatuses(ctx, Human(ua.ID), w.ID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var builtInID string
+	var builtIn db.TaskStatus
 	for _, st := range list {
-		if st.IsSystem {
-			builtInID = st.ID
-			break
+		if st.Key == "in_progress" {
+			builtIn = st
 		}
 	}
-	if builtInID == "" {
-		t.Fatal("expected a built-in status")
+	if builtIn.Customized {
+		t.Fatal("a seeded built-in starts uncustomized")
 	}
-	name := "Renamed"
-	_, err = s.UpdateTaskStatus(ctx, Human(ua.ID), w.ID, builtInID, UpdateTaskStatusInput{Name: &name})
+	name, desc, color, icon := "Đang triển khai", "Đội đang làm", "#14b8a6", "in_review"
+	st, err := s.UpdateTaskStatus(ctx, Human(ua.ID), w.ID, builtIn.ID, UpdateTaskStatusInput{
+		Name: &name, Description: &desc, Color: &color, Icon: &icon,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Name != name || st.Description != desc || st.Color != color || st.Icon != icon || !st.Customized || !st.IsSystem {
+		t.Fatalf("built-in after edit = %+v", st)
+	}
+	if st.Category != "in_progress" || st.Key != "in_progress" || st.Position != builtIn.Position {
+		t.Fatalf("an edit moved the built-in: %+v", st)
+	}
+
+	same := "in_progress"
+	if _, err := s.UpdateTaskStatus(ctx, Human(ua.ID), w.ID, builtIn.ID, UpdateTaskStatusInput{Category: &same}); err != nil {
+		t.Fatalf("resending its own category: %v", err)
+	}
+	other := "done"
+	_, err = s.UpdateTaskStatus(ctx, Human(ua.ID), w.ID, builtIn.ID, UpdateTaskStatusInput{Category: &other})
 	var ce CodedError
 	if !errors.As(err, &ce) || ce.Code != "system_status_immutable" || ce.Status != http.StatusUnprocessableEntity {
-		t.Fatalf("want system_status_immutable 422, got %v", err)
+		t.Fatalf("want system_status_immutable 422 on a category change, got %v", err)
 	}
 }
 
@@ -318,4 +335,44 @@ func keysOf(list []db.TaskStatus) []string {
 		out[i] = st.Key
 	}
 	return out
+}
+
+func TestListTaskLabelLinksCoversTheWorkspaceButNotArchivedLabels(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	bug, err := s.CreateTaskLabel(ctx, actor, w.ID, CreateTaskLabelInput{Name: "Bug", Color: "#ef4444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := s.CreateTaskLabel(ctx, actor, w.ID, CreateTaskLabelInput{Name: "Old", Color: "#6b7280"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	one, _ := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "One"})
+	two, _ := s.Create(ctx, actor, w.ID, CreateTaskInput{Title: "Two"})
+	for _, link := range [][2]string{{one.ID, bug.ID}, {two.ID, bug.ID}, {two.ID, old.ID}} {
+		if err := s.AttachTaskLabel(ctx, actor, link[0], link[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.DeleteTaskLabel(ctx, actor, w.ID, old.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	links, err := s.ListTaskLabelLinks(ctx, actor, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[[2]string]bool{}
+	for _, l := range links {
+		got[[2]string{l.TaskID, l.LabelID}] = true
+	}
+	if len(links) != 2 || !got[[2]string{one.ID, bug.ID}] || !got[[2]string{two.ID, bug.ID}] {
+		t.Fatalf("links = %+v", links)
+	}
+
+	if _, err := s.ListTaskLabelLinks(ctx, Human(ub.ID), w.ID); !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) {
+		t.Fatalf("a non-member read the links: %v", err)
+	}
 }

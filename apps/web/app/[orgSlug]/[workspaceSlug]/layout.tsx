@@ -2,6 +2,7 @@
 import { useParams } from "next/navigation";
 import { paths } from "@uniwork/core/paths";
 import { DashboardLayout } from "@uniwork/views/layout/dashboard-layout";
+import { DesktopNotificationsPrompt } from "@uniwork/views/layout/desktop-notifications-prompt";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
 import { WelcomeAfterOnboarding } from "@uniwork/views/workspace/welcome-after-onboarding";
@@ -16,7 +17,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       orgSlug={orgSlug}
       wsSlug={workspaceSlug}
       variant={chatOnly ? "chat-only" : "full"}
-      extra={<><Welcome />{chatOnly ? <UniChatBadge /> : null}</>}
+      extra={<><Welcome />{chatOnly ? <><UniChatBadge /><DesktopNotificationsPrompt /></> : null}</>}
     >
       {children}
     </DashboardLayout>

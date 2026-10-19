@@ -763,6 +763,26 @@ func (q *Queries) GetChatMessageInRoomForUpdate(ctx context.Context, arg GetChat
 	return i, err
 }
 
+const countPinnedChatMessagesInRoom = `-- name: CountPinnedChatMessagesInRoom :one
+SELECT COUNT(*)::int FROM chat_messages
+WHERE room_id = $1
+  AND workspace_id = $2
+  AND deleted_at IS NULL
+  AND (metadata->>'pinned') = 'true'
+`
+
+type CountPinnedChatMessagesInRoomParams struct {
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) CountPinnedChatMessagesInRoom(ctx context.Context, arg CountPinnedChatMessagesInRoomParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countPinnedChatMessagesInRoom, arg.RoomID, arg.WorkspaceID)
+	var count int32
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getChatRoomAvatarFileIDForUpdate = `-- name: GetChatRoomAvatarFileIDForUpdate :one
 SELECT avatar_file_id FROM chat_rooms
 WHERE id = $1 AND organization_id = $2
