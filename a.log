@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+c6d006b837b26cb1a51be848937bb6094cc939df
+479a478cd8a0e3d912fb9ff76e849b17d192159d
+c6d006b83 chore(merge): G5-G7 root 479a478cd into BODY-MENTION-NOTIFY (UNI-1968)
+1c6a37cfc fix(documents): wait for the fresh body before giving up a mention deep link (UNI-1968)
+4eb3a59d3 test(documents): pin the flash lifecycle with fake timers (UNI-1968)
+e2b4ef297 test(e2e): record the mention flash instead of racing its window (UNI-1968)
+479a478cd chore: merge UNI-1981 FU-G7-12-PACK4 (office prompt @4: injected instructions named by location only; fefa1f0d9) into the G5-G7 root
+0756554a2 docs: renumber the folder share-off ADR to 0036
+0c790885b chore: merge root de1176a74 (tenant export fix) into root-int2
+09308bf2d test(e2e): assert the revealed mention is in view (UNI-1968)
+a9216d1a2 fix(documents): space the body-mention hint from the notices below it (UNI-1968)
+8d3f03fff fix(documents): scroll to and flash the reader's own mention after the document loads (UNI-1968)
