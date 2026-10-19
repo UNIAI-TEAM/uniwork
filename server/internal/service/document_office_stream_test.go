@@ -19,19 +19,34 @@ import (
 // test can prove the base is streamed to the engine and not read up front.
 type countingFiles struct {
 	*bridgeFiles
-	opens atomic.Int64
-	read  atomic.Int64
+	opens    atomic.Int64
+	closes   atomic.Int64
+	read     atomic.Int64
+	readHook func([]byte) (int, error)
 }
 
 type countedBody struct {
 	io.ReadCloser
-	n *atomic.Int64
+	n        *atomic.Int64
+	closes   *atomic.Int64
+	closed   atomic.Bool
+	readHook func([]byte) (int, error)
 }
 
-func (b countedBody) Read(p []byte) (int, error) {
+func (b *countedBody) Read(p []byte) (int, error) {
+	if b.readHook != nil {
+		return b.readHook(p)
+	}
 	n, err := b.ReadCloser.Read(p)
 	b.n.Add(int64(n))
 	return n, err
+}
+
+func (b *countedBody) Close() error {
+	if b.closed.CompareAndSwap(false, true) {
+		b.closes.Add(1)
+	}
+	return b.ReadCloser.Close()
 }
 
 func (c *countingFiles) Open(ctx context.Context, in files.OpenInput) (files.Reader, error) {
@@ -40,7 +55,7 @@ func (c *countingFiles) Open(ctx context.Context, in files.OpenInput) (files.Rea
 		return r, err
 	}
 	c.opens.Add(1)
-	r.Body = countedBody{ReadCloser: r.Body, n: &c.read}
+	r.Body = &countedBody{ReadCloser: r.Body, n: &c.read, closes: &c.closes, readHook: c.readHook}
 	return r, nil
 }
 
@@ -214,5 +229,62 @@ func TestOfficeInputBudgetRefusalKeepsTheRowAcceptedAndRetryReopensTheBase(t *te
 	}
 	if got := cf.opens.Load(); got != 2 {
 		t.Fatalf("the base was opened %d times, want one fresh open per dispatch", got)
+	}
+}
+
+func TestOfficeSubmitSuppliedInputReleasesTheBase(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name   string
+		legacy bool
+	}{
+		{name: "stored_checksum", legacy: false},
+		{name: "legacy", legacy: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newOfficeFixture(t, strings.Repeat("base content\n", 1024))
+			if tc.legacy {
+				if _, err := f.pool.Exec(ctx, `UPDATE document_versions SET checksum_sha256 = NULL WHERE id = $1`, f.ver); err != nil {
+					t.Fatal(err)
+				}
+			}
+			spool := t.TempDir()
+			t.Setenv("TMPDIR", spool)
+			cf := &countingFiles{bridgeFiles: f.files}
+			eng := newScriptedEngine()
+			seen := recordSubmits(eng, cf, func(n int) error {
+				if n == 1 {
+					return office.NewEngineError("engine_overloaded", "input_budget")
+				}
+				return nil
+			})
+			svc := f.streamService(eng, cf)
+
+			raw := []byte("supplied replacement\n")
+			supplied := bytesInput(raw, sha256Hex(raw))
+			in := f.input("k-supplied-" + tc.name)
+			in.input = &supplied
+
+			row, err := svc.StartOfficeJob(ctx, f.actor, in)
+			if !office.Retryable(err) || row.State != string(office.JobAccepted) || row.DispatchedAt.Valid {
+				t.Fatalf("first dispatch: row=%+v err=%v", row, err)
+			}
+			entries, _ := os.ReadDir(spool)
+			if cf.opens.Load() != 1 || cf.closes.Load() != 1 || len(entries) != 0 {
+				t.Fatalf("after first dispatch: baseOpens=%d baseCloses=%d spoolFiles=%d (%v)", cf.opens.Load(), cf.closes.Load(), len(entries), entries)
+			}
+
+			again, err := svc.StartOfficeJob(ctx, f.actor, in)
+			if err != nil || again.ID != row.ID || again.State != string(office.JobRunning) {
+				t.Fatalf("replay dispatch: row=%+v err=%v", again, err)
+			}
+			entries, _ = os.ReadDir(spool)
+			if cf.opens.Load() != 2 || cf.closes.Load() != 2 || len(entries) != 0 {
+				t.Fatalf("after replay dispatch: baseOpens=%d baseCloses=%d spoolFiles=%d (%v)", cf.opens.Load(), cf.closes.Load(), len(entries), entries)
+			}
+			if len(*seen) != 2 || !bytes.Equal((*seen)[1].body, raw) {
+				t.Fatalf("seen submits: %+v", *seen)
+			}
+		})
 	}
 }

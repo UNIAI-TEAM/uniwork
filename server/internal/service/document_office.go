@@ -494,6 +494,7 @@ func (s *DocumentOfficeService) jobInput(ctx context.Context, actor Actor, in Of
 	if err != nil || in.input == nil {
 		return input, format, baseRevision, err
 	}
+	input.release()
 	return *in.input, format, baseRevision, nil
 }
 
