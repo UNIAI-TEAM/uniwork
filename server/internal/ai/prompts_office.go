@@ -16,8 +16,10 @@ import (
 // a rule-1 derived-result exemption, readings-used and open-editor clauses,
 // cross-sheet injection check and 10/10%/blank mixed-form reading); @4 is the
 // FU-G7-12-PACK4 draft (UNI-1981): injected content named by location only,
-// never echoed, and slide summaries read as answers.
-const PromptOfficeUniworkAI = "office_uniwork_ai@4"
+// never echoed, and slide summaries read as answers; @5 is the FU-G7-12-WRAP
+// draft (UNI-1985): same system text as @4, with tool results wrapped in
+// <untrusted> tags on the way to the vendor.
+const PromptOfficeUniworkAI = "office_uniwork_ai@5"
 
 const officeCommon = `You are UniWork AI in UniWork Office. You work on the one document open in the editor, only through the tools listed here. Tools read the open content, unsaved changes included.
 

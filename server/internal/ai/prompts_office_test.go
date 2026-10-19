@@ -19,8 +19,9 @@ import (
 )
 
 // The office pack (G6-14, UNI-1369; tuned in G6-08, UNI-1373; hardened in
-// FU-G7-12-PACK3, UNI-1875; no-echo draft FU-G7-12-PACK4, UNI-1981) ships as
-// versioned registry entries office_uniwork_ai@1 to office_uniwork_ai@4 with six
+// FU-G7-12-PACK3, UNI-1875; no-echo draft FU-G7-12-PACK4, UNI-1981; untrusted
+// tool-result wrap draft FU-G7-12-WRAP, UNI-1985) ships as versioned registry
+// entries office_uniwork_ai@1 to office_uniwork_ai@5 with six
 // assembled System variants. These tests pin their text three ways: golden
 // files (wording), the draft's token estimator (the G6-D1 A2 caps) and a
 // per-version sha256 pin (a wording change cannot ride a regenerated golden
@@ -50,8 +51,8 @@ func officePack(t *testing.T) Prompt {
 	if !ok {
 		t.Fatalf("%s is not registered", PromptOfficeUniworkAI)
 	}
-	if p.ID != "office_uniwork_ai" || p.Version != 4 {
-		t.Fatalf("registry entry is %s, want office_uniwork_ai@4", p.Key())
+	if p.ID != "office_uniwork_ai" || p.Version != 5 {
+		t.Fatalf("registry entry is %s, want office_uniwork_ai@5", p.Key())
 	}
 	return p
 }
@@ -67,7 +68,7 @@ func officeGoldenVersion(t *testing.T, version int, name string) string {
 
 func officeGolden(t *testing.T, name string) string {
 	t.Helper()
-	return officeGoldenVersion(t, 4, name)
+	return officeGoldenVersion(t, 5, name)
 }
 
 // firstDiff names the first differing byte so a wording drift points at the
@@ -131,9 +132,8 @@ func TestOfficePackGoldens(t *testing.T) {
 		})
 	}
 
-	// @1, @2 and @3 stay registered and match their goldens untouched; @5
-	// (UNI-1985 draft) is registered beside @4 and matches its v5 goldens.
-	for _, version := range []int{1, 2, 3, 5} {
+	// @1, @2, @3 and @4 stay registered and match their goldens untouched.
+	for _, version := range []int{1, 2, 3, 4} {
 		key := fmt.Sprintf("office_uniwork_ai@%d", version)
 		pv, ok := LookupPrompt(key)
 		if !ok {
