@@ -652,7 +652,7 @@ function evaluateFormula(formula, sheet) {
     if (name === 'AVERAGE') { if (!values.length) throw new Unsupported('AVERAGE'); return values.reduce((a, b) => a + b, 0) / values.length; }
     if (name === 'MIN') return values.length ? Math.min(...values) : 0;
     if (name === 'MAX') return values.length ? Math.max(...values) : 0;
-    if (name === 'ROUND') { const f = 10 ** num(args[1] ?? 0); return Math.round(num(args[0]) * f) / f; }
+    if (name === 'ROUND') { const x = num(args[0]); const f = 10 ** num(args[1] ?? 0); return (x < 0 ? -1 : 1) * Math.round(Math.abs(x) * f) / f; }
     throw new Unsupported(name);
   };
   const truthy = (v) => (typeof v === 'string' ? (() => { throw new Unsupported('text condition'); })() : num(v) !== 0);
