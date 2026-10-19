@@ -148,8 +148,9 @@ export function ChatMessageHoverActions({
 
   return (
     // Desktop: sits in the actions rail beside the bubble (in flow) so moving
-    // the pointer into the bar keeps group/message hovered. Mobile: overlays
-    // the bubble top edge — absolute children do not widen the hover box.
+    // the pointer into the bar keeps group/message hovered. Mobile: above the
+    // message's top edge (absolute, so the bubble keeps its full width) — the
+    // bar is a child of the hover group, so reaching it keeps it shown.
     // Hidden until hover/focus; buttons stay in the tab order (roving tabindex).
     <div
       ref={barRef}
@@ -161,13 +162,15 @@ export function ChatMessageHoverActions({
       className={cn(
         "pointer-events-none z-10 flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-surface-raised p-0.5 opacity-0 shadow-[var(--menu-shadow)]",
         forceOpen && "pointer-events-auto opacity-100",
-        // Keyboard focus (not a tap's focus) and, from sm up, hover reveal the
-        // bar. On a phone the bar overlays the bubble's top edge, so a tap on
-        // the card (focus-within, or a hover a mouse leaves at 390 px) must not
-        // reveal it over the card's own title: only a long press (forceOpen)
-        // or keyboard focus does.
-        "transition-opacity duration-(--duration-fast) group-has-[:focus-visible]/message:pointer-events-auto group-has-[:focus-visible]/message:opacity-100 sm:group-hover/message:pointer-events-auto sm:group-hover/message:opacity-100",
-        "max-sm:absolute max-sm:-top-2",
+        // Hover (a mouse, at every width: Tailwind v4 wraps it in
+        // `@media (hover: hover)`, so a tap never leaves a sticky hover) and
+        // keyboard focus reveal the bar. A tap's focus-within does not: it would
+        // flash the bar over the card the finger just hit (F-01). On a phone the
+        // bar sits above the message's top edge, never over the bubble, so a
+        // mouse at that width can still click the card's title while the bar is
+        // shown; a long press (forceOpen) opens it on touch.
+        "transition-opacity duration-(--duration-fast) group-has-[:focus-visible]/message:pointer-events-auto group-has-[:focus-visible]/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
+        "max-sm:absolute max-sm:bottom-full",
         isOwn ? "max-sm:right-0" : "max-sm:left-0",
         "sm:relative sm:top-auto sm:mt-0.5",
       )}

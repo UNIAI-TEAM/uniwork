@@ -57,19 +57,17 @@ describe("ChatMessageHoverActions", () => {
     await user.tab({ shift: true });
     expect(document.activeElement).toBe(moved);
   });
-  it("takes no pointer events while hidden and is not revealed by a tap's focus or by hover on a phone", () => {
+  it("is hidden and click-through until hover or keyboard focus, and a tap's focus does not reveal it", () => {
     render(wrap(<Bar id="m1" />));
     const classes = screen.getByRole("toolbar").className.split(/\s+/);
-    // Hidden: it must not sit over the card's title and swallow the tap (F-01).
     expect(classes).toContain("pointer-events-none");
     expect(classes).toContain("opacity-0");
-    // A tap focuses the title, so plain focus-within must not reveal the bar;
-    // keyboard focus (focus-visible) still does.
     expect(classes).not.toContain("group-focus-within/message:pointer-events-auto");
     expect(classes).toContain("group-has-[:focus-visible]/message:pointer-events-auto");
-    // Hover reveals it from sm up only, where the bar is beside the bubble.
-    expect(classes).not.toContain("group-hover/message:pointer-events-auto");
-    expect(classes).toContain("sm:group-hover/message:pointer-events-auto");
+    // Hover is not gated on a breakpoint: a mouse below 640 px reaches the bar.
+    // Layout (the bar clears the card title) is proven in a browser, not here.
+    expect(classes).toContain("group-hover/message:pointer-events-auto");
+    expect(classes.some((c) => c.startsWith("sm:group-hover"))).toBe(false);
   });
 
   it("opens on a long press (forceOpen) with pointer events on", () => {
