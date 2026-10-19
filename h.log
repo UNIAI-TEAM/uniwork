@@ -1,0 +1,5 @@
+$ npx prettier --check $(git diff --name-only origin/main...HEAD -- '*.ts' '*.tsx' '*.md' '*.json') 2>&1 | tail -10; rc=${PIPESTATUS[0]}; echo; echo "PRETTIER_EXIT=$rc"
+Checking formatting...
+All matched files use Prettier code style!
+
+PRETTIER_EXIT=0

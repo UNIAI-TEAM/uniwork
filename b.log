@@ -1,0 +1,12 @@
+$ npx vitest run apps/html/tests/uni-1919-html-bound-forward.test.ts apps/html/tests/uni-1919-html-web-bound.test.ts apps/html/tests/uniwork-ai-send-guard.test.ts apps/html/tests/uniwork-ai-chipwire.test.ts apps/html/tests/uniwork-ai-notice.test.ts apps/html/tests/uniwork-view-only-ai.test.ts apps/html/tests/ai-panel-picker-keyboard.test.ts apps/html/tests/ai-panel-picker-announce.test.ts 2>&1 | tail -12; rc=${PIPESTATUS[0]}; echo; echo "HTML_AI_VITEST_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office
+
+
+ Test Files  8 passed (8)
+      Tests  72 passed (72)
+   Start at  18:59:51
+   Duration  4.99s (transform 2.63s, setup 0ms, import 5.08s, tests 4.19s, environment 3.30s)
+
+
+HTML_AI_VITEST_EXIT=0
