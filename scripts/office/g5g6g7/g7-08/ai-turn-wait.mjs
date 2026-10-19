@@ -36,12 +36,80 @@ export async function waitForAiTurnDone(frame, {
   return { finished: false, elapsedMs: now() - start };
 }
 
+async function probeSelector(frame, selector) {
+  if (!frame || !selector) return { count: 0, labels: [] };
+  if (typeof frame.$$eval === 'function') {
+    const res = await frame.$$eval(
+      selector,
+      (els) => ({
+        count: els.length,
+        labels: els
+          .map((el) => {
+            if (typeof el === 'string') return el.trim();
+            const text = (el?.textContent ?? '').trim();
+            const tip = typeof el?.getAttribute === 'function' ? (el.getAttribute('data-tip') ?? '').trim() : '';
+            return text || tip;
+          })
+          .filter(Boolean),
+      }),
+    ).catch(() => null);
+    if (res && typeof res.count === 'number') return res;
+  }
+  if (typeof frame.$ === 'function') {
+    const el = await frame.$(selector).catch(() => null);
+    if (el) {
+      const text = typeof el.textContent === 'string' ? el.textContent.trim() : '';
+      return { count: 1, labels: text ? [text] : [] };
+    }
+  }
+  return { count: 0, labels: [] };
+}
+
+/**
+ * w2q: panel state at the turn bound - whether a clarification prompt/answer buttons are shown,
+ * whether a running tool-step is shown and its label, and whether a plan/preview apply control is shown.
+ */
+export async function observeAiPanelState(frame, { selectors = {} } = {}) {
+  const [clarifyPrompt, clarifyButtons, runningStep, planPreview] = await Promise.all([
+    probeSelector(frame, selectors.clarifyPrompt),
+    probeSelector(frame, selectors.clarifyAnswerBtn),
+    probeSelector(frame, selectors.runningStep),
+    probeSelector(frame, selectors.planPreviewApply),
+  ]);
+  return {
+    clarificationShown: clarifyPrompt.count > 0 || clarifyButtons.count > 0,
+    clarificationAnswerButtonsShown: clarifyButtons.count > 0,
+    runningStepShown: runningStep.count > 0,
+    runningStepLabel: runningStep.labels[0] ?? null,
+    planPreviewApplyShown: planPreview.count > 0,
+  };
+}
+
 /** A turn the panel still showed as in progress at the bound: a timeout with its own reason, usage kept. */
-export function turnNotFinishedVerdict({ timeoutMs, elapsedMs, usage }) {
+export function turnNotFinishedVerdict({
+  timeoutMs,
+  elapsedMs,
+  usage,
+  wire = null,
+  endScreenshotPath = null,
+  panelState = null,
+}) {
+  const callToolCalls = Array.isArray(wire?.callToolCalls) ? wire.callToolCalls : [];
+  const offeredTools = Array.isArray(wire?.offeredTools) ? wire.offeredTools : [];
+  const executedTools = Array.isArray(wire?.executedTools) ? wire.executedTools : [];
   return {
     ...blockedVerdict('turn_not_finished', {
-      timeoutMs, elapsedMs, modelCalls: usage?.modelCalls, missingUsageCalls: usage?.missingUsageCalls,
+      timeoutMs,
+      elapsedMs,
+      modelCalls: usage?.modelCalls,
+      missingUsageCalls: usage?.missingUsageCalls,
+      callToolCalls,
+      offeredTools,
+      executedTools,
+      endScreenshotPath,
+      panelState,
     }),
+    endScreenshotPath,
     usage,
   };
 }

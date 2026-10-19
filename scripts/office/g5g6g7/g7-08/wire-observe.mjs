@@ -571,6 +571,7 @@ export function observeModelWire(page, {
 export function extractWireToolCalls(requests = [], responses = []) {
   const offeredSet = new Set();
   const executedSet = new Set();
+  const callToolCalls = [];
   for (const req of requests) {
     for (const tool of req?.body?.tools ?? []) {
       const name = tool?.function?.name ?? tool?.name;
@@ -584,9 +585,16 @@ export function extractWireToolCalls(requests = [], responses = []) {
     }
   }
   for (const res of responses) {
+    if (res?.refusal) continue;
+    const names = [];
     for (const name of res?.toolCallNames ?? []) {
-      if (typeof name === 'string' && name.trim()) executedSet.add(name.trim());
+      if (typeof name === 'string' && name.trim()) {
+        const trimmed = name.trim();
+        executedSet.add(trimmed);
+        names.push(trimmed);
+      }
     }
+    callToolCalls.push(names);
   }
-  return { offeredTools: [...offeredSet], executedTools: [...executedSet] };
+  return { offeredTools: [...offeredSet], executedTools: [...executedSet], callToolCalls };
 }

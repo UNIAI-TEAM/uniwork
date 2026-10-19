@@ -4,7 +4,7 @@
 // save-observe.mjs, and the AI-turn wire observation wire-observe.mjs.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fmtVi, q1Shares } from '../fixtures-lib/data.mjs';
 import { listVersions } from '../g7-04/cross-host.mjs';
 import { cleanupSeededOrganization, seedFixtureDocument } from '../g7-10/tracer.mjs';
@@ -14,7 +14,7 @@ import { harnessPaths, readStartStatus, startGate } from '../harness/lib.mjs';
 import { documentUrl, webFrameSelectors, webLogin } from '../harness/web.mjs';
 import { startStubFacade } from '../holdout-stub-facade.helper.mjs';
 import { computeTruth } from '../holdout-xlsx-truth.mjs';
-import { AI_TURN_TIMEOUT_MS, turnNotFinishedVerdict, waitForAiTurnDone } from './ai-turn-wait.mjs';
+import { AI_TURN_TIMEOUT_MS, observeAiPanelState, turnNotFinishedVerdict, waitForAiTurnDone } from './ai-turn-wait.mjs';
 import { docxRoundTripHook, runDocxRoundTrip } from './docx-roundtrip.mjs';
 import {
   VERDICT, blockedVerdict, diffDocxNonDocumentParts, extractPdfTextFromBytes, failVerdict,
@@ -53,9 +53,27 @@ export const FRAME_AI_SELECTORS = Object.freeze({
   assistantMsg: '.ai-msg-assistant',
   assistantAnswer: '.ai-msg-assistant .ai-msg-answer',
   stepTitle: '.ai-step-title',
+  runningStep: '.ai-step-icon.running ~ .ai-step-content .ai-step-title',
+  clarifyPrompt: '.ai-clarify-card, .ai-clarify-label',
+  clarifyAnswerBtn: '.ai-clarify-opt, .ai-clarify-submit, .ai-clarify-skip, .ai-clarify-next',
+  planPreviewApply: '.ai-preview-card, .preview-actions',
   footprint: '.ai-result-chip, .ai-result-meta, .ai-work-group-summary, .ai-auto-applied-text, .ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions',
   htmlPreviewFrame: 'iframe[sandbox], iframe.preview-frame',
 });
+
+async function collectTurnNotFinished({
+  row, provider, runDir, page, frame, turnTimeoutMs, elapsedMs, usage, wireRequests, wireResponses,
+}) {
+  const wire = extractWireToolCalls(wireRequests, wireResponses);
+  const panelState = await observeAiPanelState(frame, { selectors: FRAME_AI_SELECTORS });
+  let endScreenshotPath = null;
+  if (runDir && typeof page?.screenshot === 'function') {
+    endScreenshotPath = join(runDir, 'g7-08', 'artifacts', `${row.id}-${provider}-web-ai-panel-end.png`);
+    mkdirSync(dirname(endScreenshotPath), { recursive: true });
+    await page.screenshot({ path: endScreenshotPath }).catch(() => { endScreenshotPath = null; });
+  }
+  return turnNotFinishedVerdict({ timeoutMs: turnTimeoutMs, elapsedMs, usage, wire, endScreenshotPath, panelState });
+}
 
 export function missingSelectorVerdict(what, details = {}) {
   const label = String(what ?? '').trim() || 'unknown';
@@ -281,9 +299,15 @@ export async function runWebMatrixRow(runEntry, {
   try {
     if (injected) {
       const { settle } = observeModelWire(injectedPage, { requests: wireRequests, responses: wireResponses, aiPaths });
-      await injectedRowBody();
+      const injectedTurn = await injectedRowBody();
       await settle();
       const usage = evaluateWireObservation({ requests: wireRequests, responses: wireResponses, aiPaths, frameAiOrigin: webOrigin });
+      if (injectedTurn && injectedTurn.finished === false) {
+        return collectTurnNotFinished({
+          row, provider, runDir, page: injectedPage, frame: injectedTurn.frame ?? injectedPage,
+          turnTimeoutMs, elapsedMs: injectedTurn.elapsedMs ?? turnTimeoutMs, usage, wireRequests, wireResponses,
+        });
+      }
       if (usage.unobserved) return { ...blockedVerdict(usage.reason, { ...usage.detail, missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls }), usage };
       return blockedVerdict('injected_row_body_returned');
     }
@@ -421,10 +445,11 @@ export async function runWebMatrixRow(runEntry, {
     // w2n: a turn still in progress at the bound has no answer yet; the panel text is a progress line,
     // so it is a timeout (usage kept), never scored and never a content FAIL.
     if (!turnWait.finished) {
-      return {
-        ...turnNotFinishedVerdict({ timeoutMs: turnTimeoutMs, elapsedMs: turnWait.elapsedMs, usage }),
-        documentId, preconditions, screenshotPath,
-      };
+      const timedOut = await collectTurnNotFinished({
+        row, provider, runDir, page: web.page, frame,
+        turnTimeoutMs, elapsedMs: turnWait.elapsedMs, usage, wireRequests, wireResponses,
+      });
+      return { ...timedOut, documentId, preconditions, screenshotPath };
     }
     if (usage.unobserved) {
       return {
