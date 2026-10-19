@@ -184,6 +184,30 @@ describe("lines separated by a hard break (UNI-1954)", () => {
     expect(instance.getText()).toBe("one\nx1. ");
   });
 
+  it("does not split a heading line when no block rule can fire there", () => {
+    const instance = mount("<h1>one<br></h1>");
+    type(instance, "- ");
+    expect(types(instance)?.[0]).toBe("heading");
+    expect(instance.getText().startsWith("one\n- ")).toBe(true);
+  });
+
+  it("keeps the bold the user toggled for the slash typed on a new line", () => {
+    const instance = mount("<p>one<br></p>");
+    instance.commands.toggleBold();
+    type(instance, "/");
+    expect(slashState(instance).active).toBe(true);
+    expect(instance.getJSON().content?.[1]).toMatchObject({ content: [{ text: "/", marks: [{ type: "bold" }] }] });
+  });
+
+  it("promotes the line over a selected range and undoes in one step", () => {
+    const instance = mount("<p>one<br>abc</p>");
+    instance.commands.setTextSelection({ from: 5, to: 8 });
+    type(instance, "- ");
+    expect(types(instance)?.slice(0, 2)).toEqual(["paragraph", "bulletList"]);
+    instance.commands.undo();
+    expect(types(instance)).toEqual(["paragraph"]);
+  });
+
   it("leaves a pasted slash after a hard break literal", () => {
     const instance = mount("<p>one<br></p>");
     paste(instance, "/");

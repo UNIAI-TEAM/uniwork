@@ -47,9 +47,14 @@ export const PageHardBreakLinesExtension = Extension.create({
             if (hardBreakPos === -1) return false;
             const line = block.textBetween(lineStart, $from.parentOffset, undefined, "￼");
             // IME and `insertText` can deliver the whole `1. ` in one call, so match line + text.
-            if (!(line === "" && text.startsWith("/")) && !PrefixPattern.test(line + text)) return false;
+            const slash = line === "" && text.startsWith("/");
+            // A list, quote or heading rule only fires from a plain paragraph; elsewhere (a heading
+            // line, say) splitting would leave a stray block and no rule would run.
+            if (!slash && !(block.type.name === "paragraph" && PrefixPattern.test(line + text))) return false;
 
-            const tr = view.state.tr.delete(hardBreakPos, hardBreakPos + 1).split(hardBreakPos);
+            // The split drops stored marks; carry the marks the caret would have typed with.
+            const marks = view.state.storedMarks ?? $from.marks();
+            const tr = view.state.tr.delete(hardBreakPos, hardBreakPos + 1).split(hardBreakPos).setStoredMarks(marks);
             view.dispatch(tr);
             const newFrom = tr.mapping.map(from);
             const newTo = tr.mapping.map(to);
