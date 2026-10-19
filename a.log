@@ -1,0 +1,9 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6
+55dccea0e841624b5a3aa897e558dc45429297ff
+4ba92dfaebf7065dae835cbb92bf5254b7a38f7b
+55dccea0e chore: merge the G5-G7 root (4ba92dfae) into RETENTION-02
+f890ce05d test(documents): clear the retention tables before counting swept rows (UNI-1921)
+4ac1298c4 feat(documents): sweep closed office jobs, multipart rows and ended break-glass grants (UNI-1921)
+4ba92dfae chore: merge G7-03b offline faults (UNI-1382, 6be45f188) into the G5-G7 root
+53e2c7f1a chore: merge the G5-G7 root (47e32f684) into RETENTION-02
+9757103dd docs(documents): propose retention for closed office jobs, multipart rows and break-glass grants (UNI-1921)
