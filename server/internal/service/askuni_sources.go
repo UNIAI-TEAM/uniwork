@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -425,6 +426,9 @@ func (s *AskUNIService) documentContext(ctx context.Context, tc ai.ToolContext, 
 		return nil
 	}
 	d, err := s.q.GetDocumentByID(ctx, id)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		slog.Warn("ask uni: cited document skipped", "user_id", tc.ActorID, "document_id", id, "error", err)
+	}
 	if err != nil || d.WorkspaceID != tc.WorkspaceID || d.ArchivedAt.Valid || d.Kind == DocumentKindFolder || d.OwnerID.Valid {
 		return nil
 	}
@@ -437,6 +441,7 @@ func (s *AskUNIService) documentContext(ctx context.Context, tc ai.ToolContext, 
 	}
 	base, err := s.base(ctx, tc.WorkspaceID)
 	if err != nil {
+		slog.Warn("ask uni: cited document skipped", "user_id", tc.ActorID, "document_id", id, "error", err)
 		return nil
 	}
 	return []ai.Source{{Kind: "document", Title: d.Title, Href: base + "/documents/" + d.ID, Excerpt: capRunes(d.ContentText, 160, "")}}

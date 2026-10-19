@@ -277,11 +277,17 @@ func hasOwnSubject(question, taskPrefix string, focus *ai.Focus, sources []ai.So
 	}
 	ts := searchTerms(question)
 	for _, src := range sources {
-		if src.Kind != "members" && src.Kind != "chat" && score(src.Title, ts) > 0 {
+		if namesIt(src, ts) {
 			return true
 		}
 	}
 	return false
+}
+
+// namesIt reports whether a task, meeting or document source's title holds one
+// of the question's terms.
+func namesIt(src ai.Source, ts []string) bool {
+	return src.Kind != "members" && src.Kind != "chat" && score(src.Title, ts) > 0
 }
 
 // pointsBack reports whether the question refers to what was said before:
@@ -329,16 +335,30 @@ func previousQuestion(rows []db.AiMessage) string {
 	return topic + " " + last
 }
 
-// withLastTopic appends what the last turn was about after the current
-// sources, so a follow-up like "who owns that?" or a bare "Ai nhận?" keeps its
-// topic. That is the last answer's cited objects, read again as the asker;
-// when it cited none of them (a no-sources notice, a model that cited nothing,
-// an answer from chat or members alone), the sources of "<previous question>
-// <question>" stand in. Focus is not repeated: the first lookup already carries it.
+// maxCarried caps the cited objects a follow-up carries: a model cites a few,
+// the fake provider cites its whole pack.
+const maxCarried = 5
+
+// citedPaths is the href segment before the id, per kind a turn can carry.
+var citedPaths = map[string]string{"task": "/tasks/", "meeting": "/meetings/", "document": "/documents/"}
+
+// withLastTopic adds what the last turn was about to the current sources, so a
+// follow-up like "who owns that?" or a bare "Ai nhận?" keeps its topic. That
+// is the objects the latest answer that cited any cited, read again as the
+// asker; when none did (a no-sources notice, a model that cited nothing, an
+// answer from chat or members alone), the sources of "<previous question>
+// <question>" stand in. The topic comes after the sources the question names
+// by title and before its body hits, which a bare "Ai nhận?" can find twenty
+// of: BuildContext keeps the first ai.MaxSources. Focus is not repeated: the
+// first lookup already carries it.
 func (s *AskUNIService) withLastTopic(ctx context.Context, rows []db.AiMessage, userID, orgID, workspaceID, question string, sources []ai.Source) ([]ai.Source, error) {
-	more, err := s.citedTopic(ctx, ai.ToolContext{ActorID: userID, OrganizationID: orgID, WorkspaceID: workspaceID}, rows)
-	if prev := previousQuestion(rows); err == nil && len(more) == 0 && prev != "" {
-		more, err = s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: orgID, WorkspaceID: workspaceID, Question: prev + " " + question})
+	current := map[string]ai.Source{}
+	for _, src := range sources {
+		current[src.Href] = src
+	}
+	topic, err := s.citedTopic(ctx, ai.ToolContext{ActorID: userID, OrganizationID: orgID, WorkspaceID: workspaceID}, rows, current)
+	if prev := previousQuestion(rows); err == nil && len(topic) == 0 && prev != "" {
+		topic, err = s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: orgID, WorkspaceID: workspaceID, Question: prev + " " + question})
 	}
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
@@ -346,39 +366,71 @@ func (s *AskUNIService) withLastTopic(ctx context.Context, rows []db.AiMessage, 
 		}
 		return nil, err
 	}
-	seen := map[string]bool{}
-	for _, src := range sources {
-		seen[src.Href] = true
-	}
-	for _, src := range more {
-		if !seen[src.Href] {
-			sources = append(sources, src)
-			seen[src.Href] = true
+	inTopic := map[string]bool{}
+	var carried []ai.Source
+	for _, src := range topic {
+		if !inTopic[src.Href] && len(carried) < maxCarried {
+			inTopic[src.Href] = true
+			carried = append(carried, src)
 		}
 	}
-	return sources, nil
+	ts := searchTerms(question)
+	var named, rest []ai.Source
+	for _, src := range sources {
+		switch {
+		case inTopic[src.Href]: // placed with the topic
+		case namesIt(src, ts):
+			named = append(named, src)
+		default:
+			rest = append(rest, src)
+		}
+	}
+	if room := ai.MaxSources - len(carried); len(named) > room {
+		named = named[:room]
+	}
+	return append(append(named, carried...), rest...), nil
 }
 
 // citedTopic reads again, through the asker's own services, the tasks, meetings
-// and documents the conversation's last answer cited. An object the asker can
-// no longer read is left out; chat and members are never a turn's subject, and
-// an email thread comes back only as focus.
-func (s *AskUNIService) citedTopic(ctx context.Context, tc ai.ToolContext, rows []db.AiMessage) ([]ai.Source, error) {
+// and documents the latest answer that cited any cited, three answers back at
+// most and maxCarried at most; one the current lookup already holds is taken
+// from it. An object the asker can no longer read is left out; chat and
+// members are never a turn's subject, and an email thread comes back only as focus.
+func (s *AskUNIService) citedTopic(ctx context.Context, tc ai.ToolContext, rows []db.AiMessage, current map[string]ai.Source) ([]ai.Source, error) {
 	var cited []AskCitation
-	for i := len(rows) - 1; i >= 0; i-- {
-		if rows[i].Role == "assistant" {
-			_ = json.Unmarshal([]byte(rows[i].Citations), &cited) // a row that does not decode cites nothing
-			break
+	for i, answers := len(rows)-1, 0; i >= 0 && answers < 3 && len(cited) == 0; i-- {
+		if rows[i].Role != "assistant" {
+			continue
+		}
+		answers++
+		var cs []AskCitation
+		if json.Unmarshal([]byte(rows[i].Citations), &cs) != nil {
+			continue // a row that does not decode cites nothing
+		}
+		for _, c := range cs {
+			if citedPaths[c.Kind] != "" {
+				cited = append(cited, c)
+			}
 		}
 	}
 	var out []ai.Source
 	seen := map[string]bool{}
 	for _, c := range cited {
+		if len(out) == maxCarried {
+			break
+		}
 		if seen[c.Href] {
 			continue
 		}
 		seen[c.Href] = true
-		id := c.Href[strings.LastIndex(c.Href, "/")+1:]
+		if src, ok := current[c.Href]; ok {
+			out = append(out, src)
+			continue
+		}
+		id, ok := citedID(c)
+		if !ok {
+			continue
+		}
 		var srcs []ai.Source
 		var err error
 		switch c.Kind {
@@ -389,7 +441,7 @@ func (s *AskUNIService) citedTopic(ctx context.Context, tc ai.ToolContext, rows 
 		case "document":
 			srcs = s.documentContext(ctx, tc, id)
 		}
-		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
+		if isGateRefusal(err) {
 			continue
 		}
 		if err != nil {
@@ -398,6 +450,18 @@ func (s *AskUNIService) citedTopic(ctx context.Context, tc ai.ToolContext, rows 
 		out = append(out, srcs...)
 	}
 	return out, nil
+}
+
+// citedID is the id at the end of a citation's href when the href has the
+// shape its kind is stored with ("…/tasks/<id>"); any other href names nothing.
+func citedID(c AskCitation) (string, bool) {
+	seg := citedPaths[c.Kind]
+	i := strings.LastIndex(c.Href, seg)
+	if seg == "" || i < 0 {
+		return "", false
+	}
+	id := c.Href[i+len(seg):]
+	return id, id != "" && !strings.ContainsAny(id, "/?#")
 }
 
 // history replays the conversation's last turns, wrapped as untrusted.

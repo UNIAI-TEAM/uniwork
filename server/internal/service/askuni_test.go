@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,7 +14,9 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -733,7 +736,9 @@ func TestAskFollowUpReusesPreviousQuestion(t *testing.T) {
 
 // Vietnamese drops the pronoun: "Ai nhận?" neither names the task nor points
 // back at it, yet the turn after it is still about Banner Tết. The topic
-// travels in the last answer's citations, not in the words of the questions.
+// travels in the last answer's citations, not in the words of the questions,
+// and still fits when the bare question's words hit more task bodies than the
+// context holds.
 func TestAskFollowUpWithoutAPronounKeepsTheTopic(t *testing.T) {
 	s, _, ua, _, w := askFixture(t)
 	ctx := context.Background()
@@ -741,10 +746,17 @@ func TestAskFollowUpWithoutAPronounKeepsTheTopic(t *testing.T) {
 	if _, _, err := onboarding.SeedWelcomeTask(ctx, ua.ID, w.ID); err != nil {
 		t.Fatal(err)
 	}
-	for _, title := range []string{"Banner Tết", "Mua quà cho khách"} {
-		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: title}); err != nil {
+	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Banner Tết"}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= ai.MaxSources+5; i++ {
+		in := CreateTaskInput{Title: fmt.Sprintf("Việc phụ %d", i), Description: "Ai nhận việc này, khi nào hết hạn?"}
+		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, in); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Mua quà cho khách"}); err != nil {
+		t.Fatal(err)
 	}
 	conv := ""
 	for i, q := range []string{"Banner Tết đến đâu rồi?", "Ai nhận?", "Hạn khi nào?"} {
@@ -756,43 +768,135 @@ func TestAskFollowUpWithoutAPronounKeepsTheTopic(t *testing.T) {
 		if !citesTitle(res.Citations, "Banner Tết") {
 			t.Errorf("turn %d %q lost the topic: %+v / notice %q", i+1, q, res.Citations, res.Message.Notice.String)
 		}
+		if citesTitle(res.Citations, "Mua quà cho khách") {
+			t.Errorf("turn %d %q carried a task no turn was about: %+v", i+1, q, res.Citations)
+		}
 	}
 }
 
 // The last answer's citations are read again as the asker: a document they
-// could open when it was cited but no longer can does not come back with the
-// topic. The asker is member B (A owns the organization and reads everything).
+// could open when it was cited but no longer can, or that left search (archived,
+// documents switched off), does not come back with the topic, and carrying one
+// writes no view to its access log, as search writes none. The asker is member
+// B (A owns the organization and reads everything).
 func TestAskFollowUpRereadsCitationsAsTheAsker(t *testing.T) {
-	s, fake, ua, ub, w := askFixture(t)
+	for name, lose := range map[string]func(s *AskUNIService, docID string) error{
+		"restricted": func(s *AskUNIService, docID string) error {
+			_, err := s.pool.Exec(context.Background(), `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, docID)
+			return err
+		},
+		"archived": func(s *AskUNIService, docID string) error {
+			_, err := s.pool.Exec(context.Background(), `UPDATE documents SET archived_at = now() WHERE id = $1`, docID)
+			return err
+		},
+		"documents off": func(s *AskUNIService, _ string) error {
+			s.SetFlags(mcpFlagsExcept{off: "documents"})
+			return nil
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, fake, ua, ub, w := askFixture(t)
+			ctx := context.Background()
+			docs := askDocs(t, s, mcpFlags(true))
+			addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+			addMember(t, s.meetings, w.ID, ub.ID)
+			page, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ask := func(conv, q string) AskResult {
+				res, err := s.Ask(ctx, ub.ID, w.ID, AskInput{ConversationID: conv, Question: q, Locale: "vi"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return res
+			}
+			views := func() (n int) {
+				if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM document_access_logs WHERE document_id = $1`, page.Document.ID).Scan(&n); err != nil {
+					t.Fatal(err)
+				}
+				return n
+			}
+			first := ask("", "quy trình nghỉ phép")
+			before := views()
+			// Control: while B may read it, the cited document carries to the next turn.
+			if res := ask(first.ConversationID, "Ai duyệt?"); !citesTitle(res.Citations, "Quy trình xin nghỉ phép") {
+				t.Fatalf("readable cited document did not carry: %+v", res.Citations)
+			}
+			if after := views(); after != before {
+				t.Fatalf("carrying the document wrote %d access-log rows", after-before)
+			}
+			if err := lose(s, page.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			calls := fake.Calls
+			res := ask(first.ConversationID, "Khi nào?")
+			if citesTitle(res.Citations, "Quy trình xin nghỉ phép") {
+				t.Fatalf("a document B can no longer find came back: %+v", res.Citations)
+			}
+			if fake.Calls > calls && strings.Contains(fake.Last.Messages[len(fake.Last.Messages)-1].Content, "Quy trình xin nghỉ phép") {
+				t.Fatal("a document B can no longer find reached the model")
+			}
+		})
+	}
+}
+
+// A stored citation names an object by href; nothing in it decides access. One
+// that names another organization's task or document, or has the wrong shape,
+// is read through the asker's own gates and comes back as nothing.
+func TestAskFollowUpIgnoresForeignCitations(t *testing.T) {
+	s, fake, ua, _, w := askFixture(t)
 	ctx := context.Background()
 	docs := askDocs(t, s, mcpFlags(true))
-	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
-	addMember(t, s.meetings, w.ID, ub.ID)
-	page, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép"})
+	as := NewAuthService(s.pool, s.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	other := registerVerified(t, s.q, as, "c@example.com", "C")
+	org, err := s.orgs.Create(ctx, other.ID, "Secret", "org-secret")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ask := func(conv, q string) AskResult {
-		res, err := s.Ask(ctx, ub.ID, w.ID, AskInput{ConversationID: conv, Question: q, Locale: "vi"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return res
-	}
-	first := ask("", "quy trình nghỉ phép")
-	// Control: while B may read it, the cited document carries to the next turn.
-	if res := ask(first.ConversationID, "Ai duyệt?"); !citesTitle(res.Citations, "Quy trình xin nghỉ phép") {
-		t.Fatalf("readable cited document did not carry: %+v", res.Citations)
-	}
-	if _, err := s.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, page.Document.ID); err != nil {
+	ov, err := s.ws.CreateInOrg(ctx, other.ID, org.ID, "Secret", "secret")
+	if err != nil {
 		t.Fatal(err)
 	}
-	res := ask(first.ConversationID, "Khi nào?")
-	if citesTitle(res.Citations, "Quy trình xin nghỉ phép") {
-		t.Fatalf("a document B can no longer read came back: %+v", res.Citations)
+	task, err := s.tasks.Create(ctx, Human(other.ID), ov.Workspace.ID, CreateTaskInput{Title: "Kế hoạch bí mật"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if fake.Calls > 0 && strings.Contains(fake.Last.Messages[len(fake.Last.Messages)-1].Content, "Quy trình xin nghỉ phép") {
-		t.Fatal("a document B can no longer read reached the model")
+	page, err := docs.CreatePage(ctx, Human(other.ID), ov.Workspace.ID, CreatePageInput{Title: "Tài liệu bí mật"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "xin chào", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cites, err := json.Marshal([]AskCitation{
+		{SourceID: "S1", Kind: "task", Title: "x", Href: "/org-secret/secret/tasks/" + task.ID},
+		{SourceID: "S2", Kind: "document", Title: "x", Href: "/org-secret/secret/documents/" + page.Document.ID},
+		{SourceID: "S3", Kind: "task", Title: "x", Href: "/org-secret/secret/tasks/" + task.ID + "?x=1"},
+		{SourceID: "S4", Kind: "meeting", Title: "x", Href: "/org-secret/secret/tasks/" + task.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.AiInsertMessage(ctx, db.AiInsertMessageParams{
+		ID: util.NewID(), OrganizationID: w.OrganizationID, ConversationID: first.ConversationID,
+		Role: "assistant", Content: "x", Citations: string(cites),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	calls := fake.Calls
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "Ai nhận?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"Kế hoạch bí mật", "Tài liệu bí mật"} {
+		if citesTitle(res.Citations, bad) {
+			t.Errorf("%q of another organization was carried: %+v", bad, res.Citations)
+		}
+		if fake.Calls > calls && strings.Contains(fake.Last.Messages[len(fake.Last.Messages)-1].Content, bad) {
+			t.Errorf("%q of another organization reached the model", bad)
+		}
 	}
 }
 
