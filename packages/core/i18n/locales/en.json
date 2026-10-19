@@ -8806,7 +8806,7 @@
         "more": "More formatting",
         "more_title": "More formatting",
         "hint": {
-          "title": "New to UniNote?",
+          "title": "UniNote tips",
           "aria": "Tip for new users",
           "body": "Pick a format on the toolbar, or type <kbd>/</kbd> at the start of a line to insert a block, <kbd>@</kbd> to mention someone, and select text to format it quickly.",
           "got_it": "Got it",
