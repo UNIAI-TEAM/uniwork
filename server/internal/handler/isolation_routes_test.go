@@ -544,6 +544,8 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/links":                    {body: isoWith(map[string]string{"target_id": "task"}, map[string]any{"target_type": "task"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages":                       {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/file":                  {body: isoFile("note.pdf", "application/pdf", tinyPDF, map[string]string{"client_msg_id": ""})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document":              {body: isoFile("note.md", "text/markdown", []byte("# new\n"), map[string]string{"client_msg_id": "", "share_level": "comment"})},
+	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}":                                 {class: isoScoped, reason: "the room detail read (UNI-1966 L5) authorizes the room by the path's workspace and room id before it answers can_send_document; an outsider is refused 403/404 and A's digest catches a served room"},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/voice":                 {body: isoFile("voice.webm", "audio/webm", tinyWebM, map[string]string{"client_msg_id": "", "duration_ms": "4000"})},
 	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}":          {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote": {body: isoWith(map[string]string{"option_id": "pollOption"}, nil)},

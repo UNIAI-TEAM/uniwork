@@ -871,3 +871,15 @@ SELECT
   now(), now(), now()
 ON CONFLICT (room_id, user_id) WHERE status IN ('invited', 'active') DO NOTHING;
 
+
+-- name: CreateChatDocumentMessage :one
+-- A message that names a shared Document (UNI-1966). The metadata carries the
+-- document id, and reply_to_message_id is settable (the file/voice shape);
+-- client_msg_id makes a retried send idempotent.
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id,
+  organization_id
+) VALUES (
+  $1, $2, $3, $4, $5, 'document', $6, $7, $8, sqlc.narg(client_msg_id),
+  sqlc.arg(organization_id)
+) RETURNING *;

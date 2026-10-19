@@ -124,6 +124,30 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			URLExpiresAt: formatURLExpiry(m.File.URLExpiresAt),
 		}
 	}
+	if m.Document != nil {
+		block := &sdo.DocumentMessageDTO{
+			DocumentID:      m.Document.DocumentID,
+			ViewerHasAccess: m.Document.HasAccess,
+		}
+		// Without access the block carries the id and the false flag and
+		// nothing else: no title, format or revision of a document the caller
+		// cannot read (UNI-1966 §5).
+		if m.Document.HasAccess {
+			block.ViewerLevel = m.Document.Level
+			block.ViewerCanManage = m.Document.CanManage
+			block.ViewerCanUploadVersion = m.Document.CanUploadVersion
+			block.Title = m.Document.Title
+			block.Format = m.Document.Format
+			block.VersionNumber = int(m.Document.VersionNumber)
+			block.Revision = strconv.FormatInt(m.Document.Revision, 10)
+			block.CanOpenInApp = m.Document.CanOpenInApp
+		}
+		if m.Document.HasRecipientCount {
+			count := m.Document.RecipientCount
+			block.RecipientCount = &count
+		}
+		out.Document = block
+	}
 	if m.Poll != nil {
 		options := make([]sdo.ChatPollOptionDTO, 0, len(m.Poll.Options))
 		for _, option := range m.Poll.Options {
@@ -191,7 +215,7 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
-		NotificationsMuted: r.NotificationsMuted,
+		NotificationsMuted: r.NotificationsMuted, CanSendDocument: r.CanSendDocument,
 	}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)

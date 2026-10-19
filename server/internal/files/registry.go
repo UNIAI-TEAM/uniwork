@@ -245,6 +245,26 @@ var (
 		"image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
 		"text/css", "text/javascript",
 	}
+	// ChatDocumentMIMETypes is what a chat message may share as a Document
+	// (UNI-1966 §2.1, lead decision L8). It is deliberately narrower than
+	// documentMIMETypes: the asset types that list gained with UNI-1232
+	// (image/jpeg, image/png, image/gif, image/webp, image/svg+xml, text/css,
+	// text/javascript) exist to sit next to a Markdown/HTML document inside
+	// the Documents tree, and a chat message already sends pictures as
+	// image attachments (UNI-1232 brief: images and zips send as today). So
+	// the document send accepts the ten editor formats and nothing else; the
+	// web mirrors this table and its Go mirror test compares against this
+	// name, so it is not renamed. w2's can_share_as_document uses it too.
+	ChatDocumentMIMETypes = []string{
+		"application/pdf", "text/plain", "text/markdown", "text/html",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.ms-excel",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.ms-powerpoint",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"application/vnd.oasis.opendocument.text",
+	}
 )
 
 // DefaultDocumentMaxBytes is the default byte ceiling for document_file when a

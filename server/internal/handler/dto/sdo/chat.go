@@ -137,6 +137,26 @@ type ChatPostDTO struct {
 	PinToTop bool   `json:"pin_to_top" description:"Whether the post is pinned to top" example:"false"`
 }
 
+// DocumentMessageDTO is the document block on a chat message (UNI-1966 §5).
+// document_id comes from the message metadata and is always present; every
+// other field is resolved per viewer by the room read. Without access the
+// block carries document_id and viewer_has_access:false and nothing else, so
+// it leaks no title, format or revision of a document the caller cannot read.
+// recipient_count is present only for the message's sender.
+type DocumentMessageDTO struct {
+	DocumentID             string `json:"document_id" description:"Shared document id" example:"01J8X4DOC0N1P2Q3R4S5T6U7V8"`
+	ViewerHasAccess        bool   `json:"viewer_has_access" description:"Whether the caller may read the document" example:"true"`
+	ViewerLevel            string `json:"viewer_level,omitempty" description:"Caller's current level: view, comment, edit, or manage" example:"comment"`
+	ViewerCanManage        bool   `json:"viewer_can_manage,omitempty" description:"Caller may administer sharing (owner or manage)" example:"false"`
+	ViewerCanUploadVersion bool   `json:"viewer_can_upload_version,omitempty" description:"Caller may upload a new version (owner or edit)" example:"true"`
+	Title                  string `json:"title,omitempty" description:"Document title; omitted without access" example:"Kế hoạch quý 4.docx"`
+	Format                 string `json:"format,omitempty" description:"Format for the type icon (docx, pdf, ...); omitted without access" example:"docx"`
+	VersionNumber          int    `json:"version_number,omitempty" description:"Current version number; omitted without access" example:"3"`
+	Revision               string `json:"revision,omitempty" description:"Current revision, the base for a version commit; omitted without access" example:"41"`
+	CanOpenInApp           bool   `json:"can_open_in_app,omitempty" description:"The document opens in UniWork Office for the caller; omitted without access" example:"true"`
+	RecipientCount         *int   `json:"recipient_count,omitempty" description:"Live share count, present only for the sender" example:"4"`
+}
+
 // ChatMessageDTO is a stored chat message.
 type ChatMessageDTO struct {
 	ID                string               `json:"id" description:"Message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
@@ -167,6 +187,7 @@ type ChatMessageDTO struct {
 	Reminder          *ChatReminderDTO     `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
 	Note              *ChatNoteDTO         `json:"note,omitempty" description:"Note payload when kind is note"`
 	Post              *ChatPostDTO         `json:"post,omitempty" description:"Post payload when kind is post"`
+	Document          *DocumentMessageDTO  `json:"document,omitempty" description:"Shared document block when kind is document or document_version"`
 	Priority          string               `json:"priority,omitempty" description:"important or urgent message flag" example:"important"`
 	ClientMsgID       string               `json:"client_msg_id,omitempty" description:"Idempotency key the sender supplied, so a client can drop its own queued copy" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
@@ -197,6 +218,7 @@ type ChatRoomDTO struct {
 	Topic                 string                        `json:"topic,omitempty" description:"Channel topic"`
 	IsDefault             bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
 	NotificationsMuted    bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
+	CanSendDocument       bool                          `json:"can_send_document,omitempty" description:"The caller may send a document here and the grantable recipients are within the share batch cap (L5); absent means false" example:"true"`
 }
 
 // ChatChannelListSDO is GET .../chat/channels.

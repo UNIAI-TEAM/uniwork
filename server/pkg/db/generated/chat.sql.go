@@ -126,6 +126,70 @@ func (q *Queries) CarryOverChatRoomMemberSendRestricted(ctx context.Context, arg
 	return err
 }
 
+const createChatDocumentMessage = `-- name: CreateChatDocumentMessage :one
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id,
+  organization_id
+) VALUES (
+  $1, $2, $3, $4, $5, 'document', $6, $7, $8, $9,
+  $10
+) RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id, organization_id
+`
+
+type CreateChatDocumentMessageParams struct {
+	ID               string      `json:"id"`
+	RoomID           string      `json:"room_id"`
+	WorkspaceID      string      `json:"workspace_id"`
+	SenderID         string      `json:"sender_id"`
+	SenderKind       string      `json:"sender_kind"`
+	Body             string      `json:"body"`
+	Metadata         []byte      `json:"metadata"`
+	ReplyToMessageID pgtype.Text `json:"reply_to_message_id"`
+	ClientMsgID      pgtype.Text `json:"client_msg_id"`
+	OrganizationID   string      `json:"organization_id"`
+}
+
+// A message that names a shared Document (UNI-1966). The metadata carries the
+// document id, and reply_to_message_id is settable (the file/voice shape);
+// client_msg_id makes a retried send idempotent.
+func (q *Queries) CreateChatDocumentMessage(ctx context.Context, arg CreateChatDocumentMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, createChatDocumentMessage,
+		arg.ID,
+		arg.RoomID,
+		arg.WorkspaceID,
+		arg.SenderID,
+		arg.SenderKind,
+		arg.Body,
+		arg.Metadata,
+		arg.ReplyToMessageID,
+		arg.ClientMsgID,
+		arg.OrganizationID,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.RoomID,
+		&i.WorkspaceID,
+		&i.SenderID,
+		&i.Kind,
+		&i.Body,
+		&i.Metadata,
+		&i.ReplyToMessageID,
+		&i.EditedAt,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.SenderKind,
+		&i.ClientMsgID,
+		&i.ThreadRootID,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.MirroredFromCommentID,
+		&i.FileID,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const createChatFileMessage = `-- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
   id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id,

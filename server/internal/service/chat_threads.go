@@ -134,6 +134,7 @@ func (s *ChatService) ListThreadMessages(
 		out = append(out, chatMessageRowFromThreadListRow(rows[i], userID))
 	}
 	s.signChatMedia(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, userID)
 	return out, nil
 }
 

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -43,6 +44,14 @@ type isoReference struct {
 	// mustNotContain lists strings the attack's answer may not hold even
 	// when it is 2xx (a URL, a ticket).
 	mustNotContain []string
+	// multipart, when set, makes the case a multipart request instead of a
+	// JSON one: its fields resolve like body (so a field may name the other
+	// tenant's row), and the file part is fixed. A route whose SDI carries
+	// formData tags only (the chat media sends) has no JSON body to attack.
+	multipart *isoMultipart
+	// multipartFields are the form fields of a multipart case, resolved with
+	// isoResolve before they are sent.
+	multipartFields map[string]any
 }
 
 type isoRef string       // the referenced tenant's row
@@ -79,10 +88,20 @@ func isoResolve(v any, own, ref *isoTenant, salt string) any {
 }
 
 func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
+	salt := c.method + c.pattern + c.what
+	if c.multipart != nil {
+		mp := *c.multipart
+		fields := make(map[string]string, len(c.multipartFields))
+		for k, v := range c.multipartFields {
+			fields[k] = fmt.Sprint(isoResolve(v, own, ref, salt))
+		}
+		mp.fields = fields
+		return isoBody{multipart: &mp, headers: map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(salt)}}
+	}
 	if c.body == nil {
 		return isoBody{}
 	}
-	b := isoBody{json: isoResolve(c.body, own, ref, c.method+c.pattern+c.what)}
+	b := isoBody{json: isoResolve(c.body, own, ref, salt)}
 	if c.idempotent {
 		key, _ := json.Marshal(b.json)
 		b.headers = map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(c.method+c.pattern+string(key))}
@@ -159,6 +178,16 @@ var isoReferences = []isoReference{
 		"title": isoUnique("ref"), "assignee_id": isoRef("peer")}, covers: []string{"CreateTaskFromMessageSDI.assignee_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", what: "reply to", body: map[string]any{
 		"body": "ref", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatMessageSDI.reply_to_message_id"}},
+	// The document send is multipart (formData tags), so its reply target is
+	// attacked through the form: A's message id as reply_to_message_id, with
+	// the other fields valid so the refusal can only be the reply target.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", what: "reply to",
+		multipart: &isoMultipart{filename: "ref.md", contentType: "text/markdown", content: []byte("# ref\n")},
+		multipartFields: map[string]any{
+			"client_msg_id":       "iso-ref-document-send",
+			"share_level":         "comment",
+			"reply_to_message_id": isoRef("message"),
+		}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "conversation", body: map[string]any{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
