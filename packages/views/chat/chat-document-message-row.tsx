@@ -1,9 +1,12 @@
 "use client";
 
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { LockKeyhole } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { errorCode } from "@uniwork/core/api";
+import { chatKeys } from "@uniwork/core/chat";
 import { useDocument, useDocumentLimits, useUploadDocumentFile } from "@uniwork/core/documents/hooks";
 import { useCommitDocumentVersion } from "@uniwork/core/documents/hooks-versions";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
@@ -220,8 +223,12 @@ export function ChatDocumentCard({
       }
     : null;
 
+  // "Mở bằng UniWork Office" exists only when the server granted it — the
+  // block's fields are opt-in, so an absent flag is a hidden action, never
+  // a shown one (RFC-03): a drifted row must not mint an office session
+  // for a v0 or archived document.
   const desktop =
-    desktopOpen && workspace && doc && doc.viewer_has_access !== false && doc.can_open_in_app !== false
+    desktopOpen && workspace && doc && doc.viewer_has_access === true && doc.can_open_in_app === true
       ? desktopOpen({
           id: doc.document_id,
           organization_id: workspace.organization_id,
@@ -334,12 +341,15 @@ function ChatDocumentManageAccess({
   const [asked, setAsked] = useState(false);
   const [open, setOpen] = useState(false);
   const detail = useDocument(workspaceId, documentId, { enabled: asked });
-  const failedRef = useRef(false);
-  if (detail.isError && !failedRef.current) {
-    failedRef.current = true;
+  // Each error toasts once — keyed on the error object so a second failure
+  // toasts again — and the click resets the report before it re-asks.
+  const reportedErrorRef = useRef<unknown>(null);
+  useEffect(() => {
+    if (!detail.isError || detail.error === reportedErrorRef.current) return;
+    reportedErrorRef.current = detail.error;
     setAsked(false);
     toast.error(t("chat.errors.internal"));
-  }
+  }, [detail.isError, detail.error, t]);
   return (
     <>
       <Button
@@ -348,6 +358,9 @@ function ChatDocumentManageAccess({
         size="sm"
         className="pointer-coarse:min-h-11"
         onClick={() => {
+          // A new ask: the flag resets so a fresh failure toasts again and a
+          // success opens the dialog (RFC-08).
+          reportedErrorRef.current = null;
           setAsked(true);
           setOpen(true);
         }}
@@ -380,6 +393,7 @@ function ChatDocumentUploadVersion({
   revision: string;
 }) {
   const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
   const upload = useUploadDocumentFile(workspaceId, documentId);
   const commit = useCommitDocumentVersion(workspaceId, documentId);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -419,6 +433,12 @@ function ChatDocumentUploadVersion({
           staged ? "documents.file.commit_failed" : "documents.file.upload_failed",
         ),
       );
+      if (errorCode(err) === "document_version_conflict") {
+        // The card's revision is stale: the room timeline refetches so the
+        // card re-reads the current one (and the document_version line the
+        // winning commit wrote arrives with it, RFC-04).
+        void queryClient.invalidateQueries({ queryKey: chatKeys.roomMessages(workspaceId, roomId) });
+      }
     }
   };
 
@@ -449,7 +469,12 @@ function ChatDocumentUploadVersion({
         error={error}
         showShareToggle={false}
         onSubmit={(picked) => void stageNewVersion(picked)}
-        onPickFile={() => setError(null)}
+        onPickFile={() => {
+          // A different pick is a new intent: the key from a failed upload
+          // must not be replayed against different bytes (RFC-08).
+          idempotencyKey.current = null;
+          setError(null);
+        }}
       />
     </>
   );

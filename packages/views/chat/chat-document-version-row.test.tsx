@@ -76,4 +76,10 @@ describe("ChatDocumentVersionRow", () => {
     renderRow(versionMessage({ document_id: "doc1", viewer_has_access: true }), "Bạn");
     expect(screen.getByRole("button", { name: "Bạn đã tải lên phiên bản 3" })).toBeInTheDocument();
   });
+  it("names the article for screen readers (RFC-08)", () => {
+    // tabIndex=-1 makes the row focusable for jump-targets; it needs the
+    // same sentence as its accessible name.
+    renderRow(versionMessage({ document_id: "doc1", viewer_has_access: true }));
+    expect(screen.getByRole("article", { name: "Bình đã tải lên phiên bản 3" })).toBeInTheDocument();
+  });
 });

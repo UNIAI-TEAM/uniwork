@@ -39,27 +39,40 @@ export function ChatShareAsDocumentAction({
 }) {
   const { t } = useTranslation();
   const share = useShareChatMessageAsDocument(workspaceId, roomId);
-  // One key per user intent: a retried conversion replays the same document
-  // instead of linking a second one (contract §3.3).
+  // One key per user intent: a retried conversion — including a retry after
+  // an error — replays under the same key instead of linking a second
+  // document (contract §3.3 / L1). The key is released on success, and on a
+  // menu close with nothing in flight (the intent is abandoned).
   const clientMsgId = useRef<string | null>(null);
+  const inFlightRef = useRef(false);
   const run = (level: ChatDocumentShareLevel) => {
     if (share.isPending) return;
     clientMsgId.current ??= createSafeId();
+    // Selecting an item closes the menu in the same click, before isPending
+    // repaints — the close handler reads this ref instead (RFC-06).
+    inFlightRef.current = true;
     share.mutate(
       { messageId: message.id, share_level: level, client_msg_id: clientMsgId.current },
       {
         onSuccess: () => {
+          inFlightRef.current = false;
           clientMsgId.current = null;
         },
         onError: (err) => {
-          clientMsgId.current = null;
+          inFlightRef.current = false;
           toast.error(chatDocumentSendError(err, t, t("chat.errors.internal")));
         },
       },
     );
   };
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(next) => {
+        // Closing the menu abandons the intent — unless the conversion is
+        // still in flight, in which case the key must stay for the retry.
+        if (!next && !inFlightRef.current) clientMsgId.current = null;
+      }}
+    >
       <DropdownMenuTrigger
         disabled={share.isPending}
         render={

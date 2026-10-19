@@ -3819,7 +3819,8 @@
       "share_batch_too_large": "The conversation is too large to grant access to everyone. Share it from Documents instead.",
       "document_quota_exceeded": "Your organization is out of storage space. Free up space or upgrade your plan.",
       "document_format": "This file format is not supported.",
-      "document_format_changed": "The new version must keep the same format as the document."
+      "document_format_changed": "The new version must keep the same format as the document.",
+      "document_version_conflict": "The document just got a new version. Reload and try again."
     },
     "media_unavailable": "Couldn't load {{name}}",
     "media_image": "Image",

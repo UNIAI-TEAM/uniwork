@@ -44,6 +44,7 @@ function ChatDocumentVersionRowImpl({
   return (
     <article
       id={`chat-msg-${message.id}`}
+      aria-label={line}
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full justify-center rounded-lg",

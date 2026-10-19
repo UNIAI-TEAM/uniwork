@@ -3818,7 +3818,8 @@
       "share_batch_too_large": "Cuộc trò chuyện có quá nhiều người để chia sẻ tài liệu. Hãy chia sẻ từ trang Tài liệu.",
       "document_quota_exceeded": "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói.",
       "document_format": "Định dạng tệp này chưa được hỗ trợ.",
-      "document_format_changed": "Phiên bản mới phải giữ đúng định dạng của tài liệu."
+      "document_format_changed": "Phiên bản mới phải giữ đúng định dạng của tài liệu.",
+      "document_version_conflict": "Tài liệu vừa có phiên bản mới. Tải lại rồi thử lại."
     },
     "media_unavailable": "Không tải được {{name}}",
     "media_image": "Hình ảnh",

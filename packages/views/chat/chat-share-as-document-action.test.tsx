@@ -27,6 +27,12 @@ function shareableMessage(): ChatMessage {
   };
 }
 
+type ShareMutate = (
+  vars: { messageId: string; share_level: string; client_msg_id: string },
+  opts?: { onSuccess?: () => void; onError?: (err: unknown) => void },
+) => void;
+const shareMutateImpl: ShareMutate = () => undefined;
+
 describe("ChatShareAsDocumentAction", () => {
   beforeEach(() => {
     useShareChatMessageAsDocumentMock.mockReset().mockReturnValue({ mutate: vi.fn(), isPending: false });
@@ -59,5 +65,47 @@ describe("ChatShareAsDocumentAction", () => {
       }),
       expect.anything(),
     );
+  });
+
+  it("keeps the same client_msg_id when an errored intent is retried (RFC-06)", async () => {
+    // A retry of the same intent replays under the same key: a network error
+    // after the server committed must not mint a second document.
+    const mutate = vi.fn(shareMutateImpl);
+    useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });
+    render(
+      wrapWithNav(
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Nhận xét" }));
+    const firstKey = mutate.mock.calls[0]![0].client_msg_id;
+    mutate.mock.calls[0]![1]?.onError?.(new Error("network down"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Nhận xét" }));
+    const secondKey = mutate.mock.calls[1]![0].client_msg_id;
+    expect(secondKey).toBe(firstKey);
+  });
+
+  it("mints a new client_msg_id for the next intent after a success (RFC-06)", async () => {
+    const mutate = vi.fn(shareMutateImpl);
+    useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });
+    render(
+      wrapWithNav(
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Chỉ xem" }));
+    const firstKey = mutate.mock.calls[0]![0].client_msg_id;
+    mutate.mock.calls[0]![1]?.onSuccess?.();
+
+    fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Chỉnh sửa" }));
+    const secondKey = mutate.mock.calls[1]![0].client_msg_id;
+    expect(secondKey).not.toBe(firstKey);
   });
 });

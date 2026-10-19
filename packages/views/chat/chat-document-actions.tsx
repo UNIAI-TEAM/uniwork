@@ -28,7 +28,9 @@ type TFunction = ReturnType<typeof useTranslation>["t"];
  */
 export function chatDocumentVersionError(err: unknown, t: TFunction, fallback: string): string {
   const code = errorCode(err);
-  if (code === "document_version_conflict") return t("documents.versions.restore_conflict");
+  // The card's own conflict copy (RFC-04): there is no history view behind a
+  // chat card for the restore_conflict sentence to send the reader to.
+  if (code === "document_version_conflict") return t("chat.errors.document_version_conflict");
   if (code === "unsupported_media_type" && errorFields(err)?.reason === "format_changed") {
     return t("chat.errors.document_format_changed");
   }
