@@ -190,6 +190,39 @@ describe("ChatDocumentMessageRow", () => {
     );
   });
 
+  it("refreshes the room timeline after a committed version so the card carries the new revision", async () => {
+    // The version line arrives as its own message (chat.message.created); the
+    // card is a different message whose `revision` is the base of the NEXT
+    // commit, so it must be re-read or a second upload answers 409.
+    const upload = { mutateAsync: vi.fn(async () => ({ upload_id: "up-1" })), isPending: false };
+    const commit = { mutateAsync: vi.fn(async () => ({})), isPending: false };
+    useUploadDocumentFileMock.mockReturnValue(upload);
+    useCommitDocumentVersionMock.mockReturnValue(commit);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderCard(documentMessage({ ...DOC, viewer_can_upload_version: true }), {}, fakeNav(), client);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tải lên phiên bản mới" }));
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    fireEvent.change(input!, {
+      target: {
+        files: [
+          new File(["x"], "v4.docx", {
+            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          }),
+        ],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tải lên" }));
+
+    await waitFor(() => expect(commit.mutateAsync).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: chatKeys.roomMessages("ws1", "room1") }),
+      ),
+    );
+  });
+
   it("hides the version upload without the grant or without a revision", () => {
     renderCard(documentMessage({ ...DOC, viewer_can_upload_version: true, revision: undefined }));
     expect(screen.queryByRole("button", { name: "Tải lên phiên bản mới" })).not.toBeInTheDocument();

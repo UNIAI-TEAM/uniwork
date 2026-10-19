@@ -425,6 +425,10 @@ function ChatDocumentUploadVersion({
       });
       idempotencyKey.current = null;
       setDialogOpen(false);
+      // The version line is its own message; this card's `revision` is the
+      // base of the next commit, so the timeline re-reads it or a second
+      // upload from the card would answer 409.
+      void queryClient.invalidateQueries({ queryKey: chatKeys.roomMessages(workspaceId, roomId) });
     } catch (err) {
       setError(
         chatDocumentVersionError(
