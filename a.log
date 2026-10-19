@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1989-sheets-save-errcache; git log --oneline -3
+7706e1c8894a99cda8f9e10a58b82683244154d9
+7706e1c8894a99cda8f9e10a58b82683244154d9
+7706e1c8 fix(sheets): keep the cached value of formulas a web save did not change
+e11547c7 test(sheets): pin that a save keeps untouched error and float cached values
+99910d61 merge: fork main 9f867d992 into feature/UNI-1919-aipanel-layout-fu

@@ -1,0 +1,54 @@
+$ WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e sheets sheets-ai sheets-too-large modules-smoke; rc=$?; echo; echo "WEB_E2E_EXIT=$rc"; exit $rc
+
+Running 41 tests using 1 worker
+
+(node:5810) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › pdf: bundle boots in the test host, handshake completes, no console errors (2.4s)
+  ✓   2 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › markdown: bundle boots in the test host, handshake completes, no console errors (2.4s)
+  ✓   3 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › html: bundle boots in the test host, handshake completes, no console errors (2.3s)
+  ✓   4 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › slides: bundle boots in the test host, handshake completes, no console errors (2.5s)
+  ✓   5 [chromium] › web/e2e/modules-smoke.spec.ts:51:7 › sheets: bundle boots in the test host, handshake completes, no console errors (2.9s)
+  ✓   6 [chromium] › web/e2e/modules-smoke.spec.ts:114:5 › the host refuses a frame of another module (docs frame for a pdf document) (304ms)
+  ✓   7 [chromium] › web/e2e/sheets-ai.spec.ts:130:7 › sheets: web AI › grant off: no AI UI anywhere and no AI request (2.9s)
+  ✓   8 [chromium] › web/e2e/sheets-ai.spec.ts:156:7 › sheets: web AI › grant on at 390 px: the dock starts collapsed and opens as an overlay, the grid keeps its width (S-03) (1.6s)
+  ✓   9 [chromium] › web/e2e/sheets-ai.spec.ts:187:7 › sheets: web AI › grant on: panel, reply streams with the frame token, the model is offered only web-safe tools (1.6s)
+  ✓  10 [chromium] › web/e2e/sheets-ai.spec.ts:225:7 › sheets: web AI › view-only (no save grant): the composer carries the notice, the model gets read tools only (1.7s)
+  ✓  11 [chromium] › web/e2e/sheets-ai.spec.ts:253:7 › sheets: web AI › an editing frame has no view-only notice (1.4s)
+  ✓  12 [chromium] › web/e2e/sheets-ai.spec.ts:261:7 › sheets: web AI › grant on: a plan operation edits a cell and the save carries it (2.0s)
+  ✓  13 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 402 renders the credits_exhausted state (1.5s)
+  ✓  14 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 403 renders the entitlement_required state (1.4s)
+  ✓  15 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 404 renders the credential_missing state (1.4s)
+  ✓  16 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 424 renders the provider_auth_failed state (1.4s)
+  ✓  17 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 429 renders the rate_limited state (1.5s)
+  ✓  18 [chromium] › web/e2e/sheets-ai.spec.ts:320:9 › sheets: web AI › grant on: HTTP 502 renders the provider_unreachable state (1.4s)
+  ✓  19 [chromium] › web/e2e/sheets-ai.spec.ts:346:7 › sheets: web AI › grant on: 503 cloud_unavailable from a cloud tool renders its state (1.4s)
+  ✓  20 [chromium] › web/e2e/sheets-ai.spec.ts:370:7 › sheets: web AI › AI settings = UniWork credentials: add a key from the gear, reply streams (1.8s)
+  ✓  21 [chromium] › web/e2e/sheets-ai.spec.ts:397:11 › sheets: web AI › screenshots light en (1.8s)
+  ✓  22 [chromium] › web/e2e/sheets-ai.spec.ts:397:11 › sheets: web AI › screenshots light vi (1.8s)
+  ✓  23 [chromium] › web/e2e/sheets-ai.spec.ts:397:11 › sheets: web AI › screenshots dark en (1.8s)
+  ✓  24 [chromium] › web/e2e/sheets-ai.spec.ts:397:11 › sheets: web AI › screenshots dark vi (1.7s)
+  ✓  25 [chromium] › web/e2e/sheets-too-large.spec.ts:115:7 › too_large: the host gets a fatal too_large, the frame shows its state (en, light) (978ms)
+  ✓  26 [chromium] › web/e2e/sheets-too-large.spec.ts:115:7 › too_large: the host gets a fatal too_large, the frame shows its state (vi, dark) (974ms)
+  ✓  27 [chromium] › web/e2e/sheets.spec.ts:260:7 › fixture Edit.xlsx opens in the engine Worker (1.4s)
+  ✓  28 [chromium] › web/e2e/sheets.spec.ts:260:7 › fixture Kitchen-Sink.xlsx opens in the engine Worker (1.4s)
+  ✓  29 [chromium] › web/e2e/sheets.spec.ts:260:7 › fixture Structure.xlsx opens in the engine Worker (1.4s)
+  ✓  30 [chromium] › web/e2e/sheets.spec.ts:283:5 › 20k x 22: open, scroll, edit a value + a formula, save, reopen shows the edit (23.1s)
+  ✓  31 [chromium] › web/e2e/sheets.spec.ts:356:5 › 20k x 22: a formula typed far down is saved with its cached value and shows after reopen (SH3) (21.9s)
+CHROMIUM 20000 rows: handshake 344 ms, engine open 1127 ms, first viewport 445 ms, total 1916 ms
+  ✓  32 [chromium] › web/e2e/sheets.spec.ts:402:7 › Chromium timing: 20k x 22 open and first viewport (1.9s)
+CHROMIUM 50000 rows: handshake 374 ms, engine open 2060 ms, first viewport 251 ms, total 2685 ms
+  ✓  33 [chromium] › web/e2e/sheets.spec.ts:402:7 › Chromium timing: 50k x 22 open and first viewport (2.7s)
+CHROMIUM 100000 rows: handshake 371 ms, engine open 3051 ms, first viewport 1078 ms, total 4500 ms
+  ✓  34 [chromium] › web/e2e/sheets.spec.ts:402:7 › Chromium timing: 100k x 22 open and first viewport (4.5s)
+  ✓  35 [chromium] › web/e2e/sheets.spec.ts:424:5 › save conflict: Overwrite saves over the newer version (2.8s)
+  ✓  36 [chromium] › web/e2e/sheets.spec.ts:456:5 › a legacy .xls opens through the engine (vi, dark) (2.5s)
+  ✓  37 [chromium] › web/e2e/sheets.spec.ts:474:5 › view-only without the save grant (vi, light) (8.4s)
+  ✓  38 [chromium] › web/e2e/sheets.spec.ts:532:7 › too_large: the host gets a fatal too_large, the frame shows its state (en, light) (1.5s)
+  ✓  39 [chromium] › web/e2e/sheets.spec.ts:532:7 › too_large: the host gets a fatal too_large, the frame shows its state (vi, dark) (1.5s)
+  ✓  40 [chromium] › web/e2e/sheets.spec.ts:565:5 › a blank new workbook opens and edits save (en, dark) (3.9s)
+  ✓  41 [chromium] › web/e2e/sheets.spec.ts:592:5 › 390 px: grid usable, ribbon tabs scroll with a cue, no clipped header controls (1.4s)
+
+  41 passed (2.4m)
+
+WEB_E2E_EXIT=0
