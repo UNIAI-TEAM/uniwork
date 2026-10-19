@@ -1,0 +1,4 @@
+$ node tools/check-theme-colors.mjs 2>&1 | tail -5; rc=${PIPESTATUS[0]}; echo; echo "THEME_COLORS_EXIT=$rc"
+No new raw colors in renderer CSS.
+
+THEME_COLORS_EXIT=0
