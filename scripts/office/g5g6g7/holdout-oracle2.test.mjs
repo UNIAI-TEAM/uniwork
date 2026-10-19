@@ -329,4 +329,14 @@ describe('O2-B3: a written formula is filled and evaluated as the editor would',
     assert.equal(cell(backend, 'F3'), '30 [formula =B2+B3]');
     assert.equal(cell(backend, 'F4'), ' [formula =NOSUCH(B2)]');
   });
+
+  it('O2R1-06: IF evaluates only the selected branch when the unselected branch would error', () => {
+    const backend = createBackend(xlsx, { views: [view()] });
+    backend.execute('propose_operations', { operations: [
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'G2', formula: '=IF(C4="",B4,B4/C4)' },
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'G3', formula: '=IF(C2=0,1/0,B2/C2)' },
+    ] });
+    assert.equal(cell(backend, 'G2'), '30 [formula =IF(C4="",B4,B4/C4)]', 'P-B3-IF-TRUE-SHORTCIRCUIT');
+    assert.equal(cell(backend, 'G3'), '1 [formula =IF(C2=0,1/0,B2/C2)]', 'P-B3-IF-FALSE-SHORTCIRCUIT');
+  });
 });
