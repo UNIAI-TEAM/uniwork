@@ -1,0 +1,5 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -3
+abf3d4a47692741a9168021952c1d57cf6cc12bd
+abf3d4a47 chore(merge): G5-G7 root 5975d8f9e into the part 4 PR branch (UNI-923)
+5975d8f9e chore: merge UNI-1970 follow-up comment avatars (FileService avatars in comment lists, picker name over email, 613300f35) into the G5-G7 root
+76ac1222b chore(merge): G5-G7 root 5837cbc41 into the part 4 PR branch (UNI-923)

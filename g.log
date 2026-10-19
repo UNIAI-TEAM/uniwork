@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/views exec eslint documents tasks 2>&1 | tail -8; echo "LINT_EXIT=${PIPESTATUS[0]}"
+LINT_EXIT=0
