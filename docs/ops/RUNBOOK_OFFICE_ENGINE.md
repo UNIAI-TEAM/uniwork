@@ -45,7 +45,7 @@ caller run their own idle timeouts and close first; shutdown still reaps via `cl
 | `OFFICE_ENGINE_OUTPUT_ORIGINS` | empty (no output allowed) | Comma list of bare origins of the object store |
 | `OFFICE_ENGINE_HOST` / `OFFICE_ENGINE_PORT` | `0.0.0.0` / `8090` | Listen address |
 | `OFFICE_ENGINE_MAX_WORKERS` | `2` | Worker processes at once (max 64) |
-| `OFFICE_ENGINE_INPUT_BUDGET_BYTES` | workers x `OFFICE_ENGINE_MAX_INPUT_BYTES`; boot fails below one max input | Input bytes admitted to the temp root at once: queued and running jobs' input files plus uploads being received. A submit whose framed input would go over it answers `503 engine_overloaded` (`reason: input_budget`) + `Retry-After: 2` before its body is read; Go keeps the job accepted and retries. The temp root is tmpfs in the chart, so this is the memory bound for inputs |
+| `OFFICE_ENGINE_INPUT_BUDGET_BYTES` | `max(maxWorkers x maxInputBytes, ENVELOPE_MAX_BYTES + maxInputBytes)`; boot fails below `ENVELOPE_MAX_BYTES` (8 MiB) + `maxInputBytes` | Bytes admitted to the job input budget at once: queued and running jobs' input files, uploads being received, and in-flight envelopes (charged to the same budget until the submit answers). A submit whose envelope + input would go over it answers `503 engine_overloaded` (`reason: input_budget`) + `Retry-After: 2` before its body is read; Go keeps the job accepted and retries. The temp root is tmpfs in the chart, so this bounds in-flight envelopes and on-disk inputs |
 | `OFFICE_ENGINE_MAX_QUEUE` | `16` | Accepted jobs waiting for a worker; beyond it `503 engine_overloaded` |
 | `OFFICE_ENGINE_MAX_JOB_MS` | `120000` | Wall-clock ceiling per job (contract max 600000) |
 | `OFFICE_ENGINE_CPU_MS` | `60000` | CPU time per job tree |
