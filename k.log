@@ -1,0 +1,88 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --shard=5/6 > /tmp/rootb-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/rootb-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/rootb-E2E.log; grep -E "✘|\[failed\]" /tmp/rootb-E2E.log | head -40; echo; echo "E2E_SUITE5_EXIT=$rc"
+  -  88 office-ux-floor.spec.ts:465:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark
+  -  89 office-ux-floor.spec.ts:490:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill
+  -  90 office-ux-floor.spec.ts:511:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it
+  -  91 office-ux-floor.spec.ts:524:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send
+
+
+  1) landing-workspace.spec.ts:42:1 › local state survives view switches across the demo ───────────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('#product-preview').getByRole('tabpanel').locator('.product-task-open')
+    Expected: 9
+    Received: 11
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('#product-preview').getByRole('tabpanel').locator('.product-task-open')
+        14 × locator resolved to 11 elements
+           - unexpected value "11"
+
+
+      53 |   await page.getByRole('dialog').getByRole('button', { name: vi.common.create, exact: true }).click();
+      54 |   await selectWorkspaceFeature(page, "tasks");
+    > 55 |   await expect(stage.getByRole("tabpanel").locator(".product-task-open")).toHaveCount(9);
+         |                                                                           ^
+      56 |   await expect(stage.getByRole("tabpanel").locator(".product-task-open").filter({ hasText: "Cập nhật onboarding từ trao đổi của nhóm" })).toBeVisible();
+      57 |   await selectWorkspaceFeature(page, "meetings");
+      58 |   await stage.getByRole("button", { name: "Mic", exact: true }).click();
+
+    Error Context: test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-workspace-local-st-b48ea-ew-switches-across-the-demo/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) landing.spec.ts:48:3 › landing › dải tin cậy, FAQ và hai trang giải pháp ──────────────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('[data-feature-group="communication"]')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('[data-feature-group="communication"]')
+
+
+      69 |     await expect(
+      70 |       page.locator('[data-feature-group="communication"]'),
+    > 71 |     ).toBeVisible();
+         |       ^
+      72 |
+      73 |     // Product vision is one disclosure inside the roadmap, not a shipped band.
+      74 |     const wp = page.locator("#work-products [data-slot=accordion-trigger]");
+
+    Error Context: test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-landing-dải-tin-cậy-FAQ-và-hai-trang-giải-pháp/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    landing-workspace.spec.ts:42:1 › local state survives view switches across the demo ────────────
+    landing.spec.ts:48:3 › landing › dải tin cậy, FAQ và hai trang giải pháp ───────────────────────
+  71 skipped
+  18 passed (1.8m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --shard=5/6
+  2 failed
+  71 skipped
+  18 passed (1.8m)
+  ✘   8 landing-workspace.spec.ts:42:1 › local state survives view switches across the demo (8.1s)
+  ✘  10 landing.spec.ts:48:3 › landing › dải tin cậy, FAQ và hai trang giải pháp (9.3s)
+
+E2E_SUITE5_EXIT=1

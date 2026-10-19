@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+c39cd02c69b3a5058f2e15b3ae8096026beec8b0
+04f084fe5806a2594406cc0dd20dc2418cf5d6e0
+c39cd02c6 fix(documents): keep create_document's no-notification wording (UNI-1968)
+8fb8391f1 feat(notification): document_body_mentioned kind (UNI-1968)
+c5622f08a feat(documents): notify people newly named in a page body (UNI-1968)
+936fa75a5 feat(documents): post-save hint when a body mention cannot view the page (UNI-1968 W2)
+f3adcf60f feat(documents): scroll to the reader's own mention on ?mention=1 (UNI-1968 W4)
+ed7bb2c44 feat(notifications): render document_body_mentioned and deep-link it with ?mention=1
+04f084fe5 test(e2e): click the share Cancel button by its glossary name Hủy (UNI-1784)
+9460aa877 chore: merge UNI-1960 SAVE-FOLDER (first save picks the folder, 97ada82c6) into the G5-G7 root
+97ada82c6 test(e2e): the first-save folder case starts at the workspace root
+fe68b6fc4 test(e2e): first save can pick another folder and the document moves there
