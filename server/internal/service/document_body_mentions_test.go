@@ -9,10 +9,12 @@ package service
 // content-only save still fans out no document.updated frame.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -298,28 +300,127 @@ func TestDocumentBodyMentionAgentActorSilent(t *testing.T) {
 	}
 }
 
-// One save notifies at most maxBodyMentionsPerSave people; the audit metadata
-// carries how many the save newly named.
+// One save notifies at most 50 people in document order of their first
+// appearance; the audit metadata carries how many eligible recipients the save
+// newly named before the cap (RBM-02).
 func TestDocumentBodyMentionCap(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "bmnc")
 	actor := Human(tn.aclOwner.ID)
 	d := bodyMentionPage(t, f, tn)
 
-	ids := addBulkReaders(t, f, tn.orgID, tn.wsA, maxBodyMentionsPerSave+5)
-	savePage(t, f, actor, d.ID, bodyMentionJSON(ids...))
+	ids := addBulkReaders(t, f, tn.orgID, tn.wsA, 55)
+	// Repeat the first recipient so document-order deduplication before the 50
+	// cap is proved alongside the literal 55/50 counts.
+	mentioned := append([]string{ids[0]}, ids...)
+	savePage(t, f, actor, d.ID, bodyMentionJSON(mentioned...))
 
 	got := bodyMentionUserIDsOf(t, f, d.ID)
-	if len(got) != maxBodyMentionsPerSave {
-		t.Fatalf("events = %d, want the cap of %d", len(got), maxBodyMentionsPerSave)
+	if len(got) != 50 {
+		t.Fatalf("events = %d, want 50", len(got))
 	}
 	for i, id := range got {
 		if id != ids[i] {
-			t.Fatalf("event %d = %s, want %s (document order up to the cap)", i, id, ids[i])
+			t.Fatalf("event %d = %s, want %s (first 50 distinct ids in document order)", i, id, ids[i])
 		}
 	}
-	if meta := documentUpdatedMetadata(t, f, d.ID); meta["mentions_added"] != float64(len(ids)) {
-		t.Fatalf("mentions_added = %v, want %d (the count before the cap)", meta["mentions_added"], len(ids))
+	if meta := documentUpdatedMetadata(t, f, d.ID); meta["mentions_added"] != float64(55) {
+		t.Fatalf("mentions_added = %v, want 55 (the count before the cap)", meta["mentions_added"])
+	}
+}
+
+// Calling the registered MCP update_document tool with audit.WithVia saves as
+// the consenting human (ADR 0033) and emits a document.body_mentioned event
+// for a newly mentioned readable member with that human as author_id, whereas
+// an autonomous agent actor emits nothing (ADR 0010, RBM-04).
+func TestDocumentBodyMentionMCPUpdate(t *testing.T) {
+	x := newMcpToolWorld(t)
+	ctx := context.Background()
+	docs, v := x.withDocs(t, "Kế hoạch", mcpTestPage)
+	member := x.member(t)
+
+	agentID := util.NewID()
+	if _, err := x.tools.q.CreateAgent(ctx, db.CreateAgentParams{
+		ID: agentID, OrganizationID: x.w.OrganizationID, Name: "bmn-mcp-agent", Handle: "bmn-mcp-agent",
+		OwnerUserID: x.ua.ID, AutonomyPolicy: "{}", CreatedBy: x.ua.ID, CreatedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := x.tools.q.AddWorkspaceAgentMember(ctx, db.AddWorkspaceAgentMemberParams{
+		WorkspaceID: x.w.ID, AgentID: agentID, OrganizationID: x.w.OrganizationID,
+		CreatedBy: x.ua.ID, CreatedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	agent := agentActor(agentID)
+	if got, added, err := docs.newBodyMentionRecipients(ctx, x.tools.q, agent, v.Document, v.Document.Content, bodyMentionJSON(member.UserID)); err != nil || len(got) != 0 || added != 0 {
+		t.Fatalf("autonomous agent recipients = %v (%d), %v, want none", got, added, err)
+	}
+	if _, err := docs.UpdateDocument(ctx, agent, v.Document.ID, UpdateDocumentInput{
+		Revision: v.Document.Revision, Content: bodyMentionJSON(member.UserID),
+	}); !isGateRefusal(err) {
+		t.Fatalf("autonomous agent save = %v, want a gate refusal", err)
+	}
+	if n := x.count(t, `SELECT count(*) FROM outbox_events WHERE topic = $1 AND payload::jsonb->>'document_id' = $2`, bodyMentionTopic, v.Document.ID); n != 0 {
+		t.Fatalf("autonomous agent emitted %d body-mention events, want 0", n)
+	}
+
+	via := audit.Via{Kind: "mcp", ClientID: "c1", GrantID: "g1", ClientName: "Claude"}
+	mcpCtx := audit.WithVia(ctx, via)
+	md := "Nhờ [@Bình](uniwork://user/" + member.UserID + ") kiểm tra"
+	if _, err := x.callCtx(t, mcpCtx, x.p, "update_document", map[string]any{
+		"workspace_id": x.w.ID,
+		"document_id":  v.Document.ID,
+		"revision":     v.Document.Revision,
+		"content":      md,
+	}); err != nil {
+		t.Fatalf("update_document: %v", err)
+	}
+
+	rows, err := x.tools.ask.pool.Query(ctx,
+		`SELECT payload, coalesce(actor_kind, ''), coalesce(actor_id, '') FROM outbox_events WHERE topic = $1 AND payload::jsonb->>'document_id' = $2 ORDER BY id`,
+		bodyMentionTopic, v.Document.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var payloads []map[string]string
+	var actorKinds, actorIDs []string
+	for rows.Next() {
+		var raw, ak, aid string
+		if err := rows.Scan(&raw, &ak, &aid); err != nil {
+			t.Fatal(err)
+		}
+		var p map[string]string
+		if err := json.Unmarshal([]byte(raw), &p); err != nil {
+			t.Fatal(err)
+		}
+		payloads = append(payloads, p)
+		actorKinds = append(actorKinds, ak)
+		actorIDs = append(actorIDs, aid)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(payloads) != 1 {
+		t.Fatalf("MCP update_document body-mention events = %+v, want 1", payloads)
+	}
+	want := map[string]string{
+		"document_id":  v.Document.ID,
+		"workspace_id": x.w.ID,
+		"user_id":      member.UserID,
+		"author_id":    x.ua.ID,
+	}
+	if len(payloads[0]) != len(want) {
+		t.Fatalf("MCP event payload = %+v, want %+v", payloads[0], want)
+	}
+	for k, w := range want {
+		if payloads[0][k] != w {
+			t.Fatalf("MCP event payload[%q] = %q, want %q (%+v)", k, payloads[0][k], w, payloads[0])
+		}
+	}
+	if actorKinds[0] != "human" || actorIDs[0] != x.ua.ID {
+		t.Fatalf("MCP event actor = %s/%s, want human/%s", actorKinds[0], actorIDs[0], x.ua.ID)
 	}
 }
 

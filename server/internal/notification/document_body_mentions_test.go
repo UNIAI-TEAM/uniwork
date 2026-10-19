@@ -143,27 +143,96 @@ func TestDocumentBodyMentionNotifiesAgainAfterReAdd(t *testing.T) {
 	}
 }
 
-// The delivery-time re-check: an event naming somebody who cannot read the
-// document writes no row and no push, so no title leaks (S3).
+// The delivery-time re-check: a real event naming an active organization
+// member who never had access to a restricted page, or whose only document
+// grant was revoked after the save, returns nil from Handle and writes no
+// notification row, no notification.push event and no push delivery, while a
+// readable member in the same save still gets both (S3, RBM-01/03/06/07/08).
 func TestDocumentBodyMentionNonReaderGetsNothing(t *testing.T) {
 	f := newDocumentFixture(t)
-	docID := f.bodyMentionPage(t, "Kín", f.member.ID)
+	v, err := f.docs.CreatePage(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreatePageInput{
+		Title: "Kín", Visibility: "restricted",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docID := v.Document.ID
+	revoked, revokedShare := f.sharedCommentAuthor(t, docID, "body-mention-revoked@example.com", "Người Bị Thu Hồi")
+	reader, _ := f.sharedCommentAuthor(t, docID, "body-mention-reader@example.com", "Người Được Đọc")
 	outsider := f.user(t, "body-mention-outsider@example.com", "Người Ngoài")
 
+	f.subscribe(t, f.member.ID, "https://push.example/body-mention-never")
+	f.subscribe(t, revoked.ID, "https://push.example/body-mention-revoked")
+	f.subscribe(t, reader.ID, "https://push.example/body-mention-reader")
 	f.subscribe(t, outsider.ID, "https://push.example/body-mention-outsider")
-	spy := &spySender{}
-	f.consumer.Handle(f.ctx, f.bodyMentionEvent(t, docID, outsider.ID, f.owner.ID, f.owner.ID))
-	if n := f.inbox(t, outsider.ID); len(n) != 0 {
-		t.Fatalf("non-reader inbox = %+v, want nothing", n)
+
+	if _, err := f.docs.UpdateDocument(f.ctx, service.Human(f.owner.ID), docID, service.UpdateDocumentInput{
+		Revision: v.Document.Revision, Content: bodyMentionPageJSON(f.member.ID, revoked.ID, reader.ID),
+	}); err != nil {
+		t.Fatal(err)
 	}
+	evs := f.events(t, bodyMentionTopic)
+	if len(evs) != 3 {
+		t.Fatalf("body-mention events = %d, want 3 real outbox rows", len(evs))
+	}
+	f.revokeShare(t, revokedShare, docID)
+
+	spy := &spySender{}
 	pc := NewPushConsumer(f.q, spy, "http://app.test")
-	for _, ev := range f.events(t, TopicPush) {
+	for _, ev := range []db.OutboxEvent{
+		evs[0], // (a) active organization member who never had access to the restricted page
+		evs[1], // (b) active organization member whose only document grant was revoked after the save
+		f.bodyMentionEvent(t, docID, outsider.ID, f.owner.ID, f.owner.ID),
+	} {
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatalf("Handle(%s) = %v, want nil", ev.ID, err)
+		}
+	}
+	for _, blocked := range []struct {
+		who, id string
+	}{
+		{"never-reader org member", f.member.ID},
+		{"revoked-grant member", revoked.ID},
+		{"outsider", outsider.ID},
+	} {
+		if n := f.inbox(t, blocked.id); len(n) != 0 {
+			t.Fatalf("%s inbox = %+v, want nothing", blocked.who, n)
+		}
+	}
+	if pushEvs := f.events(t, TopicPush); len(pushEvs) != 0 {
+		t.Fatalf("notification.push events after blocked deliveries = %+v, want none", pushEvs)
+	}
+	if len(spy.sent) != 0 {
+		t.Fatalf("non-reader push = %+v, want none", spy.sent)
+	}
+
+	// Readable-member control in the same scenario: the unrevoked share still
+	// delivers both the notification row and the push.
+	if err := f.consumer.Handle(f.ctx, evs[2]); err != nil {
+		t.Fatalf("Handle(reader) = %v, want nil", err)
+	}
+	got := f.inbox(t, reader.ID)
+	if len(got) != 1 || got[0].Kind != KindDocumentBodyMentioned || !contains(got[0].Params, "Kín") {
+		t.Fatalf("reader control inbox = %+v, want one body-mention row", got)
+	}
+	if n := f.inbox(t, f.member.ID); len(n) != 0 {
+		t.Fatalf("never-reader inbox after control = %+v, want nothing", n)
+	}
+	if n := f.inbox(t, revoked.ID); len(n) != 0 {
+		t.Fatalf("revoked-reader inbox after control = %+v, want nothing", n)
+	}
+	pushEvs := f.events(t, TopicPush)
+	if len(pushEvs) != 1 || !contains(pushEvs[0].Payload, reader.ID) {
+		t.Fatalf("notification.push events = %+v, want 1 for the readable control", pushEvs)
+	}
+	for _, ev := range pushEvs {
 		if err := pc.Handle(f.ctx, ev); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if len(spy.sent) != 0 {
-		t.Fatalf("non-reader push = %+v, want none", spy.sent)
+	wantTag := "document:" + docID + ":body_mention:" + reader.ID
+	if len(spy.sent) != 1 || spy.sent[0].Tag != wantTag {
+		t.Fatalf("sent pushes = %+v, want only the readable member (%s)", spy.sent, wantTag)
 	}
 }
 
@@ -174,7 +243,9 @@ func TestDocumentBodyMentionAuthorIsSkipped(t *testing.T) {
 	docID := f.bodyMentionPage(t, "Tự nhắc", f.member.ID)
 
 	// The owner authored the mention; the member carries the event.
-	f.consumer.Handle(f.ctx, f.bodyMentionEvent(t, docID, f.owner.ID, f.member.ID, f.owner.ID))
+	if err := f.consumer.Handle(f.ctx, f.bodyMentionEvent(t, docID, f.owner.ID, f.member.ID, f.owner.ID)); err != nil {
+		t.Fatalf("Handle(author self-mention) = %v, want nil", err)
+	}
 	if n := f.inbox(t, f.owner.ID); len(n) != 0 {
 		t.Fatalf("author inbox = %+v, want nothing", n)
 	}
