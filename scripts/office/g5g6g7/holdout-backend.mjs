@@ -566,41 +566,147 @@ function parseArguments(raw) {
   return { ok: true, args: value };
 }
 
+// ---- formula evaluation of the emulated sheet (oracle2 O2-B3) ----
+// A small evaluator for what a proposed formula usually holds: numbers, "strings", same-sheet cell references and
+// ranges, + - * / ^ &, comparisons, and IF / SUM / SUBTOTAL(9|109) / AVERAGE / MIN / MAX / ROUND. Anything else (another
+// sheet, an unknown function, an error value) leaves the cell's value as it was, so a fixture formula keeps its cached
+// value and a new one reads back blank, never a guessed number.
+class Unsupported extends Error {}
+const BLANK = Symbol('blank');
+const FORMULA_FUNCS = new Set(['IF', 'SUM', 'SUBTOTAL', 'AVERAGE', 'MIN', 'MAX', 'ROUND']);
+
+function tokenizeFormula(text) {
+  const tokens = [];
+  const re = /\s*(?:(\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)|("(?:[^"]|"")*")|(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?)(?![A-Za-z0-9_(])|([A-Za-z_][A-Za-z0-9_.]*)(?=\s*\()|(TRUE|FALSE)\b|(<>|<=|>=|[-+*/^&=<>(),]))/gy;
+  let m;
+  let at = 0;
+  while (at < text.length) {
+    re.lastIndex = at;
+    m = re.exec(text);
+    if (!m || m[0].length === 0) { if (/^\s*$/.test(text.slice(at))) break; throw new Unsupported(text.slice(at)); }
+    at = re.lastIndex;
+    if (m[1]) tokens.push({ t: 'num', v: Number(m[1]) });
+    else if (m[2]) tokens.push({ t: 'str', v: m[2].slice(1, -1).replace(/""/g, '"') });
+    else if (m[3]) tokens.push({ t: 'ref', v: m[3].replace(/\$/g, '').toUpperCase() });
+    else if (m[4]) tokens.push({ t: 'fn', v: m[4].toUpperCase() });
+    else if (m[5]) tokens.push({ t: 'bool', v: m[5] === 'TRUE' });
+    else tokens.push({ t: 'op', v: m[6] });
+  }
+  return tokens;
+}
+
+function evaluateFormula(formula, sheet) {
+  const tokens = tokenizeFormula(String(formula).trim().replace(/^=+/, ''));
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const take = (v) => { const tok = tokens[pos]; if (v !== undefined && (!tok || tok.v !== v)) throw new Unsupported(String(v)); pos += 1; return tok; };
+  const cellValue = (ref) => {
+    const cell = sheet.cells[ref];
+    if (!cell || cell.v === null || cell.v === undefined || cell.v === '') return BLANK;
+    if (typeof cell.v === 'string' && /^#/.test(cell.v)) throw new Unsupported(cell.v);
+    return cell.v;
+  };
+  const rangeCells = (ref) => {
+    const rect = parseRange(ref);
+    if (!rect) throw new Unsupported(ref);
+    const out = [];
+    for (let r = rect.r1; r <= rect.r2; r += 1) for (let c = rect.c1; c <= rect.c2; c += 1) out.push({ row: r, value: cellValue(`${colName(c)}${r}`) });
+    return out;
+  };
+  const num = (v) => {
+    if (v === BLANK) return 0;
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v);
+    throw new Unsupported(String(v));
+  };
+  const numbersOf = (args) => args.flatMap((a) => (a && a.range ? a.cells.map((x) => x.value).filter((v) => typeof v === 'number') : [num(a)]));
+  const compare = (a, b, op) => {
+    const norm = (v, other) => (v === BLANK ? (typeof other === 'string' ? '' : typeof other === 'boolean' ? false : 0) : v);
+    let x = norm(a, b);
+    let y = norm(b, a);
+    if (typeof x === 'string' && typeof y === 'string') { x = x.toLowerCase(); y = y.toLowerCase(); }
+    else if (typeof x !== typeof y) { const rank = (v) => (typeof v === 'number' ? 0 : typeof v === 'string' ? 1 : 2); x = rank(x); y = rank(y); }
+    return { '=': x === y, '<>': x !== y, '<': x < y, '>': x > y, '<=': x <= y, '>=': x >= y }[op];
+  };
+  const call = (name, args) => {
+    if (name === 'IF') return truthy(args[0]) ? (args[1] ?? true) : (args.length > 2 ? args[2] : false);
+    if (name === 'SUM') return numbersOf(args).reduce((a, b) => a + b, 0);
+    if (name === 'SUBTOTAL') {
+      const code = num(args[0]);
+      if (code !== 9 && code !== 109) throw new Unsupported(`SUBTOTAL ${code}`);
+      return args.slice(1).flatMap((a) => (a && a.range ? a.cells : [{ value: a }]))
+        .filter((x) => code === 9 || x.row === undefined || !sheet.hiddenRows?.has(x.row))
+        .map((x) => x.value).filter((v) => typeof v === 'number').reduce((a, b) => a + b, 0);
+    }
+    const values = numbersOf(args);
+    if (name === 'AVERAGE') { if (!values.length) throw new Unsupported('AVERAGE'); return values.reduce((a, b) => a + b, 0) / values.length; }
+    if (name === 'MIN') return values.length ? Math.min(...values) : 0;
+    if (name === 'MAX') return values.length ? Math.max(...values) : 0;
+    if (name === 'ROUND') { const f = 10 ** num(args[1] ?? 0); return Math.round(num(args[0]) * f) / f; }
+    throw new Unsupported(name);
+  };
+  const truthy = (v) => (typeof v === 'string' ? (() => { throw new Unsupported('text condition'); })() : num(v) !== 0);
+  const primary = () => {
+    const tok = take();
+    if (!tok) throw new Unsupported('end');
+    if (tok.t === 'num' || tok.t === 'str' || tok.t === 'bool') return tok.v;
+    if (tok.t === 'ref') return tok.v.includes(':') ? { range: true, cells: rangeCells(tok.v) } : cellValue(tok.v);
+    if (tok.t === 'fn') {
+      if (!FORMULA_FUNCS.has(tok.v)) throw new Unsupported(tok.v);
+      take('(');
+      const args = [];
+      if (peek()?.v !== ')') { args.push(expr()); while (peek()?.v === ',') { take(','); args.push(expr()); } }
+      take(')');
+      return call(tok.v, args);
+    }
+    if (tok.v === '(') { const v = expr(); take(')'); return v; }
+    if (tok.v === '-') return -num(primary());
+    if (tok.v === '+') return num(primary());
+    throw new Unsupported(String(tok.v));
+  };
+  const power = () => { let v = primary(); while (peek()?.v === '^') { take(); v = num(v) ** num(primary()); } return v; };
+  const term = () => { let v = power(); while (peek()?.v === '*' || peek()?.v === '/') { const op = take().v; const r = num(power()); if (op === '/' && r === 0) throw new Unsupported('div0'); v = op === '*' ? num(v) * r : num(v) / r; } return v; };
+  const additive = () => { let v = term(); while (peek()?.v === '+' || peek()?.v === '-') { const op = take().v; const r = num(term()); v = op === '+' ? num(v) + r : num(v) - r; } return v; };
+  const concat = () => { let v = additive(); while (peek()?.v === '&') { take(); const r = additive(); v = `${v === BLANK ? '' : v}${r === BLANK ? '' : r}`; } return v; };
+  function expr() {
+    const left = concat();
+    const op = peek()?.v;
+    if (['=', '<>', '<', '>', '<=', '>='].includes(op)) { take(); return compare(left, concat(), op); }
+    return left;
+  }
+  const value = expr();
+  if (pos !== tokens.length) throw new Unsupported('trailing');
+  if (value && value.range) throw new Unsupported('range');
+  if (value === BLANK) return 0;
+  if (typeof value === 'number') { if (!Number.isFinite(value)) throw new Unsupported('nan'); return Number(value.toPrecision(15)); }
+  return value;
+}
+
 function recalcSheet(sheet) {
   for (let pass = 0; pass < 2; pass += 1) {
     for (const cell of Object.values(sheet.cells)) {
       if (!cell || typeof cell.f !== 'string') continue;
-      const expr = cell.f.replace(/\$/g, '').trim();
-      const sumMatch = /^SUM\(([A-Z]+\d+:[A-Z]+\d+)\)$/i.exec(expr);
-      if (sumMatch) {
-        const rect = parseRange(sumMatch[1]);
-        if (!rect) continue;
-        let sum = 0;
-        for (let r = rect.r1; r <= rect.r2; r += 1) {
-          for (let c = rect.c1; c <= rect.c2; c += 1) {
-            const v = sheet.cells[`${colName(c)}${r}`]?.v;
-            if (typeof v === 'number' && Number.isFinite(v)) sum += v;
-          }
-        }
-        cell.v = sum;
-        continue;
-      }
-      if (/^[A-Z0-9+\-*/().\s]+$/i.test(expr) && /[A-Z]+\d+/i.test(expr)) {
-        let ok = true;
-        const substituted = expr.replace(/[A-Z]+\d+/gi, (ref) => {
-          const v = sheet.cells[ref.toUpperCase()]?.v;
-          if (typeof v !== 'number' || !Number.isFinite(v)) { ok = false; return '0'; }
-          return String(v);
-        });
-        if (ok && /^[0-9+\-*/().\s]+$/.test(substituted)) {
-          try {
-            const val = Function(`"use strict"; return (${substituted});`)();
-            if (typeof val === 'number' && Number.isFinite(val)) cell.v = val;
-          } catch { /* ignore */ }
-        }
+      try {
+        const v = evaluateFormula(cell.f, sheet);
+        if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') cell.v = v;
+      } catch (err) {
+        if (!(err instanceof Unsupported)) throw err;
       }
     }
   }
+}
+
+/** Moves the relative references of a formula by (dr, dc), as a fill or a copy does; $-anchored parts stay. */
+function shiftFormula(formula, dr, dc) {
+  if (!dr && !dc) return formula;
+  return String(formula).replace(/("(?:[^"]|"")*")|(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![A-Za-z0-9_(])/g, (all, str, colAbs, col, rowAbs, row, offset, whole) => {
+    if (str) return str;
+    if (/[A-Za-z0-9_.]/.test(whole[offset - 1] ?? '')) return all;
+    const c = colAbs ? colNum(col.toUpperCase()) : colNum(col.toUpperCase()) + dc;
+    const r = rowAbs ? Number(row) : Number(row) + dr;
+    return c >= 1 && r >= 1 ? `${colAbs}${colName(c)}${rowAbs}${r}` : all;
+  });
 }
 
 function applyWriteToDoc(doc, name, args, caseDoc) {
@@ -630,15 +736,29 @@ function applyWriteToDoc(doc, name, args, caseDoc) {
         if (sheet && rect) {
           const fmtStr = String(node.numberFormat ?? node.format ?? '');
           const isPctFmt = /%|percent/i.test(fmtStr);
+          // A fill from a source cell (fill_range {sourceRange}) copies its formula, moved to each target, or its value
+          // (oracle2 O2-B3); it is read when this operation runs, so an earlier operation of the call may have written it.
+          const srcText = typeof node.sourceRange === 'string' ? node.sourceRange : typeof node.source === 'string' ? node.source : null;
+          const srcAt = srcText ? splitCell(srcText.split('!').pop().replace(/\$/g, '').toUpperCase().split(':')[0]) : null;
+          const srcCell = srcAt ? sheet.cells[`${colName(srcAt.col)}${srcAt.row}`] : null;
           for (let r = rect.r1; r <= rect.r2; r += 1) {
             for (let c = rect.c1; c <= rect.c2; c += 1) {
               const ref = `${colName(c)}${r}`;
               const prev = sheet.cells[ref] ?? { v: null, f: null, t: 'n' };
               const next = { ...prev };
-              const rawVal = Array.isArray(node.values)
+              let rawVal = Array.isArray(node.values)
                 ? (Array.isArray(node.values[r - rect.r1]) ? node.values[r - rect.r1][c - rect.c1] : node.values[(r - rect.r1) * (rect.c2 - rect.c1 + 1) + (c - rect.c1)])
                 : node.value;
-              const rawFormula = typeof node.formula === 'string' ? node.formula : (typeof rawVal === 'string' && rawVal.trim().startsWith('=') ? rawVal : null);
+              // One formula written over a range moves its relative references cell by cell, as the editor's fill does
+              // (oracle2 O2-B3); a formula of a `values` grid is already per cell.
+              const single = !Array.isArray(node.values);
+              let rawFormula = typeof node.formula === 'string'
+                ? shiftFormula(node.formula, r - rect.r1, c - rect.c1)
+                : (typeof rawVal === 'string' && rawVal.trim().startsWith('=') ? (single ? shiftFormula(rawVal, r - rect.r1, c - rect.c1) : rawVal) : null);
+              if (rawFormula === null && rawVal === undefined && srcCell) {
+                if (typeof srcCell.f === 'string') rawFormula = shiftFormula(`=${srcCell.f}`, r - srcAt.row, c - srcAt.col);
+                else rawVal = srcCell.v ?? undefined;
+              }
               if (rawFormula !== null) {
                 next.f = rawFormula.trim().replace(/^=+/, '');
               } else if (rawVal !== undefined && (typeof rawVal === 'number' || typeof rawVal === 'string' || typeof rawVal === 'boolean')) {
