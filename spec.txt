@@ -1,0 +1,6 @@
+git rev-parse HEAD
+export ELECTRON_SKIP_BINARY_DOWNLOAD=1; pnpm install --frozen-lockfile >/dev/null 2>&1; echo "INSTALL_EXIT=$?"
+unset OPENAI_API_KEY; cd packages/views && npx vitest run documents editor chat 2>&1 | tail -n 40; echo "VIEWS_VITEST_EXIT=${PIPESTATUS[0]}"
+cd packages/views && npx tsc --noEmit -p .; echo "VIEWS_TSC_EXIT=$?"
+(cd packages/views && npx eslint --max-warnings 0 chat/chat-mention-utils.ts documents/document-body-mention-items.tsx documents/document-body-mention-picker.test.tsx documents/document-comment-composer-mention-display.test.tsx documents/document-comment-composer.test.tsx documents/document-comment-composer.tsx documents/document-comment-entry.tsx documents/document-comment-mention-draft.ts documents/document-comment-picker-option.tsx documents/document-comment-thread.test.tsx documents/document-editor.tsx documents/document-mention.test.tsx documents/documents-library-row.tsx documents/documents-page-view-actions.test.tsx documents/documents-page-view.tsx documents/source-links.test.ts documents/source-links.ts documents/source-preview-dialog.tsx documents/use-mention-picker.ts editor/extensions/mention-suggestion.tsx ) && (cd packages/core && npx eslint --max-warnings 0 documents/sources-schema.ts ); echo "ESLINT_TOUCHED_EXIT=$?"
+pnpm knip; echo "KNIP_EXIT=$?"
