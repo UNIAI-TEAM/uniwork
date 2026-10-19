@@ -301,6 +301,38 @@ func TestSubmitReopensTheSourceWhenTheTransportReplaysTheBody(t *testing.T) {
 	}
 }
 
+func TestSubmitCapsOverlongSourceAtDeclaredLength(t *testing.T) {
+	const size = 1 << 20
+	e := newFrameEngine(t, nil)
+	buf := bytes.Repeat([]byte("a"), size+1)
+	h := sha256.Sum256(buf[:size])
+	sum := hex.EncodeToString(h[:])
+	env := frameEnvelope(t, sum, size)
+	overlong := InputSource{Length: size, Checksum: sum, Open: func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(buf)), nil
+	}}
+	js, err := e.cli.Submit(context.Background(), "grant", env, overlong)
+	if err != nil || js.JobID != "job1" {
+		t.Fatalf("overlong submit: job=%+v err=%v", js, err)
+	}
+	frames := e.seen()
+	if len(frames) != 1 || frames[0].refused != "" || frames[0].inputLen != size || frames[0].inputSum != sum {
+		t.Fatalf("overlong frame: %+v", frames)
+	}
+
+	short := InputSource{Length: size, Checksum: sum, Open: func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(buf[:size-1])), nil
+	}}
+	if _, err := e.cli.Submit(context.Background(), "grant", env, short); err == nil {
+		t.Fatal("expected short source to fail")
+	}
+	for i, fr := range e.seen()[1:] {
+		if fr.refused == "" {
+			t.Fatalf("short frame %d was accepted: %+v", i, fr)
+		}
+	}
+}
+
 func asEngineError(err error, target **EngineError) bool {
 	ee, ok := err.(*EngineError)
 	if ok {

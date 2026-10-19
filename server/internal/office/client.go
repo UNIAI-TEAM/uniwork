@@ -249,7 +249,7 @@ func frameBody(envelope []byte, input InputSource) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return frame{Reader: io.MultiReader(bytes.NewReader(envelope), src), Closer: src}, nil
+	return frame{Reader: io.MultiReader(bytes.NewReader(envelope), io.LimitReader(src, input.Length)), Closer: src}, nil
 }
 
 // Status reads one job with its grant.
