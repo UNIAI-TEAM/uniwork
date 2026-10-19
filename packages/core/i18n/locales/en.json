@@ -9772,7 +9772,6 @@
         "documents": "Documents"
       },
       "folder": {
-        "info_banner": "New and uploaded files here will be placed in “{{folder}}”. Drag and drop files into the list to upload.",
         "menu": "Folder actions"
       },
       "folder_card": {
