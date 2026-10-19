@@ -144,6 +144,12 @@ var errorClassByCode = map[string]string{
 //     SH-S1). The caller may share (so not permission) and nothing needs a
 //     reload (so not conflict): the dialog keeps its selection and lowers
 //     the level to fields.max.
+//   folder_not_shareable  (422) a share, an access grant or workspace
+//     visibility was asked on a folder (UNI-1974: only documents are shared).
+//     Like folder_not_supported next to it, a refusal of the request itself:
+//     not permission (the caller may administer the folder) and not conflict
+//     (nothing to reload); the dialogs that could send it are gone, so the
+//     client only shows the message.
 //   access_report_too_large (422, fields.max_rows) an access report export
 //     over 10,000 rows or folder nodes (UNI-1643), refused before any byte.
 //     The same count-limit reasoning as share_batch_too_large: the page asks

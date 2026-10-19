@@ -103,6 +103,7 @@ func (s *DocumentService) CreateDocumentLink(ctx context.Context, actor Actor, d
 	}
 	// A folder has nothing to publish: its contents are separate documents with
 	// their own links. Refused after the access gate so a stranger still gets 404.
+	// (No folder is shareable at all, UNI-1974; a link keeps its own code.)
 	if err := refuseFolder(doc); err != nil {
 		return CreatedDocumentLink{}, err
 	}

@@ -95,7 +95,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
 		summary: "Create a page or folder document",
 		description: "Tạo trang hoặc thư mục trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page|folder, parent_id (trang/thư mục; thư mục chỉ nằm ở gốc hoặc trong thư mục, sai -> 422 document_parent_kind), thư mục không nhận content (-> 422 folder_not_supported), icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
-			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha thì kế thừa cha (cả mức), ở gốc = restricted; giá trị khác -> 400 invalid_request. " +
+			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha trang thì kế thừa cha (cả mức), ở gốc hoặc dưới thư mục = restricted; giá trị khác -> 400 invalid_request; thư mục với visibility=workspace -> 422 folder_not_shareable (thư mục không bao giờ được chia sẻ). " +
 			"Idempotency-Key ràng create với fingerprint payload: replay trả lại trang đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentSDI{},
@@ -153,7 +153,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 	d.Patch("/documents/{documentID}", h.PatchDocument, apiOp{
 		summary: "Update a document",
 		description: "Autosave/metadata của working copy. revision bắt buộc (chuỗi thập phân của base client thấy); base cũ -> 422 revision_conflict kèm fields.current_revision. " +
-			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize.",
+			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize. Thư mục đặt visibility=workspace -> 422 folder_not_shareable (đóng một thư mục cũ về restricted vẫn được phép).",
 		tags: []string{"documents"},
 		sdi:  sdi.PatchDocumentSDI{},
 		sdo:  sdo.DocumentSDO{},
