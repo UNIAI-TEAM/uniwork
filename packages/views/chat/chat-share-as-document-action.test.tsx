@@ -89,6 +89,36 @@ describe("ChatShareAsDocumentAction", () => {
     expect(secondKey).toBe(firstKey);
   });
 
+  it("mints a new client_msg_id when the level differs after an error (RFC-201)", async () => {
+    // The server replays a key's first answer (L1): the same key with another
+    // level would silently hand back the first level, so a different level is
+    // a different intent and gets its own key. The same level still replays.
+    const mutate = vi.fn(shareMutateImpl);
+    useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });
+    render(
+      wrapWithNav(
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Nhận xét" }));
+    const firstKey = mutate.mock.calls[0]![0].client_msg_id;
+    mutate.mock.calls[0]![1]?.onError?.(new Error("network down"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Chỉnh sửa" }));
+    expect(mutate.mock.calls[1]![0].share_level).toBe("edit");
+    const secondKey = mutate.mock.calls[1]![0].client_msg_id;
+    expect(secondKey).not.toBe(firstKey);
+    mutate.mock.calls[1]![1]?.onError?.(new Error("network down"));
+
+    // Back to the second level: that intent's key is the one still held.
+    fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Chỉnh sửa" }));
+    expect(mutate.mock.calls[2]![0].client_msg_id).toBe(secondKey);
+  });
+
   it("mints a new client_msg_id for the next intent after a success (RFC-06)", async () => {
     const mutate = vi.fn(shareMutateImpl);
     useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });
