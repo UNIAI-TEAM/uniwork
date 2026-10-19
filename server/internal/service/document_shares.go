@@ -111,6 +111,9 @@ func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, docume
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
+		if err := refuseFolderShare(doc); err != nil {
+			return err
+		}
 		if err := s.validateSharePrincipal(ctx, q, doc, in); err != nil {
 			return err
 		}
@@ -279,6 +282,9 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 // refuses manage, and DOC-05 refuses an AdminScope-only caller the widening
 // of a restricted document, exactly as the PATCH and the self-share rule do.
 func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel, batchID string) (db.DocumentShare, error) {
+	if err := refuseFolderShare(doc); err != nil {
+		return db.DocumentShare{}, err
+	}
 	if level == DocumentLevelManage {
 		return db.DocumentShare{}, errHomeRowLevelNotAllowed()
 	}
@@ -815,6 +821,13 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	if err != nil {
 		return SharedWithMePage{}, err
 	}
+	docs := make([]*db.Document, len(page.Items))
+	for i := range page.Items {
+		docs[i] = &page.Items[i].Document
+	}
+	if err := s.maskUnreadableFolderParents(ctx, Human(userID), docs); err != nil {
+		return SharedWithMePage{}, err
+	}
 	facts, err := s.listFacts(ctx, organizationID, sharedDocuments(page.Items))
 	if err != nil {
 		return SharedWithMePage{}, err
@@ -883,6 +896,11 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 				return SharedWithMePage{}, err
 			}
 			if acc.Via != DocumentViaShare || acc.Level == DocumentLevelNone {
+				continue
+			}
+			if r.Document.Kind == DocumentKindFolder {
+				// A folder is never shared (UNI-1974); a legacy share row
+				// does not list it.
 				continue
 			}
 			out = append(out, SharedDocument{Document: r.Document, Access: acc})

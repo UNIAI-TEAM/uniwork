@@ -397,7 +397,7 @@ export async function apiCreateDocument(
     }),
   );
   const parsed = await parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
-  if (parsed.ok && parsed.data && !input.parent_id && input.visibility !== "restricted") {
+  if (parsed.ok && parsed.data && !input.parent_id && input.kind !== "folder" && input.visibility !== "restricted") {
     return { ...parsed, data: await openRootDocumentToWorkspace(page, token, wsId, parsed.data.id) };
   }
   return parsed;
@@ -410,7 +410,8 @@ export async function apiCreateDocument(
  * pre-SH-S1 default. The workspace share writes the home row at edit; a
  * child created under it inherits both, so only roots need the call. The
  * share bumps the revision, so the returned document is read again: the
- * callers pass its revision to move and rename.
+ * callers pass its revision to move and rename. A folder is never opened this
+ * way: it cannot be shared (UNI-1974, 422 folder_not_shareable) and stays private.
  */
 async function openRootDocumentToWorkspace(
   page: Page,
@@ -441,11 +442,13 @@ export async function createFolder(
   parentId?: string | null,
   visibility?: "workspace" | "restricted",
 ): Promise<DocumentDTO> {
+  // A folder is never shared (UNI-1974): "workspace" would be refused with 422
+  // folder_not_shareable, so the visibility argument is accepted and not sent.
+  void visibility;
   const res = await apiCreateDocument(page, token, wsId, {
     title,
     kind: "folder",
     parent_id: parentId ?? undefined,
-    visibility,
   });
   expect(
     res.ok && res.data,

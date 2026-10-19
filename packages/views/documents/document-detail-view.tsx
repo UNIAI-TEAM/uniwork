@@ -451,7 +451,7 @@ export function DocumentDetailView({
           />
           <DocumentCommentsPanel />
         </div>
-        {!resolvedDoc.owner_kind && shareOpen ? (
+        {!resolvedDoc.owner_kind && resolvedDoc.kind !== "folder" && shareOpen ? (
           <ShareDialog
             open={shareOpen}
             onOpenChange={setShareOpen}

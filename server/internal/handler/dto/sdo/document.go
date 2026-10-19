@@ -16,7 +16,7 @@ type DocumentDTO struct {
 	ID                  string                  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	OrganizationID      string                  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	WorkspaceID         string                  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	ParentID            *string                 `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	ParentID            *string                 `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc, hoặc thư mục cha người gọi không còn xem được (tài liệu được chia sẻ không nằm trong thư mục của người chủ)" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Kind                string                  `json:"kind" description:"page, file hoặc folder" example:"page"`
 	SystemKind          *string                 `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Title               string                  `json:"title" example:"Kế hoạch Q4"`
@@ -183,7 +183,7 @@ type DocumentSummaryDTO struct {
 	ID             string  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	OrganizationID string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	WorkspaceID    string  `json:"workspace_id" description:"Workspace chứa tài liệu; có thể khác workspace gọi shared-with-me" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	ParentID       *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	ParentID       *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc, hoặc thư mục cha người gọi không còn xem được (tài liệu được chia sẻ không nằm trong thư mục của người chủ)" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Kind           string  `json:"kind" description:"page, file hoặc folder" example:"page"`
 	SystemKind     *string `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Title          string  `json:"title" example:"Kế hoạch Q4"`
@@ -388,7 +388,7 @@ type DocumentAdminSummaryDocumentDTO struct {
 	ID             string  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	OrganizationID string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	WorkspaceID    string  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	ParentID       *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	ParentID       *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc, hoặc thư mục cha người gọi không còn xem được (tài liệu được chia sẻ không nằm trong thư mục của người chủ)" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Kind           string  `json:"kind" description:"page, file hoặc folder" example:"page"`
 	Title          string  `json:"title" example:"Kế hoạch Q4"`
 	Icon           *string `json:"icon,omitempty" example:"📄"`
@@ -609,7 +609,7 @@ type DocumentFavoriteDTO struct {
 	Title       string  `json:"title" example:"Kế hoạch Q4"`
 	Kind        string  `json:"kind" description:"page, file hoặc folder" example:"page"`
 	Icon        *string `json:"icon,omitempty" example:"📄"`
-	ParentID    *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	ParentID    *string `json:"parent_id,omitempty" description:"ULID trang hoặc thư mục cha; vắng mặt = tài liệu gốc, hoặc thư mục cha người gọi không còn xem được (tài liệu được chia sẻ không nằm trong thư mục của người chủ)" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	FavoritedAt string  `json:"favorited_at" example:"2026-09-28T08:00:00Z"`
 }
 

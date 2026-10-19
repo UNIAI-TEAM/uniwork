@@ -186,6 +186,12 @@ describe("shared by me scope line (SW-V2, SW-V4)", () => {
     expect(badge.getAttribute("data-scope-kind")).toBe("workspace");
   });
 
+  it("shows no scope badge on a folder row, whatever share_scope a legacy row carries", () => {
+    renderList([doc("fo", "Thư mục", { kind: "folder", visibility: "workspace", share_scope: SCOPE_HOME })]);
+    const row = document.querySelector('[data-library-row="fo"]') as HTMLElement;
+    expect(within(row).queryByTestId("document-share-scope-badge")).toBeNull();
+  });
+
   it("keeps the plain home-workspace scope off the narrow line on the other views", () => {
     renderList([doc("a", "A.docx", { visibility: "workspace", share_scope: SCOPE_HOME })]);
     const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;

@@ -36,6 +36,23 @@ func refuseFolder(doc db.Document) error {
 	return nil
 }
 
+// errFolderNotShareable answers every command that would make a folder shared:
+// a folder is a private container, only the documents inside it are shared
+// (UNI-1974). The folder exists and the caller may administer it, it just has
+// no access to hand out.
+func errFolderNotShareable() error {
+	return coded(http.StatusUnprocessableEntity, "folder_not_shareable", "thư mục không thể chia sẻ; hãy chia sẻ từng tài liệu bên trong")
+}
+
+// refuseFolderShare is the guard every share, access and visibility command
+// calls once the caller is authorized: a folder never takes a grant.
+func refuseFolderShare(doc db.Document) error {
+	if doc.Kind == DocumentKindFolder {
+		return errFolderNotShareable()
+	}
+	return nil
+}
+
 // childKindAllowed is the containment rule: a folder sits at the root or in a
 // folder; a page or a file sits in a page or a folder.
 func childKindAllowed(parentKind, childKind string) bool {

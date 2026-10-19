@@ -215,12 +215,13 @@ func TestDocumentCopy(t *testing.T) {
 		// are not a member.
 		t.Run("a member without edit on the parent folder still gets forbidden", func(t *testing.T) {
 			src := env.createFile(t, member, "parent-gate.md", []byte("# Cong cha\n"))
-			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc han che"})
+			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Title: "Trang cha han che"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			// The folder is restricted to its ACL owner; the copier may view it
-			// through a share (so it is visible, not a 404) but not edit it.
+			// The parent is restricted to its ACL owner (a folder cannot be shared,
+			// UNI-1974, so a page stands in); the copier may view it through a
+			// share (so it is visible, not a 404) but not edit it.
 			copier := human(env.tn.creator)
 			for _, row := range []struct {
 				id    string

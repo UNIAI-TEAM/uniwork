@@ -9757,7 +9757,7 @@
         },
         "share_workspace_toggle": "Chia sẻ với workspace",
         "share_workspace_hint": "Mọi thành viên của workspace này sẽ {{level}} tài liệu mới",
-        "share_workspace_inherited": "Thư mục này đang chia sẻ với workspace nên tài liệu mới cũng vậy",
+        "share_workspace_inherited": "UniNote này đang chia sẻ với workspace nên tài liệu mới cũng vậy",
         "share_workspace_level_view": "chỉ xem"
       },
       "sections": {
@@ -10006,6 +10006,7 @@
       "document_cycle": "Không thể chuyển một mục vào chính nó hoặc vào mục con của nó.",
       "document_too_deep": "Cây tài liệu tối đa {{max}} cấp.",
       "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
+      "folder_not_shareable": "Thư mục không thể chia sẻ. Hãy chia sẻ từng tài liệu bên trong.",
       "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa chuyển vào thùng rác được một lần. Hãy chuyển từng phần bên trong trước.",
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",

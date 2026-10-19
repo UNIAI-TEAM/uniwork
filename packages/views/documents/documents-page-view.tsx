@@ -181,7 +181,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     parentShared,
   });
 
-  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, parentShared });
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
@@ -219,8 +219,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
 
 
-  const newRootFolder = async (title?: string, options?: CreateShareOptions): Promise<boolean> => {
-    const id = await creator.newFolder(null, title, options);
+  const newRootFolder = async (title?: string): Promise<boolean> => {
+    const id = await creator.newFolder(null, title);
     if (id) {
       goHome({ kind: "home" }, id);
       return true;
@@ -304,7 +304,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onMyFolder: openMyFolder,
-    onNewFolder: (title?: string, options?: CreateShareOptions) => newRootFolder(title, options),
+    onNewFolder: (title?: string) => newRootFolder(title),
   };
   const createProps = {
     pending: creator.pending,

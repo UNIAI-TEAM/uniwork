@@ -411,16 +411,26 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	}
 	var nodes []DocumentTreeNode
 	if rootID == "" {
+		promoted, err := s.promotedToRoot(ctx, scope, workspaceID, actor.Kind == audit.KindAgent, rows, byID)
+		if err != nil {
+			return nil, err
+		}
 		var roots []db.Document
 		for _, d := range rows {
 			if _, ok := byID[d.ID]; !ok {
 				continue
 			}
-			if !d.ParentID.Valid {
+			if !d.ParentID.Valid || promoted[d.ID] {
 				roots = append(roots, d)
 			}
 		}
 		nodes = buildTreeNodes(roots, children, 1)
+		for i := range nodes {
+			if promoted[nodes[i].ID] {
+				// Shown on its own: the owner's folder is not named.
+				nodes[i].ParentID = ""
+			}
+		}
 	} else {
 		if _, ok := byID[rootID]; !ok {
 			return nil, ErrNotFound
@@ -449,4 +459,60 @@ func buildTreeNodes(docs []db.Document, children map[string][]db.Document, depth
 		nodes = append(nodes, node)
 	}
 	return nodes
+}
+
+// promotedToRoot picks the rows that take a root slot for this caller (UNI-1974):
+// a document the caller may read whose parent FOLDER the caller does not list
+// is shown on its own, never inside an owner's folder. A parent that is gone,
+// archived or shelved is not a folder to hide behind - that edge stays dropped
+// (a live child of a shelved parent is not floated, see ListTreeDocuments).
+// "May read" excludes the admin-only leg, so an administrator does not get
+// every private document of the workspace at the root.
+func (s *DocumentService) promotedToRoot(ctx context.Context, scope documentListScope, workspaceID string, agent bool, rows []db.Document, byID map[string]db.Document) (map[string]bool, error) {
+	var missing []string
+	seen := map[string]struct{}{}
+	for _, d := range rows {
+		if _, ok := byID[d.ID]; !ok || !d.ParentID.Valid {
+			continue
+		}
+		pid := d.ParentID.String
+		if _, ok := byID[pid]; ok {
+			continue
+		}
+		if _, ok := seen[pid]; !ok {
+			seen[pid] = struct{}{}
+			missing = append(missing, pid)
+		}
+	}
+	if len(missing) == 0 {
+		return nil, nil
+	}
+	parents, err := s.q.ListDocumentsByIDs(ctx, db.ListDocumentsByIDsParams{
+		OrganizationID: scope.organizationID, WorkspaceID: workspaceID, Ids: missing,
+	})
+	if err != nil {
+		return nil, err
+	}
+	hidden := make(map[string]bool, len(parents))
+	for _, p := range parents {
+		if p.Kind == DocumentKindFolder && !p.SystemKind.Valid && !p.ArchivedAt.Valid && !p.ShelvedAt.Valid {
+			hidden[p.ID] = true
+		}
+	}
+	var items []DocumentListItem
+	for _, d := range rows {
+		if _, ok := byID[d.ID]; ok && d.ParentID.Valid && hidden[d.ParentID.String] {
+			items = append(items, DocumentListItem{Document: d})
+		}
+	}
+	if err := s.attachListAccess(ctx, scope, workspaceID, agent, items); err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(items))
+	for _, it := range items {
+		if it.Access.Level != DocumentLevelNone {
+			out[it.Document.ID] = true
+		}
+	}
+	return out, nil
 }

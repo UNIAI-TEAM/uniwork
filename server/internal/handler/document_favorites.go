@@ -59,7 +59,7 @@ func (h *handlers) favoriteDocument(w http.ResponseWriter, r *http.Request) {
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		icon = &doc.Icon.String
 	}
-	if doc.ParentID.Valid {
+	if doc.ParentID.Valid && view.ParentVisible() {
 		parentID = &doc.ParentID.String
 	}
 	respondJSON(w, http.StatusOK, sdo.DocumentFavoriteSDO{Favorite: documentFavoriteDTO(

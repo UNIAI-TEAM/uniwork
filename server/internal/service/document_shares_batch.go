@@ -37,6 +37,9 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 		if err := requireDocumentACLChange(doc, access); err != nil {
 			return err
 		}
+		if err := refuseFolderShare(doc); err != nil {
+			return err
+		}
 		var refused []string
 		for _, id := range ids {
 			err := s.validateSharePrincipal(ctx, q, doc, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: id, Level: level})

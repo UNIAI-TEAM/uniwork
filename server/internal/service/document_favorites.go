@@ -116,5 +116,9 @@ func (s *DocumentService) ListDocumentFavorites(ctx context.Context, actor Actor
 			out = append(out, r)
 		}
 	}
-	return out, nil
+	docs := make([]*db.Document, len(out))
+	for i := range out {
+		docs[i] = &out[i].Document
+	}
+	return out, s.maskUnreadableFolderParents(ctx, actor, docs)
 }

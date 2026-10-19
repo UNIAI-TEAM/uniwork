@@ -387,6 +387,15 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	default:
 		return DocumentListPage{}, Invalid("kind phải là page, file, folder hoặc document")
 	}
+	if in.SharedByMe {
+		// A folder is never shared (UNI-1974): Shared by me lists documents
+		// only, whatever a legacy row says. The query already binds
+		// exclude_kind, so the shared_by_me SQL stays as it is.
+		if in.Kind == DocumentKindFolder {
+			return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shared_by_me không áp dụng cho thư mục")
+		}
+		excludeKind = pgtype.Text{String: DocumentKindFolder, Valid: true}
+	}
 	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, in.Archived)
 	if err != nil {
 		return DocumentListPage{}, err
@@ -537,10 +546,23 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	if err := s.attachListAccess(ctx, scope, workspaceID, agent, out.Items); err != nil {
 		return DocumentListPage{}, err
 	}
-	if !query.Valid {
-		return out, nil
+	if query.Valid {
+		if err := s.attachListPaths(ctx, scope, workspaceID, agent, out.Items); err != nil {
+			return DocumentListPage{}, err
+		}
 	}
-	return out, s.attachListPaths(ctx, scope, workspaceID, agent, out.Items)
+	return out, s.maskListParents(ctx, scope, workspaceID, agent, out.Items)
+}
+
+// maskListParents drops the parent of every row whose parent folder the
+// caller does not list (document_parent_visibility.go). It runs last: the
+// search path above stops at the same unlisted folder on its own.
+func (s *DocumentService) maskListParents(ctx context.Context, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
+	docs := make([]*db.Document, len(items))
+	for i := range items {
+		docs[i] = &items[i].Document
+	}
+	return s.maskUnlistedFolderParents(ctx, scope, workspaceID, agent, docs)
 }
 
 // attachListPaths resolves Path (root -> direct parent) for one page of list
@@ -743,7 +765,10 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 		}
 		out.Items = append(out.Items, DocumentListItem{Document: d})
 	}
-	return out, s.attachListAccess(ctx, scope, workspaceID, false, out.Items)
+	if err := s.attachListAccess(ctx, scope, workspaceID, false, out.Items); err != nil {
+		return DocumentListPage{}, err
+	}
+	return out, s.maskListParents(ctx, scope, workspaceID, false, out.Items)
 }
 
 // listRowDocument converts the flat-page row (which carries the snippet)

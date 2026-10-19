@@ -634,7 +634,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 	d.Post("/documents/{documentID}/shares", h.CreateDocumentShare, apiOp{
 		summary: "Share a document",
 		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409. " +
-			"Share cho chính workspace chứa tài liệu không tạo dòng document_shares: nó ghi vào dòng Workspace gốc (visibility=workspace, workspace_level=level) và câu trả lời mô tả dòng đó (id và created_at rỗng); manage -> 422 level_not_allowed (dòng gốc tối đa edit), và mở một tài liệu riêng tư khi người gọi chỉ có admin_scope -> 403 break_glass_required.",
+			"Share cho chính workspace chứa tài liệu không tạo dòng document_shares: nó ghi vào dòng Workspace gốc (visibility=workspace, workspace_level=level) và câu trả lời mô tả dòng đó (id và created_at rỗng); manage -> 422 level_not_allowed (dòng gốc tối đa edit), và mở một tài liệu riêng tư khi người gọi chỉ có admin_scope -> 403 break_glass_required. Thư mục không bao giờ được chia sẻ -> 422 folder_not_shareable.",
 		tags:   []string{"documents"},
 		sdi:    sdi.ShareDocumentSDI{},
 		sdo:    sdo.DocumentShareSDO{},
@@ -645,7 +645,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		summary: "Share a document with a batch of users",
 		description: "Cấp view/edit/manage cho 1–50 người dùng cùng tổ chức trong một transaction (all-or-nothing); trùng lặp được gộp và giữ thứ tự xuất hiện đầu. " +
 			"Danh sách rỗng, có phần tử rỗng hoặc level sai -> 400 invalid_request; không đọc được -> 404; dưới manage -> 403; tài liệu thuộc Work Product -> 409 document_owned_by_work_product; " +
-			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids).",
+			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids); thư mục -> 422 folder_not_shareable.",
 		tags:   []string{"documents"},
 		sdi:    sdi.ShareDocumentBatchSDI{},
 		sdo:    sdo.DocumentShareBatchSDO{},
@@ -665,7 +665,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		summary: "Batch update document access with dry-run preview",
 		description: "Cấp, cập nhật, giữ nguyên (on_existing=keep) hoặc thu hồi (level=null) quyền cho 1–100 mục hỗn hợp (user, workspace, organization) trong một transaction (SH-S2, UNI-1781). " +
 			"Mục nhắm vào workspace gốc của tài liệu được ghi vào dòng Workspace gốc (visibility/workspace_level), không tạo dòng document_shares. " +
-			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB.",
+			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB. Thư mục không bao giờ được chia sẻ: mục cấp quyền trên thư mục -> 422 folder_not_shareable (kể cả dry_run); mục thu hồi vẫn được phép.",
 		tags: []string{"documents"},
 		sdi:  sdi.UpdateDocumentAccessSDI{},
 		sdo:  sdo.DocumentAccessBatchSDO{},

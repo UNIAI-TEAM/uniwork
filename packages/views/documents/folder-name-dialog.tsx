@@ -22,9 +22,7 @@ import {
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { Switch } from "@uniwork/ui/components/ui/switch";
 import { documentErrorMessage } from "./document-error-message";
-import { isParentWorkspaceShared, type CreateShareOptions } from "./documents-create";
 import { loadMoveRevision } from "./document-tree-model";
 import { knownDocuments } from "./starred-rows";
 
@@ -44,10 +42,6 @@ export interface FolderNameDialogProps {
   wsId?: string;
   /** Parent folder ID for create mode (`null` or omitted = root). */
   parentId?: string | null;
-  /** True when the parent folder already shares with the home workspace. */
-  parentShared?: boolean;
-  /** Start with the share toggle on (the New menu's toggle was on when it opened this dialog). */
-  initialShareWithWorkspace?: boolean;
   /** Target folder or document ID for rename mode. */
   folderId?: string;
   /** Target item kind in rename mode (`"folder"` max 255, document kinds max 500 per FD-D3). */
@@ -57,7 +51,7 @@ export interface FolderNameDialogProps {
   /** Called with the server-verified folder after a successful create or rename. */
   onSuccess?: (folder: { id: string; title: string }) => void;
   /** Custom submit handler; when omitted, `wsId` drives the create/rename request. */
-  onSubmit?: (title: string, options?: CreateShareOptions) => Promise<boolean | void> | boolean | void;
+  onSubmit?: (title: string) => Promise<boolean | void> | boolean | void;
   pending?: boolean;
   error?: string | null;
   /** Secondary line under the title (the first-save hint; folders keep their own wording). */
@@ -87,8 +81,6 @@ export function FolderNameDialog({
   initialName = "",
   wsId = "",
   parentId = null,
-  parentShared,
-  initialShareWithWorkspace = false,
   folderId = "",
   kind = "folder",
   revision: initialRevision,
@@ -109,46 +101,16 @@ export function FolderNameDialog({
   const [draft, setDraft] = useState(initialName);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
-  const keyRef = useRef<{ title: string; parentId: string | null; shared: boolean; key: string } | null>(null);
+  const keyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setDraft(initialName);
       setFieldError(null);
-      setShareWithWorkspace(initialShareWithWorkspace);
       keyRef.current = null;
     }
-  }, [open, mode, initialName, initialShareWithWorkspace]);
-
-  const resolvedParentShared =
-    mode === "create" &&
-    (parentShared !== undefined
-      ? parentShared
-      : Boolean(
-          parentId &&
-            wsId &&
-            isParentWorkspaceShared(
-              knownDocuments(queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) })).get(parentId),
-              queryClient.getQueryData<{
-                visibility?: string | null;
-                share_scope?: { home_workspace?: boolean } | null;
-              }>(documentKeys.detail(wsId, parentId)),
-            ),
-        ));
-  const effectiveShare = resolvedParentShared || shareWithWorkspace;
-  const sendShare = mode === "create" && effectiveShare && !resolvedParentShared;
-  const shareHintText =
-    mode !== "create"
-      ? null
-      : resolvedParentShared
-        ? t("documents.home.create.share_workspace_inherited")
-        : effectiveShare
-          ? t("documents.home.create.share_workspace_hint", {
-              level: t("documents.home.create.share_workspace_level_view"),
-            })
-          : null;
+  }, [open, mode, initialName]);
 
   const isPending = externalPending || busy || createFolder.isPending || updateFolder.isPending;
   const displayError = fieldError ?? externalError;
@@ -201,7 +163,7 @@ export function FolderNameDialog({
     if (onSubmit) {
       setBusy(true);
       try {
-        const ok = await (sendShare ? onSubmit(trimmed, { shareWithWorkspace: true }) : onSubmit(trimmed));
+        const ok = await onSubmit(trimmed);
         if (ok !== false) onOpenChange(false);
       } catch (err) {
         setFieldError(resolveError(err));
@@ -215,18 +177,13 @@ export function FolderNameDialog({
     setBusy(true);
     try {
       if (mode === "create") {
-        if (
-          keyRef.current?.title !== trimmed ||
-          keyRef.current.parentId !== parentId ||
-          keyRef.current.shared !== sendShare
-        ) {
-          keyRef.current = { title: trimmed, parentId, shared: sendShare, key: createSafeId() };
+        if (keyRef.current?.title !== trimmed || keyRef.current.parentId !== parentId) {
+          keyRef.current = { title: trimmed, parentId, key: createSafeId() };
         }
-        const shareFields = sendShare ? ({ visibility: "workspace" } as const) : {};
+        // A folder is never shared (UNI-1974): the create carries no visibility.
         const created = await createFolder.mutateAsync({
           title: trimmed,
           ...(parentId ? { parentId } : {}),
-          ...shareFields,
           idempotencyKey: keyRef.current.key,
         });
         keyRef.current = null;
@@ -261,7 +218,6 @@ export function FolderNameDialog({
   const baseId = useId();
   const inputId = `${baseId}-folder-name-input`;
   const errorId = `${baseId}-folder-name-error`;
-  const shareHintId = `${baseId}-folder-share-hint`;
 
   return (
     <Dialog open={open} onOpenChange={(next) => (isPending ? undefined : onOpenChange(next))}>
@@ -304,31 +260,6 @@ export function FolderNameDialog({
             ) : null}
           </div>
           {children}
-          {mode === "create" ? (
-            <div className="flex flex-col gap-1">
-              <label className="flex cursor-pointer items-center justify-between gap-3">
-                <span className="text-body text-foreground">
-                  {t("documents.home.create.share_workspace_toggle")}
-                </span>
-                <Switch
-                  size="sm"
-                  checked={effectiveShare}
-                  aria-disabled={resolvedParentShared || isPending || undefined}
-                  aria-describedby={shareHintText ? shareHintId : undefined}
-                  onCheckedChange={(next) => {
-                    if (resolvedParentShared || isPending) return;
-                    setShareWithWorkspace(next);
-                  }}
-                  className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                />
-              </label>
-              {shareHintText ? (
-                <p id={shareHintId} className="text-caption text-muted-foreground">
-                  {shareHintText}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
           <DialogFooter>
             <Button
               type="button"

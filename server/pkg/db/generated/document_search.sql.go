@@ -323,6 +323,90 @@ func (q *Queries) ListDocumentAncestors(ctx context.Context, arg ListDocumentAnc
 	return items, nil
 }
 
+const listDocumentsByIDs = `-- name: ListDocumentsByIDs :many
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.workspace_id = $2
+  AND d.id = ANY($3::text[])
+`
+
+type ListDocumentsByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	Ids            []string `json:"ids"`
+}
+
+// UNI-1974: the parents of one page of list rows, read in one query so the
+// service can tell which of them the caller lists (a parent the caller does
+// not list is never named in the row: no parent_id leaves the server for it).
+func (q *Queries) ListDocumentsByIDs(ctx context.Context, arg ListDocumentsByIDsParams) ([]Document, error) {
+	rows, err := q.db.Query(ctx, listDocumentsByIDs, arg.OrganizationID, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Document{}
+	for rows.Next() {
+		var i Document
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.ParentID,
+			&i.Kind,
+			&i.Title,
+			&i.Icon,
+			&i.Visibility,
+			&i.Content,
+			&i.ContentText,
+			&i.SearchText,
+			&i.ContentBytes,
+			&i.CurrentVersion,
+			&i.FileVersionID,
+			&i.Revision,
+			&i.Position,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.AclOwnerID,
+			&i.SourceDocumentID,
+			&i.SourceVersionID,
+			&i.SourceRevision,
+			&i.SourceFormat,
+			&i.SourceEngine,
+			&i.TargetFormat,
+			&i.SourceChecksumSha256,
+			&i.ConversionReason,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.UpdatedBy,
+			&i.UpdatedByKind,
+			&i.ContentSavedAt,
+			&i.LastVersionAt,
+			&i.ArchivedAt,
+			&i.ArchivedBy,
+			&i.PurgeAfter,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ArchiveBatchID,
+			&i.ContentRevision,
+			&i.WorkspaceLevel,
+			&i.SystemKind,
+			&i.ShelvedAt,
+			&i.ShelvedBy,
+			&i.ShelvedByKind,
+			&i.ShelveBatchID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentsByParentPage = `-- name: ListDocumentsByParentPage :many
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id
 FROM documents d
@@ -337,35 +421,84 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): a tree level shows live rows only.
   AND d.shelved_at IS NULL
-  AND d.parent_id IS NOT DISTINCT FROM $3
-  AND (($4
-        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $5)
+  -- UNI-1974: a folder is a private container, so at the root level (NULL
+  -- parent) a document the caller may read through the home row, as ACL owner
+  -- or through a share is promoted when its parent FOLDER is not in the
+  -- caller's own list: it shows on its own, never inside an owner's folder.
+  -- "Parent listed" repeats the predicate below on the parent row (the
+  -- see_all leg minus the My Folder set: a foreign My Folder is not listed).
+  AND (d.parent_id IS NOT DISTINCT FROM $3
+       OR ($3::text IS NULL
+           AND d.parent_id IS NOT NULL
+           AND (($4 AND d.visibility = 'workspace'
+                 AND d.workspace_level = ANY($5::text[]))
+                OR ($6 AND d.acl_owner_id = $7)
+                OR ($8 AND EXISTS (
+                     SELECT 1 FROM document_shares rs
+                     WHERE rs.organization_id = d.organization_id
+                       AND rs.workspace_id = d.workspace_id
+                       AND rs.document_id = d.id
+                       AND rs.revoked_at IS NULL
+                       AND rs.level = ANY($5::text[])
+                       AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
+                            OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                            OR (rs.principal_type = 'workspace'
+                                AND rs.principal_id = ANY($9::text[]))))))
+           AND EXISTS (
+                SELECT 1 FROM documents pf
+                WHERE pf.organization_id = d.organization_id
+                  AND pf.workspace_id = d.workspace_id
+                  AND pf.id = d.parent_id
+                  AND pf.kind = 'folder'
+                  -- a personal My Folder never promotes what is shared out of it to the root
+                  AND pf.system_kind IS NULL
+                  AND NOT COALESCE(
+                    ($10
+                     AND (pf.system_kind IS NULL OR pf.system_kind <> 'my_folder'
+                          OR pf.acl_owner_id = $7
+                          OR (pf.visibility = 'workspace' AND pf.workspace_level = ANY($5::text[]))))
+                    OR ($4 AND pf.visibility = 'workspace'
+                        AND pf.workspace_level = ANY($5::text[]))
+                    OR ($6 AND pf.acl_owner_id = $7)
+                    OR ($8 AND EXISTS (
+                         SELECT 1 FROM document_shares ps
+                         WHERE ps.organization_id = pf.organization_id
+                           AND ps.workspace_id = pf.workspace_id
+                           AND ps.document_id = pf.id
+                           AND ps.revoked_at IS NULL
+                           AND ((ps.principal_type = 'user' AND ps.principal_id = $7)
+                                OR (ps.principal_type = 'organization' AND ps.principal_id = pf.organization_id)
+                                OR (ps.principal_type = 'workspace'
+                                    AND ps.principal_id = ANY($9::text[]))))),
+                    false))))
+  AND (($10
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $7)
         -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
         -- (admin) leg would otherwise add. The row stays when the actor is
         -- its ACL owner, it is workspace-visible at share_levels (what the
         -- member predicate would admit), or it is not in the foreign set; a
         -- live share is the OR below. Removes only what admin scope ADDS.
         -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
-        AND (d.acl_owner_id = $5
-             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
+        AND (d.acl_owner_id = $7
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($5::text[]))
              OR NOT EXISTS (
                   SELECT 1 FROM uw_my_folder_foreign_ids(
-                    $5, $1, $2, $7::int
+                    $7, $1, $2, $11::int
                   ) mfs WHERE mfs.document_id = d.id)))
-       OR ($8 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($6::text[]))
-       OR ($9 AND d.acl_owner_id = $5)
-       OR ($10 AND EXISTS (
+       OR ($4 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($5::text[]))
+       OR ($6 AND d.acl_owner_id = $7)
+       OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($6::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+              AND s.level = ANY($5::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $7)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($11::text[]))))))
+                       AND s.principal_id = ANY($9::text[]))))))
   AND ($12::text IS NULL OR d.kind = $12)
   AND ($13::text IS NULL OR d.kind <> $13)
   AND ($14::text IS NULL OR d.updated_by = $14)
@@ -381,66 +514,66 @@ WHERE d.organization_id = $1
   AND ($20::text IS NULL
        OR ($20::text = 'restricted' AND d.visibility = 'restricted')
        OR ($20::text <> 'restricted'
-           AND (($4 AND NOT (d.visibility = 'restricted'
-                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)))
-                OR ($9 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
-                OR ($8 AND NOT $21::boolean
+           AND (($10 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)))
+                OR ($6 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
+                OR ($4 AND NOT $21::boolean
                     AND d.visibility = 'workspace'
                     AND d.workspace_level = ANY($22::text[]))
-                OR ($10 AND EXISTS (
+                OR ($8 AND EXISTS (
                      SELECT 1 FROM document_shares a
                      WHERE a.organization_id = d.organization_id
                        AND a.workspace_id = d.workspace_id
                        AND a.document_id = d.id
                        AND a.revoked_at IS NULL
                        AND a.level = ANY($22::text[])
-                       AND ((a.principal_type = 'user' AND a.principal_id = $5)
+                       AND ((a.principal_type = 'user' AND a.principal_id = $7)
                             OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
-                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($11::text[]))))))))
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($9::text[]))))))))
   AND ($23::text IS NULL
        OR (NOT $24::boolean
-           AND (NOT $4::boolean
+           AND (NOT $10::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY($11::text[]))))
+                                 AND rs.principal_id = ANY($9::text[]))))
                  OR EXISTS (
                       SELECT 1 FROM document_break_glass_grants g
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $5
+                        AND g.actor_id = $7
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $23::text || '%' ESCAPE '\')
-       OR (($24::boolean OR NOT (NOT $4::boolean
+       OR (($24::boolean OR NOT (NOT $10::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $5)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $5)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY($11::text[]))))
+                                 AND rs.principal_id = ANY($9::text[]))))
                  OR EXISTS (
                       SELECT 1 FROM document_break_glass_grants g
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $5
+                        AND g.actor_id = $7
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
@@ -455,14 +588,14 @@ type ListDocumentsByParentPageParams struct {
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	ParentID        pgtype.Text        `json:"parent_id"`
-	SeeAll          interface{}        `json:"see_all"`
-	ActorID         pgtype.Text        `json:"actor_id"`
-	ShareLevels     []string           `json:"share_levels"`
-	MaxLevel        int32              `json:"max_level"`
 	MemberVisible   interface{}        `json:"member_visible"`
+	ShareLevels     []string           `json:"share_levels"`
 	AclOwner        interface{}        `json:"acl_owner"`
+	ActorID         pgtype.Text        `json:"actor_id"`
 	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
+	SeeAll          interface{}        `json:"see_all"`
+	MaxLevel        int32              `json:"max_level"`
 	Kind            pgtype.Text        `json:"kind"`
 	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
@@ -488,14 +621,14 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.ParentID,
-		arg.SeeAll,
-		arg.ActorID,
-		arg.ShareLevels,
-		arg.MaxLevel,
 		arg.MemberVisible,
+		arg.ShareLevels,
 		arg.AclOwner,
+		arg.ActorID,
 		arg.AllowShares,
 		arg.ShareWorkspaces,
+		arg.SeeAll,
+		arg.MaxLevel,
 		arg.Kind,
 		arg.ExcludeKind,
 		arg.UpdatedBy,

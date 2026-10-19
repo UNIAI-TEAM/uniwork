@@ -874,7 +874,7 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		UpdatedBy:      doc.UpdatedBy,
 		UpdatedByKind:  doc.UpdatedByKind,
 	}
-	if doc.ParentID.Valid {
+	if doc.ParentID.Valid && view.ParentVisible() {
 		out.ParentID = &doc.ParentID.String
 	}
 	if doc.SystemKind.Valid && doc.SystemKind.String != "" {

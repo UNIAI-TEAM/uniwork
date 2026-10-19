@@ -9763,7 +9763,7 @@
         },
         "share_workspace_toggle": "Share with workspace",
         "share_workspace_hint": "Everyone in this workspace can {{level}} new documents",
-        "share_workspace_inherited": "This folder is shared with the workspace, so new documents are too",
+        "share_workspace_inherited": "This UniNote is shared with the workspace, so new documents are too",
         "share_workspace_level_view": "view"
       },
       "sections": {
@@ -10013,6 +10013,7 @@
       "document_cycle": "An item can't move into itself or into something inside it.",
       "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
+      "folder_not_shareable": "A folder cannot be shared. Share the documents inside it instead.",
       "folder_too_large": "The folder holds more than 1,000 items, so it can't move to the trash in one go. Move what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",

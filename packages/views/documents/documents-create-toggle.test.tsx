@@ -254,7 +254,7 @@ describe("Create workspace share toggle (§4, F-01)", () => {
     ).toBeNull();
   });
 
-  it("FolderNameDialog: sends visibility=workspace (and no workspace_level) when toggled on in create mode, locks under shared parent, and hides in rename mode", async () => {
+  it("FolderNameDialog: has no share toggle and sends no visibility on create (a folder is never shared)", async () => {
     const posts: unknown[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
       if (path === LIST_BASE && opts?.method === "POST") {
@@ -281,78 +281,23 @@ describe("Create workspace share toggle (§4, F-01)", () => {
           mode="create"
           wsId={WS}
           parentId="fo-priv"
-          parentShared={false}
           parentTitle="Thư mục riêng"
         />,
       ),
     );
 
     const dialog = await screen.findByRole("dialog");
-    const toggle = within(dialog).getByRole("switch", { name: t("documents.home.create.share_workspace_toggle") });
-    expect(toggle).not.toBeChecked();
-    expect(toggle).not.toHaveAttribute("aria-disabled");
-
-    fireEvent.click(toggle);
-    expect(toggle).toBeChecked();
-    const hint = within(dialog).getByText(
-      t("documents.home.create.share_workspace_hint", {
-        level: t("documents.home.create.share_workspace_level_view"),
-      }),
-    );
-    expect(toggle).toHaveAttribute("aria-describedby", hint.id);
-
-    const input = within(dialog).getByLabelText(t("documents.home.folders.rename_label"));
-    fireEvent.change(input, { target: { value: "Tài liệu chung" } });
+    expect(within(dialog).queryByRole("switch")).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText(t("documents.home.folders.rename_label")), {
+      target: { value: "Tài liệu chung" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
-
     await waitFor(() =>
-      expect(posts[0]).toEqual({
-        kind: "folder",
-        title: "Tài liệu chung",
-        parent_id: "fo-priv",
-        visibility: "workspace",
-      }),
+      expect(posts[0]).toEqual({ kind: "folder", title: "Tài liệu chung", parent_id: "fo-priv" }),
     );
     unmount();
 
-    // Under a shared parent -> locked on, omits visibility so server inherits.
-    posts.length = 0;
-    const sharedRender = render(
-      wrap(
-        <FolderNameDialog
-          open
-          onOpenChange={vi.fn()}
-          mode="create"
-          wsId={WS}
-          parentId="fo-shared"
-          parentShared
-          parentTitle="Thư mục chung"
-        />,
-      ),
-    );
-    const sharedDialog = await screen.findByRole("dialog");
-    const lockedSwitch = within(sharedDialog).getByRole("switch", {
-      name: t("documents.home.create.share_workspace_toggle"),
-    });
-    expect(lockedSwitch).toBeChecked();
-    expect(lockedSwitch).toHaveAttribute("aria-disabled", "true");
-    const inheritedHint = within(sharedDialog).getByText(t("documents.home.create.share_workspace_inherited"));
-    expect(lockedSwitch).toHaveAttribute("aria-describedby", inheritedHint.id);
-
-    fireEvent.change(within(sharedDialog).getByLabelText(t("documents.home.folders.rename_label")), {
-      target: { value: "Con kế thừa" },
-    });
-    fireEvent.click(within(sharedDialog).getByRole("button", { name: t("documents.home.folders.create_submit") }));
-    await waitFor(() =>
-      expect(posts[0]).toEqual({
-        kind: "folder",
-        title: "Con kế thừa",
-        parent_id: "fo-shared",
-      }),
-    );
-    sharedRender.unmount();
-
-    // Rename mode -> no toggle.
+    // Rename mode -> no toggle either.
     render(
       wrap(
         <FolderNameDialog
@@ -366,9 +311,7 @@ describe("Create workspace share toggle (§4, F-01)", () => {
       ),
     );
     const renameDialog = await screen.findByRole("dialog");
-    expect(
-      within(renameDialog).queryByRole("switch", { name: t("documents.home.create.share_workspace_toggle") }),
-    ).toBeNull();
+    expect(within(renameDialog).queryByRole("switch")).toBeNull();
   });
 
   it("DocumentsPageView: sends visibility=workspace (and no workspace_level) when creating at root or inside a private folder with the toggle on, and fires no restricted toast", async () => {

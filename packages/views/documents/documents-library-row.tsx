@@ -152,7 +152,8 @@ export function LibraryRowView({
   // The narrow secondary line shows the level word and any non-default scope until the column joins.
   const levelKey = rowAccessLabelKey(row);
   // A row without `share_scope` shows no scope; it is never guessed from `visibility`.
-  const scope = doc?.share_scope ?? null;
+  // A folder is never shared (UNI-1974), so it shows none whatever a row carries.
+  const scope = doc && doc.kind !== "folder" ? (doc.share_scope ?? null) : null;
   // On Shared by me the plain "home workspace" scope is the answer the reader
   // came for (SW-V2); on every other view the narrow line omits the default.
   const showNarrowScope = Boolean(scope && (sharedByMe || !isPlainHomeWorkspaceScope(scope)));
