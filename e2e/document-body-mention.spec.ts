@@ -8,7 +8,6 @@ import {
   ownerDoc,
   signInOwner,
   userItem,
-  who,
   type ShareScene,
 } from "./documents-share-fixtures";
 import { VI_LOCALE_STATE } from "./locale-state";
@@ -76,9 +75,10 @@ test("the mentioned member's inbox row deep-links to the document at her mention
   await page.goto(docPath(scene.m.aOwner, docId));
   await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toBeVisible({ timeout: 60_000 });
   await mention(page, scene.member.name);
-  // The viewer-only mention produces no owner hint; let the debounced save ack.
-  await expect(page.getByTestId("document-body-mention-notice")).not.toBeVisible({ timeout: 15_000 });
-  await page.waitForTimeout(3_000);
+  // The viewer-only mention produces no owner hint. Wait on the save state
+  // itself — not a fixed sleep — then let the notification poll stretch the
+  // window before asserting the hint stayed hidden.
+  await expect(page.getByRole("status", { name: /^Đã lưu/ })).toBeVisible({ timeout: 30_000 });
 
   // The member got a document_body_mentioned row for this document.
   await expect
@@ -90,21 +90,25 @@ test("the mentioned member's inbox row deep-links to the document at her mention
       { timeout: 30_000 },
     )
     .toBe(true);
+  await expect(page.getByTestId("document-body-mention-notice")).not.toBeVisible();
 
   const member = await openSession(browser, scene.member.email);
   const memberPage = member.page;
   await memberPage.goto(`/${scene.m.aOwner.orgSlug}/${scene.m.aOwner.wsSlug}/inbox`);
-  const row = memberPage.getByRole("link", { name: who(scene.owner.name) });
+  // The inbox holds a document_shared row and a document_body_mentioned row
+  // per test document — all named by the owner — so the row is found by the
+  // mention deep link for THIS document, not by the sender's name.
+  const row = memberPage.locator(`a[href*="documents/${docId}?mention=1"]`);
   await expect(row).toBeVisible({ timeout: 60_000 });
   await row.click();
 
   // The document opens on her own mention — selected, so the reveal marker is
   // there even once the two-second flash has faded — and the URL drops the
-  // parameter after use.
+  // parameter after use. The pathname check ignores any other query params.
   const chip = memberPage.locator(`.mention[data-mention-id="${scene.member.id}"]`);
   await expect(chip).toBeVisible({ timeout: 60_000 });
   await expect(memberPage.locator("[data-node-view-wrapper].ProseMirror-selectednode")).toHaveCount(1, { timeout: 15_000 });
-  await memberPage.waitForURL(new RegExp(`${docId}$`), { timeout: 30_000 });
+  await memberPage.waitForURL((url) => url.pathname.endsWith(`/${docId}`), { timeout: 30_000 });
 
   await member.context.close();
 });
