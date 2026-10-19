@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/views exec vitest run documents chat 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "VIEWS_1969_EXIT=$rc"
+
+ Test Files  201 passed (201)
+      Tests  1834 passed (1834)
+   Start at  08:13:18
+   Duration  172.04s (transform 11.46s, setup 45.60s, import 113.64s, tests 265.29s, environment 66.10s)
+
+VIEWS_1969_EXIT=0
