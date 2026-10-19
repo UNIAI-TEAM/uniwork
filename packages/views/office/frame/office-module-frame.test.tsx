@@ -871,7 +871,7 @@ describe("first save names a never-saved blank (UNI-1847, SAVE-01)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Lưu vào UniWork" }));
     const dialog = await screen.findByRole("dialog", { name: "Đặt tên tài liệu" });
     expect(dialog).toBeTruthy();
-    expect(screen.getByText("Bạn có thể đổi tên sau trong thư mục.")).toBeTruthy();
+    expect(screen.getByText("Bạn có thể đổi tên hoặc di chuyển sau.")).toBeTruthy();
     const input = screen.getByLabelText("Tên tài liệu") as HTMLInputElement;
     expect(input.value).toBe("Tài liệu chưa đặt tên");
     fireEvent.change(input, { target: { value: "Kế hoạch Q4" } });

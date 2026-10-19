@@ -8761,6 +8761,59 @@
       "choose_image": "Choose an image to insert",
       "image_loading": "Loading image…",
       "focus_end": "Continue writing at the end of the document",
+      "toolbar": {
+        "label": "UniNote formatting",
+        "undo": "Undo",
+        "redo": "Redo",
+        "style_aria": "Text style: {{style}}",
+        "style_menu": "Text style",
+        "bold": "Bold",
+        "italic": "Italic",
+        "strikethrough": "Strikethrough",
+        "code": "Inline code",
+        "link": "Insert link",
+        "bulletList": "Bulleted list",
+        "orderedList": "Numbered list",
+        "taskList": "Checklist",
+        "blockquote": "Quote",
+        "codeBlock": "Code block",
+        "horizontalRule": "Divider",
+        "table": "Table",
+        "image": "Image",
+        "mention": "Mention",
+        "help_button": "Help and shortcuts",
+        "help": {
+          "title": "UniNote shortcuts",
+          "close": "Close",
+          "quick": "Quick insert",
+          "quick_slash": "Open the block menu",
+          "quick_mention": "Mention a member",
+          "line": "Type at the start of a line",
+          "line_headings": "Heading 1 / 2 / 3",
+          "line_bullet": "Bulleted list",
+          "line_ordered": "Numbered list",
+          "line_task": "Checklist",
+          "line_quote": "Quote",
+          "line_code": "Code block",
+          "line_divider": "Divider",
+          "keys": "Keyboard shortcuts",
+          "keys_format": "Bold / Italic",
+          "keys_strike": "Strikethrough",
+          "keys_code": "Inline code",
+          "keys_undo": "Undo / Redo",
+          "note": "On Mac use ⌘ instead of Ctrl. Type a pattern at the start of a line, then press Space (--- needs no Space)."
+        },
+        "more": "More formatting",
+        "more_title": "More formatting",
+        "hint": {
+          "title": "UniNote tips",
+          "aria": "Tip for new users",
+          "body": "Pick a format on the toolbar, or type <kbd>/</kbd> at the start of a line to insert a block, <kbd>@</kbd> to mention someone, and select text to format it quickly.",
+          "got_it": "Got it",
+          "show_shortcuts": "See shortcuts",
+          "close": "Dismiss tip"
+        }
+      },
       "toggle_task": "Toggle task: {{task}}",
       "blocks": {
         "paragraph": {
@@ -8835,8 +8888,13 @@
       "archived_banner": "This document is in the trash — read-only.",
       "first_save": {
         "title": "Name the document",
-        "hint": "You can rename it later from the folder.",
-        "submit": "Save"
+        "hint": "You can rename or move it later.",
+        "submit": "Save",
+        "location": "Location",
+        "change": "Change",
+        "picker_title": "Choose where to save",
+        "picker_description": "Pick the folder this document is saved in.",
+        "picker_submit": "Choose"
       }
     },
     "save": {
@@ -9649,7 +9707,6 @@
         "failed": "Could not rename the document. Try again."
       },
       "quick_create": {
-        "hint_root": "New and uploaded files here go to My Folder (only you can see it) and open straight in the editor.",
         "label": "Quick create"
       },
       "create": {
@@ -9789,7 +9846,7 @@
       "access": {
         "view": "View only",
         "comment": "Comment",
-        "edit": "Can edit",
+        "edit": "Edit",
         "manage": "Manage",
         "owner": "Owner",
         "you_prefix": "You: {{level}}"
