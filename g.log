@@ -1,0 +1,6 @@
+$ pnpm knip > /tmp/knip1971.log 2>&1; rc=$?; tail -10 /tmp/knip1971.log; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+KNIP_EXIT=0
