@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+c39cd02c69b3a5058f2e15b3ae8096026beec8b0
+c39cd02c6 fix(documents): keep create_document's no-notification wording (UNI-1968)
+8fb8391f1 feat(notification): document_body_mentioned kind (UNI-1968)
+c5622f08a feat(documents): notify people newly named in a page body (UNI-1968)
+936fa75a5 feat(documents): post-save hint when a body mention cannot view the page (UNI-1968 W2)
