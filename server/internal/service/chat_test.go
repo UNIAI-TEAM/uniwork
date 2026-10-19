@@ -61,6 +61,8 @@ func chatFixtureWithPool(t *testing.T) (*ChatService, *capturePublisher, *db.Que
 	ub := registerVerified(t, q, as, "chat-b@example.com", "B")
 	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-chat")
 	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Chat WS", "chat-ws")
+	addOrgMember(t, q, org.ID, ub.ID)
+	addWorkspaceMember(t, q, v.Workspace.ID, ub.ID)
 	pub := &capturePublisher{}
 	return NewChatService(pool, q, ws, pub), pub, q, ua, ub, v.Workspace, pool
 }

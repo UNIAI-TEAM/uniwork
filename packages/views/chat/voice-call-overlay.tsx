@@ -134,7 +134,13 @@ export function VoiceCallOverlay({
   }, [state.status]);
 
   const ringtoneKind =
-    state.status === "incoming" ? "incoming" : state.status === "ringing" ? "outgoing" : null;
+    state.status === "incoming"
+      ? state.callKind === "channel"
+        ? null
+        : "incoming"
+      : state.status === "ringing"
+        ? "outgoing"
+        : null;
   useCallRingtone(ringtoneKind);
 
   const handleMinimize = useCallback(() => {

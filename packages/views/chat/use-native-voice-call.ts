@@ -69,11 +69,15 @@ export function useNativeVoiceCall({
   currentUserId,
   mintToken,
   allowedRoomIds,
+  mutedRoomIds,
+  roomKindById,
 }: {
   workspaceId: string;
   currentUserId: string;
   mintToken: MintVoiceToken;
   allowedRoomIds: ReadonlySet<string>;
+  mutedRoomIds?: ReadonlySet<string>;
+  roomKindById?: ReadonlyMap<string, VoiceCallKind>;
 }) {
   const ws = useOptionalWS()?.client ?? null;
   const [state, setState] = useState<VoiceCallOverlayState>({ status: "idle" });
@@ -188,7 +192,14 @@ export function useNativeVoiceCall({
       ) {
         return;
       }
-      const incoming = incomingStateFromInvite(data);
+      if (data.room_id && mutedRoomIds?.has(data.room_id)) {
+        return;
+      }
+      const enriched: VoiceInvitePayload =
+        data.call_kind || !data.room_id
+          ? data
+          : { ...data, call_kind: roomKindById?.get(data.room_id) ?? data.call_kind };
+      const incoming = incomingStateFromInvite(enriched);
       if (!incoming) return;
       const current = stateRef.current;
       if (isLive(current)) {
@@ -201,7 +212,7 @@ export function useNativeVoiceCall({
       hangupSentRef.current = null;
       setCallState(incoming);
     },
-    [currentUserId, declineBusyInvite, setCallState],
+    [currentUserId, declineBusyInvite, mutedRoomIds, roomKindById, setCallState],
   );
 
   const syncPendingInvites = useCallback(async () => {

@@ -32,6 +32,8 @@ import (
 //     only dedupes provider retries, which land within minutes; the
 //     recording_ended re-entry in HandleProviderEvent runs whether or not the
 //     ledger row is still there, so a missing row changes nothing.
+//   - notification_deliveries whose outbox row is already gone (same ULID
+//     floor as dead letters): the idempotency ledger outlived the event.
 //
 // audit_events is never touched (ADR 0012: append-only, retention by archive).
 //
@@ -104,10 +106,11 @@ type EventRetentionMetrics interface {
 
 // EventRetentionReport counts the rows one sweep deleted.
 type EventRetentionReport struct {
-	OutboxDone     int64
-	OutboxDead     int64
-	WebhookInbox   int64
-	ProviderEvents int64
+	OutboxDone             int64
+	OutboxDead             int64
+	WebhookInbox           int64
+	ProviderEvents         int64
+	NotificationDeliveries int64
 }
 
 // EventRetention is the worker cmd/server starts; Run blocks until ctx ends.
@@ -142,10 +145,11 @@ func (r *EventRetention) Run(ctx context.Context) {
 		if err != nil {
 			r.log.Warn("event retention sweep", "err", err)
 		}
-		if total := rep.OutboxDone + rep.OutboxDead + rep.WebhookInbox + rep.ProviderEvents; total > 0 {
+		if total := rep.OutboxDone + rep.OutboxDead + rep.WebhookInbox + rep.ProviderEvents + rep.NotificationDeliveries; total > 0 {
 			r.log.Info("event retention sweep",
 				"outbox_done", rep.OutboxDone, "outbox_dead", rep.OutboxDead,
-				"webhook_inbox", rep.WebhookInbox, "provider_events", rep.ProviderEvents)
+				"webhook_inbox", rep.WebhookInbox, "provider_events", rep.ProviderEvents,
+				"notification_deliveries", rep.NotificationDeliveries)
 		}
 		if !retentionPause(ctx, r.policy.Interval) {
 			return
@@ -176,6 +180,10 @@ func (r *EventRetention) Sweep(ctx context.Context) (EventRetentionReport, error
 	if err != nil {
 		return rep, err
 	}
+	deadBeforeID, err := retentionIDFloor(deadBefore)
+	if err != nil {
+		return rep, err
+	}
 	limit := r.policy.Batch
 
 	steps := []struct {
@@ -197,6 +205,11 @@ func (r *EventRetention) Sweep(ctx context.Context) (EventRetentionReport, error
 		{"meeting_provider_events", &rep.ProviderEvents, func(ctx context.Context) (int64, error) {
 			return r.q.DeleteExpiredProviderEvents(ctx, db.DeleteExpiredProviderEventsParams{
 				BeforeID: ledgerBeforeID, Before: retentionTime(ledgerBefore), LimitN: limit,
+			})
+		}},
+		{"notification_deliveries", &rep.NotificationDeliveries, func(ctx context.Context) (int64, error) {
+			return r.q.DeleteOrphanNotificationDeliveries(ctx, db.DeleteOrphanNotificationDeliveriesParams{
+				BeforeID: deadBeforeID, LimitN: limit,
 			})
 		}},
 	}

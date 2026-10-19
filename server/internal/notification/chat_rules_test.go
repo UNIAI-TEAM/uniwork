@@ -474,3 +474,31 @@ func TestMutedRoomSendsNoChatNotification(t *testing.T) {
 		t.Fatalf("the dm after unmuting pushed %d times, want 1", n)
 	}
 }
+
+// A mention row for someone who left the private channel before delivery
+// must not reach their inbox (UNI-1717).
+func TestChatMentionSkipsRecipientWhoLeftRoom(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "kenh-rieng", Visibility: "private", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendChatMessageInput{
+		Body: "[@Thành Viên](mention://member/" + f.member.ID + ") xem",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ev := f.lastEvent(t, "chat.message.mentioned")
+	if err := chat.RemoveChatRoomMember(f.ctx, f.owner.ID, f.wsID, ch.ID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.consumer.Handle(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.inbox(t, f.member.ID); len(got) != 0 {
+		t.Fatalf("kicked member inbox = %+v", got)
+	}
+}

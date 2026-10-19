@@ -18,8 +18,11 @@ configureRuntime({
   chatScopeSubscriptionLimit: parseChatScopeLimit(process.env.NEXT_PUBLIC_CHAT_SCOPE_LIMIT),
 });
 
+const maxChatScopeSubscriptionLimit = 25;
+
 function parseChatScopeLimit(raw: string | undefined): number {
   const n = Number.parseInt(raw ?? "", 10);
-  if (!Number.isFinite(n) || n < 1) return 25;
+  if (!Number.isFinite(n) || n < 1) return maxChatScopeSubscriptionLimit;
+  if (n > maxChatScopeSubscriptionLimit) return maxChatScopeSubscriptionLimit;
   return n;
 }

@@ -47,4 +47,15 @@ describe("selectLazyChatScopeRoomIds", () => {
       }),
     ).toHaveLength(25);
   });
+
+  it("never exceeds the server WS scope ceiling", () => {
+    const rooms = Array.from({ length: 50 }, (_, i) => room(`r${i}`));
+    expect(
+      selectLazyChatScopeRoomIds({
+        rooms,
+        activeRoomId: "r0",
+        maxSubscriptions: 100,
+      }),
+    ).toHaveLength(25);
+  });
 });
