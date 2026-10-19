@@ -1,0 +1,4 @@
+$ cd server && go test ./internal/ai/... -count=1 2>&1 | grep -E '^\s*--- (FAIL|SKIP)|^(ok|FAIL)' | head -40; echo "AI_GO_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/ai	8.641s
+ok  	github.com/unicomhub/uniwork/server/internal/ai/provider	0.377s
+AI_GO_EXIT=0

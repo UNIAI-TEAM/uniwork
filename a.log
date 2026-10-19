@@ -1,0 +1,20 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -5; git diff --stat fd8d8eebb..HEAD
+fefa1f0d901a839ceff12c9a22ff09def510660d
+fefa1f0d9 chore(ai): bump office prompt to office_uniwork_ai@4 (draft, UNI-1981)
+d38e9cfae feat(ai): add office pack @4 that never echoes injected content
+099272f0e test(ai): pin the no-echo rules of office pack @4 (red)
+fd8d8eebb chore: merge UNI-1964 G7-12-SCHEMA harness (real tool schemas, 386b35fe4) into the G5-G7 root
+8c53b19a0 chore: merge REPIN-2 UNI-1919/1920 D half (six frames at web-0.1.0-55b587b, REBLESS-01 goldens, db41d8a6f) into the G5-G7 root
+ scripts/office/devset.test.mjs                     |  4 +-
+ scripts/office/g5g6g7/holdout-run.test.mjs         | 30 ++++++++
+ server/internal/ai/prompts_office.go               | 51 +++++++++++++-
+ server/internal/ai/prompts_office_test.go          | 80 +++++++++++++++++++---
+ .../testdata/office_uniwork_ai_v1_provisional.json |  6 +-
+ .../ai/testdata/office_uniwork_ai_v4_common.golden | 16 +++++
+ .../ai/testdata/office_uniwork_ai_v4_docs.golden   | 15 ++++
+ .../ai/testdata/office_uniwork_ai_v4_html.golden   |  6 ++
+ .../testdata/office_uniwork_ai_v4_markdown.golden  |  6 ++
+ .../ai/testdata/office_uniwork_ai_v4_pdf.golden    |  7 ++
+ .../ai/testdata/office_uniwork_ai_v4_sheets.golden | 28 ++++++++
+ .../ai/testdata/office_uniwork_ai_v4_slides.golden |  8 +++
+ 12 files changed, 242 insertions(+), 15 deletions(-)

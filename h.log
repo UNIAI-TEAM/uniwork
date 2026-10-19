@@ -1,0 +1,2 @@
+$ cd server && go vet ./internal/ai/; echo "VET_EXIT=$?"
+VET_EXIT=0
