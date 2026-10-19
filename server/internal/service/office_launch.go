@@ -156,6 +156,11 @@ func (s *OfficeLaunchService) Create(ctx context.Context, actor Actor, in Office
 	if operation == "edit" && !access.Level.AtLeast(DocumentLevelEdit) {
 		return OfficeLaunchSession{}, ErrForbidden
 	}
+	// A shelved document is read-only (ARCHIVE-01 §3): view tickets still
+	// mint, an edit session answers document_shelved.
+	if operation == "edit" && doc.ShelvedAt.Valid {
+		return OfficeLaunchSession{}, errDocumentShelved()
+	}
 	if version > 0 {
 		if _, err := s.docs.q.GetDocumentVersion(ctx, db.GetDocumentVersionParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID, Version: version,

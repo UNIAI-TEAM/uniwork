@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { createDocsFrameHost } from "./docs-frame-host";
 import {
   CAPABILITY_KEYS,
+  CLOSE_REQUESTED_REASONS,
   COMMENTS_LEVELS,
   DocsProtocolError,
+  FRAME_EVENT_TYPES,
+  FRAME_PROFILES,
+  FRAME_REQUEST_TYPES,
   PROTOCOL_ERROR_CODES,
   PROTOCOL_NS,
   PROTOCOL_VERSION,
@@ -10,7 +15,10 @@ import {
   checkInitComments,
   commentsAccess,
   commentsErrorFromHttp,
+  isCloseRequestedPayload,
   isCommentsRequestType,
+  isInitPayload,
+  isReadOnlyProfile,
   parseEnvelope,
   type CommentsAccess,
   type CommentsLevel,
@@ -156,3 +164,112 @@ describe("comments.shareView and the commentsShareView capability (G8-18)", () =
     expect(found).toMatchObject({ ok: true });
   });
 });
+
+describe("api.saveCopy and the saveCopy capability (UNI-1872)", () => {
+  const envelope = (kind: string, payload: unknown) => ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: "f6", kind, type: "api.saveCopy", payload });
+
+  it("is a frame request type and a capability key", () => {
+    expect(FRAME_REQUEST_TYPES).toContain("api.saveCopy");
+    expect(CAPABILITY_KEYS).toContain("saveCopy");
+  });
+
+  it("validates {name, data} on the request and {documentId, title} on the response", () => {
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04]).buffer;
+    expect(parseEnvelope(envelope("request", { name: "Budget (copy)", data: bytes }))).toMatchObject({ ok: true });
+    for (const bad of [{}, { name: "", data: bytes }, { name: "Budget (copy)", data: "not-bytes" }, null]) {
+      expect(parseEnvelope(envelope("request", bad))).toMatchObject({ ok: false, reason: "malformed" });
+    }
+    expect(parseEnvelope(envelope("response", { documentId: "doc_2", title: "Budget (copy)" }))).toMatchObject({ ok: true });
+    for (const bad of [{}, { documentId: "doc_2" }, { documentId: "", title: "Budget (copy)" }, { documentId: "doc_2", title: "" }, null]) {
+      expect(parseEnvelope(envelope("response", bad))).toMatchObject({ ok: false, reason: "malformed" });
+    }
+  });
+});
+
+describe("read-only profile and close_requested event (UNI-1876 / UNI-1901)", () => {
+  const initPayload = {
+    protocolVersion: PROTOCOL_VERSION,
+    token: "tok-1",
+    tokenExpiresAt: 1_700_000_000_000,
+    documentId: "doc-1",
+    workspaceId: "ws-1",
+    apiBase: "http://app.test/api/v1",
+    apiMode: "host-proxy" as const,
+    locale: "en",
+    theme: "light" as const,
+    capabilities: { save: false, comments: true },
+  };
+  const envelope = (kind: string, type: string, payload: unknown) => ({
+    ns: PROTOCOL_NS,
+    v: PROTOCOL_VERSION,
+    id: "f7",
+    kind,
+    type,
+    payload,
+  });
+
+  it("keeps profile: 'readOnly' and drops unknown profile values forward-compatibly", () => {
+    expect(FRAME_PROFILES).toEqual(["readOnly"]);
+    expect(isReadOnlyProfile({ profile: "readOnly" })).toBe(true);
+    expect(isInitPayload({ ...initPayload, profile: "readOnly" })).toBe(true);
+    expect(parseEnvelope(envelope("request", "init", { ...initPayload, profile: "readOnly" }))).toMatchObject({ ok: true });
+    for (const unknown of ["presenter", "edit", "readonly", "view", "", null, undefined, 1, {}]) {
+      expect(isReadOnlyProfile({ profile: unknown })).toBe(false);
+      expect(isInitPayload({ ...initPayload, profile: unknown })).toBe(true);
+      expect(parseEnvelope(envelope("request", "init", { ...initPayload, profile: unknown }))).toMatchObject({ ok: true });
+    }
+    expect(isReadOnlyProfile(null)).toBe(false);
+    expect(isReadOnlyProfile(undefined)).toBe(false);
+    expect(
+      commentsAccess({ capabilities: { save: false, comments: true }, commentsLevel: "edit", profile: "readOnly" }),
+    ).toMatchObject({ enabled: true, level: "view", canCreate: false });
+    expect(
+      commentsAccess({ capabilities: { save: false, comments: true }, commentsLevel: "comment" }),
+    ).toMatchObject({ enabled: true, level: "comment", canCreate: true });
+  });
+
+  it("validates close_requested {reason: 'escape'}, rejects bad reasons, and invokes host.on('close_requested')", () => {
+    expect(FRAME_EVENT_TYPES).toContain("close_requested");
+    expect(CLOSE_REQUESTED_REASONS).toEqual(["escape"]);
+    expect(isCloseRequestedPayload({ reason: "escape" })).toBe(true);
+    expect(parseEnvelope(envelope("event", "close_requested", { reason: "escape" }))).toMatchObject({ ok: true });
+    for (const bad of [{ reason: "click" }, { reason: "Escape" }, { reason: "" }, { reason: null }, { reason: 1 }, {}, null, "escape"]) {
+      expect(isCloseRequestedPayload(bad)).toBe(false);
+      expect(parseEnvelope(envelope("event", "close_requested", bad))).toMatchObject({ ok: false, reason: "malformed" });
+    }
+
+    const origin = "http://app.test";
+    const listeners: Array<(event: MessageEvent) => void> = [];
+    const self = {
+      addEventListener: (_: "message", fn: (e: MessageEvent) => void) => {
+        listeners.push(fn);
+      },
+      removeEventListener: (_: "message", fn: (e: MessageEvent) => void) => {
+        const idx = listeners.indexOf(fn);
+        if (idx >= 0) listeners.splice(idx, 1);
+      },
+    };
+    const frame = { postMessage: () => {} };
+    const host = createDocsFrameHost({
+      self,
+      frame: () => frame,
+      allowedOrigins: [origin],
+      getInit: async () => initPayload,
+      refreshToken: async () => ({ token: "tok-2", tokenExpiresAt: 2 }),
+    });
+    const seen: unknown[] = [];
+    const off = host.on("close_requested", (payload) => seen.push(payload));
+    const deliver = (payload: unknown) => {
+      const event = { data: envelope("event", "close_requested", payload), origin, source: frame } as unknown as MessageEvent;
+      for (const fn of [...listeners]) fn(event);
+    };
+    deliver({ reason: "escape" });
+    deliver({ reason: "click" });
+    expect(seen).toEqual([{ reason: "escape" }]);
+    off();
+    deliver({ reason: "escape" });
+    expect(seen).toHaveLength(1);
+    host.dispose();
+  });
+});
+

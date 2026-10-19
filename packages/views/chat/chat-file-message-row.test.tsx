@@ -305,4 +305,31 @@ describe("ChatFileMessageRow", () => {
     expect(screen.getByText("Không tải được tệp.")).toBeInTheDocument();
     expect(getChatRoomMessage).not.toHaveBeenCalled();
   });
+
+  it("carries the highlight ring when a deep link jumped to it", () => {
+    const message = {
+      id: "message-hl",
+      sender: "user1",
+      body: "sprint.pdf",
+      kind: "file" as const,
+      ts: Date.now(),
+      reactions: {},
+      file: { filename: "sprint.pdf", content_type: "application/pdf", size_bytes: 2048 },
+    };
+    const props = {
+      workspaceId: "ws1",
+      roomId: "room1",
+      message,
+      senderLabel: "An",
+      isOwn: true,
+      showSenderName: false,
+      compactTop: false,
+      showAvatar: false,
+    };
+    const { container, rerender } = render(wrap(<ChatFileMessageRow {...props} highlighted />));
+    const article = container.querySelector("#chat-msg-message-hl");
+    expect(article).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
+    rerender(wrap(<ChatFileMessageRow {...props} />));
+    expect(container.querySelector("#chat-msg-message-hl")).not.toHaveClass("ring-brand");
+  });
 });

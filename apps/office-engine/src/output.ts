@@ -25,17 +25,23 @@ export interface MeasuredOutput {
   data: Buffer;
 }
 
-/** Read at most maxBytes+1 bytes from the fd so a still-appending writer can
-    never make us buffer more than the cap the caller allows. */
+/** Read the whole file in bounded chunks, refusing past maxBytes, so a
+    still-appending writer can never make us buffer more than the cap the
+    caller allows. The cap - not a fixed read window - decides the total: a
+    file between the window and the cap must arrive WHOLE, never truncated
+    (SIZE-S1 raised the cap to the document bound, far past 64 MiB). */
 async function readCapped(fd: { read(...args: unknown[]): Promise<{ bytesRead: number }> }, maxBytes: number): Promise<Buffer> {
-  const buf = Buffer.allocUnsafe(Math.min(maxBytes + 1, 64 << 20));
+  const chunks: Buffer[] = [];
   let total = 0;
-  while (total < buf.length) {
-    const { bytesRead } = await fd.read(buf, total, buf.length - total, null);
+  while (total <= maxBytes) {
+    const want = Math.min(64 << 20, maxBytes + 1 - total);
+    const buf = Buffer.allocUnsafe(want);
+    const { bytesRead } = await fd.read(buf, 0, want, null);
     if (bytesRead === 0) break;
+    chunks.push(buf.subarray(0, bytesRead));
     total += bytesRead;
   }
-  return buf.subarray(0, total);
+  return Buffer.concat(chunks, total);
 }
 
 export async function measureOutput(path: string, maxBytes: number, expectedUid?: number): Promise<MeasuredOutput> {

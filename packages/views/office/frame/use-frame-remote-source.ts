@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api/http";
+import { useAuthStore } from "@uniwork/core/auth";
 import { listDocumentChanges } from "@uniwork/core/api/endpoints/document-changes";
 import { getDocument } from "@uniwork/core/api/endpoints/documents";
 import { useOptionalWS } from "@uniwork/core/realtime";
@@ -16,10 +18,17 @@ import { blockOfHeadError, type FrameBlock, type FrameRemoteVersion, type Remote
  * always come from the same answer. Deletion and a lost share block the frame whatever the
  * `office_sync_feed` flag says (EXPERIENCE.md › sync_feed: the flag turns off S6 news, not the S11
  * lock): the realtime frames always run, only the new-version path and the feed follow the flag.
+ * A home-row access change (`document.workspace_access_changed`) is a loss-of-access hint too:
+ * with the flag off it reads the head for the block verdict only.
  */
 
 /** Frames whose document may have a new head (a new version, or a metadata-only bump). */
-const HEAD_EVENTS: readonly WSEventType[] = ["document.version_created", "document.updated", "document.moved", "document.restored"];
+const HEAD_EVENTS: readonly WSEventType[] = [
+  "document.version_created",
+  "document.updated",
+  "document.moved",
+  "document.restored",
+];
 /** Feed pages read per catch-up; a workspace beyond that is caught up on the next reconnect. */
 const FEED_PAGES = 50;
 
@@ -40,8 +49,10 @@ const documentOf = (payload: unknown): string | null =>
 
 function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }: FrameRemoteSourceOptions): void {
   const client = useOptionalWS()?.client ?? null;
-  const latest = useRef({ onHead, onBlocked });
-  latest.current = { onHead, onBlocked };
+  const userId = useAuthStore((s) => s.user?.id ?? "");
+  const { t } = useTranslation();
+  const latest = useRef({ onHead, onBlocked, userId, t });
+  latest.current = { onHead, onBlocked, userId, t };
   // The feed cursor survives reconnects of this document's session; a new document starts cold.
   const cursor = useRef<{ documentId: string; value: string } | null>(null);
 
@@ -55,7 +66,13 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
       try {
         const doc = await getDocument(documentId, abort.signal);
         if (!doc || !live() || !news) return;
-        latest.current.onHead({ revision: doc.revision, versionId: doc.file?.version_id ?? null, savedAt: doc.updated_at || new Date().toISOString() });
+        const own = doc.updated_by !== "" && doc.updated_by === latest.current.userId && doc.updated_by_kind === "human";
+        latest.current.onHead({
+          revision: doc.revision, versionId: doc.file?.version_id ?? null, savedAt: doc.updated_at || new Date().toISOString(),
+          // Your own new version names you (D-3): "…do bạn lưu…" / "…saved by you…". Another member's
+          // or an agent's head carries no author_name; the frame falls back to "a member".
+          ...(own ? { authorName: latest.current.t("office.docsFrame.remote_author_you") } : {}),
+        });
       } catch (error) {
         if (!live() || !(error instanceof ApiError)) return;
         // Anything else (offline, 5xx) is not a verdict: the next frame or reconnect asks again.
@@ -100,6 +117,9 @@ function useFrameRemoteSource({ wsId, documentId, syncFeed, onHead, onBlocked }:
       client.on("document.deleted", (payload) => { if (documentOf(payload) === documentId) latest.current.onBlocked("document_deleted"); }),
       // A revoked share says nothing of who lost access: the head read answers 403 for them only.
       client.on("document.share_revoked", (payload) => { if (documentOf(payload) === documentId) void readHead(); }),
+      // A home-row access change may have restricted this viewer out: the head read answers 403 for
+      // them only; with the flag off it gives the block verdict alone, no S6 news (S11 is flag-independent).
+      client.on("document.workspace_access_changed", (payload) => { if (documentOf(payload) === documentId) void readHead(syncFeed); }),
       // With the feed off a reconnect still asks the head once: a delete or a revoke while the
       // socket was down must block now, not at the next refused Save (S11 is flag-independent).
       client.onReconnect(() => { if (syncFeed) void catchUp(); else void readHead(false); }),

@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, ArchiveRestore, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, Lock, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -18,23 +19,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
+import {
+  DocumentShareScopeBadge,
+  isPlainHomeWorkspaceScope,
+} from "./document-share-scope-badge";
 import { DocumentTypeIcon } from "./document-type-icon";
+import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { libraryCell, type LibraryLadder } from "./library-columns";
 import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
-import { sourceLinkLabelKey } from "./source-links";
+import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
 import {
   formatBytes,
   isFolderRow,
   rowFormat,
   rowAccessLabelKey,
-  rowOrigin,
   rowSizeBytes,
   rowTitle,
   rowUpdatedAt,
-  rowVisibilityLabelKey,
   type DocumentSummaryRow,
   type LibraryRow,
 } from "./library-rows";
@@ -49,6 +55,10 @@ export interface LibraryRowHandlers {
   onOpen: (documentId: string) => void;
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
+  /** Image sources only: fetches the bytes and opens them view-only. */
+  onPreviewSource?: (sourceId: string, name: string) => void;
+  /** Office formats the server marks openable (UNI-1869): opens the view-only module frame; absent falls back to download. */
+  onViewSource?: (source: DocumentSourceFile) => void;
   onDownloadSource: (sourceId: string) => void;
   onSaveSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Absent outside an organization (no favorites there). */
@@ -62,8 +72,10 @@ export interface LibraryRowHandlers {
   onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
-  /** Restore a trashed folder from the Archive scope (manage); absent hides it. */
-  onRestore?: (doc: DocumentSummaryRow) => void;
+  /** Lưu trữ (ARCHIVE-01 U-4): manage-only, hidden on My Folder; the page
+   *  wires it so a folder opens the confirm dialog and a document shelves at
+   *  once with an undo toast. */
+  onShelve?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
@@ -90,25 +102,22 @@ function initial(name: string): string {
 export function LibraryRowView({
   row,
   handlers,
-  archived,
   ladder,
-  typeCell,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
-  archived: boolean;
   /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
   ladder: LibraryLadder;
-  typeCell?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
-  const title = rowTitle(row) || t("documents.detail.untitled");
-  const format = rowFormat(row);
-  const origin = rowOrigin(row);
-  const folder = isFolderRow(row);
   const doc = row.type === "document" ? row.doc : null;
+  const myFolder = isMyFolder(doc);
+  const title = (myFolder ? t("documents.home.my_folder.label") : rowTitle(row)) || t("documents.detail.untitled");
+  const format = rowFormat(row);
+  const folder = isFolderRow(row);
   const source = row.type === "source" ? row.source : null;
+  const sourceLinked = source ? sourceParentLinked(source.parent) : false;
 
   const editor = doc
     ? doc.updated_by
@@ -124,34 +133,42 @@ export function LibraryRowView({
   // A starred row whose document is not in any loaded list has no version or
   // organisation yet: no app action until the document is known.
   const desktop =
-    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !archived
+    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !doc.archived_at
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
-  const accessKey = rowAccessLabelKey(row);
-  const visibilityKey = rowVisibilityLabelKey(row);
-  const restricted = doc?.visibility === "restricted";
-  const metaLine = [editor, updated, size].filter(Boolean).join(" · ");
+  // The board's Truy cập cell: scope badge on line 1 (DocumentShareScopeBadge),
+  // the viewer's level on line 2, "Chủ sở hữu" when the row's via is owner.
+  // The narrow secondary line shows the level word and any non-default scope until the column joins.
+  const levelKey = rowAccessLabelKey(row);
+  // A row without `share_scope` shows no scope; it is never guessed from `visibility`.
+  const scope = doc?.share_scope ?? null;
+  const showNarrowScope = Boolean(scope && !isPlainHomeWorkspaceScope(scope));
+  const levelLabel = doc?.via === "owner" ? t("documents.home.access.owner") : levelKey ? t(levelKey) : null;
+  const starred = Boolean(doc && handlers.isStarred(doc.id));
+  const metaTail = [updated, size].filter(Boolean).join(" · ");
 
-  // A trashed folder is not browsable: its primary action is Restore when the
-  // viewer may restore it, and without that the name is plain text, not a link.
-  const trashedFolder = Boolean(doc) && folder && archived;
-  const canRestore = Boolean(handlers.onRestore) && canArchiveRow(level);
+  // A row whose archive stamp survived into a live list is inert: the trash
+  // view (its own rows) owns restore/purge, so here nothing runs on it.
+  const trashed = Boolean(doc?.archived_at);
 
   const primary = () => {
-    if (doc && trashedFolder) {
-      if (canRestore) handlers.onRestore?.(doc);
-    } else if (doc && folder) handlers.onFolder(doc.id);
+    if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
-    else if (row.type === "source") handlers.onGoToSource(row);
+    else if (row.type === "source") {
+      // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
+      // row can (image preview, or the module frame for an Office format),
+      // else downloads it; "Xem nơi đính kèm" is a secondary.
+      const open = sourceOpenAction(row.source);
+      if (open === "image" && handlers.onPreviewSource) handlers.onPreviewSource(row.source.id, row.source.name);
+      else if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
+      else handlers.onDownloadSource(row.source.id);
+    }
   };
 
   const actions: RowAction[] = [];
-  // A trashed folder is not browsable: its menu offers Restore instead of Open.
-  if (doc && trashedFolder) {
-    if (canRestore) {
-      actions.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore, run: () => handlers.onRestore?.(doc) });
-    }
+  if (doc && trashed) {
+    // No live-list command applies to a trashed row; the badge says why.
   } else if (doc && folder) {
     actions.push({ id: "open-folder", label: t("documents.home.row.open_folder"), icon: FolderOpen, run: primary });
   } else if (doc) {
@@ -159,29 +176,35 @@ export function LibraryRowView({
     if (desktop) {
       actions.push({ id: "open-app", label: t("documents.home.row.open_app"), icon: MonitorUp, run: () => void appRequest.current?.() });
     }
-    if (handlers.onToggleStar) {
-      const starred = handlers.isStarred(doc.id);
-      actions.push({
-        id: "star",
-        label: starred ? t("documents.home.row.unstar") : t("documents.home.row.star"),
-        icon: starred ? StarOff : Star,
-        run: () => handlers.onToggleStar?.(doc.id, starred),
-      });
-    }
+  }
+  // Star / Unstar reaches folders too (SV-4): every row but a trashed folder,
+  // wherever the host passes onToggleStar (home table, folder view, Starred).
+  if (doc && !trashed && handlers.onToggleStar) {
+    actions.push({
+      id: "star",
+      label: starred ? t("documents.home.row.unstar") : t("documents.home.row.star"),
+      icon: starred ? StarOff : Star,
+      run: () => handlers.onToggleStar?.(doc.id, starred),
+    });
   }
   // Each command follows the level of THIS row (create subfolder / rename /
-  // move: edit, archive: manage); the archive tab offers none of them.
-  if (doc && !archived) {
+  // move: edit, archive: manage); a trashed row offers none of them.
+  if (doc && !trashed) {
     if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
       actions.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
     }
-    if (handlers.onRename && canMoveRow(level)) {
+    if (!myFolder && handlers.onRename && canMoveRow(level)) {
       actions.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
     }
-    if (handlers.onMove && canMoveRow(level)) {
+    if (!myFolder && handlers.onMove && canMoveRow(level)) {
       actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
     }
-    if (handlers.onArchive && canArchiveRow(level)) {
+    if (handlers.onShelve && canArchiveRow(level) && !myFolder && !isShelved(doc)) {
+      // U-4: shelve sits beside the trash command, manage-only and never on
+      // the My Folder root; the page decides document-now vs folder-dialog.
+      actions.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
+    }
+    if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
       // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
       actions.push(
         folder
@@ -191,16 +214,19 @@ export function LibraryRowView({
     }
   }
   if (row.type === "source") {
-    actions.push(
-      { id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: ExternalLink, run: primary },
-      { id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) },
-    );
+    // A parent kind with no route offers neither the menu item nor the button.
+    if (sourceLinked) {
+      actions.push({ id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: sourceLinkIcon(row.source.parent), run: () => handlers.onGoToSource(row) });
+    }
+    actions.push({ id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) });
     // Only a file the server marks as copyable offers the save.
     if (row.source.can_save) {
       actions.push({ id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) });
     }
   }
-
+  // The app command joins the actions cell only when its column is wide
+  // enough (the ladder's quick rung); the source's own link button below
+  // is icon-sized and rendered at every width.
   const quick = desktop ? (
     <DesktopOpenAction
       {...desktop}
@@ -209,11 +235,29 @@ export function LibraryRowView({
       operation={rowAppOperation(level)}
       requestRef={appRequest}
     />
-  ) : source ? (
-    <Button type="button" variant="outline" size="xs" onClick={() => handlers.onDownloadSource(source.id)}>
-      <Download aria-hidden />
-      {t("documents.home.row.download")}
-    </Button>
+  ) : null;
+
+  // S2V-2/3: "Xem nơi đính kèm" / "Mở Email" as an icon button, so it fits the
+  // actions column at every width instead of covering Size. The words live on
+  // the tooltip and inside the accessible name.
+  const SourceLinkGlyph = source ? sourceLinkIcon(source.parent) : null;
+  const sourceLink = source && sourceLinked && SourceLinkGlyph ? (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label={t(sourceLinkNamedLabelKey(source.parent), { title })}
+            onClick={() => row.type === "source" && handlers.onGoToSource(row)}
+          />
+        }
+      >
+        <SourceLinkGlyph aria-hidden />
+      </TooltipTrigger>
+      <TooltipContent>{t(sourceLinkLabelKey(source.parent))}</TooltipContent>
+    </Tooltip>
   ) : null;
 
   const nameCell = (
@@ -221,24 +265,54 @@ export function LibraryRowView({
       <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="truncate text-body text-foreground">{title}</span>
-          {archived || doc?.archived_at ? (
+          {/* TV-12: the truncated name still reads in full on hover. */}
+          <span title={title} className="truncate text-body text-foreground">{title}</span>
+          {starred ? (
+            <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
+          ) : null}
+          {trashed ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
+          {doc?.edit_lock && !doc.edit_lock.held_by_me ? (
+            <EditLockHolderChip
+              name={doc.edit_lock.holder_name}
+              avatarUrl={doc.edit_lock.holder_avatar_url}
+              offlineHoldUntil={doc.edit_lock.offline_hold_until}
+            />
+          ) : null}
         </span>
-        {/* The editor · date · size part rides on this line until its columns join the table; the level and the restricted mark until My access / Visibility do (library-columns.ts). Only the meta part truncates: the mark keeps its width inside the Name cell. */}
-        {metaLine || accessKey || restricted ? (
-          <span data-library-access-line className={cn("flex min-w-0 items-center gap-1.5 overflow-hidden text-caption text-muted-foreground", ladder.accessLineHides)}>
-            {metaLine ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{metaLine}</span> : null}
-            {metaLine && (accessKey || restricted) ? (
-              <span aria-hidden className={cn("shrink-0", ladder.metaHides)}>·</span>
+        {/* Below 34rem the meta group (editor · date · size) and level · share scope stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
+        {editor || metaTail || levelLabel || showNarrowScope ? (
+          <span
+            data-library-access-line
+            className={cn(
+              "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[34rem]/library:flex-nowrap",
+              ladder.accessLineHides,
+            )}
+          >
+            {editor || metaTail ? (
+              <span
+                data-library-meta-line
+                className={cn(
+                  "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
+                  editor ? ladder.metaHides : ladder.metaTailHides,
+                )}
+              >
+                {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
+                {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
+                {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
+              </span>
             ) : null}
-            {accessKey ? <span className="shrink-0">{t(accessKey)}</span> : null}
-            {accessKey && restricted ? <span aria-hidden className="shrink-0">·</span> : null}
-            {restricted && visibilityKey ? (
-              <span className="flex shrink-0 items-center gap-1">
-                <Lock aria-hidden className="size-3 shrink-0" />
-                {t(visibilityKey)}
+            {editor && (levelLabel || showNarrowScope) ? (
+              <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaHides)}>·</span>
+            ) : null}
+            {levelLabel || showNarrowScope ? (
+              <span data-library-access-group className="flex shrink-0 items-center gap-1.5">
+                {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
+                {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
+                {showNarrowScope ? (
+                  <DocumentShareScopeBadge shareScope={doc?.share_scope} workspaceId={doc?.workspace_id} compact focusable={false} />
+                ) : null}
               </span>
             ) : null}
           </span>
@@ -255,7 +329,7 @@ export function LibraryRowView({
         className="group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40"
       >
         <td className="px-3 py-2">
-          {trashedFolder && !canRestore ? (
+          {trashed ? (
             <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
           ) : (
             <button type="button" onClick={primary} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">
@@ -263,14 +337,19 @@ export function LibraryRowView({
             </button>
           )}
         </td>
-        {typeCell !== undefined ? (
-          <td className={cn("truncate px-3 py-2 text-caption text-muted-foreground", libraryCell(ladder, "type"))}>{typeCell}</td>
-        ) : null}
-        <td className={cn("px-3 py-2", libraryCell(ladder, "source"))}>
-          <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", origin === "created" || origin === "documents" ? "bg-primary" : "bg-muted-foreground")} />
-            <span className="truncate">{t(`documents.home.origin.${origin}`)}</span>
-          </span>
+        <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "access"))}>
+          {scope ? (
+            <DocumentShareScopeBadge
+              shareScope={doc?.share_scope}
+              workspaceId={doc?.workspace_id}
+              className="flex gap-1.5"
+            />
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+          {levelLabel ? (
+            <span className="block truncate text-muted-foreground">{t("documents.home.access.you_prefix", { level: levelLabel })}</span>
+          ) : null}
         </td>
         <td className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
           {editor ? (
@@ -286,30 +365,19 @@ export function LibraryRowView({
         </td>
         <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>{updated || "—"}</td>
         <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>{size || "—"}</td>
-        {/* My access / Visibility exist only where the ladder has room for them; until then the secondary line carries them. */}
-        {libraryCell(ladder, "access") ? (
-          <td className={cn("px-3 py-2 text-caption text-foreground", libraryCell(ladder, "access"))}>
-            {accessKey ? <span className="block truncate">{t(accessKey)}</span> : <span className="text-muted-foreground">—</span>}
-          </td>
-        ) : null}
-        {libraryCell(ladder, "visibility") ? (
-          <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "visibility"))}>
-            {visibilityKey ? (
-              <span className="flex items-center gap-1.5 text-foreground">
-                {restricted ? <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
-                <span className="truncate">{t(visibilityKey)}</span>
-              </span>
-            ) : (
-              <span className="text-muted-foreground">—</span>
-            )}
-          </td>
-        ) : null}
         <td className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (
               // Until the actions column widens (first ladder rung) the app command lives in the ⋯ menu so the name keeps the row.
               <div className={cn("opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100", ladder.quick)}>
                 {quick}
+              </div>
+            ) : null}
+            {sourceLink ? (
+              // Every width, not the quick rung: hover/focus reveals it on a
+              // fine pointer, a coarse pointer shows it always (no hover there).
+              <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+                {sourceLink}
               </div>
             ) : null}
             {actions.length > 0 ? (

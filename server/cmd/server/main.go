@@ -322,6 +322,7 @@ func main() {
 	// (user decision 2026-10-14; docs/ops/RUNBOOK_FILE_GC.md).
 	fileSvc, err := service.NewFileService(service.FileServiceOptions{
 		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(), KeyRoot: storageCfg.KeyRoot,
+		DocumentMaxBytes:   cfg.EffectiveDocumentMaxBytes(),
 		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
 		// storage.bytes reservations for the Document purposes (G1-03): the
 		// hook ignores every other purpose.
@@ -392,6 +393,16 @@ func main() {
 			ClaimTTL:  cfg.DocumentCommitIntentClaimTTL,
 			Retention: cfg.DocumentCommitIntentRetention,
 			SweepTick: cfg.DocumentCommitIntentSweepTick,
+		},
+		// The edit lock timing (UNI-1645 §7), validated by config.Load.
+		EditLock: service.DocumentEditLockConfig{
+			TTL:               cfg.DocumentEditLockTTL,
+			Heartbeat:         cfg.DocumentEditLockHeartbeat,
+			SweepInterval:     cfg.DocumentEditLockSweepInterval,
+			HoldMax:           cfg.DocumentEditHoldMax,
+			HoldChainMax:      cfg.DocumentEditHoldChainMax,
+			RequestTTL:        cfg.DocumentEditRequestTTL,
+			RequestMaxPerHour: cfg.DocumentEditRequestMaxPerHour,
 		},
 	})
 	// The document maintenance worker (auto-version, purge, compaction -
@@ -473,6 +484,12 @@ func main() {
 	officeLeases := service.NewOfficeLeaseService(documentSvc, flags, cfg)
 	officeLeaseSweep := officeLeases.NewSweeper(log)
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(documentSvc))
+	// The edit lock (UNI-1645 §3.5): the releaser ends tenures on a revoked
+	// session, lost access, suspension and delete - audit + outbox across
+	// several tables, so it rides the notify lane, not realtime - and the
+	// expiry sweep is awaited in the shutdown sequence below.
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewDocumentEditLockReleaser(documentSvc))
+	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
 	}
@@ -573,6 +590,10 @@ func main() {
 	// below.
 	officeLeaseSweepDone := make(chan struct{})
 	go func() { officeLeaseSweep.Run(runCtx); close(officeLeaseSweepDone) }()
+	// The edit lock expiry sweep (UNI-1645 §3.5) stops with runCancel and is
+	// awaited below.
+	editLockSweepDone := make(chan struct{})
+	go func() { editLockSweep.Run(runCtx); close(editLockSweepDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
 	// callbacks and the provider-event ledger past their windows. It stops with
 	// runCancel and is awaited below.
@@ -858,6 +879,11 @@ func main() {
 	case <-officeLeaseSweepDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("office: offline lease sweep did not stop in time")
+	}
+	select {
+	case <-editLockSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: edit lock sweep did not stop in time")
 	}
 	select {
 	case <-retentionDone:

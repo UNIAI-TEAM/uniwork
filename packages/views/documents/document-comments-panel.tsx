@@ -40,6 +40,7 @@ const STATUS_KEYS: Record<Exclude<PanelStatus, null>, string> = {
   server: K.collabServerError,
   signedOut: K.collabSignedOut,
   viewOnly: K.collabViewOnly,
+  shelved: "documents.shelved_doc.comments_status",
 };
 
 type FocusRequest = { rootId: string; target: "heading" | "resolve" | "scroll" } | null;

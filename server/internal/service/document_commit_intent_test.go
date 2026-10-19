@@ -104,7 +104,7 @@ func (e *intentEnv) claimFor(t *testing.T, actor Actor, d db.Document, up Docume
 // transaction with its fence) for a claim taken earlier, returning the answer
 // the attempt got (a replay of another attempt's ledger row when one exists).
 func (e *intentEnv) finishAttempt(d db.Document, file files.File, up DocumentUpload, key string, opts IdempotencyOptions, claim commitIntentClaim, actor Actor) (DocumentFileResult, error) {
-	res, _, err := e.svc.commitClaimedFileVersion(context.Background(), actor, d, documentScope(d.OrganizationID, d.WorkspaceID), file,
+	res, _, _, err := e.svc.commitClaimedFileVersion(context.Background(), actor, d, documentScope(d.OrganizationID, d.WorkspaceID), file,
 		CommitFileVersionInput{UploadID: up.UploadID, BaseRevision: d.Revision, IdempotencyKey: key}, opts, &claim)
 	return res, err
 }

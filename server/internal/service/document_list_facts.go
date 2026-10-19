@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -15,10 +16,13 @@ const (
 
 // DocumentListFacts is what a list row shows beside the document metadata.
 // SizeBytes is the size of the file version the document points at (0 for
-// pages and folders).
+// pages and folders). Format is the library file format of that version - the
+// MIME it was verified as, else the title's extension (internal/files); empty
+// for a page, a folder and a file neither names.
 type DocumentListFacts struct {
 	SizeBytes int64
 	Origin    string
+	Format    string
 }
 
 // attachListFacts fills Facts on one page of list items. Every item of a
@@ -81,6 +85,10 @@ func (s *DocumentService) listFacts(ctx context.Context, organizationID string, 
 			continue
 		}
 		out[i].SizeBytes = r.SizeBytes
+		// The library format the row is filtered by and reported with: the
+		// MIME the current version was verified as, else the title's
+		// extension (UNI-1868, internal/files).
+		out[i].Format = files.DocumentFormat(r.MimeType.String, d.Title)
 		if r.EngineMade {
 			out[i].Origin = DocumentOriginCreated
 		}

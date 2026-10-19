@@ -10,12 +10,13 @@ const DOCUMENT_URL = /\/documents\/[0-9A-HJKMNP-TV-Z]{26}$/;
  * The name button of one library row. Its accessible name is the file-type
  * mark's label plus the title ("Tài liệu Word Báo giá.docx"), so an exact or
  * start-anchored match misses it; the row menu trigger ("Thao tác cho <title>")
- * also contains the title, hence the lookahead. A string is matched as a
+ * also contains the title, as do the source-row icon buttons (go to source, open
+ * Email), hence the lookahead. A string is matched as a
  * literal substring, a RegExp as given.
  */
 export function libraryRowButton(table: Locator, title: string | RegExp): Locator {
   const source = typeof title === "string" ? title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : title.source;
-  return table.getByRole("button", { name: new RegExp(`^(?!Thao tác cho ).*${source}`) });
+  return table.getByRole("button", { name: new RegExp(`^(?!Thao tác cho |Xem nơi đính kèm: |Mở Email: |View where attached: |Open Email: ).*${source}`) });
 }
 
 /** Screenshot helper bound to one evidence directory (created on first use). */
@@ -71,12 +72,12 @@ export async function signIn(page: Page, w: WorkspaceSeed) {
   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
 }
 
-/** The "Page" create card of the Documents home (it keeps today's New page flow). */
+/** The UniWork page ("UniNote") pill of the Tạo nhanh strip at the Documents home root (the create cards are gone). */
 export function newPageCard(page: Page) {
-  return page.getByRole("list", { name: "Tạo mới" }).getByRole("button", { name: /^Trang/ });
+  return page.getByRole("region", { name: "Tạo nhanh" }).getByRole("button", { name: /^UniNote/ });
 }
 
-/** New page from the library, `text` typed and confirmed saved; returns its URL. */
+/** New UniNote from the library, `text` typed and confirmed saved; returns its URL. */
 export async function createPageWithText(page: Page, w: WorkspaceSeed, text: string): Promise<string> {
   await page.goto(`/${w.orgSlug}/${w.wsSlug}/documents`);
   await newPageCard(page).click();

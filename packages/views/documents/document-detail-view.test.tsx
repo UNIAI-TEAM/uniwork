@@ -51,7 +51,7 @@ function narrowDocument(parsed: ReturnType<typeof DocumentSchema.parse>): Docume
     visibility: parsed.visibility as Document["visibility"],
     my_level: parsed.my_level as Document["my_level"],
     via: parsed.via as Document["via"],
-    owner_kind: parsed.owner_kind as Document["owner_kind"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"],
   };
 }
 
@@ -1006,7 +1006,7 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     });
     renderWithNav(fakeNav("/acme/team/documents/d1"));
     fireEvent.click(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") }));
-    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Kế hoạch Q3" }) });
     expect(await within(dialog).findByText(t("documents.share.admin_scope_note"))).toBeInTheDocument();
     // DOC-05 opens the owner transfer and the add-share form to admin_scope.
     expect(
@@ -1015,6 +1015,51 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     expect(within(dialog).getByText(t("documents.share.add_title"))).toBeInTheDocument();
     // Admins manage but never read: no body request beyond the refused one.
     expect(requestMock.mock.calls.filter(([p]) => p === "/api/v1/documents/d1")).toHaveLength(1);
+  });
+
+  it("marks the admin-summary document workspace as home and offers the route workspace as an ordinary one when they differ (BE-SHS1-41)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/documents/d1") return Promise.reject(restricted());
+      if (path === "/api/v1/documents/d1/admin-summary") {
+        return Promise.resolve(summaryBody({ document: { ...summaryBody().document, workspace_id: "w2" } }));
+      }
+      if (path === "/api/v1/documents/d1/shares") {
+        return Promise.resolve({
+          my_level: "",
+          admin_scope: true,
+          acl_owner: { user_id: "01HOWNERULID", level: "none", via: "member" },
+          shares: [],
+          links: [],
+        });
+      }
+      if (path === "/api/v1/documents/d1/access-requests") return Promise.resolve({ requests: [] });
+      // No candidate service: the picker builds its directory from the org workspaces.
+      if (path.includes("/share-candidates")) return Promise.reject(new ApiError("not found", "not_found", 404));
+      if (path === "/api/v1/orgs/org1/workspaces") {
+        return Promise.resolve({
+          workspaces: [
+            { id: WS, slug: "team", name: "Team", organization_id: "org1", organization_slug: "acme", organization_name: "Acme" },
+            { id: "w2", slug: "design", name: "Design", organization_id: "org1", organization_slug: "acme", organization_name: "Acme" },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderWithNav(fakeNav("/acme/team/documents/d1"));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.share.admin_manage_button") }));
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Kế hoạch Q3" }) });
+    await within(dialog).findByText(t("documents.share.add_title"));
+
+    // The picker opens from the keyboard (Base UI), as in share-dialog.test.tsx.
+    const input = within(dialog).getByRole("combobox", { name: t("documents.share.principal_placeholder") });
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    // The route workspace is offered as an ordinary workspace; the document's own
+    // workspace (Design, from the admin summary) is the home one, never the route's.
+    const team = await screen.findByRole("option", { name: /Team/ });
+    expect(within(team).queryByText(t("documents.share.home_badge"))).toBeNull();
+    const design = screen.getByRole("option", { name: /Design/ });
+    expect(within(design).getByText(t("documents.share.home_badge"))).toBeInTheDocument();
   });
 
   it("opens Share at the requests section from ?access=requests and drops the parameter", async () => {
@@ -1029,7 +1074,7 @@ describe("DocumentDetailView break-glass (R21 H2, H3, M1, M5)", () => {
     });
     const nav = fakeNav("/acme/team/documents/d1?access=requests&x=1");
     renderWithNav(nav);
-    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title") });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.share.title_named", { title: "Kế hoạch Q3" }) });
     expect(
       await within(dialog).findByRole("heading", { name: t("documents.access_request.section_title", { count: 0 }) }),
     ).toBeInTheDocument();

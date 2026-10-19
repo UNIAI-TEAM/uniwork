@@ -23,6 +23,9 @@ type documentServiceOptions struct {
 	Metrics       service.DocumentMetrics
 	IntentMetrics service.OfficeIntentMetrics
 	Policy        service.CommitIntentPolicy
+	// EditLock is the DOCUMENT_EDIT_* timing (UNI-1645 §7); a zero field keeps
+	// the addendum default.
+	EditLock service.DocumentEditLockConfig
 }
 
 // newDocumentService builds the process's one DocumentService (BE-I4-1). The
@@ -44,5 +47,6 @@ func newDocumentService(o documentServiceOptions) *service.DocumentService {
 	svc.SetIntentMetrics(o.IntentMetrics)
 	svc.SetCommitIntentPolicy(o.Policy)
 	svc.SetFlags(o.Flags)
+	svc.SetEditLockConfig(o.EditLock)
 	return svc
 }

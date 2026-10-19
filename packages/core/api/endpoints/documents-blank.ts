@@ -1,7 +1,17 @@
-import { DocumentEnvelopeSchema, type Document } from "../../types/document";
+import {
+  DocumentEnvelopeSchema,
+  type Document,
+  type DocumentVisibility,
+} from "../../types/document";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
-import type { DocumentRequestOpts } from "./documents";
+import {
+  DOCUMENT_DESTINATIONS,
+  type DocumentCreateDestination,
+  type DocumentRequestOpts,
+} from "./documents";
+
+export { DOCUMENT_DESTINATIONS, type DocumentCreateDestination };
 
 // Blank file documents: the server seeds an empty docx/xlsx/pptx/md/html/pdf
 // so the person can open it in the matching editor straight away.
@@ -9,11 +19,14 @@ import type { DocumentRequestOpts } from "./documents";
 export const BLANK_DOCUMENT_FORMATS = ["docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
 export type BlankDocumentFormat = (typeof BLANK_DOCUMENT_FORMATS)[number];
 
-export interface CreateBlankDocumentBody {
+export type CreateBlankDocumentBody = {
   format: BlankDocumentFormat;
   title: string;
-  parent_id?: string;
-}
+  visibility?: DocumentVisibility;
+} & (
+  | { parent_id?: string; destination?: never }
+  | { destination?: DocumentCreateDestination; parent_id?: never }
+);
 
 /** POST /api/v1/workspaces/{workspaceID}/documents/files/blank. */
 export async function createBlankDocumentFile(

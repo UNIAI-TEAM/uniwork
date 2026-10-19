@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
-import { DocumentAccessSchema } from "../../types/document";
+import {
+  DOCUMENT_SYSTEM_KINDS,
+  DocumentAccessSchema,
+  isMyFolder,
+  type DocumentSystemKind,
+} from "../../types/document";
 import { ApiError } from "../http";
 import { setAccessToken } from "../session";
 import {
@@ -11,6 +16,7 @@ import {
   documentAssetPath,
   documentDownloadPath,
   downloadDocumentFile,
+  ensureMyFolder,
   getDocument,
   getDocumentAdminSummary,
   getDocumentAsset,
@@ -23,6 +29,8 @@ import {
   revokeDocumentBreakGlass,
   uploadDocumentAsset,
   uploadDocumentFile,
+  type CreateDocumentBody,
+  type CreateDocumentFileMeta,
 } from "./documents";
 import {
   commitDocumentVersion,
@@ -208,6 +216,13 @@ describe("documents endpoints", () => {
     expect(out?.version.version).toBe(2);
   });
 
+  it("commitDocumentVersion sends edit_lock_id in the body when the holder names one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ revision: "42" }), version: versionBody() }));
+    await commitDocumentVersion("d1", { upload_id: "f1", base_revision: "41", edit_lock_id: "lock-1" }, { idempotencyKey: "key-9" });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({ upload_id: "f1", base_revision: "41", edit_lock_id: "lock-1" });
+  });
+
   it("listDocumentVersions maps next_cursor and joins pages by key prefix", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ versions: [versionBody()], next_cursor: "abc" }),
@@ -236,6 +251,13 @@ describe("documents endpoints", () => {
     await restoreDocumentVersion("d1", 1, { baseRevision: "43" });
     const [, initWithBase] = vi.mocked(fetch).mock.calls[1]!;
     expect(JSON.parse(String(initWithBase?.body))).toEqual({ base_revision: "43" });
+    // UNI-1645: a restore replaces content, so it carries the edit lock.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ revision: "45" }), version: versionBody({ reason: "restore" }) }),
+    );
+    await restoreDocumentVersion("d1", 1, { editLockId: "lock-1" });
+    const [, initWithLock] = vi.mocked(fetch).mock.calls[2]!;
+    expect(JSON.parse(String(initWithLock?.body))).toEqual({ edit_lock_id: "lock-1" });
   });
 
   it("getDocumentDownloadMeta requests meta=1 and keeps version", async () => {
@@ -539,6 +561,15 @@ describe("documents endpoints", () => {
     expect(absent?.document.revision).toBeUndefined();
   });
 
+  it("getDocumentAdminSummary reads a missing or malformed workspace_id as empty instead of failing the summary", async () => {
+    const base = { id: "d1", kind: "page", title: "Tài liệu hạn chế", visibility: "restricted" };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ document: base, my_level: "" }))
+      .mockResolvedValueOnce(json({ document: { ...base, workspace_id: 7 }, my_level: "" }));
+    expect((await getDocumentAdminSummary("d1"))?.document).toMatchObject({ id: "d1", workspace_id: "" });
+    expect((await getDocumentAdminSummary("d1"))?.document).toMatchObject({ id: "d1", workspace_id: "" });
+  });
+
   it("DocumentSchema parses break_glass_expires_at and DocumentAccessSchema tolerates malformed break_glass items", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({
@@ -638,5 +669,143 @@ describe("documents endpoints", () => {
     expect(parseDocumentAccessError(new ApiError("no", "forbidden", 403))).toBeNull();
     expect(parseDocumentAccessError(null)).toBeNull();
     expect(parseDocumentAccessError("nope")).toBeNull();
+  });
+
+  // ---- MYFOLDER-01 (UNI-1850): system_kind + isMyFolder ------------------
+
+  it("getDocument parses system_kind, narrows to my_folder, and degrades unknown or malformed values", async () => {
+    expect(DOCUMENT_SYSTEM_KINDS).toEqual(["my_folder"]);
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: "my_folder" }) }),
+    );
+    const myFolder = await getDocument("d1");
+    const kind: DocumentSystemKind | null | undefined = myFolder?.system_kind;
+    expect(kind).toBe("my_folder");
+    expect(isMyFolder(myFolder)).toBe(true);
+
+    // Unknown string enum value parses through z.string() and degrades to false in isMyFolder.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: "future_system_folder" }) }),
+    );
+    const unknownKind = await getDocument("d1");
+    expect(unknownKind?.id).toBe("d1");
+    expect(isMyFolder(unknownKind)).toBe(false);
+
+    // Non-string malformed value degrades to undefined without failing the document read.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "folder", system_kind: 42 }) }),
+    );
+    const malformedKind = await getDocument("d1");
+    expect(malformedKind?.id).toBe("d1");
+    expect(malformedKind?.system_kind).toBeUndefined();
+    expect(isMyFolder(malformedKind)).toBe(false);
+
+    expect(isMyFolder(null)).toBe(false);
+    expect(isMyFolder(undefined)).toBe(false);
+    expect(isMyFolder({ system_kind: null })).toBe(false);
+  });
+
+  it("ensureMyFolder posts to /workspaces/{ws}/documents/my-folder and parses the document envelope", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: docBody({
+          id: "mf1",
+          kind: "folder",
+          system_kind: "my_folder",
+          title: "My Folder",
+          visibility: "restricted",
+        }),
+      }),
+    );
+    const out = await ensureMyFolder("w 1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/w%201/documents/my-folder");
+    expect(init?.method).toBe("POST");
+    expect(out?.id).toBe("mf1");
+    expect(out?.kind).toBe("folder");
+    expect(out?.system_kind).toBe("my_folder");
+    expect(isMyFolder(out)).toBe(true);
+  });
+
+  it.each([...malformedBodies, { document: { id: "mf1" } }])(
+    "ensureMyFolder degrades malformed response %#",
+    async (body) => {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(ensureMyFolder("w1")).resolves.toBeNull();
+    },
+  );
+
+  // ---- MYFOLDER-01 (UNI-1850): destination: "my_folder" ------------------
+
+  it("createDocument and createDocumentFile send destination: my_folder without parent_id", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ parent_id: "mf1" }) }));
+    await createDocument("w1", { title: "Trang mới", destination: "my_folder" });
+    const [, docInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(docInit?.body))).toEqual({
+      title: "Trang mới",
+      destination: "my_folder",
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "file", parent_id: "mf1" }) }),
+    );
+    await createDocumentFile(
+      "w1",
+      new File(["bytes"], "brief.docx"),
+      { destination: "my_folder", title: "Báo cáo" },
+    );
+    const [, fileInit] = vi.mocked(fetch).mock.calls[1]!;
+    const form = fileInit?.body as FormData;
+    expect(Array.from(form.keys())).toEqual(["destination", "title", "file"]);
+    expect(form.get("destination")).toBe("my_folder");
+    expect(form.get("parent_id")).toBeNull();
+
+    // Type-level union: destination and parent_id/parentId cannot both compile.
+    // @ts-expect-error destination and parent_id are mutually exclusive
+    const badDocBody: CreateDocumentBody = { title: "x", destination: "my_folder", parent_id: "p1" };
+    // @ts-expect-error destination and parentId are mutually exclusive
+    const badFileMeta: CreateDocumentFileMeta = { destination: "my_folder", parentId: "p1" };
+    expect(badDocBody).toBeDefined();
+    expect(badFileMeta).toBeDefined();
+  });
+
+  // ---- SH-W2 (UNI-1785): create visibility (no level on the wire) ---------
+
+  it("createDocument and createDocumentFile send visibility and no workspace_level, before file", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ visibility: "workspace" }) }),
+    );
+    await createDocument("w1", {
+      title: "Kế hoạch",
+      visibility: "workspace",
+    });
+    const [, docInit] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(docInit?.body))).toEqual({
+      title: "Kế hoạch",
+      visibility: "workspace",
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ kind: "file", visibility: "workspace" }) }),
+    );
+    await createDocumentFile(
+      "w1",
+      new File(["bytes"], "brief.docx"),
+      {
+        parentId: "fo1",
+        title: "Báo cáo",
+        visibility: "workspace",
+      },
+    );
+    const [, fileInit] = vi.mocked(fetch).mock.calls[1]!;
+    const form = fileInit?.body as FormData;
+    expect(Array.from(form.keys())).toEqual([
+      "parent_id",
+      "title",
+      "visibility",
+      "file",
+    ]);
+    expect(form.get("visibility")).toBe("workspace");
+    expect(form.has("workspace_level")).toBe(false);
   });
 });

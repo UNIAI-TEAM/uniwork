@@ -144,6 +144,10 @@ export function AccessRequestsSection({ wsId, documentId, focusOnOpen = false }:
     }
   };
 
+  // null: the server has no access-requests route, so there is nothing to show
+  // (and nothing to retry).
+  if (requests.data === null) return null;
+
   return (
     <section aria-labelledby={titleId} className="rounded-lg border border-border">
       <div className="border-b border-border px-3 py-2">

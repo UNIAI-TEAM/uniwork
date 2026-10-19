@@ -18,6 +18,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -490,6 +492,95 @@ func TestDocumentAssetUploadAndStream(t *testing.T) {
 	}
 }
 
+// TestDocumentCommitIdenticalBytesNoOp is UNI-1900 on the REST commit route:
+// a second Save of the same bytes is 200 with the current version (D-E1), a
+// replay of that key and a third identical upload stay on that version, and
+// different bytes still mint version 2. The chunked upload-session path
+// stages an upload_id and then hits this same route.
+func TestDocumentCommitIdenticalBytesNoOp(t *testing.T) {
+	w := newDocsWorld(t)
+	txt := []byte("identical-bytes file body\n")
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"title": "same.txt"}, "same.txt", txt, map[string]string{"Idempotency-Key": "de1-create"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create: %d %s", res.StatusCode, raw)
+	}
+	var j map[string]any
+	_ = json.Unmarshal(raw, &j)
+	doc := j["document"].(map[string]any)
+	id := doc["id"].(string)
+	rev := doc["revision"].(string)
+	file, _ := doc["file"].(map[string]any)
+	versionID, _ := file["version_id"].(string)
+	if file["version"].(float64) != 1 || versionID == "" {
+		t.Fatalf("create file: %v", file)
+	}
+
+	stage := func(t *testing.T, name, key string, body []byte) string {
+		t.Helper()
+		res, raw := doMultipart(t, w.srv, "POST", "/api/v1/documents/"+id+"/uploads", w.token, nil, name, body, map[string]string{"Idempotency-Key": key})
+		if res.StatusCode != 201 {
+			t.Fatalf("upload %s: %d %s", name, res.StatusCode, raw)
+		}
+		var u map[string]any
+		_ = json.Unmarshal(raw, &u)
+		uploadID, _ := u["upload_id"].(string)
+		if uploadID == "" {
+			t.Fatalf("upload sdo: %s", raw)
+		}
+		return uploadID
+	}
+	versions := func(t *testing.T) int {
+		t.Helper()
+		res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+id+"/versions", w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("list versions: %d %v", res.StatusCode, out)
+		}
+		return len(out["versions"].([]any))
+	}
+
+	up := stage(t, "same-again.txt", "de1-up-1", txt)
+	res, out := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-1"}, map[string]any{"upload_id": up, "base_revision": rev})
+	if res.StatusCode != 200 {
+		t.Fatalf("identical commit: %d %v", res.StatusCode, out)
+	}
+	gotDoc := out["document"].(map[string]any)
+	gotVer := out["version"].(map[string]any)
+	if gotDoc["revision"] != rev || gotVer["id"] != versionID || gotVer["version"].(float64) != 1 {
+		t.Fatalf("identical commit moved the version: doc=%v ver=%v", gotDoc, gotVer)
+	}
+	if versions(t) != 1 {
+		t.Fatalf("versions after no-op = %d, want 1", versions(t))
+	}
+
+	res, replay := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-1"}, map[string]any{"upload_id": up, "base_revision": rev})
+	if res.StatusCode != 200 || replay["version"].(map[string]any)["id"] != versionID {
+		t.Fatalf("replay: %d %v", res.StatusCode, replay)
+	}
+	res, lookup := doJSONHeaders(t, w.srv, "GET", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-1"}, nil)
+	if res.StatusCode != 200 || lookup["outcome"] != "committed" || lookup["version_id"] != versionID ||
+		lookup["revision"] != rev {
+		t.Fatalf("intent lookup: %d %v", res.StatusCode, lookup)
+	}
+
+	up3 := stage(t, "same-third.txt", "de1-up-3", txt)
+	res, third := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-3"}, map[string]any{"upload_id": up3, "base_revision": rev})
+	if res.StatusCode != 200 || third["version"].(map[string]any)["id"] != versionID || versions(t) != 1 {
+		t.Fatalf("third identical: %d %v versions=%d", res.StatusCode, third, versions(t))
+	}
+
+	upDiff := stage(t, "different.txt", "de1-up-diff", []byte("different bytes entirely\n"))
+	res, diff := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "de1-commit-diff"}, map[string]any{"upload_id": upDiff, "base_revision": rev})
+	if res.StatusCode != 200 || diff["version"].(map[string]any)["version"].(float64) != 2 || versions(t) != 2 {
+		t.Fatalf("different bytes: %d %v versions=%d", res.StatusCode, diff, versions(t))
+	}
+}
+
 // TestDocumentsNilService501 proves every document route answers 501 (not a
 // panic) while the DocumentService is unwired, with the flag on.
 func TestDocumentsNilService501(t *testing.T) {
@@ -560,17 +651,84 @@ func TestDocumentJSONCaps(t *testing.T) {
 }
 
 func TestDocumentMultipartCap(t *testing.T) {
-	w := newDocsWorld(t)
-	_, id := createPage(t, w, "cap", nil)
+	const testCap int64 = 1 << 20
+	w := newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) }, func(d *Deps, pool *pgxpool.Pool) {
+		d.Cfg.DocumentMaxBytes = testCap
+		fake := filesfake.New(filesfake.Options{DocumentMaxBytes: testCap})
+		d.Documents.SetFiles(fake)
+	})
+	enableOfficeDocsWeb(t, w.q)
 
-	// > 50 MiB of multipart body hits the document_file request cap -> 413.
-	over := bytes.Repeat([]byte{7}, 50<<20+600<<10)
-	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/documents/"+id+"/uploads", w.token, nil, "big.pdf", over, nil)
-	if res.StatusCode != 413 {
-		t.Fatalf("multipart over cap: %d %s", res.StatusCode, raw[:min(len(raw), 200)])
+	// Exactly cap bytes is accepted across file create, version upload, and office-frame upload.
+	atCap := append([]byte("# Tiêu đề\n"), bytes.Repeat([]byte("a"), int(testCap)-len("# Tiêu đề\n"))...)
+	if int64(len(atCap)) != testCap {
+		t.Fatalf("atCap len = %d, want %d", len(atCap), testCap)
 	}
-	// Asset cap is 10 MiB.
-	res, _ = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+id+"/assets", w.token, nil, "big.png", bytes.Repeat([]byte{7}, 10<<20+600<<10), nil)
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"visibility": "workspace"}, "cap.md", atCap, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("create at cap (%d bytes): %d %s", len(atCap), res.StatusCode, raw)
+	}
+	var created struct {
+		Document struct {
+			ID string `json:"id"`
+		} `json:"document"`
+	}
+	if err := json.Unmarshal(raw, &created); err != nil {
+		t.Fatal(err)
+	}
+	docID := created.Document.ID
+
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/uploads", w.token, nil, "cap.md", atCap, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("upload at cap: %d %s", res.StatusCode, raw)
+	}
+
+	frameTok := w.mintFrameToken(t, docID)["token"].(string)
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/office-frame/documents/"+docID+"/uploads", frameTok, nil, "cap.md", atCap, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("office-frame upload at cap: %d %s", res.StatusCode, raw)
+	}
+
+	docxID := w.createDocx(t, "cap.docx", frameDocx(t, "cap"))
+	docsFrameTok := w.mintFrameToken(t, docxID)["token"].(string)
+
+	// cap + 1 bytes is rejected with 413 file_too_large and fields.max_bytes == testCap across upload and export routes,
+	// as well as when the multipart envelope itself exceeds the cap.
+	overByOne := append(append([]byte{}, atCap...), 'b')
+	overEnvelope := bytes.Repeat([]byte("a"), int(testCap)+(300<<10))
+	for _, tc := range []struct {
+		name  string
+		path  string
+		token string
+		body  []byte
+	}{
+		{"create cap+1", "/api/v1/workspaces/" + w.wsID + "/documents/files", w.token, overByOne},
+		{"upload cap+1", "/api/v1/documents/" + docID + "/uploads", w.token, overByOne},
+		{"office-frame upload cap+1", "/api/v1/office-frame/documents/" + docID + "/uploads", frameTok, overByOne},
+		{"office-frame export cap+1", "/api/v1/office-frame/documents/" + docxID + "/export/pdf", docsFrameTok, overByOne},
+		{"upload multipart envelope over cap", "/api/v1/documents/" + docID + "/uploads", w.token, overEnvelope},
+	} {
+		res, raw := doMultipart(t, w.srv, "POST", tc.path, tc.token, nil, "big.md", tc.body, nil)
+		if res.StatusCode != 413 {
+			t.Fatalf("%s: status = %d, want 413 (%s)", tc.name, res.StatusCode, raw[:min(len(raw), 200)])
+		}
+		var out map[string]any
+		if err := json.Unmarshal(raw, &out); err != nil {
+			t.Fatalf("%s: unmarshal 413: %v (%s)", tc.name, err, raw)
+		}
+		errObj, _ := out["error"].(map[string]any)
+		fields, _ := errObj["fields"].(map[string]any)
+		if errObj["code"] != "file_too_large" {
+			t.Fatalf("%s: error = %v, want code=file_too_large", tc.name, errObj)
+		}
+		if got, ok := fields["max_bytes"].(float64); !ok || int64(got) != testCap {
+			t.Fatalf("%s: fields.max_bytes = %v, want %d", tc.name, fields["max_bytes"], testCap)
+		}
+	}
+
+	// Asset cap remains 10 MiB.
+	res, _ = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/assets", w.token, nil, "big.png", bytes.Repeat([]byte{7}, 10<<20+600<<10), nil)
 	if res.StatusCode != 413 {
 		t.Fatalf("asset over cap: %d, want 413", res.StatusCode)
 	}

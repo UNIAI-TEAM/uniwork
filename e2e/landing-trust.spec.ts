@@ -23,7 +23,7 @@ for (const { width, locale, theme } of samples) {
     if (width === 1280) {
       // Client navigation retains global styles from the feature route.
       await gotoLanding(page, "/features/tasks");
-      await page.locator('.site-header a[href="/"]').first().click();
+      await page.locator(`.site-header a[href="${await landingHref(page, "/")}"]`).first().click();
     } else {
       await gotoLanding(page, "/");
     }

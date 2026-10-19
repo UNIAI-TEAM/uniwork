@@ -45,6 +45,8 @@ export interface DocumentEditorHandle {
    */
   adoptContent: (content: unknown, revision: string) => void;
   focus: (position?: "start" | "end") => void;
+  /** The live editor HTML, unsaved edits included ("Download my copy", UNI-1645 §9); "" before mount. */
+  getHTML: () => string;
 }
 
 export interface DocumentEditorProps {
@@ -238,6 +240,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           adoptedRevisionRef.current = revision;
         },
         focus: (position) => editor?.commands.focus(position),
+        getHTML: () => (editor && !editor.isDestroyed ? editor.getHTML() : ""),
       }),
       [editor],
     );

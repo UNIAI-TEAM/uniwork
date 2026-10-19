@@ -261,8 +261,11 @@ func TestDocumentListSearchTree(t *testing.T) {
 // visible documents, with no duplicate, leak or short page.
 func TestDocumentListPermissionBeforeLimit(t *testing.T) {
 	w := newDocsWorld(t)
-	_, visibleA := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible A", "kind": "page"})
-	_, visibleB := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible B", "kind": "page"})
+	// The visible pair is explicitly workspace-visible: U-SH2 makes a root
+	// create private unless the request opens the home row, and this case is
+	// about the list predicate, not the default.
+	_, visibleA := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible A", "kind": "page", "visibility": "workspace"})
+	_, visibleB := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible B", "kind": "page", "visibility": "workspace"})
 	_, hidden := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Hidden", "kind": "page", "visibility": "restricted"})
 	member, _ := docsJoinWorkspace(t, w, "docs-invisible-member@example.com")
 
@@ -709,23 +712,36 @@ func TestDocuments05bOpenAPI(t *testing.T) {
 	// The list route documents its filters; the move SDI carries examples.
 	var ops map[string]struct {
 		Parameters []struct {
-			Name string `json:"name"`
-			In   string `json:"in"`
+			Name        string `json:"name"`
+			In          string `json:"in"`
+			Description string `json:"description"`
+			Schema      struct {
+				Example any `json:"example"`
+			} `json:"schema"`
 		} `json:"parameters"`
 	}
 	if err := json.Unmarshal(spec.Paths["/api/v1/workspaces/{workspaceID}/documents"], &ops); err != nil {
 		t.Fatal(err)
 	}
 	got := map[string]bool{}
+	sharedByMeDesc := ""
+	var sharedByMeExample any
 	for _, param := range ops["get"].Parameters {
 		if param.In == "query" {
 			got[param.Name] = true
+			if param.Name == "shared_by_me" {
+				sharedByMeDesc = param.Description
+				sharedByMeExample = param.Schema.Example
+			}
 		}
 	}
-	for _, name := range []string{"parent_id", "q", "match", "kind", "archived", "updated_by", "updated_from", "updated_to", "cursor", "limit"} {
+	for _, name := range []string{"parent_id", "q", "match", "kind", "archived", "updated_by", "updated_from", "updated_to", "shared_by_me", "cursor", "limit"} {
 		if !got[name] {
 			t.Errorf("list spec missing query param %q", name)
 		}
+	}
+	if sharedByMeDesc == "" || sharedByMeExample != true {
+		t.Errorf("list spec shared_by_me description=%q example=%v, want non-empty and true", sharedByMeDesc, sharedByMeExample)
 	}
 	var recentOps map[string]struct {
 		Parameters []struct {
@@ -1157,4 +1173,124 @@ func TestDocumentRecentMatchValidation(t *testing.T) {
 			t.Fatalf("recent row %v unexpectedly carried path=%v", item["id"], item["path"])
 		}
 	}
+}
+
+func TestDocumentListSharedByMeHTTP(t *testing.T) {
+	w := newDocsWorld(t)
+	member, memberID := docsJoinWorkspace(t, w, "docs-sbm-member@example.com")
+
+	res, out := doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token, map[string]any{
+		"public_links_enabled": true,
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("enable public links: %d %v", res.StatusCode, out)
+	}
+
+	_, folderID := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Thư mục gốc", "kind": "folder", "visibility": "restricted",
+	})
+	_, wsVisDoc := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Workspace Visible", "kind": "page", "visibility": "workspace",
+	})
+	_, userSharedDoc := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "User Shared", "kind": "page", "visibility": "restricted",
+	})
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+userSharedDoc+"/shares", w.token, map[string]any{
+		"principal_type": "user", "principal_id": memberID, "level": "view",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("share userSharedDoc: %d %v", res.StatusCode, out)
+	}
+
+	_, orgSharedDoc := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Org Shared", "kind": "page", "visibility": "restricted",
+	})
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+orgSharedDoc+"/shares", w.token, map[string]any{
+		"principal_type": "organization", "principal_id": w.orgID, "level": "view",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("share orgSharedDoc: %d %v", res.StatusCode, out)
+	}
+
+	_, privateDoc := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Private Only", "kind": "page", "visibility": "restricted",
+	})
+
+	_, linkOnlyDoc := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Link Only", "kind": "page", "visibility": "restricted",
+	})
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+linkOnlyDoc+"/links", w.token, map[string]any{})
+	if res.StatusCode != 201 {
+		t.Fatalf("create link on linkOnlyDoc: %d %v", res.StatusCode, out)
+	}
+
+	_, memberSharedDoc := docsCreatePageBody(t, w, member, map[string]any{
+		"title": "Member Workspace Doc", "kind": "page", "visibility": "workspace",
+	})
+
+	// 1. shared_by_me=true returns only the caller's shared documents (wsVisDoc, userSharedDoc, orgSharedDoc).
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?shared_by_me=true", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("shared_by_me=true status=%d out=%v", res.StatusCode, out)
+	}
+	gotIDs := docIDs(t, out)
+	for _, want := range []string{wsVisDoc, userSharedDoc, orgSharedDoc} {
+		if !containsID(gotIDs, want) {
+			t.Fatalf("shared_by_me=true missing %s in %v", want, gotIDs)
+		}
+	}
+	for _, excluded := range []string{folderID, privateDoc, linkOnlyDoc, memberSharedDoc} {
+		if containsID(gotIDs, excluded) {
+			t.Fatalf("shared_by_me=true unexpectedly included %s in %v", excluded, gotIDs)
+		}
+	}
+
+	// 2. Strict parsing: only "true" enables shared_by_me; "false" or "1" leaves the flat list unfiltered by shared_by_me.
+	for _, val := range []string{"false", "1"} {
+		res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?shared_by_me="+val, w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("shared_by_me=%s status=%d out=%v", val, res.StatusCode, out)
+		}
+		flatIDs := docIDs(t, out)
+		if !containsID(flatIDs, privateDoc) || !containsID(flatIDs, memberSharedDoc) {
+			t.Fatalf("shared_by_me=%s unexpectedly filtered flat list: %v", val, flatIDs)
+		}
+	}
+
+	// 3. shared_by_me=true with parent_id (empty or folder ID) -> 400 invalid_filter.
+	for _, q := range []string{
+		"shared_by_me=true&parent_id=",
+		"shared_by_me=true&parent_id=" + folderID,
+	} {
+		res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?"+q, w.token, nil)
+		wantErr(t, res, out, 400, "invalid_filter", "")
+	}
+
+	// 5. Shared by me is live-only: with archived=true it is an empty page, even
+	// though an archived, owned and shared document exists (the trash alone lists it).
+	_, archivedSharedDoc := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "Archived Shared", "kind": "page", "visibility": "workspace",
+	})
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+archivedSharedDoc+"/archive", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("archive archivedSharedDoc: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?archived=true", w.token, nil)
+	if res.StatusCode != 200 || !containsID(docIDs(t, out), archivedSharedDoc) {
+		t.Fatalf("control: archived=true should list %s: %d %v", archivedSharedDoc, res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?archived=true&shared_by_me=true", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("archived+shared_by_me status=%d out=%v", res.StatusCode, out)
+	}
+	if got := docIDs(t, out); len(got) != 0 {
+		t.Fatalf("archived+shared_by_me must be empty, got %v", got)
+	}
+	if next, _ := out["next_cursor"].(string); next != "" {
+		t.Fatalf("archived+shared_by_me must carry no next_cursor, got %q", next)
+	}
+
+	// 4. Outsider is refused with 403 forbidden before any filter check.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?shared_by_me=true", w.outsider, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
 }

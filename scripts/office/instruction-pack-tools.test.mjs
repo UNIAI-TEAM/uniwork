@@ -1,11 +1,12 @@
 // Contract test for the G6-14 Office instruction pack (UNI-1369, plan card
-// G6-14): the pack shipped as server/internal/ai/testdata/office_uniwork_ai_v1_*
+// G6-14): the packs shipped as server/internal/ai/testdata/office_uniwork_ai_v{1,2,3}_*
 // may only name tools the mechanical block of
 // docs/office/g5g6g7/genoffice-tools.md lists for the section's module, and
 // the common section may only name tools all six modules have. The parser and
 // the audits live in ./instruction-pack-tools.mjs, so the negative cases below
 // drive them with fixture strings and hold even when the goldens are not in
-// the tree yet; this file wires the real doc and the real goldens.
+// the tree yet; this file wires the real doc and the real goldens. Historical
+// v1/v2 checks stay; v3 is the current pack (UNI-1875 PACK3 B2).
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -15,13 +16,14 @@ import { PACK_MODULES, TOOLS_DOC, auditCommon, auditSection, parseMechanicalTabl
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const toolsDoc = fs.readFileSync(path.join(repoRoot, TOOLS_DOC), "utf8");
-const goldenFile = (section) => `server/internal/ai/testdata/office_uniwork_ai_v1_${section}.golden`;
+const PACK_VERSIONS = [1, 2, 3];
+const goldenFile = (section, version = 1) => `server/internal/ai/testdata/office_uniwork_ai_v${version}_${section}.golden`;
 
-/** The goldens for `sections`, or one failure naming every file that is missing. */
-function readGoldens(sections) {
-  const missing = sections.filter((section) => !fs.existsSync(path.join(repoRoot, goldenFile(section))));
-  if (missing.length > 0) assert.fail(missing.map((section) => `golden missing: ${goldenFile(section)}`).join("\n"));
-  return new Map(sections.map((section) => [section, fs.readFileSync(path.join(repoRoot, goldenFile(section)), "utf8")]));
+/** The goldens for `sections` at `version`, or one failure naming every file that is missing. */
+function readGoldens(sections, version = 1) {
+  const missing = sections.filter((section) => !fs.existsSync(path.join(repoRoot, goldenFile(section, version))));
+  if (missing.length > 0) assert.fail(missing.map((section) => `golden missing: ${goldenFile(section, version)}`).join("\n"));
+  return new Map(sections.map((section) => [section, fs.readFileSync(path.join(repoRoot, goldenFile(section, version)), "utf8")]));
 }
 
 function assertClean(findings) {
@@ -130,18 +132,23 @@ test("a mechanical row whose schema cell is the documented unresolved:<reason> f
 
 test("every tool name in a module section is in that module's column", () => {
   const { byModule } = parseMechanicalTable(toolsDoc);
-  const goldens = readGoldens(PACK_MODULES);
   const findings = [];
-  for (const module of PACK_MODULES) {
-    findings.push(...auditSection({ section: module, file: goldenFile(module), text: goldens.get(module), tools: byModule.get(module) }));
+  for (const version of PACK_VERSIONS) {
+    const goldens = readGoldens(PACK_MODULES, version);
+    for (const module of PACK_MODULES) {
+      findings.push(...auditSection({ section: module, file: goldenFile(module, version), text: goldens.get(module), tools: byModule.get(module) }));
+    }
   }
   assertClean(findings);
 });
 
 test("every tool name in the common section is in all six module columns", () => {
   const { byModule } = parseMechanicalTable(toolsDoc);
-  const goldens = readGoldens(["common"]);
-  const findings = auditCommon({ file: goldenFile("common"), text: goldens.get("common"), byModule });
+  const findings = [];
+  for (const version of PACK_VERSIONS) {
+    const goldens = readGoldens(["common"], version);
+    findings.push(...auditCommon({ file: goldenFile("common", version), text: goldens.get("common"), byModule }));
+  }
   assertClean(findings);
 });
 

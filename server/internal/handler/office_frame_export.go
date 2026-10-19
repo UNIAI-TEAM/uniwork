@@ -11,13 +11,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-// officeFrameExportMax bounds the optional DOCX part (the DocumentFile cap)
-// and officeFrameExportBody the whole multipart body around it.
-const (
-	officeFrameExportMax  = 50 << 20
-	officeFrameExportBody = officeFrameExportMax + 1<<20
-)
-
 // exportOfficeFramePDF is POST
 // /office-frame/documents/{documentID}/export/pdf (UNI-1013): the PDF of the
 // token's document, rendered by the Office engine with the Docs renderer. An
@@ -40,7 +33,7 @@ func (h *handlers) exportOfficeFramePDF(w http.ResponseWriter, r *http.Request) 
 		h.mapServiceError(w, err)
 		return
 	}
-	in, ok := officeFrameExportBodyOf(w, r)
+	in, ok := officeFrameExportBodyOf(w, r, h.documentMaxBytes())
 	if !ok {
 		return
 	}
@@ -72,20 +65,21 @@ func (h *handlers) exportOfficeFramePDF(w http.ResponseWriter, r *http.Request) 
 // body, or a multipart body with neither, means the current version. A body
 // that is not multipart, a second file part, both at once, a bad version or a
 // part past the cap is refused here.
-func officeFrameExportBodyOf(w http.ResponseWriter, r *http.Request) (service.OfficeExportPDFInput, bool) {
+func officeFrameExportBodyOf(w http.ResponseWriter, r *http.Request, maxBytes int64) (service.OfficeExportPDFInput, bool) {
 	var in service.OfficeExportPDFInput
 	if r.ContentLength == 0 || (r.ContentLength < 0 && r.Header.Get("Content-Type") == "") {
 		return in, true
 	}
-	if r.ContentLength > officeFrameExportBody {
-		documentTooLarge(w)
+	bodyCap := maxBytes + 1<<20
+	if r.ContentLength > bodyCap {
+		documentTooLarge(w, maxBytes)
 		return in, false
 	}
 	if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "multipart/form-data" {
 		respondError(w, http.StatusBadRequest, "invalid_request", "body must be empty or multipart/form-data")
 		return in, false
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, officeFrameExportBody)
+	r.Body = http.MaxBytesReader(w, r.Body, bodyCap)
 	mr, err := r.MultipartReader()
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid_request", "multipart/form-data body required")
@@ -97,7 +91,7 @@ func officeFrameExportBodyOf(w http.ResponseWriter, r *http.Request) (service.Of
 			break
 		}
 		if err != nil {
-			officeFrameExportReadError(w, err)
+			officeFrameExportReadError(w, err, maxBytes)
 			return in, false
 		}
 		switch p.FormName() {
@@ -106,12 +100,12 @@ func officeFrameExportBodyOf(w http.ResponseWriter, r *http.Request) (service.Of
 				respondError(w, http.StatusBadRequest, "invalid_request", "only one file part is accepted")
 				return in, false
 			}
-			if in.Bytes, err = io.ReadAll(io.LimitReader(p, officeFrameExportMax+1)); err != nil {
-				officeFrameExportReadError(w, err)
+			if in.Bytes, err = io.ReadAll(io.LimitReader(p, maxBytes+1)); err != nil {
+				officeFrameExportReadError(w, err, maxBytes)
 				return in, false
 			}
-			if len(in.Bytes) > officeFrameExportMax {
-				documentTooLarge(w)
+			if int64(len(in.Bytes)) > maxBytes {
+				documentTooLarge(w, maxBytes)
 				return in, false
 			}
 			if len(in.Bytes) == 0 {
@@ -138,10 +132,10 @@ func officeFrameExportBodyOf(w http.ResponseWriter, r *http.Request) (service.Of
 	return in, true
 }
 
-func officeFrameExportReadError(w http.ResponseWriter, err error) {
+func officeFrameExportReadError(w http.ResponseWriter, err error, maxBytes int64) {
 	var tooBig *http.MaxBytesError
 	if errors.As(err, &tooBig) {
-		documentTooLarge(w)
+		documentTooLarge(w, maxBytes)
 		return
 	}
 	respondError(w, http.StatusBadRequest, "invalid_request", "multipart body could not be read")

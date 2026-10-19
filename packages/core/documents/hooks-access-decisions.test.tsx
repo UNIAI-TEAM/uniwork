@@ -66,7 +66,7 @@ describe("useDocumentAccessRequests", () => {
 });
 
 describe("useApproveDocumentAccessRequest", () => {
-  it("awaits the server with the chosen level, then invalidates the requests and the shares", async () => {
+  it("awaits the server with the chosen level, then invalidates the requests, the shares and the shared-by-me root", async () => {
     const { qc, wrapper } = setup();
     const spy = vi.spyOn(qc, "invalidateQueries");
     vi.mocked(fetch).mockResolvedValueOnce(json({ id: "r1", status: "approved", share_id: "s1" }));
@@ -82,6 +82,9 @@ describe("useApproveDocumentAccessRequest", () => {
     const keys = spy.mock.calls.map((c) => c[0]?.queryKey);
     expect(keys).toContainEqual(documentKeys.accessRequests("ws1", "d1"));
     expect(keys).toContainEqual(documentKeys.shares("ws1", "d1"));
+    // Approve granted access, so the caller's Shared by me list refreshes
+    // without waiting for a document.shared frame (UNI-1851 F2).
+    expect(keys).toContainEqual(documentKeys.sharedByMe("ws1"));
   });
 
   it("refuses an answer that is not an approval of this request", async () => {
@@ -128,6 +131,8 @@ describe("useDeclineDocumentAccessRequest", () => {
     const keys = spy.mock.calls.map((c) => c[0]?.queryKey);
     expect(keys).toContainEqual(documentKeys.accessRequests("ws1", "d1"));
     expect(keys).toContainEqual(documentKeys.shares("ws1", "d1"));
+    // Decline grants nothing: Shared by me stays as it is.
+    expect(keys).not.toContainEqual(documentKeys.sharedByMe("ws1"));
   });
 
   it("refuses an answer that is not a decline of this request", async () => {

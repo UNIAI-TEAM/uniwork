@@ -11,7 +11,7 @@ import { documentRow, type DocumentSummaryRow } from "./library-rows";
 
 initI18n();
 
-const NAME_MIN = 280;
+const NAME_MIN = 220;
 /** Below this container width nothing optional is left to drop: Name = width - border - actions. */
 const FLOOR = 320;
 /** The list's own max width (max-w-6xl = 72rem minus the px-6 gutters). */
@@ -26,6 +26,7 @@ function file(id: string, over: Partial<DocumentSummaryRow> = {}): DocumentSumma
     kind: "file",
     title: "Báo cáo tổng kết quý",
     visibility: "restricted",
+    share_scope: { users: 0, home_workspace: false, workspaces: 0, organization: false, public_link: false },
     revision: "1",
     current_version: 1,
     position: 0,
@@ -50,14 +51,13 @@ const handlers: LibraryRowHandlers = {
   personName: () => "An",
 };
 
-function renderList(showType: boolean) {
+function renderList() {
   return render(
     <DocumentsLibraryList
       groups={[{ key: "unfiled", title: "Nhóm", rows: [documentRow(file("a"))] }]}
       loading={false}
       failure={null}
-      filtered={false}
-      showType={showType}
+      filteredBy={null}
       hasMore={false}
       loadingMore={false}
       onLoadMore={vi.fn()}
@@ -69,7 +69,7 @@ function renderList(showType: boolean) {
   );
 }
 
-const RUNG = /^@min-\[(\d+(?:\.\d+)?)rem\]\/library:(.+)$/;
+const RUNG = /^(?:pointer-fine:)?@min-\[(\d+(?:\.\d+)?)rem\]\/library:(.+)$/;
 
 /** The container width at which `el` gets `utility` (e.g. table-cell), or null when it never does. */
 function rungOf(el: Element, utility: RegExp): number | null {
@@ -89,14 +89,17 @@ function shownAt(el: Element, c: number, display: RegExp): boolean {
 
 function colWidthAt(col: Element, c: number): number {
   let width = 0;
-  for (const token of Array.from(col.classList)) {
-    const base = /^w-(\d+)$/.exec(token);
-    if (base) width = Number(base[1]) * 4;
-  }
+  const read = (token: string) => {
+    const scale = /^w-(\d+)$/.exec(token);
+    if (scale) return Number(scale[1]) * 4;
+    const px = /^w-\[(\d+)px\]$/.exec(token);
+    return px ? Number(px[1]) : 0;
+  };
+  for (const token of Array.from(col.classList)) width = read(token) || width;
   for (const token of Array.from(col.classList)) {
     const match = RUNG.exec(token);
-    const sized = match ? /^w-(\d+)$/.exec(match[2]!) : null;
-    if (match && sized && Number(match[1]) * 16 <= c) width = Number(sized[1]) * 4;
+    const sized = match ? read(match[2]!) : 0;
+    if (match && sized && Number(match[1]) * 16 <= c) width = sized;
   }
   return width;
 }
@@ -130,19 +133,13 @@ function layoutAt(c: number) {
   };
 }
 
-const IDS = (showType: boolean) =>
-  showType
-    ? ["name", "type", "source", "editor", "updated", "size", "access", "visibility", "actions"]
-    : ["name", "source", "editor", "updated", "size", "access", "visibility", "actions"];
+const IDS = ["name", "access", "editor", "updated", "size", "actions"];
 
-describe.each([
-  { showType: false, label: "plain library" },
-  { showType: true, label: "open folder (Type column)" },
-])("column ladder, $label", ({ showType }) => {
+describe("column ladder", () => {
   afterEach(() => document.body.replaceChildren());
 
   it("names the container and drives no column by the viewport", () => {
-    renderList(showType);
+    renderList();
     expect(document.querySelector("table")?.closest(".\\@container\\/library")).toBeTruthy();
     const { cols, heads, cells } = parts();
     for (const el of [...cols, ...heads, ...cells, document.querySelector("thead")!]) {
@@ -154,7 +151,7 @@ describe.each([
   });
 
   it("keeps header, colgroup and cells in step at every container width", () => {
-    renderList(showType);
+    renderList();
     const { cols, heads, cells } = parts();
     expect(heads.length).toBe(cols.length);
     expect(cells.length).toBe(cols.length);
@@ -170,57 +167,49 @@ describe.each([
     }
   });
 
-  it("gives Name at least 280px at every container width the list can reach", () => {
-    renderList(showType);
+  it("gives Name room at every container width the list can reach", () => {
+    renderList();
     for (let c = FLOOR; c <= LIST_MAX; c += 1) {
       const { name } = layoutAt(c);
-      // At the 320 floor only Name and the actions column exist; Name can only be 262px there.
-      const min = c - BORDER - 56 < NAME_MIN ? c - BORDER - 56 : NAME_MIN;
+      // The rungs hold Name above the 220px floor except in the narrowest
+      // containers, where only Name and the 80px actions column exist.
+      const min = c - BORDER - 80 < NAME_MIN ? c - BORDER - 80 : NAME_MIN;
       expect(name, `Name at ${c}`).toBeGreaterThanOrEqual(min);
     }
   });
 
   it("only adds columns as the container widens, in the documented order", () => {
-    renderList(showType);
-    const ids = IDS(showType);
+    renderList();
     let previous = new Set<string>();
     const steps: string[] = [];
     for (let c = FLOOR; c <= LIST_MAX; c += 1) {
       const { visible } = layoutAt(c);
-      const now = new Set(ids.filter((_, i) => visible[i]));
+      const now = new Set(IDS.filter((_, i) => visible[i]));
       for (const id of previous) expect(now.has(id), `${id} disappears at ${c}`).toBe(true);
       const added = [...now].filter((id) => !previous.has(id));
       if (added.length > 0) steps.push(`${c}:${added.join("+")}`);
       previous = now;
     }
-    expect(steps.slice(1)).toEqual(
-      showType
-        ? ["720:editor+updated+size", "864:type", "976:source"]
-        : ["720:editor+updated+size", "832:source", "1088:access+visibility"],
-    );
+    expect(steps.slice(1)).toEqual(["464:updated", "672:editor", "752:size", "944:access"]);
   });
 
-  it(showType ? "keeps the level and the lock on the secondary line (no room for their columns)" : "swaps the secondary line for the access columns once they fit", () => {
-    renderList(showType);
+  it("swaps the secondary line for the access column once it fits", () => {
+    renderList();
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const accessLine = row.querySelector("[data-library-access-line]") as HTMLElement;
     expect(accessLine).toBeTruthy();
-    expect(accessLine.textContent).toContain("Hạn chế");
+    expect(accessLine.textContent).toContain("Riêng tư");
     const hidesAt = rungOf(accessLine, /^hidden$/);
-    if (showType) {
-      expect(hidesAt).toBeNull();
-      expect(row.querySelectorAll("td").length).toBe(7);
-      expect(document.querySelectorAll("colgroup col").length).toBe(7);
-    } else {
-      // It hides at the very width the two columns appear, so the info is never shown twice or lost.
-      expect(hidesAt).toBe(1088);
-      const access = Array.from(row.querySelectorAll("td")).filter((td) => rungOf(td, /^table-cell$/) === 1088);
-      expect(access).toHaveLength(2);
-    }
+    // It hides at the very width the column appears, so the info is never shown twice or lost.
+    expect(hidesAt).toBe(944);
+    const access = Array.from(row.querySelectorAll("td")).filter((td) => rungOf(td, /^table-cell$/) === 944);
+    expect(access).toHaveLength(1);
+    expect(row.querySelectorAll("td").length).toBe(6);
+    expect(document.querySelectorAll("colgroup col").length).toBe(6);
   });
 
   it("keeps the Restricted mark inside the Name cell: the title truncates, the mark does not", () => {
-    renderList(showType);
+    renderList();
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const nameCell = row.querySelector("td") as HTMLElement;
     const title = nameCell.querySelector("span.truncate") as HTMLElement;
@@ -228,7 +217,7 @@ describe.each([
     const line = nameCell.querySelector("[data-library-access-line]") as HTMLElement;
     expect(line).toHaveClass("min-w-0", "overflow-hidden");
     // The lock label never shrinks or wraps; whatever must give way (editor, date, size) is the truncating part.
-    const mark = Array.from(line.querySelectorAll("span")).find((el) => el.textContent === "Hạn chế") as HTMLElement;
+    const mark = Array.from(line.querySelectorAll("span")).find((el) => el.textContent === "Riêng tư") as HTMLElement;
     const markBox = mark.closest("span.shrink-0") as HTMLElement;
     expect(markBox).toBeTruthy();
     expect(line.querySelector("span.truncate")).toBeTruthy();

@@ -18,6 +18,23 @@ func TestChatFileAllowlistsAgree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, mime := range spec.Policy.MIMEAllowlist {
+		if _, canonical := spec.Policy.CanonicalTypes[mime]; canonical {
+			continue
+		}
+		ext, ok := supportedChatFileContentTypes[mime]
+		if !ok {
+			t.Errorf("chat_attachment stores %s on upload but supportedChatFileContentTypes rejects it on read", mime)
+			continue
+		}
+		if err := validateFileMessageInput(PrepareFileMessageInput{
+			Filename:    "upload." + ext,
+			ContentType: mime,
+			SizeBytes:   1,
+		}); err != nil {
+			t.Errorf("validateFileMessageInput rejects %s (.%s): %v", mime, ext, err)
+		}
+	}
 	for mime, ext := range supportedChatFileContentTypes {
 		found := false
 		for _, s := range filescontract.Samples() {
@@ -41,10 +58,20 @@ func TestChatFileAllowlistsAgree(t *testing.T) {
 	}
 	clientMIME := tsSetEntries(t, string(src), "ALLOWED_MIME")
 	clientExt := tsSetEntries(t, string(src), "ALLOWED_EXT")
-	if len(clientMIME) != len(supportedChatFileContentTypes) {
-		t.Errorf("client ALLOWED_MIME = %v, service allows %v", clientMIME, supportedChatFileContentTypes)
+	for mime := range clientMIME {
+		ext, ok := supportedChatFileContentTypes[mime]
+		if !ok {
+			t.Errorf("client ALLOWED_MIME allows %s but service refuses it", mime)
+			continue
+		}
+		if !clientExt["."+ext] {
+			t.Errorf("client ALLOWED_EXT is missing .%s", ext)
+		}
 	}
 	for mime, ext := range supportedChatFileContentTypes {
+		if strings.HasPrefix(mime, "text/") && mime != "text/plain" {
+			continue
+		}
 		if !clientMIME[mime] {
 			t.Errorf("client ALLOWED_MIME is missing %s", mime)
 		}

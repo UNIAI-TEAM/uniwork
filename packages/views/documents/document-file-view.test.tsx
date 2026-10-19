@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
+import { forgetHeldEditLock, registerHeldEditLock } from "@uniwork/core/documents/edit-lock-registry";
 import { initI18n } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
@@ -9,6 +11,7 @@ import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/hea
 import { registerLeaveGuard } from "../navigation";
 import { localeAdapter, requestMock, wrap } from "../test/api-mock";
 import { DocumentFileView } from "./document-file-view";
+import { onWriteRefused } from "./edit-lock-refusal";
 
 const featureFlagMock = vi.hoisted(() => ({
   useFlag: vi.fn((_key: string, fallback: boolean) => fallback),
@@ -27,7 +30,7 @@ function narrowDocument(parsed: ReturnType<typeof DocumentSchema.parse>): Docume
     visibility: parsed.visibility as Document["visibility"],
     my_level: parsed.my_level as Document["my_level"],
     via: parsed.via as Document["via"],
-    owner_kind: parsed.owner_kind as Document["owner_kind"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"], system_kind: parsed.system_kind as Document["system_kind"],
   };
 }
 
@@ -417,6 +420,33 @@ describe("DocumentFileView", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("stale");
   });
 
+  it("refuses a new version over upload_max_bytes before making any upload request", async () => {
+    const calls: string[] = [];
+    requestMock.mockImplementation((path: string) => {
+      calls.push(path);
+      if (path.startsWith("/api/v1/documents/d1/versions")) {
+        return Promise.resolve({ versions, next_cursor: null });
+      }
+      return Promise.resolve({});
+    });
+
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    expect(await screen.findByText("Tối đa 200 MB mỗi tệp.")).toBeInTheDocument();
+    const huge = new File(["new"], "báo-cáo.pdf", { type: "application/pdf" });
+    Object.defineProperty(huge, "size", { value: 200 * 1024 * 1024 + 1 });
+    fireEvent.change(await screen.findByLabelText(t("documents.upload.pick")), {
+      target: { files: [huge] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.upload.too_large_named", { name: "báo-cáo.pdf", size: "200,1 MB", max: "200 MB" }),
+    );
+    expect(calls.some((p) => p.includes("/uploads"))).toBe(false);
+  });
+
+
   it("downloads the bytes through the authenticated proxy route", async () => {
     mockApi();
     const fetchMock = vi.fn((_input: RequestInfo | URL) =>
@@ -442,5 +472,73 @@ describe("DocumentFileView", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/v1/documents/d1/download");
+  });
+});
+
+// UNI-1645 CFE-1-2 / CFE-1-12: the file-version commit under the edit lock.
+describe("DocumentFileView: new version under the edit lock", () => {
+  async function pickAndSubmit(name = "báo-cáo.pdf") {
+    fireEvent.click(screen.getByRole("button", { name: t("documents.file.new_version") }));
+    fireEvent.change(await screen.findByLabelText(t("documents.upload.pick")), {
+      target: { files: [new File(["new"], name, { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+  }
+  type Call = { path: string; opts?: { method?: string; body?: Record<string, unknown>; headers?: Record<string, string> } };
+  function mockCommit(calls: Call[], commit: (n: number) => unknown) {
+    let n = 0;
+    requestMock.mockImplementation((path: string, opts?: Call["opts"]) => {
+      calls.push({ path, opts });
+      if (path.startsWith("/api/v1/documents/d1/versions") && !opts?.method) return Promise.resolve({ versions, next_cursor: null });
+      if (path === "/api/v1/documents/d1/uploads") {
+        return Promise.resolve({ upload_id: "f2", checksum_sha256: "c".repeat(64), size_bytes: 2048, claim_expires_at: "2026-09-28T04:00:00Z" });
+      }
+      if (path === "/api/v1/documents/d1/versions/commit") return commit(++n);
+      return Promise.resolve({});
+    });
+  }
+  const committed = () => ({ document: fileDocument({ revision: "4" }), version: { ...versions[0], id: "v3", version: 3 } });
+
+  it("the commit carries edit_lock_id when this tab holds the lock", async () => {
+    const calls: Call[] = [];
+    mockCommit(calls, () => Promise.resolve(committed()));
+    registerHeldEditLock("d1", "L1");
+    try {
+      renderView();
+      await pickAndSubmit();
+      await waitFor(() => expect(calls.some((c) => c.path.endsWith("/versions/commit"))).toBe(true));
+      expect(calls.find((c) => c.path.endsWith("/versions/commit"))?.opts?.body).toEqual({ upload_id: "f2", base_revision: "3", edit_lock_id: "L1" });
+    } finally {
+      forgetHeldEditLock("L1");
+    }
+  });
+
+  it("a retry under another lock id uses a new idempotency key, and a 423 is reported to the page", async () => {
+    const calls: Call[] = [];
+    mockCommit(calls, (n) => (n === 1 ? Promise.reject(new ApiError("đang bị khóa", "document_locked", 423, undefined, { holder_name: "An" })) : Promise.resolve(committed())));
+    const refused = vi.fn();
+    const off = onWriteRefused("d1", refused);
+    registerHeldEditLock("d1", "L1");
+    try {
+      renderView();
+      await pickAndSubmit();
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
+        "Tài liệu này đang được người khác sửa. Chờ họ lưu xong hoặc lấy quyền sửa rồi thử lại.",
+      );
+      expect(alert).not.toHaveTextContent("đang bị khóa");
+      expect(refused).toHaveBeenCalledWith({ holder_name: "An" }, "L1");
+      forgetHeldEditLock("L1");
+      registerHeldEditLock("d1", "L2");
+      fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+      await waitFor(() => expect(calls.filter((c) => c.path.endsWith("/versions/commit"))).toHaveLength(2));
+      const [first, second] = calls.filter((c) => c.path.endsWith("/versions/commit"));
+      expect(second?.opts?.body).toMatchObject({ edit_lock_id: "L2" });
+      expect(second?.opts?.headers?.["Idempotency-Key"]).not.toBe(first?.opts?.headers?.["Idempotency-Key"]);
+    } finally {
+      off();
+      forgetHeldEditLock("L1");
+      forgetHeldEditLock("L2");
+    }
   });
 });

@@ -184,6 +184,11 @@ func TestIsolationMatrix(t *testing.T) {
 	// names nothing of A's (G5-01a).
 	t.Run("change-cursor", w.changeCursorChecks)
 
+	// The ?shared_by_me=true query variant of the workspace documents list
+	// route (SHAREDBYME-01, UNI-1851): each tenant's owner sees their shared
+	// row in the control pass, and B's owner with A's workspace is refused.
+	t.Run("shared-by-me", w.sharedByMeChecks)
+
 	// B's own routes with A's rows named in the body: an assignee, a parent,
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
@@ -433,6 +438,8 @@ func isoWritePhase(r isoRoute) int {
 		return 2
 	}
 	switch r.pattern[strings.LastIndex(r.pattern, "/")+1:] {
+	case "purge":
+		return 2
 	case "leave", "archive", "cancel", "end", "reject", "approve", "deactivate", "finalize", "close", "stop", "hangup", "host-transfer":
 		return 1
 	}
@@ -478,6 +485,9 @@ var isoTenantParams = map[string]bool{
 	// A launch receipt names a document of one organization; revoke answers
 	// 404 to every account but its creator.
 	"{launchSessionID}": true,
+	// An edit lock tenure and an edit request are rows of one organization
+	// (UNI-1645 §6 step 3).
+	"{lockID}": true, "{requestID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -607,13 +617,38 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "message")
 	case "{followUpID}":
 		return tn.get(t, "followUp")
+	case "{sessionID}":
+		// The large-upload session routes (BIGUP-S1): the frame family acts on
+		// the session the frame opened, the session routes on the workspace one.
+		if under("/office-frame/") {
+			return tn.get(t, "frameUploadSession")
+		}
+		return tn.get(t, "uploadSession")
 	case "{documentID}":
-		// The restore route acts on a folder in the trash (E6 FD-02): the
-		// folder kind is what the matrix varies on it, so the name it has to
-		// place back among live siblings is part of every pass. The page kind
-		// is held by the repo's own lifecycle tests.
-		if pattern == "/api/v1/documents/{documentID}/restore" {
+		// The restore and purge routes act on a folder in the trash (E6 FD-02,
+		// RESTORE-01 §2): the folder kind is what the matrix varies on it, so
+		// the name it has to place back among live siblings is part of every
+		// pass. The page kind is held by the repo's own lifecycle tests.
+		if pattern == "/api/v1/documents/{documentID}/restore" || pattern == "/api/v1/documents/{documentID}/purge" {
 			return tn.get(t, "archivedFolder")
+		}
+		// ARCHIVE-01 (UNI-1845): shelve acts on a live page, unshelve on one
+		// already shelved - shelving "document" would read-lock it for every
+		// later control pass.
+		if pattern == "/api/v1/documents/{documentID}/shelve" {
+			return tn.get(t, "shelveDocument")
+		}
+		if pattern == "/api/v1/documents/{documentID}/unshelve" {
+			return tn.get(t, "unshelveDocument")
+		}
+		// The large-upload session routes (BIGUP-S1): a markdown document on
+		// the frame family (the module its token opens) and the file document
+		// whose new version the session route stages.
+		if under("/upload-sessions") {
+			if under("/office-frame/") {
+				return tn.get(t, "frameMarkdown")
+			}
+			return tn.get(t, "fileDocument")
 		}
 		if under("/office-frame/") && (under("/linked/") || under("/assets/resolve")) {
 			return tn.get(t, "frameMarkdown")
@@ -629,12 +664,24 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}
+		// The edit lock (UNI-1645 §6 step 3): the owner holds lockDocument and
+		// the peer peerLockDocument, which the owner's take-over targets.
+		if under("/edit-lock/take-over") {
+			return tn.get(t, "peerLockDocument")
+		}
+		if under("/edit-lock") || under("/edit-requests") {
+			return tn.get(t, "lockDocument")
+		}
 		// The break-glass routes act on a restricted page the tenant's owner
 		// administers without owning (DOC-05).
 		if under("/break-glass") {
 			return tn.get(t, "restrictedDocument")
 		}
 		return tn.get(t, "document")
+	case "{lockID}":
+		return tn.get(t, "docEditLock")
+	case "{requestID}":
+		return tn.get(t, "docEditRequest")
 	case "{assetID}":
 		if under("/office-frame/") {
 			return tn.get(t, "frameAsset")
@@ -692,8 +739,17 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "file")
 	case "{sourceFileID}":
 		// The documents home's other sources (UNI-1305): the task
-		// attachment is a file-backed source every tenant has.
-		return "task:" + tn.get(t, "attachment")
+		// attachment is a file-backed source every tenant has. Clients
+		// send the id percent-escaped (its colon travels as %3A, UNI-1815;
+		// url.PathEscape would keep a raw colon), so the matrix names it
+		// the way the wire does.
+		// The Office frame routes (UNI-1869) mint and serve a source token
+		// for a source one of the web modules opens: the seeded docx
+		// attachment, not the png one the download/save rows use.
+		if strings.Contains(pattern, "/office-frame/sources/") || strings.HasSuffix(pattern, "/office/frame-token") {
+			return "task%3A" + tn.get(t, "sourceDocx")
+		}
+		return "task%3A" + tn.get(t, "attachment")
 	case "{provider}":
 		return "google"
 	case "{resourceType}":
@@ -1156,4 +1212,26 @@ func isoClip(raw []byte) string {
 		s = s[:300] + "…"
 	}
 	return s
+}
+
+func (w *isoWorld) sharedByMeChecks(t *testing.T) {
+	t.Helper()
+	pathFor := func(tn *isoTenant) string {
+		return "/api/v1/workspaces/" + tn.wsID + "/documents?shared_by_me=true"
+	}
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		status, raw := w.do(t, http.MethodGet, pathFor(tn), tn.token, isoBody{})
+		if status != http.StatusOK || !bytes.Contains(raw, []byte(tn.ids["document"])) {
+			t.Errorf("GET %s as %s owner = %d, want 200 carrying %s: %s", pathFor(tn), tn.tag, status, tn.ids["document"], isoClip(raw))
+		}
+		if bytes.Contains(raw, []byte(tn.ids["restrictedDocument"])) {
+			t.Errorf("GET %s as %s owner carried peer's restricted document %s: %s", pathFor(tn), tn.tag, tn.ids["restrictedDocument"], isoClip(raw))
+		}
+	}
+	w.attack(t, "GET /api/v1/workspaces/{workspaceID}/documents?shared_by_me=true",
+		http.MethodGet, pathFor(w.alpha), isoBody{}, isoSpec{class: isoScoped}.refused)
+	_, raw := w.do(t, http.MethodGet, pathFor(w.bravo), w.bravo.token, isoBody{})
+	if leak := w.alpha.leakIn(raw, ""); leak != "" {
+		t.Errorf("GET %s: B's own view carries A's %s: %s", pathFor(w.bravo), leak, isoClip(raw))
+	}
 }

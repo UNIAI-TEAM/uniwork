@@ -56,6 +56,9 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const api = vi.fn<(path: string, opts?: { method?: string; headers?: Record<string, string> }) => Promise<unknown>>((path, opts) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
     if (path === OTHER_MINT_PATH) return Promise.resolve({ ...minted(canEdit), module, document_id: "doc-2" });
+    // The session reads its upload ceiling from GET /api/v1/config (useDocumentLimits); answer it
+    // like use-docs-frame-session.test.tsx does so the query resolves instead of erroring.
+    if (String(path).startsWith("/api/v1/config")) return Promise.resolve({ flags: {} });
     return Promise.reject(new Error(`unexpected ${path} ${opts?.method ?? "GET"}`));
   });
   requestMock.mockImplementation(api);
@@ -88,7 +91,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
     const comments = useFrameComments({ wsId: "ws-1", ...props, documentId });
     panels.push(comments.framePanel);
     const session = useDocsFrameSession({
-      iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", documentId,
+      iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: { kind: "document", id: documentId },
       readonly, locale: "vi", theme: "light", onError, comments: comments.binding,
       api: { open: vi.fn(), save: vi.fn(), recents: vi.fn() } as unknown as DocsFrameApi,
     });
@@ -383,8 +386,7 @@ describe("useFrameComments: the frame's requests go to the D API with the user's
   it("delete, resolve, reopen, revisions, anchors and mention search use their routes", async () => {
     const frame = setup({ myLevel: "manage" });
     await frame.boot();
-    const calls = (): Array<[string, string]> => frame.api.mock.calls
-      .filter(([path]) => String(path) !== MINT_PATH)
+    const calls = (): Array<[string, string]> => frame.commentsRequests()
       .map(([path, opts]) => [(opts as { method?: string } | undefined)?.method ?? "GET", String(path)]);
     frame.api.mockImplementation((path: string) => {
       if (path.endsWith("/revisions")) return Promise.resolve({ revisions: [] });

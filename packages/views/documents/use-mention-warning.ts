@@ -21,17 +21,19 @@ export interface MentionWarnState {
 export function useMentionWarning({
   wsId,
   documentId,
+  documentWorkspaceId = "",
   onShareView,
   sendNow,
 }: {
   wsId: string;
   documentId: string;
+  documentWorkspaceId?: string;
   /** Replaces the share transport call (`POST /api/v1/documents/{id}/shares`). */
   onShareView?: (userId: string) => Promise<void>;
   /** Sends the comment once; `sharedNames` is kept for the "failed after share" line. */
   sendNow: (sharedNames?: string[]) => Promise<void>;
 }) {
-  const shareMutation = useShareDocument(wsId, documentId);
+  const shareMutation = useShareDocument(wsId, documentId, documentWorkspaceId);
   const [warn, setWarn] = useState<MentionWarnState | null>(null);
   const [sharedUserIds, setSharedUserIds] = useState<ReadonlySet<string>>(() => new Set());
   // People already granted `view` in this composer session: a retry after a failed send never shares again.

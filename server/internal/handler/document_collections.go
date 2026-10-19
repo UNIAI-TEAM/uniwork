@@ -30,11 +30,14 @@ import (
 func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocumentsInput, bool) {
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
-		Query:     strings.TrimSpace(q.Get("q")),
-		Match:     strings.TrimSpace(q.Get("match")),
-		Kind:      strings.TrimSpace(q.Get("kind")),
-		UpdatedBy: strings.TrimSpace(q.Get("updated_by")),
-		Cursor:    strings.TrimSpace(q.Get("cursor")),
+		Query:      strings.TrimSpace(q.Get("q")),
+		Match:      strings.TrimSpace(q.Get("match")),
+		Kind:       strings.TrimSpace(q.Get("kind")),
+		Format:     strings.TrimSpace(q.Get("format")),
+		Access:     strings.TrimSpace(q.Get("access")),
+		UpdatedBy:  strings.TrimSpace(q.Get("updated_by")),
+		SharedByMe: strings.TrimSpace(q.Get("shared_by_me")) == "true",
+		Cursor:     strings.TrimSpace(q.Get("cursor")),
 	}
 	if q.Has("parent_id") {
 		parent := strings.TrimSpace(q.Get("parent_id"))
@@ -47,6 +50,14 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 			return in, false
 		}
 		in.Archived = v
+	}
+	if raw := strings.TrimSpace(q.Get("shelved")); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "shelved must be 0/1 or true/false")
+			return in, false
+		}
+		in.Shelved = v
 	}
 	for _, f := range []struct {
 		name string
@@ -131,7 +142,10 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	in := service.SharedWithMeQuery{}
+	in := service.SharedWithMeQuery{
+		Format: strings.TrimSpace(r.URL.Query().Get("format")),
+		Access: strings.TrimSpace(r.URL.Query().Get("access")),
+	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
 		at, id, ok := decodeSharedWithMeCursor(raw)
 		if !ok {
@@ -155,8 +169,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 	}
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, row := range page.Items {
-		access := row.Access
-		out.Documents = append(out.Documents, documentSummaryDTO(row.Document, row.Facts, "", &access))
+		out.Documents = append(out.Documents, toSharedDocumentSummaryDTO(row))
 	}
 	if page.NextID != "" {
 		cursor := encodeSharedWithMeCursor(page.NextCreatedAt, page.NextID)
@@ -252,6 +265,60 @@ func (h *handlers) restoreDocument(w http.ResponseWriter, r *http.Request) {
 	h.documentLifecycleCommand(w, r, true)
 }
 
+// purgeDocument is POST /documents/{documentID}/purge: permanently deletes an
+// archived document and its same-batch, still-trashed descendants that the
+// caller manages (RESTORE-01 §2).
+func (h *handlers) purgeDocument(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	if _, err := h.Documents.PurgeDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID")); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// shelveDocument is POST /documents/{documentID}/shelve (ARCHIVE-01): the
+// live, not-yet-shelved subtree moves to the read-only shelf in one
+// transaction after the manage check on every node - the trash command's own
+// gate, so below manage on an invisible row the answer is 404/403 alike.
+func (h *handlers) shelveDocument(w http.ResponseWriter, r *http.Request) {
+	h.documentShelveCommand(w, r, false)
+}
+
+// unshelveDocument is POST /documents/{documentID}/unshelve (ARCHIVE-01):
+// the item and its same-batch shelved descendants the caller manages come
+// back; position in the tree never moved.
+func (h *handlers) unshelveDocument(w http.ResponseWriter, r *http.Request) {
+	h.documentShelveCommand(w, r, true)
+}
+
+func (h *handlers) documentShelveCommand(w http.ResponseWriter, r *http.Request, unshelve bool) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	actor := service.Human(middleware.UserID(r.Context()))
+	documentID := chi.URLParam(r, "documentID")
+	in := service.ArchiveDocumentInput{IdempotencyKey: r.Header.Get("Idempotency-Key")}
+	var (
+		res service.DocumentArchiveResult
+		err error
+	)
+	if unshelve {
+		res, err = h.Documents.UnshelveDocument(r.Context(), actor, documentID, in)
+	} else {
+		res, err = h.Documents.ShelveDocument(r.Context(), actor, documentID, in)
+	}
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, documentArchiveSDO(res))
+}
+
 func (h *handlers) documentLifecycleCommand(w http.ResponseWriter, r *http.Request, restore bool) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -280,24 +347,51 @@ func (h *handlers) documentLifecycleCommand(w http.ResponseWriter, r *http.Reque
 func documentListSDO(page service.DocumentListPage) sdo.DocumentListSDO {
 	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
 	for _, item := range page.Items {
-		var access *service.DocumentAccess
-		// A locked row (AdminScope, no read level) still carries admin_scope.
-		if item.Access.Level != service.DocumentLevelNone || item.Access.AdminScope {
-			access = &item.Access
-		}
-		dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
-		if len(item.Path) > 0 {
-			dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
-			for i, p := range item.Path {
-				dto.Path[i] = sdo.DocumentPathItemSDO{ID: p.ID, Title: p.Title}
-			}
-		}
-		out.Documents = append(out.Documents, dto)
+		out.Documents = append(out.Documents, toDocumentSummaryDTO(item))
 	}
 	if page.NextCursor != "" {
 		out.NextCursor = &page.NextCursor
 	}
 	return out
+}
+
+func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO {
+	var access *service.DocumentAccess
+	// A locked row (AdminScope, no read level) still carries admin_scope.
+	if item.Access.Level != service.DocumentLevelNone || item.Access.AdminScope {
+		access = &item.Access
+	}
+	dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
+	dto.EditLock = documentRowEditLockSDO(item.EditLock)
+	dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
+	if len(item.Path) > 0 {
+		dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
+		for i, p := range item.Path {
+			dto.Path[i] = sdo.DocumentPathItemSDO{ID: p.ID, Title: p.Title}
+		}
+	}
+	return dto
+}
+
+func toSharedDocumentSummaryDTO(row service.SharedDocument) sdo.DocumentSummaryDTO {
+	access := row.Access
+	dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
+	dto.EditLock = documentRowEditLockSDO(row.EditLock)
+	dto.ShareScope = documentRowShareScopeSDO(row.ShareScope)
+	return dto
+}
+
+func documentRowShareScopeSDO(scope *service.DocumentShareScope) *sdo.DocumentShareScopeSDO {
+	if scope == nil {
+		return nil
+	}
+	return &sdo.DocumentShareScopeSDO{
+		HomeWorkspace: scope.HomeWorkspace,
+		Users:         scope.Users,
+		Workspaces:    scope.Workspaces,
+		Organization:  scope.Organization,
+		PublicLink:    scope.PublicLink,
+	}
 }
 
 // documentSummaryDTO renders one list row: document metadata, its size and
@@ -316,8 +410,17 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 	if doc.ParentID.Valid {
 		out.ParentID = &doc.ParentID.String
 	}
+	if doc.SystemKind.Valid && doc.SystemKind.String != "" {
+		out.SystemKind = &doc.SystemKind.String
+	}
 	if doc.Icon.Valid && doc.Icon.String != "" {
 		out.Icon = &doc.Icon.String
+	}
+	// The library format of a file row (UNI-1868): absent for a page, a folder
+	// and a file neither a verified MIME nor the title names.
+	if facts.Format != "" {
+		format := facts.Format
+		out.Format = &format
 	}
 	if snippet != "" {
 		out.Snippet = &snippet
@@ -341,6 +444,24 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 		at := doc.ArchivedAt.Time.UTC().Format(time.RFC3339)
 		out.ArchivedAt = &at
 	}
+	if doc.ArchivedBy.Valid && doc.ArchivedBy.String != "" {
+		by := doc.ArchivedBy.String
+		out.ArchivedBy = &by
+	}
+	if doc.PurgeAfter.Valid {
+		after := doc.PurgeAfter.Time.UTC().Format(time.RFC3339)
+		out.PurgeAfter = &after
+	}
+	// ARCHIVE-01 (spec Q-UI3): shelved_at/shelved_by ride on every list row,
+	// trash rows included, so the trash list can show the "Đã lưu trữ" label.
+	if doc.ShelvedAt.Valid {
+		at := doc.ShelvedAt.Time.UTC().Format(time.RFC3339)
+		out.ShelvedAt = &at
+	}
+	if doc.ShelvedBy.Valid && doc.ShelvedBy.String != "" {
+		by := doc.ShelvedBy.String
+		out.ShelvedBy = &by
+	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}
@@ -358,10 +479,15 @@ func documentTreeDTOs(nodes []service.DocumentTreeNode) []sdo.DocumentTreeNodeDT
 		dto := sdo.DocumentTreeNodeDTO{
 			ID: n.ID, Title: n.Title, Kind: n.Kind, Position: n.Position,
 			Children: documentTreeDTOs(n.Children),
+			EditLock: documentRowEditLockSDO(n.EditLock),
 		}
 		if n.ParentID != "" {
 			parent := n.ParentID
 			dto.ParentID = &parent
+		}
+		if n.SystemKind != "" {
+			sys := n.SystemKind
+			dto.SystemKind = &sys
 		}
 		if n.Icon != "" {
 			icon := n.Icon

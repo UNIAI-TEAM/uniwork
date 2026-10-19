@@ -4,7 +4,7 @@ import { paths } from "@uniwork/core/paths";
 import type { Document } from "@uniwork/core/types/document";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { launchCommentId } from "@uniwork/core/office";
-import { officeModuleSpec, officeModuleTooLarge } from "@uniwork/core/office/office-modules";
+import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { useReportFrameComments } from "@uniwork/views/documents";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
@@ -33,13 +33,16 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
     <OfficeModuleFrame
       module={module}
       wsId={wsId}
-      documentId={document.id}
+      fileRef={{ kind: "document", id: document.id }}
       title={document.title}
       frameVersion={frameVersion}
       readonly={readonly}
       className={className}
       libraryHref={ws.documents()}
       myLevel={document.my_level}
+      fileSizeBytes={document.file?.size_bytes}
+      // An unnamed blank's first save asks for its name on the page (UNI-1847, SAVE-01).
+      documentDetail={document}
       // A comment deep link (?comment=<id>): the editor's panel reveals it when it has comments.
       revealCommentId={searchParams.get("comment")}
       // A frame that serves comments is the page's one comments panel: the page hides its own.
@@ -65,10 +68,9 @@ async function downloadFile(document: Document) {
  * its module frame (UNI-1013..1016); the web has no other editor. Every case
  * the frame cannot open carries the same two ways on: "Open in UniWork Office"
  * (the document page's launch-ticket action, only for a user who may edit) and
- * the file's own download, provided here for the too-large notice and every
- * frame failure. A document over its module's size cap (Sheets, GO-D3) gets the
- * too-large notice before any token is asked for, and so does a frame that
- * reports `too_large` (80 MB of worksheet XML); a module with no installed
+ * the file's own download, provided here for the refusal notice and every
+ * frame failure. A frame that reports `open_refused` (or `too_large` on the
+ * worksheet XML gate) gets the refusal notice; a module with no installed
  * build or whose flag is off gets the unavailable notice; any other failure
  * the frame's own error with Retry.
  */
@@ -89,8 +91,6 @@ export function OfficeModuleHost(props: ModuleHostProps) {
     <OfficeTooLargeProvider value={actions}>
       {!frameVersion ? (
         <OfficeFrameUnavailable module={module} reason="not_installed" />
-      ) : officeModuleTooLarge(module, document.file?.size_bytes) ? (
-        tooLarge
       ) : (
         <OfficeModuleOpenSwitch
           module={module}

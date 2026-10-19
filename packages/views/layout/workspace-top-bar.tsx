@@ -2,7 +2,7 @@
 
 import { useCallback, useState, type ReactNode } from "react";
 import { Ellipsis, Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
@@ -57,6 +57,8 @@ export function WorkspaceChrome({ children, bare = false }: { children: ReactNod
   const { pathname } = useNavigation();
   const { workspace } = useWorkspace();
   const reduceMotion = useReducedMotion() ?? false;
+  // The page the shell opened on appears as is; a route moved to fades in.
+  const [firstPathname] = useState(pathname);
   return (
     <PreferenceToastProvider>
       {bare ? (
@@ -67,29 +69,23 @@ export function WorkspaceChrome({ children, bare = false }: { children: ReactNod
       <GlobalShortcuts onCreateTask={openCreate} />
       <SearchCommand onCreateTask={openCreate} />
       <AskUniPanel />
-      <AnimatePresence initial={false} mode="wait">
-        <motion.div
-          key={pathname}
-          initial={{
-            opacity: 0,
-            y: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle,
-          }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{
-            opacity: 0,
-            y: reduceMotion ? 0 : -UI_MOTION_DISTANCE.subtle,
-          }}
-          transition={{
-            duration: reduceMotion
-              ? UI_MOTION_DURATION.micro
-              : UI_MOTION_DURATION.fast,
-            ease: UI_EASE_OUT,
-          }}
-          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-        >
-          {children}
-        </motion.div>
-      </AnimatePresence>
+      {/* Enter only, no AnimatePresence exit: children is the host's route
+          slot, which already renders the NEW route, so an exiting copy would
+          mount the next page once inside it and again when the exit ends —
+          and a deep link (?message=, ?comment=) consumed by the first mount
+          was lost with it (UNI-1814). */}
+      <motion.div
+        key={pathname}
+        initial={pathname === firstPathname ? false : { opacity: 0, y: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          duration: reduceMotion ? UI_MOTION_DURATION.micro : UI_MOTION_DURATION.fast,
+          ease: UI_EASE_OUT,
+        }}
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      >
+        {children}
+      </motion.div>
       <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
     </PreferenceToastProvider>
   );

@@ -60,6 +60,33 @@ describe("ChatVoiceMessageRow", () => {
     expect(screen.getByText("0:13")).toBeInTheDocument();
   });
 
+  it("carries the highlight ring when a deep link jumped to it", () => {
+    const { container } = render(
+      wrap(
+        <ChatVoiceMessageRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={{
+            id: "message-hl",
+            sender: "user1",
+            body: "",
+            kind: "voice",
+            ts: Date.now(),
+            reactions: {},
+            voice: { duration_ms: 1000, content_type: "audio/webm", size_bytes: 10 },
+          }}
+          senderLabel="An"
+          isOwn
+          showSenderName={false}
+          compactTop={false}
+          showAvatar={false}
+          highlighted
+        />,
+      ),
+    );
+    expect(container.querySelector("#chat-msg-message-hl")).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
+  });
+
   it("has no transcript chip while AI is off", async () => {
     serveAi(false, () => Promise.resolve({ text: "x" }));
     renderRow();

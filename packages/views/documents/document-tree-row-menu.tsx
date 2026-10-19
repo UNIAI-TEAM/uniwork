@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Ellipsis, FolderInput, FolderOpen, FolderPlus, Pencil, ShieldCheck, Trash2 } from "lucide-react";
+import { Ellipsis, FolderInput, FolderOpen, FolderPlus, Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { apiErrorMessage } from "@uniwork/core/api";
+import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { paths } from "@uniwork/core/paths";
-import type { DocumentTreeNode } from "@uniwork/core/types/document";
+import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -41,12 +44,16 @@ export interface TreeRowMenuActions {
   onDelete: (node: DocumentTreeNode) => void;
   /** Opens the folder's access report; absent where the host cannot navigate. */
   onAccessReport?: (node: DocumentTreeNode) => void;
+  /** Stars or unstars the folder (`starred` is its current state); absent where the host knows no organization. */
+  onToggleStar?: (node: DocumentTreeNode, starred: boolean) => void;
 }
 
 export interface DocumentTreeRowMenuProps {
   wsId: string;
   node: DocumentTreeNode;
   focused?: boolean;
+  /** The folder is in the person's favorites. */
+  starred?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   /** Explicit access level ("view" | "edit" | "manage"); when omitted, read from cache/detail. */
@@ -74,6 +81,7 @@ export function toSummaryRow(
   return {
     ...row,
     position: node.position,
+    system_kind: node.system_kind ?? known?.system_kind ?? null,
   };
 }
 
@@ -86,6 +94,7 @@ export function DocumentTreeRowMenu({
   wsId,
   node,
   focused = false,
+  starred = false,
   open: controlledOpen,
   onOpenChange,
   myLevel,
@@ -112,11 +121,12 @@ export function DocumentTreeRowMenu({
   const resolvedLevel =
     myLevel ?? nodeLevelField ?? (detail.isError ? undefined : detail.data?.my_level) ?? knownLevel;
   const level = rowLevel({ my_level: resolvedLevel });
+  const myFolder = isMyFolder(node);
   const canEdit = canMoveRow(level);
-  const canDelete = canArchiveRow(level);
+  const canDelete = !myFolder && canArchiveRow(level);
   // The report lists grants, which only a manager may read (the server decides again).
   const canReport = canArchiveRow(level) && Boolean(actions?.onAccessReport);
-  const title = node.title || t("documents.detail.untitled");
+  const title = (myFolder ? t("documents.home.my_folder.label") : node.title) || t("documents.detail.untitled");
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setOpen}>
@@ -149,6 +159,15 @@ export function DocumentTreeRowMenu({
           <FolderOpen aria-hidden className="size-3.5" />
           {t("documents.tree.menu.open")}
         </DropdownMenuItem>
+        {actions?.onToggleStar ? (
+          <DropdownMenuItem
+            className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+            onClick={() => actions.onToggleStar?.(node, starred)}
+          >
+            <Star aria-hidden className={cn("size-3.5", starred && "fill-current text-brand")} />
+            {starred ? t("documents.home.row.unstar") : t("documents.home.row.star")}
+          </DropdownMenuItem>
+        ) : null}
         {canEdit ? (
           <>
             <DropdownMenuItem
@@ -158,20 +177,24 @@ export function DocumentTreeRowMenu({
               <FolderPlus aria-hidden className="size-3.5" />
               {t("documents.tree.menu.new_subfolder")}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-              onClick={() => actions?.onRename(node)}
-            >
-              <Pencil aria-hidden className="size-3.5" />
-              {t("documents.tree.menu.rename")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-              onClick={() => actions?.onMoveTo(node)}
-            >
-              <FolderInput aria-hidden className="size-3.5" />
-              {t("documents.tree.menu.move_to")}
-            </DropdownMenuItem>
+            {!myFolder ? (
+              <>
+                <DropdownMenuItem
+                  className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+                  onClick={() => actions?.onRename(node)}
+                >
+                  <Pencil aria-hidden className="size-3.5" />
+                  {t("documents.tree.menu.rename")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+                  onClick={() => actions?.onMoveTo(node)}
+                >
+                  <FolderInput aria-hidden className="size-3.5" />
+                  {t("documents.tree.menu.move_to")}
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </>
         ) : null}
         {canReport ? (
@@ -219,6 +242,9 @@ export function useTreeRowMenuDialogs({
   const queryClient = useQueryClient();
   const navigation = useOptionalNavigation();
   const workspace = useOptionalWorkspace()?.workspace;
+  const { t } = useTranslation();
+  const favorite = useFavoriteDocument();
+  const unfavorite = useUnfavoriteDocument();
   const [creatingUnder, setCreatingUnder] = useState<DocumentTreeNode | null>(null);
   const [renamingNode, setRenamingNode] = useState<DocumentTreeNode | null>(null);
   const rowDialogs = useLibraryRowDialogs({ wsId, tree, folderId: currentId });
@@ -232,9 +258,26 @@ export function useTreeRowMenuDialogs({
 
   const actions: TreeRowMenuActions = {
     onNewSubfolder: (node) => setCreatingUnder(node),
-    onRename: (node) => setRenamingNode(node),
-    onMoveTo: (node) => rowDialogs.onMove(resolveSummaryRow(node)),
-    onDelete: (node) => rowDialogs.onArchive(resolveSummaryRow(node)),
+    onRename: (node) => {
+      if (isMyFolder(node)) return;
+      setRenamingNode(node);
+    },
+    onMoveTo: (node) => {
+      if (isMyFolder(node)) return;
+      rowDialogs.onMove(resolveSummaryRow(node));
+    },
+    onDelete: (node) => {
+      if (isMyFolder(node)) return;
+      rowDialogs.onArchive(resolveSummaryRow(node));
+    },
+    onToggleStar: workspace?.organization_id
+      ? (node, starred) => {
+          const op = starred ? unfavorite : favorite;
+          void op
+            .mutateAsync(node.id)
+            .catch((error: unknown) => toast.error(apiErrorMessage(error) ?? t("documents.home.row.star_failed")));
+        }
+      : undefined,
     onAccessReport:
       navigation && workspace
         ? (node) =>
@@ -252,7 +295,8 @@ export function useTreeRowMenuDialogs({
         mode="create"
         wsId={wsId}
         parentId={creatingUnder?.id ?? null}
-        parentTitle={creatingUnder?.title ?? ""}
+        parentTitle={(creatingUnder && isMyFolder(creatingUnder) ? t("documents.home.my_folder.label") : creatingUnder?.title) ?? ""}
+        parentShared={creatingUnder?.share_scope != null ? Boolean(creatingUnder.share_scope.home_workspace) : undefined}
         onSuccess={() => {
           if (creatingUnder) onCreatedSubfolder?.(creatingUnder.id);
         }}

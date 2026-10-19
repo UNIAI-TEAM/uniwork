@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  Archive,
   ArchiveRestore,
   Copy,
   RotateCcwClock,
@@ -15,7 +16,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { canAdministerDocument } from "@uniwork/core/permissions";
-import type { Document } from "@uniwork/core/types/document";
+import { canManageTrashed, isMyFolder, isShelved, type Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -29,6 +30,8 @@ import { useNavigation } from "../navigation";
 import { documentCommentsTitleKey, useDocumentCommentsChrome } from "./document-comments-context";
 import { AccessLogSheet } from "./access-log-sheet";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
+import { DocumentShelveDialog } from "./document-shelve-dialog";
+import { useShelvedActions } from "./use-shelved-actions";
 import { DocumentCopyDialog } from "./document-copy-dialog";
 import { ShareDialog } from "./share-dialog";
 import { useAccessRequestsDeepLink } from "./use-access-requests-deeplink";
@@ -43,7 +46,7 @@ export interface DocumentActionsMenuProps {
   onArchived?: () => void;
 }
 
-type PanelId = "versions" | "share" | "logs" | "archive" | "restore" | "copy" | null;
+type PanelId = "versions" | "share" | "logs" | "archive" | "restore" | "copy" | "shelve" | "unshelve" | null;
 
 /**
  * The document header's actions menu (G1-08, UNI-682).
@@ -73,12 +76,17 @@ export function DocumentActionsMenu({
   const userId = useOptionalWorkspace()?.user.id ?? sessionUserId;
   const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
   const canManage = doc.my_level === "manage";
-  // Share opens for DOC-05 admin_scope too (a break-glass admin holds view):
-  // the dialog's access list and owner transfer are canAdminister() surfaces
-  // (access addendum §2.5). Every other entry keeps its own gate.
+  // The deep link and the dialog's manage surfaces stay canAdminister() gated
+  // (DOC-05 admin_scope included, access addendum §2.5); every other entry keeps
+  // its own gate.
   const canAdminister = canAdministerDocument(doc, { userId, orgRole: null, wsRole: null }).allowed;
   const owned = !!doc.owner_kind;
   const archived = !!doc.archived_at;
+  const myFolder = isMyFolder(doc);
+  const shelved = isShelved(doc);
+  // Lưu trữ / Bỏ lưu trữ follow the shelf's own rule (manage or admin_scope), like the banner and the shelf row.
+  const canShelve = canManageTrashed(doc);
+  const shelvedActions = useShelvedActions({ wsId, rows: [] });
   const [panel, setPanel] = useState<PanelId>(null);
   const [copyUnavailable, setCopyUnavailable] = useState(false);
   const [focusRequests, setFocusRequests] = useState(false);
@@ -86,7 +94,7 @@ export function DocumentActionsMenu({
   // open Share at the requests section, then drop the parameter. An archived
   // or owned document, or a caller who cannot administer, loses it silently.
   useAccessRequestsDeepLink({
-    allowed: canAdminister && !owned && !archived,
+    allowed: canAdminister && !owned && !archived && !shelved && !myFolder,
     onOpen: () => {
       setFocusRequests(true);
       setPanel("share");
@@ -98,22 +106,30 @@ export function DocumentActionsMenu({
 
   const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
-  if (canAdminister && !owned && !archived) {
+  // Every reader opens Share: a manager manages access there, anyone else sees
+  // their own level and sources read-only (access addendum §5.2, U-SH4). The
+  // personal My Folder root is never shareable (MYFOLDER-01).
+  if (!owned && !archived && !myFolder) {
     items.push({ id: "share", label: t("documents.actions.share"), icon: Share2 });
   }
-  if (canManage && !owned && !archived) {
+  if (canManage && !owned && !archived && !shelved) {
     items.push({ id: "logs", label: t("documents.actions.access_log"), icon: ScrollText });
   }
   if (canEdit && !owned && !archived && doc.kind === "file" && !copyUnavailable) {
     items.push({ id: "copy", label: t("documents.actions.copy"), icon: Copy });
   }
-  if (canManage && !owned && !archived) {
+  if (canShelve && !owned && !archived && !shelved && !myFolder) {
+    items.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive });
+  }
+  if (canShelve && !owned && !archived && shelved) {
+    items.push({ id: "unshelve", label: t("documents.shelved_list.unshelve"), icon: ArchiveRestore });
+  }
+  if (canManage && !owned && !archived && !myFolder) {
     items.push({ id: "archive", label: t("documents.actions.archive"), icon: Trash2, destructive: true });
   }
-  if (canManage && !owned && archived) {
+  if (canManage && !owned && archived && !myFolder) {
     items.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore });
   }
-
   return (
     <>
       <DropdownMenu>
@@ -144,7 +160,18 @@ export function DocumentActionsMenu({
               key={item.id}
               variant={item.destructive ? "destructive" : "default"}
               className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
-              onClick={() => setPanel(item.id)}
+              onClick={() => {
+                if (item.id === "shelve") {
+                  // A document shelves directly (undo toast); a folder opens the
+                  // same cascade dialog the row menu uses (U-4).
+                  if (doc.kind === "folder") setPanel("shelve");
+                  else void shelvedActions.runShelve({ id: doc.id, kind: doc.kind, title: doc.title });
+                } else if (item.id === "unshelve") {
+                  void shelvedActions.runUnshelve({ id: doc.id, kind: doc.kind, title: doc.title });
+                } else {
+                  setPanel(item.id);
+                }
+              }}
             >
               <item.icon aria-hidden className="size-3.5" />
               {item.label}
@@ -159,7 +186,7 @@ export function DocumentActionsMenu({
         wsId={wsId}
         doc={doc}
       />
-      {!owned && canAdminister ? (
+      {!owned ? (
         <ShareDialog
           open={panel === "share"}
           onOpenChange={(next) => {
@@ -196,6 +223,9 @@ export function DocumentActionsMenu({
         mode={panel === "restore" ? "restore" : "archive"}
         onArchived={onArchived}
       />
+      {doc.kind === "folder" ? (
+        <DocumentShelveDialog open={panel === "shelve"} onOpenChange={(next) => setPanel(next ? "shelve" : null)} wsId={wsId} doc={doc} />
+      ) : null}
     </>
   );
 }

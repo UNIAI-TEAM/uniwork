@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
@@ -7,6 +7,7 @@ import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwo
 import { initI18n } from "@uniwork/core/i18n";
 import enLocale from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
+import { PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
@@ -17,7 +18,7 @@ import { DocumentsPageView } from "./documents-page-view";
 // go-to-source on a file from another module, starring, the Recent / Shared /
 // Starred / Archived / Elsewhere views, and the navigation sheet below `xl`.
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 const downloadBlob = vi.hoisted(() => vi.fn());
@@ -52,7 +53,7 @@ function source(over: Record<string, unknown> = {}) {
   return {
     id: "chat:m1",
     source: "chat",
-    parent: { kind: "chat_channel", id: "c1", title: "Kênh chung" },
+    parent: { kind: "chat_channel", id: "c1", title: "Kênh chung", message_id: "msg1" },
     name: "Đề xuất ngân sách.pdf",
     mime_type: "application/pdf",
     extension: "pdf",
@@ -67,6 +68,7 @@ function source(over: Record<string, unknown> = {}) {
 
 interface Routes {
   list?: (path: string) => unknown[];
+  tree?: () => unknown[];
   recent?: (path: string) => unknown[] | Promise<never>;
   recentCursor?: (path: string) => string | null;
   shared?: () => unknown[];
@@ -87,8 +89,10 @@ function route(routes: Routes) {
         return Promise.reject(error);
       }
     };
+    // The module switch reads the organization's office flags (UNI-1869 viewer).
+    if (path.startsWith("/api/v1/config")) return Promise.resolve({ flags: { office_engine: true } });
     if (path.includes("/documents/favorites")) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
-    if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+    if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: routes.tree?.() ?? [] });
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
       return run(() => ({ items: routes.sources?.(path) ?? [], next_cursor: routes.sourcesCursor?.(path) ?? null }));
     }
@@ -115,14 +119,14 @@ function nav(): NavigationAdapter {
   };
 }
 
-function renderView(adapter: NavigationAdapter = nav()) {
+function renderView(adapter: NavigationAdapter = nav(), viewProps: Partial<Parameters<typeof DocumentsPageView>[0]> = {}) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   render(
     wrap(
       <NavigationProvider value={adapter}>
         <WorkspaceProvider workspace={workspace} user={user}>
           <FeatureFlagsProvider service={service}>
-            <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+            <DocumentsPageView wsId={WS} onOpen={vi.fn()} {...viewProps} />
           </FeatureFlagsProvider>
         </WorkspaceProvider>
       </NavigationProvider>,
@@ -151,11 +155,26 @@ beforeEach(() => {
   downloadBlob.mockReset();
   toast.success.mockReset();
   toast.error.mockReset();
+  toast.dismiss.mockReset();
   resetAuthStoreForTests();
   setSessionUser({ ...user, onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {} });
 });
 
 describe("file from another module", () => {
+  const sourceNameButton = (row: HTMLElement) => row.querySelector("td:first-child button")! as HTMLElement;
+
+  /** Stubs the object-URL API and the click that saves the blob; returns the clicks. */
+  const stubDownload = () => {
+    const createUrl = vi.fn().mockReturnValue("blob:budget");
+    const revokeUrl = vi.fn();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: createUrl, revokeObjectURL: revokeUrl }));
+    const clicked: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(`${this.download}|${this.href}`);
+    });
+    return { createUrl, revokeUrl, clicked, restore: () => { click.mockRestore(); vi.unstubAllGlobals(); } };
+  };
+
   it("downloads the blob through a temporary link named after the file", async () => {
     route({ sources: () => [source()] });
     downloadBlob.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
@@ -169,7 +188,7 @@ describe("file from another module", () => {
     });
     try {
       const row = await rowOf("Đề xuất ngân sách.pdf");
-      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+      await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.download"));
       await waitFor(() => expect(clicked).toHaveLength(1));
       expect(clicked[0]).toBe("Đề xuất ngân sách.pdf|blob:budget");
       expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Am1/download`);
@@ -183,12 +202,340 @@ describe("file from another module", () => {
     }
   });
 
+  it("opens an Office source in the view-only dialog on the primary click — no download", async () => {
+    // UNI-1869: the office frame hosts the file read-only; the dialog carries
+    // the file's name and its own close, and the bytes never take the
+    // download route.
+    route({
+      sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })],
+      post: (path) =>
+        path.includes("/office/frame-token")
+          ? {
+              token: "ofs1.tok", token_type: "Bearer", expires_at: "2026-10-17T09:10:00Z", expires_in: 600,
+              source_id: "chat:d9", parent_kind: "chat_channel", parent_id: "c1",
+              workspace_id: WS, organization_id: "org1", can_edit: false, module: "docs", readonly: true,
+            }
+          : {},
+    });
+    const adapter = renderView(nav(), { officeFrameVersion: () => "9.9.9-test" });
+    const row = await rowOf("Kế hoạch.docx");
+    const nameButton = sourceNameButton(row);
+    nameButton.focus();
+    fireEvent.click(nameButton);
+    const dialog = await screen.findByRole("dialog", { name: /Kế hoạch\.docx/ });
+    const iframe = (await within(dialog).findByTestId("office-docs-frame-iframe")) as HTMLIFrameElement;
+    expect(iframe.getAttribute("src")).toBe("/office-frame/docs/9.9.9-test/index.html");
+    expect(within(dialog).getByText("Chỉ xem · thay đổi sẽ không được lưu")).toBeInTheDocument();
+    // Complete the frame handshake so the frame reaches ready state; the header notice stays in the dialog (not a transient toast).
+    const win = iframe.contentWindow!;
+    const envelope = (kind: Envelope["kind"], type: string, payload: unknown, id: string): Envelope =>
+      ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, payload });
+    const post = (data: unknown) => act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin, source: win }));
+    });
+    vi.spyOn(win, "postMessage").mockImplementation((message: unknown) => {
+      const m = message as Envelope;
+      if (m.kind === "request" && m.type === "init") {
+        queueMicrotask(() => {
+          void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id));
+        });
+      }
+    });
+    await post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, module: "docs" }, "r-open"));
+    await waitFor(() => expect(dialog.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+    expect(within(dialog).getByText("Chỉ xem · thay đổi sẽ không được lưu")).toBeInTheDocument();
+    expect(within(dialog).getByText(t("documents.home.row.view_only_notice"))).toBeInTheDocument();
+    // One close control, in the header (no second default × over the frame).
+    expect(within(dialog).getAllByRole("button", { name: t("documents.home.row.preview_close") })).toHaveLength(1);
+    expect(downloadBlob).not.toHaveBeenCalled();
+    expect(adapter.push).not.toHaveBeenCalled();
+    expect(calls("POST").some(([path]) => String(path).endsWith("/sources/chat%3Ad9/office/frame-token"))).toBe(true);
+    // Esc closes it and focus returns to the row's own button.
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(nameButton);
+  });
+
+  it("closes the Office source viewer dialog on close_requested {reason:'escape'} from the frame, and ignores a second event or one while another host dialog sits on top", async () => {
+    route({
+      sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })],
+      post: (path) =>
+        path.includes("/office/frame-token")
+          ? {
+              token: "ofs1.tok", token_type: "Bearer", expires_at: "2026-10-17T09:10:00Z", expires_in: 600,
+              source_id: "chat:d9", parent_kind: "chat_channel", parent_id: "c1",
+              workspace_id: WS, organization_id: "org1", can_edit: false, module: "docs", readonly: true,
+            }
+          : {},
+    });
+    const adapter = renderView(nav(), { officeFrameVersion: () => "9.9.9-test" });
+    const row = await rowOf("Kế hoạch.docx");
+    fireEvent.click(sourceNameButton(row));
+    const dialog = await screen.findByRole("dialog", { name: /Kế hoạch\.docx/ });
+    const iframe = (await within(dialog).findByTestId("office-docs-frame-iframe")) as HTMLIFrameElement;
+    const win = iframe.contentWindow!;
+    const envelope = (kind: Envelope["kind"], type: string, payload: unknown, id: string): Envelope =>
+      ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, payload });
+    const post = (data: unknown) => act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin, source: win }));
+    });
+    vi.spyOn(win, "postMessage").mockImplementation((message: unknown) => {
+      const m = message as Envelope;
+      if (m.kind === "request" && m.type === "init") {
+        queueMicrotask(() => {
+          void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id));
+        });
+      }
+    });
+    await post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, module: "docs" }, "r-open"));
+    await waitFor(() => expect(dialog.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+
+    // While the frame's own modal or another dialog sits on top of the source viewer dialog, close_requested is ignored.
+    await post(envelope("event", "modal", { open: true }, "m-1"));
+    await post(envelope("event", "close_requested", { reason: "escape" }, "c-modal"));
+    expect(screen.getByRole("dialog", { name: /Kế hoạch\.docx/ })).toBeInTheDocument();
+    await post(envelope("event", "modal", { open: false }, "m-2"));
+
+    const topDialog = document.createElement("div");
+    topDialog.setAttribute("role", "alertdialog");
+    document.body.append(topDialog);
+    try {
+      await post(envelope("event", "close_requested", { reason: "escape" }, "c-top"));
+      expect(screen.getByRole("dialog", { name: /Kế hoạch\.docx/ })).toBeInTheDocument();
+    } finally {
+      topDialog.remove();
+    }
+
+    // Plain close_requested closes the source viewer dialog without navigating.
+    await post(envelope("event", "close_requested", { reason: "escape" }, "c-1"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // A second close_requested after the first close does nothing.
+    await post(envelope("event", "close_requested", { reason: "escape" }, "c-2"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(adapter.push).not.toHaveBeenCalled();
+  });
+
+  it("still downloads a docx the server does not mark openable", async () => {
+    route({ sources: () => [source({ id: "chat:d9", name: "Kế hoạch.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx", can_open_in_app: false })] });
+    downloadBlob.mockResolvedValue(new Blob(["docx"]));
+    const adapter = renderView();
+    const { clicked, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Kế hoạch.docx");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(clicked[0]).toBe("Kế hoạch.docx|blob:budget");
+      expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Ad9/download`);
+      expect(adapter.push).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      // The download revokes its object URL a second later (documents-page-view
+      // onDownloadSource); let that timer land on THIS stub so it cannot leak
+      // into a later test's.
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
+    } finally {
+      restore();
+    }
+  });
+
+  it("closes with the failed toast when the viewer's token mint is refused", async () => {
+    route({
+      sources: () => [source({ id: "chat:d5", name: "Mất quyền.docx", extension: "docx" })],
+      post: (path) => {
+        if (path.includes("/office/frame-token")) throw new ApiError("not found", "not_found", 404);
+        return {};
+      },
+    });
+    renderView(nav(), { officeFrameVersion: () => "9.9.9-test" });
+    const row = await rowOf("Mất quyền.docx");
+    fireEvent.click(sourceNameButton(row));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed"));
+    expect(toast.dismiss).not.toHaveBeenCalled();
+    expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("closes with one failed toast when the source file content returns 404", async () => {
+    route({
+      sources: () => [source({ id: "chat:d6", name: "Lỗi nội dung.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "docx" })],
+      post: (path) =>
+        path.includes("/office/frame-token")
+          ? {
+              token: "ofs1.tok", token_type: "Bearer", expires_at: "2026-10-17T09:10:00Z", expires_in: 600,
+              source_id: "chat:d6", parent_kind: "chat_channel", parent_id: "c1",
+              workspace_id: WS, organization_id: "org1", can_edit: false, module: "docs", readonly: true,
+            }
+          : {},
+    });
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/office-frame/sources/chat%3Ad6")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          source_id: "chat:d6", principal: "source", workspace_id: WS, organization_id: "org1",
+          title: "Lỗi nội dung.docx", revision: "0", can_edit: false, readonly: true, module: "docs",
+          file: { version: 1, filename: "Lỗi nội dung.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 120 },
+          download_url: "/api/v1/office-frame/sources/chat%3Ad6/content",
+        }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
+      if (url.endsWith("/api/v1/office-frame/sources/chat%3Ad6/content")) {
+        return Promise.resolve(new Response(JSON.stringify({ error: { code: "not_found", message: "not found" } }), { status: 404, headers: { "Content-Type": "application/json" } }));
+      }
+      return Promise.resolve(new Response("", { status: 200 }));
+    }));
+    try {
+      renderView(nav(), { officeFrameVersion: () => "9.9.9-test" });
+      const row = await rowOf("Lỗi nội dung.docx");
+      fireEvent.click(sourceNameButton(row));
+      const dialog = await screen.findByRole("dialog", { name: /Lỗi nội dung\.docx/ });
+      const iframe = (await within(dialog).findByTestId("office-docs-frame-iframe")) as HTMLIFrameElement;
+      const win = iframe.contentWindow!;
+      const envelope = (kind: Envelope["kind"], type: string, payload: unknown, id: string): Envelope =>
+        ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id, kind, type, payload });
+      const post = (data: unknown) => act(() => {
+        window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin, source: win }));
+      });
+      vi.spyOn(win, "postMessage").mockImplementation((message: unknown) => {
+        const m = message as Envelope;
+        if (m.kind === "request" && m.type === "init") {
+          queueMicrotask(() => {
+            void post(envelope("response", "init", { protocolVersion: 1, capabilities: {} }, m.id));
+            void post(envelope("request", "api.open", { fileId: "chat:d6" }, "open-1"));
+          });
+        }
+        if (m.kind === "response" && m.id === "open-1" && m.error) {
+          queueMicrotask(() => {
+            void post(envelope("event", "error", { error: m.error, fatal: true }, "err-1"));
+          });
+        }
+      });
+      await post(envelope("event", "ready", { protocolVersion: 1, capabilities: {}, module: "docs" }, "r-1"));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed"));
+      expect(toast.error).not.toHaveBeenCalledWith(t("office.docsFrame.errors.not_found"));
+      expect(toast.dismiss).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("downloads instead when no frame build is installed for the module", async () => {
+    route({ sources: () => [source({ id: "chat:d7", name: "Kế hoạch.docx", extension: "docx" })] });
+    downloadBlob.mockResolvedValue(new Blob(["docx"]));
+    renderView(nav(), { officeFrameVersion: () => "" });
+    const { clicked, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Kế hoạch.docx");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
+    } finally {
+      restore();
+    }
+  });
+
+  it("downloads a zip on the primary click instead of navigating", async () => {
+    route({ sources: () => [source({ id: "chat:z1", name: "Mã nguồn.zip", mime_type: "application/zip", extension: "zip" })] });
+    downloadBlob.mockResolvedValue(new Blob(["zip"]));
+    const adapter = renderView();
+    const { clicked, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Mã nguồn.zip");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Az1/download`);
+      expect(adapter.push).not.toHaveBeenCalled();
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
+    } finally {
+      restore();
+    }
+  });
+
+  it("previews an image in a dialog on the primary click and revokes the blob on close", async () => {
+    route({ sources: () => [source({ id: "chat:i1", name: "Chụp màn hình.png", mime_type: "image/png", extension: "png" })] });
+    downloadBlob.mockResolvedValue(new Blob(["png"], { type: "image/png" }));
+    const adapter = renderView();
+    const { createUrl, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Chụp màn hình.png");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(downloadBlob.mock.calls[0]?.[0]).toBe(`${LIST_BASE}/sources/chat%3Ai1/download`));
+      const dialog = await screen.findByRole("dialog");
+      const image = within(dialog).getByRole("img", { name: "Chụp màn hình.png" });
+      expect(image).toHaveAttribute("src", "blob:budget");
+      // S2V-4: the close button sits on the dialog's own surface, never on the image.
+      const close = within(dialog).getByRole("button", { name: t("documents.home.row.preview_close") });
+      expect(image).not.toContainElement(close);
+      expect(close.compareDocumentPosition(image) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      // A preview never navigates or saves the file.
+      expect(adapter.push).not.toHaveBeenCalled();
+      fireEvent.click(close);
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(revokeUrl).toHaveBeenCalledWith("blob:budget");
+    } finally {
+      restore();
+    }
+  });
+
+  it("says why when an image preview cannot load", async () => {
+    route({ sources: () => [source({ id: "chat:i2", name: "Ảnh.png", mime_type: "image/png", extension: "png" })] });
+    downloadBlob.mockRejectedValue(new ApiError("Tệp đã bị xoá", "not_found", 404));
+    renderView();
+    const row = await rowOf("Ảnh.png");
+    fireEvent.click(sourceNameButton(row));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Tệp đã bị xoá"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("closes with the failed toast when the browser cannot draw the image", async () => {
+    route({ sources: () => [source({ id: "chat:i3", name: "Ảnh lỗi.png", mime_type: "image/png", extension: "png" })] });
+    downloadBlob.mockResolvedValue(new Blob(["nope"], { type: "image/png" }));
+    renderView();
+    const { restore } = stubDownload();
+    try {
+      const row = await rowOf("Ảnh lỗi.png");
+      fireEvent.click(sourceNameButton(row));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.error(await within(dialog).findByRole("img", { name: "Ảnh lỗi.png" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.preview_failed")));
+    } finally {
+      restore();
+    }
+  });
+
+  it("drops a blob that resolves after the preview was closed", async () => {
+    route({ sources: () => [source({ id: "chat:i4", name: "Chậm.png", mime_type: "image/png", extension: "png" })] });
+    let release!: (blob: Blob) => void;
+    downloadBlob.mockImplementation(() => new Promise<Blob>((resolve) => { release = resolve; }));
+    renderView();
+    const { createUrl, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Chậm.png");
+      fireEvent.click(sourceNameButton(row));
+      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: t("documents.home.row.preview_close") }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+      await act(async () => {
+        release(new Blob(["png"], { type: "image/png" }));
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      });
+      // The closed preview never became an object URL and never reopened.
+      expect(createUrl).not.toHaveBeenCalled();
+      expect(revokeUrl).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
   it("says why when the download is refused", async () => {
     route({ sources: () => [source()] });
     downloadBlob.mockRejectedValue(new ApiError("Tệp đã bị xoá", "not_found", 404));
     renderView();
-    const row = await rowOf("Đề xuất ngân sách.pdf");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+      await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.download"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Tệp đã bị xoá"));
   });
 
@@ -196,35 +543,137 @@ describe("file from another module", () => {
     route({ sources: () => [source()] });
     downloadBlob.mockRejectedValue("offline");
     renderView();
-    const row = await rowOf("Đề xuất ngân sách.pdf");
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.download") }));
+      await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.download"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.home.row.download_failed")));
   });
 
-  it("opens the chat room and message that holds the file", async () => {
-    route({
-      sources: () => [
-        source({ parent: { kind: "chat_channel", id: "c1", title: "Kênh chung", message_id: "m1" } }),
-      ],
-    });
+  it("opens the channel room at the message the file was sent in, inside this workspace", async () => {
+    route({ sources: () => [source()] });
+    const adapter = renderView();
+    // The literal copy is pinned on purpose (U-SRC3): one label for every origin but email.
+    await pickFromMenu("Đề xuất ngân sách.pdf", "Xem nơi đính kèm");
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
+  });
+
+  it("opens the room and message from the row's secondary button too", async () => {
+    route({ sources: () => [source()] });
+    const adapter = renderView();
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) });
+    // S2V-2: an icon button rendered at every list width — nothing in its
+    // chain may carry a ladder rung (hidden plus a container min-width block).
+    const wrapper = secondary.parentElement;
+    expect(wrapper?.className ?? "").not.toMatch(/(^|\s)hidden(\s|$)/);
+    expect(wrapper?.className ?? "").not.toMatch(/@min-\[\d+rem\]\/library:block/);
+    // Icon-only: the visible label lives on the tooltip, not as button text.
+    expect(secondary).toHaveAttribute("data-slot", "tooltip-trigger");
+    expect(secondary).not.toHaveTextContent(t("documents.home.row.go_to_source"));
+    fireEvent.click(secondary);
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
+  });
+
+  it("carries the visible label on the tooltip of the icon-only button", async () => {
+    route({ sources: () => [source()] });
+    renderView();
+    const row = await rowOf("Đề xuất ngân sách.pdf");
+    const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Đề xuất ngân sách.pdf" }) });
+    secondary.focus();
+    const tip = await screen.findByText(t("documents.home.row.go_to_source"));
+    expect(tip.closest('[data-slot="tooltip-content"]')).toBeTruthy();
+  });
+
+  it("opens the DM room at the message the file was sent in", async () => {
+    route({ sources: () => [source({ parent: { kind: "chat_dm", id: "dm1", title: "Dũng", message_id: "msg7" } })] });
     const adapter = renderView();
     await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.go_to_source"));
-    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=m1");
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=dm1&message=msg7");
+  });
+
+  it("opens a group room (sent as chat_dm with the group's room id)", async () => {
+    route({ sources: () => [source({ parent: { kind: "chat_dm", id: "group1", title: "Nhóm dự án", message_id: "msg8" } })] });
+    const adapter = renderView();
+    await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.go_to_source"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=group1&message=msg8");
+  });
+
+  it("opens the room only when the server named no message", async () => {
+    route({ sources: () => [source({ parent: { kind: "chat_channel", id: "c1", title: "Kênh chung" } })] });
+    const adapter = renderView();
+    await pickFromMenu("Đề xuất ngân sách.pdf", t("documents.home.row.go_to_source"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1");
+  });
+
+  it("opens the Email Hub for an email attachment, under its own label", async () => {
+    route({ sources: () => [source({ id: "email:a1", source: "email", name: "Hóa đơn.pdf", parent: { kind: "email_thread", id: "th1", title: "Hóa đơn", message_id: "" } })] });
+    const adapter = renderView();
+    await pickFromMenu("Hóa đơn.pdf", "Mở Email");
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/email");
+    // The row's own button is icon-only: the accessible name says the visible
+    // label (WCAG 2.5.3) and the tooltip carries the words.
+    const row = await rowOf("Hóa đơn.pdf");
+    const secondary = within(row).getByRole("button", { name: t("documents.home.row.open_email_named", { title: "Hóa đơn.pdf" }) });
+    expect(secondary).toHaveAttribute("data-slot", "tooltip-trigger");
+    expect(secondary).not.toHaveTextContent(t("documents.home.row.open_email"));
+    fireEvent.click(secondary);
+    expect(adapter.push).toHaveBeenCalledTimes(2);
   });
 
   it("opens the task a comment attachment belongs to", async () => {
-    route({ sources: () => [source({ id: "task:a1", source: "task", name: "Phụ lục.docx", extension: "docx", parent: { kind: "task", id: "t7", title: "Việc" } })] });
+    route({ sources: () => [source({ id: "task:a1", source: "task", name: "Phụ lục.docx", extension: "docx", parent: { kind: "task", id: "t7", title: "Việc", message_id: "" } })] });
     const adapter = renderView();
     await pickFromMenu("Phụ lục.docx", t("documents.home.row.go_to_source"));
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/tasks/t7");
   });
 
-  it("goes nowhere for a parent the web app has no page for", async () => {
-    route({ sources: () => [source({ parent: { kind: "unknown", id: "x", title: "?" } })] });
+  it("opens the meeting a file belongs to", async () => {
+    route({ sources: () => [source({ id: "meeting:a1", source: "meeting", name: "Biên bản.docx", extension: "docx", parent: { kind: "meeting", id: "mt3", title: "Họp tuần", message_id: "" } })] });
     const adapter = renderView();
-    const row = await rowOf("Đề xuất ngân sách.pdf");
-    fireEvent.click(within(row).getAllByRole("button", { name: /Đề xuất ngân sách.pdf/ })[0]!);
-    expect(adapter.push).not.toHaveBeenCalled();
+    await pickFromMenu("Biên bản.docx", t("documents.home.row.go_to_source"));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/meetings/mt3");
+  });
+
+  it("downloads on the primary click of an unknown parent and offers no go-to-source", async () => {
+    route({ sources: () => [source({ parent: { kind: "unknown", id: "x", title: "?" } })] });
+    downloadBlob.mockResolvedValue(new Blob(["pdf"]));
+    const adapter = renderView();
+    const { clicked, revokeUrl, restore } = stubDownload();
+    try {
+      const row = await rowOf("Đề xuất ngân sách.pdf");
+      fireEvent.click(sourceNameButton(row));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+
+      // A parent kind with no route gets neither the row button nor the menu item.
+      expect(within(row).queryByRole("button", { name: /nơi đính kèm|Mở Email/ })).toBeNull();
+      fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách.pdf" }) }));
+      expect(await screen.findByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeNull();
+      expect(adapter.push).not.toHaveBeenCalled();
+      await waitFor(() => expect(revokeUrl).toHaveBeenCalledWith("blob:budget"), { timeout: 3000 });
+    } finally {
+      restore();
+    }
+  });
+
+  it("opens the file on Enter and keeps View where attached its own named tab stop", async () => {
+    route({ sources: () => [source({ id: "chat:k1", name: "Báo cáo.png", mime_type: "image/png", extension: "png" })] });
+    downloadBlob.mockResolvedValue(new Blob(["png"], { type: "image/png" }));
+    const adapter = renderView();
+    const { restore } = stubDownload();
+    try {
+      const row = await rowOf("Báo cáo.png");
+      sourceNameButton(row).focus();
+      await userEvent.keyboard("{Enter}");
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      await userEvent.keyboard("{Escape}");
+
+      // The secondary action is reachable by keyboard on its own, with a name.
+      const secondary = within(row).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: "Báo cáo.png" }) });
+      secondary.focus();
+      await userEvent.keyboard("{Enter}");
+      expect(adapter.push).toHaveBeenCalledWith("/acme/doi/chat?room=c1&message=msg1");
+    } finally {
+      restore();
+    }
   });
 });
 
@@ -270,6 +719,32 @@ describe("starring a document", () => {
     expect(await rowOf("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Khác")).toBeNull();
   });
+
+  it("shows the star marker on the row after starring and removes it after unstarring", async () => {
+    let starred = false;
+    const fav = { document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" };
+    route({
+      list: () => [summary()],
+      favorites: () => (starred ? [fav] : []),
+      post: (path) => {
+        if (path === "/api/v1/documents/d1/favorite") starred = true;
+        return { favorite: fav };
+      },
+      del: (path) => {
+        if (path === "/api/v1/documents/d1/favorite") starred = false;
+        return { status: "ok" };
+      },
+    });
+    renderView();
+    const row = await rowOf("Kế hoạch Q4");
+    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.star"));
+    expect(await within(row).findByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+
+    await pickFromMenu("Kế hoạch Q4", t("documents.home.row.unstar"));
+    await waitFor(() => expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull());
+  });
 });
 
 describe("library views", () => {
@@ -289,7 +764,7 @@ describe("library views", () => {
     fireEvent.click(sidebarItem(t("documents.home.sidebar.shared")));
     const row = await rowOf("Hợp đồng chung");
     // An editor that is an agent without a member entry is named as an agent, not left blank.
-    expect(within(row).getByText(t("documents.home.editor_agent"))).toBeInTheDocument();
+    expect(within(row).getAllByText(t("documents.home.editor_agent")).length).toBeGreaterThan(0);
   });
 
   it("says the recent list could not be read and retries it", async () => {
@@ -346,16 +821,14 @@ describe("library views", () => {
     expect(screen.queryByText(t("documents.library.error_title"))).toBeNull();
   });
 
-  it("lists archived documents without move or archive commands", async () => {
-    route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? [summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z" })] : []) });
+  it("lists archived documents with the trash actions and no live row menu", async () => {
+    route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? [summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z", archived_by: "u2", purge_after: "2026-10-01T00:00:00Z" })] : []) });
     renderView();
-    fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) }));
     const row = await rowOf("Cũ");
-    expect(within(row).getByText(t("documents.library.archived_badge"))).toBeInTheDocument();
-    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) }));
-    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
+    expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Cũ" }) })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) })).toBeNull();
   });
 
   it("lists one module's files from the sidebar and names the view after it", async () => {
@@ -425,60 +898,63 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
   const archivedList = (rows: unknown[]) => (path: string) =>
     new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? rows : [];
 
-  async function openArchiveScope() {
-    fireEvent.click(await screen.findByRole("tab", { name: new RegExp(t("documents.home.scope.archived")) }));
-  }
-
-  /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
-  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
-
   async function openMenu(title: string) {
     const row = await rowOf(title);
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
   }
 
-  it("offers Restore, not Open folder, on a trashed folder in the Archive scope", async () => {
+  async function openArchiveScope() {
+    fireEvent.click((await screen.findAllByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) }))[0]!);
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
+  }
+
+  /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
+  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
+  const restoreOf = (row: HTMLElement) => within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Dự án CCB" }) });
+
+  it("offers Restore and Xóa vĩnh viễn, not Open folder or a row menu, on a trashed folder in the Trash view", async () => {
     route({ list: archivedList([archivedFolder()]) });
     renderView();
     await openArchiveScope();
-    await openMenu("Dự án CCB");
-    expect(await screen.findByRole("menuitem", { name: t("documents.actions.restore") })).toBeInTheDocument();
+    const row = await rowOf("Dự án CCB");
+    expect(restoreOf(row)).not.toBeNull();
+    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án CCB" }) })).not.toBeNull();
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeNull();
   });
 
-  it("hides Restore from a viewer who cannot manage the trashed folder (no menu at all)", async () => {
+  it("shows the read-only label instead of actions for a viewer who cannot manage the trashed folder", async () => {
     route({ list: archivedList([archivedFolder({ my_level: "edit" })]) });
     renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
-    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
+    expect(restoreOf(row)).toBeNull();
+    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án CCB" }) })).toBeNull();
+    expect(within(row).getByText(t("documents.trash.read_only"))).toBeInTheDocument();
   });
 
-  it("opens the restore dialog, and does not navigate, on click of a trashed folder row", async () => {
-    route({ list: archivedList([archivedFolder()]) });
+  it("restores a trashed folder with one POST, toasts and drops the row — no navigation", async () => {
+    let restored = false;
+    route({
+      list: (path) => (restored ? [] : archivedList([archivedFolder()])(path)),
+      post: (path) => {
+        if (path !== "/api/v1/documents/f1/restore") return {};
+        restored = true;
+        return { document: archivedFolder({ title: "Dự án CCB (2)", archived_at: null, parent_id: null, breadcrumbs: [] }), batch_id: "b1", affected: ["f1"] };
+      },
+    });
     const adapter = renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
-    fireEvent.click(primaryOf(row)!);
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
+    fireEvent.click(restoreOf(row)!);
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.trash.toast.restored_root", { title: "Dự án CCB (2)" })));
+    expect(calls("POST").map(([path]) => path)).toContain("/api/v1/documents/f1/restore");
+    await waitFor(() => expect(screen.queryByText("Dự án CCB")).toBeNull());
     expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
   });
 
-  it("opens the restore dialog, and does not navigate, on Enter over a trashed folder row", async () => {
+  it("makes a trashed folder's name inert: no button, no dialog, no navigation on click", async () => {
     route({ list: archivedList([archivedFolder()]) });
-    const adapter = renderView();
-    await openArchiveScope();
-    const row = await rowOf("Dự án CCB");
-    const open = primaryOf(row)!;
-    open.focus();
-    await userEvent.keyboard("{Enter}");
-    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
-    expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
-  });
-
-  it("makes a trashed folder row inert for a viewer who cannot manage it: no link, no dialog, no navigation", async () => {
-    route({ list: archivedList([archivedFolder({ my_level: "edit" })]) });
     const adapter = renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
@@ -488,41 +964,25 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     expect(adapter.push).not.toHaveBeenCalledWith(expect.stringContaining("folder="));
   });
 
-  it("keeps an archived document's menu as it was: Open on the web, no Restore", async () => {
+  it("keeps a trashed document's title opening it, beside Restore", async () => {
     route({ list: archivedList([summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z" })]) });
-    renderView();
+    const onOpen = vi.fn();
+    renderView(nav(), { onOpen });
     await openArchiveScope();
-    await openMenu("Cũ");
-    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.actions.restore") })).toBeNull();
+    const row = await rowOf("Cũ");
+    expect(within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).not.toBeNull();
+    fireEvent.click(primaryOf(row)!);
+    expect(onOpen).toHaveBeenCalledWith("a1");
   });
 
-  it("restores through the dialog, toasts the returned title and drops the row from the Archive list", async () => {
-    let restored = false;
+  it("names the same actions the same way on a folder card menu and in the tree menu", async () => {
     route({
-      list: (path) => (restored ? [] : archivedList([archivedFolder()])(path)),
-      post: (path) => {
-        if (path !== "/api/v1/documents/f1/restore") return {};
-        restored = true;
-        return { document: archivedFolder({ title: "Dự án CCB (2)", archived_at: null }), batch_id: "b1", affected: ["f1"] };
-      },
+      tree: () => [{ id: "f1", title: "Hợp đồng", kind: "folder", position: 0, children: [] }],
+      list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })],
     });
     renderView();
-    await openArchiveScope();
-    await openMenu("Dự án CCB");
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.actions.restore") }));
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText(t("documents.archive.restore_title"))).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.archive.restore_confirm") }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.home.folders.toast.restored", { title: "Dự án CCB (2)" })));
-    expect(calls("POST").map(([path]) => path)).toContain("/api/v1/documents/f1/restore");
-    await waitFor(() => expect(screen.queryByText("Dự án CCB")).toBeNull());
-  });
-
-  it("names the same actions the same way on a folder row and in the tree menu", async () => {
-    route({ list: () => [summary({ id: "f1", kind: "folder", title: "Hợp đồng" })] });
-    renderView();
-    await openMenu("Hợp đồng");
+    const section = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
+    fireEvent.click(await within(section).findByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
     expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.delete") })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
