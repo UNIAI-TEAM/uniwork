@@ -288,3 +288,33 @@ func TestOfficeSubmitSuppliedInputReleasesTheBase(t *testing.T) {
 		})
 	}
 }
+
+func TestOfficeSubmitLegacySpoolPanicDeletesTheSpool(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, strings.Repeat("legacy base\n", 1024))
+	if _, err := f.pool.Exec(ctx, `UPDATE document_versions SET checksum_sha256 = NULL WHERE id = $1`, f.ver); err != nil {
+		t.Fatal(err)
+	}
+	spool := t.TempDir()
+	t.Setenv("TMPDIR", spool)
+	cf := &countingFiles{
+		bridgeFiles: f.files,
+		readHook: func([]byte) (int, error) {
+			panic("injected storage read panic")
+		},
+	}
+	svc := f.streamService(newScriptedEngine(), cf)
+
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		_, _ = svc.StartOfficeJob(ctx, f.actor, f.input("k-spool-panic"))
+	}()
+	if recovered != "injected storage read panic" {
+		t.Fatalf("recovered=%v, want injected storage read panic", recovered)
+	}
+	entries, _ := os.ReadDir(spool)
+	if cf.opens.Load() != 1 || cf.closes.Load() != 1 || len(entries) != 0 {
+		t.Fatalf("after panic: baseOpens=%d baseCloses=%d spoolFiles=%d (%v)", cf.opens.Load(), cf.closes.Load(), len(entries), entries)
+	}
+}

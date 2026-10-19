@@ -545,19 +545,24 @@ func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope,
 	if err != nil {
 		return officeInput{}, err
 	}
-	remove := func() { _ = spool.Close(); _ = os.Remove(spool.Name()) }
+	name := spool.Name()
+	keep := false
+	defer func() {
+		_ = spool.Close()
+		if !keep {
+			_ = os.Remove(name)
+		}
+	}()
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(spool, h), io.LimitReader(r.Body, limit+1))
 	if err != nil {
-		remove()
 		return officeInput{}, err
 	}
 	if n > limit {
-		remove()
 		return officeInput{}, officeErr("upload_bounds", "base_too_large")
 	}
 	_ = spool.Close()
-	name := spool.Name()
+	keep = true
 	return officeInput{
 		checksum: hex.EncodeToString(h.Sum(nil)), length: n,
 		open:    func() (io.ReadCloser, error) { return os.Open(name) },
