@@ -1,0 +1,2 @@
+$ git status --short -- web/e2e e2e | head; [ -z "$(git status --short -- web/e2e e2e)" ] && echo SPECS_CLEAN
+SPECS_CLEAN
