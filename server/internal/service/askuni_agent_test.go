@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/go-redis/redismock/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
@@ -288,6 +293,8 @@ func TestAskAgentReplaysAssistantTurns(t *testing.T) {
 func TestAskAgentRefusalStoresNotice(t *testing.T) {
 	s, fake, ua, w := agentAskFixture(t)
 	agentTask(t, s, ua, w, "Banner Tết")
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
 	scriptAgent(fake, "banner", "never sent")
 	search := fake.Reply
 	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
@@ -304,11 +311,468 @@ func TestAskAgentRefusalStoresNotice(t *testing.T) {
 	if res.Message.Notice.String != ai.NoticeRefused || res.Message.Content != "" || len(res.Citations) != 0 || !res.Message.UsageEventID.Valid {
 		t.Fatalf("stored %+v", res.Message)
 	}
+	// The refused call's tokens were billed, so they are in the run's totals.
+	if res.InputTokens != 19 || res.OutputTokens != 6 || !reflect.DeepEqual(m.runs, []string{"refused/1"}) {
+		t.Fatalf("tokens %d/%d, runs %v; want 19/6 and refused", res.InputTokens, res.OutputTokens, m.runs)
+	}
 	sum, err := s.q.AiSumRunUsage(context.Background(), db.AiSumRunUsageParams{OrganizationID: w.OrganizationID, RunID: res.RunID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if sum.Calls != 2 {
 		t.Fatalf("usage rows %d, want 2 (the refused call was billed too)", sum.Calls)
+	}
+}
+
+// The run limits (R10, R11, ruling P11) and the metrics hook.
+
+const (
+	agentBudgetNote = "\n\n[system] Tool budget reached. Answer now from the sources above without calling tools."
+	agentReminder   = "Your last reply was empty, cut off, or asked for tools after the budget. Reply now in Markdown, citing [S#], without calling tools."
+)
+
+// agentMetricsFake records what a run reports, as "outcome/rounds" and
+// "tool/status".
+type agentMetricsFake struct{ runs, tools []string }
+
+func (m *agentMetricsFake) ObserveAskRun(outcome string, rounds int, _ float64) {
+	m.runs = append(m.runs, fmt.Sprintf("%s/%d", outcome, rounds))
+}
+
+func (m *agentMetricsFake) ObserveAskTool(tool, status string, _ float64) {
+	m.tools = append(m.tools, tool+"/"+status)
+}
+
+func searchCall(id string) provider.ToolCall {
+	return provider.ToolCall{ID: id, Name: "search", Input: json.RawMessage(`{"query":"banner"}`)}
+}
+
+// lastToolOf is the last tool result a request carried, "" for none.
+func lastToolOf(req provider.CompletionRequest) string {
+	for i := len(req.Messages) - 1; i >= 0; i-- {
+		if req.Messages[i].Role == "tool" {
+			return req.Messages[i].Content
+		}
+	}
+	return ""
+}
+
+func TestAskAgentStopsAfterFourToolRounds(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	var reqs []provider.CompletionRequest
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		reqs = append(reqs, req)
+		return provider.CompletionResponse{ToolCalls: []provider.ToolCall{searchCall("call-1")}, StopReason: "tool_use", UsagePresent: true, InputTokens: 10, OutputTokens: 5}
+	}
+	res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Four tool rounds, the answer round, and its one format retry.
+	if fake.Calls != 6 {
+		t.Fatalf("provider calls %d, want 6", fake.Calls)
+	}
+	for i, req := range reqs[:4] {
+		if strings.Contains(lastToolOf(req), "Tool budget reached") {
+			t.Fatalf("call %d is a tool round and must not carry the note", i)
+		}
+	}
+	if tool := lastToolOf(reqs[4]); !strings.HasSuffix(tool, agentBudgetNote) {
+		t.Fatalf("the answer round's last tool result must end with the note:\n%s", tool)
+	}
+	if tool := lastToolOf(reqs[5]); !strings.Contains(tool, "Tool budget reached") {
+		t.Fatalf("the final request's last tool result lacks the note:\n%s", tool)
+	}
+	if res.Message.Notice.String != ai.NoticeAgentFailed || res.Message.Content != "" || len(res.Citations) != 0 {
+		t.Fatalf("stored %+v, want notice agent_failed", res.Message)
+	}
+	sum, err := s.q.AiSumRunUsage(context.Background(), db.AiSumRunUsageParams{OrganizationID: w.OrganizationID, RunID: res.RunID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Calls != int64(fake.Calls) {
+		t.Fatalf("usage rows %d, provider calls %d: every call is billed", sum.Calls, fake.Calls)
+	}
+}
+
+func TestAskAgentRetriesMalformedFinalOnce(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		bad  provider.CompletionResponse
+	}{
+		{"empty", provider.CompletionResponse{Text: " <untrusted> </untrusted> ", StopReason: "end_turn"}},
+		{"cut off", provider.CompletionResponse{Text: "Banner đang", StopReason: "max_tokens"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, fake, ua, w := agentAskFixture(t)
+			task := agentTask(t, s, ua, w, "Banner Tết")
+			var reqs []provider.CompletionRequest
+			fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+				reqs = append(reqs, req)
+				switch len(reqs) {
+				case 1:
+					return provider.CompletionResponse{ToolCalls: []provider.ToolCall{searchCall("call-1")}, StopReason: "tool_use", UsagePresent: true, InputTokens: 10}
+				case 2:
+					bad := tc.bad
+					bad.UsagePresent, bad.InputTokens = true, 10
+					return bad
+				}
+				return provider.CompletionResponse{Text: "ok [S1]", StopReason: "end_turn", UsagePresent: true, InputTokens: 10}
+			}
+			res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(reqs) != 3 {
+				t.Fatalf("provider calls %d, want 3 (search, answer, one retry)", len(reqs))
+			}
+			retry := reqs[2]
+			last := retry.Messages[len(retry.Messages)-1]
+			if last.Role != "user" || last.Content != agentReminder {
+				t.Fatalf("the retry must end with the reminder, got %s: %q", last.Role, last.Content)
+			}
+			// The answer round's request, then the reminder: the bad reply is
+			// not sent back, and the tools are still offered (R11).
+			if !reflect.DeepEqual(retry.Messages[:len(retry.Messages)-1], reqs[1].Messages) || len(retry.Tools) != len(agentToolOrder) {
+				t.Fatalf("retry: %d messages, %d tools", len(retry.Messages), len(retry.Tools))
+			}
+			if res.Message.Content != "ok [S1]" || res.Message.Notice.String != "" || len(res.Citations) != 1 || res.Citations[0].Href != "/org-alpha/alpha/tasks/"+task.ID {
+				t.Fatalf("stored %+v, citations %+v", res.Message, res.Citations)
+			}
+		})
+	}
+}
+
+func TestAskAgentBudgetForcesFinalRound(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		in, out int
+	}{{"input", 61_000, 5}, {"output", 10, 4_000}} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, fake, ua, w := agentAskFixture(t)
+			agentTask(t, s, ua, w, "Banner Tết")
+			var reqs []provider.CompletionRequest
+			fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+				reqs = append(reqs, req)
+				if len(reqs) == 1 {
+					return provider.CompletionResponse{ToolCalls: []provider.ToolCall{searchCall("call-1")}, StopReason: "tool_use", UsagePresent: true, InputTokens: tc.in, OutputTokens: tc.out}
+				}
+				return provider.CompletionResponse{Text: "Xong [S1]", StopReason: "end_turn", UsagePresent: true, InputTokens: 10, OutputTokens: 5}
+			}
+			res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(reqs) != 2 || !strings.HasSuffix(lastToolOf(reqs[1]), agentBudgetNote) {
+				t.Fatalf("round 2 must carry the note (%d calls):\n%s", len(reqs), lastToolOf(reqs[len(reqs)-1]))
+			}
+			if res.Message.Content != "Xong [S1]" {
+				t.Fatalf("stored %+v", res.Message)
+			}
+		})
+	}
+}
+
+func TestAskAgentDeadlineForcesFinalRound(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		advance time.Duration
+		note    bool
+	}{{"under 40s left", 81 * time.Second, true}, {"40s and more left", 79 * time.Second, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, fake, ua, w := agentAskFixture(t)
+			agentTask(t, s, ua, w, "Banner Tết")
+			clock := time.Now()
+			s.now = func() time.Time { return clock }
+			reqs := scriptAgent(fake, "banner", "Xong [S1]")
+			search := fake.Reply
+			fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+				out := search(req)
+				if len(*reqs) == 1 {
+					clock = clock.Add(tc.advance)
+				}
+				return out
+			}
+			if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.HasSuffix(lastToolOf((*reqs)[1]), agentBudgetNote); got != tc.note {
+				t.Fatalf("note on round 2 = %v, want %v", got, tc.note)
+			}
+		})
+	}
+}
+
+func TestAskAgentCapsToolResult(t *testing.T) {
+	b := newSourceBook(nil)
+	items := make([]agentItem, 0, 401)
+	for i := range 400 {
+		key := fmt.Sprintf("/org-alpha/alpha/tasks/t%d", i)
+		items = append(items, agentItem{Kind: "task", Key: key, Title: fmt.Sprintf("Việc %d", i), Href: key, Text: strings.Repeat("dài ", 250)})
+	}
+	items = append(items, moreNote("More tasks match than are listed."))
+	out, status := b.toolResult(items)
+	if len(out) > 64<<10 || !strings.HasSuffix(out, "[truncated]") || status != "truncated" {
+		t.Fatalf("tool result %d bytes, status %q, ends %q", len(out), status, out[max(0, len(out)-40):])
+	}
+	sent := strings.Count(out, "<untrusted source=")
+	if sent == 0 || sent != strings.Count(out, "</untrusted>") || !strings.Contains(out, "More tasks match than are listed.") {
+		t.Fatalf("whole sources only (%d opened, %d closed), and the note kept", sent, strings.Count(out, "</untrusted>"))
+	}
+	// A source that was not sent takes no number.
+	if b.next != sent+1 {
+		t.Fatalf("book numbered %d sources, %d were sent", b.next-1, sent)
+	}
+}
+
+func TestAskAgentLimitsCallsPerRound(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	var reqs []provider.CompletionRequest
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		reqs = append(reqs, req)
+		if len(reqs) == 1 {
+			calls := make([]provider.ToolCall, 0, 8)
+			for i := range 8 {
+				calls = append(calls, searchCall(fmt.Sprintf("call-%d", i+1)))
+			}
+			return provider.CompletionResponse{ToolCalls: calls, StopReason: "tool_use", UsagePresent: true, InputTokens: 10}
+		}
+		return provider.CompletionResponse{Text: "Xong [S1]", StopReason: "end_turn", UsagePresent: true, InputTokens: 10}
+	}
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); err != nil {
+		t.Fatal(err)
+	}
+	msgs := reqs[1].Messages
+	results := msgs[len(msgs)-8:]
+	for i, m := range results {
+		refused := m.Content == "error: too_many_calls"
+		if m.Role != "tool" || m.ToolCallID != fmt.Sprintf("call-%d", i+1) || refused != (i >= 6) {
+			t.Fatalf("result %d: %s %s %q; want 6 run, then 2 too_many_calls", i, m.Role, m.ToolCallID, m.Content)
+		}
+	}
+}
+
+func TestAskAgentOrgCallLimit(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	rdb := uniworkRedis(t)
+	s.rdb = rdb
+	ctx := context.Background()
+	key := "uw:ai:ask:org:" + w.OrganizationID
+	t.Cleanup(func() { _ = rdb.Del(context.Background(), key, "uw:ai:ask:"+ua.ID).Err() })
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+
+	if err := rdb.Set(ctx, key, askAgentOrgCallsPerMinute, time.Minute).Err(); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	if !errors.Is(err, ai.ErrRateLimited) || fake.Calls != 0 {
+		t.Fatalf("err %v, provider calls %d; want ai_rate_limited before any call", err, fake.Calls)
+	}
+	if !reflect.DeepEqual(m.runs, []string{"rate_limited/0"}) {
+		t.Fatalf("runs %v", m.runs)
+	}
+
+	// Crossed mid-run: the call that crossed it is the answer round.
+	if err := rdb.Set(ctx, key, askAgentOrgCallsPerMinute-1, time.Minute).Err(); err != nil {
+		t.Fatal(err)
+	}
+	reqs := scriptAgent(fake, "banner", "Xong [S1]")
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(*reqs) != 2 || !strings.HasSuffix(lastToolOf((*reqs)[1]), agentBudgetNote) || res.Message.Content != "Xong [S1]" {
+		t.Fatalf("calls %d, answer %q; round 2 must carry the note", len(*reqs), res.Message.Content)
+	}
+}
+
+// The organization's call counter fails open on a Redis error and starts its
+// one-minute window on the first call.
+func TestAskAgentOrgCallCounter(t *testing.T) {
+	rdb, mock := redismock.NewClientMock()
+	s := &AskUNIService{rdb: rdb}
+	key := "uw:ai:ask:org:org-1"
+	mock.ExpectIncr(key).SetErr(errors.New("redis down"))
+	mock.ExpectIncr(key).SetVal(1)
+	mock.ExpectExpire(key, time.Minute).SetVal(true)
+	mock.ExpectIncr(key).SetVal(askAgentOrgCallsPerMinute + 1)
+	ctx := context.Background()
+	// Open on the Redis error, open on the first call, closed past the limit.
+	for i, want := range []bool{false, false, true} {
+		if got := s.agentCallOver(ctx, "org-1"); got != want {
+			t.Fatalf("call %d over = %v, want %v", i, got, want)
+		}
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAskAgentReportsMetrics(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	reqs := scriptAgent(fake, "banner", "Xong [S1]")
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(m.runs, []string{"answered/1"}) || !reflect.DeepEqual(m.tools, []string{"search/ok"}) {
+		t.Fatalf("runs %v, tools %v", m.runs, m.tools)
+	}
+	if strings.Contains(lastToolMessage(t, *reqs), "Tool budget reached") {
+		t.Fatal("a run inside every limit must not carry the note")
+	}
+	// No metrics wired reports nothing and does not panic.
+	s.SetAgentMetrics(nil)
+	scriptAgent(fake, "banner", "Xong [S1]")
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAskAgentBusyWhenRunsAreFull(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	s.agentRuns = newUniworkConcurrency(nil, "ai:ask:", askAgentPodMax, 1, askAgentGlobalMax, time.Minute)
+	release, err := s.agentRuns.Acquire(context.Background(), w.OrganizationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	_, err = s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	var aiErr *ai.Error
+	if !errors.As(err, &aiErr) || !errors.Is(err, ai.ErrRateLimited) || aiErr.Fields["retry_after"] != 5 || fake.Calls != 0 {
+		t.Fatalf("err %v, provider calls %d; want ai_rate_limited with retry_after 5", err, fake.Calls)
+	}
+	if !reflect.DeepEqual(m.runs, []string{"busy/0"}) {
+		t.Fatalf("runs %v", m.runs)
+	}
+}
+
+// A run whose store fails reports agent_failed, never answered.
+func TestAskAgentFailedStoreIsNotAnswered(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	reqs := scriptAgent(fake, "banner", "Xong [S1]")
+	search := fake.Reply
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if len(*reqs) == 1 {
+			cancel() // the answer arrives, then the request is gone before the store
+		}
+		return search(req)
+	}
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); err == nil {
+		t.Fatal("the store must fail on a cancelled request")
+	}
+	if len(*reqs) != 2 || !reflect.DeepEqual(m.runs, []string{"agent_failed/1"}) {
+		t.Fatalf("calls %d, runs %v; want the answer received and agent_failed reported", len(*reqs), m.runs)
+	}
+}
+
+func TestAskAgentWarnsOnUndecodableCitations(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	ctx := context.Background()
+	conv, err := s.q.AiCreateConversation(ctx, db.AiCreateConversationParams{ID: util.NewID(), OrganizationID: w.OrganizationID, WorkspaceID: w.ID, UserID: ua.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []db.AiInsertMessageParams{
+		{Role: "user", Content: "trước", Citations: "[]"},
+		{Role: "assistant", Content: "cũ", Citations: "not json, secret-ish"},
+	} {
+		m.ID, m.OrganizationID, m.ConversationID = util.NewID(), w.OrganizationID, conv.ID
+		if _, err := s.q.AiInsertMessage(ctx, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	scriptAgent(fake, "banner", "Không có")
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: conv.ID, Question: "Banner?", Locale: "vi"}); err != nil {
+		t.Fatal(err)
+	}
+	var warn string
+	for _, line := range strings.Split(logs.String(), "\n") {
+		if strings.Contains(line, "level=WARN") && strings.Contains(line, "citations") {
+			warn = line
+		}
+	}
+	if !strings.Contains(warn, "organization_id="+w.OrganizationID) || !strings.Contains(warn, "conversation_id="+conv.ID) || strings.Contains(warn, "secret-ish") {
+		t.Fatalf("want one warning with the ids only, got %q", warn)
+	}
+}
+
+func TestAskAgentFocusIsNumberedAndCapped(t *testing.T) {
+	s, fake, ua, ub, w := askFixture(t)
+	s.SetReadTools(NewMcpToolService(s.q, s, NewHomeService(s.q, s.ws), s.ws, "https://app.example.test"))
+	s.SetFlags(agentFlagFake{org: w.OrganizationID})
+	ctx := context.Background()
+	task := agentTask(t, s, ua, w, "Banner Tết")
+	href := "/org-alpha/alpha/tasks/" + task.ID
+
+	// The focused task is S1 in the focus block, and keeps S1 when a search
+	// finds it again.
+	reqs := scriptAgent(fake, "banner", "Xong [S1]")
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Việc này sao rồi?", Locale: "vi", Focus: &ai.Focus{Kind: "task", ID: task.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := (*reqs)[0].Messages
+	if prompt := first[len(first)-1].Content; !strings.Contains(prompt, "<untrusted source=\"S1\">\nBanner Tết") {
+		t.Fatalf("focus block:\n%s", prompt)
+	}
+	if tool := lastToolMessage(t, *reqs); !strings.Contains(tool, "<untrusted source=\"S1\">\nBanner Tết") || strings.Contains(tool, "S2") {
+		t.Fatalf("the search must find the focused task as S1:\n%s", tool)
+	}
+	if len(res.Citations) != 1 || res.Citations[0].Href != href {
+		t.Fatalf("citations %+v", res.Citations)
+	}
+
+	// A focus past the cap is dropped whole: the block says [truncated] and
+	// numbers nothing, so the search's first find is S1.
+	big, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Kế hoạch dài", Description: strings.Repeat("rất dài ", 10_000)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs = scriptAgent(fake, "banner", "Xong [S1]")
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Việc này sao rồi?", Locale: "vi", Focus: &ai.Focus{Kind: "task", ID: big.ID}}); err != nil {
+		t.Fatal(err)
+	}
+	first = (*reqs)[0].Messages
+	if prompt := first[len(first)-1].Content; !strings.Contains(prompt, "[truncated]") || strings.Contains(prompt, "Kế hoạch dài") || len(prompt) > 64<<10 {
+		t.Fatalf("an oversize focus must be cut whole (%d bytes)", len(prompt))
+	}
+	if tool := lastToolMessage(t, *reqs); !strings.Contains(tool, "<untrusted source=\"S1\">\nBanner Tết") {
+		t.Fatalf("the dropped focus must not take S1:\n%s", tool)
+	}
+
+	// A focus the asker may not read is the context-forbidden refusal.
+	orgB, err := s.orgs.Create(ctx, ub.ID, "Beta", "org-beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vb, err := s.ws.CreateInOrg(ctx, ub.ID, orgB.ID, "Beta", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.tasks.Create(ctx, Human(ub.ID), vb.ID, CreateTaskInput{Title: "Bí mật"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := fake.Calls
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "?", Locale: "vi", Focus: &ai.Focus{Kind: "task", ID: other.ID}}); !errors.Is(err, ai.ErrContextForbidden) || fake.Calls != calls {
+		t.Fatalf("err %v, calls %d; want ai_context_forbidden before any call", err, fake.Calls-calls)
 	}
 }

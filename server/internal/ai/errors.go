@@ -100,3 +100,8 @@ func errRateLimited(retry time.Duration) *Error {
 	return &Error{Code: ErrRateLimited.Code, Status: ErrRateLimited.Status, Msg: ErrRateLimited.Msg,
 		Fields: map[string]any{"retry_after": int(retry / time.Second)}}
 }
+
+// RateLimited is the ai_rate_limited refusal asking the client to wait retry
+// out, clamped like a vendor's: for a bound a service holds itself, such as
+// Ask UNI's concurrent agent runs, so it reads the same as a vendor 429.
+func RateLimited(retry time.Duration) *Error { return errRateLimited(retry) }

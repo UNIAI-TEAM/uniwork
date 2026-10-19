@@ -16,13 +16,18 @@ import (
 // Redis when one is configured. Without Redis the organization bound lives in
 // this process (A11: 8 per pod, not shared) and the whole-deployment bound is
 // the one that is dropped (fail open, like every Redis-backed limiter in this
-// repo). Exceeding a bound is 429 ai_uniwork_busy with Retry-After: 5.
+// repo). Exceeding a bound is 429 ai_uniwork_busy with Retry-After: 5. Ask
+// UNI's agent runs are bounded by another one, under their own key prefix.
 type uniworkConcurrency struct {
 	rdb       *redis.Client
 	pod       chan struct{}
 	orgMax    int
 	globalMax int
 	leaseTTL  time.Duration
+	// orgPrefix and globalKey are the two shared bounds' lease keys,
+	// "<prefix>org:<org id>" and "<prefix>global".
+	orgPrefix string
+	globalKey string
 
 	// org is the no-Redis organization counter: a Redis-less deployment must
 	// still bound one tenant, or one organization fills the pod for everyone.
@@ -35,13 +40,6 @@ type uniworkConcurrency struct {
 // an AI turn open.
 const uniworkLeaseTimeout = 100 * time.Millisecond
 
-// The lease keys of the two shared bounds. They live outside the feature's
-// own namespace on purpose: nothing else may read them.
-const (
-	uniworkOrgLeasePrefix    = "ai:uniwork:org:"
-	uniworkGlobalLeasePrefix = "ai:uniwork:global"
-)
-
 // The two lease operations are one Lua script each, so pruning, counting,
 // taking and releasing are atomic: many pods take and release concurrently
 // without one of them counting a slot twice or dropping a live one.
@@ -49,9 +47,9 @@ const (
 // A lease is a sorted-set member whose score is its expiry, read from the
 // Redis server clock — never a pod's own clock. Every lease expires on its
 // own, so a pod that dies mid-turn gives its slots back after leaseTTL
-// whatever the traffic, while a live turn (bounded by the 55 s deadline) is
-// still counted. The set's own TTL is only a safety net for a key nothing
-// touches any more.
+// whatever the traffic, while a live turn (bounded by its deadline, which
+// leaseTTL exceeds) is still counted. The set's own TTL is only a safety net
+// for a key nothing touches any more.
 var (
 	uniworkTakeLeaseScript = redis.NewScript(`
 local now = redis.call('TIME')
@@ -74,9 +72,13 @@ return 1
 `)
 )
 
-func newUniworkConcurrency(rdb *redis.Client, podMax, orgMax, globalMax int, leaseTTL time.Duration) *uniworkConcurrency {
+// newUniworkConcurrency leases under prefix ("ai:uniwork:" for UniWork AI).
+// The lease keys live outside the feature's own namespace on purpose: nothing
+// else may read them.
+func newUniworkConcurrency(rdb *redis.Client, prefix string, podMax, orgMax, globalMax int, leaseTTL time.Duration) *uniworkConcurrency {
 	return &uniworkConcurrency{
 		rdb: rdb, pod: make(chan struct{}, podMax), orgMax: orgMax, globalMax: globalMax, leaseTTL: leaseTTL,
+		orgPrefix: prefix + "org:", globalKey: prefix + "global",
 		org: make(map[string]int),
 	}
 }
@@ -104,7 +106,7 @@ func (c *uniworkConcurrency) Acquire(ctx context.Context, orgID string) (release
 			releasePod()
 		}, nil
 	}
-	releaseOrg, ok, err := c.takeLease(ctx, uniworkOrgLeasePrefix+orgID, c.orgMax)
+	releaseOrg, ok, err := c.takeLease(ctx, c.orgPrefix+orgID, c.orgMax)
 	if err != nil {
 		return releasePod, nil
 	}
@@ -112,7 +114,7 @@ func (c *uniworkConcurrency) Acquire(ctx context.Context, orgID string) (release
 		releasePod()
 		return nil, errUniworkBusy()
 	}
-	releaseGlobal, ok, err := c.takeLease(ctx, uniworkGlobalLeasePrefix, c.globalMax)
+	releaseGlobal, ok, err := c.takeLease(ctx, c.globalKey, c.globalMax)
 	if err != nil {
 		releaseOrg()
 		return releasePod, nil
@@ -151,10 +153,10 @@ func (c *uniworkConcurrency) takeOrgSlot(orgID string) (release func(), ok bool)
 }
 
 // takeLease takes one lease under key and reports false when the bound is
-// already full. Each lease carries its own expiry (≈ 65 s: the 55 s turn
-// deadline plus a margin) in its score, so a pod that dies mid-turn gives its
-// slots back on their own and continued traffic under other leases never
-// keeps an abandoned slot counted. The release removes the lease and cleans
+// already full. Each lease carries its own expiry (leaseTTL: the caller's
+// deadline plus a margin, ≈ 65 s for UniWork AI's 55 s turn) in its score,
+// so a pod that dies mid-turn gives its slots back on their own and
+// continued traffic under other leases never keeps an abandoned slot counted. The release removes the lease and cleans
 // up an empty set, and it runs on a context detached from the request: a
 // client that hung up must still give its slot back.
 func (c *uniworkConcurrency) takeLease(ctx context.Context, key string, max int) (release func(), ok bool, err error) {

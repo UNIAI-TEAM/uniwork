@@ -174,7 +174,7 @@ func NewAIUniworkService(orgs *OrganizationService, ents *EntitlementService, do
 	flags *featureflag.Service, gw *ai.Gateway, store ai.ConversationStore, rdb *redis.Client) *AIUniworkService {
 	return &AIUniworkService{
 		orgs: orgs, ents: ents, docs: docs, flags: flags, gw: gw, store: store,
-		limiter:  newUniworkConcurrency(rdb, UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second),
+		limiter:  newUniworkConcurrency(rdb, "ai:uniwork:", UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second),
 		now:      time.Now,
 		deadline: UniworkDeadline,
 	}
