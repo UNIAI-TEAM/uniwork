@@ -1,0 +1,6 @@
+$ (cd /tmp && curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks) && /tmp/gitleaks git --no-banner --redact --exit-code 1 .; rc=$?; echo; echo "CI_GITLEAKS_EXIT=$rc"
+12:42PM INF 6812 commits scanned.
+12:42PM INF scanned ~199394565 bytes (199.39 MB) in 10.7s
+12:42PM INF no leaks found
+
+CI_GITLEAKS_EXIT=0
