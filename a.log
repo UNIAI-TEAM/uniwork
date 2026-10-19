@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK
+142d2bda26d5f61ad792a473ba737662c1248f2b
+af1e03f758c09b2bad4be356ddcbdf9e4328beef
+142d2bda test(web): reset the shared fake-ai server after each sheets-ai test (UNI-1930)
+ce0623d2 test(e2e): measure chip padding on the children laid out in the row (UNI-1930)
+af1e03f7 merge: slides redact e2e deflake (UNI-1375, e3ae63061) into fork main
+SYNCED_OK
