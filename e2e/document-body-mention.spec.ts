@@ -68,12 +68,34 @@ test("owner mentions a member without view, gets the hint, and sharing clears it
   await expect(hint).not.toBeVisible({ timeout: 30_000 });
 });
 
-/** What the reader sees: the chip inside the viewport, selected, and flashing. */
+/**
+ * Record the reveal flash instead of racing its 2 s window: a slow VM can reach
+ * the assertion after the class is gone. The observer starts before the page
+ * does, so a cold load and a client navigation are both covered.
+ */
+async function recordMentionReveal(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __mentionRevealSeen?: boolean };
+    const seen = (node: Node) =>
+      node instanceof Element && (node.classList.contains("is-mention-reveal") || node.querySelector(".is-mention-reveal"));
+    new MutationObserver((records) => {
+      for (const r of records) {
+        if (seen(r.target) || Array.from(r.addedNodes).some(seen)) w.__mentionRevealSeen = true;
+      }
+    }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+  });
+}
+
+/** What the reader sees: the chip inside the viewport, selected, and the flash seen once. */
 async function expectRevealed(page: Page, chip: Locator) {
   await expect(chip).toBeInViewport({ timeout: 15_000 });
   const selected = page.locator(".ProseMirror-selectednode");
   await expect(selected.locator(".mention")).toHaveCount(1, { timeout: 15_000 });
-  await expect(selected).toHaveClass(/is-mention-reveal/, { timeout: 5_000 });
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __mentionRevealSeen?: boolean }).__mentionRevealSeen === true), {
+      timeout: 5_000,
+    })
+    .toBe(true);
 }
 
 test("the mentioned member's inbox row deep-links to the document at her mention", async ({ page, browser }) => {
@@ -115,6 +137,7 @@ test("the mentioned member's inbox row deep-links to the document at her mention
 
   const member = await openSession(browser, scene.member.email);
   const memberPage = member.page;
+  await recordMentionReveal(memberPage);
   await memberPage.goto(`/${scene.m.aOwner.orgSlug}/${scene.m.aOwner.wsSlug}/inbox`);
   // The inbox holds a document_shared row and a document_body_mentioned row
   // per test document — all named by the owner — so the row is found by the
