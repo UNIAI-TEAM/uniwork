@@ -327,12 +327,12 @@ func TestDigestSkipsRowsTheReaderLostAccessTo(t *testing.T) {
 		t.Fatalf("digest leaked channel reminder:\n%s", text)
 	}
 
-	if _, err := f.pool.Exec(f.ctx, `UPDATE organizations SET status = 'suspended', suspended_at = now() WHERE id = $1`, f.orgID); err != nil {
-		t.Fatal(err)
-	}
 	task3 := f.newTask(t, "Sau suspend")
 	f.assign(t, task3.ID, f.member.ID)
 	f.handleLast(t, "task.updated")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE organizations SET status = 'suspended', suspended_at = now() WHERE id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
 	f.markDigestedForUser(t, f.owner.ID)
 	out.sent = nil
 	if n, err := s.RunOnce(f.ctx, at.Add(6*time.Minute)); err != nil || n != 0 {
