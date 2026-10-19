@@ -173,6 +173,7 @@ function readFrame(req: IncomingMessage, maxInputBytes: number): Frame {
   const declared = raw === undefined ? null : Number(raw);
   if (contentType !== OFFICE_JOB_CONTENT_TYPE) {
     // Plain JSON: the envelope is the whole body and the job has no input.
+    if (declared !== null && (!Number.isSafeInteger(declared) || declared < 0)) throw framing("content_length");
     if (declared !== null && declared > ENVELOPE_MAX_BYTES) {
       throw new EngineBoundaryError("upload_bounds", { reason: "envelope", max_envelope_bytes: ENVELOPE_MAX_BYTES });
     }
@@ -212,31 +213,34 @@ function buildJobPayload(operation: string, payload: Record<string, unknown>): R
 async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDeps): Promise<void> {
   const { config, jobs } = deps;
   const frame = readFrame(req, config.limits.maxInputBytes);
-  // The budget is taken before a byte of the body is read, and given back on
-  // every path but one: a new job takes it over with its input file.
-  if (!jobs.reserveInput(frame.inputLength)) {
+  const envelopeBytes = frame.envelopeLength ?? ENVELOPE_MAX_BYTES;
+  // The budget is taken before a byte of the body is read: envelope + input at
+  // admission, the envelope part released once parsed (or on refusal/abort),
+  // and the input part handed over to the new job with its input file.
+  let reserved = envelopeBytes + frame.inputLength;
+  if (!jobs.reserveInput(reserved)) {
     res.setHeader("Retry-After", 2);
     throw new EngineBoundaryError("engine_overloaded", { reason: "input_budget" });
   }
-  let reserved = frame.inputLength;
   let dir: string | null = null;
   try {
     const body = new BodyReader(req);
     let envelope: unknown;
-    let raw: Buffer;
     try {
-      raw = frame.envelopeLength !== null ? await body.take(frame.envelopeLength) : await body.all(ENVELOPE_MAX_BYTES);
+      const raw = frame.envelopeLength !== null ? await body.take(frame.envelopeLength) : await body.all(ENVELOPE_MAX_BYTES);
+      try {
+        envelope = JSON.parse(raw.toString("utf8"));
+      } catch {
+        throw new EngineContractViolation("envelope", "json_required", "body is not JSON");
+      }
     } catch (error) {
       if (error instanceof BodyTooLarge) {
         throw new EngineBoundaryError("upload_bounds", { reason: "envelope", max_envelope_bytes: ENVELOPE_MAX_BYTES });
       }
       throw error;
     }
-    try {
-      envelope = JSON.parse(raw.toString("utf8"));
-    } catch {
-      throw new EngineContractViolation("envelope", "json_required", "body is not JSON");
-    }
+    jobs.releaseInput(envelopeBytes);
+    reserved = frame.inputLength;
     const grant = verifyGrant(req.headers[GRANT_HEADER] as string | undefined, config.grantKey);
     // The configured cap travels into the contract validation: a declared
     // input_length already over it is refused before the input is read.

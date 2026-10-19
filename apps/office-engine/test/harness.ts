@@ -9,7 +9,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { AddressInfo } from "node:net";
-import { ENGINE_CONTRACT_VERSION, ENGINE_PROTOCOL_VERSION, OFFICE_JOB_CONTENT_TYPE } from "@uniwork/office-contracts";
+import { ENGINE_CONTRACT_VERSION, ENGINE_PROTOCOL_VERSION, ENVELOPE_MAX_BYTES, OFFICE_JOB_CONTENT_TYPE } from "@uniwork/office-contracts";
 import { createEngineService, PROVISIONAL_LIMITS, signGrant, type EngineService, type EngineServiceConfig, type ServiceGrant } from "../src/index.ts";
 
 export const SERVICE_TOKEN = "service-token-for-tests-0123456789abcdef";
@@ -85,8 +85,10 @@ export async function startHarness(overrides: Partial<EngineServiceConfig> = {})
     inputBudgetBytes: 0,
     ...overrides,
   };
-  // Unset, the budget is loadConfig's default: one max-size input per worker.
-  if (!overrides.inputBudgetBytes) config.inputBudgetBytes = config.maxWorkers * config.limits.maxInputBytes;
+  // Unset, the budget is loadConfig's default: one max-size input per worker (at least one max-size frame).
+  if (!overrides.inputBudgetBytes) {
+    config.inputBudgetBytes = Math.max(config.maxWorkers * config.limits.maxInputBytes, ENVELOPE_MAX_BYTES + config.limits.maxInputBytes);
+  }
   const service = createEngineService(config);
   const port = await service.listen();
   return {

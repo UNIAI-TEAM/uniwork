@@ -582,11 +582,13 @@ describe("framed job transport (SIZE-OPS1)", () => {
 
   it("budget: with room for one input, a second concurrent submit gets 503 input_budget before its body is read", async () => {
     const bytes = Buffer.alloc(4096, "b");
-    const h2 = await startHarness({ inputBudgetBytes: bytes.length });
+    const h2 = await startHarness({ inputBudgetBytes: bytes.length + 1024 });
     try {
       const first = makeJob(h2.target, { bytes });
       const held = rawFramed(h2, first, { write: 0 });
-      await until(() => h2.service.jobs.inputBytesAdmitted === bytes.length);
+      const envelopeLength = held.body.length - bytes.length;
+      // Before a byte is read, the reservation holds envelope + input.
+      await until(() => h2.service.jobs.inputBytesAdmitted === held.body.length, 2_000);
       const second = makeJob(h2.target, { bytes });
       const refused = rawFramed(h2, second, { write: 0 });
       const res = await refused.reply;
@@ -594,7 +596,10 @@ describe("framed job transport (SIZE-OPS1)", () => {
       expect(res.status).toBe(503);
       expect(JSON.parse(res.body).error).toMatchObject({ code: "engine_overloaded", reason: "input_budget" });
       expect(res.retryAfter).toBe("2");
-      held.req.end(held.body);
+      // Once the envelope is parsed, its share of the reservation is released while the input share stays held.
+      held.req.write(held.body.subarray(0, envelopeLength));
+      await until(() => h2.service.jobs.inputBytesAdmitted === bytes.length, 2_000);
+      held.req.end(held.body.subarray(envelopeLength));
       expect((await held.reply).status).toBe(202);
       await waitTerminal(h2, first);
       await until(() => h2.service.jobs.inputBytesAdmitted === 0);
@@ -603,6 +608,57 @@ describe("framed job transport (SIZE-OPS1)", () => {
       expect((await submit(h2, third)).status).toBe(202);
       await waitTerminal(h2, third);
     } finally {
+      await h2.close();
+    }
+  });
+
+  it("charges declared envelope length into the admission budget for 0/1-byte framed and plain-JSON submits (SIZE-OPS1 E1)", async () => {
+    const h2 = await startHarness({ maxWorkers: 2, inputBudgetBytes: 2 * ENVELOPE_MAX_BYTES + 2 });
+    const jobs = h2.service.jobs;
+    const origReserve = jobs.reserveInput.bind(jobs);
+    let reserveCalls = 0;
+    jobs.reserveInput = (bytes: number) => {
+      reserveCalls++;
+      return origReserve(bytes);
+    };
+    const candidates: RawSubmit[] = [];
+    try {
+      for (let i = 0; i < 8; i++) {
+        const inputByte = i % 2;
+        candidates.push(
+          rawSubmit(h2, {
+            contentLength: ENVELOPE_MAX_BYTES + inputByte,
+            contentType: OFFICE_JOB_CONTENT_TYPE,
+            envelopeLength: String(ENVELOPE_MAX_BYTES),
+          }),
+        );
+      }
+      const settled: RawReply[] = [];
+      for (const c of candidates) void c.reply.then((r) => settled.push(r));
+      await until(() => reserveCalls === 8, 2_000);
+      expect(jobs.inputBytesAdmitted).toBeGreaterThanOrEqual(2 * ENVELOPE_MAX_BYTES);
+      expect(jobs.inputBytesAdmitted).toBeLessThanOrEqual(h2.config.inputBudgetBytes);
+      await until(() => settled.length === 6, 2_000);
+      for (const res of settled) {
+        expect(res.status).toBe(503);
+        expect(JSON.parse(res.body).error).toMatchObject({ code: "engine_overloaded", reason: "input_budget" });
+        expect(res.retryAfter).toBe("2");
+      }
+      // Plain-JSON (no-input) submits are charged their Content-Length into the same budget.
+      const plainRefused = rawSubmit(h2, { contentLength: ENVELOPE_MAX_BYTES, contentType: "application/json" });
+      const plainRes = await plainRefused.reply;
+      plainRefused.req.destroy();
+      expect(plainRes.status).toBe(503);
+      expect(JSON.parse(plainRes.body).error).toMatchObject({ code: "engine_overloaded", reason: "input_budget" });
+      // Aborting one held envelope frees its reservation so the next submit is admitted.
+      for (const c of candidates) c.req.destroy();
+      await until(() => jobs.inputBytesAdmitted === 0, 2_000);
+      const ok = makeJob(h2.target, { text: "after-envelope-release" });
+      expect((await submit(h2, ok)).status).toBe(202);
+      await waitTerminal(h2, ok);
+      await until(() => jobs.inputBytesAdmitted === 0, 2_000);
+    } finally {
+      for (const c of candidates) c.req.destroy();
       await h2.close();
     }
   });

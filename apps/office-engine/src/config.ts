@@ -11,7 +11,7 @@
 // sidecar and the PDF adapter are unmeasured until G2-04/G2-05 land; revisit
 // each default when those lanes record their envelopes.
 
-import { ENGINE_LIMITS } from "@uniwork/office-contracts";
+import { ENGINE_LIMITS, ENVELOPE_MAX_BYTES } from "@uniwork/office-contracts";
 
 export interface JobLimits {
   /** Wall-clock ceiling for one job, whatever the grant or envelope asks. */
@@ -201,11 +201,15 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
       "OFFICE_ENGINE_TEMP_MB must be at least " + Math.ceil(tempFloorBytes / MiB) + " (input + output + 64 MiB headroom)",
     );
   }
-  // Unset, the budget holds one max-size input per worker slot; a budget below
-  // one input would refuse every job that size, so it refuses to start.
-  const inputBudgetBytes = positiveInt(env, "OFFICE_ENGINE_INPUT_BUDGET_BYTES", maxWorkers * maxInputBytes);
-  if (inputBudgetBytes < maxInputBytes) {
-    throw new ConfigError("OFFICE_ENGINE_INPUT_BUDGET_BYTES must be at least the input cap (" + maxInputBytes + ")");
+  // Unset, the budget holds one max-size input per worker slot (at least one
+  // max-size frame); a budget below ENVELOPE_MAX_BYTES + maxInputBytes would
+  // refuse a job at the cap, so it refuses to start.
+  const budgetFloorBytes = ENVELOPE_MAX_BYTES + maxInputBytes;
+  const inputBudgetBytes = positiveInt(env, "OFFICE_ENGINE_INPUT_BUDGET_BYTES", Math.max(maxWorkers * maxInputBytes, budgetFloorBytes));
+  if (inputBudgetBytes < budgetFloorBytes) {
+    throw new ConfigError(
+      "OFFICE_ENGINE_INPUT_BUDGET_BYTES must be at least ENVELOPE_MAX_BYTES + the input cap (" + budgetFloorBytes + ")",
+    );
   }
   return {
     host: env.OFFICE_ENGINE_HOST ?? "0.0.0.0",

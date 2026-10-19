@@ -110,8 +110,9 @@ describe("loadConfig", () => {
     expect(loadConfig(base, defaults).inputBudgetBytes).toBe(2 * 200 * 1024 * 1024);
     expect(loadConfig({ ...base, OFFICE_ENGINE_MAX_WORKERS: "3" }, defaults).inputBudgetBytes).toBe(3 * 200 * 1024 * 1024);
     expect(loadConfig({ ...base, OFFICE_ENGINE_INPUT_BUDGET_BYTES: String(300 * 1024 * 1024) }, defaults).inputBudgetBytes).toBe(300 * 1024 * 1024);
-    // A budget that cannot hold one max-size input would refuse every such job.
-    expect(() => loadConfig({ ...base, OFFICE_ENGINE_INPUT_BUDGET_BYTES: String(200 * 1024 * 1024 - 1) }, defaults)).toThrow(
+    // The floor is ENVELOPE_MAX_BYTES (8 MiB) + maxInputBytes (200 MiB) so one max-size frame fits.
+    expect(loadConfig({ ...base, OFFICE_ENGINE_INPUT_BUDGET_BYTES: String(208 * 1024 * 1024) }, defaults).inputBudgetBytes).toBe(208 * 1024 * 1024);
+    expect(() => loadConfig({ ...base, OFFICE_ENGINE_INPUT_BUDGET_BYTES: String(208 * 1024 * 1024 - 1) }, defaults)).toThrow(
       /OFFICE_ENGINE_INPUT_BUDGET_BYTES/,
     );
   });
