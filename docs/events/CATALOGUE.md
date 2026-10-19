@@ -97,7 +97,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.voice.invite_received` | 1 | `room_id`, `call_id`, `user_id` | — | - | outbox |
 | `chat.thread.reply_linked` | 1 | `thread_root_id`, `message_id`, `task_id` | — | - | outbox |
 | `chat.reminder.due` | 1 | `room_id`, `message_id` | — | room | outbox |
-| `chat.room.activity` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
+| `chat.room.activity` | 1 | `room_id` | — | room | ephemeral |
 | `chat.room.created` | 1 | `room_id` | — | room | outbox |
 | `chat.room.member_added` | 1 | `room_id`, `user_id` | — | room | outbox |
 | `chat.room.members_added` | 1 | `room_id` | — | room | outbox |
@@ -105,11 +105,11 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.room.read` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.room.member_read` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
 | `chat.room.member_delivered` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
-| `chat.room.updated` | 1 | `room_id`, `workspace_id` | — | workspace | ephemeral |
+| `chat.room.updated` | 1 | `room_id` | — | room | ephemeral |
 | `chat.typing` | 1 | `room_id`, `user_id` | — | chat | ephemeral |
-| `chat.voice.accept` | 1 | `room_id`, `user_id` | — | user | ephemeral |
-| `chat.voice.hangup` | 1 | `room_id`, `user_id` | — | user | ephemeral |
-| `chat.voice.invite` | 1 | `room_id`, `user_id` | — | user | ephemeral |
+| `chat.voice.accept` | 1 | `room_id`, `call_id`, `user_id`, `target_user_id` | — | room | ephemeral |
+| `chat.voice.hangup` | 1 | `room_id`, `call_id`, `user_id`, `target_user_id` | — | room | ephemeral |
+| `chat.voice.invite` | 1 | `room_id`, `call_id`, `caller_id`, `target_user_id` | — | room | ephemeral |
 | `chat.voice.recording.started` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.recording.stopped` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.call.completed` | 1 | `room_id`, `workspace_id`, `organization_id`, `call_id`, `call_log_message_id`, `caller_id`, `started_at`, `ended_at`, `duration_seconds`, `duration_label`, `participants` | — | - | outbox |

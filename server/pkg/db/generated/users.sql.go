@@ -416,12 +416,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, display_name, avatar_url, avatar_file_id FROM users WHERE id = ANY($1::text[])
+SELECT id, display_name, email, avatar_url, avatar_file_id FROM users WHERE id = ANY($1::text[])
 `
 
 type GetUsersByIDsRow struct {
 	ID           string      `json:"id"`
 	DisplayName  string      `json:"display_name"`
+	Email        string      `json:"email"`
 	AvatarUrl    pgtype.Text `json:"avatar_url"`
 	AvatarFileID pgtype.Text `json:"avatar_file_id"`
 }
@@ -438,6 +439,7 @@ func (q *Queries) GetUsersByIDs(ctx context.Context, ids []string) ([]GetUsersBy
 		if err := rows.Scan(
 			&i.ID,
 			&i.DisplayName,
+			&i.Email,
 			&i.AvatarUrl,
 			&i.AvatarFileID,
 		); err != nil {

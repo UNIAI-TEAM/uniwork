@@ -300,7 +300,19 @@ export function useNativeVoiceCall({
     if (!ws) return;
 
     const offInvite = ws.on("chat.voice.invite", (payload) => {
-      applyIncomingInvite(payload as VoiceInvitePayload);
+      const data = payload as VoiceInvitePayload;
+      if (!voiceEventForUser(data, currentUserId, allowedRoomIdsRef.current)) return;
+      const current = stateRef.current;
+      if (isLive(current)) {
+        if (current.callId === data.call_id) return;
+        declineBusyInvite(
+          data.room_id!,
+          data.call_id!,
+          data.target_user_id ? "dm" : "group",
+        );
+        return;
+      }
+      void syncPendingInvites();
     });
 
     // Our own frame: another tab of ours answered or declined. Stop ringing
@@ -317,7 +329,6 @@ export function useNativeVoiceCall({
     const offAccept = ws.on("chat.voice.accept", (payload) => {
       const data = payload as VoiceInvitePayload & { user_id?: string };
       if (!data.room_id || !data.call_id || handledElsewhere(data)) return;
-      if (isMultiPartyVoiceCall(data.call_kind)) return;
       if (!voiceEventForUser(data, currentUserId, allowedRoomIdsRef.current)) return;
       const current = stateRef.current;
       if (current.status !== "ringing" || current.callKind !== "dm") return;
@@ -353,7 +364,7 @@ export function useNativeVoiceCall({
       offAccept();
       offHangup();
     };
-  }, [ws, currentUserId, connectCall, applyIncomingInvite, closeLocal]);
+  }, [ws, currentUserId, connectCall, applyIncomingInvite, closeLocal, declineBusyInvite, syncPendingInvites]);
 
   // Ring, connect and "ended" panels all run on a clock, not forever.
   useEffect(() => {

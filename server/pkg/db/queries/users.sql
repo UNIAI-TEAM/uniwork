@@ -100,7 +100,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: GetUsersByIDs :many
-SELECT id, display_name, avatar_url, avatar_file_id FROM users WHERE id = ANY(sqlc.arg('ids')::text[]);
+SELECT id, display_name, email, avatar_url, avatar_file_id FROM users WHERE id = ANY(sqlc.arg('ids')::text[]);
 
 -- Identity hardening (F-01, UNI-432).
 

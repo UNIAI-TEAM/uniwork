@@ -199,8 +199,8 @@ var catalogue = []EventDef{
 	// member list, as for a read. Losing one costs nobody anything; the next
 	// ack or refetch corrects the tick.
 	{Topic: "chat.room.member_delivered", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
-	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
-	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
+	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
 	// Message and typing rows of the workspace's default channel go to the
 	// workspace, whose members are that channel's; every other room's go to
 	// chat:{room} only.
@@ -214,9 +214,9 @@ var catalogue = []EventDef{
 	// goes out on that user's own scope alongside the room's message event.
 	{Topic: "chat.mention.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id", "thread_root_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.typing", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
-	{Topic: "chat.voice.invite", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
-	{Topic: "chat.voice.accept", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
-	{Topic: "chat.voice.hangup", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.invite", Version: 1, Payload: []string{"room_id", "call_id", "caller_id", "target_user_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.accept", Version: 1, Payload: []string{"room_id", "call_id", "user_id", "target_user_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.hangup", Version: 1, Payload: []string{"room_id", "call_id", "user_id", "target_user_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.recording.started", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.recording.stopped", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.call.completed", Version: 1, Payload: []string{"room_id", "workspace_id", "organization_id", "call_id", "call_log_message_id", "caller_id", "started_at", "ended_at", "duration_seconds", "duration_label", "participants"}, Scope: ScopeNone, Delivery: DeliveryOutbox},

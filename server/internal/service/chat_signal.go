@@ -55,8 +55,7 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	ev := Event{
 		Type: "chat.voice.invite",
 		Payload: map[string]string{
-			"room_id": roomID, "call_id": callID,
-			"caller_id": userID, "caller_name": callerName,
+			"room_id": roomID, "call_id": callID, "caller_id": userID,
 		},
 	}
 	return s.publishVoiceRoomSignal(ctx, room, userID, ev)

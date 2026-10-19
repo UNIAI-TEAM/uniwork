@@ -17,6 +17,6 @@ export const LOOKUP_RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 30_000] as const;
 
 export function lookupRetryDelayMs(attempt: number): number {
   const base = LOOKUP_RETRY_DELAYS_MS[Math.min(attempt, LOOKUP_RETRY_DELAYS_MS.length - 1)] ?? 30_000;
-  // ±20 % jitter so scopes that failed together do not retry together.
-  return Math.round(base * (0.8 + Math.random() * 0.4));
+  // Full jitter in [0, base] so scopes that failed together spread retries.
+  return Math.round(Math.random() * base);
 }

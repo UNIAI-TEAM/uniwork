@@ -106,7 +106,8 @@ func TestDigestOncePerDay(t *testing.T) {
 	f.handleLast(t, "task.updated")
 
 	out := &fakeOutbox{}
-	s := NewDigestScheduler(f.q, mail.Renderer{AppURL: "http://app.test"}, out)
+	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
+	s.SetOrgMembers(service.NewOrganizationService(f.pool, f.q))
 	// 01:05 UTC is 08:05 in Asia/Ho_Chi_Minh, the default zone.
 	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC)
 	for i := 0; i < 3; i++ {
@@ -207,8 +208,9 @@ func TestDigestAppliesTheDocumentReadGate(t *testing.T) {
 	f.handleComment(t)
 
 	out := &fakeOutbox{}
-	s := NewDigestScheduler(f.q, mail.Renderer{AppURL: "http://app.test"}, out)
+	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
 	s.SetDocumentReaders(f.docs)
+	s.SetOrgMembers(service.NewOrganizationService(f.pool, f.q))
 	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC) // 08:05 in Asia/Ho_Chi_Minh.
 	if n, err := s.RunOnce(f.ctx, at); err != nil || n != 1 {
 		t.Fatalf("readable digest = %d, %v", n, err)
@@ -247,8 +249,100 @@ func TestDigestAppliesTheDocumentReadGate(t *testing.T) {
 	}
 }
 
-// Spec N2 §3.4: a chat push carries a short preview read at delivery; a
-// message deleted before the push goes out sends nothing and is marked pushed.
+func TestDigestSkipsRowsTheReaderLostAccessTo(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "tai-chinh", Visibility: "private", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remindAt := time.Now().Add(time.Minute).Truncate(time.Second)
+	msg, err := chat.SendReminderMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendReminderMessageInput{
+		Body: "Chuyển 2 từ cho đối tác X", RemindAt: remindAt.Format(time.RFC3339),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := chat.NewChatReminderWorker().RunOnce(f.ctx, remindAt.Add(time.Second)); err != nil || n != 1 {
+		t.Fatalf("reminder worker: n=%d err=%v", n, err)
+	}
+	f.handleLast(t, "chat.reminder.due")
+	task := f.newTask(t, "Việc digest")
+	f.assign(t, task.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+
+	out := &fakeOutbox{}
+	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
+	orgs := service.NewOrganizationService(f.pool, f.q)
+	s.SetOrgMembers(orgs)
+	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC)
+	orgMembers := service.NewOrganizationMemberService(f.pool, f.q, orgs)
+	if _, err := orgMembers.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.markDigestedForUser(t, f.owner.ID)
+	if n, err := s.RunOnce(f.ctx, at); err != nil || n != 0 {
+		t.Fatalf("deactivated digest = %d, %v", n, err)
+	}
+	if len(out.sent) != 0 {
+		t.Fatalf("digest mailed a deactivated member:\n%s", out.sent[0].Text)
+	}
+
+	if _, err := orgMembers.Reactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	task2 := f.newTask(t, "Việc còn lại")
+	f.assign(t, task2.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	remindAt2 := time.Now().Add(2 * time.Minute).Truncate(time.Second)
+	if _, err := chat.SendReminderMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendReminderMessageInput{
+		Body: "Chuyển 2 từ cho đối tác X", RemindAt: remindAt2.Format(time.RFC3339),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := chat.NewChatReminderWorker().RunOnce(f.ctx, remindAt2.Add(time.Second)); err != nil || n != 1 {
+		t.Fatalf("reminder worker 2: n=%d err=%v", n, err)
+	}
+	f.handleLast(t, "chat.reminder.due")
+	_ = msg
+
+	if err := chat.RemoveChatRoomMember(f.ctx, f.owner.ID, f.wsID, ch.ID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.markDigestedForUser(t, f.owner.ID)
+	out.sent = nil
+	if n, err := s.RunOnce(f.ctx, at.Add(4*time.Minute)); err != nil || n != 1 {
+		t.Fatalf("after kick digest = %d, %v", n, err)
+	}
+	if len(out.sent) != 1 || out.sent[0].To != f.member.Email {
+		t.Fatalf("digests = %+v", out.sent)
+	}
+	text := out.sent[0].Text
+	if !contains(text, "Việc còn lại") {
+		t.Fatalf("digest missing task line:\n%s", text)
+	}
+	if contains(text, "Nhắc hạn") || contains(text, "Chuyển 2 từ") {
+		t.Fatalf("digest leaked channel reminder:\n%s", text)
+	}
+
+	task3 := f.newTask(t, "Sau suspend")
+	f.assign(t, task3.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE organizations SET status = 'suspended', suspended_at = now() WHERE id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	f.markDigestedForUser(t, f.owner.ID)
+	out.sent = nil
+	if n, err := s.RunOnce(f.ctx, at.Add(6*time.Minute)); err != nil || n != 0 {
+		t.Fatalf("suspended org digest = %d, %v", n, err)
+	}
+	if len(out.sent) != 0 {
+		t.Fatalf("digest mailed while organization suspended:\n%s", out.sent[0].Text)
+	}
+}
+
 func TestChatPushCarriesBodyAndSkipsDeleted(t *testing.T) {
 	f := newFixture(t)
 	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})

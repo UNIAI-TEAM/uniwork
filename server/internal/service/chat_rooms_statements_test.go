@@ -91,3 +91,32 @@ func TestSendRoomMessageStatementCount(t *testing.T) {
 		t.Fatalf("send ran %d statements, want ≤ %d", n, maxStatements)
 	}
 }
+
+// TestAuthorizeChatScopeStatementCount bounds WS chat:{roomId} subscribe checks
+// (UNI-1711): one workspace gate, room load, membership — not GetWorkspaceByID.
+func TestAuthorizeChatScopeStatementCount(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "ws-scope", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	counted, counter := countingPool(t, pool)
+	cq := db.New(counted)
+	ws := NewWorkspaceService(counted, cq, NewOrganizationService(counted, cq), mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	cs := NewChatService(counted, cq, ws, &capturePublisher{})
+	ok, err := cs.AuthorizeChatScope(ctx, ua.ID, w.ID, ch.ID)
+	if err != nil || !ok {
+		t.Fatalf("AuthorizeChatScope ok=%v err=%v", ok, err)
+	}
+	n := counter.n.Load()
+	t.Logf("AuthorizeChatScope: %d statements", n)
+	const maxStatements = 3
+	if n > maxStatements {
+		t.Fatalf("AuthorizeChatScope ran %d statements, want ≤ %d", n, maxStatements)
+	}
+}

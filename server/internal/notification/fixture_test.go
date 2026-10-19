@@ -139,6 +139,17 @@ func (f *fixture) readAll(t *testing.T, userID string) {
 	}
 }
 
+// markDigestedForUser closes every open notification row for userID so a
+// digest run does not mail them; channel reminder tests use it on the owner,
+// who is always in the room while the case under test is the member.
+func (f *fixture) markDigestedForUser(t *testing.T, userID string) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE notifications SET digested_at = now() WHERE user_id = $1 AND digested_at IS NULL`, userID); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (f *fixture) newTask(t *testing.T, title string) db.Task {
 	t.Helper()
 	task, err := f.tasks.Create(f.ctx, service.Human(f.owner.ID), f.wsID, service.CreateTaskInput{Title: title})

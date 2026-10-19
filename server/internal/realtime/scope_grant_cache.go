@@ -20,6 +20,7 @@ type grantCache struct {
 	max int
 
 	mu      sync.Mutex
+	gen     uint64                      // bumped on RevokeScope; stale authorize answers are not stored
 	allowed map[scopeGrantKey]time.Time // expiry
 }
 
@@ -39,12 +40,19 @@ func (g *grantCache) authorize(
 	if g.cached(key) {
 		return true, nil
 	}
+	start := g.generation()
 	ok, err := ask(ctx)
 	if err != nil || !ok {
 		return false, err
 	}
-	g.remember(key)
+	g.rememberIf(key, start)
 	return true, nil
+}
+
+func (g *grantCache) generation() uint64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.gen
 }
 
 func (g *grantCache) forget(key scopeGrantKey) {
@@ -60,6 +68,7 @@ func (g *grantCache) forget(key scopeGrantKey) {
 func (g *grantCache) RevokeScope(userID, _, scopeID string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.gen++
 	for k := range g.allowed {
 		if (userID == "" || k.userID == userID) && (scopeID == "" || k.scopeID == scopeID) {
 			delete(g.allowed, k)
@@ -82,8 +91,15 @@ func (g *grantCache) cached(key scopeGrantKey) bool {
 }
 
 func (g *grantCache) remember(key scopeGrantKey) {
+	g.rememberIf(key, g.generation())
+}
+
+func (g *grantCache) rememberIf(key scopeGrantKey, startGen uint64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if g.gen != startGen {
+		return
+	}
 	now := g.now()
 	if len(g.allowed) >= g.max {
 		for k, exp := range g.allowed {
