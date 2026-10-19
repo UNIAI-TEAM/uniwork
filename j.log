@@ -1,0 +1,63 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18550 FRONTEND_ORIGIN=http://localhost:3000 API_PUBLIC_URL=http://localhost:18550 PREVIEW_ORIGIN=http://localhost:3001 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18550 NEXT_PUBLIC_WS_URL=ws://localhost:18550 NEXT_PUBLIC_APP_URL=http://localhost:3000 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18550 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/document-body-mention.spec.ts e2e/documents-comments.spec.ts > /tmp/bmn-E2E.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/bmn-E2E.log | tail -n 80; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/bmn-E2E.log; grep -E "✘|\[failed\]" /tmp/bmn-E2E.log | head -40; echo; echo "E2E_TARGETED_EXIT=$rc"
+
+Running 3 tests using 1 worker
+
+(node:18125) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18125) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 document-body-mention.spec.ts:45:1 › owner mentions a member without view, gets the hint, and sharing clears it (5.4s)
+  ✘  2 document-body-mention.spec.ts:70:1 › the mentioned member's inbox row deep-links to the document at her mention (7.8s)
+(node:18230) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18230) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 documents-comments.spec.ts:90:1 › discussion panel posts, replies, edits, resolves, reopens and survives a reload (9.2s)
+
+
+  1) document-body-mention.spec.ts:70:1 › the mentioned member's inbox row deep-links to the document at her mention 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('link', { name: /bmn-a-owner(?!\d)/ })
+    Expected: visible
+    Error: strict mode violation: getByRole('link', { name: /bmn-a-owner(?!\d)/ }) resolved to 4 elements:
+        1) <a data-row-focus="true" href="/o-a-owner-mvf7q8tmrg0c/w-a-owner-mvf7q8u1u1wv/documents/01M5A14EPAWS9K6KA2ZE264TAK?mention=1" class="relative flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-(--duration-fast) ease-out-quart motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring group-hover:bg-surface-hover group-focus-within:bg-surface-selected pointer-coarse:pr-26 before:absolute before:inse…>…</a> aka getByRole('link', { name: 'Chưa đọc: bmn-a-owner đã nhắc đến bạn trong tài liệu “SH-E2E deeplink' })
+        2) <a data-row-focus="true" href="/o-a-owner-mvf7q8tmrg0c/w-a-owner-mvf7q8u1u1wv/documents/01M5A14EPAWS9K6KA2ZE264TAK" class="relative flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-(--duration-fast) ease-out-quart motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring group-hover:bg-surface-hover group-focus-within:bg-surface-selected pointer-coarse:pr-26 before:absolute before:inset-y-3 befo…>…</a> aka getByRole('link', { name: 'Chưa đọc: bmn-a-owner đã chia sẻ tài liệu “SH-E2E deeplink 1792411836755-2” với' })
+        3) <a data-row-focus="true" href="/o-a-owner-mvf7q8tmrg0c/w-a-owner-mvf7q8u1u1wv/documents/01M5A149E3JEAGJJ4KWDZ4FP6G" class="relative flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-(--duration-fast) ease-out-quart motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring group-hover:bg-surface-hover group-focus-within:bg-surface-selected pointer-coarse:pr-26 before:absolute before:inset-y-3 befo…>…</a> aka getByRole('link', { name: 'Chưa đọc: bmn-a-owner đã chia sẻ tài liệu “SH-E2E hint 1792411836755-1” với bạn' })
+        4) <a data-row-focus="true" href="/o-a-owner-mvf7q8tmrg0c/w-a-owner-mvf7q8u1u1wv/documents/01M5A149E3JEAGJJ4KWDZ4FP6G?mention=1" class="relative flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-(--duration-fast) ease-out-quart motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring group-hover:bg-surface-hover group-focus-within:bg-surface-selected pointer-coarse:pr-26 before:absolute before:inse…>…</a> aka getByRole('link', { name: 'Chưa đọc: bmn-a-owner đã nhắc đến bạn trong tài liệu “SH-E2E hint 1792411836755' })
+
+    Call log:
+      - Expect "toBeVisible" with timeout 60000ms
+      - waiting for getByRole('link', { name: /bmn-a-owner(?!\d)/ })
+
+
+       96 |   await memberPage.goto(`/${scene.m.aOwner.orgSlug}/${scene.m.aOwner.wsSlug}/inbox`);
+       97 |   const row = memberPage.getByRole("link", { name: who(scene.owner.name) });
+    >  98 |   await expect(row).toBeVisible({ timeout: 60_000 });
+          |                     ^
+       99 |   await row.click();
+      100 |
+      101 |   // The document opens on her own mention — selected, so the reveal marker is
+
+    Error Context: test-results/document-body-mention-the--100a3-the-document-at-her-mention/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/document-body-mention-the--100a3-the-document-at-her-mention/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/document-body-mention-the--100a3-the-document-at-her-mention/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    document-body-mention.spec.ts:70:1 › the mentioned member's inbox row deep-links to the document at her mention 
+  2 passed (56.0s)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test e2e/document-body-mention.spec.ts e2e/documents-comments.spec.ts
+  1 failed
+  2 passed (56.0s)
+  ✘  2 document-body-mention.spec.ts:70:1 › the mentioned member's inbox row deep-links to the document at her mention (7.8s)
+
+E2E_TARGETED_EXIT=1
