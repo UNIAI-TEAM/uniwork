@@ -10408,7 +10408,6 @@
         "failed": "Could not rename the document. Try again."
       },
       "quick_create": {
-        "hint_root": "New and uploaded files here go to My Folder (only you can see it) and open straight in the editor.",
         "label": "Quick create"
       },
       "create": {
@@ -10548,7 +10547,7 @@
       "access": {
         "view": "View only",
         "comment": "Comment",
-        "edit": "Can edit",
+        "edit": "Edit",
         "manage": "Manage",
         "owner": "Owner",
         "you_prefix": "You: {{level}}"

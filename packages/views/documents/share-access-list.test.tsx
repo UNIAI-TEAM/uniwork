@@ -238,7 +238,7 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     const confirmBox = await screen.findByTestId("share-access-confirm");
     expect(confirmBox).toHaveFocus();
 
-    await user.click(within(confirmBox).getByRole("button", { name: "Huỷ" }));
+    await user.click(within(confirmBox).getByRole("button", { name: "Hủy" }));
     await waitFor(() => expect(revokeButton).toHaveFocus());
   });
 
@@ -416,7 +416,7 @@ describe("ShareAccessList (SH-W1 Area 2)", () => {
     await user.click(await screen.findByRole("option", { name: "Chỉ xem" }));
     const confirmBox = await screen.findByTestId("share-access-confirm");
 
-    await user.click(within(confirmBox).getByRole("button", { name: "Huỷ" }));
+    await user.click(within(confirmBox).getByRole("button", { name: "Hủy" }));
     await waitFor(() => expect(levelTrigger).toHaveFocus());
   });
 

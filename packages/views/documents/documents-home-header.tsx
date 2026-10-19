@@ -138,20 +138,14 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
 
 /**
  * Under the home header, for people who may create here: the Tạo nhanh strip
- * and the My Folder root-create hint at the workspace root, or the info line
- * naming the open folder inside one.
+ * at the workspace root, or the info line naming the open folder inside one.
  */
 export function DocumentsHomeNote({ folderTitle, create }: { folderTitle: string | null; create: CreateChoicesProps | null }) {
   const { t } = useTranslation();
   if (folderTitle !== null) {
     return <p className="text-caption text-muted-foreground">{t("documents.home.folder.info_banner", { folder: folderTitle })}</p>;
   }
-  return (
-    <div className="flex flex-col gap-2">
-      {create ? <QuickCreateRow {...create} /> : null}
-      <p className="text-caption text-muted-foreground">{t("documents.home.quick_create.hint_root")}</p>
-    </div>
-  );
+  return create ? <QuickCreateRow {...create} /> : null;
 }
 
 /** The collection header the list views (Recent, Starred, Shared, Elsewhere) and the gate states keep. */

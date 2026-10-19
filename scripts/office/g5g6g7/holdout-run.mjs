@@ -84,6 +84,20 @@ function historyMessages(caseDoc) {
 
 export function firstMessages(caseDoc, lang) {
   const context = [];
+  // The role is the effective role of the OPEN (first) fixture, which is what the frame derives read-only and
+  // capabilities from (docs-frame-init.ts:36-42; office_frame.go:161) and what the backend write gate uses
+  // (holdout-backend.mjs:593), not a case-wide role (review-g712-16 A11). When the case's documents differ, each
+  // document's role is named, so the assistant is not told it can edit the one that denies it.
+  const roleOf = (fixture) => fixture.role ?? caseDoc.role;
+  const describe = (role) => `${role} (${role === 'viewer' ? 'read-only; cannot edit' : 'can edit'})`;
+  const roles = (caseDoc.fixtures ?? []).map(roleOf);
+  const distinct = [...new Set(roles)];
+  if (caseDoc.fixtures?.length > 0) {
+    if (distinct.length === 1) context.push(`Role: ${describe(roles[0])}`);
+    else context.push(`Roles: ${roles.map((role, i) => `${caseDoc.fixtures[i].id} is ${describe(role)}`).join('; ')}`);
+  } else if (caseDoc.role) {
+    context.push(`Role: ${describe(caseDoc.role)}`);
+  }
   if (caseDoc.setup?.activeSheet) context.push(`Active sheet: "${caseDoc.setup.activeSheet}"`);
   if (caseDoc.setup?.selection) context.push(`Selection: ${caseDoc.setup.selection}`);
   const prefix = context.length > 0 ? `[${context.join('; ')}]\n` : '';
@@ -363,6 +377,8 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   let lastContent = '';
   let usageTokens = { input: 0, output: 0, source: 'none' };
   const models = new Set();
+  const toolResultChunks = [];
+  const toolResults = [];
   for (let step = 0; step < MAX_STEPS; step += 1) {
     const headers = {};
     if (conversation) headers['X-UniWork-AI-Conversation'] = conversation;
@@ -429,9 +445,14 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
       record.toolCalls.push({
         name, write: backend.writes() > writesBefore, denied: backend.denied().length > deniedBefore ? backend.denied().at(-1).reason : null,
       });
-      results.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(name === 'ask_clarification'
+      const resultContent = JSON.stringify(name === 'ask_clarification'
         ? { ...result, note: 'The user will answer later. Reply to the user now with what you need to know, then finish with the reporting line.' }
-        : result) });
+        : result);
+      toolResultChunks.push(resultContent);
+      // R17-2: the answer adapter needs to know WHICH tool returned which numbers, so compute operands come only from
+      // the data reads of this turn and never from orientation metadata.
+      toolResults.push({ name, text: resultContent });
+      results.push({ role: 'tool', tool_call_id: tc.id, content: resultContent });
     }
     messages = results;
   }
@@ -448,7 +469,7 @@ export async function askOne({ caseDoc, lang, transport, session, catalogue, opt
   }
   const { answer, adapter } = deriveAnswer(
     caseDoc,
-    { reply, calls: record.toolCalls, writes: backend.writes(), writeLog: record.writeLog, dropped: record.dropped, modules: modulesOfCase(caseDoc), sheetNames: backend.sheetNames(), sourceText: backend.sourceText() },
+    { reply, calls: record.toolCalls, writes: backend.writes(), writeLog: record.writeLog, dropped: record.dropped, modules: modulesOfCase(caseDoc), sheetNames: backend.sheetNames(), sourceText: backend.sourceText(), toolResultsText: toolResultChunks.join('\n'), toolResults },
     { numbers: opts.numbers, computeByReply: opts.computeByReply, anchors: opts.anchors },
   );
   record.adapter = adapter;
