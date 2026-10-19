@@ -1,0 +1,11 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler -race -run "TestSendChatDocumentMessage|TestShareChatAttachmentAsDocument|TestChatRoomDetail|TestChat|TestCommitDocumentVersion|TestEveryBodyIDField" -count=1 -timeout 40m -v > /tmp/hdl.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/hdl.log | tail -20; grep -E "^--- (PASS|FAIL): (TestEveryBodyIDField|TestSendChatDocumentMessage|TestShareChatAttachmentAsDocument|TestChatRoomDetail)" /tmp/hdl.log; echo; echo "TEST_HDL_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	14.790s
+--- PASS: TestSendChatDocumentMessage (0.96s)
+--- PASS: TestChatRoomDetailCarriesCanSendDocument (0.31s)
+--- PASS: TestSendChatDocumentMessageUnwiredAnswers501 (0.40s)
+--- PASS: TestShareChatAttachmentAsDocument (0.37s)
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.02s)
+
+TEST_HDL_EXIT=0
