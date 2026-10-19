@@ -210,9 +210,25 @@ func (h *handlers) listComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	byComment := groupCommentReactions(reactions)
+	// One batched resolve for the page's distinct authors, so FileService
+	// avatars appear like they do on the single-comment answers.
+	seen := map[service.ActorRef]bool{}
+	var refs []service.ActorRef
+	for _, c := range cs {
+		ref := service.ActorRef{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}
+		if !seen[ref] {
+			seen[ref] = true
+			refs = append(refs, ref)
+		}
+	}
+	resolved, err := h.Actors.Resolve(r.Context(), refs)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
 	out := make([]sdo.CommentDTO, 0, len(cs))
 	for _, c := range cs {
-		dto := commentDTOFromListRow(c)
+		dto := commentDTOFromListRow(c, resolved)
 		dto.Reactions = byComment[c.ID]
 		if dto.Reactions == nil {
 			dto.Reactions = []sdo.CommentReactionDTO{}
