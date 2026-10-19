@@ -1,0 +1,23 @@
+$ (. scripts/local-env.sh && cd server && go test ./internal/service/ -run "^TestCommitIntent" -count=1 -v > /tmp/ci1918.log 2>&1); rc=$?; echo; echo "GO_COMMIT_INTENT_EXIT=$rc"; grep -E "^\s*--- (PASS|FAIL)|^(ok|FAIL)\s|panic:" /tmp/ci1918.log
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+
+GO_COMMIT_INTENT_EXIT=0
+--- PASS: TestCommitIntentReplayCounterEveryPath (0.69s)
+--- PASS: TestCommitIntentLookupCommitted (0.42s)
+--- PASS: TestCommitIntentLookupInFlightAndExpiredClaim (0.47s)
+--- PASS: TestCommitIntentExpiredStagedUploadLeavesNoIntent (0.37s)
+--- PASS: TestCommitIntentFenceRefusesLateCommit (0.89s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/expired,_not_renewed (0.30s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_but_not_committed (0.30s)
+    --- PASS: TestCommitIntentFenceRefusesLateCommit/renewed_by_a_newer_attempt (0.28s)
+--- PASS: TestCommitIntentFenceRacesARenewal (0.25s)
+--- PASS: TestCommitIntentLookupRacesACommit (0.24s)
+--- PASS: TestCommitIntentRetryAfterRestartReplays (0.25s)
+--- PASS: TestCommitIntentSweptAnswersUnknown (0.24s)
+--- PASS: TestCommitIntentSweepKeepsLiveRows (0.27s)
+--- PASS: TestCommitIntentSyncWriteFlag (0.28s)
+--- PASS: TestCommitIntentConflictReleasesClaim (0.24s)
+--- PASS: TestCommitIntentLookupIsTheCallersOwn (0.23s)
+--- PASS: TestCommitIntentNotCreatedWithoutKey (0.22s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	5.086s

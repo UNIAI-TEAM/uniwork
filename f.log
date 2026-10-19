@@ -1,0 +1,29 @@
+$ mkdir -p .harness-run-1918 && cp .env /tmp/sc1918.env && printf '\nAI_PROVIDER=fake\nAI_CONVERSATION_KEY=YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=\nFF_OFFICE_AI_UNIWORK=true\nFF_OFFICE_AI_UNIWORK_DOCX=true\n' >> /tmp/sc1918.env && HARNESS_RUN_DIR="$PWD/.harness-run-1918" ENV_FILE=/tmp/sc1918.env OFFICE_FORK_SHA=52180a37cac008b7da01e867bbf75d773f7851ad timeout -k 15 420 bash scripts/office/g5g6g7/harness/start.sh; echo "HARNESS_START_EXIT=$?"; git -C "$(ls -d ~/.cache/*fork* 2>/dev/null | head -1)" rev-parse --short=9 HEAD 2>/dev/null; true
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /workspace/.harness-run-1918
+harness: D server  http://localhost:44839 (metrics 127.0.0.1:37839)
+harness: D web     http://localhost:43941
+harness: fork      52180a37cac008b7da01e867bbf75d773f7851ad
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:44839 ...
+harness: cloning the fork at 52180a37cac008b7da01e867bbf75d773f7851ad...
+harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)...
+harness: fetching the Electron binary (node /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-52180a37cac008b7da01e867bbf75d773f7851ad/node_modules/electron/install.js)...
+harness: building the fork apps (this is the slow step)...
+harness: starting the fork Electron app under xvfb...
+harness: app on :99 (pid 295619)
+harness: up
+  D server  http://localhost:44839
+  D web     http://localhost:43941
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-52180a37cac008b7da01e867bbf75d773f7851ad @ 52180a37cac008b7da01e867bbf75d773f7851ad
+  pids      /workspace/.harness-run-1918/pids
+  next      OFFICE_FORK_SHA=52180a37cac008b7da01e867bbf75d773f7851ad HARNESS_RUN_DIR=/workspace/.harness-run-1918 node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /workspace/.harness-run-1918
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=52180a37cac008b7da01e867bbf75d773f7851ad HARNESS_RUN_DIR=/workspace/.harness-run-1918 \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /workspace/.harness-run-1918
+HARNESS_START_EXIT=0
+1b1593caf
