@@ -5,18 +5,30 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 )
 
 // countingDocMetrics is the DocumentMetrics fake: it records every call so a
-// test can prove both the label vocabulary and the wiring of a command.
+// test can prove both the label vocabulary and the wiring of a command. The
+// real DocumentMetrics is reached from every worker loop, so the fake is
+// called concurrently: mu guards every slice it appends to.
 type countingDocMetrics struct {
+	mu        sync.Mutex
 	saves     []string
 	conflicts []string
 	quota     []string
 	sweeps    []string
 	rowsFail  []string
+}
+
+// sweepLabels returns a copy of the recorded sweep labels, so a test can read
+// them while a worker still runs.
+func (c *countingDocMetrics) sweepLabels() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.sweeps...)
 }
 
 func (c *countingDocMetrics) IncDocumentAccessLogFailed()           {}
@@ -26,14 +38,20 @@ func (c *countingDocMetrics) ObserveDocumentSave(kind, outcome string, seconds f
 	if seconds < 0 {
 		panic("negative save duration")
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.saves = append(c.saves, kind+"/"+outcome)
 }
 
 func (c *countingDocMetrics) IncDocumentConflict(kind, code string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.conflicts = append(c.conflicts, kind+"/"+code)
 }
 
 func (c *countingDocMetrics) IncDocumentQuotaRejected(kind string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.quota = append(c.quota, kind)
 }
 
@@ -41,6 +59,8 @@ func (c *countingDocMetrics) ObserveDocumentWorkerSweep(worker, result string, s
 	if seconds < 0 {
 		panic("negative sweep duration")
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.sweeps = append(c.sweeps, worker+"/"+result)
 }
 
@@ -49,6 +69,8 @@ func (c *countingDocMetrics) IncDocumentEditLockRefused(string) {}
 func (c *countingDocMetrics) IncDocumentEditRequest(string)     {}
 
 func (c *countingDocMetrics) AddDocumentWorkerRowsFailed(worker string, n int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for range n {
 		c.rowsFail = append(c.rowsFail, worker)
 	}
