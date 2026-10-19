@@ -67,6 +67,7 @@ describe("registerIpc", () => {
         "session:refresh",
         "shell:download-url",
         "shell:open-external",
+        "shell:open-notification-settings",
       ].sort(),
     );
     expect([...sync.keys()]).toEqual(["app:info"]);

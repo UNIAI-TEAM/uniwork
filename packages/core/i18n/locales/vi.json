@@ -601,7 +601,11 @@
       "email_all": "Email cho mọi loại phù hợp",
       "push_unavailable_server": "Máy chủ này chưa bật thông báo đẩy, nên thông báo đến hộp việc và email.",
       "push_unavailable_browser": "Trình duyệt này không nhận được thông báo đẩy, nên thông báo đến hộp việc và email.",
-      "browser_banners_allow": "Cho phép báo tin nhắn mới khi tab UniWork đang ẩn"
+      "browser_banners_allow": "Cho phép báo tin nhắn mới khi tab UniWork đang ẩn",
+      "desktop_section": "Thông báo trên máy tính",
+      "desktop_description": "UniChat báo tin nhắn mới bằng thông báo của hệ điều hành. Không thấy thì gửi thử, rồi kiểm tra cài đặt thông báo của máy.",
+      "desktop_row": "Máy tính này",
+      "desktop_test": "Gửi thử"
     },
     "page": {
       "title": "Cài đặt",
@@ -3832,6 +3836,24 @@
     "search_hide_weekends": "Ẩn cuối tuần"
   },
   "chat": {
+    "scope": {
+      "messages_title": "Tin nhắn",
+      "messages_hint": "Riêng và nhóm, chung cho mọi workspace",
+      "channels_tab": "Kênh",
+      "channels_hint": "Kênh của workspace này",
+      "search_channels": "Tìm kênh, tin nhắn trong {{name}}…",
+      "workspace_overline": "{{org}} · Workspace",
+      "switch_aria": "Tin nhắn hay kênh",
+      "create_channel_in": "Tạo kênh trong {{name}}",
+      "channel_of": "Kênh của {{name}}",
+      "room_of": "Phòng chung của {{name}}",
+      "group_line": "Nhóm",
+      "rail_label": "Tin nhắn, riêng và nhóm",
+      "rail_tooltip": "Tin nhắn · riêng và nhóm, chung cho mọi workspace",
+      "intro_title": "Tin nhắn riêng và nhóm giờ ở đây",
+      "intro_body": "Dùng chung cho mọi workspace của {{org}}. Mỗi workspace giờ chỉ còn kênh của nó.",
+      "intro_dismiss": "Đã hiểu"
+    },
     "message_list": {
       "gifs_failed": "Không tải được GIF.",
       "search_results_total_one": "{{count}} kết quả",
@@ -5407,6 +5429,14 @@
   },
   "notifications": {
     "title": "Hộp việc",
+    "desktop": {
+      "prompt": "Bật thông báo để không bỏ lỡ tin nhắn mới.",
+      "enable": "Bật thông báo",
+      "check": "Khi macOS hỏi, chọn Cho phép. Không thấy thông báo thử thì bật UniChat trong cài đặt thông báo của máy.",
+      "open_settings": "Mở cài đặt thông báo",
+      "test_title": "Thông báo đã bật",
+      "test_body": "Tin nhắn mới sẽ hiện ở đây."
+    },
     "filter": "Lọc",
     "filter_all": "Tất cả",
     "filter_unread": "Chưa đọc",

@@ -2,6 +2,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
+import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
 import { initI18n } from "@uniwork/core/i18n";
 import { registerSystemNotificationClickHandler } from "@uniwork/core/platform";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -24,12 +25,14 @@ const room = (id: string, unread: number, mentions: number) => ({
   id, kind: "channel", name: id, workspace_id: "ws1", member_user_ids: [],
   unread_count: unread, mention_unread_count: mentions, notifications_muted: id === "muted",
 });
+// A room of another workspace: the room list here does not cover it, so the notification banners.
 const dm = (id: string, updated: string, actor = "Bình") => ({
-  id, kind: "chat_dm", resource_type: "chat_message", resource_id: "m1", resource_parent_id: "r1",
+  id, kind: "chat_dm", resource_type: "chat_message", resource_id: "m1", resource_parent_id: "elsewhere",
   title_key: "notifications.kind.chat_dm", params: { actor }, created_at: updated, updated_at: updated,
 });
 
 let notifications: unknown[] = [];
+let rooms: unknown[] = [];
 
 function renderAttention() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -60,9 +63,10 @@ function setHidden(hidden: boolean) {
 beforeEach(() => {
   document.title = "UniWork";
   notifications = [];
+  rooms = [room("r1", 2, 0), room("muted", 5, 1)];
   requestMock.mockReset();
   requestMock.mockImplementation((path: string) => {
-    if (path.endsWith("/chat/rooms")) return Promise.resolve({ rooms: [room("r1", 2, 0), room("muted", 5, 1)] });
+    if (path.endsWith("/chat/rooms")) return Promise.resolve({ rooms });
     if (path.startsWith("/api/v1/me/notifications?")) return Promise.resolve({ notifications, next_before: "" });
     if (path === "/api/v1/notifications/push/config") return Promise.resolve({ enabled: false });
     return Promise.resolve({});
@@ -151,7 +155,7 @@ describe("WorkspaceChatAttention", () => {
     await waitFor(() => expect(shown).toEqual([{ title: "Chi đã nhắn tin cho bạn", tag: "new" }]));
 
     instances[0]?.onclick?.();
-    expect(clicked).toHaveBeenCalledWith(expect.objectContaining({ href: "/acme/team/chat?room=r1&message=m1" }));
+    expect(clicked).toHaveBeenCalledWith(expect.objectContaining({ href: "/acme/team/chat?room=elsewhere&message=m1" }));
     registerSystemNotificationClickHandler(null);
   });
 
@@ -240,5 +244,73 @@ describe("WorkspaceChatAttention", () => {
     });
     await deliverToComponent();
     await waitFor(() => expect(shown).toEqual(want));
+  });
+
+  describe("a room listed in this workspace", () => {
+    const said = (id: string, kind: string, at: string, senderId: string, body: string) => ({
+      ...room(id, 1, 0), kind, last_message_at: at, last_message_sender_id: senderId,
+      last_message_sender_name: senderId === "u1" ? "An" : "Trần Minh", last_message_body: body,
+    });
+
+    function stubBanners() {
+      const shown: Array<{ title: string; body?: string }> = [];
+      class FakeNotification {
+        static permission = "granted";
+        onclick: (() => void) | null = null;
+        constructor(title: string, options?: NotificationOptions) {
+          shown.push({ title, body: options?.body });
+        }
+        close() {}
+      }
+      vi.stubGlobal("Notification", FakeNotification);
+      return shown;
+    }
+
+    async function loadThenReceive(next: unknown[]) {
+      const { client } = renderAttention();
+      await waitFor(() => expect(requestMock.mock.calls.some(([path]) => String(path).endsWith("/chat/rooms"))).toBe(true));
+      await act(async () => {
+        await client.refetchQueries({ queryKey: ["chat", "rooms", "ws1"] });
+      });
+      await deliverToComponent();
+      rooms = next;
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: ["chat", "rooms", "ws1"] });
+      });
+      await deliverToComponent();
+    }
+
+    afterEach(() => useActiveChatRoomStore.getState().setActiveRoom(null, null));
+
+    it("banners each new message from someone else with its list line, never a muted room or my own", async () => {
+      const shown = stubBanners();
+      setHidden(true);
+      const old = "2026-10-19T01:00:00Z";
+      const now = "2026-10-19T02:00:00Z";
+      rooms = [said("g1", "group", old, "u2", "cũ"), said("muted", "group", old, "u2", "cũ"), said("d1", "dm", old, "u2", "cũ")];
+      await loadThenReceive([
+        said("g1", "group", now, "u2", "Họp lúc 3h"),
+        said("muted", "group", now, "u2", "im lặng"),
+        said("d1", "dm", now, "u2", "Chào An"),
+        said("mine", "group", now, "u1", "tôi gửi"),
+      ]);
+      await waitFor(() =>
+        expect(shown).toEqual([
+          { title: "g1", body: "Minh: Họp lúc 3h" },
+          { title: "Trần Minh", body: "Chào An" },
+        ]),
+      );
+    });
+
+    it("stays quiet only for the room the focused app shows", async () => {
+      const shown = stubBanners();
+      setHidden(false);
+      useActiveChatRoomStore.getState().setActiveRoom("ws1", "g1");
+      const old = "2026-10-19T01:00:00Z";
+      const now = "2026-10-19T02:00:00Z";
+      rooms = [said("g1", "group", old, "u2", "cũ"), said("d1", "dm", old, "u2", "cũ")];
+      await loadThenReceive([said("g1", "group", now, "u2", "đang xem"), said("d1", "dm", now, "u2", "phòng khác")]);
+      await waitFor(() => expect(shown).toEqual([{ title: "Trần Minh", body: "phòng khác" }]));
+    });
   });
 });

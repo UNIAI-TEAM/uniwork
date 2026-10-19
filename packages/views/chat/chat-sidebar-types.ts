@@ -3,6 +3,7 @@ import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
+import type { ChatScope } from "./chat-scope";
 
 export type ChatSidebarTarget =
   | { kind: "workspace" }
@@ -11,6 +12,8 @@ export type ChatSidebarTarget =
   | { kind: "channel"; channel: ChatRoomRecord };
 
 export interface ChatSidebarProps {
+  /** The organization's DMs and groups, or this workspace's room and channels (chat-scope.ts). */
+  scope: ChatScope;
   currentUserId: string;
   workspaceId: string;
   target: ChatSidebarTarget;

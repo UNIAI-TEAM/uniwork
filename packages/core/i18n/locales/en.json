@@ -602,7 +602,11 @@
       "email_all": "Email for every eligible kind",
       "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
       "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
-      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden"
+      "browser_banners_allow": "Alert me to new messages while the UniWork tab is hidden",
+      "desktop_section": "Desktop notifications",
+      "desktop_description": "UniChat shows new messages as system notifications. If you don't see them, send a test, then check your computer's notification settings.",
+      "desktop_row": "This computer",
+      "desktop_test": "Send a test"
     },
     "page": {
       "title": "Settings",
@@ -3833,6 +3837,24 @@
     "search_hide_weekends": "Hide weekends"
   },
   "chat": {
+    "scope": {
+      "messages_title": "Messages",
+      "messages_hint": "Direct and group, shared by every workspace",
+      "channels_tab": "Channels",
+      "channels_hint": "This workspace's channels",
+      "search_channels": "Search channels and messages in {{name}}…",
+      "workspace_overline": "{{org}} · Workspace",
+      "switch_aria": "Messages or channels",
+      "create_channel_in": "Create a channel in {{name}}",
+      "channel_of": "Channel in {{name}}",
+      "room_of": "{{name}}'s shared room",
+      "group_line": "Group",
+      "rail_label": "Messages, direct and group",
+      "rail_tooltip": "Messages · direct and group, shared by every workspace",
+      "intro_title": "Direct messages and groups live here now",
+      "intro_body": "They're shared by every {{org}} workspace. Each workspace now keeps just its channels.",
+      "intro_dismiss": "Got it"
+    },
     "message_list": {
       "gifs_failed": "Couldn't load GIFs.",
       "search_results_total_one": "{{count}} result",
@@ -5411,6 +5433,14 @@
   },
   "notifications": {
     "title": "Inbox",
+    "desktop": {
+      "prompt": "Turn on notifications so you don't miss new messages.",
+      "enable": "Turn on notifications",
+      "check": "When macOS asks, choose Allow. If no test notification appeared, turn UniChat on in your computer's notification settings.",
+      "open_settings": "Open notification settings",
+      "test_title": "Notifications are on",
+      "test_body": "New messages will show up here."
+    },
     "filter": "Filter",
     "filter_all": "All",
     "filter_unread": "Unread",

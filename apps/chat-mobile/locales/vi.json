@@ -143,6 +143,24 @@
     "pickTitle": "Chọn workspace"
   },
   "chat": {
+    "scope": {
+      "messages_title": "Tin nhắn",
+      "messages_hint": "Riêng và nhóm, chung cho mọi workspace",
+      "channels_tab": "Kênh",
+      "channels_hint": "Kênh của workspace này",
+      "search_channels": "Tìm kênh, tin nhắn trong {{name}}…",
+      "workspace_overline": "{{org}} · Workspace",
+      "switch_aria": "Tin nhắn hay kênh",
+      "create_channel_in": "Tạo kênh trong {{name}}",
+      "channel_of": "Kênh của {{name}}",
+      "room_of": "Phòng chung của {{name}}",
+      "group_line": "Nhóm",
+      "rail_label": "Tin nhắn, riêng và nhóm",
+      "rail_tooltip": "Tin nhắn · riêng và nhóm, chung cho mọi workspace",
+      "intro_title": "Tin nhắn riêng và nhóm giờ ở đây",
+      "intro_body": "Dùng chung cho mọi workspace của {{org}}. Mỗi workspace giờ chỉ còn kênh của nó.",
+      "intro_dismiss": "Đã hiểu"
+    },
     "message_list": {
       "gifs_failed": "Không tải được GIF.",
       "search_results_total_one": "{{count}} kết quả",

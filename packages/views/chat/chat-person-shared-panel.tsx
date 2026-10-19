@@ -171,7 +171,7 @@ function SharedList({
   const title = t(rowLabelKey(kind), { count: kind === "group" ? groups.length : items.length });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-15 shrink-0 items-center gap-1 border-b border-border pr-12 pl-1.5">
+      <div data-window-drag className="flex h-15 shrink-0 items-center gap-1 border-b border-border pr-12 pl-1.5">
         <button
           type="button"
           className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-foreground hover:bg-surface-hover"
