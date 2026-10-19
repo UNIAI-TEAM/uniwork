@@ -1,0 +1,146 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=18580 FRONTEND_ORIGIN=http://localhost:13500 API_PUBLIC_URL=http://localhost:18580 PREVIEW_ORIGIN=http://localhost:13501 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:18580 NEXT_PUBLIC_WS_URL=ws://localhost:18580 NEXT_PUBLIC_APP_URL=http://localhost:13500 E2E_BASE_URL=http://localhost:13500 E2E_API_URL=http://localhost:18580 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1 DOCUMENT_EDIT_LOCK_TTL=20s DOCUMENT_EDIT_LOCK_HEARTBEAT=5s DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s; pnpm --filter @uniwork/e2e exec playwright test --reporter=line landing-product-pages.spec; rc=$?; echo "E2E_EXIT=$rc"; exit $rc
+
+Running 5 tests using 1 worker
+
+(node:18106) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:18106) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/5] landing-product-pages.spec.ts:6:1 › product menu opens demos while feature introductions remain available
+  1) landing-product-pages.spec.ts:6:1 › product menu opens demos while feature introductions remain available 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('#header-directory-products').locator('.header-product-columns a[href*="#"]')
+    Expected: 18
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" with timeout 5000ms
+      - waiting for locator('#header-directory-products').locator('.header-product-columns a[href*="#"]')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      13 |   const menu = page.locator("#header-directory-products");
+      14 |   await expect(menu).toBeVisible();
+    > 15 |   await expect(menu.locator('.header-product-columns a[href*="#"]')).toHaveCount(18);
+         |                                                                      ^
+      16 |   await expect(menu.locator('a[href$="#platform"]')).toHaveText(/Xem demo/);
+      17 |   await page.screenshot({ path: ".impeccable/review/product-menu-desktop.png", animations: "disabled" });
+      18 |   await page.keyboard.press("Escape");
+        at /workspace/e2e/landing-product-pages.spec.ts:15:70
+
+    Error Context: test-results/landing-product-pages-prod-5553b-roductions-remain-available/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-product-pages-prod-5553b-roductions-remain-available/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-product-pages-prod-5553b-roductions-remain-available/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:18175) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:18175) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[2/5] landing-product-pages.spec.ts:32:1 › all feature introductions have unique content, canonical URL and reference UI
+[3/5] landing-product-pages.spec.ts:60:3 › public pages render without overflow 1440-light
+[4/5] landing-product-pages.spec.ts:60:3 › public pages render without overflow 390-dark
+  2) landing-product-pages.spec.ts:60:3 › public pages render without overflow 390-dark ────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('#landing-mobile-menu').locator('a[href$="#trao-doi"]')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('#landing-mobile-menu').locator('a[href$="#trao-doi"]')
+
+
+      83 |       const mobile = page.locator("#landing-mobile-menu");
+      84 |       await mobile.locator("summary").first().click();
+    > 85 |       await expect(mobile.locator('a[href$="#trao-doi"]')).toBeVisible();
+         |                                                            ^
+      86 |       await page.screenshot({ path: ".impeccable/review/product-menu-mobile.png", animations: "disabled" });
+      87 |       await mobile.locator('a[href$="#trao-doi"]').click();
+      88 |       await expect(page).toHaveURL(/#trao-doi$/);
+        at /workspace/e2e/landing-product-pages.spec.ts:85:60
+
+    Error Context: test-results/landing-product-pages-publ-275e6-r-without-overflow-390-dark/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-product-pages-publ-275e6-r-without-overflow-390-dark/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-product-pages-publ-275e6-r-without-overflow-390-dark/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:18276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:18276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[5/5] landing-product-pages.spec.ts:94:1 › English introductions and solution/resources links remain usable
+  3) landing-product-pages.spec.ts:94:1 › English introductions and solution/resources links remain usable 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('#header-directory-solutions a[href$="/solutions/product"]')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for locator('#header-directory-solutions a[href$="/solutions/product"]')
+
+
+      100 |   await expect(page.locator("h1")).toHaveText("Meet together. Keep the context.");
+      101 |   await page.locator(".header-directory-toggle").nth(1).click();
+    > 102 |   await expect(page.locator('#header-directory-solutions a[href$="/solutions/product"]')).toBeVisible();
+          |                                                                                           ^
+      103 |   // This test runs in English, so the Learn directory toggle carries its English name.
+      104 |   await page.getByRole("banner").getByRole("button", { name: "Learn", exact: true }).click();
+      105 |   await expect(page.locator("#header-directory-solutions")).toHaveCount(0);
+        at /workspace/e2e/landing-product-pages.spec.ts:102:91
+
+    Error Context: test-results/landing-product-pages-Engl-b9060-sources-links-remain-usable/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/landing-product-pages-Engl-b9060-sources-links-remain-usable/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/landing-product-pages-Engl-b9060-sources-links-remain-usable/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  3 failed
+    landing-product-pages.spec.ts:6:1 › product menu opens demos while feature introductions remain available 
+    landing-product-pages.spec.ts:60:3 › public pages render without overflow 390-dark ─────────────
+    landing-product-pages.spec.ts:94:1 › English introductions and solution/resources links remain usable 
+  2 passed (1.1m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --reporter=line landing-product-pages.spec
+E2E_EXIT=1
