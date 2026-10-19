@@ -210,6 +210,65 @@ export async function sendChatFileMessage(
   return parsed.message ?? null;
 }
 
+/**
+ * The levels a document send may grant the room (never `manage` — the sender
+ * is already the document's ACL owner). The default the composer opens with
+ * is "comment".
+ */
+export type ChatDocumentShareLevel = "view" | "comment" | "edit";
+
+/**
+ * UNI-1966: sending a file as a document shares it with the room's members
+ * at `share_level`; a sibling route of /messages/file, never a field on it.
+ */
+export async function sendChatDocumentMessage(
+  workspaceId: string,
+  roomId: string,
+  input: {
+    file: Blob;
+    filename: string;
+    share_level: ChatDocumentShareLevel;
+    client_msg_id: string;
+    reply_to_message_id?: string;
+  },
+): Promise<ChatMessageRecord | null> {
+  const form = new FormData();
+  form.set("file", input.file, input.filename);
+  form.set("share_level", input.share_level);
+  form.set("client_msg_id", input.client_msg_id);
+  if (input.reply_to_message_id) {
+    form.set("reply_to_message_id", input.reply_to_message_id);
+  }
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/document`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/document",
+  });
+  return parsed.message ?? null;
+}
+
+/**
+ * UNI-1966: convert the caller's own file attachment into a shared document
+ * in place — the same message id comes back with kind "document".
+ */
+export async function shareChatMessageAsDocument(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+  input: { share_level: ChatDocumentShareLevel; client_msg_id: string },
+): Promise<ChatMessageRecord | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/share-as-document`,
+    { method: "POST", body: input },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/share-as-document",
+  });
+  return parsed.message ?? null;
+}
+
 export async function voteChatPollMessage(
   workspaceId: string,
   roomId: string,

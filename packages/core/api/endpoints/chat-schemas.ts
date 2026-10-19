@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DocumentLevel } from "../../documents/schema";
 
 export const WorkspaceChatRoomSchema = z.object({
   workspace_id: z.string(),
@@ -13,6 +14,44 @@ export const ChatUserLookupSchema = z.object({
   display_name: z.string(),
 });
 export type ChatUserLookup = z.infer<typeof ChatUserLookupSchema>;
+
+/**
+ * The viewer-resolved document card block on a `kind:"document"` message
+ * (UNI-1966, contract §5). Every field but `document_id` may be absent —
+ * without access the server omits the descriptive fields — and a block that
+ * fails shape drops whole instead of throwing.
+ */
+const documentViewerLevel = (value: unknown): DocumentLevel | undefined => {
+  switch (value) {
+    case "view":
+    case "comment":
+    case "edit":
+    case "manage":
+      return value;
+    default:
+      // Absent or a level the client does not know both read as "none".
+      return value === undefined || value === "" ? undefined : "";
+  }
+};
+
+export const ChatMessageDocumentSchema = z
+  .object({
+    document_id: z.string(),
+    viewer_has_access: z.boolean().optional(),
+    viewer_level: z.unknown().optional().transform(documentViewerLevel),
+    viewer_can_manage: z.boolean().optional(),
+    viewer_can_upload_version: z.boolean().optional(),
+    title: z.string().optional(),
+    format: z.string().optional(),
+    version_number: z.number().optional(),
+    revision: z.string().optional(),
+    can_open_in_app: z.boolean().optional(),
+    /** Sender only: "Đã chia sẻ với N người". */
+    recipient_count: z.number().optional(),
+  })
+  .optional()
+  .catch(undefined);
+export type ChatMessageDocument = z.infer<typeof ChatMessageDocumentSchema>;
 
 export const ChatMessageSchema = z.object({
   id: z.string(),
@@ -107,6 +146,13 @@ export const ChatMessageSchema = z.object({
       url_expires_at: z.string().optional().default(""),
     })
     .optional(),
+  document: ChatMessageDocumentSchema,
+  /**
+   * UNI-1966 (L6): true only for the sender of a `kind:"file"` message whose
+   * verified type is a document kind and that is not linked already. Absent
+   * or drifted reads undefined — a wrong affordance hides, never shows.
+   */
+  can_share_as_document: z.boolean().optional().catch(undefined),
   poll: z
     .object({
       question: z.string(),
@@ -234,6 +280,12 @@ export const ChatRoomSchema = z.object({
   is_default: z.boolean().optional(),
   /** The caller muted this room's notifications; kept on the server, so on every device. */
   notifications_muted: z.boolean().optional().catch(undefined),
+  /**
+   * UNI-1966 (L5), room detail read only: the caller may send in the room and
+   * its grantable human recipients fit the share batch. Absent reads as not
+   * allowed, so the composer picker hides rather than offers a refused send.
+   */
+  can_send_document: z.boolean().optional().catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 
