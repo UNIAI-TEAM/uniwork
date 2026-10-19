@@ -1,4 +1,5 @@
 import { clearDocumentAccessRequestSent } from "../documents/hooks-access-requests";
+import { chatKeys } from "../chat/chat-keys";
 import { documentKeys } from "../documents/keys";
 
 /**
@@ -14,7 +15,7 @@ import { documentKeys } from "../documents/keys";
  * `document.access_requested` and `document.access_request_decided` are
  * DOC-07 (UNI-1631): the first refreshes the manager's request list and the
  * share overview, the second refreshes the requester's own document (the
- * locked card watches `detail`) and drops the "sent" device flag (F-08), so a
+ * locked card watches `detail`, and the chat card its room timeline) and drops the "sent" device flag (F-08), so a
  * requester who is granted access sees the card clear without a reload.
  */
 export function documentFrameKeys(
@@ -114,10 +115,15 @@ export function documentFrameKeys(
       // card follows `detail`, so that key refreshes; the "sent" device flag
       // is dropped so the card stops claiming a request is still waiting.
       // This frame is user-scoped, so it arrives whatever workspace the
-      // requester is looking at.
+      // requester is looking at. A chat card that showed the document locked
+      // reads its block from the room timeline, so an approved requester's
+      // card re-reads it too (own workspace only: another workspace's
+      // timelines are not cached here, and the cards there are not this one).
       if (!payload.document_id) return [];
       clearDocumentAccessRequestSent(payload.document_id);
-      return [documentKeys.detail(wsId, payload.document_id)];
+      const keys: (readonly unknown[])[] = [documentKeys.detail(wsId, payload.document_id)];
+      if (ownWorkspace) keys.push(chatKeys.roomMessagesRoot(wsId), chatKeys.threadMessagesRoot(wsId));
+      return keys;
     }
     default:
       return null;

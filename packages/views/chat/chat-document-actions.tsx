@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { errorCode, errorFields } from "@uniwork/core/api";
 import {
   accessRequestOutcome,
+  readDocumentAccessRequestSentAt,
   useRequestDocumentAccess,
 } from "@uniwork/core/documents/hooks-access-requests";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -42,7 +43,9 @@ export function chatDocumentVersionError(err: unknown, t: TFunction, fallback: s
  * button for another try. The sentence is written into a status region that is
  * mounted from the start (a live region created with its text is not
  * announced) and takes focus when the button it replaces had it, so a keyboard
- * user keeps their place.
+ * user keeps their place. A remount starts from the 24 h device flag the hook
+ * writes (the document page reads the same one), so a card that scrolls out and
+ * back does not offer the button again while a request waits.
  */
 export function ChatDocumentRequestAccess({
   workspaceId,
@@ -53,7 +56,9 @@ export function ChatDocumentRequestAccess({
 }) {
   const { t } = useTranslation();
   const send = useRequestDocumentAccess(workspaceId, documentId);
-  const [done, setDone] = useState<"sent" | "already_pending" | null>(null);
+  const [done, setDone] = useState<"sent" | "already_pending" | null>(() =>
+    readDocumentAccessRequestSentAt(documentId) === null ? null : "sent",
+  );
   const statusRef = useRef<HTMLParagraphElement>(null);
   const restoreFocus = useRef(false);
   useEffect(() => {

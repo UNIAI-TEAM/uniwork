@@ -67,6 +67,22 @@ describe("ChatDocumentRequestAccess", () => {
     expect(document.activeElement).toBe(status);
   });
 
+  it("mounts on the sent note when this device already sent a request, without offering the button or taking focus", () => {
+    localStorage.setItem("uniwork_document_access_request_sent:doc1", String(Date.now() + 3600_000));
+    renderButton();
+    expect(screen.getByRole("status")).toHaveTextContent(K("sent"));
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(document.body);
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores an expired device flag and offers the button", () => {
+    localStorage.setItem("uniwork_document_access_request_sent:doc1", String(Date.now() - 1000));
+    renderButton();
+    expect(button()).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
   it("does not send twice while a request is in flight", async () => {
     let resolve!: (v: unknown) => void;
     requestMock.mockImplementation(() => new Promise((r) => { resolve = r; }));
