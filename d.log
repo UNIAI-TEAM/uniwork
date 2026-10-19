@@ -1,0 +1,26 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/service -race -run "TestDocumentAccessRequest|TestFilterDocumentAdministrators|TestDocumentShare|TestDocumentAccess|TestEveryAudited|^TestDocumentPurge$|TestDocumentComment|BreakGlass" -count=1 -timeout 50m -v > /tmp/svc.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/svc.log | tail -20; grep -cE "^\s*--- PASS" /tmp/svc.log; grep -E "^--- (PASS|FAIL): TestDocumentAccessRequest" /tmp/svc.log; echo; echo "TEST_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	71.325s
+322
+--- PASS: TestDocumentAccessRequestApprove (0.37s)
+--- PASS: TestDocumentAccessRequestApproveOnlyRaises (0.39s)
+--- PASS: TestDocumentAccessRequestDecline (0.34s)
+--- PASS: TestDocumentAccessRequestDecisionClosed (0.40s)
+--- PASS: TestDocumentAccessRequestDecisionRefusals (0.44s)
+--- PASS: TestDocumentAccessRequestApproveDeactivatedRequester (0.39s)
+--- PASS: TestDocumentAccessRequestConcurrentApprovers (0.43s)
+--- PASS: TestDocumentAccessRequestApprovalGrants (0.44s)
+--- PASS: TestDocumentAccessRequestCooldownHandOff (0.41s)
+--- PASS: TestDocumentAccessRequestList (0.36s)
+--- PASS: TestDocumentAccessRequestSent (0.36s)
+--- PASS: TestDocumentAccessRequestUniform (0.52s)
+--- PASS: TestDocumentAccessRequestPending (0.41s)
+--- PASS: TestDocumentAccessRequestCooldown (0.38s)
+--- PASS: TestDocumentAccessRequestReSendAfterClosed (0.39s)
+--- PASS: TestDocumentAccessRequestSource (0.48s)
+--- PASS: TestDocumentAccessRequestDoesNotGrant (0.39s)
+--- PASS: TestDocumentAccessRequestCreateInterleavings (0.36s)
+--- PASS: TestDocumentAccessRequestUniformWithOwnHistory (0.33s)
+
+TEST_SVC_EXIT=0

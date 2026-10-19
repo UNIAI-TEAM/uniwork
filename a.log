@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+339c7b5badcb55254b13bb6ce0c670ff95ae3cf2
+5975d8f9e4532e8c33f5564462386d65c701258c
+339c7b5ba chore: merge the G5-G7 root (5975d8f9e) into S-DOC07
+344ac1444 test(documents): verify cross-workspace access_request_decided frame invalidation (UNI-1631)
+bb1500fb4 test(documents): harden access-request isolation checks for uniform rows, source org, and list body (UNI-1631)
+621807bd0 fix(documents): evaluate access-request create flag at caller organization (UNI-1631)
+c0c1ae11f test(documents): verify administer filter drops deactivated manager with retained share (UNI-1631)
+c21e0ef09 fix(documents): use per-kind group keys for decided access-request notifications (UNI-1631)
+64a053906 fix(documents): include organization owners and admins in access-request fallback (UNI-1631)
+9b3587744 test(documents): verify uniform 202 when own request history meets ineligibility (UNI-1631)
