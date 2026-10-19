@@ -63,7 +63,8 @@ const CURRENCY_TOKENS = [...UNIT_TOKENS].sort((a, b) => b.length - a.length);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const CURRENCY_ALT = CURRENCY_TOKENS.map(escapeRe).join('|');
 
-const CANDIDATE_RE = /[-+−]?(?:\d{1,3}(?:[  ]\d{3})+(?:[.,]\d+)?|\d[\d.,]*\d|\d)/g;
+// A space-grouped number ends each group at a non-digit (oracle2 O2-F1): "Q1 2026" is "1" and "2026", never "1 202" + "6".
+const CANDIDATE_RE = /[-+−]?(?:\d{1,3}(?:[  ]\d{3}(?!\d))+(?:[.,]\d+)?|\d[\d.,]*\d|\d)/g;
 const MAG_AFTER_RE = new RegExp(`^(?:(${MAGNITUDE_WORDS.join('|')})|[ \\t]+(${MAGNITUDE_WORDS.join('|')}))(?![\\p{L}\\d])`, 'iu');
 const SUFFIX_UNIT_RE = new RegExp(`^[ \\t]*(?:(%)|(${CURRENCY_ALT})(?![\\p{L}]))`, 'iu');
 const PREFIX_UNIT_RE = new RegExp(`(?:^|[^\\p{L}])(${CURRENCY_ALT})[ \\t]*$`, 'iu');
