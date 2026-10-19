@@ -306,6 +306,17 @@ func (s *WorkspaceService) requireActorMember(ctx context.Context, workspaceID s
 	}
 }
 
+// requireActorWorkspaceAdmin gates the workspace task catalog (statuses,
+// labels): only a workspace owner or admin edits it. An agent never does
+// (ADR 0010: agent writes go through a human).
+func (s *WorkspaceService) requireActorWorkspaceAdmin(ctx context.Context, workspaceID string, actor Actor) error {
+	if actor.Kind != audit.KindHuman {
+		return ErrForbidden
+	}
+	_, err := s.requireWorkspaceAdmin(ctx, actor.ID, workspaceID)
+	return err
+}
+
 type UpdateWorkspaceInput struct {
 	Name        *string
 	Description *string

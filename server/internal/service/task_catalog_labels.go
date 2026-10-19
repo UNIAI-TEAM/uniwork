@@ -92,7 +92,7 @@ func (s *TaskService) GetTaskLabel(ctx context.Context, actor Actor, workspaceID
 }
 
 func (s *TaskService) CreateTaskLabel(ctx context.Context, actor Actor, workspaceID string, in CreateTaskLabelInput) (db.TaskLabel, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return db.TaskLabel{}, err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -144,7 +144,7 @@ func (s *TaskService) CreateTaskLabel(ctx context.Context, actor Actor, workspac
 }
 
 func (s *TaskService) UpdateTaskLabel(ctx context.Context, actor Actor, workspaceID, labelID string, in UpdateTaskLabelInput) (db.TaskLabel, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return db.TaskLabel{}, err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -214,7 +214,7 @@ func (s *TaskService) UpdateTaskLabel(ctx context.Context, actor Actor, workspac
 }
 
 func (s *TaskService) DeleteTaskLabel(ctx context.Context, actor Actor, workspaceID, labelID string) error {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)

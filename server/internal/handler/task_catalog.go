@@ -34,7 +34,7 @@ func taskStatusDTO(st db.TaskStatus) sdo.TaskStatusDTO {
 	return sdo.TaskStatusDTO{
 		ID: st.ID, OrganizationID: st.OrganizationID, WorkspaceID: st.WorkspaceID,
 		Key: st.Key, Name: st.Name, Description: st.Description, Category: st.Category,
-		Color: st.Color, IsSystem: st.IsSystem, Position: st.Position,
+		Color: st.Color, Icon: st.Icon, IsSystem: st.IsSystem, Position: st.Position,
 		ArchivedAt: catalogArchivedAt(st.ArchivedAt),
 		CreatedAt:  catalogTime(st.CreatedAt), UpdatedAt: catalogTime(st.UpdatedAt),
 	}
@@ -89,7 +89,7 @@ func (h *handlers) createTaskStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	st, err := h.Tasks.CreateTaskStatus(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), service.CreateTaskStatusInput{
-			Key: in.Key, Name: in.Name, Description: in.Description, Category: in.Category, Color: in.Color,
+			Key: in.Key, Name: in.Name, Description: in.Description, Category: in.Category, Color: in.Color, Icon: in.Icon,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -106,6 +106,7 @@ func (h *handlers) patchTaskStatus(w http.ResponseWriter, r *http.Request) {
 	st, err := h.Tasks.UpdateTaskStatus(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "id"), service.UpdateTaskStatusInput{
 			Name: in.Name, Description: in.Description, Color: in.Color, Position: in.Position,
+			Icon: in.Icon, Category: in.Category,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -129,7 +130,7 @@ func (h *handlers) reorderTaskStatuses(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	list, err := h.Tasks.ReorderTaskStatuses(r.Context(), service.Human(middleware.UserID(r.Context())),
-		chi.URLParam(r, "workspaceID"), service.ReorderTaskStatusesInput{Category: in.Category, IDs: in.IDs})
+		chi.URLParam(r, "workspaceID"), service.ReorderTaskStatusesInput{Group: in.Group, IDs: in.IDs})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

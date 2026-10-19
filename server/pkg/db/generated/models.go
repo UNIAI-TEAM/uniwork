@@ -2251,6 +2251,7 @@ type TaskStatus struct {
 	CreatedByKind  string             `json:"created_by_kind"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Icon           string             `json:"icon"`
 }
 
 type TaskSubscriber struct {
