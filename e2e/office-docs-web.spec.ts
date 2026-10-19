@@ -1,10 +1,10 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type FrameLocator, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 import {
-  listVersions, openSeededDocument, readPinnedFrame, releaseSeededEditLock, seedDocx, seedUntitledDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
+  listVersions, openSeededDocument, readPinnedFrame, releaseSeededEditLock, seedDocument, seedDocx, seedUntitledDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
 } from "./office-docs-web-fixtures";
-import { expectFrameNotice } from "./office-module-web-fixtures";
+import { expectFrameNotice, moduleFrameHost, moduleFrameInstalled } from "./office-module-web-fixtures";
 
 /**
  * Docs web frame (UNI-1013): the genoffice Docs renderer served from
@@ -324,6 +324,184 @@ test.describe("open, edit, save", () => {
     }
   });
 });
+/**
+ * Ctrl/Cmd+P routes one print to the document (UNI-1920): the page's handler
+ * answers a press whose focus sits in the page chrome with one `host.print`
+ * request; inside a Docs or HTML frame the pin's own capture-phase binding
+ * runs the frame's print path instead, and the keydown never leaves the
+ * iframe, so the page stays silent.
+ *
+ * `installPrintProbe` instruments one realm: `windowPrints` counts its
+ * window.print() calls (stubbed - a headless run has no dialog and settles
+ * the real path with afterprint), `hostPrints` counts host->frame `print`
+ * envelopes the realm's postMessage receives. An `appendChild` wrap hands the
+ * count of the hidden srcdoc iframe the HTML module prints through back to
+ * the module's probe.
+ */
+interface PrintCounts { windowPrints: number; hostPrints: number }
+
+async function installPrintProbe(scope: Page | FrameLocator): Promise<void> {
+  await scope.locator("body").evaluate(() => {
+    interface Probe { windowPrints: number; hostPrints: number }
+    const w = window as unknown as { __uwPrintProbe?: Probe }; // the spec's own counter bag; not on Window
+    w.__uwPrintProbe = { windowPrints: 0, hostPrints: 0 };
+    const probe = w.__uwPrintProbe;
+    const append = Element.prototype.appendChild;
+    Element.prototype.appendChild = function <T extends Node>(child: T): T {
+      append.call(this, child);
+      if (child instanceof HTMLIFrameElement) {
+        // The HTML module prints through a hidden sandboxed srcdoc iframe: its
+        // win.print() belongs to the module's count.
+        const childWindow = child.contentWindow;
+        if (childWindow) {
+          childWindow.print = () => {
+            probe.windowPrints += 1;
+            childWindow.setTimeout(() => childWindow.dispatchEvent(new Event("afterprint")), 50);
+          };
+        }
+      }
+      // appendChild's result is the appended child itself.
+      return child;
+    };
+    window.print = () => {
+      probe.windowPrints += 1;
+      window.setTimeout(() => window.dispatchEvent(new Event("afterprint")), 50);
+    };
+    // The DOM declares postMessage as overloads; forwarders need the rest-args shape.
+    const postMessage = window.postMessage.bind(window) as unknown as (...args: unknown[]) => unknown;
+    // Same signature as the native method: the wrapper forwards every form of the call.
+    window.postMessage = ((message: unknown, ...rest: unknown[]) => {
+      // A host.print envelope is { ns, kind: 'request', type: 'print' }: read fields via `in` guards.
+      if (
+        typeof message === "object" && message !== null &&
+        "ns" in message && message.ns === "uniwork.office.docs" &&
+        "kind" in message && message.kind === "request" &&
+        "type" in message && message.type === "print"
+      ) probe.hostPrints += 1;
+      postMessage(message, ...rest);
+    }) as typeof window.postMessage;
+  });
+}
+
+async function readPrintCounts(scope: Page | FrameLocator): Promise<PrintCounts> {
+  return scope.locator("body").evaluate(() => {
+    const w = window as unknown as { __uwPrintProbe?: PrintCounts }; // the spec's own counter bag; not on Window
+    return w.__uwPrintProbe ?? { windowPrints: 0, hostPrints: 0 };
+  });
+}
+
+/** Focus leaves the frame for the page chrome: the document title field. */
+async function focusPageChrome(page: Page): Promise<void> {
+  const title = page.locator("textarea").first();
+  await expect(title).toBeVisible({ timeout: 30_000 });
+  await title.click();
+}
+
+test.describe("Ctrl/Cmd+P", () => {
+  let docs: SeededDocx;
+  let html: SeededDocx;
+
+  test.beforeAll(async ({ browser, request }) => {
+    test.skip(!(await frameInstalled(request)), "the pinned Docs bundle is not installed in this web build");
+    const context = await browser.newContext({ baseURL: baseUrl });
+    try {
+      const seeding = await context.newPage();
+      docs = await seedDocx(seeding, baseUrl, `docs-print-${Date.now().toString(36)}`);
+      if (await moduleFrameInstalled(request, baseUrl, "html")) {
+        html = await seedDocument(seeding, baseUrl, `html-print-${Date.now().toString(36)}`, {
+          name: "print-page.html",
+          mimeType: "text/html",
+          buffer: Buffer.from("<!doctype html><html><body><h1>Print probe page</h1><p>A paragraph to print.</p></body></html>"),
+        });
+      }
+    } finally {
+      await context.close();
+    }
+    await setFlag("office_engine", docs.organizationId, true);
+    if (html) {
+      await setFlag("office_engine", html.organizationId, true);
+      await setFlag("office_html_web", html.organizationId, true);
+    }
+  });
+
+  test.afterEach(async ({ request }) => {
+    await releaseSeededEditLock(request, docs);
+    await releaseSeededEditLock(request, html);
+  });
+
+  test.afterAll(async () => {
+    if (html) await setFlag("office_html_web", html.organizationId, false);
+  });
+
+  test("Docs: Ctrl+P inside the frame runs the frame's own print, never host.print", async ({ page }) => {
+    await signInAs(page, docs.account.email);
+    await openSeededDocument(page, docs);
+    // The docs wrapper uses the same host attributes; moduleFrameHost's module union excludes "docs".
+    await expect(page.locator('[data-office-docs-frame][data-office-module="docs"]')).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+    const frame = page.frameLocator(FRAME_SELECTOR);
+    await installPrintProbe(frame);
+    await installPrintProbe(page);
+    // Focus in the frame: the press belongs to the frame's own binding. Its 'print'
+    // menu command opens the app's print dialog; confirming it is the one print.
+    await frame.locator(EDITOR).first().click();
+    await page.keyboard.press("Control+p");
+    const dialog = frame.locator(".modal.print-dialog");
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(0);
+    await dialog.locator(".modal-actions button.primary").click();
+    await expect(dialog).toBeHidden();
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
+    expect((await readPrintCounts(frame)).hostPrints).toBe(0);
+    expect((await readPrintCounts(page)).windowPrints).toBe(0);
+  });
+
+  test("Docs: Ctrl+P with the focus in the page sends exactly one host.print request", async ({ page }) => {
+    await signInAs(page, docs.account.email);
+    await openSeededDocument(page, docs);
+    await expect(page.locator('[data-office-docs-frame][data-office-module="docs"]')).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+    const frame = page.frameLocator(FRAME_SELECTOR);
+    await installPrintProbe(frame);
+    await installPrintProbe(page);
+    // Focus in the page chrome: the page's Ctrl+P handler sends one `host.print`;
+    // the frame answers it with its print path (the same job's window.print).
+    await focusPageChrome(page);
+    await page.keyboard.press("Control+p");
+    await expect.poll(async () => (await readPrintCounts(frame)).hostPrints).toBe(1);
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
+    expect((await readPrintCounts(page)).windowPrints).toBe(0);
+  });
+
+  test("HTML: Ctrl+P inside the frame runs the frame's print, never host.print", async ({ page }) => {
+    test.skip(!html, "the pinned HTML module is not installed in this web build");
+    await signInAs(page, html.account.email);
+    await openSeededDocument(page, html);
+    await expect(moduleFrameHost(page, "html")).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+    const frame = page.frameLocator('iframe[src*="/office-frame/html/"]');
+    await installPrintProbe(frame);
+    await installPrintProbe(page);
+    await frame.locator("body").click({ position: { x: 20, y: 20 } });
+    await page.keyboard.press("Control+p");
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
+    expect((await readPrintCounts(frame)).hostPrints).toBe(0);
+    expect((await readPrintCounts(page)).windowPrints).toBe(0);
+  });
+
+  test("HTML: Ctrl+P with the focus in the page sends exactly one host.print request", async ({ page }) => {
+    test.skip(!html, "the pinned HTML module is not installed in this web build");
+    await signInAs(page, html.account.email);
+    await openSeededDocument(page, html);
+    await expect(moduleFrameHost(page, "html")).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+    const frame = page.frameLocator('iframe[src*="/office-frame/html/"]');
+    await installPrintProbe(frame);
+    await installPrintProbe(page);
+    await focusPageChrome(page);
+    await page.keyboard.press("Control+p");
+    await expect.poll(async () => (await readPrintCounts(frame)).hostPrints).toBe(1);
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
+    expect((await readPrintCounts(page)).windowPrints).toBe(0);
+  });
+});
+
 
 test.describe("bundle not installed", () => {
   test("a flag-on organization sees the not-set-up notice and no iframe is mounted", async ({ page, browser, request }) => {
