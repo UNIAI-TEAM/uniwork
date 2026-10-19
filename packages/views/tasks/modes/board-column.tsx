@@ -25,6 +25,7 @@ import {
 import { LoadMoreFooter } from "./load-more-footer";
 import { statusColumnBg } from "./status-config";
 import { StatusHeading } from "./status-pill";
+import { useStatusLabel } from "../pickers/status-catalog";
 
 export const BOARD_COL_WIDTH = 280;
 export const BOARD_CARD_WIDTH = BOARD_COL_WIDTH - 16 - 8;
@@ -113,6 +114,7 @@ export const BoardColumn = memo(function BoardColumn({
   const { setNodeRef, isOver } = useDroppable({ id: group.id });
   const viewStoreApi = useViewStoreApi();
   const { t } = useTranslation();
+  const statusLabel = useStatusLabel();
 
   const resolvedTasks = useMemo(
     () =>
@@ -160,10 +162,7 @@ export const BoardColumn = memo(function BoardColumn({
   );
 
   const count = totalCount ?? taskIds.length;
-  const labelKey = status ? `tasks.status_${status}` : "";
-  const translated = status ? t(labelKey) : group.title;
-  const title =
-    status && translated !== labelKey ? translated : group.title || status || "";
+  const title = status ? statusLabel(status) : group.title;
 
   return (
     <div

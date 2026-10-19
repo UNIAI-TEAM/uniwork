@@ -12,6 +12,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { useViewStoreApi } from "@uniwork/core/tasks/stores/view-store-context";
 import { STATUS_CONFIG } from "./status-config";
+import { useStatusLabel } from "../pickers/status-catalog";
 
 /**
  * Side panel listing status columns the user hid from the board.
@@ -59,9 +60,7 @@ function HiddenColumnRow({
 }) {
   const { t } = useTranslation();
   const viewStoreApi = useViewStoreApi();
-  const labelKey = `tasks.status_${status}`;
-  const label = t(labelKey);
-  const title = label === labelKey ? status : label;
+  const title = useStatusLabel()(status);
   const cfg = STATUS_CONFIG[status as TaskStatus];
 
   return (
