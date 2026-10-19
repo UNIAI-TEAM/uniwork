@@ -5,7 +5,6 @@ import { ArrowLeft, Eye, FileExclamationPoint } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
-
 import { useUploadDocumentAsset } from "@uniwork/core/documents/hooks";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import { isShelved, type Document } from "@uniwork/core/types/document";
@@ -121,7 +120,6 @@ export function DocumentWorkspace({
   const wasShelvedRef = useRef(false);
   const editorRef = useRef<DocumentEditorHandle>(null);
   const { onEditorReady } = useBodyMentionDeepLink({ doc, editorRef });
-
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [pageTitle, setPageTitle] = useState(doc.title);
   // The edit lock (UNI-1645) owns the save machine: every gated write carries the held id.
@@ -132,7 +130,6 @@ export function DocumentWorkspace({
   const { save, editable } = editLock;
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
-
   // One live-again retry per refusal run, so a server that keeps refusing never loops.
   const liveRetryRef = useRef(false);
   if (state.phase === "saved") liveRetryRef.current = false;

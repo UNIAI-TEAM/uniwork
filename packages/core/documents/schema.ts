@@ -452,16 +452,20 @@ function fragOf(node: JsonObject): string {
 /**
  * Body-mention collection (UNI-1968): the `@`-mentions a saved page body
  * carries, so a post-save check can diff "mentions before" against "mentions
- * after". The walk is the plain JSON tree the PATCH sends — not a ProseMirror
- * doc — so it accepts `unknown` and ignores anything that is not a
- * `{"type":"mention"}` node with a non-empty `attrs.id`. Agent mentions
- * (`attrs.type === "agent"` or the legacy `attrs.kind === "agent"`) do not
- * notify a person, so they are never collected. The caller filters the ids
- * against `can_view === false` itself: a mention that names a task or a
- * project simply finds no candidate row and is ignored.
+ * after" and then resolve each new id on its own. The walk is the plain JSON
+ * tree the PATCH sends — not a ProseMirror doc — so it accepts `unknown` and
+ * ignores anything that is not a `{"type":"mention"}` node with a non-empty
+ * `attrs.id`. Agent mentions (`attrs.type === "agent"` or the legacy
+ * `attrs.kind === "agent"`) do not notify a person, so they are never
+ * collected. The caller filters the ids against `can_view === false` itself:
+ * a mention that names a task or a project simply finds no candidate row and
+ * is ignored. The label rides along so the caller can ask the candidates
+ * endpoint for exactly this person (`q=<label>`) — the candidates page is
+ * capped at 50 viewers-first rows, so a lookup by id is the only answer that
+ * still names a no-access person once 50+ people can view.
  */
-export function collectUserMentionIds(content: unknown): Set<string> {
-  const ids = new Set<string>();
+export function collectUserMentions(content: unknown): Map<string, string> {
+  const mentions = new Map<string, string>();
   const visit = (node: unknown): void => {
     if (Array.isArray(node)) {
       for (const child of node) visit(child);
@@ -473,10 +477,16 @@ export function collectUserMentionIds(content: unknown): Set<string> {
       const attrs = isPlainObject(record.attrs) ? (record.attrs as JsonObject) : undefined;
       const id = typeof attrs?.id === "string" ? attrs.id : "";
       const kind = attrs?.type ?? attrs?.kind;
-      if (id && kind !== "agent") ids.add(id);
+      const label = typeof attrs?.label === "string" ? attrs.label : "";
+      if (id && kind !== "agent" && !mentions.has(id)) mentions.set(id, label);
     }
     visit(record.content);
   };
   visit(content);
-  return ids;
+  return mentions;
+}
+
+/** The ids half of {@link collectUserMentions} — the callers that only diff. */
+export function collectUserMentionIds(content: unknown): Set<string> {
+  return new Set(collectUserMentions(content).keys());
 }
