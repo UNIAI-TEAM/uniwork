@@ -357,9 +357,16 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	out := []ChatMessageRow{s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID))}
-	s.resolveChatDocuments(ctx, room, out, userID)
-	return out[0], nil
+	return s.viewerChatRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), userID), nil
+}
+
+// viewerChatRow is the single-row answer shape: media URLs signed and the
+// document block resolved for the viewer, so a mutation answer carries the
+// same row a read of the message would.
+func (s *ChatService) viewerChatRow(ctx context.Context, room db.ChatRoom, row ChatMessageRow, viewerID string) ChatMessageRow {
+	out := []ChatMessageRow{s.signChatMediaRow(ctx, room, row)}
+	s.resolveChatDocuments(ctx, room, out, viewerID)
+	return out[0]
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.
@@ -691,7 +698,7 @@ func (s *ChatService) ToggleChatMessageReaction(
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
-	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(updated, u.DisplayName, userID)), nil
+	return s.viewerChatRow(ctx, room, chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), userID), nil
 }
 
 // mutateChatMessageMetadata rewrites a message's metadata under a row lock, so
