@@ -116,6 +116,32 @@ func TestDocumentCopy(t *testing.T) {
 			}
 		})
 
+		// UNI-1974: a folder is never a source of access. A copy takes its source
+		// file's visibility, not that of the (legacy, still workspace-open)
+		// folder it lands in, and a folder itself is not copyable.
+		t.Run("a copy into a legacy workspace folder stays private like its source", func(t *testing.T) {
+			src := env.createFile(t, member, "private-src.md", []byte("# Rieng\n"))
+			if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, src.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc cu"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'workspace' WHERE id = $1`, folder.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			copied, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", ParentID: folder.Document.ID, IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "copy into the folder")
+			if copied.Document.Visibility != documentVisibilityRestricted {
+				t.Fatalf("copy visibility = %q, want restricted (the source's, not the folder's)", copied.Document.Visibility)
+			}
+			_, err = env.svc.CopyDocument(ctx, member, folder.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
+			wantCode(t, err, "folder_not_supported")
+		})
+
 		t.Run("replay of the same key answers the same copy", func(t *testing.T) {
 			src := env.createFile(t, member, "replay-copy.md", []byte("# Replay\n"))
 			key := util.NewID()
@@ -215,12 +241,13 @@ func TestDocumentCopy(t *testing.T) {
 		// are not a member.
 		t.Run("a member without edit on the parent folder still gets forbidden", func(t *testing.T) {
 			src := env.createFile(t, member, "parent-gate.md", []byte("# Cong cha\n"))
-			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc han che"})
+			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Title: "Trang cha han che"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			// The folder is restricted to its ACL owner; the copier may view it
-			// through a share (so it is visible, not a 404) but not edit it.
+			// The parent is restricted to its ACL owner (a folder cannot be shared,
+			// UNI-1974, so a page stands in); the copier may view it through a
+			// share (so it is visible, not a 404) but not edit it.
 			copier := human(env.tn.creator)
 			for _, row := range []struct {
 				id    string

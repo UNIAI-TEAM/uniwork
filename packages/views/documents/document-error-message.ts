@@ -35,6 +35,7 @@ const CODED = new Set([
   "document_cycle",
   "document_too_deep",
   "folder_not_supported",
+  "folder_not_shareable",
   "folder_too_large",
   "folder_name_taken",
   "source_not_saveable",

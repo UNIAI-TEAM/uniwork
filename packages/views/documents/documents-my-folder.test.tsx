@@ -485,8 +485,9 @@ describe("guards on the My Folder row", () => {
       ),
     );
     fireEvent.click(screen.getByRole("button", { name: t("documents.actions.menu_label") }));
-    expect(await screen.findByRole("menuitem", { name: t("documents.actions.share") })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: t("documents.actions.archive") })).toBeInTheDocument();
+    // An ordinary folder keeps Archive but has no Share either (UNI-1974).
+    expect(await screen.findByRole("menuitem", { name: t("documents.actions.archive") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.share") })).toBeNull();
   });
 
   it("translates a my_folder_locked error to the house-voice sentence and toasts it once without the raw code", async () => {
