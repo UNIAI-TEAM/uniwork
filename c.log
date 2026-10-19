@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+b283124f12c8d5969d8447c6932d672c6de18a8d
+b283124f1 chore(merge): G5-G7 root 5975d8f9e into the CHAT-DOC-SHARE web half (UNI-1966)
+c5e5ee5cc test(chat): mirror the composer document types against the server subset (UNI-1966)
+1d7f984c3 chore(merge): e6-server CHAT-DOC-SHARE w1 edb731f5f into the web half (UNI-1966)
+b9e6e7b92 fix(chat): guard the optional document send callback (UNI-1966)
