@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, FlatList, Pressable, RefreshControl, View } from "react-native";
 import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
-import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, WorkspacePill } from "@/components/chat/room-list-parts";
+import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, ScopeHint, ScopeSwitch, WorkspacePill } from "@/components/chat/room-list-parts";
 import { RoomPreview } from "@/components/chat/room-preview";
 import { RoomRow } from "@/components/chat/room-row";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
@@ -31,6 +31,7 @@ import { useChatSendStore } from "@/data/stores/chat-send-store";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { useSidebarTypingStore } from "@/data/stores/chat-typing-store";
 import { chatRoutes } from "@/lib/chat-routes";
+import { ROOM_LIST_FILTERS_BY_SCOPE, scopeRows, type ChatScope } from "@/lib/chat-scope";
 import { buildRoomList, filterRoomList, type RoomListFilter, type RoomListRow } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -99,7 +100,11 @@ export default function ChatTab() {
   const typingByRoomId = useSidebarTypingStore((s) => s.byRoomId);
   const online = usePresenceStore((s) => s.onlineUserIds);
   const [filterText, setFilterText] = useState("");
-  const [filter, setFilter] = useState<RoomListFilter>("all");
+  const [chosenFilter, setFilter] = useState<RoomListFilter>("all");
+  // DMs and groups are the organization's, channels the workspace's: one list at a time (lib/chat-scope.ts).
+  const [scope, setScope] = useState<ChatScope>("messages");
+  const filters = ROOM_LIST_FILTERS_BY_SCOPE[scope];
+  const filter = filters.includes(chosenFilter) ? chosenFilter : "all";
   const [menuRow, setMenuRow] = useState<RoomListRow | null>(null);
   const [pulling, setPulling] = useState(false);
 
@@ -122,21 +127,22 @@ export default function ChatTab() {
         : [],
     [chat, rooms.data, filterText, nicknames.data, members.data, pinnedByRoomId, typingByRoomId, online, t, i18n.language],
   );
-  const shown = useMemo(() => filterRoomList(rows, filter), [rows, filter]);
-  const mentionRooms = useMemo(() => filterRoomList(rows, "mentions").length, [rows]);
+  const scoped = useMemo(() => scopeRows(scope, rows), [rows, scope]);
+  const shown = useMemo(() => filterRoomList(scoped, filter), [scoped, filter]);
+  const mentionRooms = useMemo(() => filterRoomList(scoped, "mentions").length, [scoped]);
   // "Bắt kịp nhanh" sums the list's unread and opens the room holding the most of it (chat-sidebar-catch-up.tsx › pickQuickCatchUp).
   const quickCatchUp = useMemo(() => {
     let total = 0;
     let withUnread = 0;
     let top: RoomListRow | null = null;
-    for (const row of rows) {
+    for (const row of scoped) {
       if (row.unread <= 0 || !row.roomId) continue;
       total += row.unread;
       withUnread += 1;
       if (!top || row.unread > top.unread) top = row;
     }
     return { total, rooms: withUnread, top };
-  }, [rows]);
+  }, [scoped]);
 
   const open = useCallback(
     (row: RoomListRow) => {
@@ -176,24 +182,41 @@ export default function ChatTab() {
   const pill = chat ? (
     <WorkspacePill name={chat.workspaceName} seed={wsId} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} otherUnread={otherUnread} onPress={() => setSwitchOpen(true)} />
   ) : null;
+  // "+" starts something where the reader is: a DM or group in messages, the channel directory in a workspace.
   const newChat = chat ? (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={t("chat.new_conversation_aria")}
+      accessibilityLabel={scope === "messages" ? t("chat.new_conversation_aria") : t("chat.channel.directory_aria")}
       className="h-11 w-11 items-center justify-center rounded-full bg-muted active:opacity-80"
-      onPress={() => router.push(chatRoutes.newChat(chat))}
+      onPress={() => router.push(scope === "messages" ? chatRoutes.newChat(chat) : chatRoutes.channels(chat))}
     >
-      <Ionicons name="create-outline" size={21} color={theme.primary} />
+      <Ionicons name={scope === "messages" ? "create-outline" : "compass-outline"} size={21} color={theme.primary} />
     </Pressable>
   ) : null;
 
   return (
     <View className="flex-1 bg-background">
-      <Header large title={t("nav.chat")} left={pill} right={newChat}>
+      <Header large title={t("nav.chat")} right={newChat}>
+        {chat ? (
+          <ScopeSwitch
+            value={scope}
+            onChange={setScope}
+            workspaceName={chat.workspaceName}
+            workspaceSeed={wsId}
+            workspaceIconUrl={workspace?.icon_url}
+            workspaceIconEmoji={workspace?.icon_emoji}
+            messages={summary.data?.direct}
+            channels={summary.data?.workspaces.find((row) => row.workspace_id === wsId)}
+          />
+        ) : null}
+        <ScopeHint scope={scope} />
+        {scope === "workspace" && pill ? <View className="mt-3 flex-row">{pill}</View> : null}
         <SearchField
           value={filterText}
           onChangeText={setFilterText}
-          placeholder={t("chat.mobile.search_placeholder")}
+          placeholder={
+            scope === "workspace" && chat ? t("chat.scope.search_channels", { name: chat.workspaceName }) : t("chat.mobile.search_placeholder")
+          }
           accessibilityLabel={t("chat.search_conversations_label")}
           className="mt-2.5 h-10"
         />
@@ -210,7 +233,7 @@ export default function ChatTab() {
         <RoomListError onRetry={() => void rooms.refetch()} />
       ) : (
         <>
-          <FilterChips value={filter} onChange={setFilter} mentionRooms={mentionRooms} total={rows.length} />
+          <FilterChips value={filter} onChange={setFilter} mentionRooms={mentionRooms} total={scoped.length} filters={filters} />
           <FlatList
             data={shown}
             keyExtractor={(row) => row.key}
