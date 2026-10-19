@@ -26,6 +26,10 @@ export type SidebarPreviewOptions = {
   voiceCallLabel: string;
   voiceMessageLabel: string;
   fileMessageLabel?: string;
+  /** UNI-1966: the room's last message is a document card. */
+  documentMessageLabel?: string;
+  /** UNI-1966: "{{name}} đã tải lên phiên bản {{version}}" for the version line. */
+  formatDocumentVersionLine?: (name: string, version: string) => string;
   yesterdayLabel: string;
   nicknamesByUserId?: Record<string, string>;
 };
@@ -95,6 +99,8 @@ export const SidebarNavItem = memo(function SidebarNavItem({
     voiceCallLabel: previewOptions.voiceCallLabel,
     voiceMessageLabel: previewOptions.voiceMessageLabel,
     fileMessageLabel: previewOptions.fileMessageLabel,
+    documentMessageLabel: previewOptions.documentMessageLabel,
+    formatDocumentVersionLine: previewOptions.formatDocumentVersionLine,
     nicknamesByUserId: previewOptions.nicknamesByUserId,
     mediaLabels: {
       sticker: t("chat.media_sticker"),

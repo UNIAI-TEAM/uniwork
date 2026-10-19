@@ -124,6 +124,78 @@ describe("chat-sidebar-preview", () => {
     ).toBe("Tệp đính kèm");
   });
 
+  it("prefers the document title in document preview, else localized label", () => {
+    const options = {
+      currentUserId: "self",
+      isGroup: false,
+      youLabel: "Bạn",
+      voiceCallLabel: "Cuộc gọi",
+      documentMessageLabel: "Tài liệu",
+    };
+    expect(
+      formatChatSidebarPreviewText(
+        { body: "Báo cáo Q3.docx", kind: "document", senderId: "u2", senderName: "Binh", createdAt: "2026-03-26T10:00:00Z" },
+        options,
+      ),
+    ).toBe("Báo cáo Q3.docx");
+    expect(
+      formatChatSidebarPreviewText(
+        { body: " ", kind: "document", senderId: "u2", senderName: "Binh", createdAt: "2026-03-26T10:00:00Z" },
+        options,
+      ),
+    ).toBe("Tài liệu");
+  });
+
+  it("formats the document_version line with the uploader's name", () => {
+    const line = formatChatSidebarPreviewText(
+      { body: "3", kind: "document_version", senderId: "u2", senderName: "Binh", createdAt: "2026-03-26T10:00:00Z" },
+      {
+        currentUserId: "self",
+        isGroup: true,
+        youLabel: "Bạn",
+        voiceCallLabel: "Cuộc gọi",
+        formatDocumentVersionLine: (name, version) => `${name} đã tải lên phiên bản ${version}`,
+      },
+    );
+    expect(line).toBe("Binh đã tải lên phiên bản 3");
+  });
+
+  it("formats the document_version line as \"you\" for the reader's own commit", () => {
+    const line = formatChatSidebarPreviewText(
+      { body: "2", kind: "document_version", senderId: "self", senderName: "Tôi", createdAt: "2026-03-26T10:00:00Z" },
+      {
+        currentUserId: "self",
+        isGroup: false,
+        youLabel: "Bạn",
+        voiceCallLabel: "Cuộc gọi",
+        formatDocumentVersionLine: (name, version) => `${name} đã tải lên phiên bản ${version}`,
+      },
+    );
+    expect(line).toBe("Bạn đã tải lên phiên bản 2");
+  });
+
+  it("returns no document_version preview without a formatter, name or ordinal", () => {
+    const base = { body: "3", kind: "document_version", senderId: "u2", senderName: "", createdAt: "2026-03-26T10:00:00Z" };
+    expect(
+      formatChatSidebarPreviewText(base, {
+        currentUserId: "self",
+        isGroup: false,
+        youLabel: "Bạn",
+        voiceCallLabel: "Cuộc gọi",
+        formatDocumentVersionLine: (name, version) => `${name} v${version}`,
+      }),
+    ).toBeNull();
+    expect(
+      formatChatSidebarPreviewText({ ...base, senderName: "Binh", body: " " }, {
+        currentUserId: "self",
+        isGroup: false,
+        youLabel: "Bạn",
+        voiceCallLabel: "Cuộc gọi",
+        formatDocumentVersionLine: (name, version) => `${name} v${version}`,
+      }),
+    ).toBeNull();
+  });
+
   it("sorts previews by recency", () => {
     const newer = {
       body: "b",
