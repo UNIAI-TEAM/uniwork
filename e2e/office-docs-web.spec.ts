@@ -1,11 +1,11 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type FrameLocator, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { e2eApiUrl, e2eBaseUrl } from "./api-url";
 import { createFolder } from "./documents-folders-fixtures";
 import {
-  listVersions, openSeededDocument, readPinnedFrame, releaseSeededEditLock, seedDocx, seedUntitledDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
+  listVersions, openSeededDocument, readPinnedFrame, releaseSeededEditLock, seedDocument, seedDocx, seedUntitledDocx, setFlag, versionBodyXml, versionEntries, type SeededDocx,
 } from "./office-docs-web-fixtures";
-import { expectFrameNotice } from "./office-module-web-fixtures";
+import { expectFrameNotice, moduleFrameHost, moduleFrameInstalled } from "./office-module-web-fixtures";
 
 /**
  * Docs web frame (UNI-1013): the genoffice Docs renderer served from
@@ -374,6 +374,270 @@ test.describe("open, edit, save", () => {
     } finally {
       await setFlag("office_docs_web", seeded.organizationId, true);
     }
+  });
+});
+
+/**
+ * Ctrl/Cmd+P routes one print to the document (UNI-1920): the page's handler
+ * answers a press whose focus sits in the page chrome with one `host.print`
+ * request; inside a Docs or HTML frame the pin's own capture-phase binding
+ * runs the frame's print path instead, and the keydown never leaves the
+ * iframe, so the page stays silent.
+ *
+ * `installPrintProbe` instruments one realm: `windowPrints` counts its
+ * window.print() calls (stubbed - a headless run has no dialog and settles
+ * the real path with afterprint), `hostPrints` counts host->frame `print`
+ * envelopes the realm's `message` events deliver, and `ctrlP` records each
+ * mod+P keydown's final defaultPrevented (read in a task, after dispatch
+ * finished), so a binding that forgot preventDefault fails the case even
+ * though headless Playwright would never show the browser dialog. An
+ * `appendChild` wrap hands the count of the hidden srcdoc iframe the HTML
+ * module prints through back to the module's probe, re-stubbing on the
+ * child's `load` so the count survives a Window swap at the srcdoc
+ * navigation. `REQUIRE_ALL_FRAMES` turns "bundle not installed" from a skip
+ * into a failure on the lanes that install every frame.
+ */
+interface PrintCounts { windowPrints: number; hostPrints: number; ctrlP: boolean[] }
+
+const REQUIRE_ALL_FRAMES = process.env.OFFICE_FRAME_REQUIRE_ALL === "1";
+/** Hold after the print's own settle so a second print has room to show up. */
+const PRINT_SETTLE_MS = 1500;
+
+async function installPrintProbe(scope: Page | FrameLocator): Promise<void> {
+  await scope.locator("body").evaluate(() => {
+    interface Probe { windowPrints: number; hostPrints: number; ctrlP: boolean[] }
+    const w = window as unknown as { __uwPrintProbe?: Probe }; // the spec's own counter bag; not on Window
+    w.__uwPrintProbe = { windowPrints: 0, hostPrints: 0, ctrlP: [] };
+    const probe = w.__uwPrintProbe;
+    const stubPrint = (target: Window | null) => {
+      if (!target) return;
+      target.print = () => {
+        probe.windowPrints += 1;
+        target.setTimeout(() => target.dispatchEvent(new Event("afterprint")), 50);
+      };
+    };
+    const append = Element.prototype.appendChild;
+    Element.prototype.appendChild = function <T extends Node>(child: T): T {
+      append.call(this, child);
+      if (child instanceof HTMLIFrameElement) {
+        // The HTML module prints through a hidden sandboxed srcdoc iframe: its
+        // win.print() belongs to the module's count. Re-stub on every load in
+        // case the srcdoc navigation swaps the Window, so the count cannot sit
+        // on a discarded about:blank window.
+        child.addEventListener("load", () => stubPrint(child.contentWindow));
+        stubPrint(child.contentWindow);
+      }
+      // appendChild's result is the appended child itself.
+      return child;
+    };
+    stubPrint(window);
+    // Registered in the capture phase; the read happens in a task after dispatch
+    // finished, because for a trusted keypress a microtask checkpoint runs
+    // between listeners and would miss a later bubble listener's preventDefault.
+    window.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") window.setTimeout(() => probe.ctrlP.push(e.defaultPrevented), 0);
+    }, true);
+    // host.print envelopes arrive as message events from the host window: count
+    // them where they land. Never wrap `window.postMessage` for this — the
+    // wrapper runs in the frame realm, so the delivered event's `source` is the
+    // frame itself and the port drops the host request (SVR-7).
+    window.addEventListener("message", (e) => {
+      // A host.print envelope is { ns, kind: 'request', type: 'print' }: read fields via `in` guards.
+      const message = e.data as unknown;
+      if (
+        typeof message === "object" && message !== null &&
+        "ns" in message && message.ns === "uniwork.office.docs" &&
+        "kind" in message && message.kind === "request" &&
+        "type" in message && message.type === "print"
+      ) probe.hostPrints += 1;
+    }, true);
+  });
+}
+
+async function readPrintCounts(scope: Page | FrameLocator): Promise<PrintCounts> {
+  return scope.locator("body").evaluate(() => {
+    const w = window as unknown as { __uwPrintProbe?: PrintCounts }; // the spec's own counter bag; not on Window
+    return w.__uwPrintProbe ?? { windowPrints: 0, hostPrints: 0, ctrlP: [] };
+  });
+}
+
+/**
+ * Focus leaves the frame for the page chrome: the header's Save button
+ * (`office.shell.save_to_cloud`, `aria-disabled` when clean so `.focus()` puts
+ * keyboard focus on it without firing an action; `document-page-header`'s
+ * `<textarea>` only mounts on `kind === "page"`, not on file documents).
+ *
+ * Callers must first let the frame finish its own boot-time focus claim —
+ * the Docs app autofocuses a freshly opened document on a retry loop until
+ * something inside the frame holds focus (file-actions.ts
+ * `focusDocumentStart`), and one retry landing after `.focus()` steals the
+ * chrome focus back to the iframe. Clicking into the frame's own editing
+ * surface ends the loop, so the cases click in first.
+ */
+async function focusPageChrome(page: Page): Promise<void> {
+  const saveButton = page.getByRole("button", { name: /^(Lưu vào UniWork|Save to UniWork)$/ });
+  await expect(saveButton).toBeVisible({ timeout: 30_000 });
+  await saveButton.focus();
+  await expect(saveButton).toBeFocused();
+  expect(
+    await page.evaluate(() => document.activeElement !== null && document.activeElement.tagName !== "IFRAME"),
+    "page chrome holds focus outside the iframe before pressing Ctrl+P",
+  ).toBe(true);
+}
+
+test.describe("Ctrl/Cmd+P", () => {
+  let docs: SeededDocx;
+  let html: SeededDocx;
+
+  test.beforeAll(async ({ browser, request }) => {
+    const [docsInstalled, htmlInstalled] = await Promise.all([
+      frameInstalled(request),
+      moduleFrameInstalled(request, baseUrl, "html"),
+    ]);
+    // The cloud lane installs every frame (office-frame-sync --all): there an absent
+    // bundle is a broken install, not a case to wave through (RR2-5).
+    if (REQUIRE_ALL_FRAMES) {
+      expect(docsInstalled, "the pinned Docs bundle is installed (OFFICE_FRAME_REQUIRE_ALL)").toBe(true);
+      expect(htmlInstalled, "the pinned HTML module is installed (OFFICE_FRAME_REQUIRE_ALL)").toBe(true);
+    }
+    test.skip(!docsInstalled, "the pinned Docs bundle is not installed in this web build");
+    const context = await browser.newContext({ baseURL: baseUrl });
+    try {
+      const seeding = await context.newPage();
+      docs = await seedDocx(seeding, baseUrl, `docs-print-${Date.now().toString(36)}`);
+      if (htmlInstalled) {
+        html = await seedDocument(seeding, baseUrl, `html-print-${Date.now().toString(36)}`, {
+          name: "print-page.html",
+          mimeType: "text/html",
+          buffer: Buffer.from("<!doctype html><html><body><h1>Print probe page</h1><p>A paragraph to print.</p></body></html>"),
+        });
+      }
+    } finally {
+      await context.close();
+    }
+    await setFlag("office_engine", docs.organizationId, true);
+    if (html) {
+      await setFlag("office_engine", html.organizationId, true);
+      await setFlag("office_html_web", html.organizationId, true);
+    }
+  });
+
+  test.afterEach(async ({ request }) => {
+    await releaseSeededEditLock(request, docs);
+    await releaseSeededEditLock(request, html);
+  });
+
+  test.afterAll(async () => {
+    if (html) await setFlag("office_html_web", html.organizationId, false);
+  });
+
+  test("Docs: Ctrl+P inside the frame runs the frame's own print, never host.print", async ({ page }) => {
+    await signInAs(page, docs.account.email);
+    await openSeededDocument(page, docs);
+    // The docs wrapper uses the same host attributes; moduleFrameHost's module union excludes "docs".
+    await expect(page.locator('[data-office-docs-frame][data-office-module="docs"]')).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+    const frame = page.frameLocator(FRAME_SELECTOR);
+    await installPrintProbe(frame);
+    await installPrintProbe(page);
+    // Focus in the frame: the press belongs to the frame's own binding. Its 'print'
+    // menu command opens the app's print dialog; confirming it is the one print.
+    await frame.locator(EDITOR).first().click();
+    await page.keyboard.press("Control+p");
+    const dialog = frame.locator(".modal.print-dialog");
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(0);
+    await dialog.locator(".modal-actions button.primary").click();
+    await expect(dialog).toBeHidden();
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
+    // The frame's accelerator must have claimed the press: a missing preventDefault
+    // leaves the browser's own print dialog on top of the module print in a real browser.
+    await expect.poll(async () => (await readPrintCounts(frame)).ctrlP).toEqual([true]);
+    await page.waitForTimeout(PRINT_SETTLE_MS);
+    expect(await readPrintCounts(frame)).toEqual({ windowPrints: 1, hostPrints: 0, ctrlP: [true] });
+    expect(await readPrintCounts(page)).toEqual({ windowPrints: 0, hostPrints: 0, ctrlP: [] });
+  });
+
+  test("Docs: Ctrl+P with the focus in the page sends exactly one host.print request", async ({ page }) => {
+    await signInAs(page, docs.account.email);
+    await openSeededDocument(page, docs);
+    await expect(page.locator('[data-office-docs-frame][data-office-module="docs"]')).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+    const frame = page.frameLocator(FRAME_SELECTOR);
+    await installPrintProbe(frame);
+    await installPrintProbe(page);
+    // Let the frame's boot-time claim on focus finish first: the Docs app keeps
+    // refocusing a freshly opened document until something in the frame holds it
+    // (file-actions.ts `focusDocumentStart`), and a retry landing after the
+    // chrome focus steals it back to the iframe. One click into the editor ends
+    // the loop.
+    await frame.locator(EDITOR).first().click();
+    // Focus in the page chrome: the page's Ctrl+P handler sends one `host.print`;
+    // the frame answers it with its print path (the same job's window.print).
+    await focusPageChrome(page);
+    await page.keyboard.press("Control+p");
+    await expect.poll(async () => (await readPrintCounts(frame)).hostPrints).toBe(1);
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
+    // The page's handler claims the press with preventDefault before it sends host.print.
+    await expect.poll(async () => (await readPrintCounts(page)).ctrlP).toEqual([true]);
+    await page.waitForTimeout(PRINT_SETTLE_MS);
+    expect(await readPrintCounts(frame)).toEqual({ windowPrints: 1, hostPrints: 1, ctrlP: [] });
+    expect(await readPrintCounts(page)).toEqual({ windowPrints: 0, hostPrints: 0, ctrlP: [true] });
+  });
+
+  test("HTML: Ctrl+P inside the frame runs the frame's print, never host.print", async ({ page }) => {
+    test.skip(!html, "the pinned HTML module is not installed in this web build");
+    await signInAs(page, html.account.email);
+    await openSeededDocument(page, html);
+    await expect(moduleFrameHost(page, "html")).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+    const frame = page.frameLocator('iframe[src*="/office-frame/html/"]');
+    await installPrintProbe(frame);
+    await installPrintProbe(page);
+    // Ribbon view tabs have onMouseDown preventDefault (Ribbon.tsx:634) so a tab
+    // click does not move focus out of the nested preview.html iframe. Switch to
+    // the Source tab and click `.cm-content` so focus sits in the HTML module's
+    // own document where `installPrintAccelerator` listens on `window`.
+    await frame.getByRole("tab").nth(2).click();
+    await frame.locator(".cm-content").click();
+    expect(
+      await frame.locator("body").evaluate(() => document.activeElement !== null && document.activeElement.tagName !== "IFRAME"),
+      "HTML module document holds focus outside preview.html before pressing Ctrl+P",
+    ).toBe(true);
+    await page.keyboard.press("Control+p");
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
+    // The frame's accelerator must have claimed the press: a missing preventDefault
+    // leaves the browser's own print dialog on top of the module print in a real browser.
+    await expect.poll(async () => (await readPrintCounts(frame)).ctrlP).toEqual([true]);
+    await page.waitForTimeout(PRINT_SETTLE_MS);
+    expect(await readPrintCounts(frame)).toEqual({ windowPrints: 1, hostPrints: 0, ctrlP: [true] });
+    expect(await readPrintCounts(page)).toEqual({ windowPrints: 0, hostPrints: 0, ctrlP: [] });
+  });
+
+  test("HTML: Ctrl+P with the focus in the page sends exactly one host.print request", async ({ page }) => {
+    test.skip(!html, "the pinned HTML module is not installed in this web build");
+    await signInAs(page, html.account.email);
+    await openSeededDocument(page, html);
+    await expect(moduleFrameHost(page, "html")).toHaveAttribute("data-state", "ready", { timeout: 90_000 });
+    const frame = page.frameLocator('iframe[src*="/office-frame/html/"]');
+    await installPrintProbe(frame);
+    await installPrintProbe(page);
+    // The frame answers `host.print` through handlers the renderer registers in
+    // an effect (html App.tsx onExportRequest/onPrintRequest feeding the
+    // bridge's print/export handler sets), and runExport/runPrint bail unless
+    // the renderer's own status is 'ready' — all of which lags the host's
+    // data-state=ready. A press that lands in the gap is answered
+    // `{ printed: false }` and never prints. Switching to the Source editor —
+    // like the in-frame case — means the renderer committed, so the press is
+    // heard.
+    await frame.getByRole("tab").nth(2).click();
+    await frame.locator(".cm-content").click();
+    await focusPageChrome(page);
+    await page.keyboard.press("Control+p");
+    await expect.poll(async () => (await readPrintCounts(frame)).hostPrints).toBe(1);
+    await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
+    // The page's handler claims the press with preventDefault before it sends host.print.
+    await expect.poll(async () => (await readPrintCounts(page)).ctrlP).toEqual([true]);
+    await page.waitForTimeout(PRINT_SETTLE_MS);
+    expect(await readPrintCounts(frame)).toEqual({ windowPrints: 1, hostPrints: 1, ctrlP: [] });
+    expect(await readPrintCounts(page)).toEqual({ windowPrints: 0, hostPrints: 0, ctrlP: [true] });
   });
 });
 
