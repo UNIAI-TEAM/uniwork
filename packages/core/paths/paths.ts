@@ -129,6 +129,8 @@ export const paths = {
       chatMessages: () => `${base}/chat?view=messages`,
       /** Chat's channels of this workspace. */
       chatChannels: () => `${base}/chat?view=channels`,
+      /** UniChat's own settings (the shell keeps to /chat*), beside the workspace rail. */
+      chatSettings: () => `${base}/chat/settings`,
       /** Opens a room (and optionally scrolls to a message) on the chat page. */
       chatConversation: (roomId: string, messageId?: string) => {
         const params = new URLSearchParams();
