@@ -335,7 +335,7 @@ test.describe("open, edit, save", () => {
  * `installPrintProbe` instruments one realm: `windowPrints` counts its
  * window.print() calls (stubbed - a headless run has no dialog and settles
  * the real path with afterprint), `hostPrints` counts host->frame `print`
- * envelopes the realm's postMessage receives, and `ctrlP` records each
+ * envelopes the realm's `message` events deliver, and `ctrlP` records each
  * mod+P keydown's final defaultPrevented (read in a microtask, after every
  * listener ran), so a binding that forgot preventDefault fails the case even
  * though headless Playwright would never show the browser dialog. An
@@ -384,19 +384,20 @@ async function installPrintProbe(scope: Page | FrameLocator): Promise<void> {
     window.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") queueMicrotask(() => probe.ctrlP.push(e.defaultPrevented));
     }, true);
-    // The DOM declares postMessage as overloads; forwarders need the rest-args shape.
-    const postMessage = window.postMessage.bind(window) as unknown as (...args: unknown[]) => unknown;
-    // Same signature as the native method: the wrapper forwards every form of the call.
-    window.postMessage = ((message: unknown, ...rest: unknown[]) => {
+    // host.print envelopes arrive as message events from the host window: count
+    // them where they land. Never wrap `window.postMessage` for this — the
+    // wrapper runs in the frame realm, so the delivered event's `source` is the
+    // frame itself and the port drops the host request (SVR-7).
+    window.addEventListener("message", (e) => {
       // A host.print envelope is { ns, kind: 'request', type: 'print' }: read fields via `in` guards.
+      const message = e.data as unknown;
       if (
         typeof message === "object" && message !== null &&
         "ns" in message && message.ns === "uniwork.office.docs" &&
         "kind" in message && message.kind === "request" &&
         "type" in message && message.type === "print"
       ) probe.hostPrints += 1;
-      postMessage(message, ...rest);
-    }) as typeof window.postMessage;
+    }, true);
   });
 }
 
@@ -412,6 +413,13 @@ async function readPrintCounts(scope: Page | FrameLocator): Promise<PrintCounts>
  * (`office.shell.save_to_cloud`, `aria-disabled` when clean so `.focus()` puts
  * keyboard focus on it without firing an action; `document-page-header`'s
  * `<textarea>` only mounts on `kind === "page"`, not on file documents).
+ *
+ * Callers must first let the frame finish its own boot-time focus claim —
+ * the Docs app autofocuses a freshly opened document on a retry loop until
+ * something inside the frame holds focus (file-actions.ts
+ * `focusDocumentStart`), and one retry landing after `.focus()` steals the
+ * chrome focus back to the iframe. Clicking into the frame's own editing
+ * surface ends the loop, so the cases click in first.
  */
 async function focusPageChrome(page: Page): Promise<void> {
   const saveButton = page.getByRole("button", { name: /^(Lưu vào UniWork|Save to UniWork)$/ });
@@ -503,6 +511,12 @@ test.describe("Ctrl/Cmd+P", () => {
     const frame = page.frameLocator(FRAME_SELECTOR);
     await installPrintProbe(frame);
     await installPrintProbe(page);
+    // Let the frame's boot-time claim on focus finish first: the Docs app keeps
+    // refocusing a freshly opened document until something in the frame holds it
+    // (file-actions.ts `focusDocumentStart`), and a retry landing after the
+    // chrome focus steals it back to the iframe. One click into the editor ends
+    // the loop.
+    await frame.locator(EDITOR).first().click();
     // Focus in the page chrome: the page's Ctrl+P handler sends one `host.print`;
     // the frame answers it with its print path (the same job's window.print).
     await focusPageChrome(page);
@@ -552,6 +566,16 @@ test.describe("Ctrl/Cmd+P", () => {
     const frame = page.frameLocator('iframe[src*="/office-frame/html/"]');
     await installPrintProbe(frame);
     await installPrintProbe(page);
+    // The frame answers `host.print` through handlers the renderer registers in
+    // an effect (html App.tsx onExportRequest/onPrintRequest feeding the
+    // bridge's print/export handler sets), and runExport/runPrint bail unless
+    // the renderer's own status is 'ready' — all of which lags the host's
+    // data-state=ready. A press that lands in the gap is answered
+    // `{ printed: false }` and never prints. Switching to the Source editor —
+    // like the in-frame case — means the renderer committed, so the press is
+    // heard.
+    await frame.getByRole("tab").nth(2).click();
+    await frame.locator(".cm-content").click();
     await focusPageChrome(page);
     await page.keyboard.press("Control+p");
     await expect.poll(async () => (await readPrintCounts(frame)).hostPrints).toBe(1);
