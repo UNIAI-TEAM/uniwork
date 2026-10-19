@@ -1,0 +1,369 @@
+$ node --test tools/release/*.test.mjs
+TAP version 13
+# Subtest: parseVersionInfo
+    # Subtest: reads the StringFileInfo entries of a version resource
+    ok 1 - reads the StringFileInfo entries of a version resource
+      ---
+      duration_ms: 1.465147
+      type: 'test'
+      ...
+    # Subtest: returns null without a version resource
+    ok 2 - returns null without a version resource
+      ---
+      duration_ms: 0.113771
+      type: 'test'
+      ...
+    1..2
+ok 1 - parseVersionInfo
+  ---
+  duration_ms: 2.115928
+  type: 'suite'
+  ...
+# Subtest: parsePlist
+    # Subtest: reads dicts, arrays, strings, numbers, booleans and entities
+    ok 1 - reads dicts, arrays, strings, numbers, booleans and entities
+      ---
+      duration_ms: 0.721739
+      type: 'test'
+      ...
+    1..1
+ok 2 - parsePlist
+  ---
+  duration_ms: 0.804749
+  type: 'suite'
+  ...
+# Subtest: checkInfoPlist
+    # Subtest: accepts the UniWork identity
+    ok 1 - accepts the UniWork identity
+      ---
+      duration_ms: 0.492472
+      type: 'test'
+      ...
+    # Subtest: flags an upstream bundle id, name and document type name
+    ok 2 - flags an upstream bundle id, name and document type name
+      ---
+      duration_ms: 0.249104
+      type: 'test'
+      ...
+    1..2
+ok 3 - checkInfoPlist
+  ---
+  duration_ms: 0.850274
+  type: 'suite'
+  ...
+# Subtest: BRAND
+    # Subtest: matches the upstream names in any style and nothing else
+    ok 1 - matches the upstream names in any style and nothing else
+      ---
+      duration_ms: 0.208282
+      type: 'test'
+      ...
+    1..1
+ok 4 - BRAND
+  ---
+  duration_ms: 0.390303
+  type: 'suite'
+  ...
+# Subtest: checkBuildDir
+    # Subtest: passes a clean Windows output (the internal package name is not user-visible)
+    ok 1 - passes a clean Windows output (the internal package name is not user-visible)
+      ---
+      duration_ms: 16.172169
+      type: 'test'
+      ...
+    # Subtest: flags an upstream installer name
+    ok 2 - flags an upstream installer name
+      ---
+      duration_ms: 3.743447
+      type: 'test'
+      ...
+    # Subtest: flags upstream exe version strings
+    ok 3 - flags upstream exe version strings
+      ---
+      duration_ms: 3.209857
+      type: 'test'
+      ...
+    # Subtest: flags upstream package.json fields inside app.asar
+    ok 4 - flags upstream package.json fields inside app.asar
+      ---
+      duration_ms: 2.509434
+      type: 'test'
+      ...
+    # Subtest: flags a baked update feed
+    ok 5 - flags a baked update feed
+      ---
+      duration_ms: 3.650072
+      type: 'test'
+      ...
+    # Subtest: with --update-feed github:UNIAI-TEAM/uniwork-office
+        # Subtest: passes the github feed and a channel file that lists the installer
+        ok 1 - passes the github feed and a channel file that lists the installer
+          ---
+          duration_ms: 2.746694
+          type: 'test'
+          ...
+        # Subtest: flags a missing feed, another repository and a generic feed
+        ok 2 - flags a missing feed, another repository and a generic feed
+          ---
+          duration_ms: 6.764579
+          type: 'test'
+          ...
+        # Subtest: flags a channel file listing a name that is not in the output
+        ok 3 - flags a channel file listing a name that is not in the output
+          ---
+          duration_ms: 2.744309
+          type: 'test'
+          ...
+        # Subtest: still flags any feed in the mac app
+        ok 4 - still flags any feed in the mac app
+          ---
+          duration_ms: 2.244387
+          type: 'test'
+          ...
+        # Subtest: passes a mac app that names the repository for its update notice
+        ok 5 - passes a mac app that names the repository for its update notice
+          ---
+          duration_ms: 3.212686
+          type: 'test'
+          ...
+        # Subtest: flags a mac app without the release feed, or with another one
+        ok 6 - flags a mac app without the release feed, or with another one
+          ---
+          duration_ms: 0.183123
+          type: 'test'
+          ...
+        # Subtest: refuses anything but github:<owner>/<repo>
+        ok 7 - refuses anything but github:<owner>/<repo>
+          ---
+          duration_ms: 0.20581
+          type: 'test'
+          ...
+        1..7
+    ok 6 - with --update-feed github:UNIAI-TEAM/uniwork-office
+      ---
+      duration_ms: 18.369876
+      type: 'suite'
+      ...
+    # Subtest: flags a dev channel file when no feed is expected
+    ok 7 - flags a dev channel file when no feed is expected
+      ---
+      duration_ms: 2.445311
+      type: 'test'
+      ...
+    # Subtest: flags an upstream-branded installer exe
+    ok 8 - flags an upstream-branded installer exe
+      ---
+      duration_ms: 7.208132
+      type: 'test'
+      ...
+    # Subtest: flags update feed metadata next to the installers
+    ok 9 - flags update feed metadata next to the installers
+      ---
+      duration_ms: 2.585129
+      type: 'test'
+      ...
+    # Subtest: fails when the installer is present but win-unpacked is missing
+    ok 10 - fails when the installer is present but win-unpacked is missing
+      ---
+      duration_ms: 0.554946
+      type: 'test'
+      ...
+    # Subtest: fails when an --expect directory is missing
+    ok 11 - fails when an --expect directory is missing
+      ---
+      duration_ms: 2.274144
+      type: 'test'
+      ...
+    # Subtest: flags a release feed in a mac app built without --update-feed
+    ok 12 - flags a release feed in a mac app built without --update-feed
+      ---
+      duration_ms: 3.28156
+      type: 'test'
+      ...
+    # Subtest: passes a clean dual-arch mac output
+    ok 13 - passes a clean dual-arch mac output
+      ---
+      duration_ms: 3.427951
+      type: 'test'
+      ...
+    # Subtest: fails when a dmg is present but its mac directory is missing
+    ok 14 - fails when a dmg is present but its mac directory is missing
+      ---
+      duration_ms: 2.24046
+      type: 'test'
+      ...
+    # Subtest: flags an upstream mac helper, Info.plist and a baked update feed
+    ok 15 - flags an upstream mac helper, Info.plist and a baked update feed
+      ---
+      duration_ms: 1.744516
+      type: 'test'
+      ...
+    # Subtest: reads a binary Info.plist only through plutil (macOS)
+    ok 16 - reads a binary Info.plist only through plutil (macOS)
+      ---
+      duration_ms: 2.315982
+      type: 'test'
+      ...
+    # Subtest: fails on a directory with nothing to check
+    ok 17 - fails on a directory with nothing to check
+      ---
+      duration_ms: 0.223824
+      type: 'test'
+      ...
+    1..17
+ok 5 - checkBuildDir
+  ---
+  duration_ms: 76.668252
+  type: 'suite'
+  ...
+# Subtest: Linux packages
+    # Subtest: maps deb / AppImage names to linux-unpacked
+    ok 1 - maps deb / AppImage names to linux-unpacked
+      ---
+      duration_ms: 0.239715
+      type: 'test'
+      ...
+    # Subtest: passes a clean linux-unpacked and requires it for an AppImage
+    ok 2 - passes a clean linux-unpacked and requires it for an AppImage
+      ---
+      duration_ms: 3.751749
+      type: 'test'
+      ...
+    # Subtest: checks the deb control fields
+    ok 3 - checks the deb control fields
+      ---
+      duration_ms: 0.325295
+      type: 'test'
+      ...
+    # Subtest: checks the desktop entry names and its URL scheme handlers
+    ok 4 - checks the desktop entry names and its URL scheme handlers
+      ---
+      duration_ms: 0.28161
+      type: 'test'
+      ...
+    # Subtest: lists the desktop entries and theme icons of a deb listing
+    ok 5 - lists the desktop entries and theme icons of a deb listing
+      ---
+      duration_ms: 0.173499
+      type: 'test'
+      ...
+    1..5
+ok 6 - Linux packages
+  ---
+  duration_ms: 4.892264
+  type: 'suite'
+  ...
+# Subtest: installerPlatformOf
+    # Subtest: maps the release artifact names to the server platform keys
+    ok 1 - maps the release artifact names to the server platform keys
+      ---
+      duration_ms: 0.760858
+      type: 'test'
+      ...
+    # Subtest: ignores files that are not installers
+    ok 2 - ignores files that are not installers
+      ---
+      duration_ms: 0.105784
+      type: 'test'
+      ...
+    # Subtest: refuses an installer without the unsigned label
+    ok 3 - refuses an installer without the unsigned label
+      ---
+      duration_ms: 0.267746
+      type: 'test'
+      ...
+    # Subtest: refuses an installer of another channel
+    ok 4 - refuses an installer of another channel
+      ---
+      duration_ms: 0.156833
+      type: 'test'
+      ...
+    # Subtest: refuses names the server would not serve verbatim
+    ok 5 - refuses names the server would not serve verbatim
+      ---
+      duration_ms: 0.088678
+      type: 'test'
+      ...
+    # Subtest: refuses the stable channel
+    ok 6 - refuses the stable channel
+      ---
+      duration_ms: 0.074212
+      type: 'test'
+      ...
+    1..6
+ok 7 - installerPlatformOf
+  ---
+  duration_ms: 2.114824
+  type: 'suite'
+  ...
+# Subtest: buildInstallerUrls
+    # Subtest: returns the compact map in the server contract order
+    ok 1 - returns the compact map in the server contract order
+      ---
+      duration_ms: 0.806658
+      type: 'test'
+      ...
+    # Subtest: keeps the platform key list identical to the server
+    ok 2 - keeps the platform key list identical to the server
+      ---
+      duration_ms: 0.192534
+      type: 'test'
+      ...
+    # Subtest: refuses two installers for one platform
+    ok 3 - refuses two installers for one platform
+      ---
+      duration_ms: 0.255834
+      type: 'test'
+      ...
+    # Subtest: refuses installers of different versions
+    ok 4 - refuses installers of different versions
+      ---
+      duration_ms: 0.201771
+      type: 'test'
+      ...
+    # Subtest: refuses an empty result
+    ok 5 - refuses an empty result
+      ---
+      duration_ms: 0.095223
+      type: 'test'
+      ...
+    # Subtest: refuses a base URL that is not plain https
+    ok 6 - refuses a base URL that is not plain https
+      ---
+      duration_ms: 0.166457
+      type: 'test'
+      ...
+    1..6
+ok 8 - buildInstallerUrls
+  ---
+  duration_ms: 2.005875
+  type: 'suite'
+  ...
+# Subtest: command line
+    # Subtest: parses exactly one of --dir and --files
+    ok 1 - parses exactly one of --dir and --files
+      ---
+      duration_ms: 0.16727
+      type: 'test'
+      ...
+    # Subtest: prints the map for the files in a directory
+    ok 2 - prints the map for the files in a directory
+      ---
+      duration_ms: 28.814839
+      type: 'test'
+      ...
+    1..2
+ok 9 - command line
+  ---
+  duration_ms: 29.057903
+  type: 'suite'
+  ...
+1..9
+# tests 48
+# suites 10
+# pass 48
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 152.178503
