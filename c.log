@@ -1,0 +1,5 @@
+$ pnpm install --frozen-lockfile > /tmp/pnpm.log 2>&1; (pnpm --filter @uniwork/core exec vitest run realtime documents > /tmp/vitest.log 2>&1); rc=$?; grep -E "Test Files|Tests " /tmp/vitest.log; grep -E "FAIL|✗|×" /tmp/vitest.log | head -10; echo; echo "VITEST_CORE_EXIT=$rc"
+ Test Files  55 passed (55)
+      Tests  1128 passed (1128)
+
+VITEST_CORE_EXIT=0

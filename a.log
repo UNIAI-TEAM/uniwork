@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+339c7b5badcb55254b13bb6ce0c670ff95ae3cf2
+339c7b5ba chore: merge the G5-G7 root (5975d8f9e) into S-DOC07
+344ac1444 test(documents): verify cross-workspace access_request_decided frame invalidation (UNI-1631)
+bb1500fb4 test(documents): harden access-request isolation checks for uniform rows, source org, and list body (UNI-1631)
