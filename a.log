@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+c1129a7e781b93476c1ef5dff5d4d6f6e137afd4
+c1129a7e7 chore: merge the G5-G7 root (5975d8f9e) into CHAT-DOC-SHARE
+5733820dd test(chat): pin attachment conversion, L1 replay, version line and L6
+503d2d574 feat(chat): share attachment as document, version line and L6 flag
