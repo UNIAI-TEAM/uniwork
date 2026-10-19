@@ -1,0 +1,183 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19973 FRONTEND_ORIGIN=http://localhost:14973 API_PUBLIC_URL=http://localhost:19973 PREVIEW_ORIGIN=http://localhost:14974 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19973 NEXT_PUBLIC_WS_URL=ws://localhost:19973 NEXT_PUBLIC_APP_URL=http://localhost:14973 E2E_BASE_URL=http://localhost:14973 E2E_API_URL=http://localhost:19973 OFFICE_DOCS_WEB_E2E=1 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test office-docs-web.spec.ts --reporter=list > /tmp/r45-docs.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/r45-docs.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/r45-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/r45-docs.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/r45-docs.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_1960B_EXIT=$rc"
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByRole('dialog', { name: 'Đặt tên tài liệu' }).getByTestId('first-save-location')
+    Expected substring: "Thư mục của tôi"
+    Received string:    "Vị tríTài liệu (gốc)Đổi"
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 5000ms
+      - waiting for getByRole('dialog', { name: 'Đặt tên tài liệu' }).getByTestId('first-save-location')
+        14 × locator resolved to <div role="group" aria-labelledby="_r_3r_" class="flex flex-col gap-1.5" data-testid="first-save-location">…</div>
+           - unexpected value "Vị tríTài liệu (gốc)Đổi"
+
+
+      272 |     // The Location row starts where the document is (My Folder) and Change opens the folder picker.
+      273 |     const location = dialog.getByTestId("first-save-location");
+    > 274 |     await expect(location).toContainText("Thư mục của tôi");
+          |                            ^
+      275 |     await location.getByRole("button", { name: "Đổi" }).click();
+      276 |     const picker = page.getByRole("dialog", { name: "Chọn nơi lưu" });
+      277 |     await picker.getByRole("treeitem", { name: folderTitle }).click();
+
+    Error Context: test-results/office-docs-web-open-edit--fb09a-here-then-uploads-UNI-1960-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/office-docs-web-open-edit--fb09a-here-then-uploads-UNI-1960-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/office-docs-web-open-edit--fb09a-here-then-uploads-UNI-1960-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    office-docs-web.spec.ts:250:3 › open, edit, save › the first save can pick another folder: the document moves there, then uploads (UNI-1960) 
+  1 skipped
+  11 passed (2.1m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-docs-web.spec.ts --reporter=list
+===== e2e/test-results/office-docs-web-open-edit--fb09a-here-then-uploads-UNI-1960-/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-docs-web.spec.ts >> open, edit, save >> the first save can pick another folder: the document moves there, then uploads (UNI-1960)
+- Location: office-docs-web.spec.ts:250:3
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: getByRole('dialog', { name: 'Đặt tên tài liệu' }).getByTestId('first-save-location')
+Expected substring: "Thư mục của tôi"
+Received string:    "Vị tríTài liệu (gốc)Đổi"
+Timeout: 5000ms
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for getByRole('dialog', { name: 'Đặt tên tài liệu' }).getByTestId('first-save-location')
+    14 × locator resolved to <div role="group" aria-labelledby="_r_3r_" class="flex flex-col gap-1.5" data-testid="first-save-location">…</div>
+       - unexpected value "Vị tríTài liệu (gốc)Đổi"
+
+```
+
+```yaml
+- group "Vị trí":
+  - text: Vị trí Tài liệu (gốc)
+  - button "Đổi"
+```
+
+# Test source
+
+```ts
+  174 |     // The page follows the copy: same workspace, another document id.
+  175 |     await expect(page).not.toHaveURL(seeded.documentUrl, { timeout: 60_000 });
+  176 |     const copyId = page.url().split("/documents/")[1]!.split(/[?#]/)[0]!;
+  177 |     expect(copyId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+  178 |     expect(copyId).not.toBe(seeded.documentId);
+  179 |     await page.screenshot({ path: test.info().outputPath("04-save-as-copy.png") });
+  180 | 
+  181 |     // The copy holds the edit; the original gained no version.
+  182 |     const copyVersions = await listVersions(request, token, copyId);
+  183 |     expect(copyVersions.length).toBeGreaterThan(0);
+  184 |     expect(await versionBodyXml(request, token, copyId, copyVersions.reduce((a, b) => (b.version > a.version ? b : a)).version)).toContain(marker);
+  185 |     expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
+  186 | 
+  187 |     // The frame edits the copy: it shows the copy's content and the next save lands on the copy, never the original.
+  188 |     // Intended: the page mounts a fresh frame for the new document id (the document screen swaps its host while the
+  189 |     // copy loads), so the copy opens clean from its stored version. The in-place rebind of a live frame is covered in
+  190 |     // packages/views (office-docs-frame.test.tsx); here we prove what the user sees and what the server stored.
+  191 |     await expect(editor).toContainText(marker, { timeout: 60_000 });
+  192 |     const second = `${marker}-again`;
+  193 |     await editor.click();
+  194 |     await page.keyboard.press("Control+End");
+  195 |     await page.keyboard.type(` ${second}`);
+  196 |     await page.keyboard.press("Control+s");
+  197 |     await expect.poll(async () => (await listVersions(request, token, copyId)).length, { timeout: 60_000, intervals: [1_000] }).toBeGreaterThan(copyVersions.length);
+  198 |     const latest = (await listVersions(request, token, copyId)).reduce((a, b) => (b.version > a.version ? b : a));
+  199 |     expect(await versionBodyXml(request, token, copyId, latest.version)).toContain(second);
+  200 |     expect((await listVersions(request, token, seeded.documentId)).length).toBe(originalBefore.length);
+  201 |   });
+  202 | 
+  203 |   test("the first save of a never-saved blank names it before it uploads (UNI-1847, SAVE-01)", async ({ page, request, browser }) => {
+  204 |     // Seed through a throwaway context so this test's blank does not share the suite's document.
+  205 |     const context = await browser.newContext({ baseURL: baseUrl });
+  206 |     let blank: SeededDocx;
+  207 |     try {
+  208 |       blank = await seedUntitledDocx(await context.newPage(), baseUrl, `docs-web-blank-${Date.now().toString(36)}`);
+  209 |     } finally {
+  210 |       await context.close();
+  211 |     }
+  212 |     await signInAs(page, blank.account.email);
+  213 |     await openSeededDocument(page, blank);
+  214 | 
+  215 |     const editor = page.frameLocator(FRAME_SELECTOR).locator(EDITOR).first();
+  216 |     await expect(editor).toBeVisible({ timeout: 60_000 });
+  217 |     await editor.click();
+  218 |     await page.keyboard.press("Control+s");
+  219 | 
+  220 |     // The page asks for a name before any upload leaves the frame.
+  221 |     const dialog = page.getByRole("dialog", { name: "Đặt tên tài liệu" });
+  222 |     await expect(dialog).toBeVisible({ timeout: 30_000 });
+  223 |     const input = dialog.getByLabel("Tên tài liệu");
+  224 |     await expect(input).toHaveValue("untitled");
+  225 |     const title = `Kế hoạch ${Date.now().toString(36)}`;
+  226 |     await input.fill(title);
+  227 |     await dialog.getByRole("button", { name: "Lưu" }).click();
+  228 |     await expect(dialog).toBeHidden({ timeout: 30_000 });
+  229 | 
+  230 |     // The title changed on the server and the save went through as a new version.
+  231 |     await expect.poll(
+  232 |       async () => (await listVersions(request, blank.account.token, blank.documentId)).length,
+  233 |       { timeout: 60_000, intervals: [1_000] },
+  234 |     ).toBeGreaterThan(0);
+  235 |     const detail = await request.get(`${e2eApiUrl}/api/v1/documents/${blank.documentId}`, {
+  236 |       headers: { authorization: `Bearer ${blank.account.token}` },
+  237 |     });
+  238 |     expect(detail.ok(), `document detail: HTTP ${detail.status()}`).toBeTruthy();
+  239 |     const { document } = (await detail.json()) as { document: { title: string } };
+  240 |     expect(document.title).toBe(title);
+  241 | 
+  242 |     // Named now: the next save asks nothing and stores another version.
+  243 |     await editor.click();
+  244 |     await page.keyboard.type(".");
+  245 |     await page.keyboard.press("Control+s");
+  246 |     await expect(page.getBy===== S9_SERVER_AI
+07:20:12.609 INF local storage adapter ready dir=/tmp/uniwork-uploads
+07:20:12.612 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+07:20:12.614 INF ai gateway enabled component=server provider=fake
+07:22:14.464 INF http request method=OPTIONS path=/api/v1/workspaces/01M59GM6BQKARWWR8GDBPBY08B/ai/capabilities status=200 duration=7µs request_id=cursor/G3g0k3LG6c-000058 correlation_id=b0a4670be3220c03610958d574a83623 trace_id=b0a4670be3220c03610958d574a83623 span_id=4c85946131c7d661
+07:22:14.488 INF http request method=GET path=/api/v1/workspaces/01M59GM6BQKARWWR8GDBPBY08B/ai/capabilities status=200 duration=21.715ms request_id=cursor/G3g0k3LG6c-000063 correlation_id=caab65e92abb5ce1f14ae489ebe84cab trace_id=caab65e92abb5ce1f14ae489ebe84cab span_id=793089ebf5cd6fcb organization_id=01M59GM6AXH31HQ1BR16T5VS37 workspace_id=01M59GM6BQKARWWR8GDBPBY08B actor_id=01M59GM6A0XSVKN6G60SKDGFVK actor_kind=human
+07:22:15.715 INF http request method=GET path=/api/v1/workspaces/01M59GM6BQKARWWR8GDBPBY08B/ai/capabilities status=200 duration=26.171ms request_id=cursor/G3g0k3LG6c-000097 correlation_id=fee101d70f4f06b762a6bccfa7cb1a30 trace_id=fee101d70f4f06b762a6bccfa7cb1a30 span_id=0bf6294122e4c46d organization_id=01M59GM6AXH31HQ1BR16T5VS37 workspace_id=01M59GM6BQKARWWR8GDBPBY08B actor_id=01M59GM6A0XSVKN6G60SKDGFVK actor_kind=human
+07:22:19.042 INF http request method=GET path=/api/v1/workspaces/01M59GM6BQKARWWR8GDBPBY08B/ai/capabilities status=200 duration=14.876ms request_id=cursor/G3g0k3LG6c-000172 correlation_id=102f7cf97ce4e54092b12a29720af05d trace_id=102f7cf97ce4e54092b12a29720af05d span_id=ad45b436cc346824 organization_id=01M59GM6AXH31HQ1BR16T5VS37 workspace_id=01M59GM6BQKARWWR8GDBPBY08B actor_id=01M59GM6A0XSVKN6G60SKDGFVK actor_kind=human
+07:22:21.419 INF http request method=OPTIONS path=/api/v1/workspaces/01M59GM6BQKARWWR8GDBPBY08B/ai/capabilities status=200 duration=4µs request_id=cursor/G3g0k3LG6c-000229 correlation_id=b495d46c9d1682b9870da2528efb19bb trace_id=b495d46c9d1682b9870da2528efb19bb span_id=42cf6a05574ac4f2
+07:22:21.436 INF http request method=GET path=/api/v1/workspaces/01M59GM6BQKARWWR8GDBPBY08B/ai/capabilities status=200 duration=13.333ms request_id=cursor/G3g0k3LG6c-000232 correlation_id=f450b542a31408228fe501f1fbc7c4d4 trace_id=f450b542a31408228fe501f1fbc7c4d4 span_id=b3b9e82bf419432c organization_id=01M59GM6AXH31HQ1BR16T5VS37 workspace_id=01M59GM6BQKARWWR8GDBPBY08B actor_id=01M59GM6A0XSVKN6G60SKDGFVK actor_kind=human
+07:22:22.402 INF http request method=GET path=/api/v1/workspaces/01M59GM6BQKARWWR8GDBPBY08B/ai/capabilities status=200 duration=5.218ms request_id=cursor/G3g0k3LG6c-000268 correlation_id=36bc548e05e710884fa10e8773c52afa trace_id=36bc548e05e710884fa10e8773c52afa span_id=c81928d633d8ed25 organization_id=01M59GM6AXH31HQ1BR16T5VS37 workspace_id=01M59GM6BQKARWWR8GDBPBY08B actor_id=01M59GM6A0XSVKN6G60SKDGFVK actor_kind=human
+07:22:27.808 INF http request method=OPTIONS path=/api/v1/workspaces/01M59GMKGX8FVT7BT3FZ3AH1J7/ai/capabilities status=200 duration=4µs request_id=cursor/G3g0k3LG6c-000400 correlation_id=b13df929f0bb9b079bc34af200c18262 trace_id=b13df929f0bb9b079bc34af200c18262 span_id=a90ab4aaf6594103
+07:22:27.825 INF http request method=GET path=/api/v1/workspaces/01M59GMKGX8FVT7BT3FZ3AH1J7/ai/capabilities status=200 duration=6.275ms request_id=cursor/G3g0k3LG6c-000406 correlation_id=c33342e159815be04ab016557c243485 trace_id=c33342e159815be04ab016557c243485 span_id=b8feb14bff5b6a81 organization_id=01M59GMKGN3C2463KZEB2SS86F workspace_id=01M59GMKGX8FVT7BT3FZ3AH1J7 actor_id=01M59GMKG5DVJ409PBFWKBDFBK actor_kind=human
+07:22:28.797 INF http request method=GET path=/api/v1/workspaces/01M59GMKGX8FVT7BT3FZ3AH1J7/ai/capabilities status=200 duration=11.725ms request_id=cursor/G3g0k3LG6c-000438 correlation_id=57185aed5a35a5a36fec9c23ae122685 trace_id=57185aed5a35a5a36fec9c23ae122685 span_id=727f76dd525e85a2 organization_id=01M59GMKGN3C2463KZEB2SS86F workspace_id=01M59GMKGX8FVT7BT3FZ3AH1J7 actor_id=01M59GMKG5DVJ409PBFWKBDFBK actor_kind=human
+07:22:32.692 INF http request method=OPTIONS path=/api/v1/workspaces/01M59GMR74R5HM3ZFE2Z10WMZM/ai/capabilities status=200 duration=7µs request_id=cursor/G3g0k3LG6c-000539 correlation_id=559fc63983fe4ad9dc52a521a8a77071 trace_id=559fc63983fe4ad9dc52a521a8a77071 span_id=c3e75b44807a560b
+07:22:32.704 INF http request method=GET path=/api/v1/workspaces/01M59GMR74R5HM3ZFE2Z10WMZM/ai/capabilities status=200 duration=7.993ms request_id=cursor/G3g0k3LG6c-000544 correlation_id=59312413ad6f525a5d58a1c79fa73b4f trace_id=59312413ad6f525a5d58a1c79fa73b4f span_id=f6396fec00a79eda organization_id=01M59GMR6WFFKJEE6A86F4GTZZ workspace_id=01M59GMR74R5HM3ZFE2Z10WMZM actor_id=01M59GMR6B3EDBZ56XJDHGDT5C actor_kind=human
+07:22:33.651 INF http request method=GET path=/api/v1/workspaces/01M59GMR74R5HM3ZFE2Z10WMZM/ai/capabilities status=200 duration=6.812ms request_id=cursor/G3g0k3LG6c-000576 correlation_id=6ad8633a9ee47002c2b145864eb85990 trace_id=6ad8633a9ee47002c2b145864eb85990 span_id=5f65faaa43079057 organization_id=01M59GMR6WFFKJEE6A86F4GTZZ workspace_id=01M59GMR74R5HM3ZFE2Z10WMZM actor_id=01M59GMR6B3EDBZ56XJDHGDT5C actor_kind=human
+07:22:43.352 INF http request method=OPTIONS path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=8µs request_id=cursor/G3g0k3LG6c-000653 correlation_id=517e4e872658295f7d40b6b63ab5d360 trace_id=517e4e872658295f7d40b6b63ab5d360 span_id=0a3c3a246171bf54
+07:22:43.367 INF http request method=GET path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=11.071ms request_id=cursor/G3g0k3LG6c-000661 correlation_id=5e128fe6e3df4010ff77decb78fc2ee7 trace_id=5e128fe6e3df4010ff77decb78fc2ee7 span_id=e22d71893e3ba3e6 organization_id=01M59GN2EX1HAKER5F7XG0NS19 workspace_id=01M59GN2F72BY13365N8J7CNR6 actor_id=01M59GN2DWBRKR9V0FKSQV9R3Y actor_kind=human
+07:22:44.347 INF http request method=GET path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=8.329ms request_id=cursor/G3g0k3LG6c-000694 correlation_id=3a969f68f21b250ff1434b880d02a01c trace_id=3a969f68f21b250ff1434b880d02a01c span_id=ed40bfeb2c30dc89 organization_id=01M59GN2EX1HAKER5F7XG0NS19 workspace_id=01M59GN2F72BY13365N8J7CNR6 actor_id=01M59GN2DWBRKR9V0FKSQV9R3Y actor_kind=human
+07:22:48.322 INF http request method=OPTIONS path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=3µs request_id=cursor/G3g0k3LG6c-000777 correlation_id=721de90c16ecb944e18ce8be0ba4fbf3 trace_id=721de90c16ecb944e18ce8be0ba4fbf3 span_id=db996707230659a8
+07:22:48.337 INF http request method=GET path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=7.224ms request_id=cursor/G3g0k3LG6c-000783 correlation_id=936ff3b5a60f1f960e7ca201bc79fb79 trace_id=936ff3b5a60f1f960e7ca201bc79fb79 span_id=034248e54e48c34d organization_id=01M59GN2EX1HAKER5F7XG0NS19 workspace_id=01M59GN2F72BY13365N8J7CNR6 actor_id=01M59GN2DWBRKR9V0FKSQV9R3Y actor_kind=human
+07:22:49.287 INF http request method=GET path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=18.515ms request_id=cursor/G3g0k3LG6c-000816 correlation_id=faa252eb6715e402f768db9b55a7e8b1 trace_id=faa252eb6715e402f768db9b55a7e8b1 span_id=c681a93754274b75 organization_id=01M59GN2EX1HAKER5F7XG0NS19 workspace_id=01M59GN2F72BY13365N8J7CNR6 actor_id=01M59GN2DWBRKR9V0FKSQV9R3Y actor_kind=human
+07:22:52.083 INF http request method=GET path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=9.577ms request_id=cursor/G3g0k3LG6c-000878 correlation_id=2bcf0ad72ba630cd719897f9c419ae12 trace_id=2bcf0ad72ba630cd719897f9c419ae12 span_id=04fc8a47e1a5807c organization_id=01M59GN2EX1HAKER5F7XG0NS19 workspace_id=01M59GN2F72BY13365N8J7CNR6 actor_id=01M59GN2DWBRKR9V0FKSQV9R3Y actor_kind=human
+07:22:53.183 INF http request method=GET path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=10.848ms request_id=cursor/G3g0k3LG6c-000901 correlation_id=8199c2d994542169b6b8fe033f5e3495 trace_id=8199c2d994542169b6b8fe033f5e3495 span_id=df451c2d5bd4a047 organization_id=01M59GN2EX1HAKER5F7XG0NS19 workspace_id=01M59GN2F72BY13365N8J7CNR6 actor_id=01M59GN2DWBRKR9V0FKSQV9R3Y actor_kind=human
+07:23:13.680 INF http request method=OPTIONS path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=6µs request_id=cursor/G3g0k3LG6c-000967 correlation_id=097c2c9d24485153d362b6306754c1d9 trace_id=097c2c9d24485153d362b6306754c1d9 span_id=32fc28c3724e506c
+07:23:13.696 INF http request method=GET path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=6.14ms request_id=cursor/G3g0k3LG6c-000973 correlation_id=449feb147db3cbd966006dd9178e3d95 trace_id=449feb147db3cbd966006dd9178e3d95 span_id=369ebbfadf446690 organization_id=01M59GN2EX1HAKER5F7XG0NS19 workspace_id=01M59GN2F72BY13365N8J7CNR6 actor_id=01M59GN2DWBRKR9V0FKSQV9R3Y actor_kind=human
+07:23:14.694 INF http request method=GET path=/api/v1/workspaces/01M59GN2F72BY13365N8J7CNR6/ai/capabilities status=200 duration=7.123ms request_id=cursor/G3g0k3LG6c-001006 correlation_id=831cca191fded7e05a333704e7782fe2 trace_id=831cca191fded7e05a333704e7782fe2 span_id=11156d43cc1a3af7 organization_id=01M59GN2EX1HAKER5F7XG0NS19 workspace_id=01M59GN2F72BY13365N8J7CNR6 actor_id=01M59GN2DWBRKR9V0FKSQV9R3Y actor_kind=human
+skipped: documents has gated or skipped tests
+
+E2E_1960B_EXIT=1
