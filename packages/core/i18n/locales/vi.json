@@ -3819,7 +3819,8 @@
       "document_quota_exceeded": "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói.",
       "document_format": "Định dạng tệp này chưa được hỗ trợ.",
       "document_format_changed": "Phiên bản mới phải giữ đúng định dạng của tài liệu.",
-      "document_version_conflict": "Tài liệu vừa có phiên bản mới. Tải lại rồi thử lại."
+      "document_version_conflict": "Tài liệu vừa có phiên bản mới. Tải lại rồi thử lại.",
+      "source_not_saveable": "Không thể chia sẻ tệp này dạng tài liệu: định dạng không được hỗ trợ hoặc dung lượng quá lớn."
     },
     "media_unavailable": "Không tải được {{name}}",
     "media_image": "Hình ảnh",

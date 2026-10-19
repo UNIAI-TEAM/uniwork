@@ -38,6 +38,14 @@ describe("chatDocumentSendError", () => {
     ).toBe("t:chat.errors.document_format");
   });
 
+  it("names the share-as-document 422 for a file that cannot become a document", () => {
+    // share-as-document answers 422 source_not_saveable (type or size outside
+    // the document policy), which is not the upload route's 415.
+    expect(
+      chatDocumentSendError(new ApiError("nope", "source_not_saveable", 422), tt, "fallback"),
+    ).toBe("t:chat.errors.source_not_saveable");
+  });
+
   it("reports a 413 against the document ceiling, not the chat one", () => {
     expect(
       chatDocumentSendError(new ApiError("too large", "too_large", 413), tt, "fallback"),
