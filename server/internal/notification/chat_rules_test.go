@@ -532,6 +532,13 @@ func TestChatRuleDropsRecipientsWhoLostAccess(t *testing.T) {
 	})
 
 	t.Run("other_org", func(t *testing.T) {
+		// Prior subtests may deactivate or remove the member from a room; org
+		// membership must be active to add them to a new channel.
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE organization_members SET deactivated_at = NULL WHERE organization_id = $1 AND user_id = $2`,
+			f.orgID, f.member.ID); err != nil {
+			t.Fatal(err)
+		}
 		ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
 			Name: "org-gate", Visibility: "public", MemberUserIDs: []string{f.member.ID},
 		})
