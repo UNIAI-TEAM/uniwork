@@ -83,6 +83,8 @@ export function DocumentActionsMenu({
   const owned = !!doc.owner_kind;
   const archived = !!doc.archived_at;
   const myFolder = isMyFolder(doc);
+  // A folder is never shared (UNI-1974): only the documents inside it are.
+  const folder = doc.kind === "folder";
   const shelved = isShelved(doc);
   // Lưu trữ / Bỏ lưu trữ follow the shelf's own rule (manage or admin_scope), like the banner and the shelf row.
   const canShelve = canManageTrashed(doc);
@@ -94,7 +96,7 @@ export function DocumentActionsMenu({
   // open Share at the requests section, then drop the parameter. An archived
   // or owned document, or a caller who cannot administer, loses it silently.
   useAccessRequestsDeepLink({
-    allowed: canAdminister && !owned && !archived && !shelved && !myFolder,
+    allowed: canAdminister && !owned && !archived && !shelved && !myFolder && !folder,
     onOpen: () => {
       setFocusRequests(true);
       setPanel("share");
@@ -108,8 +110,8 @@ export function DocumentActionsMenu({
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
   // Every reader opens Share: a manager manages access there, anyone else sees
   // their own level and sources read-only (access addendum §5.2, U-SH4). The
-  // personal My Folder root is never shareable (MYFOLDER-01).
-  if (!owned && !archived && !myFolder) {
+  // personal My Folder root is never shareable (MYFOLDER-01), and no folder is.
+  if (!owned && !archived && !myFolder && !folder) {
     items.push({ id: "share", label: t("documents.actions.share"), icon: Share2 });
   }
   if (canManage && !owned && !archived && !shelved) {
@@ -186,7 +188,7 @@ export function DocumentActionsMenu({
         wsId={wsId}
         doc={doc}
       />
-      {!owned ? (
+      {!owned && !folder ? (
         <ShareDialog
           open={panel === "share"}
           onOpenChange={(next) => {

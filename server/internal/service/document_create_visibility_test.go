@@ -107,7 +107,9 @@ func TestDocumentCreateVisibility(t *testing.T) {
 	})
 
 	t.Run("a child inherits the parent home row", func(t *testing.T) {
-		parent, err := f.svc.CreatePage(f.ctx, member, tn.wsA, CreatePageInput{Title: "Thư mục chia sẻ", Kind: DocumentKindFolder,
+		// A PAGE parent passes its pair on; a folder never does (UNI-1974,
+		// document_folder_share_off_test.go).
+		parent, err := f.svc.CreatePage(f.ctx, member, tn.wsA, CreatePageInput{Title: "Trang chia sẻ",
 			Visibility: documentVisibilityWorkspace})
 		if err != nil {
 			t.Fatal(err)

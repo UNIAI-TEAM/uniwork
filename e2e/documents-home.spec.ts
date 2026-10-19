@@ -277,7 +277,12 @@ test.describe("a view-only member", () => {
       sharedFolderTitle = `Thư mục chỉ xem ${stamp}`;
       sharedPageTitle = `Trang chỉ xem ${stamp}`;
       privatePageTitle = `Trang riêng tư ${stamp}`;
-      await shareRestricted(page.request, "folder", sharedFolderTitle, viewerId);
+      // A folder is never shared (UNI-1974): the owner keeps one, private, and the viewer never sees it.
+      const folderCreated = await page.request.post(`${api}/api/v1/workspaces/${m.aOwner.wsId}/documents`, {
+        headers: authHeaders(m.aOwner.token),
+        data: { kind: "folder", title: sharedFolderTitle },
+      });
+      expect(folderCreated.status(), await folderCreated.text()).toBe(201);
       await shareRestricted(page.request, "page", sharedPageTitle, viewerId);
       const privateCreated = await page.request.post(`${api}/api/v1/workspaces/${m.aOwner.wsId}/documents`, {
         headers: authHeaders(m.aOwner.token),
@@ -289,7 +294,7 @@ test.describe("a view-only member", () => {
     }
   });
 
-  test("sees create controls at the root, none inside a folder shared at view level", async ({ page }) => {
+  test("sees create controls at the root, and a shared page without its owner's folder", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginViaUi(page, m.aOther.email);
     await openLibrary(page, m.aOwner.orgSlug, m.aOwner.wsSlug);
@@ -298,16 +303,10 @@ test.describe("a view-only member", () => {
     await expect(page.getByRole("region", { name: "Tạo nhanh" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toBeVisible();
 
-    // The shared folder opens from the shared sidebar view; inside it the viewer creates nothing.
+    // Shared with me lists the page only: a folder is never shared (UNI-1974).
     await sidebar(page).getByRole("button", { name: "Được chia sẻ với tôi" }).click();
-    await libraryRowButton(library(page), sharedFolderTitle).click();
-    await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(sharedFolderTitle)).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(page.getByRole("region", { name: "Tạo nhanh" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toHaveCount(0);
-    await expect(sidebar(page).getByRole("button", { name: "Tạo thư mục" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Đổi tên thư mục" })).toHaveCount(0);
+    await expect(libraryRowButton(library(page), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
+    await expect(libraryRowButton(library(page), sharedFolderTitle)).toHaveCount(0);
   });
 
   test("gets no Move, Archive or Move to trash on a row shared at view level", async ({ page }) => {

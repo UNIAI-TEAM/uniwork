@@ -46,6 +46,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0032](0032-mot-tai-khoan-mot-to-chuc.md) | Một tài khoản, một tổ chức đang hoạt động: advisory lock theo user ở mọi đường ghi membership, không unique index; tài khoản đa tổ chức cũ giữ nguyên; đóng tổ chức là lưu trữ (`archived`), không xóa; chuyển tổ chức là một lệnh atomic |
 | [0033](0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md) | Tool ghi qua MCP chạy trực tiếp bằng actor human của người đã đồng ý, không qua `action_proposals`; cần scope `write`, công tắc ghi của tổ chức, không có tool xóa, mọi tool ghi có hoàn tác, `revision` cho mọi lệnh sửa, audit ghi `via`; thay §3 của 0031 |
 | [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) | Desktop đã đăng nhập dùng khóa cá nhân đã lưu trên UniWork qua proxy BYOK của 0029: khóa không bao giờ rời server, dùng lại route proxy và cổng của web, khóa trên máy thắng theo từng nhà cung cấp, dòng sử dụng ghi `office.byok_desktop`; khóa dùng chung do quản trị tổ chức đặt là hướng mở rộng; bổ sung cho 0028/0029 |
+| [0035](0035-thu-muc-khong-bao-gio-duoc-chia-se.md) | Thư mục không bao giờ được chia sẻ (không visibility workspace, không share, không link); chỉ tài liệu được chia sẻ; con của thư mục bắt đầu riêng tư; người nhận không thấy thư mục của chủ (`parent_id` bị che, gốc danh sách/cây); dọn dữ liệu cũ bằng `uniwork-admin folders-unshare` |
 
 ## Bản nháp
 
