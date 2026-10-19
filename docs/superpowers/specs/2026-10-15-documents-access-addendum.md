@@ -1,10 +1,10 @@
 # Documents — Phụ lục: "Hạn chế" một chạm khi tạo (DOC-02), chuyển quyền sở hữu tài liệu (DOC-06) và xin quyền truy cập (DOC-07)
 
-> **Trạng thái:** in-progress — v1.3, viết 2026-10-15, sửa theo review r1, r2 và r3 cùng ngày (UNI-1629 DOC-02, UNI-1630 DOC-06, UNI-1631 DOC-07). Chỉ là hợp đồng và luật; chưa có dòng code nào. Giá trị đã ký: DOC-01..07 ký 2026-10-14 14:30 UTC+7 (`USER-DECISIONS.md` của Run: "ok theo đề xuất đi"). Mọi chỗ "chọn" bên dưới là quyết định nằm **trong** các luật đã ký và có lý do đi kèm; điểm thật sự chưa quyết nằm ở mục 8. **Sửa 2026-10-15 15:10 UTC+7 (quyết định của người dùng, Q4):** mỗi (tài liệu, người xin) chỉ có một yêu cầu đang chờ — gửi lại khi đang chờ bị từ chối `409 access_request_pending`; sau khi bị từ chối phải đợi 1 giờ mới xin lại (`429 access_request_cooldown`); luật "gộp, nâng mức, nhắc lại sau 24 giờ" đã bỏ.
+> **Trạng thái:** in-progress — v1.4, viết 2026-10-15, sửa theo review r1, r2 và r3 cùng ngày (UNI-1629 DOC-02, UNI-1630 DOC-06, UNI-1631 DOC-07); **c0 (2026-10-19): hợp đồng thực thi S-DOC07 đọc lại ở root `73d2b5038` và sửa `file:line` cũ trong toàn phụ lục — xem §9**. Chỉ là hợp đồng và luật; chưa có dòng code nào. Giá trị đã ký: DOC-01..07 ký 2026-10-14 14:30 UTC+7 (`USER-DECISIONS.md` của Run: "ok theo đề xuất đi"). Mọi chỗ "chọn" bên dưới là quyết định nằm **trong** các luật đã ký và có lý do đi kèm; điểm thật sự chưa quyết nằm ở mục 8. **Sửa 2026-10-15 15:10 UTC+7 (quyết định của người dùng, Q4):** mỗi (tài liệu, người xin) chỉ có một yêu cầu đang chờ — gửi lại khi đang chờ bị từ chối `409 access_request_pending`; sau khi bị từ chối phải đợi 1 giờ mới xin lại (`429 access_request_cooldown`); luật "gộp, nâng mức, nhắc lại sau 24 giờ" đã bỏ.
 
 **Vì sao một file:** ba thẻ cùng chạm vào một chỗ — ai giữ quyền quản lý (`manage`) một tài liệu và người không đọc được thì thấy gì — nên đọc chung một bảng luật. Cả ba dùng cổng `canAdminister()` của DOC-05 và thẻ khóa `DocumentLockedCard` đã đặt chỗ sẵn ở [phụ lục mức quyền §4](2026-10-14-documents-permission-levels-addendum.md).
 **Quan hệ:** [Documents C-01 §4](2026-09-08-documents-design.md) (bảng quyền gốc; phụ lục này chỉ **thêm**, không đổi dòng nào của §4), [phụ lục mức quyền](2026-10-14-documents-permission-levels-addendum.md) (thang `view < comment < edit < manage`, `AdminScope`, `canAdminister()`, break-glass, `DocumentLockedCard`), [phụ lục thư mục](2026-10-13-documents-folders-addendum.md) (luồng tạo một chạm không hỏi tên, menu "Mới"), [quyền workspace](2026-08-27-workspace-permissions-design.md). Khi lệch `CLAUDE.md` hoặc ADR, `CLAUDE.md`/ADR thắng.
-**Hiện trạng:** mọi `file:line` dưới đây đọc ở root `72b53366d`; thẻ code phải đọc lại dòng trước khi sửa. Đã đọc lại ở `e6cd81726` (vòng sửa r1): trong các file phụ lục trích, chỉ `packages/core/i18n/locales/{vi,en}.json` đổi (khóa AI chèn phía trên, các dòng documents lùi **+3**); mọi file server/views/core khác giữ nguyên dòng.
+**Hiện trạng:** mọi `file:line` dưới đây **đã được đọc lại ở root `73d2b5038` (c0, 2026-10-19)** — bảng đối chiếu dòng cũ/mới ở §9.0. Ghi chú gốc: đọc ở root `72b53366d`; đã đọc lại ở `e6cd81726` (vòng sửa r1): trong các file phụ lục trích, chỉ `packages/core/i18n/locales/{vi,en}.json` đổi (khóa AI chèn phía trên, các dòng documents lùi **+3**); mọi file server/views/core khác giữ nguyên dòng.
 **Vòng sửa r1 (2026-10-15):** xử lý review BE (`R1-n`) và FE (`F-n`); mỗi chỗ sửa ghi mã phát hiện trong ngoặc.
 **Vòng sửa r2 (2026-10-15):** review FE r2 (`N-01..N-04`) và BE r2 (`R2-1..R2-3`); lối vào cho admin thuần ở mục 2.5 mới.
 **Nguồn quyết định:** bản dump issue UniAI (`reports/e6-web/doc020607/issues/UNI-16xx.json`) chưa có lúc viết (CLI `uniai` không có trên bro); phụ lục dựa trên dòng quyết định 14:30 và phụ lục mức quyền §4. Khi dump về, mục nào mâu thuẫn với dump thì dump thắng và phụ lục được sửa ở vòng review.
@@ -49,13 +49,15 @@
 | Dữ kiện | Nguồn |
 | --- | --- |
 | **Chưa có liên kết có cấu trúc** giữa task/meeting và tài liệu: không bảng nối, editor chỉ có mention `member/agent/squad/task/project/all` và chip liên kết `task/project`. "Liên kết tài liệu từ task/meeting" hôm nay là URL tài liệu dán vào mô tả/bình luận/ghi chú | `packages/views/editor/extensions/mention-suggestion.tsx:43`; `packages/views/editor/utils/link-handler.ts:95, 113-116` |
-| Người không đọc được → `ErrNotFound` (404, không lộ tồn tại); đọc được nhưng thiếu mức → 403 | `service/document_permissions.go:290-298`; `GetDocument` `service/document_pages.go:441-442` |
+| Người không đọc được → `ErrNotFound` (404, không lộ tồn tại); đọc được nhưng thiếu mức → 403 | `service/document_permissions.go:376-392`; `GetDocument` `service/document_pages.go:503-505` |
 | Web: 403 (`errorClass === "permission"`) → "đã bị thu hồi quyền"; 404 (`missing`) → "Không tìm thấy tài liệu" (cố ý không lộ id có tồn tại) (`F-12`) | `packages/views/documents/document-detail-view.tsx:92-104` (403), `:106-121` (404); ánh xạ `packages/core/documents/errors.ts:44-55` |
 | Ghi chú và chat của meeting hiển thị **chữ thường**: không qua editor, không có liên kết bấm được (`meeting-notes-section.tsx`, `meeting-room-chat-tab.tsx` không import `content-editor`/`link-handler`); chỉ `content-editor.tsx` và `link-hover-card.tsx` gọi `link-handler.ts`, mà entity map của nó chỉ có `tasks`/`projects` | `packages/views/meetings/meeting-notes-section.tsx:2-15`, `meeting-room-chat-tab.tsx:2-17`; `packages/views/editor/utils/link-handler.ts:93-116` |
-| Thông báo: port duy nhất của rule tài liệu là **đọc** (`DocumentReadChecker{CanReadDocument, FilterDocumentReaders}`), gắn qua `SetDocumentReaders` ở `main.go` | `server/internal/notification/rules.go:32-40`; `consumer.go:51-55`; `server/cmd/server/main.go:474` |
-| `ShareDocument` tự mở tx và tự khóa dòng tài liệu (`withDocumentMutation`); chỉ nhận `view/edit/manage` | `service/document_shares.go:53-62`; `service/document_permissions.go:429-460` |
+| Thông báo: port duy nhất của rule tài liệu là **đọc** (`DocumentReadChecker{CanReadDocument, FilterDocumentReaders}`), gắn qua `SetDocumentReaders` ở `main.go` | `server/internal/notification/rules.go:43-51`; `consumer.go:51-55`; `server/cmd/server/main.go:493` |
+| `ShareDocument` tự mở tx và tự khóa dòng tài liệu (`withDocumentViewOrAdministerMutationLocked`); chỉ nhận `view/edit/manage` | `service/document_shares.go:105-125`; `service/document_permissions.go:583-700` |
 
 ### 0.4 Phụ thuộc DOC-05 chưa có trong cây (`R1-5`)
+
+> **Cập nhật ở c0 (root `73d2b5038`, 2026-10-19):** DOC-05 thẻ (a) **đã có** trong cây — `canAdminister()`, `AdminScope`, `decideDocument*`/`authorizeDocument*`, `withDocument*MutationLocked`, `break_glass_required` đều đọc được (`service/document_permissions.go`). Chỉ `withDocumentAdministerMutation` còn thiếu (S-DOC07 thêm, §9). Bảng dưới đây là hiện trạng đã ghi ở `72b53366d`; xem §9 để biết seam đã đổi thế nào.
 
 | Dữ kiện | Nguồn |
 | --- | --- |
@@ -63,10 +65,10 @@
 | Nhánh thẻ (a) DOC-05 server (`feature/UNI-1413-g8-18-doc-05-server`) không phải tổ tiên của root này | `git merge-base --is-ancestor` = false |
 | Hệ quả: S-DOC06 và S-DOC07 **bị chặn cứng** tới khi thẻ (a) merge vào root; mọi tên DOC-05 trong phụ lục này là hợp đồng của phụ lục mức quyền, không phải code đọc được hôm nay | mục 6 |
 | Không có khái niệm xin quyền (`access_request`, `requestAccess`) ở server lẫn web; `DocumentLockedCard` chưa tồn tại (chỉ được đặt chỗ ở phụ lục mức quyền §4) | grep toàn repo; `2026-10-14-documents-permission-levels-addendum.md:188` |
-| Cấp share: allowlist mức, principal phải là thành viên đang hoạt động của tổ chức; cấp lại cùng principal **thay** mức cũ (kể cả hạ mức) | `service/document_shares.go:53-58, 66-80, 135-165` |
+| Cấp share: allowlist mức, principal phải là thành viên đang hoạt động của tổ chức; cấp lại cùng principal **thay** mức cũ (kể cả hạ mức) | `service/document_shares.go:105-125, 172-181, 318-360` |
 | Thông báo: không có kind `document_shared` dù spec C-01 §6.2 liệt kê | `server/internal/notification/kinds.go:12-56` |
-| Sự kiện `document.shared` phát ở `ScopeWorkspace`, payload chỉ id | `server/internal/outbox/catalogue.go:257` |
-| Purge tài liệu xóa dữ liệu phụ thuộc trong cùng tx (bình luận, yêu thích…) | `service/document_lifecycle.go:1007, 1060-1076` |
+| Sự kiện `document.shared` phát ở `ScopeWorkspace`, payload chỉ id | `server/internal/outbox/catalogue.go:258` |
+| Purge tài liệu xóa dữ liệu phụ thuộc trong cùng tx (bình luận, yêu thích…) | `service/document_lifecycle.go:1004-1006, 1243-1268` |
 
 ## 1. DOC-02 — giữ mặc định workspace, "Hạn chế" một chạm khi tạo
 
@@ -132,7 +134,7 @@ Luật đã ký: chuyển chủ sở hữu **từng tài liệu**, và **chuyể
 
 **Không chuyển được:** tài liệu thuộc Work Product (`owner_kind` có giá trị) → `409 document_owned_by_work_product` (resolver của sản phẩm quyết, §13.4). Tài liệu đã archive: chuyển được (cổng DOC-05 cho người `canAdminister()` qua archive) — để người kế nhiệm khôi phục được.
 
-**Ghi:** trong một tx: khóa dòng tài liệu, kiểm lại cổng, `UPDATE documents SET acl_owner_id = $new, updated_by = <người gọi>, updated_by_kind = 'human', updated_at = now() … WHERE id = $1 AND organization_id = $2 AND workspace_id = $3` (ghi cặp `updated_by`/`updated_by_kind` như mọi UPDATE khác của `documents.sql:71-84, 99-110` — ADR 0007 (`R1-9`); **không** tăng `revision` nội dung — `revision` là base của autosave; đổi chủ không đổi nội dung), share chủ cũ nếu có qua thân share theo tx (`shareDocumentInTx`, mục 3.1 "Duyệt", `R1-15`), audit + outbox.
+**Ghi:** trong một tx: khóa dòng tài liệu, kiểm lại cổng, `UPDATE documents SET acl_owner_id = $new, updated_by = <người gọi>, updated_by_kind = 'human', updated_at = now() … WHERE id = $1 AND organization_id = $2 AND workspace_id = $3` (ghi cặp `updated_by`/`updated_by_kind` như mọi UPDATE khác của `documents.sql:84-96, 112-130` — ADR 0007 (`R1-9`); **không** tăng `revision` nội dung — `revision` là base của autosave; đổi chủ không đổi nội dung), share chủ cũ nếu có qua thân share theo tx (`shareDocumentInTx`, mục 3.1 "Duyệt", `R1-15`), audit + outbox.
 
 ### 2.2 Chuyển hàng loạt khi vô hiệu hóa thành viên
 
@@ -262,12 +264,12 @@ Luật đã ký: **không tự cấp quyền** khi người dùng mở tài li�
 - **Ngữ cảnh nguồn (task/meeting):** body có cặp tùy chọn `source_kind` (`task`|`meeting`) + `source_id` (gọi chung là "nguồn"). Web điền khi người dùng bấm URL tài liệu nội bộ trong mô tả/bình luận task (liên kết gắn `?from=task:<id>`). **Seam (`R1-14`, `F-05`):** `link-handler.ts` không biết host nào đang hiện editor, nên W-DOC07 thêm một context `EditorLinkContext {kind: "task" | "meeting", id}` trong `packages/views/editor/` (provider + hook), do host đặt: `packages/views/tasks/detail/components/task-detail-editors.tsx` (mô tả) và `packages/views/tasks/detail/components/comment-editor.tsx` (bình luận task); `content-editor.tsx` đọc context và nhờ `link-handler.ts` gắn `from` vào đường dẫn tài liệu nội bộ (chỉ đường dẫn `/documents/{id}`, không đụng liên kết khác). Màn tài liệu đọc `from`, giữ trong state của thẻ khóa, rồi `replace` bỏ `from` khỏi địa chỉ để sao chép/chia sẻ URL không mang id task. **Meeting hoãn:** ghi chú và chat meeting hôm nay là chữ thường, không có liên kết bấm được (mục 0.3), nên không có điểm gắn `from=meeting`; hợp đồng server vẫn nhận `source_kind=meeting` để không phải đổi wire khi meeting có liên kết. Phạm vi này là câu hỏi mở Q5 (mục 8). Server chỉ giữ `source` khi người gửi **đọc được** task/meeting đó qua cổng của chính nó (`TaskService`/`MeetingService` authorize) **và** nó cùng tổ chức với tài liệu; nếu không, `source` bị bỏ **im lặng** (không lỗi — lỗi sẽ thành cách dò task). Người quản lý thấy "từ công việc/cuộc họp X" chỉ khi chính họ đọc được nguồn đó (kiểm lúc đọc danh sách); nếu không, chỉ thấy "từ một liên kết".
 - **Ai duyệt:** người có `canAdminister()` trên tài liệu (ACL owner, share `manage`, hoặc ws owner/admin với `AdminScope` — DOC-05 cho phép admin chia sẻ cho **người khác**). Người gửi không tự duyệt yêu cầu của mình (nếu người gửi là admin với `AdminScope` thì đã có đường break-glass; yêu cầu do admin tự gửi và tự duyệt → `403 break_glass_required`).
 - **Người nhận thông báo yêu cầu:** ACL owner (nếu đang là thành viên hiệu lực) và mọi người có share `user` mức `manage` còn hiệu lực; nếu tập này rỗng → ws owner/admin của workspace chứa tài liệu. Không bao giờ thông báo cho chính người gửi.
-- **Duyệt:** người duyệt chọn mức `granted_level` (mặc định = `requested_level`, được chọn thấp hơn hoặc cao hơn, tối đa `edit`; muốn `manage` thì dùng hộp Chia sẻ). Trong một tx: khóa yêu cầu (`FOR UPDATE`), kiểm còn `pending` và chưa hết hạn, kiểm cổng duyệt, rồi gọi thân share **theo tx** cho principal `user` = người gửi. `ShareDocument` hôm nay tự mở tx và tự khóa dòng tài liệu (`document_shares.go:53-62` → `withDocumentMutation`, `document_permissions.go:429-460`), nên không gọi lồng được: S-DOC07 tách phần thân thành `shareDocumentInTx(ctx, q, actor, doc, access, in)` (kiểm level, `validateSharePrincipal`, revoke-rồi-insert, audit `document.shared` + outbox), `ShareDocument` gọi lại hàm này bên trong `withDocumentMutation`; duyệt yêu cầu và chuyển chủ (mục 2.1) gọi nó trong tx của mình, sau khi đã khóa dòng tài liệu — một tx, một lần khóa (`R1-15`). Luật duyệt **chỉ nâng**: nếu người gửi đã có mức ≥ `granted_level` (vừa được ai đó chia sẻ) thì không đổi share, yêu cầu vẫn đóng `approved` với `share_id` rỗng. `validateSharePrincipal` từ chối (người gửi vừa bị vô hiệu hóa) → yêu cầu đóng `cancelled`, trả `422 principal_not_in_organization`. (Đóng `cancelled` rồi trả lỗi nghĩa là tx phải **commit** dòng `cancelled` trước khi trả 422: service ghi trạng thái, commit, rồi trả `CodedError` — không trả lỗi từ trong callback tx, vì callback lỗi sẽ rollback.)
+- **Duyệt:** người duyệt chọn mức `granted_level` (mặc định = `requested_level`, được chọn thấp hơn hoặc cao hơn, tối đa `edit`; muốn `manage` thì dùng hộp Chia sẻ). Trong một tx: khóa yêu cầu (`FOR UPDATE`), kiểm còn `pending` và chưa hết hạn, kiểm cổng duyệt, rồi gọi thân share **theo tx** cho principal `user` = người gửi. `ShareDocument` hôm nay tự mở tx và tự khóa dòng tài liệu (`document_shares.go:105-125` → `withDocumentViewOrAdministerMutationLocked`, `document_permissions.go:583-700`), nên không gọi lồng được: S-DOC07 tách phần thân thành `shareDocumentInTx(ctx, q, actor, doc, access, in)` (kiểm level, `validateSharePrincipal`, revoke-rồi-insert, audit `document.shared` + outbox), `ShareDocument` gọi lại hàm này bên trong `withDocumentViewOrAdministerMutationLocked`; duyệt yêu cầu và chuyển chủ (mục 2.1) gọi nó trong tx của mình, sau khi đã khóa dòng tài liệu — một tx, một lần khóa (`R1-15`). Luật duyệt **chỉ nâng**: nếu người gửi đã có mức ≥ `granted_level` (vừa được ai đó chia sẻ) thì không đổi share, yêu cầu vẫn đóng `approved` với `share_id` rỗng. `validateSharePrincipal` từ chối (người gửi vừa bị vô hiệu hóa) → yêu cầu đóng `cancelled`, trả `422 principal_not_in_organization`. (Đóng `cancelled` rồi trả lỗi nghĩa là tx phải **commit** dòng `cancelled` trước khi trả 422: service ghi trạng thái, commit, rồi trả `CodedError` — không trả lỗi từ trong callback tx, vì callback lỗi sẽ rollback.)
 - **Từ chối:** đóng `declined`, lời nhắn tùy chọn của người từ chối **không** gửi cho người xin (chọn: tránh trao đổi riêng tư qua hệ thống quyền; người từ chối muốn giải thích thì nhắn trực tiếp). Người xin nhận thông báo "đã từ chối".
 - **Một yêu cầu chờ cho mỗi (tài liệu, người gửi) (quyết định 2026-10-15, Q4):** khi yêu cầu trước của người gửi trên tài liệu đó còn `pending` (chưa hết hạn), lần gửi mới bị **từ chối** `409 access_request_pending`: không đổi dòng nào, không nâng mức, không đổi lời nhắn, không audit, không outbox, không thông báo. Muốn đổi mức hay lời nhắn thì chờ yêu cầu cũ được xử lý hoặc hết hạn. Server là nguồn sự thật: cờ trên thiết bị (mục 3.4) chỉ để hiển thị, và `409` này đưa thẻ khóa sang trạng thái "Đã gửi yêu cầu" dù cờ đã mất.
-- **Xin lại sau khi bị từ chối (quyết định 2026-10-15, Q4):** yêu cầu `declined` chỉ cho gửi yêu cầu mới sau `decided_at + 1 giờ`. Sớm hơn → `429 access_request_cooldown` với `fields.retry_after_seconds` (số giây còn lại, làm tròn lên, ≥ 1) và header `Retry-After` cùng giá trị (cùng cách `ai_rate_limited` dùng `Fields` để đặt `Retry-After`, `handler/ai_uniwork.go:122-134`); không đổi dòng nào, không thông báo. Cooldown tính từ lần từ chối **gần nhất** của cặp (tài liệu, người gửi). Từ chối vẫn **không** gửi lời nhắn tới người xin (chỉ thông báo "đã từ chối"); thời điểm được xin lại hiện trên thẻ khóa nhờ `retry_after_seconds`. Yêu cầu hết hạn (30 ngày) không trả lời không phải là từ chối: người xin được gửi lại ngay; chờ 1 giờ chỉ sau khi bị từ chối rõ ràng.
+- **Xin lại sau khi bị từ chối (quyết định 2026-10-15, Q4):** yêu cầu `declined` chỉ cho gửi yêu cầu mới sau `decided_at + 1 giờ`. Sớm hơn → `429 access_request_cooldown` với `fields.retry_after_seconds` (số giây còn lại, làm tròn lên, ≥ 1) và header `Retry-After` cùng giá trị (cùng cách `ai_rate_limited` dùng `Fields` để đặt `Retry-After`, `handler/ai_uniwork.go:127-134`, helper `uniworkRetryAfter` ở `:154`); không đổi dòng nào, không thông báo. Cooldown tính từ lần từ chối **gần nhất** của cặp (tài liệu, người gửi). Từ chối vẫn **không** gửi lời nhắn tới người xin (chỉ thông báo "đã từ chối"); thời điểm được xin lại hiện trên thẻ khóa nhờ `retry_after_seconds`. Yêu cầu hết hạn (30 ngày) không trả lời không phải là từ chối: người xin được gửi lại ngay; chờ 1 giờ chỉ sau khi bị từ chối rõ ràng.
 - **Hết hạn và các trạng thái đóng khác:** yêu cầu `pending` quá **30 ngày** coi như `expired` khi đọc/duyệt (không cần worker; tính bằng `expires_at`). Duyệt yêu cầu đã hết hạn → `409 access_request_closed`. Yêu cầu `expired`, `cancelled` (và `approved`, ví dụ quyền bị thu hồi sau đó) **không** có cooldown: người xin gửi lại ngay, dòng hết hạn được làm mới thành yêu cầu mới (mục 5), dòng `cancelled`/`approved` giữ nguyên lịch sử và một dòng mới được chèn.
-- **Giới hạn tần suất:** `POST …/access-requests` có limiter riêng theo người: `mw.RateLimitByIdentityBucket(d.Redis, "doc-access-request", 20, time.Hour, proxies, bearerUser(d.Minter))` (như bucket `ai-byok` ở `router.go:219`) — **một** ngân sách cho mỗi người trên mọi tài liệu. Không dùng `mw.RateLimitByIdentity`: nó khóa bộ đếm theo `r.URL.Path` (`middleware/ratelimit.go:96-100`), nên mỗi `documentID` sẽ là một ngân sách mới (20/giờ **mỗi tài liệu**) (`R1-8`; tiền lệ bucket ở `handler/router/router.go:191-201`). Cùng cơ chế fail-open 100ms của limiter hiện có.
+- **Giới hạn tần suất:** `POST …/access-requests` có limiter riêng theo người: `mw.RateLimitByIdentityBucket(d.Redis, "doc-access-request", 20, time.Hour, proxies, bearerUser(d.Minter))` (như bucket `ai-byok` ở `router.go:226`) — **một** ngân sách cho mỗi người trên mọi tài liệu. Không dùng `mw.RateLimitByIdentity`: nó khóa bộ đếm theo `r.URL.Path` (`middleware/ratelimit.go:96-98`), nên mỗi `documentID` sẽ là một ngân sách mới (20/giờ **mỗi tài liệu**) (`R1-8`; tiền lệ bucket ở `handler/router/router.go:198-208`). Cùng cơ chế fail-open 100ms của limiter hiện có.
 
 ### 3.2 Trạng thái
 
@@ -279,7 +281,7 @@ Luật đã ký: **không tự cấp quyền** khi người dùng mở tài li�
 | `expired` | `expires_at ≤ now()` lúc đọc | — (cuối, suy ra; cột lưu vẫn `pending` tới khi có lệnh ghi chạm vào); không cooldown, gửi lại làm mới dòng này thành yêu cầu mới |
 | `cancelled` | Duyệt/từ chối trên tài liệu đã archive, hoặc người xin đã bị vô hiệu hóa lúc duyệt. (Người xin đã đủ mức lúc duyệt thì là `approved`, không phải `cancelled`) | — (cuối); không cooldown |
 
-Archive tài liệu: các yêu cầu `pending` không bị sửa lúc archive (archive không chạm bảng này để giữ tx archive gọn); danh sách yêu cầu loại tài liệu đã archive, và duyệt/từ chối trên tài liệu đã archive → `409 access_request_closed` (ghi `cancelled`). Purge: xóa các dòng yêu cầu của tài liệu trong tx purge (`purgeOneDocument`, `document_lifecycle.go:1060-1076`, thêm một hàm xóa — không FK, dọn bằng service).
+Archive tài liệu: các yêu cầu `pending` không bị sửa lúc archive (archive không chạm bảng này để giữ tx archive gọn); danh sách yêu cầu loại tài liệu đã archive, và duyệt/từ chối trên tài liệu đã archive → `409 access_request_closed` (ghi `cancelled`). Purge: xóa các dòng yêu cầu của tài liệu trong tx purge (`purgeOneDocument`, `document_lifecycle.go:1243-1268`, gọi `hardDeleteDocumentTx` `:1277` với danh sách dọn dẹp phụ thuộc ở `:1326-1385`; thêm một hàm xóa vào danh sách đó — không FK, dọn bằng service).
 
 ### 3.3 Trường hợp biên
 
@@ -293,7 +295,7 @@ Archive tài liệu: các yêu cầu `pending` không bị sửa lúc archive (a
 | Yêu cầu của người gửi bị từ chối chưa đủ 1 giờ | `429 access_request_cooldown` + `fields.retry_after_seconds` + `Retry-After`; không đổi dòng, không thông báo. Thẻ khóa hiện thời điểm được xin lại |
 | Yêu cầu bị từ chối quá 1 giờ, hoặc hết hạn, hoặc bị hủy | `202`, dòng mới (dòng `pending` hết hạn được làm mới tại chỗ), thông báo người quản lý |
 | Hai lần gửi của cùng người cùng lúc | Chỉ lần thắng chỉ mục duy nhất `pending` được lưu và thông báo; lần kia nhận `409 access_request_pending` (không bao giờ có hai dòng chờ) |
-| Người xin vừa được chia sẻ trong lúc chờ | Duyệt → `approved` không đổi share (chỉ nâng). Màn của người xin làm mới nhờ `document.access_request_decided` (`ScopeUser`, tới người xin dù ở workspace nào) → invalidate `documentKeys.detail(wsId, id)` mà thẻ khóa đang theo dõi. **Không** dựa vào `document.shared`: topic đó là `ScopeWorkspace` (`outbox/catalogue.go:257`), người xin ở workspace khác (dòng trên) không nhận. Share do người khác cấp **ngoài** luồng xin quyền tới người xin khác workspace chỉ qua lần tải kế tiếp (nút "Thử mở lại" trên thẻ, hoặc tải lại trang) (`F-07`) |
+| Người xin vừa được chia sẻ trong lúc chờ | Duyệt → `approved` không đổi share (chỉ nâng). Màn của người xin làm mới nhờ `document.access_request_decided` (`ScopeUser`, tới người xin dù ở workspace nào) → invalidate `documentKeys.detail(wsId, id)` mà thẻ khóa đang theo dõi. **Không** dựa vào `document.shared`: topic đó là `ScopeWorkspace` (`outbox/catalogue.go:258`), người xin ở workspace khác (dòng trên) không nhận. Share do người khác cấp **ngoài** luồng xin quyền tới người xin khác workspace chỉ qua lần tải kế tiếp (nút "Thử mở lại" trên thẻ, hoặc tải lại trang) (`F-07`) |
 | Hai người quản lý duyệt/từ chối cùng lúc | Khóa dòng yêu cầu; người sau nhận `409 access_request_closed` |
 | Không còn người nhận thông báo (không ACL owner, không share `manage`, workspace không còn owner/admin) | Lưu yêu cầu; không thông báo; vẫn hiện trong danh sách khi một người quản lý mở hộp Chia sẻ |
 | Người duyệt chỉ có `AdminScope` | Duyệt được cho người khác (không đọc nội dung); tự duyệt yêu cầu của chính mình → `403 break_glass_required` |
@@ -374,7 +376,7 @@ Lỗi:
 | 403 | `forbidden` | Đọc được nhưng không `canAdminister()`; không phải owner/admin tổ chức | `permission` |
 | 403 | `break_glass_required` | Admin chỉ có `AdminScope` tự nhận tài liệu `restricted` (từng tài liệu) | `permission` (đã đăng ký bởi DOC-05) |
 | 409 | `document_owned_by_work_product` | Tài liệu thuộc Work Product | (đã có, `unclassified`) |
-| 422 | `owner_target_not_member` | Người nhận không phải người/không đang hoạt động/không là thành viên hiệu lực của workspace (từng tài liệu); người nhận hàng loạt không phải thành viên đang hoạt động của tổ chức hoặc trùng thành viên nguồn | **không phân lớp, có chủ đích** (`R1-1`): thêm tên mã vào khối chú thích "Deliberately unclassified codes" của `handler/dto/sdo/error_class.go:66-125` với lý do "(422) hộp chọn người hiện lỗi ngay trên picker; không phải mất quyền (`permission`) hay xung đột trạng thái (`conflict`)", và vào `unclassified` của `TestErrorClassTable` khi bộ quét DOC-05 có. Không thêm lớp: bảy lớp là tập đóng (`error_class.go:9-64`; client `packages/core/api/http.ts:24-32`, `packages/core/types/document.ts:45-54`; `docs/parity/documents-api/index.json:150-158`) |
+| 422 | `owner_target_not_member` | Người nhận không phải người/không đang hoạt động/không là thành viên hiệu lực của workspace (từng tài liệu); người nhận hàng loạt không phải thành viên đang hoạt động của tổ chức hoặc trùng thành viên nguồn | **không phân lớp, có chủ đích** (`R1-1`): thêm tên mã vào khối chú thích "Deliberately unclassified codes" của `handler/dto/sdo/error_class.go:86-177` với lý do "(422) hộp chọn người hiện lỗi ngay trên picker; không phải mất quyền (`permission`) hay xung đột trạng thái (`conflict`)", và vào `unclassified` của `TestErrorClassTable` khi bộ quét DOC-05 có. Không thêm lớp: bảy lớp là tập đóng (`error_class.go:9-84`; client `packages/core/api/http.ts:24-32`, `packages/core/types/document.ts:45-54`; `docs/parity/documents-api/index.json:150-158`) |
 | 400 | `invalid_request` | `previous_owner_level` lạ; `bulk_id` không phải ULID; `cursor` không phải ULID (service `Invalid(...)` → `mapServiceError`, không `fields`) (`R1-2`) | — (không phân lớp như hôm nay) |
 
 Sự kiện (thêm ở **ba** nơi: `docs/events/CATALOGUE.md`, `server/internal/outbox/catalogue.go`, `packages/core/types/events.ts`; chỉ id):
@@ -390,13 +392,13 @@ Thông báo (kind mới, đồng bộ đủ nơi như phụ lục mức quyền 
 - `document_owner_transferred` — từ `document.owner_transferred` của lệnh **từng tài liệu**, gửi chủ mới.
 - `document_owners_bulk_transferred` — từ `document.owners_bulk_transferred`, gửi người nhận đợt, `group_key = document_owner_bulk:{bulk_id}` để các lần gọi tiếp của cùng đợt gộp vào một dòng.
 - **Phân biệt mà payload vẫn chỉ có id (chọn):** lệnh hàng loạt vẫn phát `document.owner_transferred` cho từng tài liệu (realtime cần để client làm mới), nhưng payload có thêm khóa tùy chọn `bulk_id` (một id — hợp lệ với luật ids-only); rule thông báo của `document_owner_transferred` **bỏ qua** dòng có `bulk_id`. Catalogue khai `bulk_id` là khóa tùy chọn của topic.
-- **Kiểm lại người nhận lúc gửi (`R1-6`):** `document_owner_transferred` dùng port đọc **sẵn có** `DocumentReadChecker.CanReadDocument` (`notification/rules.go:32-40`): chủ mới là ACL owner, thành viên hiệu lực → đọc được; nếu không đọc được (vừa rời workspace) thì không gửi. `document_owners_bulk_transferred` không gắn một tài liệu, không có tiêu đề tài liệu → chỉ kiểm người nhận còn là thành viên đang hoạt động qua `OrgMemberChecker` sẵn có (`rules.go:28-30`). S-DOC06 **không** cần port mới.
+- **Kiểm lại người nhận lúc gửi (`R1-6`):** `document_owner_transferred` dùng port đọc **sẵn có** `DocumentReadChecker.CanReadDocument` (`notification/rules.go:43-51`): chủ mới là ACL owner, thành viên hiệu lực → đọc được; nếu không đọc được (vừa rời workspace) thì không gửi. `document_owners_bulk_transferred` không gắn một tài liệu, không có tiêu đề tài liệu → chỉ kiểm người nhận còn là thành viên đang hoạt động qua `OrgMemberChecker` sẵn có (`rules.go:34-37`). S-DOC06 **không** cần port mới.
 - Push mặc định **tắt** cho cả hai (không gấp). Tiêu đề: `"{{actor}} đã chuyển cho bạn quyền sở hữu tài liệu “{{document}}”."` / `"{{actor}} transferred ownership of “{{document}}” to you."`; gộp: `"{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của {{name}}."` / `"{{actor}} transferred {{name}}'s documents to you."`.
 
 Isolation (ADR 0008):
-- `isoRoutes` (`server/internal/handler/isolation_routes_test.go`): thêm cả ba route; `PUT …/owner` có control (owner của B chuyển tài liệu của chính B); `GET/POST /orgs/{org}/members/{userID}/document-ownership` có control trong tổ chức của B (harness đã thay `{org}` bằng slug của tenant, `isolation_matrix_test.go:523-531`).
-- `isoReferences` (`isolation_references_test.go`): `TransferDocumentOwnerSDI.user_id` (đưa id người của A vào tài liệu của B → `422 owner_target_not_member`, không lộ tên), `TransferMemberDocumentsSDI.to_user_id` (người của A làm người nhận trong tổ chức B → 422), `TransferMemberDocumentsSDI.bulk_id` → **miễn** (chốt, `R1-12`): thêm `isoRefFieldExempt["TransferMemberDocumentsSDI.bulk_id"] = "server-generated correlation id of one bulk transfer, never resolved to a row"` (`isolation_references_test.go:348-380`). `cursor` không kết thúc bằng `_id` nên bộ quét không đòi case; nó chỉ là ranh giới `id >` trong câu đã ràng buộc `organization_id` của tổ chức trên path.
-- `pathParamSDI` (`router/openapi.go`): **không** cần case mới. Khóa của hàm là tên tham số nối bằng dấu phẩy (`openapi.go:107-116`); `PUT /documents/{documentID}/owner` dùng case `documentID` sẵn có, hai route tổ chức dùng case `"org,userID"` sẵn có (`openapi.go:210-214`, "Slug tổ chức" + "ULID thành viên"). Nếu thẻ code đổi tên tham số (ví dụ `{orgID}`), `buildOpenAPI` báo lỗi lúc khởi động (`openapi.go:74-78`) cho tới khi có case `"orgID,userID"` — vì vậy giữ đúng `{org}` + `{userID}` (`R2-2`).
+- `isoRoutes` (`server/internal/handler/isolation_routes_test.go`): thêm cả ba route; `PUT …/owner` có control (owner của B chuyển tài liệu của chính B); `GET/POST /orgs/{org}/members/{userID}/document-ownership` có control trong tổ chức của B (harness đã thay `{org}` bằng slug của tenant, `isolation_matrix_test.go:559-577`).
+- `isoReferences` (`isolation_references_test.go`): `TransferDocumentOwnerSDI.user_id` (đưa id người của A vào tài liệu của B → `422 owner_target_not_member`, không lộ tên), `TransferMemberDocumentsSDI.to_user_id` (người của A làm người nhận trong tổ chức B → 422), `TransferMemberDocumentsSDI.bulk_id` → **miễn** (chốt, `R1-12`): thêm `isoRefFieldExempt["TransferMemberDocumentsSDI.bulk_id"] = "server-generated correlation id of one bulk transfer, never resolved to a row"` (`isolation_references_test.go:390-432`). `cursor` không kết thúc bằng `_id` nên bộ quét không đòi case; nó chỉ là ranh giới `id >` trong câu đã ràng buộc `organization_id` của tổ chức trên path.
+- `pathParamSDI` (`router/openapi.go`): **không** cần case mới. Khóa của hàm là tên tham số nối bằng dấu phẩy (`openapi.go:109-116`); `PUT /documents/{documentID}/owner` dùng case `documentID` sẵn có, hai route tổ chức dùng case `"org,userID"` sẵn có (`openapi.go:212-216`, "Slug tổ chức" + "ULID thành viên"). Nếu thẻ code đổi tên tham số (ví dụ `{orgID}`), `buildOpenAPI` báo lỗi lúc khởi động (`openapi.go:74-78`) cho tới khi có case `"orgID,userID"` — vì vậy giữ đúng `{org}` + `{userID}` (`R2-2`).
 
 ### 4.3 DOC-07
 
@@ -431,9 +433,9 @@ Lỗi:
 | 404 | (chung) | Duyệt/từ chối/danh sách: tài liệu hoặc `requestID` không thấy được, yêu cầu thuộc tài liệu khác | `missing` |
 | 409 | `access_request_closed` | Yêu cầu không còn `pending`, đã hết hạn, hoặc tài liệu đã archive | thêm `"access_request_closed": "conflict"` vào `errorClassByCode` + `TestErrorClassTable`; `docs/parity/documents-api/index.json` không đổi vì mẫu theo lớp, `conflict` đã có mẫu (lớp có sẵn: yêu cầu xung đột với trạng thái server; đường phục hồi của client là tải lại danh sách — đúng nghĩa `conflict`) |
 | 409 | `access_request_pending` | Người gửi đã có yêu cầu `pending` chưa hết hạn trên tài liệu này (chỉ sau khi qua mọi điều kiện đủ để được lưu, mục 3.1; không đổi dòng, không audit, không thông báo) | thêm `"access_request_pending": "conflict"` vào `errorClassByCode` + `TestErrorClassTable` (yêu cầu xung đột với trạng thái server; client chuyển thẻ sang `already_pending` thay vì báo lỗi) |
-| 429 | `access_request_cooldown` | Yêu cầu trước của người gửi bị từ chối chưa đủ 1 giờ (`now() < decided_at + 1h`). Có `fields: {"retry_after_seconds": <int ≥ 1>}` và header `Retry-After` cùng giá trị; handler đọc khóa này (helper riêng, không dùng `uniworkRetryAfter` vốn đọc `retry_after`) | **không phân lớp, có chủ đích** — như `ai_rate_limited` (`dto/sdo/error_class.go:78`): đây không phải từ chối hạn ngạch hay quyền; thêm vào chú thích `unclassified` của `error_class.go` + bộ quét DOC-05 khi có |
+| 429 | `access_request_cooldown` | Yêu cầu trước của người gửi bị từ chối chưa đủ 1 giờ (`now() < decided_at + 1h`). Có `fields: {"retry_after_seconds": <int ≥ 1>}` và header `Retry-After` cùng giá trị; handler đọc khóa này (helper riêng, không dùng `uniworkRetryAfter` vốn đọc `retry_after`) | **không phân lớp, có chủ đích** — như `ai_rate_limited` (`dto/sdo/error_class.go:97`): đây không phải từ chối hạn ngạch hay quyền; thêm vào chú thích `unclassified` của `error_class.go` + bộ quét DOC-05 khi có |
 | 400 | `invalid_request` | `requested_level`/`level` lạ (gồm `manage`), `message` > 500, `source_kind` lạ, `source_id` không phải ULID, chỉ có một trong cặp `source_kind`/`source_id` (service `Invalid(...)`, không `fields`) (`R1-2`). Lỗi cú pháp vẫn là lỗi (không phải `202`): nó chỉ phụ thuộc body, không phụ thuộc tài liệu, nên không lộ tồn tại | — |
-| 422 | `principal_not_in_organization` | Duyệt khi người xin không còn là thành viên đang hoạt động (yêu cầu → `cancelled`) | **không phân lớp, có chủ đích** — mã đã có (`service/document_shares.go:31-33`), không nằm trong `errorClassByCode`, và phụ lục mức quyền (`:173`) xếp nó vào `unclassified` của bộ quét DOC-05; thẻ này không thêm lớp (`R1-3`) |
+| 422 | `principal_not_in_organization` | Duyệt khi người xin không còn là thành viên đang hoạt động (yêu cầu → `cancelled`) | **không phân lớp, có chủ đích** — mã đã có (`service/document_shares.go:33-35`), không nằm trong `errorClassByCode`, và phụ lục mức quyền (`:173`) xếp nó vào `unclassified` của bộ quét DOC-05; thẻ này không thêm lớp (`R1-3`) |
 | 429 | (limiter, không có `code`) | Vượt 20/giờ/người trên mọi tài liệu (Q4: giữ nguyên). Client phân biệt với `access_request_cooldown` bằng `code` | — |
 
 Sự kiện (ba nơi catalogue; chỉ id):
@@ -449,7 +451,7 @@ Audit (`audit/actions.go` + `audit_coverage_test.go`): `document.access_requeste
 
 Thông báo (kind mới, đủ nơi như 4.2): `document_access_requested` (từ `document.access_requested`, người nhận theo mục 3.1, `group_key = document:{id}:access_requests`, push **bật** — người xin đang chờ), `document_access_approved` và `document_access_declined` (từ `document.access_request_decided`, người xin, push bật cho approved, tắt cho declined). Rule kiểm lại quyền người nhận lúc gửi: người quản lý phải còn `canAdminister()` (admin chỉ có `AdminScope` vẫn nhận và thấy tiêu đề, vì DOC-05 cho admin thấy tên tài liệu hạn chế); người xin bị từ chối không bao giờ thấy tiêu đề (dùng biến thể không tiêu đề).
 
-**Port mới cho kiểm `canAdminister()` (`R1-6`):** port sẵn có chỉ là **đọc** (`DocumentReadChecker`, `rules.go:32-40`), mà admin chỉ có `AdminScope` là người phải giữ trong khi `CanReadDocument` = false. S-DOC07 thêm:
+**Port mới cho kiểm `canAdminister()` (`R1-6`):** port sẵn có chỉ là **đọc** (`DocumentReadChecker`, `rules.go:43-51`), mà admin chỉ có `AdminScope` là người phải giữ trong khi `CanReadDocument` = false. S-DOC07 thêm:
 - `notification/rules.go`: `type DocumentAdministerChecker interface { FilterDocumentAdministrators(ctx context.Context, documentID string, userIDs []string) ([]string, error) }` (trả tập con còn `canAdminister()` lúc gửi); `env.docAdmins`;
 - `notification/consumer.go`: `func (c *Consumer) SetDocumentAdministrators(d DocumentAdministerChecker)`; chưa gắn → rule `document_access_requested` không gửi gì (fail closed, như `SetDocumentReaders`);
 - `DocumentService.FilterDocumentAdministrators` (service, `document_permissions.go`: cùng phép tính quyền mà cổng dùng, sau DOC-05 là `canAdminister()`);
@@ -480,7 +482,7 @@ Feature flag: không thêm. Tất cả nằm sau cờ `documents` sẵn có.
 **DOC-02: không có migration. DOC-06: câu sqlc mới + một migration index (không đổi bảng). DOC-07: một bảng + hai index.** (`R1-7`)
 
 **DOC-06** dùng cột `acl_owner_id` sẵn có, không đổi bảng. Câu sqlc mới trong `server/pkg/db/queries/documents.sql`:
-- `TransferDocumentACLOwner` (từng tài liệu) — `UPDATE documents SET acl_owner_id = sqlc.arg(new_owner), updated_by = sqlc.arg(updated_by), updated_by_kind = sqlc.arg(updated_by_kind), updated_at = now() WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id) AND workspace_id = sqlc.arg(workspace_id) AND owner_kind IS NULL RETURNING *` (cặp `updated_by`/`updated_by_kind` như `UpdateDocumentContent`/`UpdateDocumentFields` ở `documents.sql:71-84, 99-110`, `R1-9`);
+- `TransferDocumentACLOwner` (từng tài liệu) — `UPDATE documents SET acl_owner_id = sqlc.arg(new_owner), updated_by = sqlc.arg(updated_by), updated_by_kind = sqlc.arg(updated_by_kind), updated_at = now() WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id) AND workspace_id = sqlc.arg(workspace_id) AND owner_kind IS NULL RETURNING *` (cặp `updated_by`/`updated_by_kind` như `UpdateDocumentContent`/`UpdateDocumentFields` ở `documents.sql:84-96, 112-130`, `R1-9`);
 - `TransferDocumentACLOwnerFrom` (hàng loạt) — cùng câu trên, thêm `AND acl_owner_id = sqlc.arg(from_owner)`: dòng đã đổi chủ trong lúc chờ khóa cho 0 dòng và không được đếm;
 - `ListMemberOwnedDocumentsForTransfer` — `SELECT id, workspace_id, visibility … WHERE organization_id = sqlc.arg(organization_id) AND acl_owner_id = sqlc.arg(owner) AND owner_kind IS NULL AND id > sqlc.arg(after) ORDER BY id LIMIT sqlc.arg(page) FOR UPDATE` (không `SKIP LOCKED`, `after = ''` ở lô đầu; mục 2.2, `R1-10`);
 - `MemberOwnsDocumentsAfter` — `SELECT EXISTS (SELECT 1 FROM documents WHERE organization_id = sqlc.arg(organization_id) AND acl_owner_id = sqlc.arg(owner) AND owner_kind IS NULL AND id > sqlc.arg(after))` → `has_more`;
@@ -627,3 +629,138 @@ Thứ tự đã ký (14:30): phụ lục trước → server (xếp sau e6-serve
 - **Q3 — Bắt buộc chuyển khi vô hiệu hóa:** phụ lục cho "Để sau" (vô hiệu hóa không bị chặn bởi việc chọn người nhận). Có muốn bắt buộc chọn người nhận khi thành viên còn tài liệu `restricted` không?
 - **Q4 — Thời hạn yêu cầu và giới hạn tần suất (DOC-07) — ĐÃ QUYẾT bởi người dùng, 2026-10-15 15:10 UTC+7** ("q4 nếu bị bỏ qua thì 1h sau có thể xin lại, nếu file đã có lượt xin của user đó thì k đc xin tiếp nếu req trước chưa xử lý"). Giá trị: yêu cầu hết hạn sau **30 ngày** (giữ); **một yêu cầu chờ cho mỗi (tài liệu, người xin)** — gửi lại khi còn chờ → `409 access_request_pending`, không gộp, không nâng mức; **bị từ chối thì 1 giờ sau (`decided_at + 1h`) mới xin lại** — sớm hơn → `429 access_request_cooldown` + `retry_after_seconds`; hết hạn hoặc bị hủy xin lại ngay; **20 yêu cầu/giờ/người** (giữ). Luật nhắc lại sau 24 giờ và cột `notified_at` đã bỏ. Không còn điểm mở nào ở Q4. (Cách hiểu "bị bỏ qua = bị từ chối" là của phụ lục: yêu cầu hết hạn 30 ngày không có cooldown, vì chưa ai từ chối.)
 - **Q5 — Nguồn "meeting" (DOC-07, mới ở vòng r1, `R1-14`/`F-05`):** ghi chú và chat meeting hôm nay là chữ thường, không có liên kết bấm được (mục 0.3), nên web không có chỗ gắn `?from=meeting:<id>`. **Đề xuất mặc định:** giao DOC-07 với nguồn `task` thôi; thẻ khóa và xin quyền vẫn chạy cho URL tài liệu dán ở meeting (người dùng sao chép/mở URL → thẻ khóa, chỉ không có dòng "từ cuộc họp X" cho người quản lý); hợp đồng server giữ `source_kind=meeting` để thẻ sau (khi meeting có liên kết bấm được) chỉ cần đặt `EditorLinkContext {kind:"meeting"}`. Phương án khác: thêm liên kết bấm được cho ghi chú/chat meeting trong DOC-07 (lớn hơn, chạm `packages/views/meetings/`). Cần sản phẩm chọn vì câu đã ký nói "liên kết task/meeting".
+
+## 9. S-DOC07 — hợp đồng thực thi trên root 73d2b5038 (c0)
+
+> **Thẻ này (c0, 2026-10-19, UNI-1631):** chỉ hợp đồng — không code, không migration, không câu sqlc, không test chạy. Mọi `file:line` dưới đây đọc ở root `73d2b5038` (`chore: merge RETENTION-02 … (UNI-1921, dbd78836f) into the G5-G7 root`) và **đã thay chỗ** cho các dòng cũ sai (ghi ở §9.0). Thẻ code phải đọc lại dòng trước khi sửa; số dòng ở đây là seam để tìm, không phải hợp đồng.
+
+### 9.0 Sửa `file:line` cũ trong phụ lục này
+
+| Chỗ | Cũ (72b53366d) | Mới (73d2b5038) |
+| --- | --- | --- |
+| §0.3 cổng đọc | `document_permissions.go:290-298`, `document_pages.go:441-442` | `document_permissions.go:376-392`, `document_pages.go:503-505` |
+| §0.3 port đọc | `rules.go:32-40`, `main.go:474` | `rules.go:43-51`, `main.go:493` |
+| §0.3 `ShareDocument` | `document_shares.go:53-62`, `document_permissions.go:429-460` | `document_shares.go:105-125`, `document_permissions.go:583-700` |
+| §0.4 cấp share | `document_shares.go:53-58, 66-80, 135-165` | `document_shares.go:105-125, 172-181, 318-360` |
+| §0.4/§3.3/§3.1 sự kiện | `outbox/catalogue.go:257` | `:258` |
+| §0.4 purge | `document_lifecycle.go:1007, 1060-1076` | `:1004-1006, 1243-1268` |
+| §2.1/§5 cặp ghi `documents` | `documents.sql:71-84, 99-110` | `:84-96, 112-130` |
+| §3.1 `Retry-After` | `ai_uniwork.go:122-134` | `:127-134` (+ `uniworkRetryAfter` `:154`) |
+| §3.1 limiter | `router.go:219`, `ratelimit.go:96-100`, `router.go:191-201` | `router.go:226`, `ratelimit.go:96-98`, `router.go:198-208` |
+| §3.1 duyệt | `document_shares.go:53-62` → `withDocumentMutation` | `document_shares.go:105-125` → `withDocumentViewOrAdministerMutationLocked` |
+| §4.2/§4.4 port đọc | `rules.go:32-40`, `rules.go:28-30` | `rules.go:43-51`, `rules.go:34-37` |
+| §4.3 bảng lớp | `error_class.go:66-125`, `:9-64`, `:78` | `error_class.go:86-177`, `:9-84`, `:97` |
+| §4.3 mã principal | `document_shares.go:31-33` | `:33-35` |
+| §6 isolation | `isolation_matrix_test.go:523-531`, `isolation_references_test.go:348-380` | `isolation_matrix_test.go:559-577`, `isolation_references_test.go:390-432` |
+| §6 openapi | `openapi.go:107-116`, `:210-214` | `openapi.go:109-116`, `:212-216` |
+
+### 9.1 Seam check (PRESENT / MOVED / MISSING)
+
+`docs/` và `packages/` của root đã đổi nhiều so với `72b53366d`; seam của S-DOC07 nay:
+
+| Tên trong phụ lục | Trạng thái ở `73d2b5038` | File:line |
+| --- | --- | --- |
+| `DocumentAccess{Level,Via,AdminScope}`, `canAdminister()`, `ErrDocumentRestricted`, `errBreakGlassRequired()` | PRESENT | `service/document_permissions.go:22-27, 32, 36-46, 54` |
+| `decideDocumentAccess` / `decideDocumentContent` / `decideDocumentViewOrAdminister` / `decideDocumentAdminister` | PRESENT | `document_permissions.go:376, 394, 406, 418` |
+| `authorizeDocumentViewOrAdminister` / `authorizeDocumentAdminister` / `authorizeDocumentGate` | PRESENT | `document_permissions.go:454, 460, 463` |
+| `effectiveLevel`; gán `AdminScope` | PRESENT | `document_permissions.go:101`; `:180-260` (`best.AdminScope = adminScope` `:257`) |
+| `withDocumentMutation`, `withDocumentMutationOnShelved`, `withFileSaveMutation` | PRESENT | `document_permissions.go:583, 592, 605` |
+| `withDocumentMutationLocked`, `withDocumentViewOrAdministerMutationLocked`, `withDocumentGateLocked` | PRESENT | `document_permissions.go:638, 651, 658` |
+| `isGateRefusal` | PRESENT | `document_permissions.go:356` |
+| **`withDocumentAdministerMutation`** | **MISSING — S-DOC07 tạo** | chỗ đứng: cạnh `withDocumentViewOrAdministerMutationLocked` `document_permissions.go:651` |
+| `shareDocumentInTx` | **MISSING — S-DOC07 tách** | thân nằm trong `ShareDocument` `document_shares.go:105-125` |
+| `applyDocumentShare` / `applyDocumentShareWithBatch` / `requireDocumentACLChange` / `refuseAdminSelfShare` / `validateSharePrincipal` / `validShareLevel` | PRESENT | `document_shares.go:192, 196, 66, 84, 318, 172` |
+| `errDocumentOwned()` / `errPrincipalNotInOrganization()` | PRESENT | `document_shares.go:29, 33` |
+| `notifyOnUserShare`, `mergeDocumentShareIntoHomeRow`, `homeWorkspaceShareRow` | PRESENT | `document_shares.go:147, 281, 302` |
+| `DocumentAccessList` / `DocumentAccessOverview` | PRESENT | `document_shares.go:481, 461` |
+| audit `document.shared` (`Metadata` có nguồn) | PRESENT | `document_shares.go:244-260` |
+| `DocumentReadChecker{CanReadDocument, FilterDocumentReaders}` + `SetDocumentReaders` | PRESENT | `notification/rules.go:43-51`; `consumer.go:55`; `service.go:42`; `digest.go:45` |
+| `env` struct của rule (thêm field `docAdmins` được) | PRESENT | `notification/rules.go:100` |
+| Wiring `SetDocumentReaders` | MOVED | `cmd/server/main.go:493` (`:507` `notifSvc`, `:511` `digest`) |
+| **`DocumentAdministerChecker` / `SetDocumentAdministrators` / `env.docAdmins`** | **MISSING — S-DOC07 tạo** | `notification/rules.go`, `consumer.go` |
+| Rule `document_access_requested` / `_approved` / `_declined` | **MISSING — S-DOC07 tạo** | cạnh `ruleDocumentBreakGlassGranted` `rules.go:611` / `ruleDocumentShared` `:650` |
+| Kind `document_access_requested` / `_approved` / `_declined` (hằng + `Kinds`) | PRESENT (đăng ký bởi thẻ web, commit `360d4c6a5`) | `kinds.go:57-59`, `Kinds` `:78` |
+| Tiêu đề vi/en + nhãn inbox 3 kind | PRESENT | `titles.go:44-46, 78-80, 118-120, 131-133` |
+| **Push mặc định cho 3 kind** | **MISSING — S-DOC07 thêm** | danh sách `push := …` `notification/prefs.go:23-28` (hiện chỉ có `document_shared`, `document_break_glass`, `document_edit_*`) |
+| **Deep link push `?access=requests`** | **MISSING — S-DOC07 thêm** | `push_consumer.go:168-200` (`documentResourceURL`; nhánh `access=break_glass` ở `:194-199` là mẫu) |
+| `errorClassByCode` (7 lớp) + `ErrorClassFor` | PRESENT | `dto/sdo/error_class.go:9-84, 180-183` |
+| `document_restricted` / `break_glass_required` | PRESENT | `error_class.go:66, 67` |
+| Khối "Deliberately unclassified codes" | MOVED | `error_class.go:86-177` |
+| `TestErrorClassTable` `want` / `unclassified` / danh sách file quét | PRESENT | `error_class_test.go:19-60, 70-129, 141-150` |
+| `uniworkRetryAfter` / `uniworkRetrySeconds` (đọc `retry_after`) | PRESENT — **không dùng lại** | `handler/ai_uniwork.go:154, 169` |
+| `RateLimitByIdentityBucket` (có mã lỗi riêng) / `RateLimitByIdentity` (khóa theo `r.URL.Path`) | PRESENT | `middleware/ratelimit.go:109, 96-98` |
+| Nhóm `documents` + tiền lệ bucket | PRESENT | `router/router.go:270-273`; tiền lệ `:198-208, 226-232` |
+| `pathParamSDI` | PRESENT — **không cần case mới** | `router/openapi.go:109`; **`case "documentID,requestID"` đã có** `:492-496` |
+| `isoSpec` / `isoRoutes` / `isoParam` / `isoReferences` / `isoRefFieldExempt` | PRESENT | `isolation_routes_test.go:36-67, 181`; `isolation_matrix_test.go:480-491, 559`; `isolation_references_test.go:96-103, 390-432` |
+| `purgeOneDocument` / `hardDeleteDocumentTx` + danh sách xóa phụ thuộc | PRESENT — **S-DOC07 thêm một hàm xóa** | `document_lifecycle.go:1243, 1277, 1326-1385` |
+| `DocumentService.clock` / `SetClock` / `now()` | PRESENT (dùng cho đồng hồ giả A09) | `document_types.go:135-170`; ctor `:158` |
+| `CreateDocumentSDI.Visibility` … capability `documents.create_visibility` (S-DOC02) | PRESENT (đã vào root) | `sdi/document.go:22, 35`; `sdi/office.go:50`; `workcapability/catalogue.go:67` |
+| **Toàn bộ code `access_request` ở `server/`** | **MISSING** (chỉ có 3 tên kind) | grep `server/`: 0 kết quả khác `kinds.go` |
+| **DOC-06 server** (`document-ownership`, `TransferDocumentACLOwner*`) | **MISSING** (S-DOC06 không nằm trong root này) | — |
+| `audit.ActionDocument*`; `audit_coverage_test.go` | PRESENT — **S-DOC07 thêm action + dòng bảng** | `audit/actions.go:150, 154`; `service/audit_coverage_test.go` |
+
+**Hệ quả:** §0.4 của phụ lục ("DOC-05 chưa có trong cây") **đã cũ**; nay chỉ `withDocumentAdministerMutation` là thiếu. S-DOC07 **không còn bị chặn** bởi thẻ (a).
+
+### 9.2 Wire vs web đã merge (W-DOC07)
+
+Web đã merge (`feature/UNI-1631-w-doc07`, `8363703e252bf40a115dd9fdde1396ad5c2d7100`) và chạy trên mock theo hợp đồng — nên bảng này so **server dự kiến** với **web đã đóng băng**:
+
+| # | Điểm | Web hôm nay | Hợp đồng server | Bên nào đổi |
+| --- | --- | --- | --- | --- |
+| 1 | `pending_access_requests` trên `GET …/shares` | Không đọc trường này; đếm từ danh sách | §4.3 yêu cầu có | **Server** thêm (một câu đếm); web có thể bỏ qua — không phải điều kiện |
+| 2 | `source` khi không đọc được | `SourceSchema` đòi `kind`+`id`, `title` mặc định `""`; chấp nhận `null` | `source: null` khi không đọc được | Không đổi (khớp) |
+| 3 | Mức khi duyệt | Nút chỉ cho mức ≥ `requested_level` (RW7-03) | §3.1 cho thấp hơn hoặc cao hơn, tối đa `edit` | Server theo phụ lục; web hẹp hơn (không lỗi) — câu hỏi Advisor |
+| 4 | `comment` | `DocumentAccessRequestLevel` có `comment`, chỉ hiện khi được xin | CHECK + service nhận `comment` (DOC-05 đã vào) | Không đổi |
+| 5 | `?from=task:<ULID>` | Đã merge (`EditorLinkContext`); thẻ khóa gửi `source_kind`/`source_id` (`document-locked-card-member.tsx:106-107`) | Chỉ nhận `source_kind`/`source_id` phẳng | Không đổi |
+| 6 | Mã lỗi | `access_request_pending` (409), `access_request_cooldown` (429 + `fields.retry_after_seconds`), `access_request_closed` (409); 429 không mã → `rate_limited` | §4.3 khớp từng mã | Không đổi |
+| 7 | `share_id` khi người xin đã đủ mức | `catch("").default("")` | Chuỗi rỗng | Không đổi |
+| 8 | `202` | `SentSchema {status}` | `202 {"status":"sent"}` | Không đổi |
+| 9 | RW7-01..RW7-10 (phần còn lại) | Thuần web (nhãn, thứ tự, icon) | — | Không đổi |
+
+### 9.3 RW7-01 — realtime: cùng thẻ hay thẻ đổi W-DOC07?
+
+**Đề xuất: cùng thẻ S-DOC07.** Hai topic `document.access_requested` / `document.access_request_decided` thuộc S-DOC07 ở cả ba bản catalogue, nên thêm chúng vào `catalogue.go` + `CATALOGUE.md` + `packages/core/types/events.ts` là một lần sửa ba chỗ — `scripts/events-catalogue.test.mjs` chỉ xanh khi ba bản khớp. Phần client (invalidate `documentKeys.accessRequests`/`shares` khi `requested`, `detail` khi `decided`, và gọi `clearDocumentAccessRequestSent`) đặt trong `packages/core/realtime/document-events.ts` (60 dòng code, còn chỗ) chứ **không** trong `use-realtime-sync.ts` (468/500 dòng code). Không có test hiện có nào khẳng định việc **thiếu** hai case này, nên thêm là an toàn.
+
+**Phương án khác (thẻ W-DOC07 đổi):** chỉ hợp lý nếu muốn giữ mọi thay đổi `packages/core/` trong một thẻ FE; nhưng khi đó catalogue ba bản lệch nhau giữa hai thẻ, và `events-catalogue.test.mjs` đỏ ở thẻ nào chạm trước. Rủi ro cao hơn lợi ích.
+
+### 9.4 Tách thực thi (tối đa 2 worker song song)
+
+Thứ tự: **w1** trước (bảng + câu sqlc là hợp đồng biên dịch cho cả hai), rồi **w2** và **w3** song song.
+
+| | w1 — dữ liệu & gửi yêu cầu | w2 — duyệt/từ chối & thông báo |
+| --- | --- | --- |
+| Đường sở hữu | `server/migrations/999<ms>_document_access_requests*.{up,down}.sql`, `server/pkg/db/queries/document_access_requests.sql`, `server/internal/service/document_access_requests.go`, `server/internal/service/document_lifecycle.go` (thêm hàm xóa vào danh sách purge) | `server/internal/service/document_shares.go` (tách `shareDocumentInTx`), `server/internal/service/document_permissions.go` (`withDocumentAdministerMutation` + `FilterDocumentAdministrators`), `server/internal/notification/{rules,consumer,prefs,push_consumer}.go`, `server/cmd/server/main.go` |
+| Giao diện chốt trước | `CreateDocumentAccessRequest(ctx, actor, documentID string, in AccessRequestInput) (AccessRequestResult, error)`; `ListPendingAccessRequests`, `CountPendingAccessRequests`; hằng `AccessRequestStatus*`, `AccessRequestSourceKind*` | `ApproveDocumentAccessRequest(ctx, actor, documentID, requestID string, grantedLevel string)`, `DeclineDocumentAccessRequest(ctx, actor, documentID, requestID, message string)`; `FilterDocumentAdministrators(ctx, documentID string, userIDs []string) ([]string, error)` |
+| Ghi chú | `AccessRequestResult` mang `Status` + `RetryAfterSeconds` để handler dựng `202`/`409`/`429` byte-giống nhau | `shareDocumentInTx(ctx, q, actor, doc, access, in)` nhận `q` đã ở trong tx; `withDocumentAdministerMutation` = `withDocumentGateLocked(..., decideDocumentAdminister, shelve, fn)` |
+
+**w3 (thẻ nối, sau w1/w2)** — handler/router/wire: `handler/dto/sdi/document.go`, `handler/dto/sdo/document.go` (+`pending_access_requests`), `handler/document_access_requests.go` (mới), `handler/router/documents.go`, `handler/router/router.go` (bucket `doc-access-request` 20/giờ), `handler/dto/sdo/error_class.go` + `error_class_test.go`, `handler/isolation_*_test.go`, `handler/router/ratelimit_test.go`, ba bản catalogue + `packages/core/realtime/document-events.ts`.
+
+**File hai thẻ cùng chạm — w1/w2 phải nói trước:** `audit/actions.go` + `service/audit_coverage_test.go` (w1 ghi action `document.access_requested`, w2 ghi `document.access_request_approved`/`_declined` — **cách ly bằng hằng số khác tên, một người sửa bảng**), `outbox/catalogue.go` + `CATALOGUE.md` + `events.ts` (w1 ghi topic `requested`, w2 ghi `decided` — cùng lý do), `notification/*` (chỉ w2), `document_shares.go`/`document_permissions.go` (chỉ w2), `document_lifecycle.go` (chỉ w1).
+
+### 9.5 Kế hoạch test đỏ-trước cho DOC7-A01..A10
+
+| AC | Test đỏ trước | Ghi chú |
+| --- | --- | --- |
+| A01, A02, A10 | `service/document_access_requests_test.go` — dựng hai tổ chức + tài liệu `restricted`; gọi `CreateDocumentAccessRequest` với id sai/tổ chức khác/Work Product/archive/người xin đã vô hiệu hóa/người xin đã đọc được | A02/A10 so **byte** của `AccessRequestResult` giữa các ca (không chỉ mã) |
+| A03 | cùng file — hai goroutine gửi song song cùng (tài liệu, người gửi) | kỳ vọng đúng một `202`, một `409 access_request_pending`, một dòng; dựa vào chỉ mục unique `pending` |
+| A04, A05 | cùng file — duyệt/từ chối: yêu cầu đã đóng, hết hạn, tài liệu archive; hai người duyệt song song; người xin vừa bị vô hiệu hóa (`422 principal_not_in_organization` + dòng `cancelled` đã **commit**) | hai approver song song: một 200, một `409 access_request_closed` |
+| A06 | cùng file — `source_kind` task/meeting: người xin đọc được → giữ; không đọc được/khác tổ chức → bỏ im lặng | port `TaskService`/`MeetingService` qua interface hẹp, không import chéo |
+| A07 | cùng file — sau khi gửi yêu cầu, mọi đường đọc vẫn 404 tới lúc duyệt | chứng minh "không tự cấp" |
+| A09 | cùng file + `SetClock` (`document_types.go:135-170`) — từ chối ở `T`, gửi lại ở `T+59m` → `429` với `retry_after_seconds == 60`; ở `T+1h` → `202` | cooldown tính từ lần từ chối gần nhất; người khác/tài liệu khác không dính |
+| A08 | `handler/isolation_*_test.go` — bốn route vào `isoRoutes`; `POST` chạy chế độ "uniform 202" (thân bằng control, không hash nào của A đổi) | **cần `isoSpec.mixedOK`** (hoặc một chế độ tương đương) cho lượt mixed: `POST` với tài liệu của B + thân của A trả `202` (không phải từ chối) và `attack` coi `<500` là đạt |
+| A08 (tiếp) | `migrations/query_scope_test.go` `TestEveryQueryNamesItsTenant` với câu upsert; `handler/router/ratelimit_test.go` — yêu cầu thứ 21 trên **tài liệu khác** vẫn `429` | upsert phải mang vị từ tenant dạng `sqlc.arg(organization_id)` để qua bộ quét |
+| A08 (purge) | `service/document_lifecycle_test.go` — purge xóa dòng yêu cầu | không FK; thêm vào danh sách `document_lifecycle.go:1326-1385` |
+| A01/A04 (thông báo) | `notification/*_test.go` — port `DocumentAdministerChecker`: admin chỉ `AdminScope` nhận; người vừa bị thu hồi `manage` không nhận; chưa gắn port → không gửi (fail closed) | mẫu ở `ruleDocumentBreakGlassGranted` `rules.go:611` |
+
+### 9.6 Điểm mở
+
+**Kỹ thuật (tôi đã chọn, ghi để review):**
+1. `withDocumentAdministerMutation(ctx, actor, documentID, treeWorkspaceID string, shelve shelveGate, fn)` = `withDocumentGateLocked(..., decideDocumentAdminister, shelve, fn)`; lỗi: `ErrNotFound` (không đọc được và không `AdminScope`), `ErrForbidden` (đọc được nhưng dưới `manage`), `409 document_owned_by_work_product` (từ `requireDocumentACLChange`), `document_archived`/`document_shelved` (từ gate). Khóa: khóa cây trước, rồi khóa dòng tài liệu — cùng thứ tự mọi `withDocument*MutationLocked` hiện có.
+2. `pending_access_requests` thêm vào `DocumentAccessSDO` (§9.2 #1): một câu đếm, chỉ khi `manage`/`admin_scope`.
+3. Limiter dùng `RateLimitByIdentityBucket` với mã mặc định `rate_limited` (web phân biệt bằng **vắng** `code`) — khớp Q4 và §4.3.
+4. `isoSpec` cần thêm trường cho lượt mixed của route `POST` (đề xuất tên `mixedOK` kèm lý do) — nếu không, lượt mixed coi `202` là thất bại.
+
+**Sản phẩm / Advisor:**
+- **Q5** (nguồn meeting) — không đổi ở c0; hợp đồng server vẫn nhận `source_kind=meeting`.
+- **RW7-03** — web chỉ cho duyệt mức ≥ mức đã xin; phụ lục cho phép thấp hơn. Chọn một: giữ phụ lục (server rộng hơn, không lỗi) hay siết web theo phụ lục.
+- **RW7-01** — cùng thẻ (§9.3) hay thẻ W-DOC07 đổi.
