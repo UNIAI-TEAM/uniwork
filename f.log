@@ -1,0 +1,3 @@
+$ git checkout -- apps/sheets/src/renderer/App.tsx && git status --short | wc -l; echo "REVERT_EXIT=$?"
+0
+REVERT_EXIT=0

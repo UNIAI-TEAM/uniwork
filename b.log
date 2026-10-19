@@ -1,0 +1,5 @@
+$ echo cD0nYXBwcy9zaGVldHMvc3JjL3JlbmRlcmVyL0FwcC50c3gnCnM9b3BlbihwKS5yZWFkKCkKYT0nICAgIGlmIChvdXRjb21lLm9rKSB7XG4gICAgICBsYXp5UHJldmlld1JlZi5jdXJyZW50ID0gbnVsbFxuJwphc3NlcnQgcy5jb3VudChhKT09MSwgJ2FuY2hvcicKb3BlbihwLCd3Jykud3JpdGUocy5yZXBsYWNlKGEsYSsiICAgICAgdm9pZCBoYW5kbGVTYXZlKCdzYXZlJykgLy8gQTEgcmVkIG11dGFudCAoY2xvdWQsIG5ldmVyIGNvbW1pdHRlZClcbiIpKQpwcmludCgnTVVUQU5UX0ZfQVBQTElFRCcpCg== | base64 -d > /tmp/mut_f.py && python3 /tmp/mut_f.py && git diff --stat; echo "MUTANT_EXIT=$?"
+MUTANT_F_APPLIED
+ apps/sheets/src/renderer/App.tsx | 1 +
+ 1 file changed, 1 insertion(+)
+MUTANT_EXIT=0

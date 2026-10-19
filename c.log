@@ -1,0 +1,5 @@
+$ npm run build:web -- --all > /tmp/build1.log 2>&1; echo "BUILD_MUTANT_EXIT=$?"; tail -3 /tmp/build1.log
+BUILD_MUTANT_EXIT=0
+web-sheets 0.1.0-6b0a2ec-dirty: 219 files, 27.70 MiB (gzip 7.90); initial 4.12 MiB (gzip 1.13), deferred 23.57 MiB
+  -> /home/ubuntu/work/uniwork-office/dist-web/sheets/0.1.0-6b0a2ec-dirty
+✓ built in 1m 33s

@@ -1,0 +1,20 @@
+$ npx playwright test -c web/e2e ai-save-confirm > /tmp/red.log 2>&1; rc=$?; grep -E "✘|✓|passed|failed|Received: 1" /tmp/red.log | head -30; F=$(grep -cE "✘.*sheets:" /tmp/red.log); echo "RED_RC=$rc SHEETS_FAILED=$F"; test $rc -ne 0 -a $F -ge 1 && echo RED_OK=1 || echo RED_OK=0
+  ✘   1 [chromium] › web/e2e/ai-save-confirm.spec.ts:159:7 › sheets: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (a) the write lands in the grid; no save goes to the host after a settle wait (5.0s)
+  ✘   2 [chromium] › web/e2e/ai-save-confirm.spec.ts:172:7 › sheets: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (b) closing the frame without saving sends nothing (4.0s)
+  ✘   3 [chromium] › web/e2e/ai-save-confirm.spec.ts:187:7 › sheets: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (c) stopping the turn mid-stream sends nothing (5.0s)
+  ✘   4 [chromium] › web/e2e/ai-save-confirm.spec.ts:203:7 › sheets: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (d) the frame / port going away mid-stream sends nothing (3.4s)
+  ✘   5 [chromium] › web/e2e/ai-save-confirm.spec.ts:218:7 › sheets: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (e) the explicit Save sends exactly one save that carries the AI edit (1.9s)
+  ✓   6 [chromium] › web/e2e/ai-save-confirm.spec.ts:278:7 › docs: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (a) the write lands in the document; no save goes to the host after a settle wait (4.1s)
+  ✓   7 [chromium] › web/e2e/ai-save-confirm.spec.ts:291:7 › docs: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (b) closing the frame without saving sends nothing (3.0s)
+  ✓   8 [chromium] › web/e2e/ai-save-confirm.spec.ts:306:7 › docs: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (c) stopping the turn mid-stream sends nothing (4.1s)
+  ✓   9 [chromium] › web/e2e/ai-save-confirm.spec.ts:321:7 › docs: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (d) the frame / port going away mid-stream sends nothing (2.0s)
+  ✓  10 [chromium] › web/e2e/ai-save-confirm.spec.ts:336:7 › docs: an AI write reaches UniWork only on the explicit Save (UNI-1923, (B)) › (e) the explicit Save sends exactly one save that carries the AI edit (3.1s)
+    Received: 1
+    Received: 1
+    Received: 1
+    Received: 1
+    Received: 1
+  5 failed
+  5 passed (39.9s)
+RED_RC=1 SHEETS_FAILED=5
+RED_OK=1

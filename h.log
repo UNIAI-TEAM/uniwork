@@ -1,0 +1,3 @@
+$ npx playwright test -c web/e2e ai-save-confirm > /tmp/green.log 2>&1; rc=$?; grep -E "passed|failed|flaky" /tmp/green.log | tail -3; echo "GREEN_EXIT=$rc"
+  10 passed (38.8s)
+GREEN_EXIT=0

@@ -1,0 +1,2 @@
+$ npx playwright install --with-deps chromium > /dev/null 2>&1; echo "PW_INSTALL_EXIT=$?"
+PW_INSTALL_EXIT=0

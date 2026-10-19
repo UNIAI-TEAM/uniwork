@@ -1,0 +1,2 @@
+$ npm run build:web -- --module sheets > /tmp/build2.log 2>&1; echo "BUILD_CLEAN_EXIT=$?"
+BUILD_CLEAN_EXIT=0
