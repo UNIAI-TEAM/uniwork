@@ -1,0 +1,7 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -timeout 45m ./internal/service/ 2>&1 | grep -E "^(--- FAIL|ok|FAIL)|_test.go:[0-9]+:" | head -40; echo "SVC_FULL_EXIT=${PIPESTATUS[0]}"
+--- FAIL: TestTenantExportClassifiesEveryTenantTable (0.01s)
+    tenant_export_tables_test.go:49: unclassified tenant tables: [document_access_requests]; classified tables that are not tenant tables: []
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	535.041s
+FAIL
+SVC_FULL_EXIT=1

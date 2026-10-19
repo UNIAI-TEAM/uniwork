@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/core exec vitest run i18n 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "CORE_I2_EXIT=$rc"
+
+ Test Files  7 passed (7)
+      Tests  54 passed (54)
+   Start at  18:35:45
+   Duration  1.78s (transform 712ms, setup 778ms, import 1.09s, tests 237ms, environment 1.79s)
+
+CORE_I2_EXIT=0
