@@ -19,7 +19,7 @@ const APP_LINK_HOST = "app.uniworkos.com";
 // docs/runbooks/unichat-mobile-release.md once the account exists (UNI-1838).
 // Empty means no EAS: no update server, no push token, the embedded bundle is
 // the app. UNICHAT_EAS_PROJECT_ID overrides it; "" turns EAS off for a build.
-const EAS_PROJECT_ID = "";
+const EAS_PROJECT_ID = "916177c9-255d-40c2-b93f-c39e85a73255";
 
 // What iOS shows when UniChat first asks for the photos, the camera and the microphone.
 const USAGE_VI = {
@@ -73,6 +73,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...config,
     name: isProd ? "UniChat" : isStaging ? "UniChat (Staging)" : "UniChat (Dev)",
+    // The EAS project belongs to the organization, not to whoever is signed in to eas-cli.
+    owner: "uniai-team",
     slug: "uniwork-chat",
     version: "0.2.0",
     orientation: "portrait",
