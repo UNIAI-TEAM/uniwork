@@ -279,6 +279,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document", h.ShareChatMessageAsDocument, apiOp{
+		summary:     "Share chat attachment as document",
+		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ trong My Folder và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2).",
+		tags:        []string{"chat"},
+		sdi:         sdi.ShareChatMessageAsDocumentSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}", h.GetChatRoomDetail, apiOp{
 		summary:     "Get chat room",
 		description: "Lấy một phòng chat kèm can_send_document: người gọi được gửi tài liệu và số người nhận được quyền chia sẻ không vượt 50 (L5).",

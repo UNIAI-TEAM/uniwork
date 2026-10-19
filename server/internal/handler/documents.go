@@ -352,6 +352,7 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		// gates; a browser session keeps saving while the flag is off (G5-07).
 		Sync:       middleware.DeviceSession(r.Context()),
 		EditLockID: strings.TrimSpace(in.EditLockID),
+		ChatRoomID: strings.TrimSpace(in.ChatRoomID),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

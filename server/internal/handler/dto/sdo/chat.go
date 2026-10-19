@@ -159,37 +159,38 @@ type DocumentMessageDTO struct {
 
 // ChatMessageDTO is a stored chat message.
 type ChatMessageDTO struct {
-	ID                string               `json:"id" description:"Message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
-	RoomID            string               `json:"room_id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	WorkspaceID       string               `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	SenderID          string               `json:"sender_id" description:"Author user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
-	SenderDisplayName string               `json:"sender_display_name" description:"Author display name" example:"Nguyen Van A"`
-	Kind              string               `json:"kind,omitempty" description:"text or voice_call_log" example:"text"`
-	Body              string               `json:"body" description:"Message text" example:"Xin chào team!"`
-	ReplyToMessageID  *string              `json:"reply_to_message_id,omitempty" description:"Replied message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
-	ThreadRootID      *string              `json:"thread_root_id,omitempty" description:"Thread root message id when this is a reply" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
-	ReplyCount        int                  `json:"reply_count,omitempty" description:"Reply count on a thread root" example:"3"`
-	LastReplyAt       string               `json:"last_reply_at,omitempty" description:"RFC3339 of latest reply on a thread root"`
-	ThreadUnread      bool                 `json:"thread_unread,omitempty" description:"Caller has unread replies in this thread"`
-	ThreadFollowing   bool                 `json:"thread_following,omitempty" description:"Caller follows this thread and has not muted it (set on the root in a thread listing)"`
-	CreatedAt         string               `json:"created_at" description:"RFC3339 timestamp" example:"2026-03-26T10:00:00Z"`
-	Cursor            string               `json:"cursor,omitempty" description:"Opaque history position; pass it back verbatim as ?cursor= to list older messages" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
-	EditedAt          string               `json:"edited_at,omitempty" description:"RFC3339 timestamp when the message was last edited" example:"2026-03-26T10:05:00Z"`
-	Pinned            bool                 `json:"pinned,omitempty" description:"true when pinned in the room" example:"true"`
-	MentionedUserIDs  []string             `json:"mentioned_user_ids,omitempty" description:"User ids notified by @mention in this message" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
-	Reactions         map[string]int       `json:"reactions,omitempty" description:"Emoji reaction counts keyed by emoji" example:"{\"👍\":2}"`
-	MyReactions       []string             `json:"my_reactions,omitempty" description:"Emojis the caller reacted with" example:"[\"👍\"]"`
-	VoiceCall         *VoiceCallLogDTO     `json:"voice_call,omitempty" description:"Voice call log metadata when kind is voice_call_log"`
-	VoiceCallSummary  *VoiceCallSummaryDTO `json:"voice_call_summary,omitempty" description:"AI call summary metadata when kind is text"`
-	Voice             *VoiceMessageDTO     `json:"voice,omitempty" description:"Voice recording metadata when kind is voice"`
-	File              *FileMessageDTO      `json:"file,omitempty" description:"File attachment metadata when kind is file"`
-	Poll              *ChatPollDTO         `json:"poll,omitempty" description:"Poll payload when kind is poll"`
-	Reminder          *ChatReminderDTO     `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
-	Note              *ChatNoteDTO         `json:"note,omitempty" description:"Note payload when kind is note"`
-	Post              *ChatPostDTO         `json:"post,omitempty" description:"Post payload when kind is post"`
-	Document          *DocumentMessageDTO  `json:"document,omitempty" description:"Shared document block when kind is document or document_version"`
-	Priority          string               `json:"priority,omitempty" description:"important or urgent message flag" example:"important"`
-	ClientMsgID       string               `json:"client_msg_id,omitempty" description:"Idempotency key the sender supplied, so a client can drop its own queued copy" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ID                 string               `json:"id" description:"Message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	RoomID             string               `json:"room_id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	WorkspaceID        string               `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	SenderID           string               `json:"sender_id" description:"Author user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	SenderDisplayName  string               `json:"sender_display_name" description:"Author display name" example:"Nguyen Van A"`
+	Kind               string               `json:"kind,omitempty" description:"text or voice_call_log" example:"text"`
+	Body               string               `json:"body" description:"Message text" example:"Xin chào team!"`
+	ReplyToMessageID   *string              `json:"reply_to_message_id,omitempty" description:"Replied message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	ThreadRootID       *string              `json:"thread_root_id,omitempty" description:"Thread root message id when this is a reply" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	ReplyCount         int                  `json:"reply_count,omitempty" description:"Reply count on a thread root" example:"3"`
+	LastReplyAt        string               `json:"last_reply_at,omitempty" description:"RFC3339 of latest reply on a thread root"`
+	ThreadUnread       bool                 `json:"thread_unread,omitempty" description:"Caller has unread replies in this thread"`
+	ThreadFollowing    bool                 `json:"thread_following,omitempty" description:"Caller follows this thread and has not muted it (set on the root in a thread listing)"`
+	CreatedAt          string               `json:"created_at" description:"RFC3339 timestamp" example:"2026-03-26T10:00:00Z"`
+	Cursor             string               `json:"cursor,omitempty" description:"Opaque history position; pass it back verbatim as ?cursor= to list older messages" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	EditedAt           string               `json:"edited_at,omitempty" description:"RFC3339 timestamp when the message was last edited" example:"2026-03-26T10:05:00Z"`
+	Pinned             bool                 `json:"pinned,omitempty" description:"true when pinned in the room" example:"true"`
+	MentionedUserIDs   []string             `json:"mentioned_user_ids,omitempty" description:"User ids notified by @mention in this message" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
+	Reactions          map[string]int       `json:"reactions,omitempty" description:"Emoji reaction counts keyed by emoji" example:"{\"👍\":2}"`
+	MyReactions        []string             `json:"my_reactions,omitempty" description:"Emojis the caller reacted with" example:"[\"👍\"]"`
+	VoiceCall          *VoiceCallLogDTO     `json:"voice_call,omitempty" description:"Voice call log metadata when kind is voice_call_log"`
+	VoiceCallSummary   *VoiceCallSummaryDTO `json:"voice_call_summary,omitempty" description:"AI call summary metadata when kind is text"`
+	Voice              *VoiceMessageDTO     `json:"voice,omitempty" description:"Voice recording metadata when kind is voice"`
+	File               *FileMessageDTO      `json:"file,omitempty" description:"File attachment metadata when kind is file"`
+	Poll               *ChatPollDTO         `json:"poll,omitempty" description:"Poll payload when kind is poll"`
+	Reminder           *ChatReminderDTO     `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
+	Note               *ChatNoteDTO         `json:"note,omitempty" description:"Note payload when kind is note"`
+	Post               *ChatPostDTO         `json:"post,omitempty" description:"Post payload when kind is post"`
+	Document           *DocumentMessageDTO  `json:"document,omitempty" description:"Shared document block when kind is document or document_version"`
+	CanShareAsDocument bool                 `json:"can_share_as_document,omitempty" description:"Caller may convert this file attachment into a shared document (L6: sender only, editor format, not yet linked)" example:"true"`
+	Priority           string               `json:"priority,omitempty" description:"important or urgent message flag" example:"important"`
+	ClientMsgID        string               `json:"client_msg_id,omitempty" description:"Idempotency key the sender supplied, so a client can drop its own queued copy" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // ChatRoomDTO is a dm, group, or channel chat room.

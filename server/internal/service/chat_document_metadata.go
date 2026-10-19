@@ -89,6 +89,11 @@ func (s *ChatService) resolveChatDocuments(ctx context.Context, room db.ChatRoom
 	if s.docs == nil || len(rows) == 0 || viewerID == "" {
 		return
 	}
+	for i := range rows {
+		if rows[i].Kind == "file" && rows[i].File != nil && rows[i].Document == nil && rows[i].SenderID == viewerID {
+			rows[i].CanShareAsDocument = s.chatFileSaveableAsDocument(*rows[i].File)
+		}
+	}
 	ids := make([]string, 0, len(rows))
 	seen := map[string]bool{}
 	for _, row := range rows {
@@ -105,7 +110,7 @@ func (s *ChatService) resolveChatDocuments(ctx context.Context, room db.ChatRoom
 	byID := make(map[string]*DocumentMessageInfo, len(ids))
 	for _, id := range ids {
 		info, err := s.resolveChatDocument(ctx, actor, room, id)
-		if err != nil {
+		if err != nil || info == nil {
 			continue
 		}
 		byID[id] = info
@@ -265,4 +270,25 @@ func chatDocumentMIMEType(contentType string) bool {
 		}
 	}
 	return false
+}
+
+// chatFileSaveableAsDocument is the L6 / S10 verdict for a chat file attachment:
+// the stored record must be saveable as a document (within the document_file
+// cap and on its allowlist) and on L8's narrower chat document MIME subset.
+func (s *ChatService) chatFileSaveableAsDocument(file FileMessageInfo) bool {
+	if s.files == nil || s.docs == nil {
+		return false
+	}
+	if file.FileID == "" && file.ObjectKey == "" {
+		return false
+	}
+	ext := documentSourceExtension(file.Filename)
+	if !documentSourceSaveable(documentFilePolicyFor(s.files), ext, file.ContentType, file.SizeBytes) {
+		return false
+	}
+	ct := files.NormalizeContentType(file.ContentType)
+	if ct == "" || ct == "application/octet-stream" {
+		ct = documentSourceExtTypes[ext]
+	}
+	return chatDocumentMIMEType(ct)
 }

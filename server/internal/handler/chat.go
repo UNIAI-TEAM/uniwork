@@ -62,6 +62,9 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.Pinned {
 		out.Pinned = true
 	}
+	if m.CanShareAsDocument {
+		out.CanShareAsDocument = true
+	}
 	if m.Priority != "" {
 		out.Priority = m.Priority
 	}

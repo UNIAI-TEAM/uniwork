@@ -267,6 +267,10 @@ var isoReferences = []isoReference{
 		"title": isoUnique("ref"), "parent_id": isoRef("document")}, covers: []string{"SaveSourceFileSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "uploaded file", idempotent: true, body: map[string]any{
 		"upload_id": isoRef("docUpload"), "base_revision": "1"}, covers: []string{"CommitDocumentVersionSDI.upload_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "chat room for version line", idempotent: true, allow2xx: true,
+		noControl: "committing consumes chatCommitUpload and advances fileDocument's revision; the attack itself commits B's upload (200 OK) while naming A's room",
+		body:      map[string]any{"upload_id": isoOwn("chatCommitUpload"), "base_revision": "2", "chat_room_id": isoRef("room")},
+		covers:    []string{"CommitDocumentVersionSDI.chat_room_id"}},
 	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/versions/commit", what: "staged frame upload", idempotent: true, body: map[string]any{
 		"upload_id": isoRef("frameUpload"), "base_revision": isoOwn("frameRevision")}, covers: []string{"CommitOfficeFrameVersionSDI.upload_id"}},
 	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/assets/sign", what: "image of another document", body: map[string]any{
@@ -417,18 +421,19 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 const editLockIDExempt = "compared, never stored: the same checkDocumentEditLock gate the PatchDocumentSDI.edit_lock_id case attacks; a control would need its own upload/version and base revision, which the existing commit cases consume; TestEditLockIDFromAnotherTenantIsRefused sends another organization's live tenure id to all four writes"
 
 var isoRefFieldExempt = map[string]string{
-	"FlagOverrideSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
-	"FlagOverrideDeleteSDI.scope_id":        "platform console: an override names any organization or user by design (RequirePlatformRole)",
-	"CalendarSelectionSDI.calendar_ids":     "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
-	"SendChatMessageSDI.client_msg_id":      "the client's idempotency key, not a row",
-	"MintChatVoiceTokenSDI.call_id":         "a client-generated call id, not a row",
-	"VoiceSignalSDI.call_id":                "a client-generated call id, not a row",
-	"AiUniworkMessageSDI.tool_call_id":      "the model's tool call id, matched against the server's own transcript, not a row",
-	"MintChatVoiceTokenSDI.room_id":         "the route names no other row: the cross-tenant pass sends A's room in the body",
-	"ResolveInviteLinkSDI.link_id":          "public route: the link id comes with its secret, and holding both is the grant",
-	"SummarizeEmailHubThreadSDI.account_id": "the mixed pass sends B's workspace with A's thread and A's account in the body",
-	"PatchEmailHubThreadSDI.account_id":     "the mixed pass sends B's workspace with A's thread and A's account in the body",
-	"EmailHubSummaryTasksSDI.account_id":    "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"FlagOverrideSDI.scope_id":                    "platform console: an override names any organization or user by design (RequirePlatformRole)",
+	"FlagOverrideDeleteSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
+	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
+	"SendChatMessageSDI.client_msg_id":            "the client's idempotency key, not a row",
+	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
+	"MintChatVoiceTokenSDI.call_id":               "a client-generated call id, not a row",
+	"VoiceSignalSDI.call_id":                      "a client-generated call id, not a row",
+	"AiUniworkMessageSDI.tool_call_id":            "the model's tool call id, matched against the server's own transcript, not a row",
+	"MintChatVoiceTokenSDI.room_id":               "the route names no other row: the cross-tenant pass sends A's room in the body",
+	"ResolveInviteLinkSDI.link_id":                "public route: the link id comes with its secret, and holding both is the grant",
+	"SummarizeEmailHubThreadSDI.account_id":       "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"PatchEmailHubThreadSDI.account_id":           "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"EmailHubSummaryTasksSDI.account_id":          "the mixed pass sends B's workspace with A's thread and A's account in the body",
 
 	// Office desktop bridge. client_id and deployment_id are the public
 	// desktop client and the deployment profile: values from the server's

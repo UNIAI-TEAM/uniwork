@@ -795,6 +795,10 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	})
 	tn.ids["docUpload"] = isoString(t, out, "upload_id")
 	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
+		filename: strings.ToLower(m) + "-v3.md", contentType: "text/markdown", content: []byte("# " + m + " chat commit body\n"),
+	})
+	tn.ids["chatCommitUpload"] = isoString(t, out, "upload_id")
+	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
 		filename: strings.ToLower(m) + "-copy.md", contentType: "text/markdown", content: []byte("# " + m + " copy body\n"),
 	})
 	tn.ids["copyUpload"] = isoString(t, out, "upload_id")
