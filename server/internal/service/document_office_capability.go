@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -399,7 +398,7 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	blankRef := "blank:" + jobID
 	payload, err := json.Marshal(map[string]any{
 		"base_revision": 0, "base_version_id": blankRef,
-		"input_bytes": base64.StdEncoding.EncodeToString(seed), "input_checksum": checksum, "input_length": len(seed),
+		"input_checksum": checksum, "input_length": len(seed),
 		"document_model_ref": "blank:" + jobID,
 	})
 	if err != nil {
@@ -431,7 +430,7 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	js, err := s.engine.Submit(ctx, grant, env)
+	js, err := s.engine.Submit(ctx, grant, env, bytesInput(seed, checksum).source())
 	if err != nil {
 		return DocumentFileResult{}, err
 	}

@@ -61,7 +61,7 @@ func newExportStub(t *testing.T, fake *filesfake.Fake, pdf []byte, stub *exportS
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/capability", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"engine_version": version, "contract_version": contract, "protocol_version": protocolNumber,
+			"engine_version": version, "contract_version": contract, "protocol_version": protocolNumber, "job_transport": "framed/1",
 			"format": r.URL.Query().Get("format"),
 			"capabilities": []map[string]any{
 				{"operation": "open", "supported": true, "runtime": "internal_service", "evidence_level": "proven"},
