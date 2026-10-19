@@ -127,6 +127,9 @@ test("a member asks for access, the owner approves lower, a second request is de
     await expect(dialogAgain.getByText(`Đã từ chối yêu cầu của ${s.member.name}`)).toBeVisible({ timeout: 30_000 });
     expect(await levelOf(request, s.member.token, doc.id)).toBe("");
 
+    // The member's open card resets live: the decline clears "sent" without a reload.
+    await expect(sendButton(member)).toBeVisible({ timeout: 30_000 });
+
     // The member is now inside the one-hour cooldown: the card says when to ask again.
     await member.reload();
     await expect(sendButton(member)).toBeVisible({ timeout: 60_000 });
