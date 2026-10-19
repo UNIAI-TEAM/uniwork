@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; git log --oneline -4
+b54a49ac3d9c308b885983b356a2d87deaedd609
+b54a49ac3 chore: merge G7-12 oracle product-test reading (UNI-1874 a1m, 5a71ee05e) into the G5-G7 root
+8b2a329da fix(i18n): web copy follows the glossary for the comment level, edit label and diacritics
+5a71ee05e fix(office): each product-test entry covers both A1 and A3 (UNI-1923)
+077a98c32 fix(ui): clickable elements show the pointer cursor

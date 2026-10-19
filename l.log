@@ -1,0 +1,532 @@
+$ export E2E_DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" E2E_BASE_URL=http://localhost:14871 E2E_API_URL=http://localhost:19871 NEXT_PUBLIC_API_URL=http://localhost:19871 OFFICE_UX_FLOOR_E2E=1 PLAYWRIGHT_OUTPUT_DIR=test-results-ux4 PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ux4-report.json; rm -rf e2e/test-results-ux4; pnpm --filter @uniwork/e2e exec playwright test office-ux-floor.spec.ts --reporter=list,json > /tmp/ux4-UX_FLOOR.log 2>&1; rc=$?; echo "PLAYWRIGHT_RC=$rc"; echo "===== full playwright log (stack frames dropped)"; grep -vE "^\s+at " /tmp/ux4-UX_FLOOR.log; for f in e2e/test-results-ux4/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 4000 "$f"; echo; }; done; grep -E "[0-9]+ (passed|failed|skipped|flaky|did not run|interrupted)|expected to fail" /tmp/ux4-UX_FLOOR.log; grep -qE "[0-9]+ passed" /tmp/ux4-UX_FLOOR.log || { echo "no passing test in office-ux-floor.spec.ts"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_UX_FLOOR_EXIT=$rc"
+PLAYWRIGHT_RC=1
+===== full playwright log (stack frames dropped)
+
+Running 29 tests using 1 worker
+
+(node:18221) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18221) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 office-ux-floor.spec.ts:86:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light vi (6.6s)
+  ✓   2 office-ux-floor.spec.ts:86:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — light en (6.1s)
+  ✓   3 office-ux-floor.spec.ts:86:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark vi (5.7s)
+  ✓   4 office-ux-floor.spec.ts:86:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark en (6.1s)
+  ✓   5 office-ux-floor.spec.ts:131:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert (4.5s)
+  ✓   6 office-ux-floor.spec.ts:176:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › aria-disabled choices (web offline) stay in the Tab loop with a reason (5.2s)
+  ✓   7 office-ux-floor.spec.ts:197:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy sits between Reload and Overwrite with edit access (4.5s)
+  ✓   8 office-ux-floor.spec.ts:207:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy creates a copy with the source visibility and leaves the open document in conflict (5.4s)
+  ✓   9 office-ux-floor.spec.ts:234:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Docs shows 'Xem khác biệt' before Reload (4.8s)
+  ✓  10 office-ux-floor.spec.ts:245:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › the window live nodes stay outside the inert tree while S5 is open (4.7s)
+  ✓  11 office-ux-floor.spec.ts:256:3 › live regions (Floor › Vùng live) › the frame has its two fixed live nodes from load, before any bar (3.6s)
+  ✓  12 office-ux-floor.spec.ts:270:3 › live regions (Floor › Vùng live) › an S6 bar is read once, through the window node; the bar itself is not live (6.5s)
+  ✓  13 office-ux-floor.spec.ts:298:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 buttons keep a visible border, not colour alone (5.0s)
+  ✓  14 office-ux-floor.spec.ts:315:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 aria-disabled buttons use GrayText text and border (3.9s)
+  ✓  15 office-ux-floor.spec.ts:344:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable (4.4s)
+  ✓  16 office-ux-floor.spec.ts:365:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable (4.9s)
+  ✓  17 office-ux-floor.spec.ts:383:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked (4.8s)
+  ✓  18 office-ux-floor.spec.ts:383:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked (3.9s)
+  ✓  19 office-ux-floor.spec.ts:402:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › reduced motion: no slide/fade on S6 or S5 (6.1s)
+  ✓  20 office-ux-floor.spec.ts:423:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer) (4.8s)
+  ✘  21 office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi (1.6m)
+(node:18605) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18605) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  22 office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en (1.6m)
+(node:18705) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18705) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  23 office-ux-floor.spec.ts:465:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — light (4.1s)
+  ✘  24 office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi (1.6m)
+(node:18812) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18812) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  25 office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en (1.6m)
+(node:18905) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18905) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  26 office-ux-floor.spec.ts:465:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark (4.1s)
+  ✓  27 office-ux-floor.spec.ts:490:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill (4.0s)
+  ✓  28 office-ux-floor.spec.ts:511:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it (3.9s)
+  ✓  29 office-ux-floor.spec.ts:524:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send (3.8s)
+
+
+  1) office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi 
+
+    TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+    Call log:
+      - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible
+        181 × locator resolved to hidden <div class="ai-msg-toolbar"></div>
+
+
+      455 |         // an answer; the assertion below is what does. `.ai-msg-error` is exactly what a frame whose same-origin AI
+      456 |         // POST never reached the API shows (split-origin, before the app proxied the frame AI routes).
+    > 457 |         await frame.locator(".ai-chat .ai-msg-toolbar").first().waitFor({ state: "visible", timeout: 90_000 });
+          |                                                                 ^
+      458 |         const errorLine = await frame.locator(".ai-chat .ai-msg-error").first().isVisible().catch(() => false);
+      459 |         expect(errorLine, "S9: the UniWork AI turn rendered an error line, not an answer — the frame's AI POST must reach the API (on a split-origin setup the app rewrites /api/v1/office-frame/documents/{id}/ai/... to NEXT_PUBLIC_API_URL)").toBe(false);
+      460 |         await audit(frame, ".ai-chat", "S9 result", mode);
+
+    Error Context: test-results-ux4/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux4/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux4/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en 
+
+    TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+    Call log:
+      - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible
+        182 × locator resolved to hidden <div class="ai-msg-toolbar"></div>
+
+
+      455 |         // an answer; the assertion below is what does. `.ai-msg-error` is exactly what a frame whose same-origin AI
+      456 |         // POST never reached the API shows (split-origin, before the app proxied the frame AI routes).
+    > 457 |         await frame.locator(".ai-chat .ai-msg-toolbar").first().waitFor({ state: "visible", timeout: 90_000 });
+          |                                                                 ^
+      458 |         const errorLine = await frame.locator(".ai-chat .ai-msg-error").first().isVisible().catch(() => false);
+      459 |         expect(errorLine, "S9: the UniWork AI turn rendered an error line, not an answer — the frame's AI POST must reach the API (on a split-origin setup the app rewrites /api/v1/office-frame/documents/{id}/ai/... to NEXT_PUBLIC_API_URL)").toBe(false);
+      460 |         await audit(frame, ".ai-chat", "S9 result", mode);
+
+    Error Context: test-results-ux4/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux4/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux4/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi 
+
+    TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+    Call log:
+      - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible
+        182 × locator resolved to hidden <div class="ai-msg-toolbar"></div>
+
+
+      455 |         // an answer; the assertion below is what does. `.ai-msg-error` is exactly what a frame whose same-origin AI
+      456 |         // POST never reached the API shows (split-origin, before the app proxied the frame AI routes).
+    > 457 |         await frame.locator(".ai-chat .ai-msg-toolbar").first().waitFor({ state: "visible", timeout: 90_000 });
+          |                                                                 ^
+      458 |         const errorLine = await frame.locator(".ai-chat .ai-msg-error").first().isVisible().catch(() => false);
+      459 |         expect(errorLine, "S9: the UniWork AI turn rendered an error line, not an answer — the frame's AI POST must reach the API (on a split-origin setup the app rewrites /api/v1/office-frame/documents/{id}/ai/... to NEXT_PUBLIC_API_URL)").toBe(false);
+      460 |         await audit(frame, ".ai-chat", "S9 result", mode);
+
+    Error Context: test-results-ux4/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux4/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux4/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en 
+
+    TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+    Call log:
+      - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible
+        182 × locator resolved to hidden <div class="ai-msg-toolbar"></div>
+
+
+      455 |         // an answer; the assertion below is what does. `.ai-msg-error` is exactly what a frame whose same-origin AI
+      456 |         // POST never reached the API shows (split-origin, before the app proxied the frame AI routes).
+    > 457 |         await frame.locator(".ai-chat .ai-msg-toolbar").first().waitFor({ state: "visible", timeout: 90_000 });
+          |                                                                 ^
+      458 |         const errorLine = await frame.locator(".ai-chat .ai-msg-error").first().isVisible().catch(() => false);
+      459 |         expect(errorLine, "S9: the UniWork AI turn rendered an error line, not an answer — the frame's AI POST must reach the API (on a split-origin setup the app rewrites /api/v1/office-frame/documents/{id}/ai/... to NEXT_PUBLIC_API_URL)").toBe(false);
+      460 |         await audit(frame, ".ai-chat", "S9 result", mode);
+
+    Error Context: test-results-ux4/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results-ux4/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results-ux4/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi 
+    office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en 
+    office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi 
+    office-ux-floor.spec.ts:435:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en 
+  25 passed (11.0m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test office-ux-floor.spec.ts --reporter=list,json
+===== e2e/test-results-ux4/office-ux-floor-UniWork-AI-04908-he-S9-result-line-—-dark-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — dark vi
+- Location: office-ux-floor.spec.ts:435:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible
+    182 × locator resolved to hidden <div class="ai-msg-toolbar"></div>
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvexiov6, WS ux-floor-mvexiov6: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvexiov6" [ref=f1e14]
+              - generic "WS ux-floor-mvexiov6" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792394688354/rec-ws-1792394688354
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792394688354/rec-ws-1792394688354/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792394688354/rec-ws-1792394688354/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvexiov6, ux-floor-mvexiov6-1792394688354@example.com: tài khoản" [ref=f1e110] [cursor=pointer]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvexiov6" [ref=f1e113]
+              - generic "ux-floor-mvexiov6-1792394688354@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn/
+===== e2e/test-results-ux4/office-ux-floor-UniWork-AI-83163-he-S9-result-line-—-dark-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — dark en
+- Location: office-ux-floor.spec.ts:435:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible
+    182 × locator resolved to hidden <div class="ai-msg-toolbar"></div>
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Skip to main content" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvexlem3, WS ux-floor-mvexlem3: switch workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvexlem3" [ref=f1e14]
+              - generic "WS ux-floor-mvexlem3" [ref=f1e15]
+      - navigation "Workspace navigation" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Home" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792394815035/rec-ws-1792394815035
+          - listitem [ref=f1e30]:
+            - link "Inbox" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792394815035/rec-ws-1792394815035/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Work
+          - list "Work" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Tasks" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/tasks
+            - listitem [ref=f1e48]:
+              - link "My tasks" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Projects" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/projects
+            - listitem [ref=f1e61]:
+              - link "Calendar" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Communication
+          - list "Communication" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/email
+            - listitem [ref=f1e78]:
+              - link "Meetings" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/meetings
+            - listitem [ref=f1e85]:
+              - link "Documents" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/documents
+            - listitem [ref=f1e92]:
+              - link "Chat" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/chat
+            - listitem [ref=f1e98]:
+              - link "People" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792394815035/rec-ws-1792394815035/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvexlem3, ux-floor-mvexlem3-1792394815035@example.com: account" [ref=f1e110] [cursor=pointer]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvexlem3" [ref=f1e113]
+              - generic "ux-floor-mvexlem3-1792394815035@example.com" [ref=f1e114]
+      - button "Toggle sidebar" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Toggle sidebar" [ref=f1e120] [cursor=pointer]
+        - button "Search…" [ref=f1e12
+===== e2e/test-results-ux4/office-ux-floor-UniWork-AI-8ad8d-e-S9-result-line-—-light-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — light vi
+- Location: office-ux-floor.spec.ts:435:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible
+    181 × locator resolved to hidden <div class="ai-msg-toolbar"></div>
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvexbeoh, WS ux-floor-mvexbeoh: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvexbeoh" [ref=f1e14]
+              - generic "WS ux-floor-mvexbeoh" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792394348564/rec-ws-1792394348564
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792394348564/rec-ws-1792394348564/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/chat
+            - listitem [ref=f1e98]:
+              - link "Danh bạ" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792394348564/rec-ws-1792394348564/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvexbeoh, ux-floor-mvexbeoh-1792394348564@example.com: tài khoản" [ref=f1e110] [cursor=pointer]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvexbeoh" [ref=f1e113]
+              - generic "ux-floor-mvexbeoh-1792394348564@example.com" [ref=f1e114]
+      - button "Ẩn/hiện thanh bên" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Ẩn
+===== e2e/test-results-ux4/office-ux-floor-UniWork-AI-997d9-e-S9-result-line-—-light-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: office-ux-floor.spec.ts >> UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) >> S7 picker with UniWork AI and the S9 result line — light en
+- Location: office-ux-floor.spec.ts:435:7
+
+# Error details
+
+```
+TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+Call log:
+  - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible
+    182 × locator resolved to hidden <div class="ai-msg-toolbar"></div>
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Skip to main content" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org ux-floor-mvexg2fk, WS ux-floor-mvexg2fk: switch workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org ux-floor-mvexg2fk" [ref=f1e14]
+              - generic "WS ux-floor-mvexg2fk" [ref=f1e15]
+      - navigation "Workspace navigation" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Home" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792394565968/rec-ws-1792394565968
+          - listitem [ref=f1e30]:
+            - link "Inbox" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792394565968/rec-ws-1792394565968/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Work
+          - list "Work" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Tasks" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/tasks
+            - listitem [ref=f1e48]:
+              - link "My tasks" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Projects" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/projects
+            - listitem [ref=f1e61]:
+              - link "Calendar" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Communication
+          - list "Communication" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/email
+            - listitem [ref=f1e78]:
+              - link "Meetings" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/meetings
+            - listitem [ref=f1e85]:
+              - link "Documents" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/documents
+            - listitem [ref=f1e92]:
+              - link "Chat" [ref=f1e93] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/chat
+            - listitem [ref=f1e98]:
+              - link "People" [ref=f1e99] [cursor=pointer]:
+                - /url: /rec-org-1792394565968/rec-ws-1792394565968/people
+      - list [ref=f1e108]:
+        - listitem [ref=f1e109]:
+          - 'button "ux-floor-mvexg2fk, ux-floor-mvexg2fk-1792394565968@example.com: account" [ref=f1e110] [cursor=pointer]':
+            - generic [ref=f1e111]: U
+            - generic [ref=f1e112]:
+              - generic "ux-floor-mvexg2fk" [ref=f1e113]
+              - generic "ux-floor-mvexg2fk-1792394565968@example.com" [ref=f1e114]
+      - button "Toggle sidebar" [ref=f1e117]
+    - main [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - button "Toggle sidebar" [ref=f1e120] [cursor=pointer]
+        - button "Search…" [ref=f1e1
+  4 failed
+  25 passed (11.0m)
+
+E2E_UX_FLOOR_EXIT=1

@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+b54a49ac3d9c308b885983b356a2d87deaedd609
+b54a49ac3d9c308b885983b356a2d87deaedd609
+b54a49ac3 chore: merge G7-12 oracle product-test reading (UNI-1874 a1m, 5a71ee05e) into the G5-G7 root
+8b2a329da fix(i18n): web copy follows the glossary for the comment level, edit label and diacritics
+5a71ee05e fix(office): each product-test entry covers both A1 and A3 (UNI-1923)
+077a98c32 fix(ui): clickable elements show the pointer cursor
+02eeced2c fix(documents): drop the My Folder hint line under Tạo nhanh
+d78520ca0 feat(office): G7-D1 reads A1/A3 from the UNI-1923 product test (--product-tests)
+
+SYNCED_EXIT=0

@@ -1,0 +1,120 @@
+$ node -e 'const r=require("/tmp/ux4-report.json");const walk=(s)=>{for(const sp of s.specs||[]){for(const t of sp.tests||[]){const res=t.results||[];console.log("TEST "+sp.title+" | project="+t.projectName+" expected="+t.expectedStatus+" status="+t.status+" results="+res.map((x)=>x.status).join(","));for(const a of t.annotations||[])console.log("  ANN "+a.type+": "+(a.description||""));for(const x of res)if(x.error)console.log("  ERR "+String(x.error.message||"").replace(/[^ -~]+/g," ").slice(0,400));}}for(const c of s.suites||[])walk(c)};for(const s of r.suites||[])walk(s);console.log("STATS "+JSON.stringify(r.stats))'; echo "BLOCKED_ANN=$(grep -c '"type": "blocked"' /tmp/ux4-report.json)"; grep -E "panic|ERROR" /tmp/ux4-server.log | tail -n 30; tail -n 20 /tmp/ux4-web.log; for p in 19871 14871; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19871/tcp 14871/tcp 2>/dev/null; true
+TEST S6 clean + dirty bars and every reachable S5 step — light vi | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN contrast: S6 clean light: 2 nodes, 0 below AA, min 13.61:1 (needs 4.5) at "Đóng"
+  ANN contrast: S6 dirty light: 3 nodes, 0 below AA, min 5.81:1 (needs 4.5) at "Để sau"
+  ANN contrast: S5 step 1 light: 18 nodes, 0 below AA, min 6:1 (needs 4.5) at "Ghi đè…"
+  ANN contrast: S5 overwrite confirm light: 4 nodes, 0 below AA, min 6:1 (needs 4.5) at "Ghi đè"
+  ANN contrast: S5 reload confirm (web) light: 5 nodes, 0 below AA, min 6:1 (needs 4.5) at "Bỏ thay đổi và tải lại"
+TEST S6 clean + dirty bars and every reachable S5 step — light en | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN contrast: S6 clean light: 2 nodes, 0 below AA, min 13.61:1 (needs 4.5) at "Close"
+  ANN contrast: S6 dirty light: 3 nodes, 0 below AA, min 5.81:1 (needs 4.5) at "Later"
+  ANN contrast: S5 step 1 light: 18 nodes, 0 below AA, min 6:1 (needs 4.5) at "Overwrite…"
+  ANN contrast: S5 overwrite confirm light: 4 nodes, 0 below AA, min 6:1 (needs 4.5) at "Overwrite"
+  ANN contrast: S5 reload confirm (web) light: 5 nodes, 0 below AA, min 6:1 (needs 4.5) at "Discard changes and reload"
+TEST S6 clean + dirty bars and every reachable S5 step — dark vi | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN contrast: S6 clean dark: 2 nodes, 0 below AA, min 9.05:1 (needs 4.5) at "Đóng"
+  ANN contrast: S6 dirty dark: 3 nodes, 0 below AA, min 7.36:1 (needs 4.5) at "Có phiên bản mới hơn trên "
+  ANN contrast: S5 step 1 dark: 18 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Hủy"
+  ANN contrast: S5 overwrite confirm dark: 4 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Quay lại"
+  ANN contrast: S5 reload confirm (web) dark: 5 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Quay lại"
+TEST S6 clean + dirty bars and every reachable S5 step — dark en | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN contrast: S6 clean dark: 2 nodes, 0 below AA, min 9.05:1 (needs 4.5) at "Close"
+  ANN contrast: S6 dirty dark: 3 nodes, 0 below AA, min 7.36:1 (needs 4.5) at "A newer version is on UniW"
+  ANN contrast: S5 step 1 dark: 18 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Cancel"
+  ANN contrast: S5 overwrite confirm dark: 4 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Back"
+  ANN contrast: S5 reload confirm (web) dark: 5 nodes, 0 below AA, min 5.49:1 (needs 4.5) at "Back"
+TEST DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+TEST aria-disabled choices (web offline) stay in the Tab loop with a reason | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+TEST Save copy sits between Reload and Overwrite with edit access | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+TEST Save copy creates a copy with the source visibility and leaves the open document in conflict | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+TEST Docs shows 'Xem khác biệt' before Reload | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+TEST the window live nodes stay outside the inert tree while S5 is open | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: [{"role":"status","inert":false},{"role":"alert","inert":false}]
+TEST the frame has its two fixed live nodes from load, before any bar | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: {"status":1,"alert":1,"alertText":""}
+TEST an S6 bar is read once, through the window node; the bar itself is not live | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: {"text":"Đã cập nhật lên phiên bản 16 do bạn lưu lúc 07:20 19 thg 10, 2026.","liveInBar":false,"role":"region","label":"Phiên bản mới"}
+TEST S5 buttons keep a visible border, not colour alone | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: [{"id":"reload","width":1,"style":"solid","color":"rgb(0, 0, 0)"},{"id":"save-copy","width":1,"style":"solid","color":"rgba(5, 0, 73, 0.8)"},{"id":"overwrite","width":1,"style":"solid","color":"rgb(0, 0, 0)"},{"id":"cancel","width":1,"style":"solid","color":"rgba(5, 0, 73, 0.8)"}]
+TEST S5 aria-disabled buttons use GrayText text and border | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: [{"id":"reload","color":"rgb(96, 0, 0)","border":"rgb(96, 0, 0)","gray":"rgb(96, 0, 0)"},{"id":"save-copy","color":"rgb(96, 0, 0)","border":"rgb(96, 0, 0)","gray":"rgb(96, 0, 0)"},{"id":"overwrite","color":"rgb(96, 0, 0)","border":"rgb(96, 0, 0)","gray":"rgb(96, 0, 0)"}]
+TEST zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+TEST S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+TEST narrow web frame 390px: S5 full width minus 16px margins, buttons stacked | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: {"left":16,"width":358,"inner":390,"xs":[33,33,33,33],"ys":[487.1875,531.1875,575.1875,619.1875]}
+TEST narrow web frame 600px: S5 full width minus 16px margins, buttons stacked | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: {"left":16,"width":568,"inner":600,"xs":[33,33,33,33],"ys":[444.59375,488.59375,532.59375,576.59375]}
+TEST reduced motion: no slide/fade on S6 or S5 | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: {"missing":[],"moving":[]}
+TEST target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer) | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+TEST S7 picker with UniWork AI and the S9 result line — light vi | project= expected=passed status=unexpected results=failed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN contrast: S7 picker light: 3 nodes, 0 below AA, min 6.04:1 (needs 4.5) at "Quản lý mô hình…"
+  ERR TimeoutError: locator.waitFor: Timeout 90000ms exceeded. Call log: [2m  - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible [22m [2m    181   locator resolved to hidden <div class="ai-msg-toolbar"></div> [22m 
+TEST S7 picker with UniWork AI and the S9 result line — light en | project= expected=passed status=unexpected results=failed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN contrast: S7 picker light: 3 nodes, 0 below AA, min 6.04:1 (needs 4.5) at "Manage models…"
+  ERR TimeoutError: locator.waitFor: Timeout 90000ms exceeded. Call log: [2m  - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible [22m [2m    182   locator resolved to hidden <div class="ai-msg-toolbar"></div> [22m 
+TEST S7 the selected option's focus ring is >= 3:1 against accent-soft — light | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN measured: {"style":"solid","width":2,"color":"rgb(24, 90, 189)","bg":"rgb(232, 241, 251)","focusVisible":true}
+TEST S7 picker with UniWork AI and the S9 result line — dark vi | project= expected=passed status=unexpected results=failed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN contrast: S7 picker dark: 3 nodes, 0 below AA, min 6.38:1 (needs 4.5) at "Quản lý mô hình…"
+  ERR TimeoutError: locator.waitFor: Timeout 90000ms exceeded. Call log: [2m  - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible [22m [2m    182   locator resolved to hidden <div class="ai-msg-toolbar"></div> [22m 
+TEST S7 picker with UniWork AI and the S9 result line — dark en | project= expected=passed status=unexpected results=failed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN contrast: S7 picker dark: 3 nodes, 0 below AA, min 6.38:1 (needs 4.5) at "Manage models…"
+  ERR TimeoutError: locator.waitFor: Timeout 90000ms exceeded. Call log: [2m  - waiting for locator('.ai-chat .ai-msg-toolbar').first() to be visible [22m [2m    182   locator resolved to hidden <div class="ai-msg-toolbar"></div> [22m 
+TEST S7 the selected option's focus ring is >= 3:1 against accent-soft — dark | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN measured: {"style":"solid","width":2,"color":"rgb(74, 158, 255)","bg":"rgb(30, 58, 95)","focusVisible":true}
+TEST S7 the selected picker option has a 2px Highlight border, not only a fill | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN measured: {"width":2,"color":"rgba(5, 0, 73, 0.8)","outline":"none","hl":"rgba(5, 0, 73, 0.8)"}
+TEST S7 listbox sits on the list, Manage and the footer are siblings after it | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN measured: {"pop":"group","list":"listbox","manageInList":false}
+TEST S8 disclosure region shows on the first UniWork AI turn and gates Send | project= expected=passed status=expected results=passed
+  ANN frame: 0.1.0-5932073
+  ANN measured: frame-token ai grant: {"ai":false,"web_search":false,"image_search":false,"image_generation":false,"uniwork_ai":true}
+  ANN contrast: S8 disclosure light: 6 nodes, 0 below AA, min 5.64:1 (needs 4.5) at "Tìm hiểu thêm"
+STATS {"startTime":"2026-10-19T07:18:36.736Z","duration":662956.412,"expected":25,"skipped":0,"unexpected":4,"flaky":0}
+BLOCKED_ANN=0
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.3.8
+- Local:         http://localhost:14871
+- Network:       http://172.30.0.2:14871
+✓ Ready in 105ms
+✓ Running next.config.mjs took 112ms
