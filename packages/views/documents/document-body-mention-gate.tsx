@@ -21,15 +21,20 @@ import { useMentionDeepLink } from "./use-mention-deeplink";
 export function useBodyMentionDeepLink({
   doc,
   editorRef,
+  bodyRefreshing = false,
 }: {
   doc: Document;
   editorRef: RefObject<DocumentEditorHandle | null>;
+  /** The detail query is refetching: the cached body may predate the mention. */
+  bodyRefreshing?: boolean;
 }): { onEditorReady: () => void } {
   // True once the lazy page editor mounted — the gate for ?mention=1.
   const [editorReady, setEditorReady] = useState(false);
   useMentionDeepLink({
     ready: doc.kind !== "page" || editorReady,
-    reveal: (userId) => editorRef.current?.revealMention(userId),
+    // Only a page body holds mentions; a file has nothing to wait for.
+    refreshing: doc.kind === "page" && bodyRefreshing,
+    reveal: (userId) => editorRef.current?.revealMention(userId) ?? false,
   });
   return { onEditorReady: () => setEditorReady(true) };
 }

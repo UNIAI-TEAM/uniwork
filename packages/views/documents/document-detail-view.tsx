@@ -435,6 +435,7 @@ export function DocumentDetailView({
             key={workspaceDoc.id}
             wsId={wsId}
             doc={workspaceDoc}
+            bodyRefreshing={query.isFetching}
             libraryHref={libraryHref}
             documentHref={documentHref}
             ownerHref={ownerHref}

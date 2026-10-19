@@ -49,6 +49,8 @@ const DocumentEditor = lazy(() =>
 export interface DocumentWorkspaceProps {
   wsId: string;
   doc: Document;
+  /** The detail query is refetching `doc`: a `?mention=1` link waits for the fresh body. */
+  bodyRefreshing?: boolean;
   /** The library list, the one breadcrumb ancestor we can point at today. */
   libraryHref: string;
   /**
@@ -95,8 +97,7 @@ export function DocumentWorkspace({
   documentHref,
   ownerHref,
   headerActions,
-  refetch,
-  officeEditorHost,
+  refetch, officeEditorHost, bodyRefreshing,
 }: DocumentWorkspaceProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
@@ -119,7 +120,7 @@ export function DocumentWorkspace({
   shelvedRef.current = shelved;
   const wasShelvedRef = useRef(false);
   const editorRef = useRef<DocumentEditorHandle>(null);
-  const { onEditorReady } = useBodyMentionDeepLink({ doc, editorRef });
+  const { onEditorReady } = useBodyMentionDeepLink({ doc, editorRef, bodyRefreshing });
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [pageTitle, setPageTitle] = useState(doc.title);
   // The edit lock (UNI-1645) owns the save machine: every gated write carries the held id.

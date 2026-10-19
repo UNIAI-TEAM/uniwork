@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { useRef } from "react";
 import type { Editor } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -34,7 +35,7 @@ const content = (mentions: { id: string; label: string; type?: string }[]) => ({
 });
 
 /** Minimal host: runs the real hook against a fake URL and forwards to the spy. */
-function Host({ revealSpy }: { revealSpy: (userId: string) => void }) {
+function Host({ revealSpy }: { revealSpy: (userId: string) => boolean }) {
   useMentionDeepLink({ ready: true, reveal: revealSpy });
   return null;
 }
@@ -66,7 +67,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     render(editorView(editorRef, body, fakeNav("/acme/team/documents/d1?mention=1")));
     const mention = await screen.findByText("@An");
 
-    act(() => editorRef.current!.revealMention(ME));
+    act(() => { editorRef.current!.revealMention(ME); });
 
     await waitFor(() => expect(mention.closest(".node-mention")).toHaveClass("is-mention-reveal"));
     expect(mention).toHaveAttribute("data-mention-id", ME);
@@ -139,7 +140,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     const body = content([{ id: OTHER, label: "Bình" }]);
     render(editorView(editorRef, body, fakeNav("/acme/team/documents/d1?mention=1")));
     await screen.findByText("@Bình");
-    act(() => editorRef.current!.revealMention(ME));
+    act(() => { editorRef.current!.revealMention(ME); });
     expect(document.querySelector(".is-mention-reveal")).toBeNull();
     expect(document.querySelector(".ProseMirror-selectednode")).toBeNull();
   });
@@ -151,7 +152,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     const body = content([{ id: ME, label: "An", type: "agent" }]);
     render(editorView(editorRef, body, fakeNav("/acme/team/documents/d1?mention=1")));
     await screen.findByText("@An");
-    act(() => editorRef.current!.revealMention(ME));
+    act(() => { editorRef.current!.revealMention(ME); });
     expect(document.querySelector(".is-mention-reveal")).toBeNull();
     expect(document.querySelector(".ProseMirror-selectednode")).toBeNull();
   });
@@ -202,7 +203,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
 
     it("drops the flash class once 2 s have passed", async () => {
       const { editorRef, nodeOf } = await mountTwo();
-      act(() => editorRef.current!.revealMention(ME));
+      act(() => { editorRef.current!.revealMention(ME); });
       expect(nodeOf("@An")).toHaveClass("is-mention-reveal");
 
       act(() => { vi.advanceTimersByTime(1999); });
@@ -213,9 +214,9 @@ describe("UNI-1968 ?mention=1 deep link", () => {
 
     it("a second reveal 1.5 s later flashes for its own full 2 s, on one node only", async () => {
       const { editorRef, nodeOf } = await mountTwo();
-      act(() => editorRef.current!.revealMention(ME));
+      act(() => { editorRef.current!.revealMention(ME); });
       act(() => { vi.advanceTimersByTime(1500); });
-      act(() => editorRef.current!.revealMention(OTHER));
+      act(() => { editorRef.current!.revealMention(OTHER); });
       // The first node stops flashing at once; only the second one does.
       expect(nodeOf("@An")).not.toHaveClass("is-mention-reveal");
       expect(nodeOf("@Bình")).toHaveClass("is-mention-reveal");
@@ -230,9 +231,9 @@ describe("UNI-1968 ?mention=1 deep link", () => {
 
     it("the same mention revealed again restarts its 2 s", async () => {
       const { editorRef, nodeOf } = await mountTwo();
-      act(() => editorRef.current!.revealMention(ME));
+      act(() => { editorRef.current!.revealMention(ME); });
       act(() => { vi.advanceTimersByTime(1500); });
-      act(() => editorRef.current!.revealMention(ME));
+      act(() => { editorRef.current!.revealMention(ME); });
       // 1.5 s after the second reveal is past the first flash's end; the old
       // timer must not have cut the new flash short.
       act(() => { vi.advanceTimersByTime(1500); });
@@ -243,7 +244,7 @@ describe("UNI-1968 ?mention=1 deep link", () => {
 
     it("leaves no flash timer pending after unmount", async () => {
       const { editorRef, view, nodeOf } = await mountTwo();
-      act(() => editorRef.current!.revealMention(ME));
+      act(() => { editorRef.current!.revealMention(ME); });
       const node = nodeOf("@An")!;
       expect(node).toHaveClass("is-mention-reveal");
       view.unmount();
@@ -252,6 +253,66 @@ describe("UNI-1968 ?mention=1 deep link", () => {
       node.classList.add("is-mention-reveal");
       act(() => { vi.advanceTimersByTime(2000); });
       expect(node).toHaveClass("is-mention-reveal");
+    });
+  });
+
+  describe("a stale cached body (RFM-301)", () => {
+    // The reader opened the document before, and the mention was added after:
+    // the inbox click renders the cached body first, then the refetch lands.
+    function Page({ body, revision, refreshing }: { body: unknown; revision: string; refreshing: boolean }) {
+      const editorRef = useRef<DocumentEditorHandle | null>(null);
+      const { onEditorReady } = useBodyMentionDeepLink({
+        doc: { kind: "page" } as Document,
+        editorRef,
+        bodyRefreshing: refreshing,
+      });
+      return (
+        <DocumentEditor ref={editorRef} wsId="ws1" documentId="d1" initialContent={body} content={body}
+          contentRevision={revision} dirty={false} editable={false} onChange={vi.fn()} onUploadAsset={vi.fn()}
+          onReady={onEditorReady} />
+      );
+    }
+    const stale = content([{ id: OTHER, label: "Bình" }]);
+    const fresh = content([{ id: OTHER, label: "Bình" }, { id: ME, label: "An" }]);
+    const selectedOwn = `.ProseMirror-selectednode .mention[data-mention-id="${ME}"]`;
+
+    it("keeps the link pending while the body refetches, then reveals on the fresh body", async () => {
+      const nav = fakeNav("/acme/team/documents/d1?mention=1");
+      const client = new QueryClient();
+      const view = render(wrapWithNav(<Page body={stale} revision="1" refreshing />, nav, client));
+      await screen.findByText("@Bình");
+
+      // Nothing to reveal yet, but the fetch is under way: the parameter stays.
+      expect(nav.searchParams.get("mention")).toBe("1");
+      expect(document.querySelector(".ProseMirror-selectednode")).toBeNull();
+
+      view.rerender(wrapWithNav(<Page body={fresh} revision="2" refreshing={false} />, nav, client));
+
+      await waitFor(() => expect(document.querySelectorAll(selectedOwn)).toHaveLength(1));
+      expect(document.querySelector(".ProseMirror-selectednode")).toHaveClass("is-mention-reveal");
+      await waitFor(() => expect(nav.searchParams.get("mention")).toBeNull());
+    });
+
+    it("drops the parameter once the fetch settles and there is still no own mention", async () => {
+      const nav = fakeNav("/acme/team/documents/d1?mention=1&foo=bar");
+      const client = new QueryClient();
+      const view = render(wrapWithNav(<Page body={stale} revision="1" refreshing />, nav, client));
+      await screen.findByText("@Bình");
+      expect(nav.searchParams.get("mention")).toBe("1");
+
+      view.rerender(wrapWithNav(<Page body={stale} revision="1" refreshing={false} />, nav, client));
+
+      await waitFor(() => expect(nav.searchParams.get("mention")).toBeNull());
+      expect(nav.searchParams.get("foo")).toBe("bar");
+      expect(document.querySelector(".ProseMirror-selectednode")).toBeNull();
+    });
+
+    it("reveals and drops at once when the cached body already has the mention", async () => {
+      const nav = fakeNav("/acme/team/documents/d1?mention=1");
+      render(wrapWithNav(<Page body={fresh} revision="1" refreshing />, nav));
+
+      await waitFor(() => expect(document.querySelectorAll(selectedOwn)).toHaveLength(1));
+      await waitFor(() => expect(nav.searchParams.get("mention")).toBeNull());
     });
   });
 });

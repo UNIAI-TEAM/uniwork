@@ -53,9 +53,10 @@ export interface DocumentEditorHandle {
   /**
    * Scrolls to the first mention node naming `userId` — a notification's
    * `?mention=1` deep link (UNI-1968) — and flashes it. A reader with no
-   * mention keeps the top of the page: this is a no-op then.
+   * mention keeps the top of the page: this is a no-op then. Returns whether
+   * a mention was found.
    */
-  revealMention: (userId: string) => void;
+  revealMention: (userId: string) => boolean;
 }
 
 export interface DocumentEditorProps {
@@ -268,7 +269,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         focus: (position) => editor?.commands.focus(position),
         getHTML: () => (editor && !editor.isDestroyed ? editor.getHTML() : ""),
         revealMention: (userId: string) => {
-          if (!editor || editor.isDestroyed) return;
+          if (!editor || editor.isDestroyed) return false;
           let pos = -1;
           // NodeViews can match on any type; only member mentions name a person.
           editor.state.doc.descendants((node, nodePos) => {
@@ -279,14 +280,14 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
             }
             return true;
           });
-          if (pos < 0) return;
+          if (pos < 0) return false;
           const target = editor.view.nodeDOM(pos);
           // The node selection marks the mention. ProseMirror's own
           // scrollIntoView starts from the DOM selection, which sits outside an
           // unfocused read-only editor and so never reaches the page scroller;
           // scroll the node itself, which finds whichever ancestor scrolls.
           editor.chain().setNodeSelection(pos).run();
-          if (!(target instanceof HTMLElement)) return;
+          if (!(target instanceof HTMLElement)) return true;
           target.scrollIntoView({ block: "center" });
           // The flash goes on the node view's outer element, the one the editor
           // selects: its inner `.mention` span paints after the first commit, so
@@ -296,6 +297,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           target.classList.add("is-mention-reveal");
           revealedRef.current = target;
           revealTimerRef.current = window.setTimeout(() => target.classList.remove("is-mention-reveal"), 2000);
+          return true;
         },
       }),
       [editor],
