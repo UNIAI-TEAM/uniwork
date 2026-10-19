@@ -161,7 +161,30 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                        AND sbm.revoked_at IS NULL
                        AND ((sbm.principal_type = 'user')
                             OR (sbm.principal_type = 'workspace')
-                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))))
+                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))
+           -- UNI-1973: show only the topmost shared item. A row whose sharing is
+           -- just the workspace visibility copied from its parent at create time
+           -- (same level, no live share of its own) is hidden when that parent is
+           -- a live row the caller owns, shared the same way.
+           AND NOT (d.visibility = 'workspace'
+                    AND NOT EXISTS (
+                         SELECT 1 FROM document_shares ow
+                         WHERE ow.organization_id = d.organization_id
+                           AND ow.workspace_id = d.workspace_id
+                           AND ow.document_id = d.id
+                           AND ow.revoked_at IS NULL)
+                    AND EXISTS (
+                         SELECT 1 FROM documents sp
+                         WHERE sp.organization_id = d.organization_id
+                           AND sp.workspace_id = d.workspace_id
+                           AND sp.id = d.parent_id
+                           AND sp.owner_id IS NULL
+                           AND sp.archived_at IS NULL
+                           AND sp.shelved_at IS NULL
+                           AND sp.system_kind IS NULL
+                           AND sp.acl_owner_id = d.acl_owner_id
+                           AND sp.visibility = 'workspace'
+                           AND sp.workspace_level = d.workspace_level))))
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
            AND (NOT sqlc.arg(see_all)::boolean
@@ -536,7 +559,29 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                        AND sbm.revoked_at IS NULL
                        AND ((sbm.principal_type = 'user')
                             OR (sbm.principal_type = 'workspace')
-                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))))
+                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))
+           -- UNI-1973: show only the topmost shared item. A row whose sharing is
+           -- just the workspace visibility copied from its parent at create time
+           -- (same level, no live share of its own) is hidden when that parent is
+           -- a live row the caller owns, shared the same way.
+           AND NOT (d.visibility = 'workspace'
+                    AND NOT EXISTS (
+                         SELECT 1 FROM document_shares ow
+                         WHERE ow.organization_id = d.organization_id
+                           AND ow.workspace_id = d.workspace_id
+                           AND ow.document_id = d.id
+                           AND ow.revoked_at IS NULL)
+                    AND EXISTS (
+                         SELECT 1 FROM documents sp
+                         WHERE sp.organization_id = d.organization_id
+                           AND sp.workspace_id = d.workspace_id
+                           AND sp.id = d.parent_id
+                           AND sp.owner_id IS NULL
+                           AND sp.archived_at IS NULL
+                           AND sp.system_kind IS NULL
+                           AND sp.acl_owner_id = d.acl_owner_id
+                           AND sp.visibility = 'workspace'
+                           AND sp.workspace_level = d.workspace_level))))
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
            AND (NOT sqlc.arg(see_all)::boolean
