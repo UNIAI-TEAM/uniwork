@@ -1,0 +1,6 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test ./internal/service -run "OfficeJob|DocumentOfficeCommit|BreakGlass|UploadSession|Multipart|Purge" -count=1 -timeout 40m > /tmp/svc.log 2>&1); rc=$?; grep -E "^\s*--- FAIL|^(ok|FAIL)" /tmp/svc.log | tail -10; echo; echo "TEST_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	28.334s
+
+TEST_SVC_EXIT=0

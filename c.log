@@ -1,0 +1,29 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; gofmt -l internal pkg; go vet ./internal/service && AI_PROVIDER=fake go test ./internal/service -race -run "TestDocumentRetentionSweep|TestDocumentWorkers|DocumentWorkers|Metrics" -count=2 -timeout 40m -v > /tmp/race.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/race.log | tail -20; grep -cE "^\s*--- PASS" /tmp/race.log; grep -E "^--- (PASS|FAIL): (TestDocumentRetentionSweep|TestDocumentWorkersRunRetentionSweeps)" /tmp/race.log; echo; echo "TEST_RACE_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+    --- SKIP: TestDocumentRetentionSweepKeepsACommitableOfficeJob/minio (0.00s)
+    --- SKIP: TestDocumentRetentionSweepKeepsACommitableOfficeJob/minio (0.00s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	20.001s
+44
+--- PASS: TestDocumentRetentionSweepOfficeJobs (0.67s)
+--- PASS: TestDocumentRetentionSweepMultipartRows (0.67s)
+--- PASS: TestDocumentRetentionSweepBreakGlassGrants (0.52s)
+--- PASS: TestDocumentRetentionSweepBatchesStopEarly (0.75s)
+--- PASS: TestDocumentRetentionSweepStopsAtTheBatchCap (2.01s)
+--- PASS: TestDocumentRetentionSweepFloors (0.00s)
+--- PASS: TestDocumentRetentionSweepKeepsACommitableOfficeJob (1.06s)
+--- PASS: TestDocumentRetentionSweepBreakGlassFloor (0.40s)
+--- PASS: TestDocumentRetentionSweepMultipartFloor (0.40s)
+--- PASS: TestDocumentWorkersRunRetentionSweeps (0.40s)
+--- PASS: TestDocumentRetentionSweepOfficeJobs (0.53s)
+--- PASS: TestDocumentRetentionSweepMultipartRows (0.51s)
+--- PASS: TestDocumentRetentionSweepBreakGlassGrants (0.63s)
+--- PASS: TestDocumentRetentionSweepBatchesStopEarly (0.82s)
+--- PASS: TestDocumentRetentionSweepStopsAtTheBatchCap (2.01s)
+--- PASS: TestDocumentRetentionSweepFloors (0.00s)
+--- PASS: TestDocumentRetentionSweepKeepsACommitableOfficeJob (1.07s)
+--- PASS: TestDocumentRetentionSweepBreakGlassFloor (0.61s)
+--- PASS: TestDocumentRetentionSweepMultipartFloor (0.54s)
+--- PASS: TestDocumentWorkersRunRetentionSweeps (0.54s)
+
+TEST_RACE_EXIT=0
