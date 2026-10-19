@@ -852,17 +852,34 @@ func documentManagerCandidates(ctx context.Context, e env, doc db.Document) ([]s
 }
 
 // workspaceAdminCandidates is the §3.1 fallback list: the owners and admins of
-// the document's own workspace.
+// the document's own workspace plus the organization's owners and admins (who
+// are implicit workspace admins even without a workspace_members row). Active
+// membership is decided by the administer filter's gates, not here (BE-SD7-7).
 func workspaceAdminCandidates(ctx context.Context, e env, doc db.Document) ([]string, error) {
 	members, err := e.q.ListWorkspaceMembers(ctx, doc.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
+	orgAdmins, err := e.q.ListOrgAdminUserIDs(ctx, doc.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(members)+len(orgAdmins))
 	var out []string
+	add := func(id string) {
+		if id == "" || seen[id] {
+			return
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
 	for _, m := range members {
 		if m.Role == "owner" || m.Role == "admin" {
-			out = append(out, m.UserID)
+			add(m.UserID)
 		}
+	}
+	for _, id := range orgAdmins {
+		add(id)
 	}
 	return out, nil
 }

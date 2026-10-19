@@ -136,16 +136,41 @@ func TestDocumentAccessRequestedFallbackToWorkspaceAdmins(t *testing.T) {
 		`UPDATE workspace_members SET role = 'admin' WHERE workspace_id = $1 AND user_id = $2`, f.wsID, admin.ID); err != nil {
 		t.Fatal(err)
 	}
+	orgAdminNoWS := f.addMember(t, "ar-fb-org-admin@example.com", "Quản Trị Tổ Chức")
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE organization_members SET role = 'admin' WHERE organization_id = $1 AND user_id = $2`, f.orgID, orgAdminNoWS.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx,
+		`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, f.wsID, orgAdminNoWS.ID); err != nil {
+		t.Fatal(err)
+	}
+	deactivatedOrgAdmin := f.addMember(t, "ar-fb-deact-org-admin@example.com", "Quản Trị Đã Khóa")
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE organization_members SET role = 'admin', deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`, f.orgID, deactivatedOrgAdmin.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx,
+		`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, f.wsID, deactivatedOrgAdmin.ID); err != nil {
+		t.Fatal(err)
+	}
 
 	f.sendAccessRequest(t, f.member.ID, docID)
 	f.handleLast(t, "document.access_requested")
 
 	// The fixture owner is the organization owner, hence an implicit workspace
 	// admin; the added admin holds only AdminScope and cannot read the row.
-	for name, uid := range map[string]string{"owner": f.owner.ID, "AdminScope-only admin": admin.ID} {
+	for name, uid := range map[string]string{
+		"owner":                    f.owner.ID,
+		"AdminScope-only admin":    admin.ID,
+		"org admin with no ws row": orgAdminNoWS.ID,
+	} {
 		if n := f.accessRequestNotifications(t, uid, KindDocumentAccessRequested); len(n) != 1 {
 			t.Fatalf("%s notifications = %v, want one", name, n)
 		}
+	}
+	if n := f.accessRequestNotifications(t, deactivatedOrgAdmin.ID, KindDocumentAccessRequested); len(n) != 0 {
+		t.Fatalf("deactivated org admin notifications = %v, want none", n)
 	}
 }
 
