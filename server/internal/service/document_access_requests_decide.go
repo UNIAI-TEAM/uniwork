@@ -293,7 +293,7 @@ func (s *DocumentService) decideDocumentAccessRequest(ctx context.Context, actor
 					// request is cancelled and COMMITTED, then the 422 is
 					// answered: returning the error here would roll the cancel
 					// back and leave a pending request nobody can ever grant.
-					if err := s.cancelRequestRow(ctx, q, req, actor, now); err != nil {
+					if err := s.cancelRequestRow(ctx, q, req, actor, now, accessRequestCancelReasonRequesterInactive); err != nil {
 						return err
 					}
 					cancelledCommitted = errPrincipalNotInOrganization()
@@ -436,20 +436,37 @@ func (s *DocumentService) closeRequestCancelled(ctx context.Context, q *db.Queri
 	if req.Status != AccessRequestStatusPending {
 		return nil
 	}
-	return s.cancelRequestRow(ctx, q, req, actor, s.now())
+	return s.cancelRequestRow(ctx, q, req, actor, s.now(), accessRequestCancelReasonArchived)
 }
 
-// cancelRequestRow closes a pending request as cancelled. It writes no event:
-// the requester learns nothing from a cancelled request, and a manager's list
-// refreshes when the next one lands.
-func (s *DocumentService) cancelRequestRow(ctx context.Context, q *db.Queries, req db.DocumentAccessRequest, actor Actor, now time.Time) error {
-	_, err := q.DecideDocumentAccessRequest(ctx, db.DecideDocumentAccessRequestParams{
+const (
+	accessRequestCancelReasonArchived          = "archived"
+	accessRequestCancelReasonRequesterInactive = "requester_inactive"
+)
+
+// cancelRequestRow closes a pending request as cancelled and records its audit
+// row in the same transaction. It writes no event: the requester learns nothing
+// from a cancelled request, and a manager's list refreshes when the next one
+// lands.
+func (s *DocumentService) cancelRequestRow(ctx context.Context, q *db.Queries, req db.DocumentAccessRequest, actor Actor, now time.Time, reason string) error {
+	updated, err := q.DecideDocumentAccessRequest(ctx, db.DecideDocumentAccessRequestParams{
 		Status:    AccessRequestStatusCancelled,
 		DecidedBy: nullText(actor.ID), DecidedByKind: nullText(string(actor.Kind)),
 		DecidedAt: ts(now), UpdatedAt: ts(now),
 		ID: req.ID, OrganizationID: req.OrganizationID, DocumentID: req.DocumentID,
 	})
-	return err
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID, Actor: actor,
+		Action: audit.ActionDocumentAccessRequestCancelled, ResourceType: "document", ResourceID: req.DocumentID,
+		Changes:  audit.Diff(map[string]any{"status": req.Status}, map[string]any{"status": updated.Status}),
+		Metadata: map[string]any{"request_id": updated.ID, "reason": reason},
+	})
 }
 
 // FilterDocumentAdministrators keeps the people who may administer the document

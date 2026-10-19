@@ -225,9 +225,12 @@ const (
 	// level), declined carries nothing but the request id. The requester is
 	// never the actor of either.
 	ActionDocumentAccessRequested = "document.access_requested"
-	// The manager's two answers (w2).
-	ActionDocumentAccessRequestApproved = "document.access_request_approved"
-	ActionDocumentAccessRequestDeclined = "document.access_request_declined"
+	// The manager's answers (w2), plus the cancellation recorded when a pending
+	// request closes because the document was archived or the requester is no
+	// longer an active member.
+	ActionDocumentAccessRequestApproved  = "document.access_request_approved"
+	ActionDocumentAccessRequestDeclined  = "document.access_request_declined"
+	ActionDocumentAccessRequestCancelled = "document.access_request_cancelled"
 
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit

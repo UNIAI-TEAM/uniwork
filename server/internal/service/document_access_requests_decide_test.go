@@ -83,6 +83,25 @@ func (f *accessRequestFixture) decisionAuditMeta(t *testing.T, action, documentI
 	return out
 }
 
+// assertCancelledAudit verifies that one committed
+// document.access_request_cancelled audit row exists for the document with the
+// status diff and the expected request_id and reason.
+func (f *accessRequestFixture) assertCancelledAudit(t *testing.T, documentID, requestID, wantReason string) {
+	t.Helper()
+	var changesText, metaText string
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT changes::text, metadata::text FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		audit.ActionDocumentAccessRequestCancelled, documentID).Scan(&changesText, &metaText); err != nil {
+		t.Fatalf("cancelled audit row: %v", err)
+	}
+	if !strings.Contains(changesText, `"status"`) || !strings.Contains(changesText, `"pending"`) || !strings.Contains(changesText, `"cancelled"`) {
+		t.Fatalf("cancelled changes = %s, want status pending -> cancelled", changesText)
+	}
+	if !strings.Contains(metaText, requestID) || !strings.Contains(metaText, wantReason) {
+		t.Fatalf("cancelled metadata = %s, want request_id %q and reason %q", metaText, requestID, wantReason)
+	}
+}
+
 // liveShares counts the live grants of one document, optionally for one
 // principal.
 func (f *accessRequestFixture) liveShares(t *testing.T, documentID string, principalID string) []db.DocumentShare {
@@ -380,6 +399,10 @@ func TestDocumentAccessRequestDecisionClosed(t *testing.T) {
 		if len(f.liveShares(t, doc.ID, "")) != 0 {
 			t.Fatal("an archived document gained a share")
 		}
+		f.assertCancelledAudit(t, doc.ID, reqID, "archived")
+		if n := f.countDecidedOutbox(t, doc.ID); n != 0 {
+			t.Fatalf("decided outbox rows = %d, want none: a cancel emits no frame", n)
+		}
 	})
 }
 
@@ -482,6 +505,7 @@ func TestDocumentAccessRequestApproveDeactivatedRequester(t *testing.T) {
 	if n := f.countDecidedOutbox(t, doc.ID); n != 0 {
 		t.Fatalf("decided outbox rows = %d, want none: a cancel emits no frame", n)
 	}
+	f.assertCancelledAudit(t, doc.ID, reqID, "requester_inactive")
 }
 
 // TestDocumentAccessRequestConcurrentApprovers is A05's race: two managers

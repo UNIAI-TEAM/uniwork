@@ -1243,6 +1243,15 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDocumentAccessRequestCancelled: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ApproveDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID, "view"); !codedIs(err, "access_request_closed") {
+				t.Fatalf("want access_request_closed, got %v", err)
+			}
+		},
 		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
 			svc, docID, req := f.documentEditRequest(t)
 			if _, err := svc.AnswerDocumentEditRequest(f.ctx, Human(f.owner.ID), docID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "decline", LockID: req.Request.LockID}); err != nil {
@@ -1815,6 +1824,7 @@ func auditActions() []string {
 		audit.ActionDocumentAccessRequested,
 		audit.ActionDocumentAccessRequestApproved,
 		audit.ActionDocumentAccessRequestDeclined,
+		audit.ActionDocumentAccessRequestCancelled,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentCommitIntentRenewed,
