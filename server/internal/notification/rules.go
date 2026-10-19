@@ -50,6 +50,16 @@ type DocumentReadChecker interface {
 	FilterDocumentReaders(ctx context.Context, documentID string, userIDs []string) ([]string, error)
 }
 
+// DocumentAdministerChecker is the administer twin of DocumentReadChecker
+// (DOC-07, R1-6): the subset of userIDs that may administer the document right
+// now. The existing read port cannot answer it - an AdminScope caller
+// administers a restricted document they cannot read - so the request rule
+// needs its own. DocumentService implements it; it is injected through
+// SetDocumentAdministrators, and unwired the request rule sends nothing.
+type DocumentAdministerChecker interface {
+	FilterDocumentAdministrators(ctx context.Context, documentID string, userIDs []string) ([]string, error)
+}
+
 // SummaryChecker says whether AI meeting summaries are open to an
 // organization (plan and model). MeetingService implements it; it is
 // injected through SetMeetingSummaries so the rule never guesses (C-11 §9.1 V1).
@@ -98,6 +108,7 @@ type env struct {
 	members   MemberChecker
 	orgs      OrgMemberChecker
 	docs      DocumentReadChecker
+	docAdmins DocumentAdministerChecker
 	summaries SummaryChecker
 }
 
@@ -124,6 +135,10 @@ var rules = map[string]rule{
 	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
 	// effective level on the document.
 	"document.shared": ruleDocumentShared,
+	// DOC-07 (UNI-1631): a person asked a document's managers for access, and
+	// the answer that reaches the requester wherever they are.
+	"document.access_requested":       ruleDocumentAccessRequested,
+	"document.access_request_decided": ruleDocumentAccessRequestDecided,
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
 	// document; the ACL owner hears once per archive batch.
 	"document.archived":      ruleDocumentTrashed,
@@ -722,6 +737,209 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 			"document_id": doc.ID,
 			"level":       level,
 		},
+	}}, nil
+}
+
+// ruleDocumentAccessRequested tells a document's managers that somebody asked
+// for access (DOC-07 §3.1): the ACL owner while they are still an effective
+// member, and everyone holding a live manage share; when neither exists, the
+// workspace owners and admins hear instead - the people who could administer
+// the document through AdminScope, and who may not hold a share row at all.
+//
+// The recipient list is filtered through FilterDocumentAdministrators at
+// delivery time, so a manager whose share was revoked, or who was demoted or
+// deactivated since the request, hears nothing. The actor is never a
+// recipient: a manager who asks for a document they administer hears no
+// request of their own. The document is read by id, so only the event's own
+// tenant pair is trusted.
+func ruleDocumentAccessRequested(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	docID := p["document_id"]
+	if docID == "" || p["request_id"] == "" {
+		return nil, nil
+	}
+	if e.docAdmins == nil {
+		// No administer port wired: the rule cannot tell a manager from a
+		// stranger, and sending the document's title to the wrong person is
+		// worse than silence (fail closed, like SetDocumentReaders).
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, docID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	candidates, err := documentManagerCandidates(ctx, e, doc)
+	if err != nil {
+		return nil, err
+	}
+	admins, err := e.docAdmins.FilterDocumentAdministrators(ctx, doc.ID, candidates)
+	if err != nil {
+		return nil, err
+	}
+	if len(admins) == 0 {
+		// The ACL owner and the manage shares are all gone or no longer
+		// effective, so the workspace owners and admins take over (§3.1): they
+		// administer a restricted document through AdminScope and may hold no
+		// share row at all.
+		fallback, err := workspaceAdminCandidates(ctx, e, doc)
+		if err != nil {
+			return nil, err
+		}
+		if admins, err = e.docAdmins.FilterDocumentAdministrators(ctx, doc.ID, fallback); err != nil {
+			return nil, err
+		}
+	}
+	if len(admins) == 0 {
+		return nil, nil
+	}
+	params := map[string]string{
+		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+		"document_id": doc.ID, "request_id": p["request_id"],
+	}
+	out := make([]Draft, 0, len(admins))
+	for _, uid := range admins {
+		if uid == "" || isActorOfEvent(ev, uid) {
+			continue
+		}
+		out = append(out, Draft{
+			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: KindDocumentAccessRequested, GroupKey: "document:" + doc.ID + ":access_requests",
+			ResourceType: "document", ResourceID: doc.ID,
+			ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+		})
+	}
+	return out, nil
+}
+
+// documentManagerCandidates is the §3.1 recipient list: the ACL owner and every
+// live user share at manage. Whether any of them still administers the document
+// is what FilterDocumentAdministrators answers; the caller falls back to the
+// workspace owners and admins only when that filtered list comes back empty,
+// which is exactly §3.1's "the ACL owner (while an effective member) and the
+// live manage shares; when this set is empty, the workspace's owners and
+// admins".
+func documentManagerCandidates(ctx context.Context, e env, doc db.Document) ([]string, error) {
+	shares, err := e.q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []string
+	add := func(id string) {
+		if id == "" || seen[id] {
+			return
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	if doc.AclOwnerID.Valid && !doc.OwnerKind.Valid {
+		add(doc.AclOwnerID.String)
+	}
+	for _, sh := range shares {
+		if sh.PrincipalType == "user" && sh.Level == string(service.DocumentLevelManage) {
+			add(sh.PrincipalID)
+		}
+	}
+	return out, nil
+}
+
+// workspaceAdminCandidates is the §3.1 fallback list: the owners and admins of
+// the document's own workspace.
+func workspaceAdminCandidates(ctx context.Context, e env, doc db.Document) ([]string, error) {
+	members, err := e.q.ListWorkspaceMembers(ctx, doc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, m := range members {
+		if m.Role == "owner" || m.Role == "admin" {
+			out = append(out, m.UserID)
+		}
+	}
+	return out, nil
+}
+
+// ruleDocumentAccessRequestDecided tells the requester what a manager answered
+// (DOC-07 §3.1, §4.4). The kind follows the decision: approved names the
+// document, because by the time the row renders the requester can read it;
+// declined never names it, because they never could. An approved requester who
+// is no longer an active member hears nothing (the read port refuses them); a
+// declined one still hears, because the row carries no content - the
+// organization gate alone decides, through OrgMemberChecker.
+func ruleDocumentAccessRequestDecided(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid := p["user_id"]
+	docID := p["document_id"]
+	if uid == "" || docID == "" || p["request_id"] == "" {
+		return nil, nil
+	}
+	req, err := e.q.GetDocumentAccessRequest(ctx, db.GetDocumentAccessRequestParams{
+		OrganizationID: ev.OrganizationID.String, DocumentID: docID, ID: p["request_id"],
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if req.CreatedBy != uid {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, docID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	kind := KindDocumentAccessDeclined
+	params := map[string]string{"actor": actorName(ctx, e.q, ev), "document_id": doc.ID}
+	switch req.Status {
+	case "approved":
+		// The requester just gained access; the read port re-checks it at
+		// delivery time, so a grant revoked before the consumer runs sends
+		// nothing.
+		if e.docs == nil {
+			return nil, nil
+		}
+		canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+		if err != nil || !canRead {
+			return nil, err
+		}
+		kind = KindDocumentAccessApproved
+		params["document"] = doc.Title
+	case "declined":
+		// No document name, ever: the requester was never allowed to read it
+		// (§3.4). Only the organization gate is re-checked.
+		if e.orgs == nil {
+			return nil, nil
+		}
+		if _, err := e.orgs.RequireMember(ctx, doc.OrganizationID, uid); err != nil {
+			if refused(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+	default:
+		// cancelled writes no event at all; a frame carrying one sends nothing.
+		return nil, nil
+	}
+	return []Draft{{
+		UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		Kind: kind, GroupKey: "document:" + doc.ID + ":access_decided",
+		ResourceType: "document", ResourceID: doc.ID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
 	}}, nil
 }
 

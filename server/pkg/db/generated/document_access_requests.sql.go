@@ -122,6 +122,49 @@ func (q *Queries) DeleteDocumentAccessRequests(ctx context.Context, arg DeleteDo
 	return err
 }
 
+const getDocumentAccessRequest = `-- name: GetDocumentAccessRequest :one
+SELECT id, organization_id, workspace_id, document_id, created_by, created_by_kind, requested_level, message, source_kind, source_id, status, granted_level, share_id, decided_by, decided_by_kind, decided_at, expires_at, created_at, updated_at FROM document_access_requests
+WHERE organization_id = $1
+  AND document_id = $2
+  AND id = $3
+`
+
+type GetDocumentAccessRequestParams struct {
+	OrganizationID string `json:"organization_id"`
+	DocumentID     string `json:"document_id"`
+	ID             string `json:"id"`
+}
+
+// One request of one document, read without a lock: the notification rule
+// needs the decision's status and requester and must not take a row lock
+// outside a transaction (w2).
+func (q *Queries) GetDocumentAccessRequest(ctx context.Context, arg GetDocumentAccessRequestParams) (DocumentAccessRequest, error) {
+	row := q.db.QueryRow(ctx, getDocumentAccessRequest, arg.OrganizationID, arg.DocumentID, arg.ID)
+	var i DocumentAccessRequest
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.RequestedLevel,
+		&i.Message,
+		&i.SourceKind,
+		&i.SourceID,
+		&i.Status,
+		&i.GrantedLevel,
+		&i.ShareID,
+		&i.DecidedBy,
+		&i.DecidedByKind,
+		&i.DecidedAt,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getDocumentAccessRequestForUpdate = `-- name: GetDocumentAccessRequestForUpdate :one
 SELECT id, organization_id, workspace_id, document_id, created_by, created_by_kind, requested_level, message, source_kind, source_id, status, granted_level, share_id, decided_by, decided_by_kind, decided_at, expires_at, created_at, updated_at FROM document_access_requests
 WHERE organization_id = $1

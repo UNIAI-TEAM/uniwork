@@ -220,8 +220,14 @@ const (
 	// document asked its managers for access. The requester is the actor, the
 	// metadata carries the request id, the level and whether a message was
 	// sent - never the message text, which lives only in the request row.
-	// The approve and decline commands add their own rows with w2.
+	// A manager's answer is its own row: approved carries the granted level and
+	// the share it created (absent when the requester was already at the
+	// level), declined carries nothing but the request id. The requester is
+	// never the actor of either.
 	ActionDocumentAccessRequested = "document.access_requested"
+	// The manager's two answers (w2).
+	ActionDocumentAccessRequestApproved = "document.access_request_approved"
+	ActionDocumentAccessRequestDeclined = "document.access_request_declined"
 
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit
