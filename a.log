@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+d25784ecba34b06ca173ebe4ed6d04d3b3579482
+339c7b5badcb55254b13bb6ce0c670ff95ae3cf2
+d25784ecb test(e2e): see the locked card reset live before the reload (UNI-1631)
+a7e996567 fix(documents): refresh the sent-earlier note when a decision clears the flag (UNI-1631)
+458081058 test(e2e): request access to a document against the real routes (UNI-1631)
+9b9cdf600 fix(documents): clear the locked card's sent state on a decision (UNI-1631)
+51f9a6647 test(documents): answer declines in mocks with the real SDO shape (UNI-1631)
+339c7b5ba chore: merge the G5-G7 root (5975d8f9e) into S-DOC07
+344ac1444 test(documents): verify cross-workspace access_request_decided frame invalidation (UNI-1631)
+bb1500fb4 test(documents): harden access-request isolation checks for uniform rows, source org, and list body (UNI-1631)
+621807bd0 fix(documents): evaluate access-request create flag at caller organization (UNI-1631)
+c0c1ae11f test(documents): verify administer filter drops deactivated manager with retained share (UNI-1631)
