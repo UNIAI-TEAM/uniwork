@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+479a478cd8a0e3d912fb9ff76e849b17d192159d
+479a478cd chore: merge UNI-1981 FU-G7-12-PACK4 (office prompt @4: injected instructions named by location only; fefa1f0d9) into the G5-G7 root
+0756554a2 docs: renumber the folder share-off ADR to 0036
+0c790885b chore: merge root de1176a74 (tenant export fix) into root-int2
+de1176a74 fix(documents): include document_access_requests in the tenant export
