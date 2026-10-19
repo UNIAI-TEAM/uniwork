@@ -126,15 +126,20 @@ const maskIdentifiers = (text) => maskFormulas(text.replace(URL_OR_EMAIL_RE, (m)
 // space ("=B2*(1-0.1)") are masked. A figure outside the formula stays a figure, and a masked literal credits nothing.
 const FORMULA_CALL_RE = /(?<![\p{L}\d_])[A-Z][A-Z0-9.]+\(/gu;
 const FORMULA_EXPR_RE = /(?<![\w=<>!])=(?=[A-Za-z$(])/g;
-const FORMULA_ATOM_RE = /(?:(?:'(?:[^'\n]|'')+'|[A-Za-z_][\w.]*)!)?\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?(?![\p{L}\d_(!])|\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?:%(?![\p{L}\d_]))?(?![\p{L}\d_])|"(?:[^"\n]|"")*"|(?:TRUE|FALSE)(?![\p{L}\d_])|\.{2,3}|…/uy;
+const FORMULA_ATOM_RE = /(?:(?:'(?:[^'\n]|'')+'|[A-Za-z_][\w.]*)!)?(?:\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3})(?![\p{L}\d_(!])(?:%(?![\p{L}\d_]))?|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?(?:%(?![\p{L}\d_]))?(?![\p{L}\d_])|"(?:[^"\n]|"")*"|(?:TRUE|FALSE)(?![\p{L}\d_])|\.{2,3}|…/uy;
 const FORMULA_OP_RE = /<>|<=|>=|[-+*/^&=<>]/y;
-const HAS_CELL_REF_RE = /(?:^|[^\p{L}\d_])\$?[A-Za-z]{1,3}\$?\d{1,7}(?![\p{L}\d_(!])/u;
+const HAS_CELL_REF_RE = /(?:^|[^\p{L}\d_])\$?[A-Za-z]{1,3}(?:\$?\d{1,7}|:\$?[A-Za-z]{1,3})(?![\p{L}\d_(!])/u;
 const SPREADSHEET_FN_RE = /^(?:SUBTOTAL|VLOOKUP|HLOOKUP|XLOOKUP|INDEX|MATCH|OFFSET|SUM|SUMIF|SUMIFS|AVERAGE|AVERAGEIF|AVERAGEIFS|COUNT|COUNTA|COUNTIF|COUNTIFS|MIN|MAX|IF|IFS|IFERROR|IFNA|ROUND|ROUNDUP|ROUNDDOWN)\($/;
 function formulaCallEnd(text, from) {
   let p = from;
-  for (;;) {
+  let hasArg = false;
+  for (let sawSep = false; ; sawSep = true) {
+    while (text[p] === ' ' || text[p] === '\t') p += 1;
+    if (text[p] === ',' || text[p] === ';') { p += 1; continue; }
+    if (sawSep && text[p] === ')') return hasArg ? p + 1 : -1;
     const next = formulaExprEnd(text, p, true);
     if (next < 0) return -1;
+    hasArg = true;
     p = next;
     while (text[p] === ' ' || text[p] === '\t') p += 1;
     if (text[p] === ')') return p + 1;
@@ -165,7 +170,7 @@ function formulaExprEnd(text, from, inParens) {
     i = end;
     skipWs();
     FORMULA_OP_RE.lastIndex = i;
-    if (!FORMULA_OP_RE.exec(text)) return end;
+    if (!FORMULA_OP_RE.exec(text)) return i;
     i = FORMULA_OP_RE.lastIndex;
     const next = atomEnd();
     if (next < 0) return end;
