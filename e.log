@@ -1,0 +1,10 @@
+$ (cd packages/views && npx eslint --max-warnings 0 chat/chat-mention-utils.ts documents/document-body-mention-items.tsx documents/document-body-mention-picker.test.tsx documents/document-comment-composer-mention-display.test.tsx documents/document-comment-composer.test.tsx documents/document-comment-composer.tsx documents/document-comment-entry.tsx documents/document-comment-mention-draft.ts documents/document-comment-picker-option.tsx documents/document-comment-thread.test.tsx documents/document-comment-thread.tsx documents/document-comments-keys.ts documents/document-comments-panel.test.tsx documents/document-editor.tsx documents/document-mention.test.tsx documents/documents-library-row.tsx documents/documents-page-view-actions.test.tsx documents/documents-page-view.tsx documents/source-links.test.ts documents/source-links.ts documents/source-preview-dialog.tsx documents/use-mention-picker.ts editor/extensions/mention-suggestion.tsx ) && (cd packages/core && npx eslint --max-warnings 0 documents/sources-schema.ts ); echo "ESLINT_TOUCHED_EXIT=$?"
+
+Oops! Something went wrong! :(
+
+ESLint: 9.39.5
+
+No files matching the pattern "documents/source-preview-dialog.tsx" were found.
+Please check for typing mistakes in the pattern.
+
+ESLINT_TOUCHED_EXIT=2
