@@ -34,6 +34,22 @@ function emptyKey(searching: boolean, includeNoAccess: boolean) {
   return searching ? ("noMatch" as const) : ("noCandidates" as const);
 }
 
+/** The document's mention-candidates query, shared by the comment picker and the body `@` picker. */
+export function mentionCandidatesQuery(wsId: string, documentId: string, q: string, includeNoAccess: boolean) {
+  return {
+    queryKey: [
+      ...documentKeys.mentionCandidates(wsId, documentId, q),
+      includeNoAccess ? "no_access" : "viewers",
+    ] as const,
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      listDocumentMentionCandidates(
+        documentId,
+        { q: q || undefined, include: includeNoAccess ? "no_access" : undefined },
+        signal,
+      ),
+  };
+}
+
 /** One row of the listbox: a person, a message the user cannot pick, or Retry. */
 export type PickerRow =
   | { type: "person"; id: string; candidate: MentionCandidate }
@@ -89,16 +105,7 @@ export function useMentionPicker({
 
   const q = debounced.trim();
   const query = useQuery({
-    queryKey: [
-      ...documentKeys.mentionCandidates(wsId, documentId, q),
-      includeNoAccess ? "no_access" : "viewers",
-    ] as const,
-    queryFn: ({ signal }) =>
-      listDocumentMentionCandidates(
-        documentId,
-        { q: q || undefined, include: includeNoAccess ? "no_access" : undefined },
-        signal,
-      ),
+    ...mentionCandidatesQuery(wsId, documentId, q, includeNoAccess),
     enabled: open && Boolean(wsId) && Boolean(documentId),
   });
 
