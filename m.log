@@ -1,0 +1,213 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19573 FRONTEND_ORIGIN=http://localhost:14573 API_PUBLIC_URL=http://localhost:19573 PREVIEW_ORIGIN=http://localhost:14574 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19573 NEXT_PUBLIC_WS_URL=ws://localhost:19573 NEXT_PUBLIC_APP_URL=http://localhost:14573 E2E_BASE_URL=http://localhost:14573 E2E_API_URL=http://localhost:19573 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test documents-share.spec.ts documents.spec.ts --reporter=list > /tmp/faob1-docs.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/faob1-docs.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/faob1-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/faob1-docs.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/faob1-docs.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_DOCS_EXIT=$rc"
+(node:25638) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25638) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  13 documents.spec.ts:246:1 › the library and the page editor never call the Office service (2.6s)
+
+
+  1) documents.spec.ts:169:1 › the library lists pages across its views and the tree opens one ─────
+
+    Test timeout of 360000ms exceeded.
+
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Call log:
+      - waiting for getByRole('navigation', { name: 'Điều hướng tài liệu' }).getByRole('button', { name: 'Thư mục của tôi', exact: true })
+
+
+      195 |   await expect(page.getByRole("treeitem", { name: /UniNote mới/ })).toHaveCount(0);
+      196 |
+    > 197 |   await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
+          |                                                                                     ^
+      198 |   await expect(libraryRowButton(list, /UniNote mới/)).toBeVisible({ timeout: 30_000 });
+      199 |   await expect(page.getByRole("heading", { name: "Tài liệu 1", exact: true })).toBeVisible();
+      200 |   // The sidebar views read their own endpoints (nothing is shared with anyone).
+
+    Error Context: test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents.spec.ts:169:1 › the library lists pages across its views and the tree opens one ──────
+  12 passed (7.3m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test documents-share.spec.ts documents.spec.ts --reporter=list
+===== e2e/test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents.spec.ts >> the library lists pages across its views and the tree opens one
+- Location: documents.spec.ts:169:1
+
+# Error details
+
+```
+Test timeout of 360000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 360000ms exceeded.
+Call log:
+  - waiting for getByRole('navigation', { name: 'Điều hướng tài liệu' }).getByRole('button', { name: 'Thư mục của tôi', exact: true })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - link "Tới nội dung chính" [ref=f2e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f2e6]:
+      - list [ref=f2e8]:
+        - listitem [ref=f2e9]:
+          - 'button "Documents library 1792390277052, Team library 1792390277052: chuyển workspace" [ref=f2e10]':
+            - generic [ref=f2e11]: T
+            - generic [ref=f2e13]:
+              - generic "Documents library 1792390277052" [ref=f2e14]
+              - generic "Team library 1792390277052" [ref=f2e15]
+      - navigation "Điều hướng workspace" [ref=f2e19]:
+        - list [ref=f2e22]:
+          - listitem [ref=f2e23]:
+            - link "Trang chủ" [ref=f2e24] [cursor=pointer]:
+              - /url: /documents-library-1792390277052/team-library-1792390277052
+          - listitem [ref=f2e30]:
+            - link "Hộp việc" [ref=f2e31] [cursor=pointer]:
+              - /url: /documents-library-1792390277052/team-library-1792390277052/inbox
+        - generic [ref=f2e37]:
+          - generic [ref=f2e38]: Làm việc
+          - list "Làm việc" [ref=f2e40]:
+            - listitem [ref=f2e41]:
+              - link "Công việc" [ref=f2e42] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/tasks
+            - listitem [ref=f2e48]:
+              - link "Việc của tôi" [ref=f2e49] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/my-tasks
+            - listitem [ref=f2e55]:
+              - link "Dự án" [ref=f2e56] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/projects
+            - listitem [ref=f2e61]:
+              - link "Lịch" [ref=f2e62] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/calendar
+        - generic [ref=f2e67]:
+          - generic [ref=f2e68]: Trao đổi
+          - list "Trao đổi" [ref=f2e70]:
+            - listitem [ref=f2e71]:
+              - link "Email Hub" [ref=f2e72] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/email
+            - listitem [ref=f2e78]:
+              - link "Cuộc họp" [ref=f2e79] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/meetings
+            - listitem [ref=f2e85]:
+              - link "Tài liệu" [ref=f2e86] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/documents
+            - listitem [ref=f2e92]:
+              - link "Trò chuyện" [ref=f2e93] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/chat
+            - listitem [ref=f2e98]:
+              - link "Danh bạ" [ref=f2e99] [cursor=pointer]:
+                - /url: /documents-library-1792390277052/team-library-1792390277052/people
+      - list [ref=f2e108]:
+        - listitem [ref=f2e109]:
+          - 'button "Documents library, documents-library-1792390277052@example.com: tài khoản" [ref=f2e110]':
+            - generic [ref=f2e111]: D
+            - generic [ref=f2e112]:
+              - generic "Documents library" [ref=f2e113]
+              - generic "documents-library-1792390277052@example.com" [ref=f2e114]
+      - button "Ẩn/hiện thanh bên" [ref=f2e117]
+    - main [ref=f2e118]:
+      - generic [ref=f2e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f2e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f2e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f2e123]:
+          - button "Hỏi UNI (Ctrl+J)" [ref=f2e124] [cursor=pointer]
+          - button "Thông báo" [ref=f2e125] [cursor=pointer]
+          - button "Tạo việc" [ref=f2e126] [cursor=pointer]
+          - button "Giao diện" [ref=f2e127] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f2e128] [cursor=pointer]
+      - generic [ref=f2e131]:
+        - complementary [ref=f2e132]:
+          - navigation "Điều hướng tài liệu" [ref=f2e133]:
+            - button "Tài liệu của workspace" [ref=f2e134]
+            - button "Gần đây" [ref=f2e140]
+            - button "Gắn sao" [ref=f2e146]
+            - button "Được chia sẻ với tôi" [ref=f2e151]
+            - button "Tôi đã chia sẻ" [ref=f2e159]
+            - button "Lưu trữ" [ref=f2e168]
+            - button "Thùng rác" [ref=f2e174]
+            - generic [ref=f2e180]:
+              - heading "Thư mục" [level=3] [ref=f2e181]
+              - button "Tạo thư mục" [ref=f2e182]
+            - generic [ref=f2e184]:
+              - tree "Cây tài liệu" [ref=f2e185]:
+                - treeitem "Thư mục của tôi Riêng tư Thao tác cho Thư mục của tôi" [level=1] [ref=f2e186] [cursor=pointer]:
+                  - generic "Thư mục của tôi" [ref=f2e193]
+                  - generic [ref=f2e194]: Riêng tư
+                  - button "Thao tác cho Thư mục của tôi" [ref=f2e199]
+              - status [ref=f2e200]
+            - heading "Từ nơi khác" [level=3] [ref=f2e202]
+            - button "Trò chuyện" [ref=f2e203]
+            - button "Cuộc họp" [ref=f2e208]
+            - button "Email" [ref=f2e214]
+            - button "Công việc" [ref=f2e220]===== S9_SERVER_AI
+06:08:53.865 INF local storage adapter ready dir=/tmp/uniwork-uploads
+06:08:53.868 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+06:08:53.869 INF ai gateway enabled component=server provider=fake
+06:10:50.225 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=9µs request_id=cursor/48Nz0qCwNU-000169 correlation_id=ae8d71e1822920ce4d7b034d712c4e2a trace_id=ae8d71e1822920ce4d7b034d712c4e2a span_id=beca3e3ac026e386
+06:10:50.235 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=9.178ms request_id=cursor/48Nz0qCwNU-000170 correlation_id=fc5bb28460b081b6d5404b19f0526d4a trace_id=fc5bb28460b081b6d5404b19f0526d4a span_id=714cf2772b29896b organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:10:51.580 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=19.795ms request_id=cursor/48Nz0qCwNU-000209 correlation_id=6007b178e41cc425100c633965c46435 trace_id=6007b178e41cc425100c633965c46435 span_id=4657cac7480f4972 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:10:52.351 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=9.82ms request_id=cursor/48Nz0qCwNU-000254 correlation_id=7b387daeb13832ec6e9873bf3f3f1331 trace_id=7b387daeb13832ec6e9873bf3f3f1331 span_id=28f22ff3536a0669 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:10:53.890 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=9µs request_id=cursor/48Nz0qCwNU-000318 correlation_id=7f4a836bc3c12b6539fd7baa0ce3e6c2 trace_id=7f4a836bc3c12b6539fd7baa0ce3e6c2 span_id=aee3f0b9564852bd
+06:10:53.910 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=13.75ms request_id=cursor/48Nz0qCwNU-000324 correlation_id=f629ca3596ef0f2b622dcd71c52c54c3 trace_id=f629ca3596ef0f2b622dcd71c52c54c3 span_id=6a5edb99d4c97a50 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:10:54.908 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=14.786ms request_id=cursor/48Nz0qCwNU-000362 correlation_id=0411f6a540f001414c0282fce6d39b76 trace_id=0411f6a540f001414c0282fce6d39b76 span_id=e5e99e6a1ad32484 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:10:57.040 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=10µs request_id=cursor/48Nz0qCwNU-000462 correlation_id=28ff42a0ccec978a5848a668fc565f1e trace_id=28ff42a0ccec978a5848a668fc565f1e span_id=36ef1b310b7ec6ff
+06:10:57.058 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=8.486ms request_id=cursor/48Nz0qCwNU-000469 correlation_id=69794c36466c77c7efe0e8d6807ffc59 trace_id=69794c36466c77c7efe0e8d6807ffc59 span_id=cb252991b9a85380 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:10:57.622 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=14.427ms request_id=cursor/48Nz0qCwNU-000480 correlation_id=691419dfe66679eb0025fc18bdc16fd5 trace_id=691419dfe66679eb0025fc18bdc16fd5 span_id=5237705791f6a975 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:01.408 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=6µs request_id=cursor/48Nz0qCwNU-000558 correlation_id=00ce5ee947db9c23e76fc68660cc2e90 trace_id=00ce5ee947db9c23e76fc68660cc2e90 span_id=a3eaf82377e34d01
+06:11:01.430 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=17.221ms request_id=cursor/48Nz0qCwNU-000566 correlation_id=798a301fe24bfaf2f49cbee7096c254f trace_id=798a301fe24bfaf2f49cbee7096c254f span_id=a4265b404fce54b3 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:02.458 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=12.614ms request_id=cursor/48Nz0qCwNU-000598 correlation_id=586ea904bb1b9ea94cda1b535f9ca2ae trace_id=586ea904bb1b9ea94cda1b535f9ca2ae span_id=2319e0a1193d6ae1 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:04.122 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=16.994ms request_id=cursor/48Nz0qCwNU-000663 correlation_id=143613fe8a351fac88696b71e33abb7d trace_id=143613fe8a351fac88696b71e33abb7d span_id=2d25e29f68c92563 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:05.481 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=9µs request_id=cursor/48Nz0qCwNU-000707 correlation_id=ac50088b1452dbfdf74a0407d49cfb5a trace_id=ac50088b1452dbfdf74a0407d49cfb5a span_id=1e817f489892a7d3
+06:11:05.512 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=20.331ms request_id=cursor/48Nz0qCwNU-000711 correlation_id=303a8a99a931c372074b46d6fe37c347 trace_id=303a8a99a931c372074b46d6fe37c347 span_id=47d6e68e30a893cd organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:06.523 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=4.59ms request_id=cursor/48Nz0qCwNU-000747 correlation_id=f1808b87d10e080fc251b038ef9ee304 trace_id=f1808b87d10e080fc251b038ef9ee304 span_id=2776eeb8851829a1 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:09.583 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=5µs request_id=cursor/48Nz0qCwNU-000836 correlation_id=f8865d50f168bebbed5c0f1cd336cb92 trace_id=f8865d50f168bebbed5c0f1cd336cb92 span_id=3a4728e32ce671ee
+06:11:09.598 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=6.397ms request_id=cursor/48Nz0qCwNU-000840 correlation_id=a42fc608d22455c32745bb6e69c692ab trace_id=a42fc608d22455c32745bb6e69c692ab span_id=8b90aedd726715ca organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:10.607 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=9.026ms request_id=cursor/48Nz0qCwNU-000876 correlation_id=b0208fa7a2de811fd4f196afd36cd098 trace_id=b0208fa7a2de811fd4f196afd36cd098 span_id=0e60c67b08bf09f8 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:12.519 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=4µs request_id=cursor/48Nz0qCwNU-000944 correlation_id=866db536e1c4151ab1d6479facf78c0b trace_id=866db536e1c4151ab1d6479facf78c0b span_id=a0093be8b1e5d906
+06:11:12.535 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=10.283ms request_id=cursor/48Nz0qCwNU-000949 correlation_id=8c99f38885319d1e8f24a0d7b8bb44c0 trace_id=8c99f38885319d1e8f24a0d7b8bb44c0 span_id=06ea94bcf9abd57d organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:13.585 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=15.737ms request_id=cursor/48Nz0qCwNU-000985 correlation_id=2d2bf7a2f24653fb0c21472cea3870a0 trace_id=2d2bf7a2f24653fb0c21472cea3870a0 span_id=862a01fa0a711519 organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:15.768 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=12µs request_id=cursor/48Nz0qCwNU-001068 correlation_id=1be38328c352a1eff83c5c5688630373 trace_id=1be38328c352a1eff83c5c5688630373 span_id=6b0b8b4d9fa11460
+06:11:15.775 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=5.944ms request_id=cursor/48Nz0qCwNU-001069 correlation_id=70ae54ac2bcc74e92a9e1e00d7f2e02d trace_id=70ae54ac2bcc74e92a9e1e00d7f2e02d span_id=c14c16d76d3e54be organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:16.858 INF http request method=GET path=/api/v1/workspaces/01M59CHCPW8P1Q7G5GGTYS0R3X/ai/capabilities status=200 duration=7.633ms request_id=cursor/48Nz0qCwNU-001104 correlation_id=fad60b77abfe250e5d787273d13b8e30 trace_id=fad60b77abfe250e5d787273d13b8e30 span_id=a522cad7149b117e organization_id=01M59CHCPE16B25NFGTZ20G9T6 workspace_id=01M59CHCPW8P1Q7G5GGTYS0R3X actor_id=01M59CHCNDYB58HJAYVFSG323V actor_kind=human
+06:11:18.696 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CJB2CQCV6ASYEV8P23TM5/ai/capabilities status=200 duration=13µs request_id=cursor/48Nz0qCwNU-001161 correlation_id=110e0b4757b6a544d99d4c341344c8c0 trace_id=110e0b4757b6a544d99d4c341344c8c0 span_id=a66dcd64a42d397a
+06:11:18.703 INF http request method=GET path=/api/v1/workspaces/01M59CJB2CQCV6ASYEV8P23TM5/ai/capabilities status=200 duration=4.818ms request_id=cursor/48Nz0qCwNU-001165 correlation_id=d90e491a774c5daab51564eae0d769b2 trace_id=d90e491a774c5daab51564eae0d769b2 span_id=0de9d4e0f765c9af organization_id=01M59CJB0B1KRR7BT3VJFSRMBE workspace_id=01M59CJB2CQCV6ASYEV8P23TM5 actor_id=01M59CJAKE3YVSGK6XP7SKQ4TY actor_kind=human
+06:11:19.575 INF http request method=GET path=/api/v1/workspaces/01M59CJB2CQCV6ASYEV8P23TM5/ai/capabilities status=200 duration=4.316ms request_id=cursor/48Nz0qCwNU-001210 correlation_id=1bbc960710a56f351c91438226b2b0d0 trace_id=1bbc960710a56f351c91438226b2b0d0 span_id=f8d6d2c8c4ccd736 organization_id=01M59CJB0B1KRR7BT3VJFSRMBE workspace_id=01M59CJB2CQCV6ASYEV8P23TM5 actor_id=01M59CJAKE3YVSGK6XP7SKQ4TY actor_kind=human
+06:11:23.415 INF http request method=GET path=/api/v1/workspaces/01M59CJB2CQCV6ASYEV8P23TM5/ai/capabilities status=200 duration=12.462ms request_id=cursor/48Nz0qCwNU-001276 correlation_id=b7ff278e9cd2f20370b10d14279e69bd trace_id=b7ff278e9cd2f20370b10d14279e69bd span_id=3fec613b96ad7d71 organization_id=01M59CJB0B1KRR7BT3VJFSRMBE workspace_id=01M59CJB2CQCV6ASYEV8P23TM5 actor_id=01M59CJAKE3YVSGK6XP7SKQ4TY actor_kind=human
+06:11:24.373 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CJB2CQCV6ASYEV8P23TM5/ai/capabilities status=200 duration=8µs request_id=cursor/48Nz0qCwNU-001316 correlation_id=a4ceed8aac78652180b89d3c73671b1e trace_id=a4ceed8aac78652180b89d3c73671b1e span_id=0f8600bd7ec5bf92
+06:11:24.386 INF http request method=GET path=/api/v1/workspaces/01M59CJB2CQCV6ASYEV8P23TM5/ai/capabilities status=200 duration=10.536ms request_id=cursor/48Nz0qCwNU-001321 correlation_id=e9a3db0fb6fe059b94d37ef63503ae28 trace_id=e9a3db0fb6fe059b94d37ef63503ae28 span_id=38dba29670fec835 organization_id=01M59CJB0B1KRR7BT3VJFSRMBE workspace_id=01M59CJB2CQCV6ASYEV8P23TM5 actor_id=01M59CJAKE3YVSGK6XP7SKQ4TY actor_kind=human
+06:11:26.299 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CJJECGWRJ2WTANPDQEWDQ/ai/capabilities status=200 duration=10µs request_id=cursor/48Nz0qCwNU-001377 correlation_id=71eacf3456ca4c4b7b4119d9e46eaa76 trace_id=71eacf3456ca4c4b7b4119d9e46eaa76 span_id=9fa1051422b344ae
+06:11:26.308 INF http request method=GET path=/api/v1/workspaces/01M59CJJECGWRJ2WTANPDQEWDQ/ai/capabilities status=200 duration=5.221ms request_id=cursor/48Nz0qCwNU-001380 correlation_id=3e816c3ba441679723f09e62157c65d3 trace_id=3e816c3ba441679723f09e62157c65d3 span_id=088ce69ebffe5519 organization_id=01M59CJJA373PYXMXRG0BR7MW7 workspace_id=01M59CJJECGWRJ2WTANPDQEWDQ actor_id=01M59CJHXFJTNF87WJ1RGK7CE5 actor_kind=human
+06:11:27.148 INF http request method=GET path=/api/v1/workspaces/01M59CJJECGWRJ2WTANPDQEWDQ/ai/capabilities status=200 duration=10.504ms request_id=cursor/48Nz0qCwNU-001400 correlation_id=77f908a5aa48854c4424a120386f120c trace_id=77f908a5aa48854c4424a120386f120c span_id=d20f539e0c3eff50 organization_id=01M59CJJA373PYXMXRG0BR7MW7 workspace_id=01M59CJJECGWRJ2WTANPDQEWDQ actor_id=01M59CJHXFJTNF87WJ1RGK7CE5 actor_kind=human
+06:11:30.384 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CJPFD3D0AYAMQH186QDGQ/ai/capabilities status=200 duration=6µs request_id=cursor/48Nz0qCwNU-001483 correlation_id=07fa39e42153d96cb72700127b92d257 trace_id=07fa39e42153d96cb72700127b92d257 span_id=bfe2b5647ce8c64d
+06:11:30.394 INF http request method=GET path=/api/v1/workspaces/01M59CJPFD3D0AYAMQH186QDGQ/ai/capabilities status=200 duration=6.085ms request_id=cursor/48Nz0qCwNU-001492 correlation_id=41f3f1242ff5560cf5a8ee8877039827 trace_id=41f3f1242ff5560cf5a8ee8877039827 span_id=1635199dab7dbe66 organization_id=01M59CJPD0FGHPPH0WGXVPQF52 workspace_id=01M59CJPFD3D0AYAMQH186QDGQ actor_id=01M59CJNWWFNTVN04HZDMSW53B actor_kind=human
+06:11:31.182 INF http request method=GET path=/api/v1/workspaces/01M59CJPFD3D0AYAMQH186QDGQ/ai/capabilities status=200 duration=5.378ms request_id=cursor/48Nz0qCwNU-001510 correlation_id=876b6923be40a5db830defffc8bd7e0f trace_id=876b6923be40a5db830defffc8bd7e0f span_id=179d03be3a4bacb8 organization_id=01M59CJPD0FGHPPH0WGXVPQF52 workspace_id=01M59CJPFD3D0AYAMQH186QDGQ actor_id=01M59CJNWWFNTVN04HZDMSW53B actor_kind=human
+06:11:32.359 INF http request method=GET path=/api/v1/workspaces/01M59CJPFD3D0AYAMQH186QDGQ/ai/capabilities status=200 duration=7.266ms request_id=cursor/48Nz0qCwNU-001565 correlation_id=96713a27777cc4de50995d8b6fb371f0 trace_id=96713a27777cc4de50995d8b6fb371f0 span_id=ffd96311358a3ee6 organization_id=01M59CJPD0FGHPPH0WGXVPQF52 workspace_id=01M59CJPFD3D0AYAMQH186QDGQ actor_id=01M59CJNWWFNTVN04HZDMSW53B actor_kind=human
+06:17:31.387 INF http request method=OPTIONS path=/api/v1/workspaces/01M59CXQ0S54KJJ06V1HW0X8XX/ai/capabilities status=200 duration=7µs request_id=cursor/48Nz0qCwNU-001668 correlation_id=cc66cb75f3415a0da008eb6c23954675 trace_id=cc66cb75f3415a0da008eb6c23954675 span_id=7c128a3c2bd2538f
+06:17:31.395 INF http request method=GET path=/api/v1/workspaces/01M59CXQ0S54KJJ06V1HW0X8XX/ai/capabilities status=200 duration=3.119ms request_id=cursor/48Nz0qCwNU-001673 correlation_id=7cbd540b1480fc4fecbd51a9eb7b9c72 trace_id=7cbd540b1480fc4fecbd51a9eb7b9c72 span_id=204f338d0c1bc8fa organization_id=01M59CXPY6C93X4C895XW9PMZB workspace_id=01M59CXQ0S54KJJ06V1HW0X8XX actor_id=01M59CXPK1VT2ZKAQ3JQ2CBP49 actor_kind=human
+06:17:32.227 INF http request method=GET path=/api/v1/workspaces/01M59CXQ0S54KJJ06V1HW0X8XX/ai/capabilities status=200 duration=13.157ms request_id=cursor/48Nz0qCwNU-001688 correlation_id=43e5892ba6f10aa53bf5fe44e32e4c98 trace_id=43e5892ba6f10aa53bf5fe44e32e4c98 span_id=15d0088d6552f0b5 organization_id=01M59CXPY6C93X4C895XW9PMZB workspace_id=01M59CXQ0S54KJJ06V1HW0X8XX actor_id=01M59CXPK1VT2ZKAQ3JQ2CBP49 actor_kind=human
+
+E2E_DOCS_EXIT=1

@@ -1,0 +1,19 @@
+$ pnpm --filter @uniwork/views lint 2>&1 | tail -20; rc=${PIPESTATUS[0]}; echo; echo "VIEWS_LINT_EXIT=$rc"
+
+> @uniwork/views@0.0.0 lint /workspace/packages/views
+> eslint . --max-warnings 0
+
+
+/workspace/packages/views/chat/chat-page-content.tsx
+  520:1  error  File has too many lines (501). Maximum allowed is 500  max-lines
+
+/workspace/packages/views/email-hub/email-hub-view.tsx
+  537:1  error  File has too many lines (504). Maximum allowed is 500  max-lines
+
+✖ 2 problems (2 errors, 0 warnings)
+
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 lint: `eslint . --max-warnings 0`
+Exit status 1
+
+VIEWS_LINT_EXIT=1

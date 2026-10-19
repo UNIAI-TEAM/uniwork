@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+6469c06a44e70015722a1fa2d891cf07f610885e
+6469c06a44e70015722a1fa2d891cf07f610885e
+6469c06a4 chore: merge UNINOTE-TOOLBAR formatting toolbar, first-use tip and shortcuts help (UNI-1955, e5d8f674b) into the G5-G7 root
+9e9dad319 chore: merge G712-A1-CONFIRM AI uniwork writes are proposals only test (UNI-1923 D half, d4a16d653) into the G5-G7 root
+62cd9ab99 chore(knip): ignore the dbus-run-session binary the keyring fault test calls
+e5d8f674b fix(documents): toolbar order, nowrap style trigger, visible pressed state, help reachable from the tip on phones (UNI-1955 visual)
+9bc63e10f fix(documents): UniNote first-use tip is titled Mẹo dùng UniNote / UniNote tips (UNI-1955)
+14f0fd260 fix(documents): toolbar keeps its Tab stop, drops false toggle semantics, overflows by container width (UNI-1955 review)
+
+SYNCED_EXIT=0
