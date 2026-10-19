@@ -483,8 +483,9 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, fork main `55b587bfe` (`0.1.0-55b587b`, REPIN-2 / UNI-1919,
-replacing `0.1.0-82c8381` (the first REPIN-2 pin: UNI-1919 `uniworkBoundForAi` on the web frames + UNI-1920, fork main
+All six modules are pinned to one fork commit, fork main `3d4ccd18f` (`0.1.0-3d4ccd1`, REPIN-3 / UNI-1919,
+replacing `0.1.0-55b587b` (the second REPIN-2 pin: fork main `55b587bfe`, the SVR-1 fix plus the fork-main merges up to
+`c5bf9f411`), `0.1.0-82c8381` (the first REPIN-2 pin: UNI-1919 `uniworkBoundForAi` on the web frames + UNI-1920, fork main
 `82c8381e1`), `0.1.0-5932073` (UNI-1813: UNI-1905 `.txt` plain mode in the markdown web module and the UNI-1909 SAVE-01
 residuals), `0.1.0-c9181fa`, `0.1.0-cc35602`, `0.1.0-5a72c13` and the earlier `0.1.0-fa22cd9` and `0.1.0-0d77962` REPIN-1 /
 UNI-1825 candidates: fork main after merging SIZE-F1 and LAG-F1 at `cc35602c8` and the SHEETS-BUFFER-01 fix at `c9181fac7`
@@ -496,11 +497,17 @@ signal (the shared `uniworkBoundForAi` rule: the PDF, Docs, Slides and HTML web 
 HTML hides `plan_page`/`write_document` on a bound page and shows `BOUND_NOTE` only on an editable bound page, Markdown
 adds the note only; `55b587bfe` adds over `82c8381e1` the fork-main merges up to `c5bf9f411` (UNI-1957 Docs parity, G5-13 batch 2 / UNI-1362 incl. the offline pin settle and library boundary guard, UNI-1922 Sheets AI grid growth, UNI-1953 create types, UNI-1948 web slidesApi parity, UNI-1931 mobile 390 Docs, UNI-1932 tab sidebar) and the SVR-1 fix — the HTML `AiPanel` now forwards `uniworkBound` into
 the document skill's access object (`66ac839f8` red test, `2946de792` fix), so a bound HTML page stops offering
-`plan_page`/`write_document` and `refuseBound` becomes reachable), UNI-1920 (the locked-out Docs "Save as a copy" the
+`plan_page`/`write_document` and `refuseBound` becomes reachable; `3d4ccd18f` adds over `55b587bfe` the fork-main merges
+UNI-1972 app comments parity (via `e21f050d9`: the shared collab thread shows the `(edited)` / `(đã sửa)` marker as a
+`collab-link collab-edited` button and regroups the thread body), UNI-1847 first save (a durable per-account first-save
+record, a replayed first-save key never re-binds, a first save never writes over an existing store copy), UNI-1975 folder
+share off, UNI-1963 date bomb, UNI-1918 save-path residuals (fork half), UNI-1958 copy sync and UNI-1920 docs hooks (the
+Docs watermark effect clears its timers once disposed), all desktop-shell or shared-kit changes with no frame protocol
+change), UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
 frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 frame protocol and UI events (with
 `protocolSha256` matching the vendored `packages/core/office/docs-frame-{protocol,endpoint,host}.ts`; the fork touched
-nothing under `web/docs/protocol` between `82c8381e1` and `55b587bfe` (and only its README between `5932073ee` and
+nothing under `web/docs/protocol` between `82c8381e1` and `3d4ccd18f` (and only its README between `5932073ee` and
 `82c8381e1`), so the protocol hash and the `f6395d85d` vendored headers are unchanged), the AI model picker that keeps a
 provider with an empty model list (`7888df06c`, the UniWork AI row; the S7-S9 UX floor checks no longer skip), the UXF-01/08/09
 fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-1824) web-frame UX floor fixes (UXF-03 Docs S5
@@ -509,8 +516,8 @@ fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-18
 UXF-07 full-width S5 below 768 px, UXF-10 fixed window live nodes created at frame init, and the `ConflictIo.saveCopy` contract
 for UXF-02), the G8-11 Discussion panel web side, the G6-09 AI edit-undo tables, and the DOC-05 comment level,
 `comments.shareView` and `canActOnComment` root author. Built clean (no `-dirty` suffix) with `npm run build:web -- --all` in a
-detached worktree of `55b587bfe` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
-checksum file), published at `web-0.1.0-55b587b` (`dist-web-0.1.0-55b587b.tar.gz`, sha256 `f2a3ff28...9e21`), and
+detached worktree of `3d4ccd18f` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
+checksum file), published at `web-0.1.0-3d4ccd1` (`dist-web-0.1.0-3d4ccd1.tar.gz`, sha256 `91073aac...6ae2`), and
 written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` alongside `source.json`.
 UXF-03/04/05/06/07/10 have their expected-fail markers removed in `e2e/office-ux-floor.spec.ts` (since `0.1.0-5a72c13`, waiting
 for the cloud e2e run to confirm); UXF-02's marker left with UNI-1872 (`09da7ebb9`): the D web host supplies
@@ -530,16 +537,16 @@ headers did not change from `36e9e23`, only version, SHA and manifest digest. Wr
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
-Sizes of the `0.1.0-55b587b` bundles:
+Sizes of the `0.1.0-3d4ccd1` bundles:
 
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
 | `docs` | `docs.pin.json` | 46 | 17.58 MiB | 11.92 MiB | 5.78 MiB | none |
-| `pdf` | `pdf.pin.json` | 229 | 17.16 MiB | 7.99 MiB | 2.65 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
-| `markdown` | `markdown.pin.json` | 90 | 8.72 MiB | 2.78 MiB | 3.63 MiB | none |
-| `html` | `html.pin.json` | 7 | 2.47 MiB | 0.78 MiB | 2.46 MiB | `frame-src 'self'` + `documents[/preview.html]` |
-| `slides` | `slides.pin.json` | 19 | 6.22 MiB | 2.46 MiB | 4.83 MiB | `media-src blob:` |
-| `sheets` | `sheets.pin.json` | 219 | 27.70 MiB | 7.90 MiB | 4.12 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
+| `pdf` | `pdf.pin.json` | 229 | 17.16 MiB | 7.99 MiB | 2.66 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
+| `markdown` | `markdown.pin.json` | 90 | 8.73 MiB | 2.78 MiB | 3.63 MiB | none |
+| `html` | `html.pin.json` | 7 | 2.48 MiB | 0.78 MiB | 2.46 MiB | `frame-src 'self'` + `documents[/preview.html]` |
+| `slides` | `slides.pin.json` | 19 | 6.23 MiB | 2.46 MiB | 4.83 MiB | `media-src blob:` |
+| `sheets` | `sheets.pin.json` | 219 | 27.70 MiB | 7.90 MiB | 4.13 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
 
 The `pdf` bundle grew by 2.6 MiB at `b60d5ff`: it ships 12 real Liberation TTFs
 (about 4.2 MiB, `pdf/<version>/fonts/`, fetched lazily by Insert text, so the initial
@@ -598,7 +605,7 @@ is byte-different on linux-arm64 and linux-x64 from the same inputs, so the fork
 keeps one checksum line per platform
 (`apps/sheets/native/xlsx-engine/wasm/xlsx-sidecar.wasm.sha256`) and
 `manifestSha256` in `sheets.pin.json` covers the wasm bytes. The pin is therefore
-the **linux-arm64 build made on bro** (wasm sha256 `bd3873bc...7445` at `55b587b`, `82c8381`, `5932073`, `c9181fa`, `cc35602` and `5a72c13`, `e56985bc...27cd` up to `0d03b18`; the arm64
+the **linux-arm64 build made on bro** (wasm sha256 `bd3873bc...7445` at `3d4ccd1`, `55b587b`, `82c8381`, `5932073`, `c9181fa`, `cc35602` and `5a72c13`, `e56985bc...27cd` up to `0d03b18`; the arm64
 line of the fork file). A tarball built on an x64 machine holds a different Sheets
 wasm, so `office-frame-sync` refuses it against this pin: publish the release
 asset from the bro tarball
