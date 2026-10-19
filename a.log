@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+3528bbb64284dec95371f270692223117e000447
+5975d8f9e4532e8c33f5564462386d65c701258c
+3528bbb64 chore: merge review-r1 fix slice fx1 into CHAT-DOC-SHARE
+5c52a8408 test(chat): the handler send test expects the stored title
+dde7ca07b chore: merge review-r1 fix slice fx2 into CHAT-DOC-SHARE
+01f40a9fc test(migrations): clear chat message kinds the down migrations refuse
+158059cdb fix(chat): version line returns its SQL errors; review r1 nits for the document share
+54d2d9771 test(chat): pin conversion metadata, single-row card, release and share cap
+308d28980 fix(chat): keep reactions and pin on conversion, resolve single-row answers
+c1129a7e7 chore: merge the G5-G7 root (5975d8f9e) into CHAT-DOC-SHARE

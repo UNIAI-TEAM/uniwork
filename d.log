@@ -1,0 +1,8 @@
+$ (. scripts/local-env.sh && cd server && psql "$TEST_DATABASE_URL" -tAc "SELECT kind, count(*) FROM chat_messages GROUP BY kind" 2>/dev/null; go test ./migrations -count=1 -v > /tmp/mig.log 2>&1); rc=$?; grep -E "^\s*--- FAIL|^(ok|FAIL)|_test.go:[0-9]+:" /tmp/mig.log | tail -10; grep -E "^--- (PASS|FAIL): (TestTasksWorkManagementUpgradeFrom106|TestSingleOwnerBackfillDemotesLaterOwners)" /tmp/mig.log; echo; echo "TEST_MIG_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/migrations	5.371s
+--- PASS: TestTasksWorkManagementUpgradeFrom106 (0.80s)
+--- PASS: TestSingleOwnerBackfillDemotesLaterOwners (0.70s)
+
+TEST_MIG_EXIT=0

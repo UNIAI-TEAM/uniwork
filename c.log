@@ -1,0 +1,27 @@
+$ (. scripts/local-env.sh && cd server && gofmt -l internal pkg cmd migrations; go vet ./internal/service ./internal/handler/... ./migrations && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/service -race -run "TestSendDocumentMessage|TestShareAttachmentAsDocument|TestCanShareAsDocument|TestDocumentVersionLine|TestDocumentCard|TestDocumentGrantRecipients|TestReactionAndPin|TestDeleteDocumentMessageKeepsAccess|TestChat|TestDocumentCommit|TestCommit|TestDocumentShare|TestEveryAudited" -count=1 -timeout 50m -v > /tmp/svc.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/svc.log | tail -20; grep -cE "^\s*--- PASS" /tmp/svc.log; grep -E "^--- (PASS|FAIL): (TestSendDocumentMessage|TestShareAttachmentAsDocument|TestCanShareAsDocument|TestDocumentVersionLine|TestDocumentCard|TestDocumentGrantRecipients|TestReactionAndPin)" /tmp/svc.log; echo; echo "TEST_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+    --- SKIP: TestDocumentCommit/minio (0.00s)
+    --- SKIP: TestDocumentCommitIdenticalBytesIsANoOp/minio (0.00s)
+ok  	github.com/unicomhub/uniwork/server/internal/service	77.130s
+294
+--- PASS: TestSendDocumentMessageCreatesDocumentGrantsAndOneMessage (0.30s)
+--- PASS: TestSendDocumentMessageReplay (0.28s)
+--- PASS: TestSendDocumentMessageRefusesNonMemberAndAgent (0.30s)
+--- PASS: TestSendDocumentMessageExcludesSenderAndSkippedMembers (0.28s)
+--- PASS: TestSendDocumentMessageLevelValidation (0.28s)
+--- PASS: TestSendDocumentMessageRefusesOverCapRoom (0.96s)
+--- PASS: TestDocumentGrantRecipientsStopAtTheCap (0.96s)
+--- PASS: TestSendDocumentMessageQuota (0.28s)
+--- PASS: TestSendDocumentMessageRefusesTypeOutsideSubset (0.25s)
+--- PASS: TestDocumentCardViewerFields (0.32s)
+--- PASS: TestDocumentCardArchivedDocumentLeaksNothing (0.28s)
+--- PASS: TestCanShareAsDocumentViewerFlag (0.37s)
+--- PASS: TestShareAttachmentAsDocument (0.34s)
+--- PASS: TestShareAttachmentAsDocumentReplayAndErrors (0.33s)
+--- PASS: TestDocumentVersionLineOnlyFromTheCard (0.34s)
+--- PASS: TestDocumentVersionLineReplaySafe (0.29s)
+--- PASS: TestShareAttachmentAsDocumentRefusesOverCapRoom (1.02s)
+--- PASS: TestReactionAndPinAnswersResolveTheDocumentCard (0.32s)
+
+TEST_SVC_EXIT=0
