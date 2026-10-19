@@ -131,6 +131,7 @@ export function ChatConversationHeader({
   const typing = typingLabel?.trim();
   return (
     <header
+      data-window-drag
       className={cn(
         "flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface pr-2 pl-3 sm:pr-3 sm:pl-5",
         className,

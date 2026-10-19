@@ -54,8 +54,12 @@ placeholders in `uniwork-be.env`.
 
 ### OpenRouter (AI gateway)
 
-ConfigMap `uniwork-be.env` ships `AI_PROVIDER=openai`, `OPENAI_BASE_URL=https://openrouter.ai/api/v1`,
-and model overrides. Create the API key secret before rollout:
+ConfigMap `uniwork-be.env` ships `AI_PROVIDER=anthropic` with `ANTHROPIC_MODEL=claude-sonnet-5`
+(context extraction stays on `claude-haiku-4-5-20251001`); the Secret needs `ANTHROPIC_API_KEY`.
+To route through OpenRouter instead, set `AI_PROVIDER=openai` and give `AI_MODEL_<CAPABILITY>` and
+`AI_MODEL_ALLOW` OpenRouter slugs (`openai/gpt-4o-mini`) in the same change.
+`TestDeployEnvResolvesPricedModels` (`server/internal/ai/deploy_env_test.go`) fails if provider and
+model names disagree or a model has no price. For the OpenRouter route, create the API key secret before rollout:
 
 ```bash
 kubectl -n uniwork create secret generic uniwork-openai \

@@ -32,6 +32,8 @@ ra mạng.
    `AI_MODEL_<CAPABILITY>` (Email Hub dùng `AI_MODEL_EMAIL_THREAD_SUMMARY`).
 4. Restart `uniwork-be`; kiểm `GET …/ai/capabilities` → `enabled: true`.
 
+`TestDeployEnvResolvesPricedModels` (`server/internal/ai/deploy_env_test.go`) đọc `deploy/app/env/uniwork-be.env` và chặn cấu hình lệch: tên model không khớp provider, model ngoài allowlist (rơi về mặc định), hoặc model chưa có giá. Rollback một đợt đổi cấu hình AI: revert commit rồi chạy `ci/scripts/rollout-uniwork.sh`.
+
 ## Số cần nhìn
 
 | Metric | Ý nghĩa | Ngưỡng |
@@ -53,6 +55,7 @@ ra mạng.
   `effective_at` mới; dòng cũ giữ `rate_id` cũ.
 - **Model mới**: thêm vào `allowedModels` (`policy.go`) và seed rate; không
   đọc tên model từ DB hay từ người dùng.
+- **Lùi migration `ai_messages.notice`** (`9991792125342925`): bản down ghi câu "Chưa đủ dữ liệu trong workspace để trả lời." vào các dòng có `notice` mà nội dung rỗng rồi mới bỏ cột, vì binary cũ phát lại mọi dòng assistant làm một lượt và provider từ chối lượt rỗng.
 
 ## UniWork AI upstream
 

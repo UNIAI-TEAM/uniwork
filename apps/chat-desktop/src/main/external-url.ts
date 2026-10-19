@@ -30,6 +30,19 @@ export async function openExternalSafely(url: string, opts: ExternalUrlOptions):
   await shell.openExternal(url);
 }
 
+// The OS page where a person turns this app's notifications on. Fixed per
+// platform and never taken from the renderer, which is why it may bypass the
+// https allowlist above; Linux has no such page.
+const NOTIFICATION_SETTINGS_URLS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: "x-apple.systempreferences:com.apple.preference.notifications",
+  win32: "ms-settings:notifications",
+};
+
+export async function openNotificationSettings(platform: NodeJS.Platform = process.platform): Promise<void> {
+  const url = NOTIFICATION_SETTINGS_URLS[platform];
+  if (url) await shell.openExternal(url);
+}
+
 // Canonical wrapper around webContents.downloadURL, same allowlist as above.
 export function downloadURLSafely(win: BrowserWindow, url: string, opts: ExternalUrlOptions): void {
   if (!isSafeExternalUrl(url, opts)) {

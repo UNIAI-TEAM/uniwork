@@ -1,7 +1,7 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { ChatRoomPreference } from "@uniwork/core/chat/room-preferences-store";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
@@ -42,6 +42,8 @@ type RowData = {
   typingNameByUserId: Record<string, string>;
   /** DM rooms' peer read pointers, for the ✓✓ on my own last message. */
   peerReadAtByRoomId: Record<string, string>;
+  /** A heading under the first row (a workspace's "Channels" under its own room); a long, virtual list goes without. */
+  sectionAfterFirst?: ReactNode;
 };
 
 /**
@@ -145,7 +147,10 @@ export function ChatSidebarList(props: RowData) {
         onKeyDown={onKeyDown}
       >
         {entries.map((entry, index) => (
-          <li key={entry.key}>{renderRow(entry, index)}</li>
+          <Fragment key={entry.key}>
+            <li>{renderRow(entry, index)}</li>
+            {index === 0 && props.sectionAfterFirst ? <li>{props.sectionAfterFirst}</li> : null}
+          </Fragment>
         ))}
       </ul>
     );

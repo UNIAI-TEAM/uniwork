@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -76,16 +77,36 @@ func BuildContext(sources []Source) (pack []Source, truncated bool) {
 	return pack, truncated
 }
 
-// RenderSources is the prompt fragment: every excerpt wrapped as untrusted
-// data with its number, so a citation can be checked and an instruction
-// inside a task description is never obeyed. The title line stays outside the
-// tag (the fake provider and the citation check read "[S#] title"), so the
-// title is forced onto that one line and, like the excerpt, cannot open or
-// close a tag.
+// untrustedTagFull is untrustedTag through the end of the tag, attributes
+// included, for stripping.
+var untrustedTagFull = regexp.MustCompile(untrustedTagPattern() + `[^>\n]*>?`)
+
+// WrapUntrusted marks s as data from source; the caller adds any newlines.
+func WrapUntrusted(source, s string) string {
+	return `<untrusted source="` + source + `">` + EscapeUntrusted(s) + `</untrusted>`
+}
+
+// StripUntrustedTags removes untrusted tags a model may echo into its answer.
+func StripUntrustedTags(s string) string {
+	// Loop: removing an inner tag can rebuild an outer one (`<<untrusted>untrusted>`).
+	for {
+		out := untrustedTagFull.ReplaceAllString(s, "")
+		if out == s {
+			return out
+		}
+		s = out
+	}
+}
+
+// RenderSources is the prompt fragment: every title and excerpt wrapped as
+// untrusted data under its number, so a citation can be checked and neither
+// a task title nor a description can carry an instruction or fake a tag. The
+// title is the block's first line (the fake provider reads it there), forced
+// onto that one line.
 func RenderSources(pack []Source) string {
 	var b strings.Builder
 	for _, s := range pack {
-		fmt.Fprintf(&b, "[%s] %s (%s)\n%s\n\n", s.ID, EscapeUntrustedLine(s.Title), EscapeUntrustedLine(s.Kind), Untrusted(s.ID, s.Excerpt))
+		fmt.Fprintf(&b, "[%s] (%s)\n%s\n\n", s.ID, EscapeUntrustedLine(s.Kind), Untrusted(s.ID, EscapeUntrustedLine(s.Title)+"\n"+s.Excerpt))
 	}
 	return b.String()
 }
