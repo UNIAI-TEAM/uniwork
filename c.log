@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19396 14396; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19396/tcp 14396/tcp 2>/dev/null; sleep 1; for p in 19396 14396; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+856e85472c6174889fe427c3fd1df739da6a1086
+856e85472 fix(documents): keep the folder name and the actions on the header row
+00e989c41 test(documents): pin shrink order and one-row layout of the folder header
+5975d8f9e chore: merge UNI-1970 follow-up comment avatars (FileService avatars in comment lists, picker name over email, 613300f35) into the G5-G7 root
+5837cbc41 chore: merge UNI-1977 FOLDER-HEADER-ONE-LINE (folder page header on one row, 38a5d310b) into the G5-G7 root
