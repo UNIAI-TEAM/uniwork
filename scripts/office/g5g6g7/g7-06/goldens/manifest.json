@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-3d4ccd1",
-  "forkSha": "3d4ccd1",
-  "capturedOn": "2026-10-19T19:48:14.540Z",
+  "pinVersion": "0.1.0-9f867d9",
+  "forkSha": "9f867d9",
+  "capturedOn": "2026-10-19T20:30:22.711Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -52,7 +52,7 @@
       "masks": []
     },
     "web/fx-docx-report-vi": {
-      "sha256": "902f8ad7ebbc77dd989bea5db823bf118059dd6f29fbd52941d66da0bc405bd4",
+      "sha256": "2000ef7acf59b583378e1f62926d8bf17651023660106618e921ef9ac5efdf79",
       "masks": []
     },
     "web/fx-pptx-deck-vi": {
@@ -60,7 +60,7 @@
       "masks": []
     },
     "web/fx-pdf-invoice-vi": {
-      "sha256": "fa0e3732c09bf4a50663508002585db2c001132718e4f91fe4a83b2ee96f9da1",
+      "sha256": "ec7803ef7ba584df41dca07471e021d861bbd12727e65f878e28f85a7934f68f",
       "masks": []
     },
     "web/fx-md-notes-vi": {
