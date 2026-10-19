@@ -93,7 +93,7 @@ func TestSendChatDocumentMessage(t *testing.T) {
 	if block["viewer_has_access"] != true || block["viewer_level"] != "manage" {
 		t.Fatalf("sender block = %v", block)
 	}
-	if block["title"] != "Kế hoạch" || block["format"] != "md" {
+	if block["title"] != "ke-hoach.md" || block["format"] != "md" {
 		t.Fatalf("block = %v", block)
 	}
 	// The block never leaks the storage locator.
