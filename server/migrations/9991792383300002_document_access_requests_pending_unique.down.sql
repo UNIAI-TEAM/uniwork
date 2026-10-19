@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY idx_document_access_requests_one_pending;
