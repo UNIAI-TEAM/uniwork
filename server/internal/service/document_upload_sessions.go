@@ -1075,11 +1075,16 @@ func (s *DocumentService) assembleMultipartObject(
 // that claims an already staged FileService upload (UploadID) instead of
 // streaming a request body.
 type CreateFileDocumentFromUploadInput struct {
-	UploadID   string
-	Filename   string
-	Title      string
-	ParentID   string
-	Visibility string
+	UploadID string
+	Filename string
+	Title    string
+	ParentID string
+	// Destination mirrors CreateFileDocumentInput.Destination (UNI-1966):
+	// "" places the document at the workspace root unless ParentID says
+	// otherwise, "my_folder" files it in the caller's My Folder and may not
+	// be combined with ParentID.
+	Destination string
+	Visibility  string
 }
 
 // CreateFileDocumentFromUpload claims a staged upload (UploadID) and creates a
@@ -1091,6 +1096,9 @@ func (s *DocumentService) CreateFileDocumentFromUpload(ctx context.Context, acto
 	}
 	if actor.Kind != audit.KindHuman || !validActor(actor) {
 		return DocumentFileResult{}, ErrForbidden
+	}
+	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
+		return DocumentFileResult{}, err
 	}
 	if in.Visibility != "" {
 		if err := validDocumentVisibility(in.Visibility); err != nil {

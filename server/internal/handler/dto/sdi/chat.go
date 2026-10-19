@@ -46,6 +46,19 @@ type SendChatFileMessageSDI struct {
 	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 }
 
+// SendChatDocumentMessageSDI is multipart POST .../messages/document
+// (UNI-1966 §2.1). The bytes become a Document in the sender's My Folder and
+// every current human room member gets a share at ShareLevel; the message
+// carries the reference. share_level defaults to comment; manage is refused
+// with 400.
+type SendChatDocumentMessageSDI struct {
+	File             []byte  `formData:"file" description:"Document (PDF, TXT, Markdown, HTML, DOC, DOCX, XLS, XLSX, PPT, PPTX, or ODT; max DOCUMENT_MAX_BYTES)"`
+	ShareLevel       string  `formData:"share_level" description:"view, comment, or edit granted to room members (default comment; manage is refused)" example:"comment"`
+	Title            string  `formData:"title" description:"Optional document title; defaults to the sanitized filename" example:"Kế hoạch sprint 12"`
+	ClientMsgID      string  `formData:"client_msg_id" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
 // CreateChatPollSDI creates a poll in a chat room.
 type CreateChatPollSDI struct {
 	Question string              `json:"question" description:"Poll question" example:"Ăn trưa ở đâu?"`
