@@ -282,6 +282,7 @@ func TestDigestSkipsRowsTheReaderLostAccessTo(t *testing.T) {
 	if _, err := orgMembers.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
 		t.Fatal(err)
 	}
+	f.markDigestedForUser(t, f.owner.ID)
 	if n, err := s.RunOnce(f.ctx, at); err != nil || n != 0 {
 		t.Fatalf("deactivated digest = %d, %v", n, err)
 	}
@@ -310,11 +311,12 @@ func TestDigestSkipsRowsTheReaderLostAccessTo(t *testing.T) {
 	if err := chat.RemoveChatRoomMember(f.ctx, f.owner.ID, f.wsID, ch.ID, f.member.ID); err != nil {
 		t.Fatal(err)
 	}
+	f.markDigestedForUser(t, f.owner.ID)
 	out.sent = nil
 	if n, err := s.RunOnce(f.ctx, at.Add(4*time.Minute)); err != nil || n != 1 {
 		t.Fatalf("after kick digest = %d, %v", n, err)
 	}
-	if len(out.sent) != 1 {
+	if len(out.sent) != 1 || out.sent[0].To != f.member.Email {
 		t.Fatalf("digests = %+v", out.sent)
 	}
 	text := out.sent[0].Text
@@ -331,6 +333,7 @@ func TestDigestSkipsRowsTheReaderLostAccessTo(t *testing.T) {
 	task3 := f.newTask(t, "Sau suspend")
 	f.assign(t, task3.ID, f.member.ID)
 	f.handleLast(t, "task.updated")
+	f.markDigestedForUser(t, f.owner.ID)
 	out.sent = nil
 	if n, err := s.RunOnce(f.ctx, at.Add(6*time.Minute)); err != nil || n != 0 {
 		t.Fatalf("suspended org digest = %d, %v", n, err)
