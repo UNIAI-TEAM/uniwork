@@ -162,3 +162,20 @@ WHERE output_file_id = ANY(sqlc.arg(file_ids)::text[])
 SELECT output_file_id, organization_id
 FROM office_jobs
 WHERE output_file_id = ANY(sqlc.arg(file_ids)::text[]);
+
+-- Retention of settled jobs (RETENTION-02, UNI-1921): a terminal row is kept
+-- longer than FileService's claim window (files.ClaimTTL) because the G1-03
+-- commit path reads the row behind a staged output; past that window nothing
+-- reads it again. SKIP LOCKED lets replicas split the work. The window floor
+-- is guarded in service code (officeJobRetention > files.ClaimTTL).
+-- name: SweepOfficeJobs :execrows
+-- tenant: system
+DELETE FROM office_jobs
+WHERE id IN (
+  SELECT j.id FROM office_jobs j
+  WHERE j.state IN ('completed', 'failed', 'timed_out', 'cancelled')
+    AND j.finished_at < sqlc.arg(cutoff)::timestamptz
+  ORDER BY j.finished_at
+  LIMIT sqlc.arg(batch_limit)
+  FOR UPDATE SKIP LOCKED
+);

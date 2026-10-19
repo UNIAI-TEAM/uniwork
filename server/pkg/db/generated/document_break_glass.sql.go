@@ -219,3 +219,36 @@ func (q *Queries) RevokeDocumentBreakGlassGrant(ctx context.Context, arg RevokeD
 	}
 	return result.RowsAffected(), nil
 }
+
+const sweepDocumentBreakGlassGrants = `-- name: SweepDocumentBreakGlassGrants :execrows
+DELETE FROM document_break_glass_grants
+WHERE id IN (
+  SELECT g.id FROM document_break_glass_grants g
+  WHERE (g.revoked_at IS NOT NULL AND g.revoked_at < $1::timestamptz)
+     OR g.expires_at < $1::timestamptz
+  ORDER BY g.id
+  LIMIT $2
+  FOR UPDATE SKIP LOCKED
+)
+`
+
+type SweepDocumentBreakGlassGrantsParams struct {
+	Cutoff     pgtype.Timestamptz `json:"cutoff"`
+	BatchLimit int32              `json:"batch_limit"`
+}
+
+// Retention of ended grants (RETENTION-02, UNI-1921): an expired or revoked
+// grant is kept a window so a late revoke still answers its idempotent 200
+// from the row (GetDocumentBreakGlassGrant reads every state); past the window
+// that revoke answers not found, the documented consequence. Grants of a
+// purged document go with the document (DeleteDocumentBreakGlassGrants). The
+// window floor (breakGlassRetention > 0) is guarded in service code. No index
+// for now (row volume is admins x restricted documents).
+// tenant: system
+func (q *Queries) SweepDocumentBreakGlassGrants(ctx context.Context, arg SweepDocumentBreakGlassGrantsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepDocumentBreakGlassGrants, arg.Cutoff, arg.BatchLimit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

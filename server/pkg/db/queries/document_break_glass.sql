@@ -55,3 +55,22 @@ DELETE FROM document_break_glass_grants
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id);
+
+-- Retention of ended grants (RETENTION-02, UNI-1921): an expired or revoked
+-- grant is kept a window so a late revoke still answers its idempotent 200
+-- from the row (GetDocumentBreakGlassGrant reads every state); past the window
+-- that revoke answers not found, the documented consequence. Grants of a
+-- purged document go with the document (DeleteDocumentBreakGlassGrants). The
+-- window floor (breakGlassRetention > 0) is guarded in service code. No index
+-- for now (row volume is admins x restricted documents).
+-- name: SweepDocumentBreakGlassGrants :execrows
+-- tenant: system
+DELETE FROM document_break_glass_grants
+WHERE id IN (
+  SELECT g.id FROM document_break_glass_grants g
+  WHERE (g.revoked_at IS NOT NULL AND g.revoked_at < sqlc.arg(cutoff)::timestamptz)
+     OR g.expires_at < sqlc.arg(cutoff)::timestamptz
+  ORDER BY g.id
+  LIMIT sqlc.arg(batch_limit)
+  FOR UPDATE SKIP LOCKED
+);

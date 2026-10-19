@@ -152,9 +152,19 @@ Không bảng mới, không FK/cascade, không event/catalogue mới, không đ�
 
 ## 6. RETENTION-02 — retention cho hàng đã đóng (contract)
 
-> **Trạng thái:** in-progress — hợp đồng (v0.3, 2026-10-18). Chỉ đọc code và viết; **không** SQL, không migration, không test ở lượt này.
-> Ba bảng mà hàng hôm nay sống mãi: `office_jobs` (trạng thái kết thúc), `file_multipart_uploads` (hàng đã đóng),
+> **Trạng thái:** in-progress — **đã code (w1, UNI-1921)**, 2026-10-19. Hợp đồng v0.3 ở dưới được hiện thực đúng như đã chốt;
+> ba bảng mà hàng hôm nay sống mãi: `office_jobs` (trạng thái kết thúc), `file_multipart_uploads` (hàng đã đóng),
 > `document_break_glass_grants` (đã hết hạn/thu hồi, trên tài liệu còn tồn tại — tài liệu đã purge thì RETENTION-01 lo).
+>
+> **Đã hiện thực (file:line):** ba câu DELETE `-- tenant: system` — `SweepOfficeJobs` (`server/pkg/db/queries/office_jobs.sql:171`),
+> `SweepFileMultipartUploads` (`server/pkg/db/queries/file_multipart_uploads.sql:189`), `SweepDocumentBreakGlassGrants`
+> (`server/pkg/db/queries/document_break_glass.sql:66`). Ba hàm sweep + hằng số cửa sổ và chặn dưới lúc biên dịch:
+> `server/internal/service/document_retention_sweep.go` (`officeJobRetention` `:41`, `multipartRowRetention` `:46`,
+> `breakGlassRetention` `:50`, guard `:66-68`, `sweepRetentionRows` `:113`). Nối vào nhịp đã chốt trong
+> `DocumentWorkers` (`server/internal/service/document_workers.go`: `purge` `:131-132`, `commit_intent` `:154`,
+> nhãn metric `:209,215,221`). Hai index: `server/migrations/9991792368456870_office_jobs_finished_idx.up.sql`,
+> `server/migrations/9991792368456871_file_multipart_uploads_closed_idx.up.sql`. Test:
+> `server/internal/service/document_retention_sweep_test.go`.
 
 ### 6.1 Số đo và công thức
 
@@ -206,10 +216,10 @@ Không bảng mới, không FK/cascade, không event/catalogue mới, không đ�
 
 ### 6.5 Câu hỏi cho Advisor / người dùng
 
-| # | Số | Loại | Đề xuất | Dải an toàn |
-|---|---|---|---|---|
-| Q-RT2-1 | Số ngày giữ hàng `office_jobs` terminal | **sản phẩm** (phần trên sàn) + kỹ thuật (sàn 24h) | **30 ngày** | 7–90 |
-| Q-RT2-2 | Số ngày giữ hàng `file_multipart_uploads` đã đóng | **kỹ thuật** | **7 ngày** sau `closed_at` | 2–30 |
-| Q-RT2-3 | Số ngày giữ `document_break_glass_grants` đã kết thúc | **sản phẩm/ops (tuân thủ)** — bảng nằm trong gói xuất tenant | **30 ngày** | 7–365 |
-| Q-RT2-4 | Chỗ đặt sweeper | kỹ thuật | multipart vào nhịp 10 phút; office_jobs + break-glass vào nhịp `purge` 1 giờ | hoặc gộp cả ba vào `purge` |
-| Q-RT2-5 | Index cho break-glass | kỹ thuật | **chưa thêm** (lượng hàng nhỏ, đọc sống đã có index) | thêm `(expires_at)` + partial `(revoked_at)` nếu quét lộ ra |
+| # | Số | Loại | Đề xuất | Dải an toàn | Trạng thái w1 |
+|---|---|---|---|---|---|
+| Q-RT2-1 | Số ngày giữ hàng `office_jobs` terminal | **sản phẩm** (phần trên sàn) + kỹ thuật (sàn 24h) | **30 ngày** | 7–90 | **chờ người dùng, mặc định 30 ngày** — `officeJobRetention`, đổi một dòng |
+| Q-RT2-2 | Số ngày giữ hàng `file_multipart_uploads` đã đóng | **kỹ thuật** | **7 ngày** sau `closed_at` | 2–30 | đã chốt: `multipartRowRetention` |
+| Q-RT2-3 | Số ngày giữ `document_break_glass_grants` đã kết thúc | **sản phẩm/ops (tuân thủ)** — bảng nằm trong gói xuất tenant | **30 ngày** | 7–365 | **chờ người dùng, mặc định 30 ngày** — `breakGlassRetention`, đổi một dòng |
+| Q-RT2-4 | Chỗ đặt sweeper | kỹ thuật | multipart vào nhịp 10 phút; office_jobs + break-glass vào nhịp `purge` 1 giờ | hoặc gộp cả ba vào `purge` | đã chốt, đã code |
+| Q-RT2-5 | Index cho break-glass | kỹ thuật | **chưa thêm** (lượng hàng nhỏ, đọc sống đã có index) | thêm `(expires_at)` + partial `(revoked_at)` nếu quét lộ ra | đã chốt: chưa thêm |

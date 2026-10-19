@@ -18,7 +18,7 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
 | `uniwork_document_quota_rejects_total{kind}` | Bị từ chối vì `storage.bytes` vượt hạn mức tổ chức: `page` = lưu trang, `file` = tải lên hoặc commit phiên bản tệp, `asset` = tải ảnh vào trang. Tải lên bị chặn ngay ở bước giữ chỗ nên không bao giờ đếm hai lần ở commit | > 0 kèm phản hồi người dùng |
 | `uniwork_document_access_log_failed_total` | Dòng nhật ký truy cập ghi lỗi sau khi lần đọc đã thành công | > 0 = kiểm DB/khóa; lần đọc vẫn đúng |
 | `uniwork_document_versions_protected_overflow_total` | Bản ghi bảo vệ (manual/restore/upload) vượt trần nén; mọi bản được giữ | Chỉ để nhìn |
-| `uniwork_document_worker_sweeps_total{worker,result}` | Lượt quét auto-version/purge/compact theo kết quả: `ok` = mọi row xong, `partial` = lượt chạy hết nhưng có row lỗi (bỏ qua, lượt sau thử lại), `error` = lượt dừng giữa chừng | `result="error"` hoặc `"partial"` lặp lại |
+| `uniwork_document_worker_sweeps_total{worker,result}` | Lượt quét auto-version/purge/compact và retention (`office_job` = hàng `office_jobs` đã kết thúc, `multipart_row` = hàng `file_multipart_uploads` đã đóng, `break_glass` = grant đã hết hạn/thu hồi; RETENTION-02) theo kết quả: `ok` = mọi row xong, `partial` = lượt chạy hết nhưng có row lỗi (bỏ qua, lượt sau thử lại), `error` = lượt dừng giữa chừng | `result="error"` hoặc `"partial"` lặp lại |
 | `uniwork_document_worker_rows_failed_total{worker}` | Số row một lượt quét lỗi và bỏ qua | Tăng qua nhiều lượt = cùng row lỗi mãi, xem log `documents purge` / `documents auto-version` |
 | `uniwork_document_worker_sweep_duration_seconds{worker}` | Thời gian một lượt quét | Tăng dần đều |
 | `uniwork_document_worker_oldest_pending_seconds{worker}` | Tuổi công việc quá hạn cũ nhất worker còn nợ (`autoversion` = trang quá 10 phút im chưa chụp; `purge` = tài liệu archive quá `purge_after` hoặc asset mồ côi quá 7 ngày của tài liệu còn sống). Đọc tối đa mỗi 30 s | Tăng liên tục = worker không theo kịp |
@@ -46,6 +46,11 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
   dừng: `result="error"`. `uniwork_document_worker_oldest_pending_seconds{worker="purge"}` leo
   thang; tài liệu hết hạn không được xóa (an toàn), hoặc xóa một nửa (row còn,
   tham chiếu chưa nhả).
+- **Retention lỗi.** Ba lượt quét retention (RETENTION-02) báo riêng dưới
+  `uniwork_document_worker_sweeps_total{worker="office_job"|"multipart_row"|"break_glass",result="error"}`
+  (cả lượt dừng) hoặc `..._rows_failed_total{worker=...}` (từng row lỗi, lượt sau thử lại);
+  log đi kèm `documents retention sweep`. Hàng đã đóng ở lại lâu hơn (an toàn),
+  không có hàng nào bị xóa dở. Lỗi lặp nhiều lượt = kiểm DB/lock.
 - **Engine Office chết.** Job `office_jobs` không tiến triển; engine không nằm
   trong `/readyz` nên **thư viện, mở trang, lịch sử và tải về vẫn phải chạy**.
 - **Backup/restore lệch.** Sau khôi phục, tệp tải về lệch checksum, ảnh trong

@@ -845,3 +845,34 @@ func (q *Queries) SettleOfficeJob(ctx context.Context, arg SettleOfficeJobParams
 	)
 	return i, err
 }
+
+const sweepOfficeJobs = `-- name: SweepOfficeJobs :execrows
+DELETE FROM office_jobs
+WHERE id IN (
+  SELECT j.id FROM office_jobs j
+  WHERE j.state IN ('completed', 'failed', 'timed_out', 'cancelled')
+    AND j.finished_at < $1::timestamptz
+  ORDER BY j.finished_at
+  LIMIT $2
+  FOR UPDATE SKIP LOCKED
+)
+`
+
+type SweepOfficeJobsParams struct {
+	Cutoff     pgtype.Timestamptz `json:"cutoff"`
+	BatchLimit int32              `json:"batch_limit"`
+}
+
+// Retention of settled jobs (RETENTION-02, UNI-1921): a terminal row is kept
+// longer than FileService's claim window (files.ClaimTTL) because the G1-03
+// commit path reads the row behind a staged output; past that window nothing
+// reads it again. SKIP LOCKED lets replicas split the work. The window floor
+// is guarded in service code (officeJobRetention > files.ClaimTTL).
+// tenant: system
+func (q *Queries) SweepOfficeJobs(ctx context.Context, arg SweepOfficeJobsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepOfficeJobs, arg.Cutoff, arg.BatchLimit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
