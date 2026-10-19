@@ -755,9 +755,6 @@ func TestAskFollowUpWithoutAPronounKeepsTheTopic(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Mua quà cho khách"}); err != nil {
-		t.Fatal(err)
-	}
 	conv := ""
 	for i, q := range []string{"Banner Tết đến đâu rồi?", "Ai nhận?", "Hạn khi nào?"} {
 		res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: conv, Question: q, Locale: "vi"})
@@ -767,9 +764,6 @@ func TestAskFollowUpWithoutAPronounKeepsTheTopic(t *testing.T) {
 		conv = res.ConversationID
 		if !citesTitle(res.Citations, "Banner Tết") {
 			t.Errorf("turn %d %q lost the topic: %+v / notice %q", i+1, q, res.Citations, res.Message.Notice.String)
-		}
-		if citesTitle(res.Citations, "Mua quà cho khách") {
-			t.Errorf("turn %d %q carried a task no turn was about: %+v", i+1, q, res.Citations)
 		}
 	}
 }
@@ -842,8 +836,9 @@ func TestAskFollowUpRereadsCitationsAsTheAsker(t *testing.T) {
 }
 
 // A stored citation names an object by href; nothing in it decides access. One
-// that names another organization's task or document, or has the wrong shape,
-// is read through the asker's own gates and comes back as nothing.
+// that names another organization's task or document, an object of another
+// workspace the asker may read, or an href of the wrong shape comes back as
+// nothing.
 func TestAskFollowUpIgnoresForeignCitations(t *testing.T) {
 	s, fake, ua, _, w := askFixture(t)
 	ctx := context.Background()
@@ -866,6 +861,25 @@ func TestAskFollowUpIgnoresForeignCitations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Another workspace of the asker's own organization: A owns it and may read
+	// it, yet Ask UNI answers inside the workspace it is asked in.
+	side, err := s.ws.CreateInOrg(ctx, ua.ID, w.OrganizationID, "Khác", "khac")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sideTask, err := s.tasks.Create(ctx, Human(ua.ID), side.Workspace.ID, CreateTaskInput{Title: "Việc bên khác"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sidePage, err := docs.CreatePage(ctx, Human(ua.ID), side.Workspace.ID, CreatePageInput{Title: "Ghi chú bên khác"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A task of this workspace named by an href of another kind's shape.
+	own, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Kế hoạch riêng"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "xin chào", Locale: "vi"})
 	if err != nil {
 		t.Fatal(err)
@@ -875,6 +889,9 @@ func TestAskFollowUpIgnoresForeignCitations(t *testing.T) {
 		{SourceID: "S2", Kind: "document", Title: "x", Href: "/org-secret/secret/documents/" + page.Document.ID},
 		{SourceID: "S3", Kind: "task", Title: "x", Href: "/org-secret/secret/tasks/" + task.ID + "?x=1"},
 		{SourceID: "S4", Kind: "meeting", Title: "x", Href: "/org-secret/secret/tasks/" + task.ID},
+		{SourceID: "S5", Kind: "task", Title: "x", Href: "/org-alpha/khac/tasks/" + sideTask.ID},
+		{SourceID: "S6", Kind: "document", Title: "x", Href: "/org-alpha/khac/documents/" + sidePage.Document.ID},
+		{SourceID: "S7", Kind: "task", Title: "x", Href: "/org-alpha/alpha/meetings/" + own.ID},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -890,13 +907,88 @@ func TestAskFollowUpIgnoresForeignCitations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, bad := range []string{"Kế hoạch bí mật", "Tài liệu bí mật"} {
+	for _, bad := range []string{"Kế hoạch bí mật", "Tài liệu bí mật", "Việc bên khác", "Ghi chú bên khác", "Kế hoạch riêng"} {
 		if citesTitle(res.Citations, bad) {
 			t.Errorf("%q of another organization was carried: %+v", bad, res.Citations)
 		}
 		if fake.Calls > calls && strings.Contains(fake.Last.Messages[len(fake.Last.Messages)-1].Content, bad) {
 			t.Errorf("%q of another organization reached the model", bad)
 		}
+	}
+}
+
+// The walk back through earlier answers passes only turns that pointed back. A
+// turn that named a new subject but was answered from chat alone is where the
+// topic moved, so the next bare question follows it, not the turn before. A
+// pointing turn answered from chat is passed over, back to the answer before
+// it: the questions alone ("Ai nhận?", "Cái đó ai duyệt?") no longer name
+// Banner Tết, so only the citations keep it.
+func TestAskFollowUpWalksBackOnlyThroughPointingTurns(t *testing.T) {
+	for name, c := range map[string]struct{ middle, want, not string }{
+		"new subject answered from chat":   {"Mua quà cho khách ai duyệt?", "Mua quà cho khách", "Banner Tết"},
+		"pointing turn answered from chat": {"Cái đó ai duyệt?", "Banner Tết", "Mua quà cho khách"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, _, ua, _, w := askFixture(t)
+			ctx := context.Background()
+			for _, title := range []string{"Banner Tết", "Mua quà cho khách"} {
+				if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: title}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "Ai nhận?", Locale: "vi"}); err != nil {
+				t.Fatal(err)
+			}
+			// The third turn as a model answers it from a chat line alone.
+			chatOnly := `[{"source_id":"S1","kind":"chat","title":"Chat: Marketing","href":"/org-alpha/alpha/chat?room=r"}]`
+			for _, m := range []db.AiInsertMessageParams{
+				{Role: "user", Content: c.middle, Citations: "[]"},
+				{Role: "assistant", Content: "Chị Lan duyệt.", Citations: chatOnly},
+			} {
+				m.ID, m.OrganizationID, m.ConversationID = util.NewID(), w.OrganizationID, first.ConversationID
+				if _, err := s.q.AiInsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+			}
+			res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "Khi nào xong?", Locale: "vi"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !citesTitle(res.Citations, c.want) || citesTitle(res.Citations, c.not) {
+				t.Fatalf("after %q the bare question must follow %q, not %q: %+v", c.middle, c.want, c.not, res.Citations)
+			}
+		})
+	}
+}
+
+// A question about overdue work is a subject of its own: it carries no earlier
+// topic into the slots its overdue tasks need.
+func TestAskOverdueFollowUpCarriesNoTopic(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	ctx := context.Background()
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Banner Tết"}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 3; i++ {
+		if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: fmt.Sprintf("Hóa đơn %d", i), DueDate: &yesterday}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner Tết đến đâu rồi?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{ConversationID: first.ConversationID, Question: "còn task nào quá hạn không?", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !citesTitle(res.Citations, "Hóa đơn 1") || citesTitle(res.Citations, "Banner Tết") {
+		t.Fatalf("an overdue question must cite the overdue tasks alone: %+v", res.Citations)
 	}
 }
 

@@ -258,11 +258,12 @@ func (s *AskUNIService) ownConversation(ctx context.Context, userID, id, workspa
 }
 
 // hasOwnSubject reports whether the question names something of its own: a
-// focused object, a reference with the workspace's task prefix, or a task,
-// meeting or document whose title holds one of its terms. A body match is not
-// enough ("giao cho" is in every welcome task), members and chat lines never
-// are, and a question that points back keeps the last topic even when a
-// title shares a word with it ("bắt đầu" is the welcome task's title).
+// focused object, a reference with the workspace's task prefix, a question
+// about overdue work, or a task, meeting or document whose title holds one of
+// its terms. A body match is not enough ("giao cho" is in every welcome task),
+// members and chat lines never are, and a question that points back keeps the
+// last topic even when a title shares a word with it ("bắt đầu" is the
+// welcome task's title) or asks about lateness ("Nó có trễ không?").
 func hasOwnSubject(question, taskPrefix string, focus *ai.Focus, sources []ai.Source) bool {
 	if focus != nil {
 		return true
@@ -274,6 +275,9 @@ func hasOwnSubject(question, taskPrefix string, focus *ai.Focus, sources []ai.So
 	}
 	if pointsBack(question) {
 		return false
+	}
+	if asksOverdue(question) {
+		return true
 	}
 	ts := searchTerms(question)
 	for _, src := range sources {
@@ -344,10 +348,9 @@ var citedPaths = map[string]string{"task": "/tasks/", "meeting": "/meetings/", "
 
 // withLastTopic adds what the last turn was about to the current sources, so a
 // follow-up like "who owns that?" or a bare "Ai nhận?" keeps its topic. That
-// is the objects the latest answer that cited any cited, read again as the
-// asker; when none did (a no-sources notice, a model that cited nothing, an
-// answer from chat or members alone), the sources of "<previous question>
-// <question>" stand in. The topic comes after the sources the question names
+// is the objects the last answers cited (see citedTopic), read again as the
+// asker; when there are none, the tasks, meetings and documents found for
+// "<previous question> <question>" stand in. The topic comes after the sources the question names
 // by title and before its body hits, which a bare "Ai nhận?" can find twenty
 // of: BuildContext keeps the first ai.MaxSources. Focus is not repeated: the
 // first lookup already carries it.
@@ -358,7 +361,13 @@ func (s *AskUNIService) withLastTopic(ctx context.Context, rows []db.AiMessage, 
 	}
 	topic, err := s.citedTopic(ctx, ai.ToolContext{ActorID: userID, OrganizationID: orgID, WorkspaceID: workspaceID}, rows, current)
 	if prev := previousQuestion(rows); err == nil && len(topic) == 0 && prev != "" {
-		topic, err = s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: orgID, WorkspaceID: workspaceID, Question: prev + " " + question})
+		var found []ai.Source
+		found, err = s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: orgID, WorkspaceID: workspaceID, Question: prev + " " + question})
+		for _, src := range found {
+			if citedPaths[src.Kind] != "" { // chat and members are never a turn's subject
+				topic = append(topic, src)
+			}
+		}
 	}
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
@@ -392,25 +401,30 @@ func (s *AskUNIService) withLastTopic(ctx context.Context, rows []db.AiMessage, 
 }
 
 // citedTopic reads again, through the asker's own services, the tasks, meetings
-// and documents the latest answer that cited any cited, three answers back at
-// most and maxCarried at most; one the current lookup already holds is taken
-// from it. An object the asker can no longer read is left out; chat and
-// members are never a turn's subject, and an email thread comes back only as focus.
+// and documents the latest answer cited, maxCarried at most; one the current
+// lookup already holds is taken from it. An answer that cited none of them is
+// passed over only when its question pointed back, three answers back at most:
+// "Mua quà ai duyệt?" answered from chat is a new topic, "Cái đó ai duyệt?" is
+// not. An object the asker can no longer read is left out; chat and members are
+// never a turn's subject, and an email thread comes back only as focus.
 func (s *AskUNIService) citedTopic(ctx context.Context, tc ai.ToolContext, rows []db.AiMessage, current map[string]ai.Source) ([]ai.Source, error) {
 	var cited []AskCitation
-	for i, answers := len(rows)-1, 0; i >= 0 && answers < 3 && len(cited) == 0; i-- {
+	for i, answers := len(rows)-1, 0; i >= 0 && answers < 3; i-- {
 		if rows[i].Role != "assistant" {
 			continue
 		}
 		answers++
 		var cs []AskCitation
 		if json.Unmarshal([]byte(rows[i].Citations), &cs) != nil {
-			continue // a row that does not decode cites nothing
+			cs = nil // a row that does not decode cites nothing
 		}
 		for _, c := range cs {
 			if citedPaths[c.Kind] != "" {
 				cited = append(cited, c)
 			}
+		}
+		if len(cited) > 0 || !pointsBack(questionOf(rows, i)) {
+			break
 		}
 	}
 	var out []ai.Source
@@ -450,6 +464,16 @@ func (s *AskUNIService) citedTopic(ctx context.Context, tc ai.ToolContext, rows 
 		out = append(out, srcs...)
 	}
 	return out, nil
+}
+
+// questionOf is the question the answer at rows[i] replied to.
+func questionOf(rows []db.AiMessage, i int) string {
+	for j := i - 1; j >= 0; j-- {
+		if rows[j].Role == "user" {
+			return rows[j].Content
+		}
+	}
+	return ""
 }
 
 // citedID is the id at the end of a citation's href when the href has the
