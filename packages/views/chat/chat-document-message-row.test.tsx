@@ -135,6 +135,33 @@ describe("ChatDocumentMessageRow", () => {
     expect(nav.push).toHaveBeenCalledWith("/acme/team/documents/doc1");
   });
 
+  it("gives the card room: the title shows in full on hover and the secondary line is not truncated (F-03)", () => {
+    renderCard(documentMessage({ ...DOC, title: "bao-cao-q3-du-lieu-chi-tiet.docx", recipient_count: 1 }));
+    const titleButton = screen.getByRole("button", { name: /Mở trong Tài liệu/ });
+    // The hover text is the document title; the accessible name keeps the action.
+    expect(titleButton).toHaveAttribute("title", "bao-cao-q3-du-lieu-chi-tiet.docx");
+    expect(titleButton).toHaveAttribute("aria-label", "Mở trong Tài liệu: bao-cao-q3-du-lieu-chi-tiet.docx");
+    expect(titleButton.className).toContain("truncate");
+    const secondary = screen.getByText(/Phiên bản 3/);
+    expect(secondary.textContent).toBe("Phiên bản 3 · Đã chia sẻ với 1 người");
+    expect(secondary.className).not.toContain("truncate");
+    // A fixed width capped by the bubble, not the content's min width.
+    const card = titleButton.closest("div.flex-col");
+    expect(card?.className).toContain("w-[22rem]");
+    expect(card?.className).toContain("max-w-full");
+  });
+
+  it("lets the locked heading wrap and puts the action below it (F-02)", () => {
+    renderCard(documentMessage({ document_id: "doc1", viewer_has_access: false }));
+    const heading = screen.getByText("Không có quyền truy cập");
+    expect(heading.className).not.toContain("truncate");
+    const button = screen.getByRole("button", { name: "Yêu cầu quyền truy cập" });
+    const card = heading.closest("div.flex-col");
+    expect(card?.contains(button)).toBe(true);
+    // The button is not in the heading's row: it sits in its own slot below.
+    expect(heading.parentElement?.contains(button)).toBe(false);
+  });
+
   it("shows the sender's share count and the viewer's level badge", () => {
     renderCard(documentMessage({ ...DOC, viewer_level: "comment", recipient_count: 4 }));
     expect(screen.getByText(/Đã chia sẻ với 4 người/)).toBeInTheDocument();

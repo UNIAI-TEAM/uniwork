@@ -74,7 +74,7 @@ export function ChatDocumentRequestAccess({
   };
   if (done) {
     return (
-      <p role="status" className="min-w-0 max-w-[60%] text-right text-caption text-muted-foreground">
+      <p role="status" className="min-w-0 text-caption text-muted-foreground">
         {t(`documents.access_request.${done}`)}
       </p>
     );

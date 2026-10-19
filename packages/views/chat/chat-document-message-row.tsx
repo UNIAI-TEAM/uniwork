@@ -241,15 +241,22 @@ export function ChatDocumentCard({
     return <NeutralDocumentCard filename={message.body} />;
   }
   if (doc.viewer_has_access === false) {
+    // The heading wraps (never truncates) and the action sits below it, so the
+    // state stays readable in a narrow bubble; the sent/pending line replaces
+    // the button in the same slot.
     return (
-      <div className="flex items-center gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-muted-foreground">
-          <LockKeyhole className="size-4" aria-hidden />
-        </span>
-        <p className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
-          {t("chat.document_no_access")}
-        </p>
-        <ChatDocumentRequestAccess workspaceId={workspaceId} documentId={doc.document_id} />
+      <div className="flex w-72 max-w-full flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-muted-foreground">
+            <LockKeyhole className="size-4" aria-hidden />
+          </span>
+          <p className="min-w-0 flex-1 text-body font-medium text-foreground">
+            {t("chat.document_no_access")}
+          </p>
+        </div>
+        <div className="min-w-0">
+          <ChatDocumentRequestAccess workspaceId={workspaceId} documentId={doc.document_id} />
+        </div>
       </div>
     );
   }
@@ -258,20 +265,22 @@ export function ChatDocumentCard({
   const level = doc.viewer_level;
 
   return (
-    <div className="flex flex-col gap-2">
+    // A fixed width (capped by the bubble) so a normal filename and the whole
+    // secondary line fit instead of shrinking to the content's min width.
+    <div className="flex w-[22rem] max-w-full flex-col gap-2">
       <div className="flex items-center gap-3">
         <DocumentTypeIcon format={doc.format} className="size-9 shrink-0" />
         <div className="min-w-0 flex-1">
           <button
             type="button"
-            title={t("chat.document_open_in_documents")}
+            title={title}
             aria-label={`${t("chat.document_open_in_documents")}: ${title}`}
             onClick={openDocument ?? undefined}
             className="pointer-coarse:min-h-11 block w-full truncate text-left text-body font-medium text-foreground hover:underline"
           >
             {title}
           </button>
-          <p className="truncate text-caption text-muted-foreground">
+          <p className="text-caption text-muted-foreground">
             {doc.version_number !== undefined
               ? t("documents.file.version_row", { no: doc.version_number })
               : null}
