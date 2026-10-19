@@ -1,0 +1,5 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -timeout 45m ./internal/handler/ ./internal/notification/... ./internal/outbox/... 2>&1 | grep -E "^(--- FAIL|ok|FAIL)|_test.go:[0-9]+:" | head -40; echo "HDL_FULL_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/handler	724.736s
+ok  	github.com/unicomhub/uniwork/server/internal/notification	66.557s
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	4.070s
+HDL_FULL_EXIT=0

@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19696 14696; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19696/tcp 14696/tcp 2>/dev/null; sleep 1; for p in 19696 14696; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+678064e6016d2cfb3c765c29f7f3e8f8586fcd93
+678064e60 chore: merge UNI-1968 BODY-MENTION-NOTIFY (9dfef4885) into the G5-G7 root
+b9daf7af3 chore: merge UNI-1631 W-DOC07-swap (web half; d25784ecb) into the G5-G7 root
+032e0fbb3 chore: merge UNI-1874 FU-G7-12-ORACLE r2 (harness + tests; 8c0148dac) into the G5-G7 root
+8c0148dac chore: merge G5-G7 root 479a478cd (UNI-1981 PACK4) into FU-G7-12-ORACLE round 2 (UNI-1874)

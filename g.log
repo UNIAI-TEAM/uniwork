@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/views exec vitest run documents inbox notifications 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "VIEWS_I5_EXIT=$rc"
+
+ Test Files  110 passed (110)
+      Tests  1470 passed (1470)
+   Start at  22:49:19
+   Duration  108.71s (transform 8.28s, setup 18.39s, import 60.50s, tests 206.71s, environment 28.22s)
+
+VIEWS_I5_EXIT=0
