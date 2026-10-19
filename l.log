@@ -1,0 +1,3 @@
+$ pnpm --filter @uniwork/views exec tsc --noEmit -p . > /tmp/tc1960.log 2>&1; rc=$?; tail -5 /tmp/tc1960.log; echo; echo "VIEWS_TC_EXIT=$rc"
+
+VIEWS_TC_EXIT=0

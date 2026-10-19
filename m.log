@@ -1,0 +1,3 @@
+$ pnpm --filter @uniwork/views exec eslint office/frame documents/folder-name-dialog.tsx 2>&1 | tail -8; rc=${PIPESTATUS[0]}; echo; echo "LINT_1960_EXIT=$rc"
+
+LINT_1960_EXIT=0

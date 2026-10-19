@@ -1,0 +1,11 @@
+$ pnpm --filter @uniwork/views exec vitest run office/frame documents/folder-name 2>&1 | tail -8; rc=${PIPESTATUS[0]}; echo; echo "VIEWS_1960_EXIT=$rc"
+    at commitHookEffectListUnmount (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13316:17)
+    at commitHookLayoutUnmountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13224:11) undefined
+
+ Test Files  13 passed (13)
+      Tests  452 passed (452)
+   Start at  07:12:28
+   Duration  13.86s (transform 3.43s, setup 2.97s, import 6.50s, tests 26.73s, environment 3.61s)
+
+
+VIEWS_1960_EXIT=0

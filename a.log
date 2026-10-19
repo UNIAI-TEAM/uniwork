@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+fe68b6fc4e5c9d3a665901b1863b44248122e096
+b54a49ac3d9c308b885983b356a2d87deaedd609
+fe68b6fc4 test(e2e): first save can pick another folder and the document moves there
+1b0d3b1f6 feat(office): first save asks where to save and moves the document there
+8b2a329da fix(i18n): web copy follows the glossary for the comment level, edit label and diacritics
+077a98c32 fix(ui): clickable elements show the pointer cursor
+02eeced2c fix(documents): drop the My Folder hint line under Tạo nhanh
+e1181a8ce test(e2e): open My Folder from its tree row now that the collection row is gone
+
+SYNCED_EXIT=1
