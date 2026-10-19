@@ -32,6 +32,22 @@ func retentionRowExists(t *testing.T, f *docPermFixture, table, id string) bool 
 	return n == 1
 }
 
+// clearRetentionRows empties the retention tables this file asserts exact
+// counts on. testutil.DB's TRUNCATE list does not carry
+// file_multipart_uploads or document_break_glass_grants, so rows another test
+// of this package left behind (on the fixed harness clock, well past any
+// window) would be swept by the system-wide sweep and make a count flaky.
+// Tests in this package do not run in parallel, and the DB advisory lock
+// serializes the packages, so a local clear is enough.
+func clearRetentionRows(t *testing.T, f *docPermFixture) {
+	t.Helper()
+	for _, table := range []string{"office_jobs", "file_multipart_uploads", "document_break_glass_grants"} {
+		if _, err := f.pool.Exec(f.ctx, fmt.Sprintf(`DELETE FROM %s`, table)); err != nil {
+			t.Fatalf("clear %s: %v", table, err)
+		}
+	}
+}
+
 // retentionOfficeJob inserts one office_jobs row in the given state. finishedAt
 // is set only for the terminal states (all three close paths set it).
 func (f *docPermFixture) retentionOfficeJob(t *testing.T, tn docTenant, state string, finishedAt time.Time) string {
@@ -105,6 +121,7 @@ func (f *docPermFixture) retentionBreakGlassGrant(t *testing.T, tn docTenant, do
 // sweep takes another organization's old row with it (system-wide by design).
 func TestDocumentRetentionSweepOfficeJobs(t *testing.T) {
 	f := newDocPermFixture(t)
+	clearRetentionRows(t, f)
 	tn := f.tenant(t, "rt2j")
 	other := f.tenant(t, "rt2k")
 	now := time.Now()
@@ -142,6 +159,7 @@ func TestDocumentRetentionSweepOfficeJobs(t *testing.T) {
 // system-wide.
 func TestDocumentRetentionSweepMultipartRows(t *testing.T) {
 	f := newDocPermFixture(t)
+	clearRetentionRows(t, f)
 	tn := f.tenant(t, "rt2m")
 	other := f.tenant(t, "rt2n")
 	now := time.Now()
@@ -179,6 +197,7 @@ func TestDocumentRetentionSweepMultipartRows(t *testing.T) {
 // its age, and the sweep is system-wide.
 func TestDocumentRetentionSweepBreakGlassGrants(t *testing.T) {
 	f := newDocPermFixture(t)
+	clearRetentionRows(t, f)
 	tn := f.tenant(t, "rt2b")
 	other := f.tenant(t, "rt2c")
 	now := time.Now()
@@ -215,6 +234,7 @@ func TestDocumentRetentionSweepBreakGlassGrants(t *testing.T) {
 // deletes a live row, whatever the batch size.
 func TestDocumentRetentionSweepBatchesStopEarly(t *testing.T) {
 	f := newDocPermFixture(t)
+	clearRetentionRows(t, f)
 	tn := f.tenant(t, "rt2p")
 	now := time.Now()
 	old := now.Add(-officeJobRetention - time.Hour)
@@ -259,6 +279,7 @@ func TestDocumentRetentionSweepFloors(t *testing.T) {
 // server-stamped engine, which only the job row can supply.
 func TestDocumentRetentionSweepKeepsACommitableOfficeJob(t *testing.T) {
 	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
+		clearRetentionRows(t, env.f)
 		member := human(env.tn.member)
 		created := env.createFile(t, member, "rt2-floor.pdf", pdfBody("rt2-floor-v1"))
 		job := env.officeJob(t, member, created.Document, pdfBody("rt2-floor-v2"), "completed")
@@ -294,6 +315,7 @@ func TestDocumentRetentionSweepKeepsACommitableOfficeJob(t *testing.T) {
 // gone and the same revoke answers not found - the documented consequence.
 func TestDocumentRetentionSweepBreakGlassFloor(t *testing.T) {
 	f := newDocPermFixture(t)
+	clearRetentionRows(t, f)
 	tn := f.tenant(t, "rt2bf")
 	admin := Human(tn.wsAdmin.ID)
 	docR := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
@@ -335,6 +357,7 @@ func TestDocumentRetentionSweepBreakGlassFloor(t *testing.T) {
 // the row is gone and the replay answers not found.
 func TestDocumentRetentionSweepMultipartFloor(t *testing.T) {
 	env := newMultipartDocEnv(t)
+	clearRetentionRows(t, env.f)
 	ctx := context.Background()
 	member := human(env.tn.member)
 	now := time.Now()
@@ -376,6 +399,7 @@ func TestDocumentRetentionSweepMultipartFloor(t *testing.T) {
 // each table are gone after one pass of Run.
 func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 	f := newDocPermFixture(t)
+	clearRetentionRows(t, f)
 	tn := f.tenant(t, "rt2w")
 	f.svc.SetFiles(&releaseSpy{})
 	fixed := time.Now()
