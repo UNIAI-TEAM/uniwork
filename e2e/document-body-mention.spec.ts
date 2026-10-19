@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   buildShareScene,
   docPath,
@@ -35,6 +35,8 @@ test.beforeAll(async ({ browser }, testInfo) => {
 async function mention(page: Page, name: string) {
   const editor = page.getByRole("textbox", { name: "Nội dung tài liệu" });
   await editor.click();
+  // The mention goes at the end of the body, below any filler the test seeded.
+  await page.keyboard.press("Control+End");
   await page.keyboard.type(`@${name}`);
   const row = page.getByRole("button", { name });
   await expect(row).toBeVisible({ timeout: 15_000 });
@@ -66,8 +68,27 @@ test("owner mentions a member without view, gets the hint, and sharing clears it
   await expect(hint).not.toBeVisible({ timeout: 30_000 });
 });
 
+/** What the reader sees: the chip inside the viewport, selected, and flashing. */
+async function expectRevealed(page: Page, chip: Locator) {
+  await expect(chip).toBeInViewport({ timeout: 15_000 });
+  const selected = page.locator(".ProseMirror-selectednode");
+  await expect(selected.locator(".mention")).toHaveCount(1, { timeout: 15_000 });
+  await expect(selected).toHaveClass(/is-mention-reveal/, { timeout: 5_000 });
+}
+
 test("the mentioned member's inbox row deep-links to the document at her mention", async ({ page, browser }) => {
-  const { id: docId } = await ownerDoc(page.request, scene, "deeplink");
+  // 70 paragraphs above the mention: it starts well below the first screen, so
+  // only a real scroll puts it in view (visual r1 F-01).
+  const filler = {
+    content: {
+      type: "doc",
+      content: Array.from({ length: 70 }, (_, i) => ({
+        type: "paragraph",
+        content: [{ type: "text", text: `Dòng nội dung số ${i + 1} cho phép thử cuộn tới chỗ được nhắc.` }],
+      })),
+    },
+  };
+  const { id: docId } = await ownerDoc(page.request, scene, "deeplink", filler);
   // Member can view from the start, so the body mention notifies her.
   await grantAccess(page.request, scene.m.aOwner.token, docId, [userItem(scene.member, "view")]);
 
@@ -102,18 +123,21 @@ test("the mentioned member's inbox row deep-links to the document at her mention
   await expect(row).toBeVisible({ timeout: 60_000 });
   await row.click();
 
-  // The document opens on her own mention — selected, so the reveal marker is
-  // there even once the two-second flash has faded — and the URL drops the
-  // parameter after use. The pathname check ignores any other query params.
-  // TipTap puts ProseMirror-selectednode on the node view's outer element
-  // (span.node-mention), not on the inner [data-node-view-wrapper], so the
-  // selected node is matched through the chip it holds.
+  // The document opens on her own mention: scrolled into view, selected (the
+  // reveal marker once the flash has faded) and flashing, and the URL drops the
+  // parameter after use. TipTap puts ProseMirror-selectednode and our
+  // is-mention-reveal on the node view's outer element (span.node-mention),
+  // not on the inner [data-node-view-wrapper], so both are matched through the
+  // chip that element holds.
   const chip = memberPage.locator(`.mention[data-mention-id="${scene.member.id}"]`);
   await expect(chip).toBeVisible({ timeout: 60_000 });
-  await expect(
-    memberPage.locator(`.ProseMirror-selectednode .mention[data-mention-id="${scene.member.id}"]`),
-  ).toHaveCount(1, { timeout: 15_000 });
+  await expectRevealed(memberPage, chip);
   await memberPage.waitForURL((url) => url.pathname.endsWith(`/${docId}`), { timeout: 30_000 });
+
+  // The same link loaded cold (a pasted URL, not a client navigation) lands the same way.
+  await memberPage.goto(`${docPath(scene.m.aOwner, docId)}?mention=1`);
+  await expect(chip).toBeAttached({ timeout: 60_000 });
+  await expectRevealed(memberPage, chip);
 
   await member.context.close();
 });
