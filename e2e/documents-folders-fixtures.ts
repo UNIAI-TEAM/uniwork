@@ -558,11 +558,12 @@ export async function createFolderChain(
 }
 
 /**
- * Seeds `count` child pages under `rootFolderId` in parallel with one token per
- * lane. The global limiter keys by bearer token (300/min per token,
- * `server/internal/handler/router/router.go:90`), so spreading the work over
- * several workspace members keeps every token far below its budget; a 429 is
- * still retried after its Retry-After. Returns the elapsed milliseconds.
+ * Seeds `count` child pages under `rootFolderId` in parallel, several lanes per
+ * token. The global limiter keys by user (300/min, `router.go` `bearerUser`),
+ * and a folder is never shared (UNI-1974), so only a user who may create in the
+ * folder (its owner) can seed it: 1000 pages take ~4 minutes, with a 429 retried
+ * after its Retry-After. Several tokens only help when each may write there.
+ * Returns the elapsed milliseconds.
  */
 export async function seedFolderSubtreeParallel(
   page: Page,

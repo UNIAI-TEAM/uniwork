@@ -2346,12 +2346,12 @@ test("FD-A12 a second session archiving and restoring a folder subtree is seen l
 test("FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button", async ({
   page,
 }) => {
-  test.setTimeout(4 * 60_000);
-  // Four extra members: each token has its own limiter bucket (300/min), so five lanes
-  // of ~200 requests each stay far below it and no fixed sleeps are needed.
-  const ws = await seedFolderWorkspace(page, "fd-a12-1000", {
-    extraMembers: 4,
-  });
+  // One owner seeds all 1000 pages: a folder is never shared (UNI-1974), so no
+  // other member may create inside it. The global limiter budgets 300 requests a
+  // minute per user, so the seed takes ~4 minutes (429s are retried after their
+  // Retry-After) and the test gets a budget well above that.
+  test.setTimeout(12 * 60_000);
+  const ws = await seedFolderWorkspace(page, "fd-a12-1000");
   // Subtree > 1000 nodes (hugeFolder + 1000 child pages = 1001 total nodes):
   // archive-impact reports too_large: true and archive refuses with 422 folder_too_large.
   const hugeFolder = await createFolder(
@@ -2362,14 +2362,14 @@ test("FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks ar
   );
   const seedMs = await seedFolderSubtreeParallel(
     page,
-    [ws.owner.token, ...ws.extraMembers.map((m) => m.token)],
+    [ws.owner.token],
     ws.wsId,
     hugeFolder.id,
     1000,
     "Mục",
   );
   console.log(`FD-A12 seeded 1000 pages in ${seedMs} ms`);
-  expect.soft(seedMs, "seeding 1000 pages takes under 90 s").toBeLessThan(90_000);
+  expect.soft(seedMs, "seeding 1000 pages takes under 8 min").toBeLessThan(8 * 60_000);
 
   const hugeImpact = await getArchiveImpact(
     page,
