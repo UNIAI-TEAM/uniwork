@@ -583,9 +583,9 @@ func unboundUniworkAllowlist(module string, offered []UniworkToolSpec, viewOnly 
 // every tool the holdout offers a case of slides / pdf / markdown / html, and
 // therefore every name a real-schema run can put in front of the model for
 // those modules. The table is transcribed here on purpose (a Go test cannot read
-// the JS mapping), so a change to TOOL_OPS that a mapped name leaves the served
-// allowlist for fails here until both are updated together (G7-12-SCHEMA step 3,
-// UNI-1964).
+// the JS mapping); scripts/office/g5g6g7/genoffice-tool-schemas.test.mjs is the
+// JS-to-Go drift guard and fails if this literal and TOOL_OPS diverge (G7-12-SCHEMA
+// step 3, review r1 F5, UNI-1964).
 var uniworkMappedFormatTools = map[string][]string{
 	"slides":   {"read_slide", "apply_ops", "ask_clarification"},
 	"pdf":      {"read_pages", "search_text", "get_outline", "edit_text", "edit_block", "ask_clarification"},

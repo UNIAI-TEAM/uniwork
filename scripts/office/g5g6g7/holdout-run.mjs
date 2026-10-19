@@ -655,10 +655,13 @@ export function readToolSchemasFile(file) {
  * one (--tool-schemas) unless --allow-name-only says the run is knowingly hollow (a signed verdict will be INCONCLUSIVE),
  * and a --tool-schemas file's header.rev must match the committed §3 block rev, so a stale surface never reaches a run.
  */
-export function preflight({ redis, catalogue, allowNameOnly = false, toolSchemas = null }) {
+export function preflight({ redis, catalogue, allowNameOnly = false, toolSchemas = null, expectedRev = committedBlockRev() }) {
   if (redis !== 'on' && redis !== 'off') throw new Error('--redis on|off is required for a real run (the release tuple needs it; "unknown" is refused)');
-  if (toolSchemas?.rev && toolSchemas.rev !== committedBlockRev()) {
-    throw new Error(`--tool-schemas header.rev ${toolSchemas.rev} does not match the committed §3 block rev ${committedBlockRev() ?? 'unknown'} of genoffice-tools.md`);
+  if (toolSchemas !== null) {
+    const rev = typeof toolSchemas.rev === 'string' ? toolSchemas.rev.trim() : '';
+    if (!rev || !expectedRev || rev !== expectedRev) {
+      throw new Error(`--tool-schemas header.rev ${rev || 'missing'} does not match the committed §3 block rev ${expectedRev ?? 'unknown'} of genoffice-tools.md`);
+    }
   }
   const hollow = Object.entries(toolSurface(catalogue)).filter(([, v]) => v.source === 'name-only').map(([m]) => m);
   if (hollow.length > 0 && !allowNameOnly) {
@@ -1067,7 +1070,7 @@ async function main() {
   const toolSchemas = schemaBytes ? JSON.parse(schemaBytes.toString('utf8')) : null;
   const toolSchemasSha256 = schemaBytes ? sha256Hex(schemaBytes) : null;
   const toolSchemasRev = toolSchemas?.header?.rev ?? null;
-  preflight({ redis: args.redis, catalogue: toolCatalogue(toolSchemas), allowNameOnly: args.allowNameOnly, toolSchemas: { rev: toolSchemasRev } });
+  preflight({ redis: args.redis, catalogue: toolCatalogue(toolSchemas), allowNameOnly: args.allowNameOnly, toolSchemas: args.toolSchemas ? { rev: toolSchemasRev } : null });
   if (!args.dbUrl) process.stderr.write('warning: no --db-url: provider, prompt_id and server latency stay unknown, so a signed verdict on these runs is INCONCLUSIVE\n');
   const { cases } = loadCases(args.cases);
   const sessionId = newSessionId();

@@ -22,6 +22,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { TOOL_OPS } from './holdout-backend.mjs';
+import { isInsideRepo } from './holdout-run.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 export const DEFAULT_SCHEMAS_FILE = path.join(repoRoot, 'docs/office/g5g6g7/genoffice-tool-schemas.json');
@@ -47,7 +48,7 @@ export function declaredShapeViolations(schema, args) {
   if (!schema || typeof schema !== 'object' || args === null || typeof args !== 'object' || Array.isArray(args)) return out;
   const properties = schema.properties ?? {};
   for (const key of schema.required ?? []) if (!(key in args)) out.push({ kind: 'missing required', key });
-  for (const key of Object.keys(args)) if (!(key in properties)) out.push({ kind: 'unexpected', key });
+  for (const key of Object.keys(args)) if (!(key in properties)) out.push({ kind: 'unexpected', key: '<undeclared-key>' });
   return out;
 }
 
@@ -62,7 +63,7 @@ export function strictViolations(schema, value, at = '$') {
   const out = [];
   if (!schema || typeof schema !== 'object') return out;
   const types = schema.type === undefined ? null : [].concat(schema.type);
-  if (types && !types.some((t) => t === jsonType(value) || (t === 'number' && jsonType(value) === 'number'))) {
+  if (types && !types.some((t) => (t === 'integer' ? typeof value === 'number' && Number.isInteger(value) : t === jsonType(value)))) {
     return [{ kind: 'type', key: at }];
   }
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) out.push({ kind: 'enum', key: at });
@@ -71,7 +72,7 @@ export function strictViolations(schema, value, at = '$') {
     for (const key of schema.required ?? []) if (!(key in value)) out.push({ kind: 'missing required', key });
     for (const [key, child] of Object.entries(value)) {
       if (key in properties) out.push(...strictViolations(properties[key], child, `${at}.${key}`));
-      else if (schema.additionalProperties === false) out.push({ kind: 'unexpected', key });
+      else if (schema.additionalProperties === false) out.push({ kind: 'unexpected', key: '<undeclared-key>' });
       else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') out.push(...strictViolations(schema.additionalProperties, child, `${at}.${key}`));
     }
   }
@@ -194,6 +195,9 @@ export function parseArgs(argv) {
   }
   if (args.help) return args;
   if (!args.runs) throw new Error('--runs <session dir> is required (the folder holding run-NN.json)');
+  if (args.out && isInsideRepo(args.out)) {
+    throw new Error(`--out ${args.out} is inside the repo: what-if reports go outside the repo`);
+  }
   return args;
 }
 
@@ -210,7 +214,10 @@ async function main() {
   const schemasSha256 = (await import('node:crypto')).createHash('sha256').update(schemasBytes).digest('hex');
   const result = validateSession({ runsDir: args.runs, schemasDoc, groups: args.groups });
   const md = renderWhatif(result, { runsDir: args.runs, schemasFile: args.schemas, groups: args.groups, schemasSha256 });
-  if (args.out) fs.writeFileSync(args.out, md, 'utf8');
+  if (args.out) {
+    if (isInsideRepo(args.out)) throw new Error(`--out ${args.out} is inside the repo: what-if reports go outside the repo`);
+    fs.writeFileSync(args.out, md, 'utf8');
+  }
   process.stdout.write(`${JSON.stringify({ entries: result.entries, violations: result.violations, askInstances: result.askInstances, caseIds: result.caseIds, byTool: result.byTool, violatedKeys: result.violatedKeys })}\n`);
   if (args.out) process.stdout.write(`what-if written to ${args.out}\n`);
 }
