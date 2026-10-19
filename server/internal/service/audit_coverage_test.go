@@ -1231,6 +1231,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionDocumentAccessRequested: func(t *testing.T, f *auditFixture) {
 			f.documentAccessRequest(t)
 		},
+		audit.ActionDocumentAccessRequestApproved: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.ApproveDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID, "view"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentAccessRequestDeclined: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.DeclineDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
 			svc, docID, req := f.documentEditRequest(t)
 			if _, err := svc.AnswerDocumentEditRequest(f.ctx, Human(f.owner.ID), docID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "decline", LockID: req.Request.LockID}); err != nil {
@@ -1801,6 +1813,8 @@ func auditActions() []string {
 		audit.ActionDocumentEditRequestAnswered,
 		audit.ActionDocumentEditRequestCanceled,
 		audit.ActionDocumentAccessRequested,
+		audit.ActionDocumentAccessRequestApproved,
+		audit.ActionDocumentAccessRequestDeclined,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentCommitIntentRenewed,
@@ -2088,8 +2102,9 @@ func (f *auditFixture) documentEditHold(t *testing.T) (*DocumentService, string,
 }
 
 // documentAccessRequest is a restricted document the member cannot read and
-// the request they sent its ACL owner (DOC-07).
-func (f *auditFixture) documentAccessRequest(t *testing.T) (*DocumentService, string) {
+// the request they sent its ACL owner (DOC-07). It answers the service, the
+// document id and the pending request id, so a case can decide the request.
+func (f *auditFixture) documentAccessRequest(t *testing.T) (*DocumentService, string, string) {
 	t.Helper()
 	svc, docID := f.document(t)
 	f.addMember(t)
@@ -2101,7 +2116,12 @@ func (f *auditFixture) documentAccessRequest(t *testing.T) (*DocumentService, st
 	}); err != nil {
 		t.Fatal(err)
 	}
-	return svc, docID
+	var reqID string
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT id FROM document_access_requests WHERE document_id = $1 AND status = 'pending'`, docID).Scan(&reqID); err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, reqID
 }
 
 // documentEditRequest is a document the owner holds and the member asked
