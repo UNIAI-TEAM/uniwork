@@ -383,6 +383,7 @@ export function DocumentDetailView({
           source={requestSource}
           onRetryOpen={() => void query.refetch()}
           retrying={query.isFetching}
+          answeredAt={query.errorUpdatedAt}
           onBack={onBackToList}
         />
       );
@@ -435,6 +436,7 @@ export function DocumentDetailView({
             key={workspaceDoc.id}
             wsId={wsId}
             doc={workspaceDoc}
+            bodyRefreshing={query.isFetching}
             libraryHref={libraryHref}
             documentHref={documentHref}
             ownerHref={ownerHref}

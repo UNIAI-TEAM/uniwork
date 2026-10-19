@@ -51,7 +51,7 @@ function serve(over: { approve?: () => Promise<unknown>; decline?: () => Promise
     if (path === `${LIST}/r1/decline`) {
       return (
         over.decline?.() ??
-        Promise.resolve({ id: "r1", status: "declined" }).then((res) => {
+        Promise.resolve({ id: "r1", status: "declined", share_id: "" }).then((res) => {
           pending = { requests: pending.requests.filter((r) => (r as { id: string }).id !== "r1") };
           return res;
         })
@@ -256,7 +256,7 @@ describe("AccessRequestsSection", () => {
       if (path === LIST && !opts?.method) return Promise.resolve(pending);
       if (path === `${LIST}/r2/decline`) {
         pending = { requests: [] };
-        return Promise.resolve({ id: "r2", status: "declined" });
+        return Promise.resolve({ id: "r2", status: "declined", share_id: "" });
       }
       return Promise.resolve({});
     });

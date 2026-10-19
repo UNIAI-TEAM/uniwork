@@ -8,6 +8,8 @@ import {
   FeatureFlagService,
   StaticProvider,
 } from "@uniwork/core/feature-flags";
+import { clearDocumentAccessRequestSent } from "@uniwork/core/documents/hooks-access-requests";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
@@ -269,6 +271,74 @@ describe("DocumentDetailView", () => {
     renderView();
     await screen.findByRole("textbox", { name: t("documents.page_ui.title_label") });
     expect(localStorage.getItem("uniwork_document_access_request_sent:d1")).toBeNull();
+  });
+
+  it("BE-SD7-15: a decline clears the mounted card's sent state, so a new request is possible once the cooldown shows", async () => {
+    const SEND = "/api/v1/documents/d1/access-requests";
+    let declined = false;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === SEND && opts?.method === "POST") {
+        return declined
+          ? Promise.reject(new ApiError("cooldown", "access_request_cooldown", 429, undefined, { retry_after_seconds: 3540 }))
+          : Promise.resolve({ status: "sent" });
+      }
+      return Promise.reject(new ApiError("not found", "not_found", 404));
+    });
+    // What use-realtime-sync does for a document.access_request_decided frame:
+    // drop the device flag, then refresh the detail key (documentFrameKeys).
+    function DecidedFrame() {
+      const qc = useQueryClient();
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            declined = true;
+            clearDocumentAccessRequestSent("d1");
+            void qc.invalidateQueries({ queryKey: documentKeys.detail(WS, "d1") });
+          }}
+        >
+          decided-frame
+        </button>
+      );
+    }
+    render(withFlag(
+      <>
+        <DecidedFrame />
+        <DocumentDetailView wsId={WS} documentId="d1" libraryHref={LIBRARY} onBackToList={vi.fn()} />
+      </>,
+    ));
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.access_request.send") }));
+    expect((await screen.findByRole("status")).textContent).toContain(t("documents.access_request.sent"));
+    expect(screen.queryByRole("button", { name: t("documents.access_request.send") })).toBeNull();
+
+    const reads = () => requestMock.mock.calls.filter(([path]) => path === "/api/v1/documents/d1").length;
+    const before = reads();
+    fireEvent.click(screen.getByRole("button", { name: "decided-frame" }));
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+
+    // The card stays mounted through the error-only refetch; its sent note must not outlive the decision.
+    const send = await screen.findByRole("button", { name: t("documents.access_request.send") });
+    expect(screen.queryByText(t("documents.access_request.sent"))).toBeNull();
+    fireEvent.click(send);
+    expect(await screen.findByText(t("documents.access_request.cooldown", { minutes: 59 }))).toBeInTheDocument();
+  });
+
+  it("keeps the sent state through a plain refetch while the request is still waiting", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      path === "/api/v1/documents/d1/access-requests" && opts?.method === "POST"
+        ? Promise.resolve({ status: "sent" })
+        : Promise.reject(new ApiError("not found", "not_found", 404)),
+    );
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.access_request.send") }));
+    await screen.findByRole("status");
+    const reads = () => requestMock.mock.calls.filter(([path]) => path === "/api/v1/documents/d1").length;
+    const before = reads();
+    fireEvent.click(screen.getByRole("button", { name: t("documents.access_request.retry_open") }));
+    await waitFor(() => expect(reads()).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.access_request.retry_open") })).not.toHaveAttribute("aria-disabled"));
+    expect(screen.getByRole("status").textContent).toContain(t("documents.access_request.sent"));
+    expect(screen.queryByRole("button", { name: t("documents.access_request.send") })).toBeNull();
   });
 
   it("offers a failed load again instead of calling the document missing", async () => {

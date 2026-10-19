@@ -25,7 +25,7 @@ type Prefs struct {
 // and an approval pushes to the requester, who is waiting to get in; a
 // decline does not (§4.4).
 func DefaultPrefs(kind string) Prefs {
-	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
+	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentBodyMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindDocumentShared ||
 		kind == KindDocumentAccessRequested || kind == KindDocumentAccessApproved ||
 		kind == KindTaskAssigned || kind == KindMeetingStarting ||
