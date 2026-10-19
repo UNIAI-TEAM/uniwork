@@ -149,6 +149,11 @@ describe("ChatDocumentMessageRow", () => {
     const card = titleButton.closest("div.flex-col");
     expect(card?.className).toContain("w-[22rem]");
     expect(card?.className).toContain("max-w-full");
+    // The row that holds the avatar, bubble and actions rail is wide enough for
+    // that card (36rem, the text row's cap) — the 26rem file-row cap clamped it.
+    const row = card?.closest("div[class*=\"max-w-[min(85%\"]");
+    expect(row?.className).toContain("max-w-[min(85%,36rem)]");
+    expect(row?.className).not.toContain("26rem");
   });
 
   it("lets the locked heading wrap and puts the action below it (F-02)", () => {

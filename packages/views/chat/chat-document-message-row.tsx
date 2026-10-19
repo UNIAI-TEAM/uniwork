@@ -111,7 +111,10 @@ function ChatDocumentMessageRowImpl({
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
-      <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
+      {/* 36rem like the text row: the card (22rem) + bubble padding + the in-flow
+          actions rail (sm+, ~124px) + the avatar need ~34rem, and the 26rem cap
+          the file row uses left the card ~220-260px (UNI-1966 N-01/F-03). */}
+      <div className={cn("flex max-w-[min(85%,36rem)] gap-2", isOwn && "flex-row-reverse")}>
         {isOwn ? null : showAvatar ? (
           <span className="shrink-0">
             <ChatSenderAvatar
