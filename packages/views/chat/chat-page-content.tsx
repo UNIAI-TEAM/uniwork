@@ -261,6 +261,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
             )}
           >
             <ChatSidebar
+              scope={props.scope}
               currentUserId={currentUserId}
               workspaceId={workspaceId}
               target={target}

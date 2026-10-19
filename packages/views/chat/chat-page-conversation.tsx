@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode, RefObject } from "react";
-import { useChatRooms } from "@uniwork/core/chat";
 import { ChatRoomComposer, type ChatComposerHandle, type ComposerAttachAction } from "./chat-composer";
 import { chatComposerBlockProps } from "./chat-composer-placeholder";
 import { ChatUnreadProvider } from "./chat-day-separator";
@@ -83,8 +82,6 @@ export function ChatPageConversation({
     chatSendRestricted,
   } = props;
   const edit = useChatInlineEdit({ workspaceId, roomId: activeRoomId, nameContext });
-  const { data: rooms } = useChatRooms(workspaceId);
-  const roomWorkspaceId = rooms?.find((room) => room.id === activeRoomId)?.workspace_id;
   // Threads, mentions and sender names belong to rooms with more than two people.
   const many = target.kind !== "dm";
 
@@ -99,7 +96,6 @@ export function ChatPageConversation({
         activeChannel={props.activeChannel}
         workspaceMemberIds={workspaceMemberIds}
         channelMemberIds={channelMemberIds}
-        roomWorkspaceId={roomWorkspaceId}
         nicknamesByUserId={nicknamesByUserId}
         memberAvatarByUserId={memberAvatarByUserId}
         typingLabel={props.typingLabel}

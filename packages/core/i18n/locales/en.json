@@ -3837,6 +3837,24 @@
     "search_hide_weekends": "Hide weekends"
   },
   "chat": {
+    "scope": {
+      "messages_title": "Messages",
+      "messages_hint": "Direct and group, shared by every workspace",
+      "channels_tab": "Channels",
+      "channels_hint": "This workspace's channels",
+      "search_channels": "Search channels and messages in {{name}}…",
+      "workspace_overline": "{{org}} · Workspace",
+      "switch_aria": "Messages or channels",
+      "create_channel_in": "Create a channel in {{name}}",
+      "channel_of": "Channel in {{name}}",
+      "room_of": "{{name}}'s shared room",
+      "group_line": "Group",
+      "rail_label": "Messages, direct and group",
+      "rail_tooltip": "Messages · direct and group, shared by every workspace",
+      "intro_title": "Direct messages and groups live here now",
+      "intro_body": "They're shared by every {{org}} workspace. Each workspace now keeps just its channels.",
+      "intro_dismiss": "Got it"
+    },
     "message_list": {
       "gifs_failed": "Couldn't load GIFs.",
       "search_results_total_one": "{{count}} result",
@@ -5415,6 +5433,14 @@
   },
   "notifications": {
     "title": "Inbox",
+    "desktop": {
+      "prompt": "Turn on notifications so you don't miss new messages.",
+      "enable": "Turn on notifications",
+      "check": "When macOS asks, choose Allow. If no test notification appeared, turn UniChat on in your computer's notification settings.",
+      "open_settings": "Open notification settings",
+      "test_title": "Notifications are on",
+      "test_body": "New messages will show up here."
+    },
     "filter": "Filter",
     "filter_all": "All",
     "filter_unread": "Unread",
@@ -5433,14 +5459,6 @@
     "group_unread": "Unread",
     "group_today": "Today",
     "group_yesterday": "Yesterday",
-    "desktop": {
-      "prompt": "Turn on notifications so you don't miss new messages.",
-      "enable": "Turn on notifications",
-      "check": "When macOS asks, choose Allow. If no test notification appeared, turn UniChat on in your computer's notification settings.",
-      "open_settings": "Open notification settings",
-      "test_title": "Notifications are on",
-      "test_body": "New messages will show up here."
-    },
     "group_week": "Last 7 days",
     "group_older": "Older",
     "merged_other_one": "and {{count}} more change",
