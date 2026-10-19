@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19183 14183; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19183/tcp 14183/tcp 2>/dev/null; sleep 1; for p in 19183 14183; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+fd58a64a3886889d161bbb4713f5883e027291e3
+fd58a64a3 test(documents): pin the docs-only source set in the review and frame tests
+1a45f582a refactor(documents): drop the source image preview and image/other types (UNI-1967)
+5e17f6cfa feat(documents): sources list only document files (UNI-1967)
+b54a49ac3 chore: merge G7-12 oracle product-test reading (UNI-1874 a1m, 5a71ee05e) into the G5-G7 root

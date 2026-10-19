@@ -1,0 +1,8 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 ./internal/handler/ -run 'TestIsolationMatrix|TestEveryBodyIDFieldHasAReferenceCase' 2>&1 | grep -E '^(--- FAIL|ok|FAIL)|_test.go:[0-9]+:' | head -30; echo "ISO_1967C_EXIT=${PIPESTATUS[0]}"
+--- FAIL: TestIsolationMatrix (2.96s)
+        isolation_matrix_test.go:82: GET /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/download as alpha owner = 404, want success on own ids: {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+        isolation_matrix_test.go:82: GET /api/v1/workspaces/{workspaceID}/documents/sources/{sourceFileID}/download as bravo owner = 404, want success on own ids: {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	2.991s
+FAIL
+ISO_1967C_EXIT=1
