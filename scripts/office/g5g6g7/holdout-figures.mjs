@@ -125,7 +125,50 @@ const maskIdentifiers = (text) => maskFormulas(text.replace(URL_OR_EMAIL_RE, (m)
 // written in capitals ("SUBTOTAL(109,B2:B7)", "VLOOKUP(A2,'Sheet'!$A$2:$G$7,7,FALSE)") and of an "=" expression with no
 // space ("=B2*(1-0.1)") are masked. A figure outside the formula stays a figure, and a masked literal credits nothing.
 const FORMULA_CALL_RE = /(?<![\p{L}\d_])[A-Z][A-Z0-9.]+\(/gu;
-const FORMULA_EXPR_RE = /(?<![\w=<>!])=(?=[A-Za-z$(])[^\s`]*/g;
+const FORMULA_EXPR_RE = /(?<![\w=<>!])=(?=[A-Za-z$(])/g;
+const FORMULA_ATOM_RE = /(?:(?:'(?:[^'\n]|'')+'|[A-Za-z_][\w.]*)!)?\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?(?![\p{L}\d_(!])|\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?:%(?![\p{L}\d_]))?(?![\p{L}\d_])|"(?:[^"\n]|"")*"|(?:TRUE|FALSE)(?![\p{L}\d_])/uy;
+const FORMULA_OP_RE = /<>|<=|>=|[-+*/^&=<>]/y;
+function formulaExprEnd(text, from, inParens) {
+  let i = from;
+  const skipWs = () => { if (inParens) while (text[i] === ' ' || text[i] === '\t') i += 1; };
+  const atomEnd = () => {
+    skipWs();
+    while (text[i] === '+' || text[i] === '-') i += 1;
+    skipWs();
+    if (text[i] === '(') {
+      const inner = formulaExprEnd(text, i + 1, true);
+      return inner > 0 && text[inner] === ')' ? inner + 1 : -1;
+    }
+    const call = /[A-Za-z_][A-Za-z0-9_.]*\(/y;
+    call.lastIndex = i;
+    if (call.exec(text)) {
+      let p = call.lastIndex;
+      for (;;) {
+        const next = formulaExprEnd(text, p, true);
+        if (next < 0) return -1;
+        p = next;
+        while (text[p] === ' ' || text[p] === '\t') p += 1;
+        if (text[p] === ')') return p + 1;
+        if (text[p] !== ',' && text[p] !== ';') return -1;
+        p += 1;
+      }
+    }
+    FORMULA_ATOM_RE.lastIndex = i;
+    return FORMULA_ATOM_RE.exec(text) ? FORMULA_ATOM_RE.lastIndex : -1;
+  };
+  let end = atomEnd();
+  if (end < 0) return -1;
+  for (;;) {
+    i = end;
+    skipWs();
+    FORMULA_OP_RE.lastIndex = i;
+    if (!FORMULA_OP_RE.exec(text)) return end;
+    i = FORMULA_OP_RE.lastIndex;
+    const next = atomEnd();
+    if (next < 0) return end;
+    end = next;
+  }
+}
 function maskFormulas(text) {
   // UTF-16 units, masked in place: the text keeps its length, so every later offset still points at the same character.
   const units = text.split('');
@@ -144,7 +187,10 @@ function maskFormulas(text) {
     }
     if (end > 0) mask(m.index, end);
   }
-  for (const m of text.matchAll(FORMULA_EXPR_RE)) mask(m.index, m.index + m[0].length);
+  for (const m of text.matchAll(FORMULA_EXPR_RE)) {
+    const end = formulaExprEnd(text, m.index + 1, false);
+    if (end > 0) mask(m.index, end);
+  }
   return units.join('');
 }
 
