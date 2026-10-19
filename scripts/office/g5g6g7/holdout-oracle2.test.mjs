@@ -339,4 +339,14 @@ describe('O2-B3: a written formula is filled and evaluated as the editor would',
     assert.equal(cell(backend, 'G2'), '30 [formula =IF(C4="",B4,B4/C4)]', 'P-B3-IF-TRUE-SHORTCIRCUIT');
     assert.equal(cell(backend, 'G3'), '1 [formula =IF(C2=0,1/0,B2/C2)]', 'P-B3-IF-FALSE-SHORTCIRCUIT');
   });
+
+  it('O2R1-07: overwriting a cell with an unsupported or error formula drops the old cached value', () => {
+    const backend = createBackend(xlsx, { views: [view()] });
+    backend.execute('propose_operations', { operations: [
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'B2', formula: '=NOSUCH(A2)' },
+      { op: 'set_formula', sheetId: 'sheet-1', address: 'C2', formula: '=1/0' },
+    ] });
+    assert.equal(cell(backend, 'B2'), ' [formula =NOSUCH(A2)]', 'P-B3-UNKNOWN-OVERWRITE');
+    assert.equal(cell(backend, 'C2'), ' [formula =1/0]', 'P-B3-ERROR-OVERWRITE');
+  });
 });
