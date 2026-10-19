@@ -1641,12 +1641,13 @@
       "group_completed": "Hoàn thành",
       "group_closed": "Đã đóng",
       "category": "Nhóm",
+      "category_locked": "Trạng thái có sẵn luôn ở nhóm này vì hệ thống dựa vào nó.",
       "icon": "Hình biểu tượng",
       "icon_default": "Mặc định",
       "icon_option": "Biểu tượng {{name}}",
       "workspace_chip": "Workspace {{name}}",
       "drag": "Sắp xếp lại {{name}}",
-      "system_locked": "Trạng thái có sẵn điều khiển hành vi hệ thống nên không sửa hay lưu trữ được. Bạn vẫn sắp xếp lại được.",
+      "system_locked": "Trạng thái có sẵn không lưu trữ hay đổi nhóm được. Bạn vẫn sửa tên, màu, biểu tượng và sắp xếp lại được.",
       "group_hint_not_started": "Công việc chưa bắt đầu hoặc đang chờ.",
       "group_hint_started": "Công việc đang làm, đang review hoặc bị chặn.",
       "group_hint_completed": "Công việc đã xong.",
@@ -2420,8 +2421,7 @@
       "card_dueDate": "Hạn",
       "card_project": "Dự án",
       "card_childProgress": "Tiến độ sub-task",
-      "card_labels": "Nhãn",
-      "labels_unavailable": "Danh sách task chưa trả về quan hệ nhãn."
+      "card_labels": "Nhãn"
     },
     "card": {
       "child_progress": "Tiến độ sub-task",

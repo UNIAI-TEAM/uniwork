@@ -18,6 +18,7 @@ describe("planCacheUpdate", () => {
         taskKeys.detail("t1"),
         taskKeys.children("t1"),
         taskKeys.subscribers("t1"),
+        taskKeys.labelLinks("ws1"),
       ]),
     );
   });
@@ -44,6 +45,7 @@ describe("planCacheUpdate", () => {
       taskKeys.myTasks("ws1"),
       taskKeys.queryRoot("ws1"),
       taskKeys.tableRoot("ws1"),
+      taskKeys.labelLinks("ws1"),
       taskKeys.detail("t1"),
       taskKeys.children("t1"),
       taskKeys.subscribers("t1"),

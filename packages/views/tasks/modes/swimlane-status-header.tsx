@@ -12,6 +12,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { STATUS_CONFIG, statusColumnBg } from "./status-config";
+import { useStatusLabel } from "../pickers/status-catalog";
 
 export function SwimlaneStatusHeader({
   statuses,
@@ -25,6 +26,7 @@ export function SwimlaneStatusHeader({
   onHideStatus: (status: TaskStatus) => void;
 }) {
   const { t } = useTranslation();
+  const statusLabel = useStatusLabel();
 
   return (
     <div className="sticky top-0 z-10 mb-2 bg-background/95 pb-2 backdrop-blur supports-[backdrop-filter]:bg-background/75">
@@ -49,7 +51,7 @@ export function SwimlaneStatusHeader({
                   aria-hidden
                 />
                 <span className="truncate text-caption font-semibold">
-                  {t(`tasks.status_${status}`)}
+                  {statusLabel(status)}
                 </span>
                 <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
                   {totals[status] ?? 0}
