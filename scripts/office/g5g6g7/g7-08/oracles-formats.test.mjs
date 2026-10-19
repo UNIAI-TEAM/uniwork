@@ -346,6 +346,141 @@ test('w2o: X-R2 accepts an explicit statement that the SUM total row includes th
   assert.equal(subtotalIncludes.details.predicates.allRowsTotal, false);
 });
 
+function rewriteXlsxParts(baseBytes, mutateParts) {
+  const entries = readZipEntries(baseBytes);
+  const parts = Object.fromEntries(entries.map((e) => [e.name, e.data]));
+  const xmlParts = {
+    sheet1: parts['xl/worksheets/sheet1.xml'].toString('utf8'),
+    sheet2: parts['xl/worksheets/sheet2.xml'].toString('utf8'),
+    sheet3: parts['xl/worksheets/sheet3.xml'].toString('utf8'),
+  };
+  mutateParts(xmlParts);
+  parts['xl/worksheets/sheet1.xml'] = Buffer.from(xmlParts.sheet1, 'utf8');
+  parts['xl/worksheets/sheet2.xml'] = Buffer.from(xmlParts.sheet2, 'utf8');
+  parts['xl/worksheets/sheet3.xml'] = Buffer.from(xmlParts.sheet3, 'utf8');
+  return zipStore(ooxmlEntries(parts));
+}
+
+test('w3c: oracleXlsxEdit tolerates <= 1e-9 float noise on unchanged numeric caches, fails real/error changes, and lists up to 20 mutated cells', () => {
+  const afterGood = buildEditedXlsxBytes(xlsxFixture.bytes);
+  const baseObserved = {
+    beforeBytes: xlsxFixture.bytes,
+    afterBytes: afterGood,
+    targetSheet: 'Doanh thu Q1',
+    targetRange: 'AA2:AA7',
+    panelFootprintText: 'Doanh thu Q1!AA2:AA7 (6 cells overwritten)',
+  };
+
+  // 1. Float noise only (relative or absolute difference <= 1e-9, same f, same t) counts as unchanged.
+  const afterFloatNoise = rewriteXlsxParts(afterGood, (xml) => {
+    // w3b Tổng hợp!E5: SUM(E2:E4) cached value 1 -> 0.9999999999999999 (diff ~1.11e-16 <= 1e-9)
+    xml.sheet3 = xml.sheet3.replace(
+      '<c r="E5" s="4"><f>SUM(E2:E4)</f><v>1</v></c>',
+      '<c r="E5" s="4"><f>SUM(E2:E4)</f><v>0.9999999999999999</v></c>',
+    );
+    // Large number with relative difference ~4.53e-10 <= 1e-9 (absolute difference 0.01 > 1e-9)
+    xml.sheet3 = xml.sheet3.replace(
+      '<c r="B5" s="5"><f>SUM(B2:B4)</f><v>22060000</v></c>',
+      '<c r="B5" s="5"><f>SUM(B2:B4)</f><v>22060000.01</v></c>',
+    );
+    // Small number with absolute difference 5e-10 <= 1e-9 (relative difference 5e-9 > 1e-9)
+    xml.sheet1 = xml.sheet1.replace(
+      '<c r="F2" s="3"><v>0.1</v></c>',
+      '<c r="F2" s="3"><v>0.1000000005</v></c>',
+    );
+  });
+  assert.equal(oracleXlsxEdit({ ...baseObserved, afterBytes: afterFloatNoise }).status, VERDICT.PASS);
+
+  // 2. A real numeric change (> 1e-9 relative and absolute) still fails.
+  const afterRealNumericChange = rewriteXlsxParts(afterGood, (xml) => {
+    xml.sheet3 = xml.sheet3.replace(
+      '<c r="E5" s="4"><f>SUM(E2:E4)</f><v>1</v></c>',
+      '<c r="E5" s="4"><f>SUM(E2:E4)</f><v>1.000000002</v></c>',
+    );
+  });
+  const numericFail = oracleXlsxEdit({ ...baseObserved, afterBytes: afterRealNumericChange });
+  assert.equal(numericFail.status, VERDICT.FAIL);
+  assert.equal(numericFail.reason, 'xlsx_edit_unchanged_region_mutated');
+  assert.deepEqual(numericFail.details.mutatedCells, [
+    {
+      sheet: 'Tổng hợp',
+      ref: 'E5',
+      before: { v: 1, f: 'SUM(E2:E4)', t: 'n' },
+      after: { v: 1.000000002, f: 'SUM(E2:E4)', t: 'n' },
+    },
+  ]);
+
+  // 3. Error cells losing t="e" / v still fail, and all mutated cells are listed (while float noise on E5 is ignored).
+  const afterW3bSave = rewriteXlsxParts(afterGood, (xml) => {
+    xml.sheet2 = xml.sheet2
+      .replace(
+        "<c r=\"I2\" t=\"e\"><f>VLOOKUP(A2,'Doanh thu Q1'!$A$2:$G$7,7,FALSE)</f><v>#N/A</v></c>",
+        "<c r=\"I2\"><f>VLOOKUP(A2,'Doanh thu Q1'!$A$2:$G$7,7,FALSE)</f></c>",
+      )
+      .replace(
+        '<c r="H5" t="e"><f>G5/D5</f><v>#DIV/0!</v></c>',
+        '<c r="H5"><f>G5/D5</f></c>',
+      );
+    xml.sheet3 = xml.sheet3
+      .replace(
+        '<c r="E5" s="4"><f>SUM(E2:E4)</f><v>1</v></c>',
+        '<c r="E5" s="4"><f>SUM(E2:E4)</f><v>0.9999999999999999</v></c>',
+      )
+      .replace(
+        '<c r="B7" t="e"><f>#REF!</f><v>#REF!</v></c>',
+        '<c r="B7"><f>#REF!</f></c>',
+      );
+  });
+  const errorFail = oracleXlsxEdit({ ...baseObserved, afterBytes: afterW3bSave });
+  assert.equal(errorFail.status, VERDICT.FAIL);
+  assert.equal(errorFail.reason, 'xlsx_edit_unchanged_region_mutated');
+  assert.deepEqual(errorFail.details.mutatedCells, [
+    {
+      sheet: 'Doanh thu Q2',
+      ref: 'I2',
+      before: { v: '#N/A', f: "VLOOKUP(A2,'Doanh thu Q1'!$A$2:$G$7,7,FALSE)", t: 'e' },
+      after: { v: null, f: "VLOOKUP(A2,'Doanh thu Q1'!$A$2:$G$7,7,FALSE)", t: 'n' },
+    },
+    {
+      sheet: 'Doanh thu Q2',
+      ref: 'H5',
+      before: { v: '#DIV/0!', f: 'G5/D5', t: 'e' },
+      after: { v: null, f: 'G5/D5', t: 'n' },
+    },
+    {
+      sheet: 'Tổng hợp',
+      ref: 'B7',
+      before: { v: '#REF!', f: '#REF!', t: 'e' },
+      after: { v: null, f: '#REF!', t: 'n' },
+    },
+  ]);
+
+  // 4. FAIL details list EVERY mutated cell, capped at 20.
+  const afterManyMutations = rewriteXlsxParts(afterGood, (xml) => {
+    // Mutate 25 numeric cells across sheet1 and sheet2
+    let count = 0;
+    const bumpNumeric = (s) =>
+      s.replace(/<c r="([D-G][2-7])"([^>]*)>((?:<f>[\s\S]*?<\/f>)?)<v>(\d+)<\/v><\/c>/g, (full, ref, attrs, fXml, vStr) => {
+        if (count >= 25) return full;
+        count += 1;
+        return `<c r="${ref}"${attrs}>${fXml}<v>${Number(vStr) + 999}</v></c>`;
+      });
+    xml.sheet1 = bumpNumeric(xml.sheet1);
+    xml.sheet2 = bumpNumeric(xml.sheet2);
+  });
+  const manyFail = oracleXlsxEdit({ ...baseObserved, afterBytes: afterManyMutations });
+  assert.equal(manyFail.status, VERDICT.FAIL);
+  assert.equal(manyFail.reason, 'xlsx_edit_unchanged_region_mutated');
+  assert.equal(manyFail.details.mutatedCells.length, 20);
+  for (const item of manyFail.details.mutatedCells) {
+    assert.equal(typeof item.sheet, 'string');
+    assert.equal(typeof item.ref, 'string');
+    assert.deepEqual(Object.keys(item.before), ['v', 'f', 't']);
+    assert.deepEqual(Object.keys(item.after), ['v', 'f', 't']);
+    assert.equal(item.after.v, item.before.v + 999);
+  }
+});
+
 test('oraclePdfRead (F-R1) and oraclePdfEdit (F-E1) PASS faithful cases and FAIL/BLOCK every guard', () => {
   const validPdfRead = {
     fixtureBytes: pdfFixture.bytes,
