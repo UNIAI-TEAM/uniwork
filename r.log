@@ -1,0 +1,270 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19496 FRONTEND_ORIGIN=http://localhost:14496 API_PUBLIC_URL=http://localhost:19496 PREVIEW_ORIGIN=http://localhost:14497 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19496 NEXT_PUBLIC_WS_URL=ws://localhost:19496 NEXT_PUBLIC_APP_URL=http://localhost:14496 E2E_BASE_URL=http://localhost:14496 E2E_API_URL=http://localhost:19496 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --workers=1 documents-share-no-folder.spec.ts documents-home.spec.ts documents-folders.spec.ts documents-share.spec.ts documents-sharing-ui.spec.ts --reporter=list > /tmp/r74-docs.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/r74-docs.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/r74-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/r74-docs.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/r74-docs.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_1974_EXIT=$rc"
+  ✓  36 documents-share.spec.ts:309:1 › AC07 revoking a Person at Edit while the Workspace stays at View: the preview sentence, then the toast (3.2s)
+  ✓  37 documents-share.spec.ts:340:1 › AC08 revoking every source leaves the document private; an admin keeps admin scope only (2.4s)
+  ✓  38 documents-sharing-ui.spec.ts:31:1 › share, public link, anonymous read, access log and revoke (15.5s)
+
+
+  1) documents-folders.spec.ts:2346:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button 
+
+    Error: createPage(Mục-12) failed: 404 {"code":"not_found","message":"not found","error_class":"missing"} {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+
+
+    expect(received).toBeTruthy()
+
+    Received: false
+
+
+      487 |     res.ok && res.data,
+      488 |     `createPage(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
+    > 489 |   ).toBeTruthy();
+          |     ^
+      490 |   return res.data!;
+      491 | }
+      492 |
+
+    Error Context: test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents-folders.spec.ts:2346:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button 
+  1 skipped
+  36 passed (3.6m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --workers=1 documents-share-no-folder.spec.ts documents-home.spec.ts documents-folders.spec.ts documents-share.spec.ts documents-sharing-ui.spec.ts --reporter=list
+===== e2e/test-results/documents-folders-FD-A12-t-40473-replaces-its-confirm-button/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button
+- Location: documents-folders.spec.ts:2346:1
+
+# Error details
+
+```
+Error: createPage(Mục-12) failed: 404 {"code":"not_found","message":"not found","error_class":"missing"} {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+
+
+expect(received).toBeTruthy()
+
+Received: false
+```
+
+# Test source
+
+```ts
+  389 |     `doc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  390 |   const res = await requestWithRetry429(() =>
+  391 |     page.request.post(`${e2eApiUrl}/api/v1/workspaces/${wsId}/documents`, {
+  392 |       headers: {
+  393 |         ...authHeaders(token, key),
+  394 |         "content-type": "application/json",
+  395 |       },
+  396 |       data: input,
+  397 |     }),
+  398 |   );
+  399 |   const parsed = await parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
+  400 |   if (parsed.ok && parsed.data && !input.parent_id && input.kind !== "folder" && input.visibility !== "restricted") {
+  401 |     return { ...parsed, data: await openRootDocumentToWorkspace(page, token, wsId, parsed.data.id) };
+  402 |   }
+  403 |   return parsed;
+  404 | }
+  405 | 
+  406 | /**
+  407 |  * A root document is private at create since U-SH2 (SH-S1, 1cd4497d9) and a
+  408 |  * named "workspace" opens it at view only. These specs seed what they mean
+  409 |  * by a plain create: a document every workspace member may edit, the
+  410 |  * pre-SH-S1 default. The workspace share writes the home row at edit; a
+  411 |  * child created under it inherits both, so only roots need the call. The
+  412 |  * share bumps the revision, so the returned document is read again: the
+  413 |  * callers pass its revision to move and rename. A folder is never opened this
+  414 |  * way: it cannot be shared (UNI-1974, 422 folder_not_shareable) and stays private.
+  415 |  */
+  416 | async function openRootDocumentToWorkspace(
+  417 |   page: Page,
+  418 |   token: string,
+  419 |   wsId: string,
+  420 |   docId: string,
+  421 | ): Promise<DocumentDTO> {
+  422 |   const res = await requestWithRetry429(() =>
+  423 |     page.request.post(`${e2eApiUrl}/api/v1/documents/${docId}/shares`, {
+  424 |       headers: { ...authHeaders(token), "content-type": "application/json" },
+  425 |       data: { principal_type: "workspace", principal_id: wsId, level: "edit" },
+  426 |     }),
+  427 |   );
+  428 |   expect(
+  429 |     res.ok(),
+  430 |     `open ${docId} to the workspace failed: ${res.status()} ${await res.text()}`,
+  431 |   ).toBeTruthy();
+  432 |   const fresh = await getDocument(page, token, docId);
+  433 |   expect(fresh.ok && fresh.data, `getDocument(${docId}): ${fresh.status}`).toBeTruthy();
+  434 |   return fresh.data!;
+  435 | }
+  436 | 
+  437 | export async function createFolder(
+  438 |   page: Page,
+  439 |   token: string,
+  440 |   wsId: string,
+  441 |   title: string,
+  442 |   parentId?: string | null,
+  443 |   visibility?: "workspace" | "restricted",
+  444 | ): Promise<DocumentDTO> {
+  445 |   // A folder is never shared (UNI-1974): "workspace" would be refused with 422
+  446 |   // folder_not_shareable, so the visibility argument is accepted and not sent.
+  447 |   void visibility;
+  448 |   const res = await apiCreateDocument(page, token, wsId, {
+  449 |     title,
+  450 |     kind: "folder",
+  451 |     parent_id: parentId ?? undefined,
+  452 |   });
+  453 |   expect(
+  454 |     res.ok && res.data,
+  455 |     `createFolder(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
+  456 |   ).toBeTruthy();
+  457 |   return res.data!;
+  458 | }
+  459 | 
+  460 | export async function createPage(
+  461 |   page: Page,
+  462 |   token: string,
+  463 |   wsId: string,
+  464 |   title: string,
+  465 |   parentId?: string | null,
+  466 |   options?: { visibility?: "workspace" | "restricted"; bodyText?: string },
+  467 | ): Promise<DocumentDTO> {
+  468 |   const content = options?.bodyText
+  469 |     ? {
+  470 |         type: "doc",
+  471 |         content: [
+  472 |           {
+  473 |             type: "paragraph",
+  474 |             content: [{ type: "text", text: options.bodyText }],
+  475 |           },
+  476 |         ],
+  477 |       }
+  478 |     : undefined;
+  479 |   const res = await apiCreateDocument(page, token, wsId, {
+  480 |     title,
+  481 |     kind: "page",
+  482 |     parent_id: parentId ?? undefined,
+  483 |     visibility: options?.visibility,
+  484 |     content,
+  485 |   });
+  486 |   expect(
+  487 |     res.ok && res.data,
+  488 |     `createPage(${title}) failed: ${res.status} ${JSON.stringify(res.error)} ${res.rawText ?? ""}`,
+> 489 |   ).toBeTruthy();
+      |     ^ Error: createPage(Mục-12) failed: 404 {"code":"not_found","message":"not found","error_class":"missing"} {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+  490 |   return res.data!;
+  491 | }
+  492 | 
+  493 | export async function uploadFixtureFile(
+  494 |   page: Page,
+  495 |   token: string,
+  496 |   wsId: string,
+  497 |   fixtureId: FolderFixtureId,
+  498 |   options?: { parentId?: string | null; filename?: string; title?: string },
+  499 | ): Promise<DocumentDTO> {
+  500 |   const meta = FIXTURE_FILES[fixtureId];
+  501 |   // server/internal/handler/documents.go:71-73,86-120 (documentUploadForm) reads
+  502 |   // text fields only while they precede the "file" part; anything after "file" is dropped.
+  503 |   const multipart: Record<string, unknown> = {};
+  504 |   if (options?.parentId) multipart.parent_id = options.parentId;
+  505 |   if (options?.title) multipart.title = options.title;
+  506 |   multipart.file = {
+  507 |     name: op===== S9_SERVER_AI
+16:39:45.394 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGH15J2S96GABND2M0KJRY/ai/capabilities status=200 duration=7µs request_id=cursor/hiw4XxHgzT-002618 correlation_id=c2ad35e0f618c2711872183ab1461d2f trace_id=c2ad35e0f618c2711872183ab1461d2f span_id=3d86e5227104a592
+16:39:45.409 INF http request method=GET path=/api/v1/workspaces/01M5AGH15J2S96GABND2M0KJRY/ai/capabilities status=200 duration=9.92ms request_id=cursor/hiw4XxHgzT-002622 correlation_id=4d7eaabb0dc634f6641fb8f1267b325b trace_id=4d7eaabb0dc634f6641fb8f1267b325b span_id=487b5bf9a75e5e74 organization_id=01M5AGH15CBRDV678F5RHNN8W5 workspace_id=01M5AGH15J2S96GABND2M0KJRY actor_id=01M5AGH14YX53E9CRJ1YGXCSFS actor_kind=human
+16:39:46.471 INF http request method=GET path=/api/v1/workspaces/01M5AGH15J2S96GABND2M0KJRY/ai/capabilities status=200 duration=2.558ms request_id=cursor/hiw4XxHgzT-002656 correlation_id=76e1ba80065292db3c6fa9aa4302e266 trace_id=76e1ba80065292db3c6fa9aa4302e266 span_id=7f22f89e4a6d3fdc organization_id=01M5AGH15CBRDV678F5RHNN8W5 workspace_id=01M5AGH15J2S96GABND2M0KJRY actor_id=01M5AGH14YX53E9CRJ1YGXCSFS actor_kind=human
+16:39:49.719 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGH5JKN91Y56NJPAH0EPPE/ai/capabilities status=200 duration=8µs request_id=cursor/hiw4XxHgzT-002714 correlation_id=91379666908117f0d2b4400d1965feb1 trace_id=91379666908117f0d2b4400d1965feb1 span_id=1ae66f2d42e66b54
+16:39:49.733 INF http request method=GET path=/api/v1/workspaces/01M5AGH5JKN91Y56NJPAH0EPPE/ai/capabilities status=200 duration=10.477ms request_id=cursor/hiw4XxHgzT-002717 correlation_id=7cf6662a72c7b0917cbc06d881da990a trace_id=7cf6662a72c7b0917cbc06d881da990a span_id=9a592369bd0815c9 organization_id=01M5AGH5JEFCW8VCNV1SNBRCFN workspace_id=01M5AGH5JKN91Y56NJPAH0EPPE actor_id=01M5AGH5J0SJCYVRDPYTYS53D5 actor_kind=human
+16:39:50.800 INF http request method=GET path=/api/v1/workspaces/01M5AGH5JKN91Y56NJPAH0EPPE/ai/capabilities status=200 duration=10.272ms request_id=cursor/hiw4XxHgzT-002753 correlation_id=3c991b25435504aa3f8a59ca2cab2c2d trace_id=3c991b25435504aa3f8a59ca2cab2c2d span_id=2d0e528a5915e982 organization_id=01M5AGH5JEFCW8VCNV1SNBRCFN workspace_id=01M5AGH5JKN91Y56NJPAH0EPPE actor_id=01M5AGH5J0SJCYVRDPYTYS53D5 actor_kind=human
+16:39:52.041 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGH5JKN91Y56NJPAH0EPPE/ai/capabilities status=200 duration=239µs request_id=cursor/hiw4XxHgzT-002799 correlation_id=38bd60d2de1f3854a042928fc431e094 trace_id=38bd60d2de1f3854a042928fc431e094 span_id=2654db83133f9163
+16:39:52.062 INF http request method=GET path=/api/v1/workspaces/01M5AGH5JKN91Y56NJPAH0EPPE/ai/capabilities status=200 duration=8.506ms request_id=cursor/hiw4XxHgzT-002806 correlation_id=7db3a6718af697f2feacd68f8a0b1f4d trace_id=7db3a6718af697f2feacd68f8a0b1f4d span_id=63038d014fbfe3c8 organization_id=01M5AGH5JEFCW8VCNV1SNBRCFN workspace_id=01M5AGH5JKN91Y56NJPAH0EPPE actor_id=01M5AGH5J0SJCYVRDPYTYS53D5 actor_kind=human
+16:39:53.213 INF http request method=GET path=/api/v1/workspaces/01M5AGH5JKN91Y56NJPAH0EPPE/ai/capabilities status=200 duration=1.575ms request_id=cursor/hiw4XxHgzT-002845 correlation_id=3fa828e88f7eb443e5f01e0f6ef6ebc1 trace_id=3fa828e88f7eb443e5f01e0f6ef6ebc1 span_id=0e7bf35fcc55ea9b organization_id=01M5AGH5JEFCW8VCNV1SNBRCFN workspace_id=01M5AGH5JKN91Y56NJPAH0EPPE actor_id=01M5AGH5J0SJCYVRDPYTYS53D5 actor_kind=human
+16:39:54.928 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGH5JKN91Y56NJPAH0EPPE/ai/capabilities status=200 duration=29µs request_id=cursor/hiw4XxHgzT-002892 correlation_id=7a61521f27bc1b6488e344f12912b1a8 trace_id=7a61521f27bc1b6488e344f12912b1a8 span_id=2a978751b17f4f1f
+16:39:54.944 INF http request method=GET path=/api/v1/workspaces/01M5AGH5JKN91Y56NJPAH0EPPE/ai/capabilities status=200 duration=5.142ms request_id=cursor/hiw4XxHgzT-002904 correlation_id=5c4603d95800ad106b72da68a84ee50b trace_id=5c4603d95800ad106b72da68a84ee50b span_id=bf9dd785e7c4bd4c organization_id=01M5AGH5JEFCW8VCNV1SNBRCFN workspace_id=01M5AGH5JKN91Y56NJPAH0EPPE actor_id=01M5AGH5J0SJCYVRDPYTYS53D5 actor_kind=human
+16:40:00.621 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGHG73GNY5MXAH6NBTQ2HM/ai/capabilities status=200 duration=5µs request_id=cursor/hiw4XxHgzT-003056 correlation_id=3b02f4d4460ebc1cfeda383413f17541 trace_id=3b02f4d4460ebc1cfeda383413f17541 span_id=0db19d2ca0b579cf
+16:40:00.636 INF http request method=GET path=/api/v1/workspaces/01M5AGHG73GNY5MXAH6NBTQ2HM/ai/capabilities status=200 duration=6.65ms request_id=cursor/hiw4XxHgzT-003060 correlation_id=b0cb0c85835ffd6bb4b57428302fe605 trace_id=b0cb0c85835ffd6bb4b57428302fe605 span_id=ec94386967429add organization_id=01M5AGHG6T4AMQ8A6XH9XQFAKR workspace_id=01M5AGHG73GNY5MXAH6NBTQ2HM actor_id=01M5AGHG609FX3D5KKZ96ZRE43 actor_kind=human
+16:40:01.249 INF http request method=GET path=/api/v1/workspaces/01M5AGHG73GNY5MXAH6NBTQ2HM/ai/capabilities status=200 duration=4.29ms request_id=cursor/hiw4XxHgzT-003077 correlation_id=e0f3f06b06fdc17b35aaaebceccef9e7 trace_id=e0f3f06b06fdc17b35aaaebceccef9e7 span_id=227ea0c396d5ff40 organization_id=01M5AGHG6T4AMQ8A6XH9XQFAKR workspace_id=01M5AGHG73GNY5MXAH6NBTQ2HM actor_id=01M5AGHG609FX3D5KKZ96ZRE43 actor_kind=human
+16:40:03.916 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGHM3HS04FKDME5WC2K9DW/ai/capabilities status=200 duration=9µs request_id=cursor/hiw4XxHgzT-003165 correlation_id=795bc41f94569d564c1bd59e53549ee9 trace_id=795bc41f94569d564c1bd59e53549ee9 span_id=f0cdd09fbbfe1bda
+16:40:03.926 INF http request method=GET path=/api/v1/workspaces/01M5AGHM3HS04FKDME5WC2K9DW/ai/capabilities status=200 duration=4.733ms request_id=cursor/hiw4XxHgzT-003170 correlation_id=3441d9360afb3838b16db5da178f1aa7 trace_id=3441d9360afb3838b16db5da178f1aa7 span_id=d8625c44f0d96ea4 organization_id=01M5AGHM0W1Q3637D09HR9E1QR workspace_id=01M5AGHM3HS04FKDME5WC2K9DW actor_id=01M5AGHKJP7B1B8X946SWDJPAS actor_kind=human
+16:40:04.652 INF http request method=GET path=/api/v1/workspaces/01M5AGHM3HS04FKDME5WC2K9DW/ai/capabilities status=200 duration=8.972ms request_id=cursor/hiw4XxHgzT-003191 correlation_id=65ac37ecef227075da20168aacb36dd7 trace_id=65ac37ecef227075da20168aacb36dd7 span_id=b88b6d8be45cceeb organization_id=01M5AGHM0W1Q3637D09HR9E1QR workspace_id=01M5AGHM3HS04FKDME5WC2K9DW actor_id=01M5AGHKJP7B1B8X946SWDJPAS actor_kind=human
+16:40:05.266 INF http request method=GET path=/api/v1/workspaces/01M5AGHM3HS04FKDME5WC2K9DW/ai/capabilities status=200 duration=5.973ms request_id=cursor/hiw4XxHgzT-003211 correlation_id=60a98faf9eca5a6b80b6e02b0c4b7da6 trace_id=60a98faf9eca5a6b80b6e02b0c4b7da6 span_id=9413f630925a8453 organization_id=01M5AGHM0W1Q3637D09HR9E1QR workspace_id=01M5AGHM3HS04FKDME5WC2K9DW actor_id=01M5AGHKJP7B1B8X946SWDJPAS actor_kind=human
+16:40:06.592 INF http request method=GET path=/api/v1/workspaces/01M5AGHM3HS04FKDME5WC2K9DW/ai/capabilities status=200 duration=14.95ms request_id=cursor/hiw4XxHgzT-003268 correlation_id=8e61c6e38b7993eef68355f42360832b trace_id=8e61c6e38b7993eef68355f42360832b span_id=acf053ee5bf92934 organization_id=01M5AGHM0W1Q3637D09HR9E1QR workspace_id=01M5AGHM3HS04FKDME5WC2K9DW actor_id=01M5AGHKJP7B1B8X946SWDJPAS actor_kind=human
+16:40:09.237 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGHM3HS04FKDME5WC2K9DW/ai/capabilities status=200 duration=6µs request_id=cursor/hiw4XxHgzT-003340 correlation_id=d8a6e76247bdbb3debdeddb2642b38d9 trace_id=d8a6e76247bdbb3debdeddb2642b38d9 span_id=356925295f7caf51
+16:40:09.257 INF http request method=GET path=/api/v1/workspaces/01M5AGHM3HS04FKDME5WC2K9DW/ai/capabilities status=200 duration=1.958ms request_id=cursor/hiw4XxHgzT-003352 correlation_id=791f69dfa6b4e73704fb9f1bb2d8f6c8 trace_id=791f69dfa6b4e73704fb9f1bb2d8f6c8 span_id=dc950aa277400df8 organization_id=01M5AGHM0W1Q3637D09HR9E1QR workspace_id=01M5AGHM3HS04FKDME5WC2K9DW actor_id=01M5AGHKJP7B1B8X946SWDJPAS actor_kind=human
+16:40:10.207 INF http request method=GET path=/api/v1/workspaces/01M5AGHM3HS04FKDME5WC2K9DW/ai/capabilities status=200 duration=8.499ms request_id=cursor/hiw4XxHgzT-003372 correlation_id=bf4b7df32358e96f4c949a97137c156a trace_id=bf4b7df32358e96f4c949a97137c156a span_id=29192578c0e2b72a organization_id=01M5AGHM0W1Q3637D09HR9E1QR workspace_id=01M5AGHM3HS04FKDME5WC2K9DW actor_id=01M5AGHKJP7B1B8X946SWDJPAS actor_kind=human
+16:40:11.848 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGHVTV0M7MCH0T4FDQNENY/ai/capabilities status=200 duration=7µs request_id=cursor/hiw4XxHgzT-003422 correlation_id=b43e444038aae6749a470a9343cbe7b4 trace_id=b43e444038aae6749a470a9343cbe7b4 span_id=e5dcee7799a5a39f
+16:40:11.855 INF http request method=GET path=/api/v1/workspaces/01M5AGHVTV0M7MCH0T4FDQNENY/ai/capabilities status=200 duration=3.758ms request_id=cursor/hiw4XxHgzT-003426 correlation_id=4a6081e5e5705131b0239c36fc7412d9 trace_id=4a6081e5e5705131b0239c36fc7412d9 span_id=690fc84950f89d53 organization_id=01M5AGHVRS1HMJB2GMZAKNXTTY workspace_id=01M5AGHVTV0M7MCH0T4FDQNENY actor_id=01M5AGHVENFKKDD2F1SS23YEEP actor_kind=human
+16:40:12.714 INF http request method=GET path=/api/v1/workspaces/01M5AGHVTV0M7MCH0T4FDQNENY/ai/capabilities status=200 duration=2.208ms request_id=cursor/hiw4XxHgzT-003463 correlation_id=a1ceabf7532b6a92d193662ac52c2ad2 trace_id=a1ceabf7532b6a92d193662ac52c2ad2 span_id=2408f3361c31f672 organization_id=01M5AGHVRS1HMJB2GMZAKNXTTY workspace_id=01M5AGHVTV0M7MCH0T4FDQNENY actor_id=01M5AGHVENFKKDD2F1SS23YEEP actor_kind=human
+16:40:13.989 INF http request method=GET path=/api/v1/workspaces/01M5AGHVTV0M7MCH0T4FDQNENY/ai/capabilities status=200 duration=4.834ms request_id=cursor/hiw4XxHgzT-003514 correlation_id=4887b925ba37e126326e0220c6d45a40 trace_id=4887b925ba37e126326e0220c6d45a40 span_id=685a0c3808fc6cc1 organization_id=01M5AGHVRS1HMJB2GMZAKNXTTY workspace_id=01M5AGHVTV0M7MCH0T4FDQNENY actor_id=01M5AGHVENFKKDD2F1SS23YEEP actor_kind=human
+16:40:15.866 INF http request method=GET path=/api/v1/workspaces/01M5AGHZQ5X50NJWY953FJXDVM/ai/capabilities status=200 duration=6.654ms request_id=cursor/hiw4XxHgzT-003550 correlation_id=b3522dab7160ace434c8fec330590579 trace_id=b3522dab7160ace434c8fec330590579 span_id=0c5e911dd69550b4 organization_id=01M5AGHZMJNNJ3ME8P09HJ3CPD workspace_id=01M5AGHZQ5X50NJWY953FJXDVM actor_id=01M5AGHZ80465GFR0EBTHZ8XB8 actor_kind=human
+16:40:16.874 INF http request method=GET path=/api/v1/workspaces/01M5AGHZQ5X50NJWY953FJXDVM/ai/capabilities status=200 duration=2.721ms request_id=cursor/hiw4XxHgzT-003566 correlation_id=3e608fc0f71a6a081f1a4da02e9391e9 trace_id=3e608fc0f71a6a081f1a4da02e9391e9 span_id=5ba2cc5d5bddbde8 organization_id=01M5AGHZMJNNJ3ME8P09HJ3CPD workspace_id=01M5AGHZQ5X50NJWY953FJXDVM actor_id=01M5AGHZ80465GFR0EBTHZ8XB8 actor_kind=human
+16:40:21.869 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=9µs request_id=cursor/hiw4XxHgzT-003657 correlation_id=81f9f2e6a93a40d97bf59863075405c5 trace_id=81f9f2e6a93a40d97bf59863075405c5 span_id=e3aeba6b531eab00
+16:40:21.875 INF http request method=GET path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=3.257ms request_id=cursor/hiw4XxHgzT-003664 correlation_id=57bbcad7976f504a964618133c61df73 trace_id=57bbcad7976f504a964618133c61df73 span_id=e1a8b99c68793656 organization_id=01M5AGJ47MV2P3168WGKE5DNFS workspace_id=01M5AGJ47XXZRBSSD51MDEN2FT actor_id=01M5AGJ4GB3BSVG8D5TZCSFSA8 actor_kind=human
+16:40:22.931 INF http request method=GET path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=3.896ms request_id=cursor/hiw4XxHgzT-003693 correlation_id=05dc518ccf12d97a5500320fa14bbd3b trace_id=05dc518ccf12d97a5500320fa14bbd3b span_id=72d8a3b359683a84 organization_id=01M5AGJ47MV2P3168WGKE5DNFS workspace_id=01M5AGJ47XXZRBSSD51MDEN2FT actor_id=01M5AGJ4GB3BSVG8D5TZCSFSA8 actor_kind=human
+16:40:24.343 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=8µs request_id=cursor/hiw4XxHgzT-003745 correlation_id=76780cae24159fe22b364a52d20fb70a trace_id=76780cae24159fe22b364a52d20fb70a span_id=c81ec275c7ace5b9
+16:40:24.355 INF http request method=GET path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=9.836ms request_id=cursor/hiw4XxHgzT-003747 correlation_id=773bdd915008e8d7b8738b62d3e0fe9f trace_id=773bdd915008e8d7b8738b62d3e0fe9f span_id=b1043f9d80ce0354 organization_id=01M5AGJ47MV2P3168WGKE5DNFS workspace_id=01M5AGJ47XXZRBSSD51MDEN2FT actor_id=01M5AGJ4GB3BSVG8D5TZCSFSA8 actor_kind=human
+16:40:25.405 INF http request method=GET path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=7.744ms request_id=cursor/hiw4XxHgzT-003783 correlation_id=c7cf590944d09ff6a8bfdbf314f4752f trace_id=c7cf590944d09ff6a8bfdbf314f4752f span_id=9b409cae68882a5a organization_id=01M5AGJ47MV2P3168WGKE5DNFS workspace_id=01M5AGJ47XXZRBSSD51MDEN2FT actor_id=01M5AGJ4GB3BSVG8D5TZCSFSA8 actor_kind=human
+16:40:26.774 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=9µs request_id=cursor/hiw4XxHgzT-003833 correlation_id=e30e3d573848440259d99f8f57277ee8 trace_id=e30e3d573848440259d99f8f57277ee8 span_id=18ed082e519e0925
+16:40:26.789 INF http request method=GET path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=6.552ms request_id=cursor/hiw4XxHgzT-003839 correlation_id=b9ba6623c384b28a5169e037e17506f0 trace_id=b9ba6623c384b28a5169e037e17506f0 span_id=a5966ee7de3b3c0d organization_id=01M5AGJ47MV2P3168WGKE5DNFS workspace_id=01M5AGJ47XXZRBSSD51MDEN2FT actor_id=01M5AGJ474QD0FWQSZE3JHPJY6 actor_kind=human
+16:40:27.824 INF http request method=GET path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=5.179ms request_id=cursor/hiw4XxHgzT-003869 correlation_id=c0aacd48e493391a6edcb1bcb747fdf9 trace_id=c0aacd48e493391a6edcb1bcb747fdf9 span_id=5b5a6be8068b250e organization_id=01M5AGJ47MV2P3168WGKE5DNFS workspace_id=01M5AGJ47XXZRBSSD51MDEN2FT actor_id=01M5AGJ474QD0FWQSZE3JHPJY6 actor_kind=human
+16:40:29.172 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=11µs request_id=cursor/hiw4XxHgzT-003920 correlation_id=c9fb1bdb435c194fc3113cae79b4b0a5 trace_id=c9fb1bdb435c194fc3113cae79b4b0a5 span_id=a49eef5c8e739458
+16:40:29.185 INF http request method=GET path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=3.66ms request_id=cursor/hiw4XxHgzT-003926 correlation_id=cd6102999860053b6036af1af5c3ae42 trace_id=cd6102999860053b6036af1af5c3ae42 span_id=0c8ad67a46f2fc10 organization_id=01M5AGJ47MV2P3168WGKE5DNFS workspace_id=01M5AGJ47XXZRBSSD51MDEN2FT actor_id=01M5AGJ4GB3BSVG8D5TZCSFSA8 actor_kind=human
+16:40:29.861 INF http request method=GET path=/api/v1/workspaces/01M5AGJ47XXZRBSSD51MDEN2FT/ai/capabilities status=200 duration=2.865ms request_id=cursor/hiw4XxHgzT-003942 correlation_id=8e72b0815a3025ed02211174b9690e04 trace_id=8e72b0815a3025ed02211174b9690e04 span_id=071bd14e33153dde organization_id=01M5AGJ47MV2P3168WGKE5DNFS workspace_id=01M5AGJ47XXZRBSSD51MDEN2FT actor_id=01M5AGJ4GB3BSVG8D5TZCSFSA8 actor_kind=human
+16:40:32.444 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJEHQABJ7RSBX7WPCJN28/ai/capabilities status=200 duration=10µs request_id=cursor/hiw4XxHgzT-004061 correlation_id=98e0b5eaa8ae6ad479e4967dc4a93cd2 trace_id=98e0b5eaa8ae6ad479e4967dc4a93cd2 span_id=8135fd1f76c925c1
+16:40:32.468 INF http request method=GET path=/api/v1/workspaces/01M5AGJEHQABJ7RSBX7WPCJN28/ai/capabilities status=200 duration=22.494ms request_id=cursor/hiw4XxHgzT-004063 correlation_id=830a29234d155b9a1204b983394b5c7b trace_id=830a29234d155b9a1204b983394b5c7b span_id=b1b0d15fe47e7a3f organization_id=01M5AGJEHJYMHW5T01VXA3TNKJ workspace_id=01M5AGJEHQABJ7RSBX7WPCJN28 actor_id=01M5AGJEPWST9WAFN9GMEKZV4H actor_kind=human
+16:40:33.550 INF http request method=GET path=/api/v1/workspaces/01M5AGJEHQABJ7RSBX7WPCJN28/ai/capabilities status=200 duration=6.67ms request_id=cursor/hiw4XxHgzT-004099 correlation_id=1612fe18f38f5d8f9ece84404693db18 trace_id=1612fe18f38f5d8f9ece84404693db18 span_id=7493db77c4c47ced organization_id=01M5AGJEHJYMHW5T01VXA3TNKJ workspace_id=01M5AGJEHQABJ7RSBX7WPCJN28 actor_id=01M5AGJEPWST9WAFN9GMEKZV4H actor_kind=human
+16:40:34.235 INF http request method=GET path=/api/v1/workspaces/01M5AGJEHQABJ7RSBX7WPCJN28/ai/capabilities status=200 duration=2.386ms request_id=cursor/hiw4XxHgzT-004132 correlation_id=ef166eb292a8d607b09fcc643f470584 trace_id=ef166eb292a8d607b09fcc643f470584 span_id=d020e980e1a9484e organization_id=01M5AGJEHJYMHW5T01VXA3TNKJ workspace_id=01M5AGJEHQABJ7RSBX7WPCJN28 actor_id=01M5AGJEPWST9WAFN9GMEKZV4H actor_kind=human
+16:40:37.396 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=3µs request_id=cursor/hiw4XxHgzT-004293 correlation_id=eee11935897e026f547098263929bdb1 trace_id=eee11935897e026f547098263929bdb1 span_id=162c3a635e34582b
+16:40:37.404 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=6.011ms request_id=cursor/hiw4XxHgzT-004296 correlation_id=afefe55a267367f9e85923a263b3410d trace_id=afefe55a267367f9e85923a263b3410d span_id=54a7c7de434d7d9a organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:38.452 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=3.679ms request_id=cursor/hiw4XxHgzT-004327 correlation_id=f13ae0ddae3b8b8b1288a440d96df01e trace_id=f13ae0ddae3b8b8b1288a440d96df01e span_id=798e15cb72fda512 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:39.263 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=10.554ms request_id=cursor/hiw4XxHgzT-004368 correlation_id=81b8f2c36270fa4c3fe1f177da4833da trace_id=81b8f2c36270fa4c3fe1f177da4833da span_id=2e588ce2adb1dad3 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:40.754 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=7µs request_id=cursor/hiw4XxHgzT-004422 correlation_id=d484aaedc5f4de1b68099390e86426f9 trace_id=d484aaedc5f4de1b68099390e86426f9 span_id=c49830d10896d8e5
+16:40:40.764 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=6.523ms request_id=cursor/hiw4XxHgzT-004428 correlation_id=7cc5380009d96416671787bc9e9bbfab trace_id=7cc5380009d96416671787bc9e9bbfab span_id=2246f1626ad32d3c organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:41.714 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=3.125ms request_id=cursor/hiw4XxHgzT-004460 correlation_id=cbc39139004a201a282a54af2bcb5644 trace_id=cbc39139004a201a282a54af2bcb5644 span_id=dc40755294a13a69 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:43.970 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=8µs request_id=cursor/hiw4XxHgzT-004560 correlation_id=f03a330456b76201e11efbb5084f12ef trace_id=f03a330456b76201e11efbb5084f12ef span_id=402e0c65e7aa5234
+16:40:43.984 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=8.847ms request_id=cursor/hiw4XxHgzT-004569 correlation_id=2c7e6c23814ffead79a60d3142e75765 trace_id=2c7e6c23814ffead79a60d3142e75765 span_id=a2882976340e7c8c organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:44.982 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=8.71ms request_id=cursor/hiw4XxHgzT-004598 correlation_id=73326667357cee00d61c99bde8ba1c04 trace_id=73326667357cee00d61c99bde8ba1c04 span_id=4023fd6b2523dfa8 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:48.852 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=7µs request_id=cursor/hiw4XxHgzT-004676 correlation_id=d770ac68527b7321c548202225c14344 trace_id=d770ac68527b7321c548202225c14344 span_id=4c64a8c21912ce58
+16:40:48.862 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=6.142ms request_id=cursor/hiw4XxHgzT-004682 correlation_id=a6622bd6bac284b6bf1eb74c4ca00e1d trace_id=a6622bd6bac284b6bf1eb74c4ca00e1d span_id=0e9035cf23e6093d organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:49.822 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=4.009ms request_id=cursor/hiw4XxHgzT-004714 correlation_id=f033ea1d834ff620f5816071c40f2eba trace_id=f033ea1d834ff620f5816071c40f2eba span_id=346f1a496cbdd039 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:51.447 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=12.833ms request_id=cursor/hiw4XxHgzT-004778 correlation_id=c3327712cdd3b82b831e989288b84203 trace_id=c3327712cdd3b82b831e989288b84203 span_id=d66c9426a4972780 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:52.724 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=9µs request_id=cursor/hiw4XxHgzT-004824 correlation_id=8d5e060deb013a29aae3431ee50f9586 trace_id=8d5e060deb013a29aae3431ee50f9586 span_id=f32fd82877a0d091
+16:40:52.733 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=5.844ms request_id=cursor/hiw4XxHgzT-004829 correlation_id=cac930bd104362102c8a9ff62b3670d0 trace_id=cac930bd104362102c8a9ff62b3670d0 span_id=144d99dc743a5e46 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:53.342 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=4.11ms request_id=cursor/hiw4XxHgzT-004850 correlation_id=6f31132f761d41a488b0db8beb463543 trace_id=6f31132f761d41a488b0db8beb463543 span_id=5547ca3acd8718f9 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:56.192 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=5µs request_id=cursor/hiw4XxHgzT-004944 correlation_id=6dc39e07d06d3679787e893d659486b6 trace_id=6dc39e07d06d3679787e893d659486b6 span_id=8efeaaa415f86c14
+16:40:56.202 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=4.907ms request_id=cursor/hiw4XxHgzT-004947 correlation_id=e381830eae26364ddd08cd0f12964aae trace_id=e381830eae26364ddd08cd0f12964aae span_id=efaa15c647ad8254 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:57.193 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=5.133ms request_id=cursor/hiw4XxHgzT-004981 correlation_id=ca678147e5991eb4cb1c2f530f646e4f trace_id=ca678147e5991eb4cb1c2f530f646e4f span_id=5103ef8043d407f0 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:40:59.161 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=6µs request_id=cursor/hiw4XxHgzT-005048 correlation_id=b9be51f7e0b5da124550aed41c53acc6 trace_id=b9be51f7e0b5da124550aed41c53acc6 span_id=b5ded83170f99b68
+16:40:59.174 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=10.019ms request_id=cursor/hiw4XxHgzT-005053 correlation_id=e95e647fa2abc2d58f73333d127d2be4 trace_id=e95e647fa2abc2d58f73333d127d2be4 span_id=0e284bfec69a28c5 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:41:00.171 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=6.877ms request_id=cursor/hiw4XxHgzT-005090 correlation_id=e2c977f3b36514ffed81783b64a5276f trace_id=e2c977f3b36514ffed81783b64a5276f span_id=18e44ec51a94e993 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:41:02.280 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=3µs request_id=cursor/hiw4XxHgzT-005171 correlation_id=0de17b56133192db60b8ca17f2c31fd7 trace_id=0de17b56133192db60b8ca17f2c31fd7 span_id=da2e123f0cc34302
+16:41:02.295 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=6.17ms request_id=cursor/hiw4XxHgzT-005179 correlation_id=10f649b053385f3b0fff45278a12c62f trace_id=10f649b053385f3b0fff45278a12c62f span_id=55120c8ecd2a61b5 organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:41:03.317 INF http request method=GET path=/api/v1/workspaces/01M5AGJJK06Y33ZTW8NXANRMWB/ai/capabilities status=200 duration=9.216ms request_id=cursor/hiw4XxHgzT-005212 correlation_id=21c317976175c950c30022cad055c9bc trace_id=21c317976175c950c30022cad055c9bc span_id=6d90300aeb4a1c8e organization_id=01M5AGJJJV8QCHGR2SA5VJY6BQ workspace_id=01M5AGJJK06Y33ZTW8NXANRMWB actor_id=01M5AGJJJESTKKE05SBM1R5HZ9 actor_kind=human
+16:41:05.178 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=10µs request_id=cursor/hiw4XxHgzT-005268 correlation_id=6f74e8999ff7401e646c300f3ab7c3d5 trace_id=6f74e8999ff7401e646c300f3ab7c3d5 span_id=a6bc1c84b6766c63
+16:41:05.185 INF http request method=GET path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=4.259ms request_id=cursor/hiw4XxHgzT-005273 correlation_id=75c9b533d3c6017832163bfac89471f2 trace_id=75c9b533d3c6017832163bfac89471f2 span_id=fc2aa6a492a05b62 organization_id=01M5AGKFTCK79GEHS2SDVHYF50 workspace_id=01M5AGKFX0ZGPNBJJ87YX4KJQV actor_id=01M5AGKFDKH3YP9P5T20PGTAKM actor_kind=human
+16:41:06.075 INF http request method=GET path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=2.678ms request_id=cursor/hiw4XxHgzT-005314 correlation_id=167b6b88732dd379d9afc2701283dfc8 trace_id=167b6b88732dd379d9afc2701283dfc8 span_id=9d6b84d02e766b06 organization_id=01M5AGKFTCK79GEHS2SDVHYF50 workspace_id=01M5AGKFX0ZGPNBJJ87YX4KJQV actor_id=01M5AGKFDKH3YP9P5T20PGTAKM actor_kind=human
+16:41:09.963 INF http request method=GET path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=5.776ms request_id=cursor/hiw4XxHgzT-005386 correlation_id=491e4b2b6808af29249bd3ea20c1caee trace_id=491e4b2b6808af29249bd3ea20c1caee span_id=22585e8a205516f9 organization_id=01M5AGKFTCK79GEHS2SDVHYF50 workspace_id=01M5AGKFX0ZGPNBJJ87YX4KJQV actor_id=01M5AGKFDKH3YP9P5T20PGTAKM actor_kind=human
+16:41:10.652 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=3µs request_id=cursor/hiw4XxHgzT-005416 correlation_id=f94061559ff1e61d0e039addb7f446c5 trace_id=f94061559ff1e61d0e039addb7f446c5 span_id=fbaed13f881d191f
+16:41:10.671 INF http request method=GET path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=8.531ms request_id=cursor/hiw4XxHgzT-005420 correlation_id=da6ef2a515d51b644a1ff32e73a6bc27 trace_id=da6ef2a515d51b644a1ff32e73a6bc27 span_id=365f64cabfcb7d9e organization_id=01M5AGKFTCK79GEHS2SDVHYF50 workspace_id=01M5AGKFX0ZGPNBJJ87YX4KJQV actor_id=01M5AGKFDKH3YP9P5T20PGTAKM actor_kind=human
+16:41:11.252 INF http request method=GET path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=5.508ms request_id=cursor/hiw4XxHgzT-005444 correlation_id=0094fbc5b326bce2709a07deb9c94598 trace_id=0094fbc5b326bce2709a07deb9c94598 span_id=67d967cfb108ef9c organization_id=01M5AGKFTCK79GEHS2SDVHYF50 workspace_id=01M5AGKFX0ZGPNBJJ87YX4KJQV actor_id=01M5AGKFDKH3YP9P5T20PGTAKM actor_kind=human
+16:41:17.024 INF http request method=OPTIONS path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=6µs request_id=cursor/hiw4XxHgzT-005551 correlation_id=da4a7d594ee32e69d26cdb8bc0f789a5 trace_id=da4a7d594ee32e69d26cdb8bc0f789a5 span_id=5f85f83a2acaefdc
+16:41:17.041 INF http request method=GET path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=5.275ms request_id=cursor/hiw4XxHgzT-005557 correlation_id=6169577b465169b7f43c13929e5f96c4 trace_id=6169577b465169b7f43c13929e5f96c4 span_id=cabaa40b0ca076da organization_id=01M5AGKFTCK79GEHS2SDVHYF50 workspace_id=01M5AGKFX0ZGPNBJJ87YX4KJQV actor_id=01M5AGKFDKH3YP9P5T20PGTAKM actor_kind=human
+16:41:18.575 INF http request method=GET path=/api/v1/workspaces/01M5AGKFX0ZGPNBJJ87YX4KJQV/ai/capabilities status=200 duration=6.469ms request_id=cursor/hiw4XxHgzT-005611 correlation_id=93809b1e031973226e7dc193d57f87e8 trace_id=93809b1e031973226e7dc193d57f87e8 span_id=0fab4c9d1682d818 organization_id=01M5AGKFTCK79GEHS2SDVHYF50 workspace_id=01M5AGKFX0ZGPNBJJ87YX4KJQV actor_id=01M5AGKFDKH3YP9P5T20PGTAKM actor_kind=human
+skipped: documents has gated or skipped tests
+
+E2E_1974_EXIT=1
