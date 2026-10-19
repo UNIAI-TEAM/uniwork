@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+3050b14f7ecc7ff9aaa2187a36e6f51309a1e40b
+3050b14f7 chore(merge): e6-server CHAT-DOC-SHARE fx1 3528bbb64 into the web half (UNI-1966)
+3528bbb64 chore: merge review-r1 fix slice fx1 into CHAT-DOC-SHARE
+5c52a8408 test(chat): the handler send test expects the stored title
+3be3c4e74 chore(merge): e6-server CHAT-DOC-SHARE fx2 dde7ca07b into the web half (UNI-1966)
