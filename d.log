@@ -1,0 +1,44 @@
+$ for c in FQ-44; do HARNESS_RUN_DIR="$PWD/.harness-run-fqs3f" OFFICE_FORK_SHA=1d5b68400 timeout -k 15 1200 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case $c --run-dir .harness-run-fqs3f; echo "APP_CASE_${c//-/_}_EXIT=$?"; done; for f in .harness-run-fqs3f/fault/FQ-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:43287 app_api=http://127.0.0.1:35917 proxy_upstream=http://127.0.0.1:43287
+FQ-44 [1/3] reconciling-stuck → committed: running
+dbus-daemon[20477]: [session uid=1000 pid=20477] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20514 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20477]: [session uid=1000 pid=20477] Successfully activated service 'org.a11y.Bus'
+FQ-44 [2/3] reconciling-stuck → blocked: running
+FQ-44 [3/3] reconciling-stuck ở lại: running
+FQ-44: FAIL (predicted OQ-F11)
+  FQ-44 [reconciling-stuck → committed] trace 2026-10-19T18:09:01.676Z ∅ -> queued
+  FQ-44 [reconciling-stuck → committed] trace 2026-10-19T18:09:01.780Z queued -> paused_offline code=network
+  FQ-44 [reconciling-stuck → committed] trace 2026-10-19T18:09:53.489Z queued -> validating
+  FQ-44 [reconciling-stuck → committed] trace 2026-10-19T18:09:53.489Z validating -> uploading
+  FQ-44 [reconciling-stuck → committed] trace 2026-10-19T18:09:53.489Z uploading -> committing
+  FQ-44 [reconciling-stuck → committed] trace 2026-10-19T18:09:53.489Z committing -> committed http=200
+  FQ-44 [reconciling-stuck → committed] proxy 2026-10-19T18:09:01.731Z upload POST 201 key=36c690c3a5a8 rule=-
+  FQ-44 [reconciling-stuck → committed] proxy 2026-10-19T18:09:01.776Z commit POST dropped key=36c690c3a5a8 rule=lose-commit-answer
+  FQ-44 [reconciling-stuck → committed] proxy 2026-10-19T18:09:53.512Z upload POST 201 key=36c690c3a5a8 rule=-
+  FQ-44 [reconciling-stuck → committed] proxy 2026-10-19T18:09:53.520Z commit POST 200 key=36c690c3a5a8 rule=-
+  FQ-44 [reconciling-stuck → blocked] trace 2026-10-19T18:12:42.643Z ∅ -> queued
+  FQ-44 [reconciling-stuck → blocked] trace 2026-10-19T18:12:42.705Z queued -> paused_offline code=network
+  FQ-44 [reconciling-stuck → blocked] trace 2026-10-19T18:13:34.605Z queued -> validating
+  FQ-44 [reconciling-stuck → blocked] trace 2026-10-19T18:13:34.605Z validating -> uploading
+  FQ-44 [reconciling-stuck → blocked] trace 2026-10-19T18:13:34.605Z uploading -> committing
+  FQ-44 [reconciling-stuck → blocked] trace 2026-10-19T18:13:34.605Z committing -> committed http=200
+  FQ-44 [reconciling-stuck → blocked] proxy 2026-10-19T18:12:42.677Z upload POST 201 key=f37d858f821b rule=-
+  FQ-44 [reconciling-stuck → blocked] proxy 2026-10-19T18:12:42.701Z commit POST dropped key=f37d858f821b rule=lose-commit-answer
+  FQ-44 [reconciling-stuck → blocked] proxy 2026-10-19T18:13:34.630Z upload POST 201 key=f37d858f821b rule=-
+  FQ-44 [reconciling-stuck → blocked] proxy 2026-10-19T18:13:34.643Z commit POST 200 key=f37d858f821b rule=-
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-19T18:18:23.923Z ∅ -> queued
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-19T18:18:23.959Z queued -> paused_offline code=network
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-19T18:19:15.929Z queued -> validating
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-19T18:19:15.929Z validating -> uploading
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-19T18:19:15.929Z uploading -> committing
+  FQ-44 [reconciling-stuck ở lại] trace 2026-10-19T18:19:15.929Z committing -> committed http=200
+  FQ-44 [reconciling-stuck ở lại] proxy 2026-10-19T18:18:23.941Z upload POST 201 key=eb970b2de671 rule=-
+  FQ-44 [reconciling-stuck ở lại] proxy 2026-10-19T18:18:23.955Z commit POST dropped key=eb970b2de671 rule=lose-commit-answer
+  FQ-44 [reconciling-stuck ở lại] proxy 2026-10-19T18:19:15.965Z upload POST 201 key=eb970b2de671 rule=-
+  FQ-44 [reconciling-stuck ở lại] proxy 2026-10-19T18:19:15.975Z commit POST 200 key=eb970b2de671 rule=-
+FQ-44 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-fqs3f/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_44_EXIT=1
+FQ-44 FAIL OQ-F11  stuck: expected "reconciling-stuck" actual "never" | stuck_to_committed: expected "reconciling-stuck → committed" actual "committing→committed" | stuck: expected "reconciling-stuck" actual "never" | stuck_to_blocked: expected "reconciling-stuck → blocked" actual "never" | blocked_reason: expected "blocked:permission_revoked" actual "(never entered)" | stuck: expected "reconciling-stuck" actual "never" | still_stuck: expected "reconciling-stuck" actual "committed" | rechecked: expected ">= 2" actual 0
