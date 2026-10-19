@@ -390,7 +390,7 @@ const OUTLINE_HIDDEN = new Set(['html', 'head', 'body', 'meta', 'link', 'title',
  * The frame's html outline (default depth 3, html at depth 0, a table's rows under an implied tbody): one entry per
  * element with its line, tag and a 60-character preview of its text; style and script are listed without a preview.
  */
-function htmlOutline(lines) {
+function htmlOutline(lines, maxDepth = 3) {
   const src = lines.join('\n');
   const lineAt = (offset) => src.slice(0, offset).split('\n').length;
   const stack = [];
@@ -409,7 +409,7 @@ function htmlOutline(lines) {
     if (!m[3] && !HTML_VOID.has(tag)) stack.push(el);
   }
   return open
-    .filter((e) => e.depth <= 3 && !OUTLINE_HIDDEN.has(e.tag))
+    .filter((e) => e.depth <= maxDepth && !OUTLINE_HIDDEN.has(e.tag))
     .map((e, index) => {
       const level = /^h([1-6])$/.exec(e.tag)?.[1];
       const text = e.tag === 'style' || e.tag === 'script' ? '' : preview(src.slice(e.start, e.end).replace(/<[^>]*>/g, ' '));
@@ -543,7 +543,10 @@ function readTools(caseDoc, doc) {
         const blocks = markdownBlocks(doc.lines);
         return { lineCount: doc.lines.length, blockCount: blocks.length, blocks: blocks.map(({ index, type, style, text: body }) => ({ index, type, ...(style ? { style } : {}), preview: preview(body) })) };
       }
-      if (doc.format === 'html' && name === 'get_outline') return { lineCount: doc.lines.length, blocks: htmlOutline(doc.lines) };
+      if (doc.format === 'html' && name === 'get_outline') {
+        const depth = args.depth !== undefined && Number.isFinite(Number(args.depth)) ? Number(args.depth) : 3;
+        return { lineCount: doc.lines.length, blocks: htmlOutline(doc.lines, depth) };
+      }
       if (doc.format === 'md' && name === 'read_blocks' && (args.startIndex !== undefined || args.endIndex !== undefined)) {
         const blocks = markdownBlocks(doc.lines);
         const start = Math.max(0, Number(args.startIndex ?? 0));
