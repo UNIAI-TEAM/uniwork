@@ -119,7 +119,34 @@ const CELL_RE = String.raw`\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1
 const ADDRESS_RUN_RE = new RegExp(`(?:'(?:[^']|'')+'|[A-Za-z_][\\w.]*)!${CELL_RE}|\\b${CELL_RE}\\b`, 'g');
 const URL_OR_EMAIL_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"')\]]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gi;
 
-const maskIdentifiers = (text) => text.replace(URL_OR_EMAIL_RE, (m) => ' '.repeat(m.length));
+const maskIdentifiers = (text) => maskFormulas(text.replace(URL_OR_EMAIL_RE, (m) => ' '.repeat(m.length)));
+
+// A spreadsheet formula quoted in prose is copied text, not a figure (oracle2 O2-F2): the literals of a function call
+// written in capitals ("SUBTOTAL(109,B2:B7)", "VLOOKUP(A2,'Sheet'!$A$2:$G$7,7,FALSE)") and of an "=" expression with no
+// space ("=B2*(1-0.1)") are masked. A figure outside the formula stays a figure, and a masked literal credits nothing.
+const FORMULA_CALL_RE = /(?<![\p{L}\d_])[A-Z][A-Z0-9.]+\(/gu;
+const FORMULA_EXPR_RE = /(?<![\w=<>!])=(?=[A-Za-z$(])[^\s`]*/g;
+function maskFormulas(text) {
+  // UTF-16 units, masked in place: the text keeps its length, so every later offset still points at the same character.
+  const units = text.split('');
+  const mask = (from, to) => { for (let i = from; i < to; i += 1) if (units[i] !== '\n') units[i] = ' '; };
+  for (const m of text.matchAll(FORMULA_CALL_RE)) {
+    let depth = 0;
+    let quote = null;
+    let end = -1;
+    for (let i = m.index + m[0].length - 1; i < text.length; i += 1) {
+      const ch = text[i];
+      if (quote) { if (ch === quote) quote = null; continue; }
+      if (ch === "'" || ch === '"') quote = ch;
+      else if (ch === '(') depth += 1;
+      else if (ch === ')') { depth -= 1; if (depth === 0) { end = i + 1; break; } }
+      else if (ch === '\n') break;
+    }
+    if (end > 0) mask(m.index, end);
+  }
+  for (const m of text.matchAll(FORMULA_EXPR_RE)) mask(m.index, m.index + m[0].length);
+  return units.join('');
+}
 
 function isAddressAt(text, start, end) {
   const lineStart = text.lastIndexOf('\n', start - 1) + 1;
