@@ -431,9 +431,13 @@ function readTools(caseDoc, doc) {
       }
     }
     if (doc.format === 'pptx' && name === 'read_slide') {
-      const wanted = args.slideIndex ?? args.index ?? args.slide;
-      const slides = wanted ? doc.slides.filter((s) => s.index === Number(wanted)) : doc.slides;
-      return { slideCount: doc.slides.length, slides: slides.length ? slides : doc.slides };
+      // The real schema's slideIndex is 0-based (oracle2 O2-B1); the older index/slide aliases stay 1-based. A slide
+      // past the deck is refused, never answered with another slide.
+      const wanted = args.slideIndex !== undefined ? Number(args.slideIndex) + 1 : Number(args.index ?? args.slide ?? 0);
+      if (!wanted) return { slideCount: doc.slides.length, slides: doc.slides };
+      const slides = doc.slides.filter((s) => s.index === wanted);
+      if (slides.length === 0) throw new InvalidArguments(`slideIndex ${wanted - 1} is outside the deck (0..${doc.slides.length - 1})`);
+      return { slideCount: doc.slides.length, slides };
     }
     if (doc.format === 'pdf') {
       if (name === 'search_text') {
