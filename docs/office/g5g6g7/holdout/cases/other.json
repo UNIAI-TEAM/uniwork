@@ -924,6 +924,7 @@
       ],
       "tools": {
         "allowed": [
+          "read_document",
           "read_table"
         ],
         "required": [
@@ -1000,6 +1001,7 @@
       ],
       "tools": {
         "allowed": [
+          "read_document",
           "read_table",
           "read_range",
           "read_sheet_list",
@@ -1468,6 +1470,7 @@
           "read_document",
           "read_table",
           "read_range",
+          "read_sheet_list",
           "compute"
         ],
         "required": [

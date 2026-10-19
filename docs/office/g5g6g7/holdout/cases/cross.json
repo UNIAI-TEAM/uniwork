@@ -527,6 +527,7 @@
       "tools": {
         "allowed": [
           "read_document",
+          "read_sheet_list",
           "read_range",
           "ask_clarification"
         ],
@@ -866,7 +867,7 @@
     {
       "id": "HO-CROSS-013",
       "format": "cross",
-      "category": "error",
+      "category": "edit",
       "query": {
         "vi": "Đặt vùng in của sheet Doanh thu Q1 thành A1:G7 và cố định dòng tiêu đề giúp mình.",
         "en": "Set the print area of the Q1 sheet to A1:G7 and freeze the header row for me."
@@ -890,39 +891,49 @@
         "allowed": [
           "read_sheet_list",
           "read_range",
-          "refuse"
+          "write_range"
         ],
         "required": [
-          "refuse"
+          "write_range"
         ]
       },
       "expected": {
         "numeric": [],
         "structural": [
           {
-            "kind": "refusal",
-            "anchor": "unsupported_operation",
-            "value": "page setup (print area, freeze panes) is outside the operations the open workbook exposes, so nothing is changed"
+            "kind": "config_op",
+            "anchor": "set_page_setup",
+            "value": "Doanh thu Q1|printArea=A1:G7"
+          },
+          {
+            "kind": "config_op",
+            "anchor": "set_freeze",
+            "value": "Doanh thu Q1|rows=1,columns=0"
           }
         ],
-        "writes": 0,
+        "writes": 1,
         "mustNotContain": []
       },
       "oracle": {
         "type": "deterministic",
-        "source": "spec 6.5 XLSX edit row: the tools edit formulas, values or a derived column in a defined range, not workbook page setup; the tool allowlist for this case holds no page-setup operation, so the request is refused with zero writes (spec 9.2 result kind 'không hỗ trợ'). The figures of fx-xlsx-revenue-xyz.oracle.json are not needed: nothing is asked to be computed."
+        "source": "User decision 2026-10-17 21:05 UTC+7: the product supports both through propose_operations (harness op write_range): set_page_setup with printArea A1:G7 (uniwork-office packages/xlsx-gateway/src/domain/workbook-dsl.ts:623-663) and set_freeze with rows 1, columns 0 (workbook-dsl.ts:657-663 schema, 866-867 union); tool wiring apps/sheets/src/renderer/ai/tools.ts:1271-1286. Spec 6.5 XLSX edit row: one proposal with two operations, one write, no figure to compute. Each operation is proven from the APPLIED propose_operations arguments (config_op, review-g712-16 A2), never from new text or a self-reported count."
       },
       "referenceAnswer": {
         "numeric": {},
         "structural": [
           {
-            "kind": "refusal",
-            "anchor": "unsupported_operation",
-            "value": "page setup (print area, freeze panes) is outside the operations the open workbook exposes, so nothing is changed"
+            "kind": "config_op",
+            "anchor": "set_page_setup",
+            "value": "Doanh thu Q1|printArea=A1:G7"
+          },
+          {
+            "kind": "config_op",
+            "anchor": "set_freeze",
+            "value": "Doanh thu Q1|rows=1,columns=0"
           }
         ],
-        "writes": 0,
-        "text": "Mình không đặt được vùng in hay cố định dòng cho sheet này: phiên này chỉ có thao tác đọc và sửa công thức/giá trị trong một vùng xác định của bảng tính. Bạn vào phần thiết lập trang của Excel để đặt A1:G7 làm vùng in nhé."
+        "writes": 1,
+        "text": "Mình đã đề xuất hai thao tác cho sheet Doanh thu Q1: đặt vùng in là A1:G7 (set_page_setup, printArea) và cố định dòng tiêu đề đầu tiên (set_freeze, 1 dòng, 0 cột). Bạn xem lại rồi bấm Lưu nếu đồng ý."
       }
     },
     {
@@ -1308,6 +1319,7 @@
       ],
       "tools": {
         "allowed": [
+          "read_sheet_list",
           "read_range",
           "refuse"
         ],

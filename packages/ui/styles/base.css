@@ -19,6 +19,13 @@
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  /* Tailwind v4 preflight resets buttons to `cursor: default`, so a row that
+     opens a document showed an arrow. Everything clickable shows the hand;
+     `:where()` keeps it at zero specificity so a `cursor-*` utility still wins,
+     and a disabled control keeps the arrow. */
+  :where(button, a[href], summary, select, label[for], [role="button"], [role="link"], [role="tab"],
+    [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], [role="treeitem"],
+    [role="checkbox"], [role="radio"], [role="switch"]):not(:disabled, [aria-disabled="true"]) { cursor: pointer; }
 }
 
 /* iOS Safari tự phóng to cả trang khi focus vào input có cỡ chữ dưới 16px, và

@@ -2486,7 +2486,7 @@
       "comment_delete_description": "Bình luận sẽ bị xóa khỏi luồng hoạt động.",
       "comment_delete_confirm": "Xóa bình luận",
       "reply": "Trả lời",
-      "reply_cancel": "Huỷ trả lời",
+      "reply_cancel": "Hủy trả lời",
       "comment_preview_empty": "Bình luận không có chữ",
       "activity_error": "Không tải được hoạt động. Thử lại sau.",
       "thread_resolved_one": "Luồng đã giải quyết · {{count}} trả lời",
@@ -2595,7 +2595,7 @@
       "clear": "Hôm nay bạn không có việc gấp."
     },
     "actions": {
-      "customize": "Tuỳ chỉnh"
+      "customize": "Tùy chỉnh"
     },
     "stats": {
       "label": "Tổng quan hôm nay",
@@ -2687,7 +2687,7 @@
       "retry": "Thử lại"
     },
     "customize": {
-      "title": "Tuỳ chỉnh trang chủ",
+      "title": "Tùy chỉnh trang chủ",
       "description": "Bật hoặc tắt khối, đổi thứ tự và chọn mật độ. Lưu riêng cho bạn trong workspace này.",
       "sections": "Khối hiển thị",
       "layout": "Mật độ bố cục",
@@ -2695,14 +2695,14 @@
       "reset": "Đặt lại",
       "close": "Đóng",
       "saving": "Đang lưu…",
-      "save_failed": "Không lưu được tuỳ chỉnh. Đã quay về bản trước.",
+      "save_failed": "Không lưu được tùy chỉnh. Đã quay về bản trước.",
       "move_up": "Đưa {{section}} lên",
       "move_down": "Đưa {{section}} xuống",
       "all_hidden": "Bạn đã ẩn mọi khối trên trang chủ.",
-      "open": "Mở tuỳ chỉnh",
+      "open": "Mở tùy chỉnh",
       "reset_done": "Đã đặt lại trang chủ về mặc định.",
       "undo": "Hoàn tác",
-      "all_hidden_hint": "Bật lại khối cần xem trong Tuỳ chỉnh."
+      "all_hidden_hint": "Bật lại khối cần xem trong Tùy chỉnh."
     },
     "layout": {
       "compact": "Gọn",
@@ -3280,7 +3280,7 @@
     "joinNow": "Vào ngay",
     "clearFilters": "Bỏ bộ lọc",
     "noResults": "Không tìm thấy cuộc họp",
-    "noResultsHint": "Thử từ khoá khác hoặc bỏ bộ lọc.",
+    "noResultsHint": "Thử từ khóa khác hoặc bỏ bộ lọc.",
     "showAll": "Xem tất cả cuộc họp",
     "filterCount_one": "{{count}} cuộc họp",
     "filterCount_other": "{{count}} cuộc họp",
@@ -8512,7 +8512,7 @@
         "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
         "tabs": "Trình soạn thảo",
         "imageAlt": "UniWork Office: {{editor}} với bảng AI",
-        "imageCaption": "Giao diện minh hoạ",
+        "imageCaption": "Giao diện minh họa",
         "imageUnavailable": "Không tải được ảnh xem trước. Tải lại trang để thử lại.",
         "docs": {
           "name": "Văn bản",
@@ -8756,6 +8756,59 @@
       "choose_image": "Chọn ảnh để chèn",
       "image_loading": "Đang tải ảnh…",
       "focus_end": "Tiếp tục viết cuối tài liệu",
+      "toolbar": {
+        "label": "Định dạng UniNote",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "style_aria": "Kiểu chữ: {{style}}",
+        "style_menu": "Kiểu chữ",
+        "bold": "Đậm",
+        "italic": "Nghiêng",
+        "strikethrough": "Gạch ngang",
+        "code": "Code trong dòng",
+        "link": "Chèn liên kết",
+        "bulletList": "Danh sách chấm",
+        "orderedList": "Danh sách số",
+        "taskList": "Checklist",
+        "blockquote": "Trích dẫn",
+        "codeBlock": "Khối code",
+        "horizontalRule": "Đường kẻ",
+        "table": "Bảng",
+        "image": "Ảnh",
+        "mention": "Nhắc tên",
+        "help_button": "Trợ giúp và phím tắt",
+        "help": {
+          "title": "Phím tắt UniNote",
+          "close": "Đóng",
+          "quick": "Chèn nhanh",
+          "quick_slash": "Mở menu khối",
+          "quick_mention": "Nhắc tên thành viên",
+          "line": "Gõ ở đầu dòng",
+          "line_headings": "Tiêu đề 1 / 2 / 3",
+          "line_bullet": "Danh sách chấm",
+          "line_ordered": "Danh sách số",
+          "line_task": "Checklist",
+          "line_quote": "Trích dẫn",
+          "line_code": "Khối code",
+          "line_divider": "Đường kẻ",
+          "keys": "Phím tắt",
+          "keys_format": "Đậm / Nghiêng",
+          "keys_strike": "Gạch ngang",
+          "keys_code": "Code trong dòng",
+          "keys_undo": "Hoàn tác / Làm lại",
+          "note": "Trên Mac dùng ⌘ thay cho Ctrl. Gõ mẫu ở đầu dòng rồi nhấn Dấu cách (riêng --- thì không cần)."
+        },
+        "more": "Thêm định dạng",
+        "more_title": "Thêm định dạng",
+        "hint": {
+          "title": "Mẹo dùng UniNote",
+          "aria": "Mẹo cho người mới",
+          "body": "Chọn định dạng trên thanh công cụ, hoặc gõ <kbd>/</kbd> ở đầu dòng để chèn khối, <kbd>@</kbd> để nhắc tên, bôi đen chữ để định dạng nhanh.",
+          "got_it": "Đã hiểu",
+          "show_shortcuts": "Xem phím tắt",
+          "close": "Đóng gợi ý"
+        }
+      },
       "toggle_task": "Đánh dấu việc: {{task}}",
       "blocks": {
         "paragraph": {
@@ -8830,8 +8883,13 @@
       "archived_banner": "Tài liệu này đang ở trong thùng rác — chỉ xem.",
       "first_save": {
         "title": "Đặt tên tài liệu",
-        "hint": "Bạn có thể đổi tên sau trong thư mục.",
-        "submit": "Lưu"
+        "hint": "Bạn có thể đổi tên hoặc di chuyển sau.",
+        "submit": "Lưu",
+        "location": "Vị trí",
+        "change": "Đổi",
+        "picker_title": "Chọn nơi lưu",
+        "picker_description": "Chọn thư mục chứa tài liệu này.",
+        "picker_submit": "Chọn"
       }
     },
     "save": {
@@ -9127,13 +9185,13 @@
       "apply_all_button": "Áp dụng cho tất cả",
       "apply_all_confirm": "Đặt tất cả {{count}} đối tượng thành {{level}}?",
       "apply_all_accept": "Áp dụng",
-      "apply_all_cancel": "Huỷ",
+      "apply_all_cancel": "Hủy",
       "on_existing_keep": "Giữ {{level}}",
       "on_existing_update": "Cập nhật thành {{level}}",
       "shared_toast": "Đã chia sẻ cho {{count}} đối tượng",
       "updated_toast": "Đã cập nhật quyền của {{name}} thành {{level}}",
       "confirm_accept": "Xác nhận",
-      "confirm_cancel": "Huỷ",
+      "confirm_cancel": "Hủy",
       "warning_wide_scope_workspace": "Chia sẻ cho Workspace {{name}} ({{count}} thành viên) ở mức {{level}}",
       "warning_wide_scope_organization": "Chia sẻ cho toàn bộ Tổ chức {{name}} ({{count}} thành viên) ở mức {{level}}",
       "warning_direct_below_group": "{{name}} vẫn có quyền {{effectiveLevel}} qua {{source}}",
@@ -9243,7 +9301,7 @@
       "declined": "Đã từ chối yêu cầu của {{name}}",
       "closed": "Yêu cầu này đã được xử lý hoặc đã hết hạn.",
       "none_pending": "Không còn yêu cầu nào đang chờ.",
-      "level_comment": "Bình luận",
+      "level_comment": "Nhận xét",
       "decision_failed": "Chưa xử lý được yêu cầu này. Hãy thử lại.",
       "sent_message_label": "Lời nhắn"
     },
@@ -9305,7 +9363,7 @@
       "source_break_glass": "Truy cập khẩn cấp",
       "source_other": "Khác",
       "level_view": "Chỉ xem",
-      "level_comment": "Bình luận",
+      "level_comment": "Nhận xét",
       "level_edit": "Chỉnh sửa",
       "level_manage": "Quản lý",
       "level_none": "Không có",
@@ -9517,6 +9575,7 @@
       "collabSave": "Lưu",
       "collabCancel": "Hủy",
       "collabDelete": "Xóa",
+      "collabEditedMark": "(đã sửa)",
       "collabHistory": "Xem lịch sử sửa",
       "collabHistoryTitle": "Lịch sử sửa",
       "collabHistoryCurrent": "Bản hiện tại",
@@ -9564,7 +9623,7 @@
       "inboxBack": "Về $t(nav.inbox)"
     },
     "levels": {
-      "comment": "Bình luận"
+      "comment": "Nhận xét"
     },
     "breakGlass": {
       "lockedTitle": "Tài liệu này là riêng tư",
@@ -9643,7 +9702,6 @@
         "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
       "quick_create": {
-        "hint_root": "File mới tạo hoặc tải lên ở đây sẽ nằm trong Thư mục của tôi (chỉ bạn thấy) và mở ngay trong trình soạn thảo.",
         "label": "Tạo nhanh"
       },
       "create": {
@@ -9708,7 +9766,6 @@
         "documents": "Tài liệu"
       },
       "folder": {
-        "info_banner": "Tạo mới và tải lên ở đây sẽ vào thư mục “{{folder}}”. Kéo thả tệp vào danh sách để tải lên.",
         "menu": "Thao tác với thư mục"
       },
       "folder_card": {
@@ -9781,7 +9838,7 @@
       },
       "access": {
         "view": "Chỉ xem",
-        "comment": "Bình luận",
+        "comment": "Nhận xét",
         "edit": "Chỉnh sửa",
         "manage": "Quản lý",
         "owner": "Chủ sở hữu",
@@ -9829,7 +9886,6 @@
         "unstar": "Bỏ gắn sao",
         "go_to_source": "Xem nơi đính kèm",
         "go_to_source_named": "Xem nơi đính kèm: {{title}}",
-        "preview_loading": "Đang tải ảnh…",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
         "view_only_notice": "Chỉ xem · thay đổi sẽ không được lưu",
@@ -10328,7 +10384,7 @@
       "reason": {
         "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ.",
         "file_invalid_path": "Vị trí của tệp này không hợp lệ. Mở lại tệp từ danh sách tệp.",
-        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xoá.",
+        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xóa.",
         "file_access_denied": "UniWork Office không dùng được tệp này vì đây là lối tắt hoặc liên kết. Hãy mở tệp gốc.",
         "file_locked": "Tệp đang được chương trình khác sử dụng. Đóng tệp ở đó rồi thử lại.",
         "file_changed_on_disk": "Tệp đã thay đổi trên máy sau khi bạn mở. Thay đổi của bạn vẫn được giữ: hãy lưu thành tên khác hoặc mở lại tệp.",
@@ -10597,8 +10653,8 @@
       "error": "Không tải được danh sách tệp gần đây.",
       "retry": "Thử lại",
       "missing": "Không tìm thấy tệp",
-      "remove": "Xoá",
-      "removeNamed": "Xoá {{name}} khỏi danh sách",
+      "remove": "Xóa",
+      "removeNamed": "Xóa {{name}} khỏi danh sách",
       "openNamed": "Mở {{name}}",
       "updated": "Mở lần cuối {{time}}",
       "unsupported": "Chỉ hỗ trợ tệp {{formats}} trên máy.",

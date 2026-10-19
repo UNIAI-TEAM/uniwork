@@ -57,11 +57,13 @@ export const OPERATIONS = [
   'read_slide', 'read_page', 'ask_clarification', 'refuse',
 ];
 export const STRUCTURAL_KINDS = [
-  'cell', 'formula', 'heading', 'table_cell', 'count', 'clarification', 'refusal', 'not_found', 'caveat',
+  'cell', 'formula', 'heading', 'table_cell', 'count', 'config_op', 'clarification', 'refusal', 'not_found', 'caveat',
 ];
 const WRITE_OPERATIONS = new Set(['write_range', 'edit_paragraph']);
 // Kinds whose value is compared as data; the others carry a free-text explanation and are graded on presence.
-const VALUE_KINDS = new Set(['cell', 'formula', 'heading', 'table_cell', 'count']);
+// `config_op` (review-g712-16 A2) is a value kind: its value is the canonical `sheet|key=value,…` of the requested
+// configuration, so the settings the applied operation carried are compared, not a self-reported count.
+const VALUE_KINDS = new Set(['cell', 'formula', 'heading', 'table_cell', 'count', 'config_op']);
 const PROSE_KINDS = new Set(['clarification', 'refusal', 'not_found']);
 const REVIEW_KINDS = new Set(['caveat']);
 const ROUNDINGS = new Set(['none', '0dp', '2dp']);
@@ -89,7 +91,7 @@ const CASE_KEYS = new Set([
 const QUERY_KEYS = new Set(['vi', 'en']);
 const FIXTURE_KEYS = new Set(['id', 'sha256', 'version', 'role']);
 const TOOLS_KEYS = new Set(['allowed', 'required']);
-const EXPECTED_KEYS = new Set(['numeric', 'structural', 'writes', 'mustNotContain']);
+const EXPECTED_KEYS = new Set(['numeric', 'structural', 'writes', 'mustNotContain', 'forbidExtraNumbers']);
 const NUMERIC_ITEM_KEYS = new Set(['name', 'value', 'tolerance', 'rounding', 'unit']);
 const STRUCTURAL_ITEM_KEYS = new Set(['kind', 'anchor', 'value']);
 const ORACLE_KEYS = new Set(['type', 'source']);
@@ -102,7 +104,9 @@ const PROBE_KINDS = new Set(['numberFormat']);
 const NUMBER_FORMAT_VALUES = new Set(['percent', 'number', 'text', 'currency', 'date']);
 const PROBE_PATTERN = /^(.+)#(\w+)$/;
 // Kinds whose anchor is an identity (where a value lives or an edit landed), not a topic: the anchors must be equal.
-const IDENTITY_KINDS = new Set(['cell', 'formula', 'table_cell']);
+const IDENTITY_KINDS = new Set(['cell', 'formula']);
+// Kinds matched by topic and value rather than private case anchor DSL (UNI-1874 DS-2).
+const TOPIC_VALUE_KINDS = new Set(['heading', 'count', 'table_cell']);
 
 const isFilled = (v) => typeof v === 'string' && v.trim().length > 0;
 const isInt = (v) => Number.isInteger(v) && v >= 0;
@@ -131,7 +135,7 @@ export function splitAnchor(anchor) {
 
 // Unit words/symbols a Vietnamese reply may put beside the number (R1-4): "22.060.000 đồng", "22.060.000 đ",
 // "22.060.000 VNĐ", "₫22.060.000", "22.060.000 VND". The unit is presentation, not part of the value.
-const UNIT_TOKENS = [
+export const UNIT_TOKENS = [
   'đồng', 'vnđ', 'vnd', 'đ', '₫', 'usd', '$', 'eur', '€', 'yên', 'jpy', 'cny', 'nhân dân tệ',
 ];
 const UNIT_STRIP_PATTERN = new RegExp(
@@ -177,28 +181,204 @@ const roundTo = (value, rounding) => {
   return value;
 };
 
-function valuesEqual(expected, actual) {
+export const normalizeFormulaText = (value) => {
+  const raw = String(value ?? '');
+  const embedded = /\[formula\s*=([^\]]+)\]/i.exec(raw);
+  return (embedded ? embedded[1] : raw).toLowerCase().replace(/[\s$]+/g, '').replace(/^=+/, '');
+};
+
+/**
+ * The single normaliser for heading values and topic segments (review-g712-18 R18-5): NFC + case fold + foldDiacritics,
+ * with collapsed whitespace. Cell and formula addresses stay on `normalizeAnchor` so exact identity is preserved.
+ */
+const normalizeTopicText = (value) =>
+  foldDiacritics(String(value ?? '').normalize('NFC')).toLowerCase().replace(/\s+/g, ' ').trim();
+
+const cleanHeadingText = (value) =>
+  normalizeTopicText(String(value ?? '').trim().replace(/^#+\s*/, '').replace(/^["“”'`]+|["“”'`]+$/g, ''));
+
+function stripSheetQuotes(anchor) {
+  const text = String(anchor ?? '');
+  const bang = text.indexOf('!');
+  if (bang <= 0) return text;
+  const sheet = text.slice(0, bang).trim().replace(/^'(.*)'$/, '$1').replace(/''/g, "'");
+  return `${sheet}!${text.slice(bang + 1)}`;
+}
+
+export const normalizeAnchor = (anchor) =>
+  stripSheetQuotes(anchor).toLowerCase().replace(/\s+/g, ' ').trim();
+
+const PRIVATE_DSL_SEGMENT_RE = /^(?:table:\d+|(?:heading_)?level_\d+|found_in|list_items|title|slides|tables|paragraphs|sheetnames|overwrittencells|changedcells|changed_paragraphs|changed_text_shapes|changed_text_runs|task_items|code_blocks)$/i;
+
+function topicSegments(anchor) {
+  return stripSheetQuotes(splitAnchor(anchor).base)
+    .split('/')
+    .map((seg) => normalizeTopicText(seg.replace(/^parent_of:\s*/i, '')))
+    .filter((seg) => seg.length > 0 && !PRIVATE_DSL_SEGMENT_RE.test(seg));
+}
+
+const COUNT_WORD_NUMBERS = new Map([
+  ['zero', 0], ['one', 1], ['two', 2], ['three', 3], ['four', 4], ['five', 5], ['six', 6], ['seven', 7],
+  ['eight', 8], ['nine', 9], ['ten', 10], ['eleven', 11], ['twelve', 12], ['thirteen', 13], ['fourteen', 14],
+  ['fifteen', 15], ['sixteen', 16], ['seventeen', 17], ['eighteen', 18], ['nineteen', 19], ['twenty', 20],
+  ['khong', 0], ['mot', 1], ['hai', 2], ['ba', 3], ['bon', 4], ['tu', 4], ['nam', 5], ['sau', 6], ['bay', 7],
+  ['tam', 8], ['chin', 9], ['muoi', 10], ['muoi mot', 11], ['muoi hai', 12], ['muoi ba', 13], ['muoi bon', 14],
+  ['muoi tu', 14], ['muoi lam', 15], ['muoi nam', 15], ['muoi sau', 16], ['muoi bay', 17], ['muoi tam', 18],
+  ['muoi chin', 19], ['hai muoi', 20],
+]);
+
+const COUNT_PHRASE_SYNONYMS = [
+  [/\b(?:thay doi|chinh sua|cap nhat|da sua|da doi)\b/g, 'changed'],
+  [/\bghi de\b/g, 'overwritten'],
+  [/\bdoan van\b/g, 'paragraph'],
+  [/\btrang chieu\b/g, 'slide'],
+  [/\btrang tinh\b/g, 'sheet'],
+  [/\bkhoi ma\b/g, 'code block'],
+  [/\bmuc cong viec\b/g, 'task item'],
+  [/\bmuc danh sach\b/g, 'list item'],
+  [/\bchangedcells\b/g, 'changed cell'],
+  [/\boverwrittencells\b/g, 'overwritten cell'],
+  [/\bsheetnames\b/g, 'sheet name'],
+];
+
+const COUNT_TOKEN_SYNONYMS = new Map([
+  ['changed', 'changed'], ['change', 'changed'], ['changes', 'changed'],
+  ['modified', 'changed'], ['modify', 'changed'], ['edited', 'changed'], ['edit', 'changed'], ['edits', 'changed'],
+  ['updated', 'changed'], ['update', 'changed'], ['updates', 'changed'], ['revised', 'changed'], ['rewritten', 'changed'],
+  ['altered', 'changed'], ['alter', 'changed'], ['amended', 'changed'], ['adjusted', 'changed'], ['corrected', 'changed'],
+  ['touched', 'changed'], ['replaced', 'changed'], ['rewrote', 'changed'], ['reworded', 'changed'],
+  ['sua', 'changed'], ['doi', 'changed'],
+  ['overwritten', 'overwritten'], ['overwrite', 'overwritten'], ['overwrites', 'overwritten'],
+  ['paragraphs', 'paragraph'], ['paragraph', 'paragraph'], ['paras', 'paragraph'], ['para', 'paragraph'], ['doan', 'paragraph'],
+  ['tables', 'table'], ['table', 'table'], ['bang', 'table'],
+  ['slides', 'slide'], ['slide', 'slide'],
+  ['cells', 'cell'], ['cell', 'cell'], ['o', 'cell'],
+  ['shapes', 'shape'], ['shape', 'shape'], ['hinh', 'shape'],
+  ['runs', 'run'], ['run', 'run'],
+  ['texts', 'text'], ['text', 'text'], ['van', 'text'], ['chu', 'text'],
+  ['blocks', 'block'], ['block', 'block'], ['khoi', 'block'],
+  ['codes', 'code'], ['code', 'code'], ['ma', 'code'],
+  ['tasks', 'task'], ['task', 'task'],
+  ['lists', 'list'], ['list', 'list'],
+  ['items', 'item'], ['item', 'item'], ['muc', 'item'],
+  ['sheets', 'sheet'], ['sheet', 'sheet'],
+  ['names', 'name'], ['name', 'name'], ['ten', 'name'],
+  ['rows', 'row'], ['row', 'row'], ['dong', 'row'], ['hang', 'row'],
+  ['columns', 'column'], ['column', 'column'], ['cols', 'column'], ['col', 'column'], ['cot', 'column'],
+]);
+
+const COUNT_FILLER_TOKENS = new Set(['so', 'tong', 'count', 'counts', 'number', 'total', 'of', 'the', 'in', 'cac', 'nhung', 'da', 'bi', 'duoc', 'that', 'were', 'was', 'are', 'is', 'been', 'have', 'has', 'which', 'got', 'being']);
+
+/**
+ * Parses a count item's value (review-g712-18 R18-4): digits or number words 0–20 in English and Vietnamese, accepted
+ * ONLY inside a count item. "nam" is accepted only as the value of a count phrase, never when the anchor names a year.
+ */
+function countValueNumber(value, anchor = '') {
+  const direct = toNumber(value);
+  if (direct !== null) return direct;
+  if (typeof value !== 'string') return null;
+  const word = normalizeTopicText(value).replace(/[-_]+/g, ' ').trim();
+  if (!word || !COUNT_WORD_NUMBERS.has(word)) return null;
+  if (word === 'nam' && /\b(?:year|years|nam)\b/.test(normalizeTopicText(anchor))) return null;
+  return COUNT_WORD_NUMBERS.get(word);
+}
+
+/**
+ * The canonical topic of a count anchor (review-g712-17 R17-9, review-g712-18 R18-4): normalises synonyms and word
+ * order ("changed_paragraphs", "changed paragraphs", "paragraphs modified", "đoạn văn đã sửa") to one key so matching
+ * and conflict detection use the same topic identity.
+ */
+export function countTopicKey(anchor) {
+  let text = normalizeTopicText(stripSheetQuotes(splitAnchor(anchor).base)).replace(/[_/-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const [re, rep] of COUNT_PHRASE_SYNONYMS) text = text.replace(re, rep);
+  const rawTokens = text.split(/\s+/).filter(Boolean);
+  const mapped = rawTokens
+    .filter((tok) => rawTokens.length === 1 || !COUNT_FILLER_TOKENS.has(tok))
+    .map((tok) => COUNT_TOKEN_SYNONYMS.get(tok) ?? tok);
+  const unique = [...new Set(mapped)].sort();
+  return unique.join('_');
+}
+
+function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedValue = undefined) {
+  const segs = topicSegments(expected);
+  // When an expected anchor consists solely of private case DSL (e.g. "level_1", "paragraphs", "tables"),
+  // there is no non-DSL topic segment to constrain the anchor; require that the candidate's value matches
+  // expectedValue (true on the byTopicAndValue path in takeMatch and the sameValue && atAnchor path in
+  // deriveAnswer, and false on unverified fallback calls).
+  if (segs.length === 0) {
+    return expectedValue !== undefined && valuesEqual(expectedValue, actualValue, kind, expected);
+  }
+  const b = normalizeTopicText(stripSheetQuotes(splitAnchor(actual).base));
+  const combined = actualValue ? `${b} ${normalizeTopicText(actualValue)}` : b;
+  // Every topic segment must appear (review-g712-16 A8): a table_cell anchor names a row AND a column, so keeping only
+  // the first segment credits a coincidentally equal value under another column. Private table identifiers
+  // ("table:1", "level_1", "paragraphs", …) are already dropped by topicSegments, so the row and the column both remain.
+  return segs.every((seg) => combined.includes(seg));
+}
+
+export function valuesEqual(expected, actual, kind = null, anchor = '') {
+  if (kind === 'formula') {
+    const a = normalizeFormulaText(expected);
+    const b = normalizeFormulaText(actual);
+    if (a && a === b) return true;
+  }
+  if (kind === 'heading') {
+    // A heading value compares as normalised equality (review-g712-16 A5): "Approved" must not equal "Not Approved".
+    // cleanHeadingText strips only presentation (markdown hashes, surrounding quotes, whitespace); anything else that
+    // differs is a different heading. The generic comparisons below still run, so a plain-text heading without any
+    // marker compares too.
+    const a = cleanHeadingText(expected);
+    const b = cleanHeadingText(actual);
+    if (a && a === b) return true;
+  }
+  if (kind === 'table_cell' && /^table:\d+\//i.test(String(expected ?? '').trim())) {
+    const segs = topicSegments(String(expected));
+    const normActual = normalizeTopicText(String(actual ?? ''));
+    if (segs.length > 0 && segs.every((seg) => normActual.includes(seg))) return true;
+  }
+  if (kind === 'count') {
+    if (typeof expected === 'string' && expected.includes('|')) {
+      const parts = expected.split('|').map((s) => s.trim()).filter(Boolean);
+      const n = countValueNumber(actual, anchor);
+      if (parts.length > 0 && n !== null && Math.abs(n - parts.length) < 1e-9) return true;
+    }
+    const ca = countValueNumber(expected, anchor);
+    const cb = countValueNumber(actual, anchor);
+    if (ca !== null && cb !== null) return Math.abs(ca - cb) < 1e-9;
+  }
   if (typeof expected === 'number' && typeof actual === 'number') return Math.abs(expected - actual) < 1e-9;
   const a = toNumber(expected);
   const b = toNumber(actual);
   if (a !== null && b !== null) return Math.abs(a - b) < 1e-9;
+  // The formula note and the arrow rewrite are CELL presentations ("New value -> Old value" reports the cell's value).
+  // A heading compares by normalised equality only (review-g712-17 R17-10): "Wrong -> Approved" is a different heading,
+  // so the generic rewrite must not run for it and let it fall through to plain equality.
+  const cleanCell = (v) => String(v ?? '').replace(/\s*\[formula\s*=[^\]]*\]/gi, '').replace(/^.*(?:→|->)\s*/, '').trim();
+  if (kind !== 'heading' && cleanCell(expected) === cleanCell(actual)) return true;
   return String(expected).trim() === String(actual).trim();
 }
 
-const normalizeAnchor = (anchor) =>
-  String(anchor).toLowerCase().replace(/\s+/g, ' ').trim();
-
 /**
- * Anchors are graded as topics for the kinds that name a heading, a count or a prose outcome: the same topic, not the
- * same wording (selection anchors are opaque). For cell/formula/table_cell anchors the location is an identity, so
- * only an equal anchor matches (R1-2): reporting the right number at "Doanh thu Q1!G8:G8" or "…G8 extra" is a wrong
- * address, not a looser way of naming the same cell.
+ * Anchors are graded as topics for the kinds that name a heading, a count, a table cell or a prose outcome: the same
+ * topic, not private case DSL. For cell/formula anchors the location is an identity, so only an equal anchor matches
+ * (R1-2, DS-1, DS-2): reporting the right number at "Doanh thu Q1!G8:G8" or "…G8 extra" is a wrong address.
  */
-export function anchorMatches(kind, expected, actual) {
-  const a = normalizeAnchor(splitAnchor(expected).base);
-  const b = normalizeAnchor(splitAnchor(actual).base);
-  if (IDENTITY_KINDS.has(kind)) return a === b;
-  return a === b || a.includes(b) || b.includes(a);
+export function anchorMatches(kind, expected, actual, actualValue = '', expectedValue = undefined) {
+  if (IDENTITY_KINDS.has(kind)) {
+    return normalizeAnchor(splitAnchor(expected).base) === normalizeAnchor(splitAnchor(actual).base);
+  }
+  // A table_cell anchor names a row AND a column, so it never goes through the generic containment shortcut
+  // (review-g712-17 R17-8): a candidate that names only the row ("Alpha") or only the column ("Revenue") is an
+  // incomplete address, and generic `a.includes(b)`/`b.includes(a)` would credit it on a coincidentally equal value.
+  // Only the every-segment topic matcher decides, and the all-DSL fallback inside it still needs the value.
+  if (kind === 'table_cell') return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
+  // A count anchor earns credit by its own words or by value alone for private case anchors, never through a synonym map
+  // (USER option B, 2026-10-18): countTopicKey stays only to CATCH a contradicting count under the same topic.
+  const a = normalizeTopicText(stripSheetQuotes(splitAnchor(expected).base));
+  const b = normalizeTopicText(stripSheetQuotes(splitAnchor(actual).base));
+  if (a === b || (b.length > 0 && (a.includes(b) || b.includes(a)))) return true;
+  if (TOPIC_VALUE_KINDS.has(kind)) return topicAnchorMatches(kind, expected, actual, actualValue, expectedValue);
+  return false;
 }
 
 /**
@@ -210,9 +390,15 @@ function takeMatch(expected, candidates, consumed) {
   const wanted = splitAnchor(expected.anchor);
   const free = candidates.filter((item) => !consumed.has(item));
   const sameProbe = (item) => splitAnchor(item.anchor).probe === wanted.probe;
-  const exact = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base));
+  const exact = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base) && (!VALUE_KINDS.has(expected.kind) || valuesEqual(expected.value, item.value, expected.kind, item.anchor || expected.anchor)));
   if (exact) return exact;
-  return free.find((item) => sameProbe(item) && anchorMatches(expected.kind, expected.anchor, item.anchor)) ?? null;
+  if (VALUE_KINDS.has(expected.kind)) {
+    const byTopicAndValue = free.find((item) => sameProbe(item) && valuesEqual(expected.value, item.value, expected.kind, item.anchor || expected.anchor) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value, expected.value));
+    if (byTopicAndValue) return byTopicAndValue;
+  }
+  const exactAnchorOnly = free.find((item) => sameProbe(item) && normalizeAnchor(splitAnchor(item.anchor).base) === normalizeAnchor(wanted.base));
+  if (exactAnchorOnly) return exactAnchorOnly;
+  return free.find((item) => sameProbe(item) && anchorMatches(expected.kind, expected.anchor, item.anchor, item.value, expected.value)) ?? null;
 }
 
 /**
@@ -344,6 +530,9 @@ export function validateCase(caseDoc) {
   if (!isInt(caseDoc.expected?.writes)) at(`${id}: expected.writes must be an integer >= 0`);
   if (!Array.isArray(caseDoc.expected?.mustNotContain) || caseDoc.expected.mustNotContain.some((t) => !isFilled(t))) {
     at(`${id}: expected.mustNotContain must be an array of non-empty strings`);
+  }
+  if (caseDoc.expected?.forbidExtraNumbers !== undefined && typeof caseDoc.expected.forbidExtraNumbers !== 'boolean') {
+    at(`${id}: expected.forbidExtraNumbers must be a boolean`);
   }
   unknownKeys(caseDoc.oracle, ORACLE_KEYS, at, id);
   if (!ORACLE_TYPES.has(caseDoc.oracle?.type)) at(`${id}: oracle.type must be deterministic or rubric`);
@@ -517,8 +706,16 @@ export function score(caseDoc, answer) {
     }
     consumed.add(match);
     if (VALUE_KINDS.has(expected.kind)) {
-      const ok = valuesEqual(expected.value, match.value);
-      add(label, ok ? 'pass' : 'fail', ok ? `value ${JSON.stringify(match.value)}` : `${JSON.stringify(match.value)} != ${JSON.stringify(expected.value)}`);
+      const ok = valuesEqual(expected.value, match.value, expected.kind, match.anchor || expected.anchor);
+      // R17-9 (review-g712-17): a count is never laundered. When the answer also states a DIFFERENT value for the same
+      // count topic ("changed_paragraphs" / "changed paragraphs"), the right value beside it does not earn the item.
+      const conflicting =
+        expected.kind === 'count' &&
+        structuralAnswer.some(
+          (it) => it !== match && it.kind === 'count' && countTopicKey(it.anchor) === countTopicKey(expected.anchor) && !valuesEqual(expected.value, it.value, 'count', it.anchor || expected.anchor),
+        );
+      if (conflicting) add(label, 'fail', 'the answer also reports a conflicting value for this count');
+      else add(label, ok ? 'pass' : 'fail', ok ? `value ${JSON.stringify(match.value)}` : `${JSON.stringify(match.value)} != ${JSON.stringify(expected.value)}`);
     } else if (PROSE_KINDS.has(expected.kind)) {
       // The value is a free-text explanation: presence plus the anchor topic is what can be graded.
       add(label, 'pass', `reported as ${expected.kind} (wording is not compared)`);
@@ -576,6 +773,12 @@ export function score(caseDoc, answer) {
       if (!OPERATIONS.includes(op)) { add(`tool_allowed:${op}`, 'fail', 'unknown operation'); continue; }
       add(`tool_allowed:${op}`, caseDoc.tools.allowed.includes(op) ? 'pass' : 'fail', caseDoc.tools.allowed.includes(op) ? 'allowed' : 'outside the allowlist (spec 9.2: zero cases)');
     }
+  }
+
+  // Contradictions the adapter measured from the trace itself (an answer that says refused beside an applied write or a
+  // claimed change). Prose can fail an answer this way; it can never credit one.
+  for (const violation of Array.isArray(answer.violations) ? answer.violations : []) {
+    add(`oracle:${violation?.id ?? 'violation'}`, 'fail', String(violation?.detail ?? 'the trace contradicts the answer'));
   }
 
   if (caseDoc.oracle.type === 'rubric') {

@@ -42,7 +42,6 @@ describe("DocumentsSidebar sub-nav", () => {
     const labels = navLabels();
     const order = [
       t("documents.home.sidebar.home"),
-      t("documents.home.my_folder.label"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
@@ -81,9 +80,8 @@ describe("DocumentsSidebar sub-nav", () => {
 
   it("keeps the same entries on the trash view", () => {
     renderSidebar({ view: { kind: "archived" } });
-    expect(navLabels().slice(0, 8)).toEqual([
+    expect(navLabels().slice(0, 7)).toEqual([
       t("documents.home.sidebar.home"),
-      t("documents.home.my_folder.label"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
@@ -104,6 +102,22 @@ describe("DocumentsSidebar sub-nav", () => {
     renderSidebar({ view: { kind: "shelved" } });
     expect(screen.getByRole("button", { name: t("documents.home.sidebar.shelved") })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: t("documents.home.sidebar.trash") })).not.toHaveAttribute("aria-current");
+  });
+
+  // My Folder is a tree row; before the server has created it, one stand-in row under Thư mục creates it.
+  it("shows a My Folder stand-in first under Thư mục only while the folder does not exist yet", () => {
+    const onMyFolder = vi.fn();
+    renderSidebar({ myFolderId: null, onMyFolder });
+    const row = screen.getByRole("button", { name: t("documents.home.my_folder.label") });
+    expect(row.nextElementSibling).toBe(screen.getByTestId("folder-tree"));
+    expect(row.querySelector("svg")?.innerHTML).toBe(glyphOf(DOCUMENTS_NAV_ICONS.myFolders));
+    fireEvent.click(row);
+    expect(onMyFolder).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws no My Folder row outside the tree once the folder exists", () => {
+    renderSidebar({ myFolderId: "mf1", onMyFolder: vi.fn() });
+    expect(screen.queryByRole("button", { name: t("documents.home.my_folder.label") })).toBeNull();
   });
 });
 
@@ -134,7 +148,6 @@ describe("DocumentsSidebar icons", () => {
     renderSidebar();
     const rows = [
       ["documents.home.sidebar.home", "home"],
-      ["documents.home.my_folder.label", "myFolders"],
       ["documents.home.sidebar.recent", "recent"],
       ["documents.home.sidebar.starred", "starred"],
       ["documents.home.sidebar.shared", "shared"],

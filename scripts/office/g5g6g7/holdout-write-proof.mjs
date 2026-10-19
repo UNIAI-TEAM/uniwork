@@ -215,7 +215,112 @@ function contentLeaves(node, key = '', out = []) {
 
 /** Does the write put anything into the document that it did not already hold (a text that is no existing line, a number the document lacks)? */
 export function introducesNew(args, sourceText) {
+  // A configuration operation (review-g712-16 A2) changes the document without introducing any text: a page setup or a
+  // freeze is a real edit even though every leaf it carries is a locator or a setting, so it is never "what the
+  // document already held". The structural proof of the case decides whether the operation is the expected one.
+  if (configOps(args ?? {}).length > 0) return true;
   const units = sourceUnits(sourceText);
   const numbers = sourceNumbers(sourceText);
   return contentLeaves(args ?? {}).some((leaf) => ('text' in leaf ? !units.has(norm(leaf.text)) : !numbers.some((n) => Math.abs(n - leaf.number) < 1e-9)));
+}
+
+// ---- configuration operations (review-g712-16 A2) ----
+
+// The product's discriminator keys of a propose_operations operation (workbook-dsl.ts: `op`); the harness and the
+// frame also accept `type`, so both are read.
+const OP_TYPE_KEYS = ['op', 'type', 'operation', 'kind', 'action'];
+// A cell write names an address; a configuration operation never does. An operation with one of these is a cell write,
+// so it is proven by cellProof (its address and value), not as a configuration.
+const ADDRESS_KEYS = ['address', 'range', 'cell', 'anchor', 'target', 'values'];
+
+const opTypeOf = (node) => OP_TYPE_KEYS.map((k) => node[k]).find((v) => typeof v === 'string' && v.trim() !== '') ?? null;
+
+const isClearedSetting = (v) =>
+  v === null || (typeof v === 'string' && (v.trim() === '' || /^(?:clear|none|reset|unset)$/i.test(v.trim())));
+
+/** The settings of one operation object: scalar values and explicit nulls (which clear a key in final state, R18-7). */
+function opSettings(node) {
+  const out = [];
+  for (const [key, value] of Object.entries(node)) {
+    if (CONTROL_KEYS.has(key) || SHEET_KEYS.includes(key) || OP_TYPE_KEYS.includes(key)) continue;
+    if (isScalar(value) || value === null) out.push({ key, value });
+  }
+  return out;
+}
+
+/** The sheet an operation names, resolved to the workbook's own name when it names a `sheet-N` index. */
+function resolveSheetName(have, sheetNames) {
+  if (!have) return null;
+  const byIndex = /^sheet-(\d+)$/i.exec(String(have).trim());
+  if (byIndex && sheetNames[Number(byIndex[1]) - 1]) return sheetNames[Number(byIndex[1]) - 1];
+  return String(have).trim();
+}
+
+const isClearOpType = (opType, expectedType) => {
+  const base = norm(expectedType).replace(/^set_/, '');
+  return base !== '' && new RegExp(`^(?:clear|reset|unset)_?${base}$`, 'i').test(norm(opType));
+};
+
+/** Every configuration operation of one write's arguments: a typed operation object carrying settings or a clear op. */
+export function configOps(args) {
+  const out = [];
+  for (const { node } of operations(args ?? {})) {
+    const type = opTypeOf(node);
+    if (!type) continue;
+    if (ADDRESS_KEYS.some((k) => node[k] !== undefined)) continue;
+    const settings = opSettings(node);
+    if (settings.length === 0 && !/^(?:clear|reset|unset)_/i.test(norm(type))) continue;
+    const sheet = SHEET_KEYS.map((k) => node[k]).find((v) => typeof v === 'string' && v.trim() !== '') ?? null;
+    out.push({ type, sheet, settings });
+  }
+  return out;
+}
+
+/** Parses a `config_op` expectation `sheet|key=value,key=value` into { sheet, keys } (the keys in their written order). */
+function parseConfigSpec(text) {
+  const s = String(text ?? '');
+  const bar = s.indexOf('|');
+  if (bar <= 0) return null;
+  const sheet = s.slice(0, bar).trim();
+  const keys = s.slice(bar + 1).split(',').map((part) => part.split('=')[0].trim()).filter(Boolean);
+  return sheet && keys.length > 0 ? { sheet, keys } : null;
+}
+
+/**
+ * Proves a configuration edit (review-g712-16 A2, review-g712-17 R17-1, review-g712-18 R18-7) from the APPLIED
+ * propose_operations arguments. Canonical config state is the FINAL state on the target sheet after every applied
+ * operation in order: setting a key updates it, and an explicit null or clear removes it. Returns the final canonical
+ * `sheet|key=value,…` when every expected key is present in the final state, or null when any key is missing/cleared.
+ */
+export function configOpProof(writes, type, expectedSpec, sheetNames = []) {
+  const spec = parseConfigSpec(expectedSpec);
+  if (!spec) return null;
+  const state = new Map();
+  let resolvedSheet = null;
+  for (const write of writes) {
+    if (write.name && write.name !== 'propose_operations') continue;
+    for (const op of configOps(write.args ?? {})) {
+      const sameType = norm(op.type) === norm(type);
+      const clearType = isClearOpType(op.type, type);
+      if (!sameType && !clearType) continue;
+      if (!op.sheet || !sameSheet(spec.sheet, op.sheet, sheetNames)) continue;
+      resolvedSheet = resolveSheetName(op.sheet, sheetNames);
+      if (clearType && op.settings.length === 0) {
+        state.clear();
+        continue;
+      }
+      for (const s of op.settings) {
+        const k = norm(s.key);
+        if (clearType || isClearedSetting(s.value)) state.delete(k);
+        else state.set(k, s.value);
+      }
+    }
+  }
+  if (resolvedSheet === null) return null;
+  const parts = [];
+  for (const key of spec.keys) {
+    if (!state.has(norm(key))) return null;
+    parts.push(`${key}=${state.get(norm(key))}`);
+  }
+  return `${resolvedSheet}|${parts.join(',')}`;
 }

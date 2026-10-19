@@ -50,8 +50,7 @@ const (
 	DocumentSourceMaxLimit     = 100
 )
 
-// documentSourceTypeExts maps a type filter onto file extensions; "image"
-// matches by MIME type and "other" is everything neither covers.
+// documentSourceTypeExts maps a type filter onto file extensions.
 var documentSourceTypeExts = map[string][]string{
 	"docx": {"docx", "doc"},
 	"xlsx": {"xlsx", "xls"},
@@ -60,6 +59,19 @@ var documentSourceTypeExts = map[string][]string{
 	"md":   {"md", "markdown"},
 	"html": {"html", "htm"},
 }
+
+// documentSourceAllExts is the whole source set: the document kinds only
+// (UNI-1967). Images, archives and every other attachment are not sources, so
+// the list, the lookup behind Open/ViewSource/Save and the frame mint all
+// filter by it.
+var documentSourceAllExts = func() []string {
+	all := []string{"txt"}
+	for _, exts := range documentSourceTypeExts {
+		all = append(all, exts...)
+	}
+	sort.Strings(all)
+	return all
+}()
 
 // documentSourceAppExts are the formats the Office app opens (view-only for a
 // source file).
@@ -343,7 +355,7 @@ func (s *DocumentSourceService) lookup(ctx context.Context, actor Actor, ws db.W
 		return DocumentSourceItem{}, ErrNotFound
 	}
 	dq := documentSourceQuery{
-		orgID: ws.OrganizationID, workspaceID: ws.ID, viewerID: actor.ID, limit: 1,
+		orgID: ws.OrganizationID, workspaceID: ws.ID, viewerID: actor.ID, limit: 1, typeMode: "ext", typeExts: documentSourceAllExts,
 		rowID: pgtype.Text{String: rowID, Valid: true},
 	}
 	items, err := s.query(ctx, src, dq)
@@ -553,23 +565,14 @@ func documentSourcesFor(source string) ([]string, error) {
 }
 
 func documentSourceTypeFilter(t string) (string, []string, error) {
-	switch t = strings.TrimSpace(t); t {
-	case "":
-		return "", []string{}, nil
-	case "image":
-		return "image", []string{}, nil
-	case "other":
-		var all []string
-		for _, exts := range documentSourceTypeExts {
-			all = append(all, exts...)
-		}
-		sort.Strings(all)
-		return "other", all, nil
+	t = strings.TrimSpace(t)
+	if t == "" {
+		return "ext", documentSourceAllExts, nil
 	}
 	if exts, ok := documentSourceTypeExts[t]; ok {
 		return "ext", exts, nil
 	}
-	return "", nil, Invalid("type phải là docx, xlsx, pptx, pdf, md, html, image hoặc other")
+	return "", nil, Invalid("type phải là docx, xlsx, pptx, pdf, md hoặc html")
 }
 
 func documentSourceExtension(name string) string {

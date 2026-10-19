@@ -21,13 +21,15 @@ export interface FolderBreadcrumbProps {
   onRoot: () => void;
   onFolder: (folderId: string) => void;
   onRename: (title: string) => void;
+  /** Rendered right after the leaf name and its rename pencil (the folder's menu). */
+  leafActions?: React.ReactNode;
 }
 
 const MAX_UNCOLLAPSED_FOLDER_LEVELS = 3;
 const ELLIPSIS = "…";
 
 /** Tài liệu của workspace › folder › subfolder; paths over 3 folder levels collapse intermediate ancestors into a "…" menu, and the open folder renames in place. */
-export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, onRename }: FolderBreadcrumbProps) {
+export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, onRename, leafActions }: FolderBreadcrumbProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -78,11 +80,12 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
         </span>
       ) : null}
       {visibleAncestors.map((node) => (
-        <span key={node.id} className="flex min-w-0 items-center gap-1">
+        <span key={node.id} className="flex min-w-0 shrink-[3] items-center gap-1">
           <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           <button
             type="button"
             className={cn(crumb, "min-w-0 truncate")}
+            title={node.title}
             onClick={() => onFolder(node.id)}
           >
             {node.title}
@@ -116,9 +119,9 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
         </form>
       ) : (
         <span className="flex min-w-0 items-center gap-1">
-          <span aria-current="page" className="truncate px-1 text-body font-medium text-foreground">
+          <h1 aria-current="page" title={leaf.title} className="min-w-0 truncate px-1 text-body font-semibold text-foreground">
             {leaf.title}
-          </span>
+          </h1>
           {canRename ? (
             <Button
               type="button"
@@ -137,6 +140,7 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
               <Pencil aria-hidden />
             </Button>
           ) : null}
+          {leafActions}
         </span>
       )}
     </nav>

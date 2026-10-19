@@ -11,6 +11,7 @@ package handler
 // TestDocumentCommentAnonymousAndAgent.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -20,10 +21,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -50,6 +53,7 @@ type documentCollabWorld struct {
 	viewer   string // member with a view-only share on restricted documents
 	viewerID string
 	outsider string
+	files    *filesfake.Fake
 }
 
 // newDocumentCollabWorld builds the handler stack with DocumentService wired
@@ -61,7 +65,9 @@ func newDocumentCollabWorld(t *testing.T) *documentCollabWorld {
 	q := db.New(pool)
 	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
 	docs.SetEntitlements(service.NewEntitlementService(pool, q))
-	docs.SetFiles(filesfake.New(filesfake.Options{}))
+	fake := filesfake.New(filesfake.Options{})
+	docs.SetFiles(fake)
+	d.Actors.SetFiles(fake)
 	d.Documents = docs
 	srv := httptest.NewServer(New(d))
 	t.Cleanup(srv.Close)
@@ -81,7 +87,7 @@ func newDocumentCollabWorld(t *testing.T) *documentCollabWorld {
 		testFlagOverrides.Invalidate()
 	}
 
-	w := &documentCollabWorld{srv: srv, docs: docs, q: q, pool: pool}
+	w := &documentCollabWorld{srv: srv, docs: docs, q: q, pool: pool, files: fake}
 	w.token, w.userID = filesRegister(t, srv, "collab-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Collab Org", "slug": "collab-org"})
 	if res.StatusCode != 201 {
@@ -764,5 +770,36 @@ func TestDocumentCommentsOpenAPICatalog(t *testing.T) {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("OpenAPI spec lacks example %q", want)
 		}
+	}
+}
+
+// A comment author whose photo lives in FileService (POST /me/avatar) carries
+// the resolved avatar_url in the list answer, like the single-comment answer.
+func TestDocumentCommentListResolvesFileBackedAvatar(t *testing.T) {
+	w := newDocumentCollabWorld(t)
+	docID := w.createDoc(t, w.token, "Avatars", "workspace")
+	w.createComment(t, w.member, docID, "from the member", nil)
+
+	up, err := w.files.Upload(context.Background(), files.UploadInput{
+		Actor: service.Human(w.memberID), Purpose: files.UserAvatar,
+		Scope:          files.Scope{UserID: w.memberID},
+		IdempotencyKey: "comment-avatar", Filename: "me.png", Body: bytes.NewReader(tinyPNG),
+	})
+	if err != nil {
+		t.Fatalf("upload avatar: %v", err)
+	}
+	if _, err := w.q.UpdateUserAvatarFile(context.Background(), db.UpdateUserAvatarFileParams{
+		ID: w.memberID, AvatarFileID: pgtype.Text{String: string(up.File.ID), Valid: true},
+	}); err != nil {
+		t.Fatalf("attach avatar: %v", err)
+	}
+
+	comments := w.listComments(t, w.token, docID, 200)
+	if len(comments) != 1 {
+		t.Fatalf("comments = %v", comments)
+	}
+	got, _ := comments[0].(map[string]any)["avatar_url"].(string)
+	if want := "fake://presign/" + string(up.File.ID); got != want {
+		t.Errorf("avatar_url = %q, want the resolved file URL %q", got, want)
 	}
 }

@@ -262,6 +262,8 @@ func TestOfficeFrameSourceTxtOpenGate(t *testing.T) {
 	mdLongID := seedChatSource("ghi-chu.markdown", "text/markdown", "src-mdlong-1", []byte("# md\n"))
 
 	// Flag off (default): .txt has can_open_in_app: false and mint returns 404.
+	// .csv and .log are not document kinds, so they are never sources
+	// (UNI-1967) and their mint is the same 404.
 	res, list := doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/documents/sources", member, nil)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("list sources (flag off): %d %v", res.StatusCode, list)
@@ -275,10 +277,15 @@ func TestOfficeFrameSourceTxtOpenGate(t *testing.T) {
 		return m
 	}
 	rows := itemsByID(list)
-	for _, id := range []string{txtID, csvID, logID} {
-		if rows[id]["can_open_in_app"] != false {
-			t.Fatalf("flag off: %s can_open_in_app = %v, want false", id, rows[id]["can_open_in_app"])
+	if rows[txtID]["can_open_in_app"] != false {
+		t.Fatalf("flag off: .txt can_open_in_app = %v, want false", rows[txtID]["can_open_in_app"])
+	}
+	for _, id := range []string{csvID, logID} {
+		if _, listed := rows[id]; listed {
+			t.Fatalf("flag off: non-document source %s is listed", id)
 		}
+	}
+	for _, id := range []string{txtID, csvID, logID} {
 		if res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/documents/sources/"+id+"/office/frame-token", member, nil); res.StatusCode != http.StatusNotFound {
 			t.Fatalf("flag off: mint %s = %d %v, want 404", id, res.StatusCode, out)
 		}
@@ -301,8 +308,8 @@ func TestOfficeFrameSourceTxtOpenGate(t *testing.T) {
 		t.Fatalf("flag on: .txt can_open_in_app = %v, want true", rows[txtID]["can_open_in_app"])
 	}
 	for _, id := range []string{csvID, logID} {
-		if rows[id]["can_open_in_app"] != false {
-			t.Fatalf("flag on: %s can_open_in_app = %v, want false", id, rows[id]["can_open_in_app"])
+		if _, listed := rows[id]; listed {
+			t.Fatalf("flag on: non-document source %s is listed", id)
 		}
 		if res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/documents/sources/"+id+"/office/frame-token", member, nil); res.StatusCode != http.StatusNotFound {
 			t.Fatalf("flag on: mint %s = %d %v, want 404", id, res.StatusCode, out)
