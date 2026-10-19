@@ -218,10 +218,11 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
   const frame = readFrame(req, config.limits.maxInputBytes);
   const envelopeBytes = frame.envelopeLength ?? ENVELOPE_MAX_BYTES;
   // The budget is taken before a byte of the body is read: envelope + input at
-  // admission, the envelope part released once parsed (or on refusal/abort),
-  // and the input part handed over to the new job with its input file.
-  let reserved = envelopeBytes + frame.inputLength;
-  if (!jobs.reserveInput(reserved)) {
+  // admission, the envelope part held while the parsed payload stays live and
+  // released when the submit ends, and the input part handed over to the new
+  // job with its input file.
+  let inputReserved = frame.inputLength;
+  if (!jobs.reserveInput(envelopeBytes + inputReserved)) {
     res.setHeader("Retry-After", 2);
     throw new EngineBoundaryError("engine_overloaded", { reason: "input_budget" });
   }
@@ -242,8 +243,6 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
       }
       throw error;
     }
-    jobs.releaseInput(envelopeBytes);
-    reserved = frame.inputLength;
     const grant = verifyGrant(req.headers[GRANT_HEADER] as string | undefined, config.grantKey);
     // The configured cap travels into the contract validation: a declared
     // input_length already over it is refused before the input is read.
@@ -301,23 +300,25 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
     });
     if (!replay) {
       dir = null;
-      reserved = 0;
+      inputReserved = 0;
     }
     send(res, replay ? 200 : 202, { ...jobView(job), replay, payload_fingerprint: fingerprint });
   } finally {
-    // A refused, replayed or aborted upload leaves no file and no budget; on a
-    // removal failure the reservation stays held so admission remains bounded.
+    // The envelope share is released once the HTTP submit ends; a refused,
+    // replayed or aborted upload also removes its input file and input share
+    // (on a removal failure only the input share stays held).
+    jobs.releaseInput(envelopeBytes);
     if (dir) {
       await removeJobDir(dir).then(
         () => {
-          jobs.releaseInput(reserved);
+          jobs.releaseInput(inputReserved);
         },
         (error: unknown) => {
           logCleanupFailure(error);
         },
       );
     } else {
-      jobs.releaseInput(reserved);
+      jobs.releaseInput(inputReserved);
     }
   }
 }

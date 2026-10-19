@@ -598,9 +598,10 @@ describe("framed job transport (SIZE-OPS1)", () => {
       expect(res.status).toBe(503);
       expect(JSON.parse(res.body).error).toMatchObject({ code: "engine_overloaded", reason: "input_budget" });
       expect(res.retryAfter).toBe("2");
-      // Once the envelope is parsed, its share of the reservation is released while the input share stays held.
+      // While the input is withheld after the envelope is parsed, the full frame reservation stays held.
       held.req.write(held.body.subarray(0, envelopeLength));
-      await until(() => h2.service.jobs.inputBytesAdmitted === bytes.length, 2_000);
+      await until(async () => (await jobDirs(h2.tempRoot)).length === 1, 2_000);
+      expect(h2.service.jobs.inputBytesAdmitted).toBe(held.body.length);
       held.req.end(held.body.subarray(envelopeLength));
       expect((await held.reply).status).toBe(202);
       await waitTerminal(h2, first);
@@ -661,6 +662,53 @@ describe("framed job transport (SIZE-OPS1)", () => {
       await until(() => jobs.inputBytesAdmitted === 0, 2_000);
     } finally {
       for (const c of candidates) c.req.destroy();
+      await h2.close();
+    }
+  });
+
+  it("keeps the envelope share of the admission budget while the input is withheld, then releases it on abort or hand-off (SIZE-OPS1 r3)", async () => {
+    const smallInput = Buffer.from("small-in");
+    const largeEditPayload = { edits: [{ op: "insert_text", text: "e".repeat(256 * 1024) }] };
+    const sample = makeJob(h.target, { operation: "edit", format: "pdf", bytes: smallInput, payload: largeEditPayload });
+    const sampleFrame = frame(sample.envelope, sample.bytes);
+    const envelopeLength = Number(sampleFrame.headers["x-office-envelope-length"]);
+    // Budget fits one large edit envelope + small input (plus a tiny sleeper), not a second large edit envelope.
+    const h2 = await startHarness({ maxWorkers: 1, inputBudgetBytes: sampleFrame.body.length + 1024 });
+    try {
+      const first = makeJob(h2.target, { operation: "edit", format: "pdf", bytes: smallInput, payload: largeEditPayload });
+      const held = rawFramed(h2, first, { write: envelopeLength });
+      // Once the job dir exists, JSON.parse, validateEnvelope and bindEnvelope have finished and writeInput is waiting for smallInput.
+      await until(async () => (await jobDirs(h2.tempRoot)).length === 1, 2_000);
+      expect(h2.service.jobs.inputBytesAdmitted).toBe(held.body.length);
+
+      const second = makeJob(h2.target, { operation: "edit", format: "pdf", bytes: smallInput, payload: largeEditPayload });
+      const refused = rawFramed(h2, second, { write: 0 });
+      const res = await refused.reply;
+      refused.req.destroy();
+      expect(res.status).toBe(503);
+      expect(JSON.parse(res.body).error).toMatchObject({ code: "engine_overloaded", reason: "input_budget" });
+      expect(res.retryAfter).toBe("2");
+
+      // Aborting the stalled upload releases both envelope and input shares back to 0.
+      held.req.destroy();
+      await until(async () => h2.service.jobs.inputBytesAdmitted === 0 && (await jobDirs(h2.tempRoot)).length === 0, 2_000);
+
+      // Finishing a stalled upload hands off to the job and drops the reservation to the job's input share alone.
+      const blocker = makeJob(h2.target, { text: "uniwork-fault:sleep 30000\n" });
+      expect((await submit(h2, blocker)).status).toBe(202);
+      const third = makeJob(h2.target, { operation: "edit", format: "pdf", bytes: smallInput, payload: largeEditPayload });
+      const heldThird = rawFramed(h2, third, { write: envelopeLength });
+      await until(async () => (await jobDirs(h2.tempRoot)).length === 2, 2_000);
+      expect(h2.service.jobs.inputBytesAdmitted).toBe(blocker.bytes.length + heldThird.body.length);
+      heldThird.req.end(heldThird.body.subarray(envelopeLength));
+      expect((await heldThird.reply).status).toBe(202);
+      expect(h2.service.jobs.inputBytesAdmitted).toBe(blocker.bytes.length + third.bytes.length);
+
+      await call(h2, "POST", "/v1/jobs/" + third.grant.job_id + "/cancel", { grant: third.token });
+      await call(h2, "POST", "/v1/jobs/" + blocker.grant.job_id + "/cancel", { grant: blocker.token });
+      await waitTerminal(h2, blocker);
+      await until(async () => h2.service.jobs.inputBytesAdmitted === 0 && (await jobDirs(h2.tempRoot)).length === 0, 2_000);
+    } finally {
       await h2.close();
     }
   });
