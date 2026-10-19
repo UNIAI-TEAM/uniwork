@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -302,7 +303,7 @@ func TestDocumentBodyMentionAgentActorSilent(t *testing.T) {
 
 // One save notifies at most 50 people in document order of their first
 // appearance; the audit metadata carries how many eligible recipients the save
-// newly named before the cap (RBM-02).
+// newly named before the cap (RBM-02, RBM-201).
 func TestDocumentBodyMentionCap(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "bmnc")
@@ -310,9 +311,10 @@ func TestDocumentBodyMentionCap(t *testing.T) {
 	d := bodyMentionPage(t, f, tn)
 
 	ids := addBulkReaders(t, f, tn.orgID, tn.wsA, 55)
-	// Repeat the first recipient so document-order deduplication before the 50
-	// cap is proved alongside the literal 55/50 counts.
-	mentioned := append([]string{ids[0]}, ids...)
+	// Place the 55 recipients in reverse id order and repeat the first after the
+	// second so sorting ids or deduplicating by last appearance fails (RBM-201).
+	slices.Reverse(ids)
+	mentioned := append([]string{ids[0], ids[1], ids[0]}, ids[2:]...)
 	savePage(t, f, actor, d.ID, bodyMentionJSON(mentioned...))
 
 	got := bodyMentionUserIDsOf(t, f, d.ID)
