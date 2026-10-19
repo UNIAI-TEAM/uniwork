@@ -1,0 +1,23 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -6; git merge-base --is-ancestor origin/feature/UNI-923-office-g5-g6-g7 HEAD; rc=$?; git diff --stat origin/feature/UNI-923-office-g5-g6-g7...HEAD | tail -12; echo; echo "SYNCED_EXIT=$rc"
+0382737cf547c36f41ade96b6cae57fee8bf136f
+032e0fbb3823d3dec8ea9b62b7434f938c94b3ee
+0382737cf test(office): re-bless the G7-06 goldens at the web-0.1.0-b1cbd5d frame pin
+b4ce2a167 docs(office): name the web-0.1.0-b1cbd5d pin as the final REPIN-4 pin
+be914170c chore(office): re-pin the six office frames to web-0.1.0-b1cbd5d
+dfb34f885 docs(office): name the web-0.1.0-b5da4d4 pin in the modules doc and the G7-09 checklist
+f3afab552 chore(office): re-pin the six office frames to web-0.1.0-b5da4d4
+032e0fbb3 chore: merge UNI-1874 FU-G7-12-ORACLE r2 (harness + tests; 8c0148dac) into the G5-G7 root
+ docs/office/g5g6g7/ux/g7-09-checklist.md           |   8 +++---
+ docs/office/office-web-modules.md                  |  27 +++++++++++++--------
+ .../g7-06/goldens/desktop/fx-html-page-vi.png      | Bin 98015 -> 98049 bytes
+ .../g7-06/goldens/desktop/fx-md-notes-vi.png       | Bin 119396 -> 119398 bytes
+ scripts/office/g5g6g7/g7-06/goldens/manifest.json  |  22 ++++++++---------
+ .../g5g6g7/g7-06/goldens/web/fx-docx-report-vi.png | Bin 170011 -> 169988 bytes
+ .../g5g6g7/g7-06/goldens/web/fx-html-page-vi.png   | Bin 105021 -> 104996 bytes
+ .../g5g6g7/g7-06/goldens/web/fx-md-notes-vi.png    | Bin 123045 -> 122789 bytes
+ .../g5g6g7/g7-06/goldens/web/fx-pdf-invoice-vi.png | Bin 130001 -> 130002 bytes
+ .../g5g6g7/g7-06/goldens/web/fx-pptx-deck-vi.png   | Bin 133249 -> 133249 bytes
+ .../g7-06/goldens/web/fx-xlsx-revenue-xyz.png      | Bin 131310 -> 131276 bytes
+ 18 files changed, 52 insertions(+), 45 deletions(-)
+
+SYNCED_EXIT=0

@@ -1,0 +1,547 @@
+$ node --test scripts/office/g5g6g7/g8-19/comments.test.mjs scripts/office/g5g6g7/g8-19/inbox.test.mjs scripts/office/g5g6g7/g8-19/deeplink.test.mjs; rc=$?; echo; echo "G819_COMMENTS_TESTS_EXIT=$rc"
+TAP version 13
+# Subtest: decideG8A01: one row, author A (human), the fixture's anchor format, no machine name -> PASS; the AI clause is cited, not tested
+ok 1 - decideG8A01: one row, author A (human), the fixture's anchor format, no machine name -> PASS; the AI clause is cited, not tested
+  ---
+  duration_ms: 1.272077
+  type: 'test'
+  ...
+# Subtest: decideG8A01: two rows for one create -> FAIL
+ok 2 - decideG8A01: two rows for one create -> FAIL
+  ---
+  duration_ms: 0.278956
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the row is not the created id -> FAIL
+ok 3 - decideG8A01: the row is not the created id -> FAIL
+  ---
+  duration_ms: 0.087383
+  type: 'test'
+  ...
+# Subtest: decideG8A01: another author -> FAIL
+ok 4 - decideG8A01: another author -> FAIL
+  ---
+  duration_ms: 0.06958
+  type: 'test'
+  ...
+# Subtest: decideG8A01: an agent author -> FAIL
+ok 5 - decideG8A01: an agent author -> FAIL
+  ---
+  duration_ms: 0.138087
+  type: 'test'
+  ...
+# Subtest: decideG8A01: a docx anchor on an xlsx -> FAIL
+ok 6 - decideG8A01: a docx anchor on an xlsx -> FAIL
+  ---
+  duration_ms: 0.065337
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the web reader does not see the row -> FAIL
+ok 7 - decideG8A01: the web reader does not see the row -> FAIL
+  ---
+  duration_ms: 0.100492
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the machine name in a saved part -> FAIL
+ok 8 - decideG8A01: the machine name in a saved part -> FAIL
+  ---
+  duration_ms: 0.194001
+  type: 'test'
+  ...
+# Subtest: decideG8A01: no name left to scan for -> FAIL
+ok 9 - decideG8A01: no name left to scan for -> FAIL
+  ---
+  duration_ms: 0.241356
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the machine name in a payload -> FAIL
+ok 10 - decideG8A01: the machine name in a payload -> FAIL
+  ---
+  duration_ms: 0.308441
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the desktop create failed -> FAIL
+ok 11 - decideG8A01: the desktop create failed -> FAIL
+  ---
+  duration_ms: 0.112897
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the Save failed -> FAIL
+ok 12 - decideG8A01: the Save failed -> FAIL
+  ---
+  duration_ms: 0.061712
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the dirtying edit failed -> FAIL
+ok 13 - decideG8A01: the dirtying edit failed -> FAIL
+  ---
+  duration_ms: 0.047247
+  type: 'test'
+  ...
+# Subtest: decideG8A01: a Save that made no new version -> FAIL
+ok 14 - decideG8A01: a Save that made no new version -> FAIL
+  ---
+  duration_ms: 0.04354
+  type: 'test'
+  ...
+# Subtest: decideG8A01: a Save with no head read -> FAIL
+ok 15 - decideG8A01: a Save with no head read -> FAIL
+  ---
+  duration_ms: 0.044049
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the new version was not scanned -> FAIL
+ok 16 - decideG8A01: the new version was not scanned -> FAIL
+  ---
+  duration_ms: 0.077801
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the machine name in the working copy only -> FAIL
+ok 17 - decideG8A01: the machine name in the working copy only -> FAIL
+  ---
+  duration_ms: 0.08655
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the working copy was not scanned -> FAIL
+ok 18 - decideG8A01: the working copy was not scanned -> FAIL
+  ---
+  duration_ms: 0.044096
+  type: 'test'
+  ...
+# Subtest: decideG8A04: every host sees the other, two rows, offline read-only with the draft -> PASS
+ok 19 - decideG8A04: every host sees the other, two rows, offline read-only with the draft -> PASS
+  ---
+  duration_ms: 0.332719
+  type: 'test'
+  ...
+# Subtest: decideG8A04: the web panel in an old frame is BLOCKED(R1) (exit 77), never PASS
+ok 20 - decideG8A04: the web panel in an old frame is BLOCKED(R1) (exit 77), never PASS
+  ---
+  duration_ms: 0.151451
+  type: 'test'
+  ...
+# Subtest: decideG8A04: the desktop must see a web change on focus within 30 s poll + 5 s (35 s)
+ok 21 - decideG8A04: the desktop must see a web change on focus within 30 s poll + 5 s (35 s)
+  ---
+  duration_ms: 0.170853
+  type: 'test'
+  ...
+# Subtest: decideG8A04: offline must be read-only (status line + Send blocked), keep the draft, and recover
+ok 22 - decideG8A04: offline must be read-only (status line + Send blocked), keep the draft, and recover
+  ---
+  duration_ms: 0.32599
+  type: 'test'
+  ...
+# Subtest: decideG8A04: concurrent sends must be two rows with two ids; a hard delete must change list_token and leave the desktop
+ok 23 - decideG8A04: concurrent sends must be two rows with two ids; a hard delete must change list_token and leave the desktop
+  ---
+  duration_ms: 0.151647
+  type: 'test'
+  ...
+# Subtest: decideA03AddOn: the discussion survives a rename (same id, one thread) and a copy carries no comments
+ok 24 - decideA03AddOn: the discussion survives a rename (same id, one thread) and a copy carries no comments
+  ---
+  duration_ms: 0.11803
+  type: 'test'
+  ...
+# Subtest: waitDesktopSees forces a focus before every probe and gives up at the bound
+ok 25 - waitDesktopSees forces a focus before every probe and gives up at the bound
+  ---
+  duration_ms: 0.662915
+  type: 'test'
+  ...
+# Subtest: runG8A01 (docx, fake): the desktop comment is one server row by A, and the saved file + payloads are clean -> PASS
+ok 26 - runG8A01 (docx, fake): the desktop comment is one server row by A, and the saved file + payloads are clean -> PASS
+  ---
+  duration_ms: 4.771754
+  type: 'test'
+  ...
+# Subtest: runG8A01 (docx, fake): the machine name in the saved comments.xml or the author payload -> FAIL
+ok 27 - runG8A01 (docx, fake): the machine name in the saved comments.xml or the author payload -> FAIL
+  ---
+  duration_ms: 2.173373
+  type: 'test'
+  ...
+# Subtest: runG8A01 (docx, fake): a Save that leaves the server head where it was is FAIL and nothing is downloaded
+ok 28 - runG8A01 (docx, fake): a Save that leaves the server head where it was is FAIL and nothing is downloaded
+  ---
+  duration_ms: 1.478645
+  type: 'test'
+  ...
+# Subtest: DIRTY_EDITS: every format has a product-command plan with fork citations; pdf says why it is not a note
+ok 29 - DIRTY_EDITS: every format has a product-command plan with fork citations; pdf says why it is not a note
+  ---
+  duration_ms: 0.19707
+  type: 'test'
+  ...
+# Subtest: downloadVersion GETs /api/v1/documents/{id}/download?version=N with the user's token and returns the bytes
+ok 30 - downloadVersion GETs /api/v1/documents/{id}/download?version=N with the user's token and returns the bytes
+  ---
+  duration_ms: 0.6618
+  type: 'test'
+  ...
+# Subtest: runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop create read by B, R1 BLOCKED, A03 add-on in details
+ok 31 - runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop create read by B, R1 BLOCKED, A03 add-on in details
+  ---
+  duration_ms: 2.99025
+  type: 'test'
+  ...
+# Subtest: runG8A04 opens the panel through the editor's own Review > Show Comments (r1: no bare Comments button) and waits for it
+ok 32 - runG8A04 opens the panel through the editor's own Review > Show Comments (r1: no bare Comments button) and waits for it
+  ---
+  duration_ms: 3.201979
+  type: 'test'
+  ...
+# Subtest: runG8A04: a panel that does not appear after the opener is FAIL at panel with the opener named
+ok 33 - runG8A04: a panel that does not appear after the opener is FAIL at panel with the opener named
+  ---
+  duration_ms: 0.515992
+  type: 'test'
+  ...
+# Subtest: runG8A04 offline: a composer that cannot be opened makes the offline step FAIL itself (never PASS on empty observations)
+ok 34 - runG8A04 offline: a composer that cannot be opened makes the offline step FAIL itself (never PASS on empty observations)
+  ---
+  duration_ms: 2.97377
+  type: 'test'
+  ...
+# Subtest: decideG8A04 offline: Send must be enabled online with the draft, else its offline block proves nothing
+ok 35 - decideG8A04 offline: Send must be enabled online with the draft, else its offline block proves nothing
+  ---
+  duration_ms: 0.176187
+  type: 'test'
+  ...
+# Subtest: openReplyComposer presses Reply in the thread and waits for its composer (fork CollabThread.tsx:761-770,851-852)
+ok 36 - openReplyComposer presses Reply in the thread and waits for its composer (fork CollabThread.tsx:761-770,851-852)
+  ---
+  duration_ms: 100.69253
+  type: 'test'
+  ...
+# Subtest: expectedDocumentHref: the notification's own workspace when the recipient is a member
+ok 37 - expectedDocumentHref: the notification's own workspace when the recipient is a member
+  ---
+  duration_ms: 2.132757
+  type: 'test'
+  ...
+# Subtest: expectedDocumentHref: a document shared from a workspace the recipient is not in opens in the open workspace
+ok 38 - expectedDocumentHref: a document shared from a workspace the recipient is not in opens in the open workspace
+  ---
+  duration_ms: 1.138982
+  type: 'test'
+  ...
+# Subtest: expectedDocumentHref: a discussion adds kind=discussion; no comment id means the bare document
+ok 39 - expectedDocumentHref: a discussion adds kind=discussion; no comment id means the bare document
+  ---
+  duration_ms: 0.947754
+  type: 'test'
+  ...
+# Subtest: hrefCommentId + launchCommentId: the page's ?comment= rides the ticket only when id-shaped (desktop-handoff.ts:27-36)
+ok 40 - hrefCommentId + launchCommentId: the page's ?comment= rides the ticket only when id-shaped (desktop-handoff.ts:27-36)
+  ---
+  duration_ms: 0.864436
+  type: 'test'
+  ...
+# Subtest: formatOfFixture reads the format out of the fixture id
+ok 41 - formatOfFixture reads the format out of the fixture id
+  ---
+  duration_ms: 0.782971
+  type: 'test'
+  ...
+# Subtest: readFramePin: docx -> docs.pin.json, xlsx -> sheets.pin.json; a format with no pin file is unframed
+ok 42 - readFramePin: docx -> docs.pin.json, xlsx -> sheets.pin.json; a format with no pin file is unframed
+  ---
+  duration_ms: 1.277749
+  type: 'test'
+  ...
+# Subtest: framePinVerdict: 05fd209 is old (BLOCKED R1, owner lead-f); a re-pin flips it without a code change
+ok 43 - framePinVerdict: 05fd209 is old (BLOCKED R1, owner lead-f); a re-pin flips it without a code change
+  ---
+  duration_ms: 0.942294
+  type: 'test'
+  ...
+# Subtest: normalizeSelection: 'Doanh thu Q2!B7' from the sheets control reply (fork apps/sheets/src/renderer/control.ts:34-50)
+ok 44 - normalizeSelection: 'Doanh thu Q2!B7' from the sheets control reply (fork apps/sheets/src/renderer/control.ts:34-50)
+  ---
+  duration_ms: 0.721141
+  type: 'test'
+  ...
+# Subtest: decideDesktopReveal: xlsx PASS needs the ticket comment, the opened document, the focused thread and Doanh thu Q2!B7
+ok 45 - decideDesktopReveal: xlsx PASS needs the ticket comment, the opened document, the focused thread and Doanh thu Q2!B7
+  ---
+  duration_ms: 0.98424
+  type: 'test'
+  ...
+# Subtest: decideDesktopReveal: no focus on the first open of a comment made before the launch is a plain FAIL with the evidence, not the unlisted-id drop (cloud r3 xlsx)
+ok 46 - decideDesktopReveal: no focus on the first open of a comment made before the launch is a plain FAIL with the evidence, not the unlisted-id drop (cloud r3 xlsx)
+  ---
+  duration_ms: 0.875059
+  type: 'test'
+  ...
+# Subtest: decideDesktopReveal: a reveal of a comment the open panel had not listed is the product drop (SheetsServerComments.tsx:287-289, Lead F)
+ok 47 - decideDesktopReveal: a reveal of a comment the open panel had not listed is the product drop (SheetsServerComments.tsx:287-289, Lead F)
+  ---
+  duration_ms: 1.592816
+  type: 'test'
+  ...
+# Subtest: DEEP_LINK_EXCEPTIONS lists the five UNI-1389 cases
+ok 48 - DEEP_LINK_EXCEPTIONS lists the five UNI-1389 cases
+  ---
+  duration_ms: 0.615238
+  type: 'test'
+  ...
+# Subtest: decideException maps each observed state
+ok 49 - decideException maps each observed state
+  ---
+  duration_ms: 0.850976
+  type: 'test'
+  ...
+# Subtest: decideException no_access: C (never shared) gets the gone page, B (revoked, row reads resource_access_lost) gets S15 no-access
+ok 50 - decideException no_access: C (never shared) gets the gone page, B (revoked, row reads resource_access_lost) gets S15 no-access
+  ---
+  duration_ms: 0.673397
+  type: 'test'
+  ...
+# Subtest: decideException comment_deleted: a refused launch ticket is a product FAIL citing the contract's silent drop; the row flag is judged first
+ok 51 - decideException comment_deleted: a refused launch ticket is a product FAIL citing the contract's silent drop; the row flag is judged first
+  ---
+  duration_ms: 0.651357
+  type: 'test'
+  ...
+# Subtest: decideException anchor_lost: a thread the open panel never listed before the re-launch is not judged as a reveal miss
+ok 52 - decideException anchor_lost: a thread the open panel never listed before the re-launch is not judged as a reveal miss
+  ---
+  duration_ms: 0.564216
+  type: 'test'
+  ...
+# Subtest: decideException: the web half of comment_deleted inside an old frame is BLOCKED(R1), never PASS
+ok 53 - decideException: the web half of comment_deleted inside an old frame is BLOCKED(R1), never PASS
+  ---
+  duration_ms: 0.543863
+  type: 'test'
+  ...
+# Subtest: decideG8A07: everything observed on a re-pinned frame -> PASS
+ok 54 - decideG8A07: everything observed on a re-pinned frame -> PASS
+  ---
+  duration_ms: 1.262442
+  type: 'test'
+  ...
+# Subtest: decideG8A07: the web panel inside the old frame is BLOCKED(R1) and the row is BLOCKED, never PASS, even if the page looked fine
+ok 55 - decideG8A07: the web panel inside the old frame is BLOCKED(R1) and the row is BLOCKED, never PASS, even if the page looked fine
+  ---
+  duration_ms: 0.906573
+  type: 'test'
+  ...
+# Subtest: decideG8A07: a wrong href, a desktop miss or a failed exception is FAIL even under the old pin
+ok 56 - decideG8A07: a wrong href, a desktop miss or a failed exception is FAIL even under the old pin
+  ---
+  duration_ms: 1.019792
+  type: 'test'
+  ...
+# Subtest: decideG8A07: the cross-workspace notification must be listed in the recipient's Inbox and open in the recipient's workspace
+ok 57 - decideG8A07: the cross-workspace notification must be listed in the recipient's Inbox and open in the recipient's workspace
+  ---
+  duration_ms: 0.86766
+  type: 'test'
+  ...
+# Subtest: decideG8A07: an empty record is FAIL
+ok 58 - decideG8A07: an empty record is FAIL
+  ---
+  duration_ms: 0.770782
+  type: 'test'
+  ...
+# Subtest: runDeeplink on a re-pinned frame: PASS with every check and the revoke steps in the artifact
+ok 59 - runDeeplink on a re-pinned frame: PASS with every check and the revoke steps in the artifact
+  ---
+  duration_ms: 60.391952
+  type: 'test'
+  ...
+# Subtest: runDeeplink under the 05fd209 pin: exit 77 with the R1 blocker; the desktop B7 reveal still PASSes
+ok 60 - runDeeplink under the 05fd209 pin: exit 77 with the R1 blocker; the desktop B7 reveal still PASSes
+  ---
+  duration_ms: 52.707345
+  type: 'test'
+  ...
+# Subtest: runDeeplink: the Inbox href in the document's workspace while the recipient is not a member there is FAIL
+ok 61 - runDeeplink: the Inbox href in the document's workspace while the recipient is not a member there is FAIL
+  ---
+  duration_ms: 51.902902
+  type: 'test'
+  ...
+# Subtest: runDeeplink: an app that cannot be driven is FAIL, never BLOCKED
+ok 62 - runDeeplink: an app that cannot be driven is FAIL, never BLOCKED
+  ---
+  duration_ms: 1.706454
+  type: 'test'
+  ...
+# Subtest: decideG8A07: a cross-workspace row filed under the document's workspace is a product FAIL naming the Inbox workspace filter and an owner
+ok 63 - decideG8A07: a cross-workspace row filed under the document's workspace is a product FAIL naming the Inbox workspace filter and an owner
+  ---
+  duration_ms: 0.740796
+  type: 'test'
+  ...
+# Subtest: runDeeplink: the B7 selection is read in the page that shows the document, not the app's first sheets window
+ok 64 - runDeeplink: the B7 selection is read in the page that shows the document, not the app's first sheets window
+  ---
+  duration_ms: 61.112839
+  type: 'test'
+  ...
+# Subtest: runDeeplink: the lost-anchor comment is listed by the open panel (focus refresh) before the re-launch reveals it
+ok 65 - runDeeplink: the lost-anchor comment is listed by the open panel (focus refresh) before the re-launch reveals it
+  ---
+  duration_ms: 51.939923
+  type: 'test'
+  ...
+# Subtest: runDeeplink: a launch refused for the deleted comment is a product FAIL, and the row's comment_deleted is still recorded
+ok 66 - runDeeplink: a launch refused for the deleted comment is a product FAIL, and the row's comment_deleted is still recorded
+  ---
+  duration_ms: 6.893211
+  type: 'test'
+  ...
+# Subtest: runDeeplink: C's link shows the gone page (PASS); B's revoked link on the gone page is the product FAIL in revoke and no_access
+ok 67 - runDeeplink: C's link shows the gone page (PASS); B's revoked link on the gone page is the product FAIL in revoke and no_access
+  ---
+  duration_ms: 54.665823
+  type: 'test'
+  ...
+# Subtest: mentionToken is the editor's token (server/internal/mentions/mentions.go:21-24)
+ok 68 - mentionToken is the editor's token (server/internal/mentions/mentions.go:21-24)
+  ---
+  duration_ms: 1.479351
+  type: 'test'
+  ...
+# Subtest: mentionBody names B twice and A (the author) once, with Vietnamese text, and no outer whitespace
+ok 69 - mentionBody names B twice and A (the author) once, with Vietnamese text, and no outer whitespace
+  ---
+  duration_ms: 0.678157
+  type: 'test'
+  ...
+# Subtest: rowsForComment picks the document rows of one comment
+ok 70 - rowsForComment picks the document rows of one comment
+  ---
+  duration_ms: 1.093025
+  type: 'test'
+  ...
+# Subtest: decideG8A05: B gets exactly one document_mentioned row, A and C none, C never a candidate, bodies byte-equal -> PASS
+ok 71 - decideG8A05: B gets exactly one document_mentioned row, A and C none, C never a candidate, bodies byte-equal -> PASS
+  ---
+  duration_ms: 0.854316
+  type: 'test'
+  ...
+# Subtest: decideG8A05: two rows for B (the duplicate token notified twice) -> FAIL; a merged count > 1 -> FAIL
+ok 72 - decideG8A05: two rows for B (the duplicate token notified twice) -> FAIL; a merged count > 1 -> FAIL
+  ---
+  duration_ms: 0.569444
+  type: 'test'
+  ...
+# Subtest: decideG8A05: a self-mention row for A, or any row for the non-reader C -> FAIL
+ok 73 - decideG8A05: a self-mention row for A, or any row for the non-reader C -> FAIL
+  ---
+  duration_ms: 0.403138
+  type: 'test'
+  ...
+# Subtest: decideG8A05: C offered by the desktop picker or the REST picker, or B missing from it -> FAIL
+ok 74 - decideG8A05: C offered by the desktop picker or the REST picker, or B missing from it -> FAIL
+  ---
+  duration_ms: 0.682039
+  type: 'test'
+  ...
+# Subtest: decideG8A05: a body that differs between hosts (even by whitespace) -> FAIL; a failed desktop create -> FAIL
+ok 75 - decideG8A05: a body that differs between hosts (even by whitespace) -> FAIL; a failed desktop create -> FAIL
+  ---
+  duration_ms: 0.470364
+  type: 'test'
+  ...
+# Subtest: titleKeyFor mirrors notification-title.tsx notificationTitleKey: no document name -> _untitled
+ok 76 - titleKeyFor mirrors notification-title.tsx notificationTitleKey: no document name -> _untitled
+  ---
+  duration_ms: 0.494385
+  type: 'test'
+  ...
+# Subtest: expectedTitle renders the real en and vi templates with the row params
+ok 77 - expectedTitle renders the real en and vi templates with the row params
+  ---
+  duration_ms: 15.761721
+  type: 'test'
+  ...
+# Subtest: normalizeRowText drops the param markers and collapses whitespace
+ok 78 - normalizeRowText drops the param markers and collapses whitespace
+  ---
+  duration_ms: 0.448572
+  type: 'test'
+  ...
+# Subtest: decideG8A06: en + vi title on the row, mark read only for B, A untouched -> PASS
+ok 79 - decideG8A06: en + vi title on the row, mark read only for B, A untouched -> PASS
+  ---
+  duration_ms: 0.499906
+  type: 'test'
+  ...
+# Subtest: decideG8A06: a missing en or vi title, or the same text in both locales -> FAIL
+ok 80 - decideG8A06: a missing en or vi title, or the same text in both locales -> FAIL
+  ---
+  duration_ms: 0.523612
+  type: 'test'
+  ...
+# Subtest: decideG8A06: read state is per person: A's count moved, B's did not, or A could mark B's row -> FAIL
+ok 81 - decideG8A06: read state is per person: A's count moved, B's did not, or A could mark B's row -> FAIL
+  ---
+  duration_ms: 0.509231
+  type: 'test'
+  ...
+# Subtest: decideG8A06: a plain comment notified B, or the author notified themself -> FAIL
+ok 82 - decideG8A06: a plain comment notified B, or the author notified themself -> FAIL
+  ---
+  duration_ms: 0.346687
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A05: desktop picker, desktop create as A, one row for B -> PASS; the document is in W1 shared to B only
+ok 83 - runInbox G8-A05: desktop picker, desktop create as A, one row for B -> PASS; the document is in W1 shared to B only
+  ---
+  duration_ms: 16.079004
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A05: a duplicate notification or C in the picker -> FAIL
+ok 84 - runInbox G8-A05: a duplicate notification or C in the picker -> FAIL
+  ---
+  duration_ms: 23.759627
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A06: en + vi titles on B's W2 Inbox row, B marks it read, A cannot -> PASS
+ok 85 - runInbox G8-A06: en + vi titles on B's W2 Inbox row, B marks it read, A cannot -> PASS
+  ---
+  duration_ms: 20.619446
+  type: 'test'
+  ...
+# Subtest: runInbox: a row other than A05/A06 is refused (FAIL)
+ok 86 - runInbox: a row other than A05/A06 is refused (FAIL)
+  ---
+  duration_ms: 9.600228
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A05: the desktop create is a root kind=comment with the fixture's anchor and the uploaded version (comments-ipc.ts:260-276)
+ok 87 - runInbox G8-A05: the desktop create is a root kind=comment with the fixture's anchor and the uploaded version (comments-ipc.ts:260-276)
+  ---
+  duration_ms: 12.583438
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A06: the REST comments carry anchor + base_version_id; a server refusal names its code and message, never [object Object]
+ok 88 - runInbox G8-A06: the REST comments carry anchor + base_version_id; a server refusal names its code and message, never [object Object]
+  ---
+  duration_ms: 32.250908
+  type: 'test'
+  ...
+# Subtest: openOnDesktop asks the app for the editor page that shows the opened path (harness contract §15), never the first page of the kind
+ok 89 - openOnDesktop asks the app for the editor page that shows the opened path (harness contract §15), never the first page of the kind
+  ---
+  duration_ms: 0.593737
+  type: 'test'
+  ...
+1..89
+# tests 89
+# suites 0
+# pass 89
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 437.820811
+
+G819_COMMENTS_TESTS_EXIT=0
