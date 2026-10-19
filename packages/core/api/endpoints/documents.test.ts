@@ -223,6 +223,29 @@ describe("documents endpoints", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ upload_id: "f1", base_revision: "41", edit_lock_id: "lock-1" });
   });
 
+  it("commitDocumentVersion sends chat_room_id only when the card names one", async () => {
+    vi.mocked(fetch).mockImplementation(() =>
+      Promise.resolve(json({ document: docBody({ revision: "42" }), version: versionBody() })),
+    );
+    // From the chat card (UNI-1966, contract §4.4): the optional marker asks
+    // the commit to also write the document_version line in that room.
+    await commitDocumentVersion(
+      "d1",
+      { upload_id: "f1", base_revision: "41", chat_room_id: "room-1" },
+      { idempotencyKey: "key-9" },
+    );
+    const [, withRoom] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(withRoom?.body))).toEqual({
+      upload_id: "f1",
+      base_revision: "41",
+      chat_room_id: "room-1",
+    });
+    // Every other caller (document page, Office frame) sends no room.
+    await commitDocumentVersion("d1", { upload_id: "f1", base_revision: "41" }, { idempotencyKey: "key-10" });
+    const [, without] = vi.mocked(fetch).mock.calls[1]!;
+    expect(JSON.parse(String(without?.body))).toEqual({ upload_id: "f1", base_revision: "41" });
+  });
+
   it("listDocumentVersions maps next_cursor and joins pages by key prefix", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ versions: [versionBody()], next_cursor: "abc" }),

@@ -70,6 +70,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { Member } from "@uniwork/core/types/workspace";
+import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
 
 /* Stable fallbacks while queries load: a fresh `[]` / `{}` per render would
    change every memo downstream (and re-render the memoised sidebar). */
@@ -77,13 +78,7 @@ const NO_ROOMS: ChatRoomRecord[] = [];
 const NO_NICKNAMES: Record<string, string> = {};
 const NO_MEMBERS: Member[] = [];
 
-export function ChatPageView({
-  workspaceId,
-  currentUserId,
-}: {
-  workspaceId: string;
-  currentUserId: string;
-}) {
+export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { workspaceId: string; currentUserId: string; desktopOpen?: ChatDocumentDesktopOpen }) {
   const { t } = useTranslation();
   const workspaceName = useOptionalWorkspace()?.workspace.name;
   useChatReminderNotifications(workspaceId);
@@ -485,6 +480,7 @@ export function ChatPageView({
         onSendFile={handleSendFile}
         onSendDocument={handleSendDocument}
         canSendDocument={canSendDocument}
+        desktopOpen={desktopOpen}
         groupSettingsOpen={groupSettingsOpen}
         onGroupSettingsOpenChange={setGroupSettingsOpen}
         dmSettingsOpen={dmSettingsOpen}

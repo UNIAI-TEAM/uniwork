@@ -103,6 +103,13 @@ export interface CommitDocumentVersionBody {
   base_revision: string;
   /** The writer's live edit lock (UNI-1645); absent = not holding one. */
   edit_lock_id?: string;
+  /**
+   * UNI-1966 (contract §4.4): the commit came from a chat card, so the server
+   * also writes the `document_version` line into this room — only while the
+   * caller may send there and the room holds a card for this document. Never
+   * set by the document page or the Office frame.
+   */
+  chat_room_id?: string;
 }
 
 /**

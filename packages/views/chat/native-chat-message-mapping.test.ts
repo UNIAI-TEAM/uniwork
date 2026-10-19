@@ -134,6 +134,53 @@ describe("toChatMessage", () => {
     expect(mapped.reminder?.repeat).toBe("none");
     expect(mapped.priority).toBeUndefined();
   });
+
+  it("maps the document block and can_share_as_document verbatim (UNI-1966)", () => {
+    const mapped = toChatMessage({
+      ...base,
+      kind: "document",
+      body: "Báo cáo Q3",
+      document: {
+        document_id: "doc1",
+        viewer_has_access: true,
+        viewer_level: "comment",
+        viewer_can_manage: true,
+        viewer_can_upload_version: true,
+        title: "Báo cáo Q3",
+        format: "docx",
+        version_number: 3,
+        revision: "42",
+        can_open_in_app: true,
+        recipient_count: 4,
+      } as NonNullable<ChatMessageRecord["document"]>,
+      can_share_as_document: true,
+    });
+    expect(mapped.kind).toBe("document");
+    expect(mapped.document).toMatchObject({
+      document_id: "doc1",
+      viewer_has_access: true,
+      viewer_level: "comment",
+      viewer_can_manage: true,
+      title: "Báo cáo Q3",
+      version_number: 3,
+      revision: "42",
+      recipient_count: 4,
+    });
+    expect(mapped.canShareAsDocument).toBe(true);
+  });
+
+  it("keeps a document_version kind with only what the server sent", () => {
+    const mapped = toChatMessage({
+      ...base,
+      kind: "document_version",
+      body: "3",
+      document: { document_id: "doc1" } as NonNullable<ChatMessageRecord["document"]>,
+    });
+    expect(mapped.kind).toBe("document_version");
+    expect(mapped.document).toMatchObject({ document_id: "doc1" });
+    expect(mapped.document?.viewer_has_access).toBeUndefined();
+    expect(mapped.canShareAsDocument).toBeUndefined();
+  });
 });
 
 describe("senderLabelFor", () => {

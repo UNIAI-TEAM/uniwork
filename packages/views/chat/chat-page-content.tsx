@@ -68,6 +68,7 @@ export function ChatPageContent({
   onSendVoice,
   onSendFile,
   onSendDocument, canSendDocument,
+  desktopOpen,
   groupSettingsOpen,
   onGroupSettingsOpenChange,
   dmSettingsOpen,
@@ -457,6 +458,7 @@ export function ChatPageContent({
                   canSendMessages={!dmBlocked && !chatSendRestricted}
                   onFocusComposer={focusComposer}
                   peerLastReadAt={peerLastReadAt}
+                  desktopOpen={desktopOpen}
                 />
 
                 <ChatRoomComposer

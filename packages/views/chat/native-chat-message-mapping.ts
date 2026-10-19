@@ -82,6 +82,8 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
           url_expires_at: record.file.url_expires_at,
         }
       : undefined,
+    document: record.document,
+    canShareAsDocument: record.can_share_as_document,
     poll: record.poll
       ? {
           question: record.poll.question,
