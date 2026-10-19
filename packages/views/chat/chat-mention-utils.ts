@@ -99,7 +99,7 @@ function labelKey(label: string): string {
 }
 
 /** Append a suffix to every label two or more candidates share (serialize matches labels case-insensitively). */
-function suffixSharedLabels(candidates: ChatMentionCandidate[], suffix: (candidate: ChatMentionCandidate) => string): void {
+export function suffixSharedLabels(candidates: ChatMentionCandidate[], suffix: (candidate: ChatMentionCandidate) => string): void {
   const counts = new Map<string, number>();
   for (const candidate of candidates) counts.set(labelKey(candidate.label), (counts.get(labelKey(candidate.label)) ?? 0) + 1);
   for (const candidate of candidates) {

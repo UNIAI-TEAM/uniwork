@@ -107,4 +107,28 @@ describe("mention display in the document composer", () => {
     await waitFor(() => expect(onSend).toHaveBeenCalled());
     expect(onSend.mock.calls[0]![0]).toBe("@Bìn xem");
   });
+
+  it("sends two different ids for two people who share a display name", async () => {
+    requestMock.mockResolvedValue({
+      candidates: [
+        { user_id: AN, display_name: "Bình", email: "an@example.com", can_view: true },
+        { user_id: BINH, display_name: "Bình", email: "binh@example.com", can_view: true },
+      ],
+    });
+    const onSend = vi.fn((_body: string) => Promise.resolve<SendOutcome>("sent"));
+    const { box } = mount(onSend);
+    type(box(), "@");
+    let options = await screen.findAllByRole("option", { name: /Bình/ });
+    fireEvent.mouseDown(options[0]!);
+    fireEvent.click(options[0]!);
+    type(box(), `${box().value}@`);
+    options = await screen.findAllByRole("option", { name: /Bình/ });
+    fireEvent.mouseDown(options[1]!);
+    fireEvent.click(options[1]!);
+    fireEvent.click(screen.getByTestId("composer-send"));
+    await waitFor(() => expect(onSend).toHaveBeenCalled());
+    const body = onSend.mock.calls[0]![0];
+    expect(body).toContain(`mention://member/${AN})`);
+    expect(body).toContain(`mention://member/${BINH})`);
+  });
 });

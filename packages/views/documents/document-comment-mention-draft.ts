@@ -1,5 +1,5 @@
 import type { MentionCandidate } from "@uniwork/core/types/document-access";
-import { replaceComposerMention } from "../chat/chat-mention-utils";
+import { replaceComposerMention, suffixSharedLabels, type ChatMentionCandidate } from "../chat/chat-mention-utils";
 import { extractMentionTokens } from "./document-comments-model";
 
 // The composer shows a mention as "@Name"; the draft store and the wire carry the
@@ -24,6 +24,24 @@ export function mentionDisplay(person: MentionPerson): string {
 /** The people a stored body already mentions, so an edit keeps the ids it was written with. */
 export function mentionPeopleInBody(body: string): MentionPerson[] {
   return extractMentionTokens(body).map((token) => ({ user_id: token.userId, display_name: token.label }));
+}
+
+/**
+ * The person to insert: when someone else in the body already goes by the same name, the
+ * label gets chat's suffix (email name, then id), so "@Name" spells one person.
+ */
+export function withUniqueLabel<T extends MentionPerson & { email?: string }>(person: T, inBody: MentionPerson[]): T {
+  const list: ChatMentionCandidate[] = [
+    ...inBody
+      .filter((other) => other.user_id.toUpperCase() !== person.user_id.toUpperCase())
+      .map((other) => ({ kind: "member" as const, userId: other.user_id, label: labelOf(other) })),
+    { kind: "member", userId: person.user_id, label: labelOf(person), email: person.email },
+  ];
+  const suffix = (c: ChatMentionCandidate) => c.email?.split("@")[0]?.trim() || c.userId || "";
+  suffixSharedLabels(list, suffix);
+  suffixSharedLabels(list, (c) => c.userId ?? "");
+  const label = list[list.length - 1]!.label;
+  return label === labelOf(person) ? person : { ...person, display_name: label };
 }
 
 /** Stored body to composer text: every member token becomes "@Name". */

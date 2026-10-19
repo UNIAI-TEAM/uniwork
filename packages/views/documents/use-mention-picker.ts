@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listDocumentMentionCandidates } from "@uniwork/core/api/endpoints/document-comments";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import type { MentionCandidate } from "@uniwork/core/types/document-access";
-import { mentionDisplay } from "./document-comment-mention-draft";
+import { mentionDisplay, mentionPeopleInBody, withUniqueLabel } from "./document-comment-mention-draft";
 import { extractMentionTokens } from "./document-comments-model";
 
 // The S14 mention picker as a hook over a plain textarea (EXPERIENCE-G8 S14,
@@ -157,8 +157,9 @@ export function useMentionPicker({
     setTrigger(next);
   };
 
-  const choose = (candidate: MentionCandidate) => {
+  const choose = (picked: MentionCandidate) => {
     if (!trigger) return;
+    const candidate = withUniqueLabel(picked, mentionPeopleInBody(body));
     const caret = trigger.start + 1 + trigger.query.length;
     const token = `${mentionDisplay(candidate)} `;
     const next = value.slice(0, trigger.start) + token + value.slice(caret);
