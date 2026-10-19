@@ -1,0 +1,8 @@
+$ git status --short | head; git diff --quiet HEAD && echo TREE_CLEAN
+?? docs/web-modules/screenshots/draft-recovery/slides-prompt-dark-vi.png
+?? docs/web-modules/screenshots/draft-recovery/slides-prompt-light-en.png
+?? docs/web-modules/screenshots/markdown/txt-plain-light-en.png
+?? docs/web-spike/screenshots/kitchen-sink-conflict.png
+?? docs/web-spike/screenshots/long-conflict.png
+?? docs/web-spike/screenshots/simple-conflict.png
+TREE_CLEAN

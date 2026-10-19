@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK
+96b5d89c3736c0ece02d3889b2bae54df4f3f3b8
+82c8381e160e51105528736f5c051b27f507a94e
+96b5d89c test(web): docs 390px print dialog opens at 1280 then narrows, so SVF-3 is red on its own (UNI-1931 FE1-5)
+aae3ac63 fix(docs): narrow print-dialog and toast rules are screen-only, dvh with vh fallback (UNI-1931 FE1-7)
+f9d732fe fix(docs): no-document Ctrl/Cmd+P respects the print capability, with tests (UNI-1931 FE1-5, FE1-6)

@@ -1,0 +1,126 @@
+$ f=0; for i in 1 2 3; do WEB_E2E_REQUIRE_BUILD=1 npx playwright test -c web/e2e docs-mobile-390 --reporter=list || { f=$((f+1)); echo "MOBILE390_FAIL run=$i"; }; done; echo; echo "MOBILE390_REPEAT_EXIT=$f"; [ $f -eq 0 ]
+
+Running 10 tests using 1 worker
+
+(node:7881) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/docs-mobile-390.spec.ts:61:7 › docs-mobile-390: File menu is painted and hit-testable (editable) (725ms)
+  ✓   2 [chromium] › web/e2e/docs-mobile-390.spec.ts:61:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) (1.0s)
+  ✓   3 [chromium] › web/e2e/docs-mobile-390.spec.ts:115:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) (664ms)
+  ✓   4 [chromium] › web/e2e/docs-mobile-390.spec.ts:149:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) (580ms)
+  ✓   5 [chromium] › web/e2e/docs-mobile-390.spec.ts:115:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) (677ms)
+  ✓   6 [chromium] › web/e2e/docs-mobile-390.spec.ts:149:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) (558ms)
+  ✘   7 [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar (692ms)
+(node:8020) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   8 [chromium] › web/e2e/docs-mobile-390.spec.ts:235:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager (1.5s)
+  ✓   9 [chromium] › web/e2e/docs-mobile-390.spec.ts:267:5 › docs-mobile-390: print preview is usable in view-only too (1.5s)
+  ✓  10 [chromium] › web/e2e/docs-mobile-390.spec.ts:275:5 › docs-mobile-390: 1280 keeps the File menu under the File tab (986ms)
+
+
+  1) [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 794
+    Received:    820
+
+      209 |   expect(box!.y).toBeGreaterThanOrEqual(0)
+      210 |   // just above the status bar (not the default top-centre pill), not over the page counter
+    > 211 |   expect(box!.y + box!.height).toBeLessThanOrEqual(geo.barTop + 1)
+          |                                ^
+      212 |   expect(geo.barTop - (box!.y + box!.height)).toBeLessThanOrEqual(60)
+      213 |   const pageAfter = await ed.locator('.status-page').boundingBox()
+      214 |   expect(pageAfter).toEqual(pageBefore)
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:211:32
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-1a893--toast-above-the-status-bar-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar 
+  9 passed (10.8s)
+MOBILE390_FAIL run=1
+
+Running 10 tests using 1 worker
+
+(node:8147) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/docs-mobile-390.spec.ts:61:7 › docs-mobile-390: File menu is painted and hit-testable (editable) (746ms)
+  ✓   2 [chromium] › web/e2e/docs-mobile-390.spec.ts:61:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) (647ms)
+  ✓   3 [chromium] › web/e2e/docs-mobile-390.spec.ts:115:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) (730ms)
+  ✓   4 [chromium] › web/e2e/docs-mobile-390.spec.ts:149:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) (638ms)
+  ✓   5 [chromium] › web/e2e/docs-mobile-390.spec.ts:115:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) (679ms)
+  ✓   6 [chromium] › web/e2e/docs-mobile-390.spec.ts:149:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) (590ms)
+  ✘   7 [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar (742ms)
+(node:8286) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   8 [chromium] › web/e2e/docs-mobile-390.spec.ts:235:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager (1.6s)
+  ✓   9 [chromium] › web/e2e/docs-mobile-390.spec.ts:267:5 › docs-mobile-390: print preview is usable in view-only too (1.5s)
+  ✓  10 [chromium] › web/e2e/docs-mobile-390.spec.ts:275:5 › docs-mobile-390: 1280 keeps the File menu under the File tab (574ms)
+
+
+  1) [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 794
+    Received:    816.25
+
+      209 |   expect(box!.y).toBeGreaterThanOrEqual(0)
+      210 |   // just above the status bar (not the default top-centre pill), not over the page counter
+    > 211 |   expect(box!.y + box!.height).toBeLessThanOrEqual(geo.barTop + 1)
+          |                                ^
+      212 |   expect(geo.barTop - (box!.y + box!.height)).toBeLessThanOrEqual(60)
+      213 |   const pageAfter = await ed.locator('.status-page').boundingBox()
+      214 |   expect(pageAfter).toEqual(pageBefore)
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:211:32
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-1a893--toast-above-the-status-bar-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar 
+  9 passed (10.3s)
+MOBILE390_FAIL run=2
+
+Running 10 tests using 1 worker
+
+(node:8410) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › web/e2e/docs-mobile-390.spec.ts:61:7 › docs-mobile-390: File menu is painted and hit-testable (editable) (666ms)
+  ✓   2 [chromium] › web/e2e/docs-mobile-390.spec.ts:61:7 › docs-mobile-390: File menu is painted and hit-testable (view-only) (615ms)
+  ✓   3 [chromium] › web/e2e/docs-mobile-390.spec.ts:115:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (editable) (687ms)
+  ✓   4 [chromium] › web/e2e/docs-mobile-390.spec.ts:149:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (editable) (576ms)
+  ✓   5 [chromium] › web/e2e/docs-mobile-390.spec.ts:115:7 › docs-mobile-390: File menu holds with the tab row scrolled sideways (view-only) (659ms)
+  ✓   6 [chromium] › web/e2e/docs-mobile-390.spec.ts:149:7 › docs-mobile-390: File menu clamps to the viewport edge with the File tab scrolled off (view-only) (559ms)
+  ✘   7 [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar (667ms)
+(node:8553) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   8 [chromium] › web/e2e/docs-mobile-390.spec.ts:235:5 › docs-mobile-390: print dialog keeps a usable preview and a one-line pager (1.5s)
+  ✓   9 [chromium] › web/e2e/docs-mobile-390.spec.ts:267:5 › docs-mobile-390: print preview is usable in view-only too (1.5s)
+  ✓  10 [chromium] › web/e2e/docs-mobile-390.spec.ts:275:5 › docs-mobile-390: 1280 keeps the File menu under the File tab (569ms)
+
+
+  1) [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar 
+
+    Error: expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 794
+    Received:    820
+
+      209 |   expect(box!.y).toBeGreaterThanOrEqual(0)
+      210 |   // just above the status bar (not the default top-centre pill), not over the page counter
+    > 211 |   expect(box!.y + box!.height).toBeLessThanOrEqual(geo.barTop + 1)
+          |                                ^
+      212 |   expect(geo.barTop - (box!.y + box!.height)).toBeLessThanOrEqual(60)
+      213 |   const pageAfter = await ed.locator('.status-page').boundingBox()
+      214 |   expect(pageAfter).toEqual(pageBefore)
+        at /home/ubuntu/work/uniwork-office/web/e2e/docs-mobile-390.spec.ts:211:32
+
+    Error Context: web/e2e/.results/docs-mobile-390-docs-mobil-1a893--toast-above-the-status-bar-chromium/error-context.md
+
+  1 failed
+    [chromium] › web/e2e/docs-mobile-390.spec.ts:181:5 › docs-mobile-390: a status message shows as a toast above the status bar 
+  9 passed (9.8s)
+MOBILE390_FAIL run=3
+
+MOBILE390_REPEAT_EXIT=3
