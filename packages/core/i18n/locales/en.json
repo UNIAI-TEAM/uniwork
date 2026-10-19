@@ -9594,8 +9594,13 @@
       "archived_banner": "This document is in the trash — read-only.",
       "first_save": {
         "title": "Name the document",
-        "hint": "You can rename it later from the folder.",
-        "submit": "Save"
+        "hint": "You can rename or move it later.",
+        "submit": "Save",
+        "location": "Location",
+        "change": "Change",
+        "picker_title": "Choose where to save",
+        "picker_description": "Pick the folder this document is saved in.",
+        "picker_submit": "Choose"
       }
     },
     "save": {

@@ -9589,8 +9589,13 @@
       "archived_banner": "Tài liệu này đang ở trong thùng rác — chỉ xem.",
       "first_save": {
         "title": "Đặt tên tài liệu",
-        "hint": "Bạn có thể đổi tên sau trong thư mục.",
-        "submit": "Lưu"
+        "hint": "Bạn có thể đổi tên hoặc di chuyển sau.",
+        "submit": "Lưu",
+        "location": "Vị trí",
+        "change": "Đổi",
+        "picker_title": "Chọn nơi lưu",
+        "picker_description": "Chọn thư mục chứa tài liệu này.",
+        "picker_submit": "Chọn"
       }
     },
     "save": {
