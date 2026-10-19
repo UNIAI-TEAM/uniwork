@@ -18,6 +18,7 @@ chạy trong request.
 | `OPENAI_BASE_URL`, `OPENAI_API_KEY` | OpenAI-compatible (OpenAI, **OpenRouter** `https://openrouter.ai/api/v1`, Gemini OpenAI-compat, vLLM…) |
 | `OLLAMA_BASE_URL` | Ollama local/on-prem, không cần key |
 | `AI_MODEL_<CAPABILITY>` | Override model cho một capability (`AI_MODEL_COPILOT_ANSWER=claude-sonnet-5`); ngoài allowlist → dùng mặc định + log warn |
+| `AI_MODEL_COPILOT_AGENT` | Model "Tự động" của Hỏi UNI agent (production: `claude-sonnet-5-5`). `ANTHROPIC_MODEL` đè mọi capability nên phải đặt biến này riêng; người dùng chọn model khác trong danh sách đóng, Gateway kiểm allowlist và bảng giá |
 | `AI_MODEL_ALLOW` | Mở rộng allowlist (csv) cho model self-host |
 | `AI_TIMEOUT_SECONDS` | Mặc định 60 |
 

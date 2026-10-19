@@ -1085,3 +1085,41 @@ func TestStripUntrustedTagsNestedAndUnclosed(t *testing.T) {
 		}
 	}
 }
+
+func TestCopilotAgentDefaultsToSonnet55(t *testing.T) {
+	p, m, err := ResolveModel(CapCopilotAgent, "anthropic", nil, nil)
+	if err != nil || m != "claude-sonnet-5-5" || p.MaxTokens != 4096 {
+		t.Fatalf("default = %s, %d, %v", m, p.MaxTokens, err)
+	}
+	env := func(k string) string {
+		if k == "AI_MODEL_COPILOT_AGENT" {
+			return "claude-haiku-5-5"
+		}
+		return ""
+	}
+	if _, m, _ := ResolveModel(CapCopilotAgent, "anthropic", env, nil); m != "claude-haiku-5-5" {
+		t.Fatalf("override in allowlist ignored: %s", m)
+	}
+}
+
+func TestClaude55ModelsArePriced(t *testing.T) {
+	q := db.New(testutil.DB(t))
+	want := map[string][2]int64{
+		"claude-opus-5-5":   {4_000_000, 20_000_000},
+		"claude-sonnet-5-5": {2_000_000, 10_000_000},
+		"claude-haiku-5-5":  {100_000, 500_000},
+		"claude-opus-5":     {5_000_000, 25_000_000},
+		"claude-sonnet-5":   {2_000_000, 10_000_000},
+	}
+	for m, w := range want {
+		r, err := q.AiLatestRate(context.Background(), db.AiLatestRateParams{
+			Provider: "anthropic", Model: m, EffectiveAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", m, err)
+		}
+		if r.InputMicrosPerMtok != w[0] || r.OutputMicrosPerMtok != w[1] {
+			t.Errorf("%s = %d/%d, want %d/%d", m, r.InputMicrosPerMtok, r.OutputMicrosPerMtok, w[0], w[1])
+		}
+	}
+}

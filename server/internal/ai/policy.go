@@ -5,14 +5,16 @@ import (
 	"strings"
 )
 
-// Capability is what a caller declares; the model is the gateway's choice
-// (spec §2 #2). The enum is closed — a capability without a policy is a
-// refusal, not a default.
+// Capability is what a caller declares; by default the model is the gateway's
+// choice (spec §2 #2). A caller may pass a user-picked model from a closed
+// list; the gateway checks it against the allowlist and the rate table. The enum
+// is closed — a capability without a policy is a refusal, not a default.
 type Capability string
 
 const (
 	CapMeetingSummarization Capability = "meeting_summarization"
 	CapCopilotAnswer        Capability = "copilot_answer"
+	CapCopilotAgent         Capability = "copilot_agent"
 	CapChatCatchUp          Capability = "chat_catchup"
 	CapChatCallSummary      Capability = "chat_call_summary"
 	CapEmailThreadSummary   Capability = "email_thread_summary"
@@ -43,6 +45,10 @@ var (
 	fast      = map[string]string{"anthropic": "claude-haiku-4-5-20251001", "openai": "gpt-4o-mini", "ollama": "llama3.1", "fake": "fake"}
 	embedding = map[string]string{"openai": "text-embedding-3-small", "ollama": "nomic-embed-text", "fake": "fake"}
 
+	// copilotAgent is Ask UNI's read-only agent loop; its default is the model
+	// the "Auto" choice resolves to.
+	copilotAgent = map[string]string{"anthropic": "claude-sonnet-5-5", "openai": "gpt-4o", "ollama": "llama3.1", "fake": "fake"}
+
 	// officeUniwork is flagship without ollama: /api/chat has no tool-result
 	// turn, so an ollama deployment has no UniWork AI rather than a broken one.
 	officeUniwork = map[string]string{"anthropic": "claude-opus-5", "openai": "gpt-4o", "fake": "fake"}
@@ -51,6 +57,7 @@ var (
 var policies = map[Capability]ModelPolicy{
 	CapMeetingSummarization: {Default: flagship, MaxTokens: 4096, Temperature: 0},
 	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},
+	CapCopilotAgent:         {Default: copilotAgent, MaxTokens: 4096, Temperature: 0},
 	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapChatCallSummary:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapEmailThreadSummary:   {Default: flagship, MaxTokens: 2048, Temperature: 0},
@@ -115,6 +122,7 @@ func officeMaxTokens(req Request, p ModelPolicy) int {
 // self-hosted names the code cannot know.
 var allowedModels = []string{
 	"claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001",
+	"claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5",
 	"gpt-4o", "gpt-4o-mini", "text-embedding-3-small",
 	"llama3.1", "qwen2.5", "nomic-embed-text", "fake",
 }
