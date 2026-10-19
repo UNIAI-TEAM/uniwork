@@ -47,10 +47,12 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
   thang; tài liệu hết hạn không được xóa (an toàn), hoặc xóa một nửa (row còn,
   tham chiếu chưa nhả).
 - **Retention lỗi.** Ba lượt quét retention (RETENTION-02) báo riêng dưới
-  `uniwork_document_worker_sweeps_total{worker="office_job"|"multipart_row"|"break_glass",result="error"}`
-  (cả lượt dừng) hoặc `..._rows_failed_total{worker=...}` (từng row lỗi, lượt sau thử lại);
-  log đi kèm `documents retention sweep`. Hàng đã đóng ở lại lâu hơn (an toàn),
-  không có hàng nào bị xóa dở. Lỗi lặp nhiều lượt = kiểm DB/lock.
+  `uniwork_document_worker_sweeps_total{worker="office_job"|"multipart_row"|"break_glass",result="error"}`:
+  lỗi dừng cả lượt tại lô đang lỗi (`result="error"` + warn log `documents retention sweep`),
+  các lô trước đã xoá vẫn ở lại đã xoá, nhịp sau thử lại từ đầu — **không** có
+  metric `..._rows_failed_total` cho ba nhãn này (`recordRetentionSweep` luôn truyền `failed = 0`,
+  và `sweepRetentionRows` trả về ngay ở lô lỗi đầu tiên), nên đừng chờ số đó tăng.
+  Hàng đã đóng ở lại lâu hơn (an toàn), không có hàng nào bị xóa dở. Lỗi lặp nhiều lượt = kiểm DB/lock.
 - **Engine Office chết.** Job `office_jobs` không tiến triển; engine không nằm
   trong `/readyz` nên **thư viện, mở trang, lịch sử và tải về vẫn phải chạy**.
 - **Backup/restore lệch.** Sau khôi phục, tệp tải về lệch checksum, ảnh trong

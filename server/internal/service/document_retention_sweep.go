@@ -17,7 +17,10 @@ import (
 //   - office_jobs in a terminal state (completed/failed/timed_out/cancelled):
 //     the G1-03 commit path reads the row behind a staged engine output
 //     (GetOfficeJobByOutputFile), so the window must outlast FileService's
-//     claim window; past it nothing reads the row again.
+//     claim window. Past that window the row is gone: a job status/output read
+//     or an acceptConversion replay answers not found, and a start that reuses
+//     the old idempotency key is a fresh command, not a replay - the row was
+//     the only record of that key (uidx_office_jobs_idempotency).
 //   - file_multipart_uploads closed (completed/aborted/expired/failed) - a
 //     replay answers from the row (a completed result, a stored failure), so
 //     the window must outlast the session TTL plus the validation lease.
