@@ -31,6 +31,8 @@ import {
 } from "./chat-sidebar-parts";
 import type { SidebarRowLabels } from "./chat-sidebar-unified-row";
 import { pickQuickCatchUp, SidebarCatchUpCard } from "./chat-sidebar-catch-up";
+import { ChatSidebarMessageResults } from "./chat-sidebar-message-results";
+import { resolveChatRoomTarget } from "./chat-room-target";
 
 const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_PREVIEWS: NonNullable<ChatSidebarProps["roomPreviewsByRoomId"]> = {};
@@ -43,16 +45,17 @@ const EMPTY_CONTACTS: ChatSidebarProps["contacts"] = [];
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
-/* One tab row (canvas "Main"): 14px labels, 10px apart, the brand and a
-   2.5px underline when chosen; it scrolls sideways when the column is narrow. */
+/* One tab row, Telegram's folder strip: 13px labels tight enough that five
+   tabs and their counts fit the column; the brand and a 2px underline when
+   chosen; it still scrolls sideways when the column is narrower. */
 const TAB =
-  "relative h-11 gap-1.5 rounded-none border-0 px-2.5 text-body font-semibold text-muted-foreground transition-colors duration-(--duration-fast) " +
-  "after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:bg-transparent " +
-  "hover:bg-transparent hover:text-foreground aria-pressed:bg-transparent aria-pressed:text-brand aria-pressed:after:bg-brand";
+  "relative h-10 gap-1 rounded-none border-0 px-1.75 text-label font-medium text-muted-foreground transition-colors duration-(--duration-fast) " +
+  "after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent " +
+  "hover:bg-transparent hover:text-foreground aria-pressed:bg-transparent aria-pressed:font-semibold aria-pressed:text-brand aria-pressed:after:bg-brand";
 
 /* The count beside a tab: neutral, the brand fill on the chosen tab. */
 const TAB_COUNT =
-  "h-5 min-w-5 rounded-full bg-border px-1.5 text-center text-caption leading-5 text-chat-chip-foreground tabular-nums";
+  "h-4.5 min-w-4.5 rounded-full bg-border px-1 text-center text-micro leading-4.5 font-semibold text-chat-chip-foreground tabular-nums";
 
 /**
  * Memoised: the page re-renders on every composer keystroke and typing
@@ -200,6 +203,31 @@ export const ChatSidebar = memo(function ChatSidebar({
     [messages, channels, contacts, groups, nicknamesByUserId, onQuickCatchUp, unreadByRoomId, workspaceRoomId, workspaceTitle],
   );
 
+  // Two characters in, the search also reads the messages of this scope's rooms (Telegram's "Messages").
+  const resolveRoom = useCallback(
+    (roomId: string) =>
+      resolveChatRoomTarget(roomId, {
+        workspaceRoomId: messages ? null : (workspaceRoomId ?? null),
+        workspaceTitle,
+        channels: messages ? EMPTY_CHANNELS : channels,
+        groups: messages ? groups : EMPTY_GROUPS,
+        contacts: messages ? contacts : EMPTY_CONTACTS,
+        nicknamesByUserId,
+      }),
+    [messages, workspaceRoomId, workspaceTitle, channels, groups, contacts, nicknamesByUserId],
+  );
+  const messageResults =
+    filterText.length >= 2 ? (
+      <ChatSidebarMessageResults
+        workspaceId={workspaceId}
+        scope={scope}
+        query={filterText}
+        currentUserId={currentUserId}
+        youLabel={labels.youLabel}
+        resolve={resolveRoom}
+      />
+    ) : null;
+
   const handleCreateGroup = (members: ChatContact[], name: string, avatar: File | null) => {
     if (!onCreateGroup) return;
     onCreateGroup(members, name, avatar);
@@ -231,9 +259,10 @@ export const ChatSidebar = memo(function ChatSidebar({
 
   return (
     <>
+      {/* A container: folded to a column of faces (UniChat's narrow window), only faces and counts show. */}
       <aside
         className={cn(
-          "flex min-h-0 flex-col bg-surface",
+          "@container/chatlist flex min-h-0 flex-col bg-surface",
           embedded ? "h-full min-w-0 flex-1 border-r border-border" : "rounded-lg border border-border",
         )}
       >
@@ -257,8 +286,8 @@ export const ChatSidebar = memo(function ChatSidebar({
             if (next) setTab(next);
           }}
           aria-label={t("chat.filter_aria")}
-          spacing={0.5}
-          className="no-scrollbar flex w-full shrink-0 overflow-x-auto rounded-none border-b border-border px-2.5"
+          spacing={0}
+          className="no-scrollbar flex w-full shrink-0 overflow-x-auto rounded-none border-b border-border px-1.5 @max-3xs/chatlist:hidden"
         >
           {tabs.map((value) => {
             const count = tabCount(value);
@@ -291,13 +320,18 @@ export const ChatSidebar = memo(function ChatSidebar({
           </p>
           {loadError ? <SidebarLoadError onRetry={onRetry} /> : null}
           {quickCatchUp && onQuickCatchUp && unreadBadgesReady && !loading && !loadError && !filtering ? (
-            <SidebarCatchUpCard catchUp={quickCatchUp} onOpen={onQuickCatchUp} />
+            <div className="@max-3xs/chatlist:hidden">
+              <SidebarCatchUpCard catchUp={quickCatchUp} onOpen={onQuickCatchUp} />
+            </div>
           ) : null}
           {loading && !loadError && entries.length <= 1 ? (
             <SidebarSkeleton />
           ) : entries.length === 0 && messages && !filtering ? (
             // No DM or group yet: the two ways to start one.
             <SidebarStarter onStartDm={openStartDm} onCreateGroup={openCreateGroup} />
+          ) : entries.length === 0 && messageResults ? (
+            // No conversation by that name: what was said is the answer.
+            <div className="-mx-1 min-h-0 shrink overflow-y-auto px-1 pb-4">{messageResults}</div>
           ) : entries.length === 0 ? (
             <SidebarEmpty
               searching={filterText.length > 0}
@@ -316,6 +350,8 @@ export const ChatSidebar = memo(function ChatSidebar({
             />
           ) : (
             <ChatSidebarList
+              workspaceId={workspaceId}
+              footer={messageResults}
               sectionAfterFirst={
                 !messages && !filtering && entries[0]?.kind === "workspace" ? (
                   <ChannelsSectionHeading onBrowse={() => setChannelDirectoryOpen(true)} />
@@ -393,7 +429,7 @@ export const ChatSidebar = memo(function ChatSidebar({
 function ChannelsSectionHeading({ onBrowse }: { onBrowse: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center justify-between pt-3 pr-1.5 pb-1 pl-3">
+    <div className="flex items-center justify-between pt-3 pr-1.5 pb-1 pl-3 @max-3xs/chatlist:hidden">
       <h3 className="text-caption font-semibold tracking-[0.06em] text-muted-foreground uppercase">
         {t("chat.channel.section_title")}
       </h3>

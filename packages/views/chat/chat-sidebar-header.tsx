@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  Building2,
   ChevronDown,
   CircleX,
   Compass,
-  Hash,
   ListChecks,
   MessagesSquare,
   PanelLeftClose,
@@ -52,18 +50,18 @@ import type { ChatScope } from "./chat-scope";
 const MENU_ITEM =
   "h-11 gap-3 rounded-control px-2.5 text-body font-medium [&_svg]:size-4.5 [&_svg]:text-muted-foreground";
 const MENU = "w-63 rounded-[14px] p-1.5";
-/* The canvas' filled 44px square: the one way to start something stands apart from everything around it. */
+/* A quiet icon button: the head is one line, so the way to start something sits in it, not beside it. */
 const COMPOSE =
-  "size-11 shrink-0 rounded-lg bg-muted text-foreground hover:bg-surface-hover aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground aria-expanded:ring-[1.5px] aria-expanded:ring-brand/25 aria-expanded:ring-inset dark:hover:bg-surface-hover";
+  "size-9 shrink-0 rounded-lg text-muted-foreground hover:bg-surface-hover hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground";
 
 const noopSubscribe = () => () => {};
 
 /**
- * The list's head (canvas "Tin nhắn" / "Workspace"): where the reader is, as
- * a caption, a title and one line on what the list holds, then the one way to
- * start something there. Messages are the organization's DMs and groups, so
- * "+" starts one of those; a workspace holds channels, so "+" makes a channel
- * in it. The title opens the list's own options: follow-ups, the channel
+ * The list's head, one line as in Telegram: the list's name (the rail already
+ * names the workspace, so no caption or hint) and the one way to start
+ * something there. Messages are the organization's DMs and groups, so the pen
+ * starts one of those; a workspace holds channels, so "+" makes a channel in
+ * it. The title opens the list's own options: follow-ups, the channel
  * directory, hiding the list.
  */
 export function SidebarHeader({
@@ -88,46 +86,27 @@ export function SidebarHeader({
 }) {
   const { t } = useTranslation();
   const workspace = useOptionalWorkspace()?.workspace;
-  const { data: workspaces = [] } = useWorkspaces();
   const messages = scope === "messages";
   const name = messages ? t("chat.scope.messages_title") : (workspace?.name ?? t("chat.title"));
   return (
-    <header data-window-drag className="flex shrink-0 items-start gap-2 pt-3.5 pr-4 pb-3 pl-5">
+    <header
+      data-window-drag
+      className="flex shrink-0 items-center gap-2 pt-2.5 pr-2.5 pb-2 pl-3 @max-3xs/chatlist:justify-center @max-3xs/chatlist:px-0"
+    >
       {/* The page's h1 names the screen; this keeps the list a titled section. */}
       <h2 id="chat-sidebar-title" className="sr-only">
         {name}
       </h2>
-      <div className="flex min-w-0 flex-1 flex-col items-start">
+      <div className="flex min-w-0 flex-1 items-center @max-3xs/chatlist:hidden">
         <DropdownMenu>
           <DropdownMenuTrigger
             // Showing the list again lands focus here (use-chat-page-panels).
             data-chat-sidebar-collapse=""
             aria-label={t("chat.sidebar_list_menu_aria", { name })}
-            className="flex max-w-full min-w-0 flex-col items-start rounded-md text-left"
+            className="flex max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left font-display text-title-lg font-bold tracking-[-0.02em] text-foreground hover:bg-surface-hover"
           >
-            {workspace?.organization_name ? (
-              <span className="flex max-w-full items-center gap-1.5 text-caption font-semibold tracking-[0.04em] text-muted-foreground uppercase">
-                {messages ? null : (
-                  <WorkspaceIcon
-                    workspace={workspace}
-                    fallback={initialsOf(workspace.name)}
-                    className={cn(
-                      "size-4.5 shrink-0 rounded-[5px] text-micro font-bold tracking-normal",
-                      tintSolidClass[workspaceTint(workspaces, workspace.id)],
-                    )}
-                  />
-                )}
-                <span className="truncate">
-                  {messages
-                    ? workspace.organization_name
-                    : t("chat.scope.workspace_overline", { org: workspace.organization_name })}
-                </span>
-              </span>
-            ) : null}
-            <span className="flex max-w-full min-w-0 items-center gap-1 text-title-xl font-extrabold text-foreground">
-              <span className="truncate">{name}</span>
-              <ChevronDown aria-hidden strokeWidth={2.2} className="size-4.5 shrink-0 text-muted-foreground" />
-            </span>
+            <span className="truncate">{name}</span>
+            <ChevronDown aria-hidden strokeWidth={2.2} className="size-4.5 shrink-0 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className={MENU}>
             {onOpenFollowUps ? (
@@ -156,10 +135,6 @@ export function SidebarHeader({
             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
-        <p className="mt-1 flex max-w-full items-center gap-1.5 text-caption text-muted-foreground">
-          {messages ? <Building2 aria-hidden className="size-3.5 shrink-0" /> : <Hash aria-hidden className="size-3.5 shrink-0" />}
-          <span className="truncate">{messages ? t("chat.scope.messages_hint") : t("chat.scope.channels_hint")}</span>
-        </p>
       </div>
       {messages ? (
         <DropdownMenu>
@@ -233,7 +208,7 @@ export function ChatScopeSwitch({ scope }: { scope: ChatScope }) {
     { scope: "workspace" as const, href: at.chatChannels(), label: t("chat.scope.channels_tab"), totals: channels },
   ];
   return (
-    <nav aria-label={t("chat.scope.switch_aria")} className="shrink-0 px-4 pt-3">
+    <nav aria-label={t("chat.scope.switch_aria")} className="shrink-0 px-4 pt-3 @max-3xs/chatlist:hidden">
       <div className="flex gap-1 rounded-[14px] bg-muted p-1">
         {sides.map((side) => {
           const on = side.scope === scope;
@@ -313,11 +288,11 @@ export function SidebarSearch({
   }, [desktop, chord]);
 
   return (
-    <div className="shrink-0 px-4 pb-2.5">
+    <div className="shrink-0 px-3 pb-1.5 @max-3xs/chatlist:hidden">
       <div className="relative">
         <Search
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           ref={inputRef}
@@ -332,8 +307,8 @@ export function SidebarSearch({
           type="search"
           autoComplete="off"
           className={cn(
-            "h-11 rounded-full border-transparent bg-muted pl-10.5 hover:bg-surface-hover focus-visible:bg-surface md:text-body-lg dark:bg-muted dark:focus-visible:bg-surface",
-            value || (desktop && chord) ? "pr-12" : "pr-4",
+            "h-9 rounded-[10px] border-transparent bg-muted pl-9.5 hover:bg-surface-hover focus-visible:bg-surface md:text-body dark:bg-muted dark:focus-visible:bg-surface",
+            value || (desktop && chord) ? "pr-11" : "pr-3",
             // The pill draws its own clear button.
             "[&::-webkit-search-cancel-button]:appearance-none",
           )}
@@ -342,7 +317,7 @@ export function SidebarSearch({
           <button
             type="button"
             aria-label={t("chat.clear_search")}
-            className="absolute top-1/2 right-0 flex size-11 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+            className="absolute top-1/2 right-0 flex size-9 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
             onClick={() => {
               onChange("");
               inputRef.current?.focus();
@@ -351,7 +326,7 @@ export function SidebarSearch({
             <CircleX aria-hidden className="size-5 fill-muted-foreground text-surface" />
           </button>
         ) : desktop && chord ? (
-          <kbd className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 rounded-sm border border-border px-1.5 font-sans text-caption text-muted-foreground">
+          <kbd className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 rounded-sm border border-border bg-surface px-1.5 font-sans text-micro text-muted-foreground">
             {formatShortcut(chord)}
           </kbd>
         ) : null}
