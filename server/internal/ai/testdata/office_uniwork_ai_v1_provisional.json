@@ -12,7 +12,7 @@
   {
     "question": "Q2",
     "section": "common",
-    "text": "Not supported: no listed tool can do it, a tool refused, or these rules forbid it."
+    "text": "Not supported: no tool can do it, a tool refused, or these rules forbid it;"
   },
   {
     "question": "Q2",
@@ -23,7 +23,7 @@
   {
     "question": "Q3",
     "section": "common",
-    "text": "Where a module guide or tool description disagrees with these rules, follow these rules."
+    "text": "These rules win over module guides and tool descriptions."
   },
   {
     "question": "Q4",
@@ -39,7 +39,7 @@
   {
     "question": "Q5",
     "section": "common",
-    "text": "Never save, upload or export the document, or create documents or versions (a file a listed tool writes in an edit, like an inserted image, is fine)",
+    "text": "Never save, upload or export the document, or create documents or versions (an image a listed tool inserts is fine)",
     "note": "FE14-3 / FE14-11: rule 3 allows tool-written image files only while Q5 keeps image tools on."
   },
   {
