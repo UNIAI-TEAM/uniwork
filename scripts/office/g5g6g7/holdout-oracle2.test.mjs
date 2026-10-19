@@ -184,6 +184,22 @@ describe('O2-F2: the literals of a spreadsheet formula quoted in prose are no fi
     assert.equal(verdict(c, say('A2 is 25, from MAX(10+15).')), 'pass', 'P-F2-VALID-SCALAR-MAX expression');
     assert.equal(verdict(c, say('A2 is 25, TOTAL(10+15).')), 'fail', 'P-F2-NONFORMULA-CAPS scalar expression');
   });
+
+  it('O2R2-02: accepts group-closer whitespace, leading-decimal literals, ref postfix percent, omitted optional args and whole-column ranges', () => {
+    assert.equal(verdict(c, say('A2 is 25 via =B2*(1 - 0.1 ).')), 'pass', 'P-F2-VALID-GROUP-SPACE');
+    assert.equal(verdict(c, say('A2 is 25 via SUM((B2 - 0.1 ), C2).')), 'pass', 'P-F2-VALID-GROUP-SPACE inside call');
+    assert.equal(verdict(c, say('A2 is 25 via =B2*(1-.1).')), 'pass', 'P-F2-VALID-LEADING-DECIMAL');
+    assert.equal(verdict(c, say('A2 is 25 via ROUND(B2*.5,2).')), 'pass', 'P-F2-VALID-LEADING-DECIMAL in call');
+    assert.equal(verdict(c, say('A2 is 25 via =B2*(1-C2%).')), 'pass', 'P-F2-VALID-POSTFIX-PERCENT');
+    assert.equal(verdict(c, say('A2 is 25 via ROUND(B2*C2%,2).')), 'pass', 'P-F2-VALID-POSTFIX-PERCENT in call');
+    assert.equal(verdict(c, say('A2 is 25 via XLOOKUP(A2,B2:B7,C2:C7,,0).')), 'pass', 'P-F2-VALID-OMITTED-ARG');
+    assert.equal(verdict(c, say('A2 is 25 via INDEX(B2:D7, , 2).')), 'pass', 'P-F2-VALID-OMITTED-ARG spaced');
+    assert.equal(verdict(c, say('A2 is 25 via IF(A2>10,B2,).')), 'pass', 'P-F2-VALID-OMITTED-ARG trailing');
+    assert.equal(verdict(c, say("A2 is 25 via VLOOKUP(A2,'Sheet Y'!$A:$G,7,FALSE).")), 'pass', 'P-F2-VALID-WHOLECOLUMN');
+    assert.equal(verdict(c, say('A2 is 25 via MATCH(109,A:A,0).')), 'pass', 'P-F2-VALID-WHOLECOLUMN bare');
+    assert.equal(verdict(c, say('A2 is 25 via =B2*(1-.1),31.')), 'fail', 'P-F2-OUTSIDE-ADJACENT after leading-decimal formula');
+    assert.equal(verdict(c, say('A2 is 25 via XLOOKUP(A2,B2:B7,C2:C7,,0),31.')), 'fail', 'P-F2-OUTSIDE-ADJACENT after omitted-arg call');
+  });
 });
 
 describe('O2-F3: a block or row ordinal that a read holds is a location, not a figure', () => {
