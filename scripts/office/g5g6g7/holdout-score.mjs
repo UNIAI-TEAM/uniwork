@@ -322,9 +322,10 @@ function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedVa
 
 // The formula note a reply puts after a cell value is presentation: the backend's "[formula =…]" and a reply's own
 // "; formula =…" / ", công thức: …" after the value (oracle2 O2-S1). A formula with no value before it stays a formula.
-const stripFormulaNote = (v) => String(v ?? '')
-  .replace(/\s*\[formula\s*=[^\]]*\]/gi, '')
-  .replace(/^(.*?\S)\s*[;,]\s*(?:formula|công thức|cong thuc)\s*[:=].*$/is, '$1');
+const stripFormulaNote = (v, kind) => {
+  const s = String(v ?? '').replace(/\s*\[formula\s*=[^\]]*\]/gi, '');
+  return kind === 'cell' ? s.replace(/^(.*?\S)\s*[;,]\s*(?:formula|công thức|cong thuc)\s*[:=].*$/is, '$1') : s;
+};
 
 const EMPTY_CELL_WORDS = new Set(['', 'blank', 'empty', 'trong', 'rong']);
 
@@ -384,7 +385,7 @@ export function valuesEqual(expected, actual, kind = null, anchor = '') {
   // The formula note and the arrow rewrite are CELL presentations ("New value -> Old value" reports the cell's value).
   // A heading compares by normalised equality only (review-g712-17 R17-10): "Wrong -> Approved" is a different heading,
   // so the generic rewrite must not run for it and let it fall through to plain equality.
-  const cleanCell = (v) => stripFormulaNote(v).replace(/^.*(?:→|->)\s*/, '').trim();
+  const cleanCell = (v) => stripFormulaNote(v, kind).replace(/^.*(?:→|->)\s*/, '').trim();
   if (kind !== 'heading' && cleanCell(expected) === cleanCell(actual)) return true;
   return String(expected).trim() === String(actual).trim();
 }
