@@ -1,0 +1,44 @@
+$ grep -aq "backend=gnome_libsecret available=true" /tmp/probe.out || { echo "probe did not show gnome_libsecret"; echo "RED_J_EXIT=3"; exit 3; }; git checkout -q origin/main -- e2e/uniwork-documents.spec.ts; timeout 900 dbus-run-session -- bash -c 'printf "uniwork-ci" | timeout 20 gnome-keyring-daemon --unlock --components=secrets >/dev/null; export XDG_CURRENT_DESKTOP=GNOME; xvfb-run --auto-servernum -- npx playwright test --config e2e/playwright.config.ts --reporter=list e2e/uniwork-documents.spec.ts -g "j\. the chip text is never clipped.*\(en\)"' 2>&1 | tail -40; rc=${PIPESTATUS[0]}; git checkout -q HEAD -- e2e/uniwork-documents.spec.ts; git diff --quiet HEAD && echo TREE_CLEAN; echo "RED_J_RC=$rc"; [ $rc -ne 0 ] && echo RED_J_OK; echo; echo RED_J_EXIT=0
+
+Running 1 test using 1 worker
+
+(node:7523) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+dbus-daemon[7476]: [session uid=1000 pid=7476] Activating service name='org.a11y.Bus' requested by ':1.1' (uid=1000 pid=7535 comm="/home/ubuntu/work/uniwork-office/node_modules/elec" label="kernel")
+dbus-daemon[7476]: [session uid=1000 pid=7476] Successfully activated service 'org.a11y.Bus'
+  ✘  1 e2e/uniwork-documents.spec.ts:1627:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (en) (2.2s)
+
+
+  1) e2e/uniwork-documents.spec.ts:1627:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (en) 
+
+    Error: en saved @1280px: "Saved to UniWork" {"hasButton":false,"padLeft":12,"padRight":1130,"covered":[],"clipLeft":0,"clipRight":1280,"text":"Saved to UniWork","title":"Saved to UniWork\nAll changes are saved to UniWork.","labelScroll":100,"labelClient":100,"textRight":1117,"boxRight":1117,"pillScroll":137,"pillClient":137,"pillLeft":990.765625,"pillRight":1130,"viewport":1280}
+
+    expect(received).toBeLessThanOrEqual(expected)
+
+    Expected: <= 3
+    Received:    1118
+
+      1611 |     expect(c.padLeft, note).toBeGreaterThanOrEqual(6)
+      1612 |     expect(c.padRight, note).toBeGreaterThanOrEqual(c.hasButton ? 2 : 6)
+    > 1613 |     if (!c.hasButton) expect(Math.abs(c.padLeft - c.padRight), note).toBeLessThanOrEqual(3)
+           |                                                                      ^
+      1614 |     expect(c.pillLeft, note).toBeGreaterThanOrEqual(c.clipLeft - 0.5)
+      1615 |     expect(c.pillRight, note).toBeLessThanOrEqual(c.clipRight + 0.5)
+      1616 |     expect(c.pillRight, note).toBeLessThanOrEqual(c.viewport)
+        at expectChipFits (/home/ubuntu/work/uniwork-office/e2e/uniwork-documents.spec.ts:1613:70)
+        at check (/home/ubuntu/work/uniwork-office/e2e/uniwork-documents.spec.ts:1651:15)
+        at withApp.lang.lang (/home/ubuntu/work/uniwork-office/e2e/uniwork-documents.spec.ts:1660:11)
+        at withApp (/home/ubuntu/work/uniwork-office/e2e/uniwork-documents.spec.ts:356:7)
+        at /home/ubuntu/work/uniwork-office/e2e/uniwork-documents.spec.ts:1641:7
+
+    Error Context: e2e/test-results/uniwork-documents-UniWork--50004-y-state-wide-and-narrow-en-/error-context.md
+
+    Error Context: e2e/test-results/uniwork-documents-UniWork--50004-y-state-wide-and-narrow-en-/error-context.md
+
+  1 failed
+    e2e/uniwork-documents.spec.ts:1627:9 › UniWork documents › j. the chip text is never clipped, in every state, wide and narrow (en) 
+TREE_CLEAN
+RED_J_RC=1
+RED_J_OK
+
+RED_J_EXIT=0

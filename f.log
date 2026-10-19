@@ -1,0 +1,12 @@
+$ printf '%s\n' "const { app, safeStorage } = require('electron'); app.whenReady().then(() => { console.log('SAFE_STORAGE_PROBE backend=' + safeStorage.getSelectedStorageBackend() + ' available=' + safeStorage.isEncryptionAvailable()); try { safeStorage.encryptString('x'); console.log('SAFE_STORAGE_ENCRYPT ok') } catch (e) { console.log('SAFE_STORAGE_ENCRYPT error ' + e.message) } app.quit() })" > /tmp/ss-probe.js; timeout 180 dbus-run-session -- bash -c 'printf "uniwork-ci" | timeout 20 gnome-keyring-daemon --unlock --components=secrets; echo "GK_UNLOCK_EXIT=$?"; printf probe | timeout 20 secret-tool store --label=probe svc uniwork-probe; echo "SECRET_STORE_EXIT=$?"; echo "SECRET_LOOKUP=$(timeout 20 secret-tool lookup svc uniwork-probe)"; export XDG_CURRENT_DESKTOP=GNOME; timeout 90 xvfb-run --auto-servernum -- npx electron --no-sandbox --disable-gpu /tmp/ss-probe.js 2>&1 | grep -aE "SAFE_STORAGE|rror" | head -20' | tee /tmp/probe.out; grep -aq "backend=gnome_libsecret available=true" /tmp/probe.out; rc=$?; echo; echo "KEYRING_PROBE_EXIT=$rc"; exit $rc
+GNOME_KEYRING_CONTROL=/home/ubuntu/.cache/keyring-UQVDX3
+GK_UNLOCK_EXIT=0
+dbus-daemon[7322]: [session uid=1000 pid=7322] Activating service name='org.freedesktop.secrets' requested by ':1.1' (uid=1000 pid=7333 comm="secret-tool store --label=probe svc uniwork-probe" label="kernel")
+dbus-daemon[7322]: [session uid=1000 pid=7322] Successfully activated service 'org.freedesktop.secrets'
+GNOME_KEYRING_CONTROL=/home/ubuntu/.cache/keyring-UQVDX3
+SECRET_STORE_EXIT=0
+SECRET_LOOKUP=probe
+SAFE_STORAGE_PROBE backend=gnome_libsecret available=true
+SAFE_STORAGE_ENCRYPT ok
+
+KEYRING_PROBE_EXIT=0

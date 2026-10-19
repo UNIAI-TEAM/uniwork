@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; git log --oneline -3; git merge-base --is-ancestor origin/main HEAD && echo SYNCED_OK
+bc2daf72ada67a67512dccb39546ffb9039d4227
+82c8381e160e51105528736f5c051b27f507a94e
+bc2daf72 test(e2e): check only the drawn chip words for clipping (UNI-1930)
+142d2bda test(web): reset the shared fake-ai server after each sheets-ai test (UNI-1930)
+ce0623d2 test(e2e): measure chip padding on the children laid out in the row (UNI-1930)
