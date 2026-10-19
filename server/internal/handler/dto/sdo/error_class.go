@@ -28,6 +28,14 @@ var errorClassByCode = map[string]string{
 	// against rename, re-icon, visibility/workspace-level changes, sharing,
 	// links, break-glass, moving or archiving.
 	"my_folder_locked": "conflict",
+	// DOC-07 (UNI-1631, §4.3): a request that conflicts with the server's
+	// state. access_request_pending - the requester already has a live
+	// pending request on the document, so the client moves the locked card
+	// to "already requested" instead of showing an error. access_request_closed
+	// - the request is no longer pending (answered, expired) or its document
+	// is archived, so the client reloads the list.
+	"access_request_pending": "conflict",
+	"access_request_closed":  "conflict",
 
 	// read_only: the request hit a shelved item (ARCHIVE-01, UNI-1845);
 	// shelving makes it immutable for everyone, so the client switches the
@@ -144,6 +152,12 @@ var errorClassByCode = map[string]string{
 //     SH-S1). The caller may share (so not permission) and nothing needs a
 //     reload (so not conflict): the dialog keeps its selection and lowers
 //     the level to fields.max.
+//   folder_not_shareable  (422) a share, an access grant or workspace
+//     visibility was asked on a folder (UNI-1974: only documents are shared).
+//     Like folder_not_supported next to it, a refusal of the request itself:
+//     not permission (the caller may administer the folder) and not conflict
+//     (nothing to reload); the dialogs that could send it are gone, so the
+//     client only shows the message.
 //   access_report_too_large (422, fields.max_rows) an access report export
 //     over 10,000 rows or folder nodes (UNI-1643), refused before any byte.
 //     The same count-limit reasoning as share_batch_too_large: the page asks
@@ -175,6 +189,12 @@ var errorClassByCode = map[string]string{
 //     level_not_allowed, duplicate_principal, break_glass_required). The dialog
 //     highlights the rejected rows in place instead of running permission or
 //     reload recovery.
+//   access_request_cooldown (429, fields.retry_after_seconds) the requester's
+//     last request on the document was declined less than an hour ago
+//     (DOC-07 §4.3). Unclassified the same way ai_rate_limited is: it is not
+//     a quota or a permission denial, and the client counts the wait down on
+//     the locked card from fields.retry_after_seconds instead of running a
+//     recovery path.
 
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.

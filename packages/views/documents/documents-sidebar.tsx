@@ -17,7 +17,6 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone, type ModuleKey } from "../layout/module-tones";
 import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
-import type { CreateShareOptions } from "./documents-create";
 import { DocumentTree } from "./document-tree";
 import { FolderNameDialog } from "./folder-name-dialog";
 
@@ -62,7 +61,7 @@ export interface DocumentsSidebarProps {
   onView: (view: LibraryView) => void;
   onFolder: (folderId: string) => void;
   onMyFolder?: () => void;
-  onNewFolder: (title?: string, options?: CreateShareOptions) => Promise<boolean | void> | boolean | void;
+  onNewFolder: (title?: string) => Promise<boolean | void> | boolean | void;
   className?: string;
   /** A host may supply its own folder tree while reusing the collection navigation. */
   folderTree?: ReactNode;
@@ -225,7 +224,7 @@ export function DocumentsSidebar({
         wsId={wsId}
         initialName={t("documents.home.folders.default_name")}
         pending={newFolderPending}
-        onSubmit={(title, options) => (options ? onNewFolder(title, options) : onNewFolder(title))}
+        onSubmit={(title) => onNewFolder(title)}
       />
     </nav>
   );

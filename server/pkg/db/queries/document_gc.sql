@@ -249,3 +249,25 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND version <= sqlc.arg(boundary_version)
   AND version <> sqlc.arg(current_version)
 RETURNING file_id;
+
+-- UNI-1974: folders that still hold an access a folder may not have (a
+-- workspace home row or a live share row), by id keyset. The folders-unshare
+-- command walks it, archived folders included so a restore never brings a
+-- shared folder back. My Folder is private by construction.
+-- name: ListSharedFoldersForUnshare :many
+-- tenant: system
+SELECT d.id, d.organization_id, d.workspace_id
+FROM documents d
+WHERE d.kind = 'folder'
+  AND d.system_kind IS NULL
+  AND d.owner_id IS NULL
+  AND (d.visibility = 'workspace'
+       OR EXISTS (
+            SELECT 1 FROM document_shares s
+            WHERE s.organization_id = d.organization_id
+              AND s.workspace_id = d.workspace_id
+              AND s.document_id = d.id
+              AND s.revoked_at IS NULL))
+  AND d.id > sqlc.arg(after_id)::text
+ORDER BY d.id
+LIMIT sqlc.arg(max_rows);

@@ -80,6 +80,8 @@ func TestIsolationMatrix(t *testing.T) {
 				status, raw := w.do(t, r.method, path, tn.token, spec.bodyFor(w, tn))
 				if !spec.controlOK(status, raw) {
 					t.Errorf("%s %s as %s owner = %d, want success on own ids: %s", r.method, r.pattern, tn.tag, status, isoClip(raw))
+				} else if spec.checkControl != nil {
+					spec.checkControl(t, tn, raw)
 				}
 			}
 		}
@@ -101,7 +103,19 @@ func TestIsolationMatrix(t *testing.T) {
 			if !ok {
 				continue
 			}
-			w.attack(t, r.method+" "+r.pattern, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), spec.refused)
+			label := r.method + " " + r.pattern
+			if spec.uniformAnswer != "" {
+				// A uniform route answers an outsider with the same 202 it
+				// gives an unknown id: the check holds that equality and the
+				// no-row rule, then the ordinary change/leak/reference checks
+				// run through attackAs against the answer it produced.
+				w.isoUniformCheck(t, label, r.method, r.pattern, spec, path+isoQuery(spec.query, w.alpha))
+				w.attackAs(t, isoCaller{name: "B's owner", token: w.bravo.token}, label,
+					r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha),
+					func(status int, raw []byte) bool { return status < 500 })
+				continue
+			}
+			w.attack(t, label, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), spec.refused)
 		}
 	})
 
@@ -213,6 +227,9 @@ func TestIsolationMatrix(t *testing.T) {
 					t.Errorf("%s: answer holds %q: %s", label, bad, isoClip(raw))
 				}
 			}
+			if c.afterAttack != nil {
+				c.afterAttack(t, w, label)
+			}
 		}
 	})
 
@@ -251,7 +268,11 @@ func TestIsolationMatrix(t *testing.T) {
 			if c.allow2xx {
 				refused = func(status int, _ []byte) bool { return status < 500 }
 			}
-			w.attackAs(t, both, "member-of-both references "+c.method+" "+c.pattern+" "+c.what, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
+			label := "member-of-both references " + c.method + " " + c.pattern + " " + c.what
+			w.attackAs(t, both, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
+			if c.afterAttack != nil {
+				c.afterAttack(t, w, label)
+			}
 		}
 	})
 
@@ -623,6 +644,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		return tn.get(t, "uploadSession")
 	case "{documentID}":
+		// DOC-07's access-request routes act on the requests the fixture
+		// seeded, which hang on their own page; naming that page lets the
+		// owner's own GET list and approve/decline calls reach those requests.
+		if strings.Contains(pattern, "/access-requests") {
+			return tn.get(t, "accessRequestDocument")
+		}
 		// The restore and purge routes act on a folder in the trash (E6 FD-02,
 		// RESTORE-01 §2): the folder kind is what the matrix varies on it, so
 		// the name it has to place back among live siblings is part of every
@@ -679,6 +706,16 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{lockID}":
 		return tn.get(t, "docEditLock")
 	case "{requestID}":
+		// DOC-07 reuses the {documentID,requestID} pair for its approve and
+		// decline routes; the fixture keys are distinct so an edit request and
+		// an access request are never confused, and approve and decline each
+		// close a request of their own (two pending rows, two requesters).
+		if strings.HasSuffix(pattern, "/decline") {
+			return tn.get(t, "accessRequestDecline")
+		}
+		if under("/access-requests/") {
+			return tn.get(t, "accessRequest")
+		}
 		return tn.get(t, "docEditRequest")
 	case "{assetID}":
 		if under("/office-frame/") {

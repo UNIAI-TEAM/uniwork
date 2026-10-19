@@ -304,6 +304,13 @@ var catalogue = []EventDef{
 	{Topic: "document.lock_taken_over", Version: 1, Payload: []string{"document_id", "workspace_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "document.edit_requested", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "document.edit_request_answered", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Access requests (DOC-07, UNI-1631): a person who cannot read the
+	// document asked its managers for access, and (w2) the answer that reaches
+	// the requester wherever they are. requested reaches the workspace like
+	// document.shared, ids only; decided is addressed to the requester through
+	// user_id and resolves the user scope from it.
+	{Topic: "document.access_requested", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.access_request_decided", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy

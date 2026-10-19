@@ -277,6 +277,10 @@ function countValueNumber(value, anchor = '') {
   const direct = toNumber(value);
   if (direct !== null) return direct;
   if (typeof value !== 'string') return null;
+  // A count written with the counted noun ("3 slide", "3 follow-up actions", oracle2 O2-S4): digits, then words only. A
+  // second number or a leading word ("3 of 5", "level 3 headings") is no count value.
+  const withNoun = /^\s*(\d+)\s+\p{L}[\p{L}\s'’-]*$/u.exec(value);
+  if (withNoun) return Number(withNoun[1]);
   const word = normalizeTopicText(value).replace(/[-_]+/g, ' ').trim();
   if (!word || !COUNT_WORD_NUMBERS.has(word)) return null;
   if (word === 'nam' && /\b(?:year|years|nam)\b/.test(normalizeTopicText(anchor))) return null;
@@ -316,6 +320,33 @@ function topicAnchorMatches(kind, expected, actual, actualValue = '', expectedVa
   return segs.every((seg) => combined.includes(seg));
 }
 
+// The formula note a reply puts after a cell value is presentation: the backend's "[formula =…]" and a reply's own
+// "; formula =…" / ", công thức: …" after the value (oracle2 O2-S1). A formula with no value before it stays a formula.
+const stripFormulaNote = (v, kind) => {
+  const s = String(v ?? '').replace(/\s*\[formula\s*=[^\]]*\]/gi, '');
+  return kind === 'cell' ? s.replace(/^(.*?\S)\s*[;,]\s*(?:formula|công thức|cong thuc)\s*[:=].*$/is, '$1') : s;
+};
+
+const EMPTY_CELL_WORDS = new Set(['', 'blank', 'empty', 'trong', 'rong']);
+
+/**
+ * Cell-only presentations of the same value (oracle2 O2-S2, O2-S3): an empty cell written as an empty-cell word, a
+ * fraction written as a percent ("10%" for 0.1), and the two forms side by side ("0.1 (10%)"), where both must agree.
+ */
+function cellPresentationEqual(expected, actual) {
+  if (String(expected ?? '').trim() === '') {
+    return EMPTY_CELL_WORDS.has(foldDiacritics(String(actual ?? '')).toLowerCase().replace(/^\((.*)\)$/, '$1').trim());
+  }
+  if (typeof expected !== 'number' || typeof actual !== 'string') return false;
+  const percent = /^\s*([-+]?[\d.,]+)\s*%\s*$/.exec(actual);
+  if (percent) {
+    const n = toNumber(percent[1]);
+    return n !== null && Math.abs(n / 100 - expected) < 1e-9;
+  }
+  const pair = /^\s*([^()]+?)\s*\(([^()]+)\)\s*$/.exec(actual);
+  return Boolean(pair) && [pair[1], pair[2]].every((part) => cellPresentationEqual(expected, part) || toNumber(part) === expected);
+}
+
 export function valuesEqual(expected, actual, kind = null, anchor = '') {
   if (kind === 'formula') {
     const a = normalizeFormulaText(expected);
@@ -336,6 +367,7 @@ export function valuesEqual(expected, actual, kind = null, anchor = '') {
     const normActual = normalizeTopicText(String(actual ?? ''));
     if (segs.length > 0 && segs.every((seg) => normActual.includes(seg))) return true;
   }
+  if (kind === 'cell' && cellPresentationEqual(expected, actual)) return true;
   if (kind === 'count') {
     if (typeof expected === 'string' && expected.includes('|')) {
       const parts = expected.split('|').map((s) => s.trim()).filter(Boolean);
@@ -353,7 +385,7 @@ export function valuesEqual(expected, actual, kind = null, anchor = '') {
   // The formula note and the arrow rewrite are CELL presentations ("New value -> Old value" reports the cell's value).
   // A heading compares by normalised equality only (review-g712-17 R17-10): "Wrong -> Approved" is a different heading,
   // so the generic rewrite must not run for it and let it fall through to plain equality.
-  const cleanCell = (v) => String(v ?? '').replace(/\s*\[formula\s*=[^\]]*\]/gi, '').replace(/^.*(?:→|->)\s*/, '').trim();
+  const cleanCell = (v) => stripFormulaNote(v, kind).replace(/^.*(?:→|->)\s*/, '').trim();
   if (kind !== 'heading' && cleanCell(expected) === cleanCell(actual)) return true;
   return String(expected).trim() === String(actual).trim();
 }
