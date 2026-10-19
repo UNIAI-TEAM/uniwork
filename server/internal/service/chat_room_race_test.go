@@ -7,8 +7,10 @@ import (
 )
 
 func TestConcurrentResolveDMReturnsOneRoom(t *testing.T) {
-	s, _, _, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
 	const n = 32
 	var wg sync.WaitGroup
 	errs := make(chan error, n)
@@ -86,6 +88,8 @@ func TestConcurrentEnsureWorkspaceRoomReturnsOneRoom(t *testing.T) {
 func TestConcurrentCreateGroupReturnsOneRoom(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
 	uc := chatTestUser(t, q, w, "race-group-c@example.com")
 	const n = 16
 	in := CreateGroupInput{Name: "Race", MemberUserIDs: []string{ub.ID, uc.ID}}

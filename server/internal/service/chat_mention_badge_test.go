@@ -8,8 +8,10 @@ import (
 
 // Room detail summaries must use the same capped mention badge as the channel list.
 func TestRoomSummaryMentionUnreadMatchesChannelList(t *testing.T) {
-	s, _, _, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
 	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
 		Name: "mention-cap", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
 	})

@@ -950,11 +950,9 @@ func TestChannelVoiceCall(t *testing.T) {
 	if last.Type != "chat.voice.invite" {
 		t.Fatalf("invite event: %+v", last)
 	}
-	if last.Payload["call_kind"] != chatRoomKindChannel {
-		t.Fatalf("call_kind: %+v", last.Payload)
-	}
-	if last.Payload["room_name"] != "voice-pub" {
-		t.Fatalf("room_name: %+v", last.Payload)
+	assertVoiceEventMatchesCatalogue(t, last)
+	if last.Payload["room_id"] != ch.ID || last.Payload["call_id"] != "channel-call-1" || last.Payload["caller_id"] != ua.ID {
+		t.Fatalf("invite payload: %+v", last.Payload)
 	}
 
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, ch.ID, "channel-call-1"); err != nil {
@@ -1105,11 +1103,9 @@ func TestGroupVoiceCall(t *testing.T) {
 	if last.Type != "chat.voice.invite" {
 		t.Fatalf("invite event: %+v", last)
 	}
-	if last.Payload["call_kind"] != chatRoomKindGroup {
-		t.Fatalf("call_kind: %+v", last.Payload)
-	}
-	if last.Payload["room_name"] != "Voice group" {
-		t.Fatalf("room_name: %+v", last.Payload)
+	assertVoiceEventMatchesCatalogue(t, last)
+	if last.Payload["room_id"] != group.ID || last.Payload["call_id"] != "group-call-1" || last.Payload["caller_id"] != ua.ID {
+		t.Fatalf("invite payload: %+v", last.Payload)
 	}
 	if last.Payload["target_user_id"] != "" {
 		t.Fatalf("group invite should not set target_user_id: %+v", last.Payload)
