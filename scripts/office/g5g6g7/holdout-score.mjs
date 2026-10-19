@@ -277,6 +277,10 @@ function countValueNumber(value, anchor = '') {
   const direct = toNumber(value);
   if (direct !== null) return direct;
   if (typeof value !== 'string') return null;
+  // A count written with the counted noun ("3 slide", "3 follow-up actions", oracle2 O2-S4): digits, then words only. A
+  // second number or a leading word ("3 of 5", "level 3 headings") is no count value.
+  const withNoun = /^\s*(\d+)\s+\p{L}[\p{L}\s'’-]*$/u.exec(value);
+  if (withNoun) return Number(withNoun[1]);
   const word = normalizeTopicText(value).replace(/[-_]+/g, ' ').trim();
   if (!word || !COUNT_WORD_NUMBERS.has(word)) return null;
   if (word === 'nam' && /\b(?:year|years|nam)\b/.test(normalizeTopicText(anchor))) return null;
