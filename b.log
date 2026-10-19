@@ -1,0 +1,6 @@
+$ cd apps/sheets/native/xlsx-engine && cargo +1.90.0 test 2>&1 | grep -E "^test result|FAILED|panicked|error(\[|:)" | tail -30; rc=${PIPESTATUS[0]}; echo; echo "XLSX_ENGINE_CARGO_EXIT=$rc"
+test result: ok. 236 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.38s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+XLSX_ENGINE_CARGO_EXIT=0

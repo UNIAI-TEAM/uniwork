@@ -1,0 +1,28 @@
+$ npm run test:web 2>&1 | tail -25; rc=${PIPESTATUS[0]}; echo; echo "TEST_WEB_EXIT=$rc"
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+
+ Test Files  5 passed (5)
+      Tests  100 passed (100)
+   Start at  05:25:16
+   Duration  8.02s (transform 3.93s, setup 0ms, import 5.14s, tests 5.16s, environment 1.48s)
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules/pdf
+
+
+ Test Files  5 passed (5)
+      Tests  64 passed (64)
+   Start at  05:25:24
+   Duration  2.69s (transform 1.45s, setup 0ms, import 1.68s, tests 1.59s, environment 1.51s)
+
+
+TEST_WEB_EXIT=0

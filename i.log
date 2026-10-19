@@ -1,0 +1,10 @@
+$ npx eslint --max-warnings 0 $(git diff --name-only origin/main...HEAD -- '*.ts' '*.tsx') 2>&1 | tail -20; rc=${PIPESTATUS[0]}; echo; echo "ESLINT_TOUCHED_EXIT=$rc"
+
+/home/ubuntu/work/uniwork-office/apps/docs/src/renderer/App.tsx
+  5233:6  warning  React Hook useEffect has missing dependencies: 'colMode', 'hasVertical', and 'watermarkDirty'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 1 problem (0 errors, 1 warning)
+
+ESLint found too many warnings (maximum: 0).
+
+ESLINT_TOUCHED_EXIT=1
