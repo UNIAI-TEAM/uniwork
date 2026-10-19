@@ -17,7 +17,7 @@ export const DOCUMENT_SOURCE_PARENT_KINDS = [
 ] as const;
 export type DocumentSourceParentKind = (typeof DOCUMENT_SOURCE_PARENT_KINDS)[number];
 
-export const DOCUMENT_SOURCE_TYPES = ["docx", "xlsx", "pptx", "pdf", "md", "html", "image", "other"] as const;
+export const DOCUMENT_SOURCE_TYPES = ["docx", "xlsx", "pptx", "pdf", "md", "html"] as const;
 export type DocumentSourceType = (typeof DOCUMENT_SOURCE_TYPES)[number];
 
 export const DocumentSourceFileSchema = z.object({
