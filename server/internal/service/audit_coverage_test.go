@@ -1101,6 +1101,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err := svc.RevokeDocumentShare(f.ctx, Human(f.owner.ID), docID, sh.ID); err != nil {
 				t.Fatal(err)
 			}
+			// UNI-1974: the folders-unshare clean-up revokes a legacy folder
+			// share through the same writer, as the system actor.
+			folder := f.legacySharedFolder(t)
+			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_id = 'folder-share-off'`,
+				audit.ActionDocumentShareRevoked, folder).Scan(&n); err != nil || n == 0 {
+				t.Fatalf("UnshareFolders wrote %d share_revoked rows (%v)", n, err)
+			}
 		},
 		audit.ActionDocumentBreakGlassGranted: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.breakGlassDocument(t)
@@ -1159,6 +1171,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: f.workspace.ID, Level: DocumentLevelView,
 			}); err != nil {
 				t.Fatal(err)
+			}
+			// UNI-1974: the folders-unshare clean-up closes a legacy workspace
+			// folder through the same writer, as the system actor.
+			folder := f.legacySharedFolder(t)
+			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_id = 'folder-share-off'`,
+				audit.ActionDocumentWorkspaceAccessChanged, folder).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("UnshareFolders wrote %d workspace_access_changed rows (%v), want 1", n, err)
 			}
 		},
 		// G1-04a (UNI-678): a PATCH of the page; the audit row is metadata only.
@@ -2110,6 +2134,26 @@ func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
 		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
 	}))
 	return svc, id
+}
+
+// legacySharedFolder inserts a folder as the old create toggle left it:
+// open to the workspace, with a live organization share on top.
+func (f *auditFixture) legacySharedFolder(t *testing.T) string {
+	t.Helper()
+	wsID := f.workspace.ID
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": wsID, "kind": "folder",
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
+	if _, err := f.q.InsertDocumentShare(f.ctx, db.InsertDocumentShareParams{
+		ID: util.NewID(), OrganizationID: f.orgID, WorkspaceID: wsID, DocumentID: id,
+		PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: string(DocumentLevelView),
+		GrantedBy: f.owner.ID, GrantedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 // breakGlassDocument is document() made restricted with another member as its

@@ -4,8 +4,13 @@ package handler
 // containment and cycle answers, and the folder refusal on a version route.
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/config"
 )
 
 func TestDocumentFolderRoutes(t *testing.T) {
@@ -188,5 +193,49 @@ func TestDocumentFolderIsNeverShared(t *testing.T) {
 	}
 	if v := out["document"].(map[string]any)["visibility"]; v != "restricted" {
 		t.Fatalf("a page in a folder is private, got %v", v)
+	}
+}
+
+// UNI-1974: the refusal and the masked parent are part of the contract the
+// spec publishes.
+func TestFolderNotShareableIsInTheSpec(t *testing.T) {
+	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	var spec struct {
+		Paths map[string]map[string]struct {
+			Description string `json:"description"`
+		} `json:"paths"`
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]struct {
+					Description string `json:"description"`
+				} `json:"properties"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatal(err)
+	}
+	for path, method := range map[string]string{
+		"/api/v1/workspaces/{workspaceID}/documents":  "post",
+		"/api/v1/documents/{documentID}":              "patch",
+		"/api/v1/documents/{documentID}/shares":       "post",
+		"/api/v1/documents/{documentID}/shares/batch": "post",
+		"/api/v1/documents/{documentID}/access":       "put",
+	} {
+		if d := spec.Paths[path][method].Description; !strings.Contains(d, "folder_not_shareable") {
+			t.Errorf("%s %s does not document 422 folder_not_shareable", method, path)
+		}
+	}
+	for _, name := range []string{"SdoDocumentDTO", "SdoDocumentSummaryDTO", "SdoDocumentFavoriteDTO"} {
+		schema, ok := spec.Components.Schemas[name]
+		if !ok {
+			t.Errorf("schema %s missing from the spec", name)
+			continue
+		}
+		if d := schema.Properties["parent_id"].Description; !strings.Contains(d, "không còn xem được") {
+			t.Errorf("%s.parent_id does not say the parent is absent when the caller cannot read it: %q", name, d)
+		}
 	}
 }

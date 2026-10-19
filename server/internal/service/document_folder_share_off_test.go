@@ -552,3 +552,47 @@ func TestUnshareFoldersCleansLegacyAndKeepsDocuments(t *testing.T) {
 		t.Fatalf("a second pass wrote audit rows: %d", n)
 	}
 }
+
+// A move changes the parent and the position, never the sharing of the moved
+// row (and so never the sharing of what it lands in): a folder is not a place
+// that hands visibility to its contents or takes it from them.
+func TestMoveNeverChangesSharing(t *testing.T) {
+	x := newFolderOffFixture(t, "fso6")
+	f, ctx := x.f, x.f.ctx
+	legacy := x.folder(t, "Cũ đang mở", "")
+	x.legacyWorkspace(t, legacy.ID)
+	other := x.folder(t, "Thư mục khác", "")
+
+	shared := x.page(t, "Chia sẻ cho một người", "", "")
+	if _, err := f.svc.ShareDocument(ctx, x.owner, shared.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: x.viewer.ID, Level: DocumentLevelEdit,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	open := x.page(t, "Mở cho workspace", "", documentVisibilityWorkspace)
+
+	sharesOf := func(id string) int {
+		return fsoCount(t, x, `SELECT count(*) FROM document_shares WHERE document_id = $1 AND revoked_at IS NULL`, id)
+	}
+	for _, row := range []struct {
+		doc    db.Document
+		target string
+	}{{shared, legacy.ID}, {open, other.ID}, {legacy, other.ID}} {
+		before, sharesBefore := x.get(t, row.doc.ID), sharesOf(row.doc.ID)
+		if _, err := f.svc.MoveDocument(ctx, x.owner, row.doc.ID, MoveDocumentInput{ParentID: row.target, Revision: before.Revision}); err != nil {
+			t.Fatalf("move %q: %v", row.doc.Title, err)
+		}
+		after := x.get(t, row.doc.ID)
+		if after.ParentID.String != row.target {
+			t.Fatalf("%q not moved: parent %q", row.doc.Title, after.ParentID.String)
+		}
+		if after.Visibility != before.Visibility || after.WorkspaceLevel != before.WorkspaceLevel || sharesOf(row.doc.ID) != sharesBefore {
+			t.Fatalf("moving %q changed its sharing: %s/%s -> %s/%s, shares %d -> %d", row.doc.Title,
+				before.Visibility, before.WorkspaceLevel, after.Visibility, after.WorkspaceLevel, sharesBefore, sharesOf(row.doc.ID))
+		}
+	}
+	// The folders the rows landed in did not pick anything up either.
+	if got := x.get(t, other.ID); got.Visibility != documentVisibilityRestricted {
+		t.Fatalf("the destination folder became %q", got.Visibility)
+	}
+}

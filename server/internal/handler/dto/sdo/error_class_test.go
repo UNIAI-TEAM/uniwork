@@ -125,6 +125,9 @@ func TestErrorClassTable(t *testing.T) {
 		// SH-S2 (UNI-1781): per-item semantic refusal on PUT /documents/{id}/access
 		// (422, fields.rejected[]); the dialog highlights the bad rows in place.
 		"document_access_rejected",
+		// UNI-1974: a folder is never shared (422); a refusal of the request,
+		// neither a lost permission nor a conflict to reload.
+		"folder_not_shareable",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

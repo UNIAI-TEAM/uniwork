@@ -6,7 +6,8 @@ import "testing"
 // sharing is just the workspace visibility copied from its parent at create
 // time is hidden when that parent is a live, non-folder row of the same owner
 // shared the same way. Anything with its own share, its own level, an unshared
-// parent or a folder parent (folders are not shareable, UNI-1974) still shows.
+// parent or a folder parent (folders are not shareable, UNI-1974) still shows;
+// a folder is never listed itself.
 func TestSharedByMeShowsOnlyTheTopmostSharedItem(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "sbmtop")
@@ -27,7 +28,9 @@ func TestSharedByMeShowsOnlyTheTopmostSharedItem(t *testing.T) {
 	leveledChild := mk("con-doi-quyen", "", top, "workspace")
 	f.listFilterSetLevel(t, leveledChild, "view")
 
-	// A child under a workspace-shared folder is never hidden by its parent.
+	// A legacy workspace-shared folder (UNI-1974: no new one can exist) neither
+	// shows itself in Shared by me nor hides its child: a folder ancestor does
+	// not count as the topmost shared item.
 	folder := mk("thu-muc", DocumentKindFolder, "", "workspace")
 	underFolder := mk("trong-thu-muc", "", folder, "workspace")
 
@@ -38,8 +41,8 @@ func TestSharedByMeShowsOnlyTheTopmostSharedItem(t *testing.T) {
 		return f.svc.ListDocuments(f.ctx, member, tn.wsA, in)
 	}
 	got := listFilterIDs(listFilterWalk(t, list, ListDocumentsInput{SharedByMe: true, Limit: 100}))
-	listFilterSameSet(t, "shared_by_me top", got, []string{top, sharedChild, leveledChild, folder, underFolder, movedIn})
-	for _, hidden := range []string{inheritedPage, grandchild} {
+	listFilterSameSet(t, "shared_by_me top", got, []string{top, sharedChild, leveledChild, underFolder, movedIn})
+	for _, hidden := range []string{inheritedPage, grandchild, folder} {
 		if containsID(got, hidden) {
 			t.Fatalf("shared_by_me listed inherited row %s in %v", hidden, got)
 		}
