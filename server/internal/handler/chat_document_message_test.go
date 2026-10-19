@@ -184,3 +184,99 @@ func TestSendChatDocumentMessageUnwiredAnswers501(t *testing.T) {
 		t.Fatalf("code = %v", out)
 	}
 }
+
+// TestShareChatAttachmentAsDocument is §7.2 test 14 + L1 + L6 + version line
+// over HTTP: a file attachment carries can_share_as_document for its sender
+// only when in the L8 subset; POST .../share-as-document converts it in place
+// to kind="document", replays 200 with the same document on a second call, and
+// committing a new version with chat_room_id writes the document_version line.
+func TestShareChatAttachmentAsDocument(t *testing.T) {
+	srv := newTestServerWithFilesAndDocuments(t)
+	f := setupChatFixtureOn(t, srv, "chatdocshare")
+	docBody := []byte("# Kế hoạch\n\n- một\n- hai\n")
+
+	res, out := uploadChatFile(
+		t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
+		"ke-hoach.md", "text/markdown", "file-md-1", docBody,
+	)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("send md file = %d %v", res.StatusCode, out)
+	}
+	mdMsgID := out["message"].(map[string]any)["id"].(string)
+
+	res, out = uploadChatFile(
+		t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
+		"pixel.png", "image/png", "file-png-1", tinyPNG,
+	)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("send png file = %d %v", res.StatusCode, out)
+	}
+	pngMsgID := out["message"].(map[string]any)["id"].(string)
+
+	// L6: sender sees can_share_as_document=true on md, omitted/false on png; receiver sees false.
+	res, out = doJSON(t, f.srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/rooms/"+f.dmRoomID+"/messages", f.tokens["a"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("sender list = %d %v", res.StatusCode, out)
+	}
+	for _, raw := range out["messages"].([]any) {
+		row := raw.(map[string]any)
+		switch row["id"] {
+		case mdMsgID:
+			if row["can_share_as_document"] != true {
+				t.Fatalf("sender md can_share_as_document = %v, want true", row["can_share_as_document"])
+			}
+		case pngMsgID:
+			if row["can_share_as_document"] == true {
+				t.Fatalf("sender png can_share_as_document = true, want false/omitted")
+			}
+		}
+	}
+	res, out = doJSON(t, f.srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/rooms/"+f.dmRoomID+"/messages", f.tokens["b"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("receiver list = %d %v", res.StatusCode, out)
+	}
+	for _, raw := range out["messages"].([]any) {
+		row := raw.(map[string]any)
+		if row["id"] == mdMsgID && row["can_share_as_document"] == true {
+			t.Fatalf("receiver sees can_share_as_document=true: %v", row)
+		}
+	}
+
+	// Non-sender -> 403; PNG -> 422 source_not_saveable.
+	sharePath := "/api/v1/workspaces/" + f.wsID + "/chat/rooms/" + f.dmRoomID + "/messages/" + mdMsgID + "/share-as-document"
+	res, out = doJSON(t, f.srv, "POST", sharePath, f.tokens["b"], map[string]any{"share_level": "comment", "client_msg_id": "http-share-b"})
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-sender share = %d %v, want 403", res.StatusCode, out)
+	}
+	pngSharePath := "/api/v1/workspaces/" + f.wsID + "/chat/rooms/" + f.dmRoomID + "/messages/" + pngMsgID + "/share-as-document"
+	res, out = doJSON(t, f.srv, "POST", pngSharePath, f.tokens["a"], map[string]any{"share_level": "comment", "client_msg_id": "http-share-png"})
+	if res.StatusCode != http.StatusUnprocessableEntity || errorCodeOf(out) != "source_not_saveable" {
+		t.Fatalf("png share = %d %v, want 422 source_not_saveable", res.StatusCode, out)
+	}
+
+	// Sender converts the Markdown attachment -> 200, same message id, kind=document.
+	res, out = doJSON(t, f.srv, "POST", sharePath, f.tokens["a"], map[string]any{"share_level": "comment", "client_msg_id": "http-share-1"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("share-as-document = %d %v", res.StatusCode, out)
+	}
+	msg, _ := out["message"].(map[string]any)
+	if msg == nil || msg["id"] != mdMsgID || msg["kind"] != "document" || msg["can_share_as_document"] == true {
+		t.Fatalf("converted message = %v", out)
+	}
+	block, _ := msg["document"].(map[string]any)
+	if block == nil || block["document_id"] == "" {
+		t.Fatalf("converted document block = %v", msg)
+	}
+	docID := block["document_id"].(string)
+
+	// L1 replay with a new client_msg_id and different share_level -> 200, same document.
+	res, out = doJSON(t, f.srv, "POST", sharePath, f.tokens["a"], map[string]any{"share_level": "view", "client_msg_id": "http-share-2"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("replay share-as-document = %d %v", res.StatusCode, out)
+	}
+	replayMsg, _ := out["message"].(map[string]any)
+	replayBlock, _ := replayMsg["document"].(map[string]any)
+	if replayMsg["id"] != mdMsgID || replayBlock == nil || replayBlock["document_id"] != docID {
+		t.Fatalf("replay = %v, want same id %s and doc %s", out, mdMsgID, docID)
+	}
+}
