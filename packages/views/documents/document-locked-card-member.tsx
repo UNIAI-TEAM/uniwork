@@ -107,6 +107,8 @@ export function MemberLockedCard({
   useEffect(() => {
     if (answeredAt === seenAnswer.current) return;
     seenAnswer.current = answeredAt;
+    // The note follows the flag: a decision that cleared it must not leave "sent earlier" behind.
+    setDeviceSentAt(readDocumentAccessRequestSentAt(documentId));
     if ((state === "sent" || state === "already_pending") && readDocumentAccessRequestSentAt(documentId) === null) {
       setState("idle");
     }
