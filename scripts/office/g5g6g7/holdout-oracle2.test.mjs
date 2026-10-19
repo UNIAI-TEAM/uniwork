@@ -227,6 +227,14 @@ describe('O2-B1: read_slide takes the real 0-based slideIndex', () => {
     const res = createBackend(pptx, { views: [view()] }).execute('read_slide', { slideIndex: 3 });
     assert.equal(res.error, 'invalid_arguments');
   });
+
+  it('O2R1-04: refuses an explicit negative or non-integer slideIndex instead of returning the whole deck', () => {
+    const backend = createBackend(pptx, { views: [view()] });
+    assert.equal(backend.execute('read_slide', { slideIndex: -1 }).error, 'invalid_arguments', 'P-B1-NEGATIVE');
+    assert.equal(backend.execute('read_slide', { slideIndex: 'bad' }).error, 'invalid_arguments', 'P-B1-NAN');
+    assert.equal(backend.execute('read_slide', { slideIndex: 1.5 }).error, 'invalid_arguments');
+    assert.equal(backend.execute('read_slide', { slideIndex: null }).error, 'invalid_arguments');
+  });
 });
 
 describe('O2-B2: an overview tool returns truncated previews, as the real frame does', () => {
