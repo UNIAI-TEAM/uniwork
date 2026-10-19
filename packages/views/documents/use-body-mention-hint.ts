@@ -28,9 +28,15 @@ interface BlockedMention extends PendingMention {
 /** At most this many new mentions are resolved per acknowledged save (RFM-01 review). */
 const MAX_RESOLVE_PER_SAVE = 10;
 
+/** One lookup's answer: `data` is undefined until it succeeds, `settled` once it succeeded OR errored. */
+interface LookupResult {
+  data: MentionCandidate[] | undefined;
+  settled: boolean;
+}
+
 /** Module-level combine: keeps useQueries' result identity stable across renders. */
-function pickCandidates(results: readonly UseQueryResult<MentionCandidate[]>[]) {
-  return results.map((r) => r.data);
+function pickCandidates(results: readonly UseQueryResult<MentionCandidate[]>[]): LookupResult[] {
+  return results.map((r) => ({ data: r.data, settled: r.isSuccess || r.isError }));
 }
 
 /**
@@ -121,6 +127,7 @@ export function useBodyMentionHint({
     for (const [id, label] of current) {
       if (knownRef.current.has(id) || pendingIds.has(id) || id === userId) continue;
       added.push({ id, label });
+      // Overflow past the cap is dropped on purpose: it still lands in knownRef below and is never resolved.
       if (added.length >= MAX_RESOLVE_PER_SAVE) break;
     }
     knownRef.current = new Set(current.keys());
@@ -134,18 +141,19 @@ export function useBodyMentionHint({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount baseline only
   }, []);
 
-  // Evaluate pending ids once each one's own answer is in — the effect waits
-  // on every labeled lookup. can_view === false is the only access proof; a
-  // missing row (task/project mention, a member who left, a name page cut at
-  // 50) is unknown and gets no hint.
+  // Evaluate pending ids once each one's own lookup has settled — the effect
+  // waits on every labeled lookup, and an errored one counts as settled (RFM-201)
+  // so it cannot stall the batch. can_view === false is the only access proof;
+  // a missing row (task/project mention, a member who left, a name page cut at
+  // 50) or a failed lookup is unknown and gets no hint.
   useEffect(() => {
     if (pending.length === 0) return;
-    if (!pending.every((m, i) => m.label === "" || pendingData[i] !== undefined)) return;
+    if (!pending.every((m, i) => m.label === "" || pendingData[i]?.settled)) return;
     const next: BlockedMention[] = [];
     for (let i = 0; i < pending.length; i += 1) {
       const m = pending[i]!;
       if (m.label === "") continue;
-      const row = pendingData[i]?.find((c) => c.user_id === m.id);
+      const row = pendingData[i]?.data?.find((c) => c.user_id === m.id);
       if (row !== undefined && row.can_view === false) next.push({ ...m, row });
     }
     if (next.length > 0) setBlocked((prev) => [...prev, ...next]);
@@ -157,7 +165,7 @@ export function useBodyMentionHint({
   const liveRows = new Map<string, MentionCandidate>();
   for (let i = 0; i < blocked.length; i += 1) {
     const m = blocked[i]!;
-    liveRows.set(m.id, blockedData[i]?.find((c) => c.user_id === m.id) ?? m.row);
+    liveRows.set(m.id, blockedData[i]?.data?.find((c) => c.user_id === m.id) ?? m.row);
   }
 
   // Live targets: the blocked ids whose latest answer still reports
@@ -174,7 +182,7 @@ export function useBodyMentionHint({
   useEffect(() => {
     if (blocked.length === 0) return;
     const still = blocked.filter((m, i) => {
-      const data = blockedData[i];
+      const data = blockedData[i]?.data;
       if (data === undefined) return true; // in flight: keep the resolved row
       const row = data.find((c) => c.user_id === m.id);
       return row !== undefined && row.can_view === false;

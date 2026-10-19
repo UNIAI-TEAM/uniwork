@@ -197,6 +197,34 @@ describe("UNI-1968 body mention no-access hint", () => {
     expect(notice()).toBeNull();
   });
 
+  it("an errored lookup is unknown — no hint — and does not stall the next save's hint (RFM-201)", async () => {
+    const rows: Row[] = [
+      { user_id: BLOCKED, display_name: "Bình", can_view: false },
+      { user_id: SECOND, display_name: "Chi", can_view: false },
+    ];
+    answerCandidates(() => rows);
+    const answer = requestMock.getMockImplementation()!;
+    // Bình's lookup fails (the test client does not retry); everyone else answers.
+    requestMock.mockImplementation((path: string, ...rest: unknown[]) =>
+      typeof path === "string" && path.includes("mention-candidates") && path.includes("q=B")
+        ? Promise.reject(new Error("candidates unavailable"))
+        : answer(path, ...rest),
+    );
+    render(wrap(<Probe base={pageWith([])} initial={saveState({})} />));
+
+    await save(pageWith([{ id: BLOCKED, label: "Bình" }]), "2");
+    await waitFor(() => expect(candidateCalls()).toHaveLength(1));
+    await act(async () => {});
+    expect(notice()).toBeNull();
+
+    // The next acknowledged save adds a no-access mention: the errored batch
+    // has settled, so this one is resolved and hinted on its own.
+    await save(pageWith([{ id: BLOCKED, label: "Bình" }, { id: SECOND, label: "Chi" }]), "3");
+    await waitFor(() => expect(notice()).toBeInTheDocument());
+    expect(notice()).toHaveTextContent("Chi");
+    expect(notice()).not.toHaveTextContent("Bình");
+  });
+
   it("never looks up or hints the editor's own mention", async () => {
     answerCandidates(() => [{ user_id: ME, display_name: "An", can_view: false }]);
     render(wrap(<Probe base={pageWith([])} initial={saveState({})} />));
