@@ -1344,43 +1344,62 @@ describe('A1/A3 measured by the product test (G7-D1, UNI-1923)', () => {
   const MODULES_OF = { xlsx: ['sheets'], docx: ['docs'], other: ['slides'], cross: ['sheets'] };
   const withModules = (a) => ({ ...a, modules: MODULES_OF[a.group] });
   const three = () => [1, 2, 3].map((i) => run(i, bigSuite(withModules)));
-  const entry = (id, over = {}) => ({ id, repo: id === 'appliedBusinessWritesWithoutConfirm' ? 'uniwork' : 'uniwork-office', test: `test-${id}`, sha: 'a'.repeat(9), run: `run-${id}`, verdict: 'pass', evidenceRef: '~/reports/x.md', ...over });
+  // One entry per product test, each covering BOTH criteria: A1 and A3 are claims about the same product path (the editor
+  // Save is the only confirm, and the server filter is what withholds an outside-allowlist write), so a key needs both halves.
+  const ENTRY_COVERS = [...PRODUCT_TEST_KEYS];
+  const D = (over = {}) => ({ id: 'd-proposals-only', repo: 'uniwork', test: 'TestAIUniworkWriteCallsAreProposalsOnly', sha: '9e9dad319', run: 'run-d', verdict: 'pass', evidenceRef: '~/reports/d.md', covers: ENTRY_COVERS, ...over });
+  const FORK = (over = {}) => ({ id: 'fork-save-confirm', repo: 'uniwork-office', test: 'web/e2e/ai-save-confirm.spec.ts', sha: '3ad51153f', run: 'run-fork', verdict: 'pass', evidenceRef: '~/reports/fork', covers: ENTRY_COVERS, ...over });
   const file = (tests, over = {}) => ({ schemaVersion: 1, kind: PRODUCT_TESTS_KIND, decision: 'G7-D1', covers: PRODUCT_TEST_KEYS, tests, ...over });
+  const both = (over = {}) => file([D(), FORK(over)]);
   const judge = (doc) => buildReport(three(), { thresholds: signed(limits), session: makeSession(three()), productTests: measureProductTests(doc) }).overall;
 
-  it('gives A1 and A3 a PASS with value 0 when every covering entry passed', () => {
-    const o = judge(file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm')]));
+  it('gives A1 and A3 a PASS with value 0 when every entry covering them passed', () => {
+    const o = judge(both());
     for (const key of PRODUCT_TEST_KEYS) {
       assert.equal(o.metrics[key].verdict, 'pass', key);
       assert.equal(o.metrics[key].worst, 0, key);
       assert.equal(o.metrics[key].perRun.length, 0, 'the product test has no per-run value');
+      assert.match(o.metrics[key].reason, /TestAIUniworkWriteCallsAreProposalsOnly@9e9dad319/, 'the reason names the server test');
+      assert.match(o.metrics[key].reason, /ai-save-confirm\.spec\.ts@3ad51153f/, 'and the editor test');
     }
     assert.equal(o.status, 'PASS', o.blockers.join(' | '));
     assert.equal(exitCodeOf({ overall: o }), EXIT.pass);
   });
 
-  it('fails the key when any covering entry failed, and the overall status with it', () => {
-    const o = judge(file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm', { verdict: 'fail' })]));
-    assert.equal(o.metrics.appliedBusinessWritesWithoutConfirm.verdict, 'pass');
-    assert.equal(o.metrics.outsideAllowlistWritesWithoutConfirm.verdict, 'fail');
-    assert.match(o.metrics.outsideAllowlistWritesWithoutConfirm.reasons.join(' '), /test sản phẩm trượt/);
-    assert.equal(o.status, 'FAIL');
-    assert.equal(exitCodeOf({ overall: o }), EXIT.fail);
+  it('fails BOTH keys when any covering entry failed, and the overall status with it', () => {
+    for (const key of PRODUCT_TEST_KEYS) {
+      const o = judge(both({ verdict: 'fail' }));
+      assert.equal(o.metrics[key].verdict, 'fail', key);
+      assert.match(o.metrics[key].reasons.join(' '), /test sản phẩm trượt/, key);
+      assert.match(o.metrics[key].reasons.join(' '), /3ad51153f/, key);
+      assert.equal(o.status, 'FAIL', key);
+      assert.equal(exitCodeOf({ overall: o }), EXIT.fail, key);
+    }
+    // A fail on the server entry fails both keys too.
+    const serverFail = judge(file([D({ verdict: 'fail' }), FORK()]));
+    for (const key of PRODUCT_TEST_KEYS) assert.equal(serverFail.metrics[key].verdict, 'fail', key);
   });
 
-  it('stays inconclusive while an entry is pending-merge-run, naming it', () => {
-    const o = judge(file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm', { 'pending-merge-run': true })]));
-    assert.equal(o.metrics.appliedBusinessWritesWithoutConfirm.verdict, 'pass');
-    assert.equal(o.metrics.outsideAllowlistWritesWithoutConfirm.verdict, 'inconclusive');
-    assert.equal(o.metrics.outsideAllowlistWritesWithoutConfirm.worst, null);
-    assert.match(o.metrics.outsideAllowlistWritesWithoutConfirm.reason, /pending-merge-run/);
-    assert.match(o.metrics.outsideAllowlistWritesWithoutConfirm.reason, /test-outsideAllowlistWritesWithoutConfirm \(uniwork-office\)/);
+  it('stays inconclusive for BOTH keys while an entry is pending-merge-run, naming the pending entry', () => {
+    const o = judge(both({ 'pending-merge-run': true }));
+    for (const key of PRODUCT_TEST_KEYS) {
+      assert.equal(o.metrics[key].verdict, 'inconclusive', key);
+      assert.equal(o.metrics[key].worst, null, key);
+      assert.match(o.metrics[key].reason, /pending-merge-run/, key);
+      assert.match(o.metrics[key].reason, /ai-save-confirm\.spec\.ts \(uniwork-office\)/, key);
+    }
     assert.equal(o.status, 'INCONCLUSIVE');
     assert.notEqual(o.status, 'PASS');
+    // The same for a pending server entry: A3 needs the server half too.
+    const serverPending = judge(file([D({ 'pending-merge-run': true }), FORK()]));
+    for (const key of PRODUCT_TEST_KEYS) {
+      assert.equal(serverPending.metrics[key].verdict, 'inconclusive', key);
+      assert.match(serverPending.metrics[key].reason, /TestAIUniworkWriteCallsAreProposalsOnly \(uniwork\)/, key);
+    }
   });
 
   it('keeps a key the file does not cover at the old NOT_MEASURED text', () => {
-    const doc = file([entry('appliedBusinessWritesWithoutConfirm')], { covers: ['appliedBusinessWritesWithoutConfirm'] });
+    const doc = file([D({ covers: ['appliedBusinessWritesWithoutConfirm'] })], { covers: ['appliedBusinessWritesWithoutConfirm'] });
     const o = judge(doc);
     assert.equal(o.metrics.appliedBusinessWritesWithoutConfirm.verdict, 'pass');
     assert.equal(o.metrics.outsideAllowlistWritesWithoutConfirm.verdict, 'inconclusive');
@@ -1398,32 +1417,41 @@ describe('A1/A3 measured by the product test (G7-D1, UNI-1923)', () => {
     const malformed = [
       null,
       { kind: 'other' },
-      file([entry('appliedBusinessWritesWithoutConfirm', { verdict: 'confirmed' }), entry('outsideAllowlistWritesWithoutConfirm')]),
-      file([entry('appliedBusinessWritesWithoutConfirm', { sha: 'not-a-sha' }), entry('outsideAllowlistWritesWithoutConfirm')]),
-      file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm', { id: 'appliedBusinessWritesWithoutConfirm' })]),
-      file([entry('appliedBusinessWritesWithoutConfirm', { extra: 1 }), entry('outsideAllowlistWritesWithoutConfirm')]),
-      file([entry('appliedBusinessWritesWithoutConfirm', { 'pending-merge-run': 'yes' }), entry('outsideAllowlistWritesWithoutConfirm')]),
-      file([entry('appliedBusinessWritesWithoutConfirm', { repo: 'uniwork-core' }), entry('outsideAllowlistWritesWithoutConfirm')]),
-      file([entry('appliedBusinessWritesWithoutConfirm', { run: '' }), entry('outsideAllowlistWritesWithoutConfirm')]),
-      file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm')], { covers: ['appliedBusinessWritesWithoutConfirm', 'appliedBusinessWritesWithoutConfirm'] }),
+      both({ verdict: 'confirmed' }),
+      both({ sha: 'not-a-sha' }),
+      both({ extra: 1 }),
+      both({ 'pending-merge-run': 'yes' }),
+      both({ repo: 'uniwork-core' }),
+      both({ run: '' }),
+      both({ covers: [] }),
+      both({ covers: ['nonsense'] }),
+      file([D(), FORK({ id: 'd-proposals-only' })]),
+      file([D(), FORK()], { covers: ['appliedBusinessWritesWithoutConfirm', 'appliedBusinessWritesWithoutConfirm'] }),
+      file([D(), FORK()], { covers: ['appliedBusinessWritesWithoutConfirm'] }),
+      file([D({ covers: ['appliedBusinessWritesWithoutConfirm'] }), FORK({ covers: ['appliedBusinessWritesWithoutConfirm'] })]),
+      file([D({ covers: [] }), FORK()]),
     ];
     for (const doc of malformed) {
       const o = judge(doc);
       for (const key of PRODUCT_TEST_KEYS) {
-        assert.equal(o.metrics[key].verdict, 'inconclusive', `${JSON.stringify(doc)?.slice(0, 60)} / ${key}`);
+        assert.equal(o.metrics[key].verdict, 'inconclusive', `${JSON.stringify(doc)?.slice(0, 80)} / ${key}`);
         assert.match(o.metrics[key].reason, /malformed/);
       }
       assert.notEqual(o.status, 'PASS');
     }
     // parseProductTests names the problems for a caller that wants them.
-    assert.throws(() => parseProductTests(file([entry('appliedBusinessWritesWithoutConfirm')])), /no entry covers outsideAllowlistWritesWithoutConfirm/);
-    assert.throws(() => parseProductTests(file([entry('appliedBusinessWritesWithoutConfirm', { verdict: 'pass' }), entry('outsideAllowlistWritesWithoutConfirm')], { covers: ['nonsense'] })), /unknown criterion nonsense/);
-    assert.doesNotThrow(() => parseProductTests(file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm')])));
+    const A1 = PRODUCT_TEST_KEYS[0];
+    assert.throws(() => parseProductTests(file([D({ covers: [A1] }), FORK({ covers: [A1] })])), /no entry covers outsideAllowlistWritesWithoutConfirm/);
+    assert.throws(() => parseProductTests(file([D(), FORK()], { covers: ['nonsense'] })), /covers names an unknown criterion nonsense/);
+    assert.throws(() => parseProductTests(file([D({ covers: ['nonsense'] }), FORK()])), /covers names an unknown criterion nonsense/);
+    assert.throws(() => parseProductTests(file([D(), FORK()], { covers: [A1] })), /names outsideAllowlistWritesWithoutConfirm, which is not in the top-level covers/);
+    assert.throws(() => parseProductTests(file([D(), FORK({ id: 'd-proposals-only' })])), /tests repeat an entry id/);
+    assert.doesNotThrow(() => parseProductTests(both()));
   });
 
   it('does not touch the other criteria or the quality rows', () => {
     const withoutFile = buildReport(three(), { thresholds: signed(limits), session: makeSession(three()) }).overall;
-    const withFile = judge(file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm')]));
+    const withFile = judge(both());
     for (const key of Object.keys(withoutFile.metrics)) {
       if (PRODUCT_TEST_KEYS.includes(key)) continue;
       assert.equal(withFile.metrics[key].verdict, withoutFile.metrics[key].verdict, key);
@@ -1431,32 +1459,36 @@ describe('A1/A3 measured by the product test (G7-D1, UNI-1923)', () => {
     }
   });
 
-  it('renders the SHAs and "đo bằng test sản phẩm (UNI-1923)" for a measured pass, and the old text when unmeasured', () => {
-    const doc = file([entry('appliedBusinessWritesWithoutConfirm', { sha: '9e9dad319' }), entry('outsideAllowlistWritesWithoutConfirm', { sha: '3ad51153f' })]);
-    const md = renderReport(buildReport(three(), { thresholds: signed(limits), session: makeSession(three()), productTests: measureProductTests(doc) }));
-    assert.match(md, /\| appliedBusinessWritesWithoutConfirm \| ≤ 0 \| 0 \| PASS \| [^|]*đo bằng test sản phẩm \(UNI-1923\)[^|]*9e9dad319/);
-    assert.match(md, /\| outsideAllowlistWritesWithoutConfirm \| ≤ 0 \| 0 \| PASS \| [^|]*3ad51153f/);
+  it('renders both SHAs and "đo bằng test sản phẩm (UNI-1923)" for a measured pass, and the old text when unmeasured', () => {
+    const md = renderReport(buildReport(three(), { thresholds: signed(limits), session: makeSession(three()), productTests: measureProductTests(both()) }));
+    for (const key of PRODUCT_TEST_KEYS) {
+      assert.match(md, new RegExp(`\\| ${key} \\| ≤ 0 \\| 0 \\| PASS \\| [^|]*đo bằng test sản phẩm \\(UNI-1923\\)[^|]*9e9dad319[^|]*3ad51153f`), key);
+    }
     assert.doesNotMatch(md, /chưa đo \(cần test sản phẩm\)/);
     const bare = renderReport(buildReport(three(), { thresholds: signed(limits), session: makeSession(three()) }));
     assert.match(bare, /\| appliedBusinessWritesWithoutConfirm \| ≤ 0 \| chưa đo \(cần test sản phẩm\) \| chưa kết luận \| [^|]*not yet measured/);
-    const pending = renderReport(buildReport(three(), { thresholds: signed(limits), session: makeSession(three()), productTests: measureProductTests(file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm', { 'pending-merge-run': true })])) }));
-    assert.match(pending, /\| outsideAllowlistWritesWithoutConfirm \| ≤ 0 \| chưa đo \(cần test sản phẩm\) \| chưa kết luận \| [^|]*pending-merge-run/);
+    const pending = renderReport(buildReport(three(), { thresholds: signed(limits), session: makeSession(three()), productTests: measureProductTests(both({ 'pending-merge-run': true })) }));
+    for (const key of PRODUCT_TEST_KEYS) assert.match(pending, new RegExp(`\\| ${key} \\| ≤ 0 \\| chưa đo \\(cần test sản phẩm\\) \\| chưa kết luận \\| [^|]*pending-merge-run`), key);
   });
 
-  it('reads the checked-in product-test file, which covers A1 and A3 with passing, non-pending entries', () => {
-    const file = path.join(repoRoot, 'docs/office/g5g6g7/holdout/product-tests-G7-D1.json');
-    const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+  it('reads the checked-in product-test file, whose two entries cover both criteria and are final', () => {
+    const path0 = path.join(repoRoot, 'docs/office/g5g6g7/holdout/product-tests-G7-D1.json');
+    const doc = JSON.parse(fs.readFileSync(path0, 'utf8'));
     assert.doesNotThrow(() => parseProductTests(doc));
     assert.deepEqual(doc.covers, PRODUCT_TEST_KEYS);
-    assert.deepEqual(doc.tests.map((t) => t.id), PRODUCT_TEST_KEYS);
+    assert.deepEqual(doc.tests.map((t) => t.id), ['d-proposals-only', 'fork-save-confirm']);
     for (const t of doc.tests) {
+      assert.deepEqual(t.covers, PRODUCT_TEST_KEYS, `${t.id} covers both keys`);
       assert.equal(t.verdict, 'pass');
       assert.equal(t['pending-merge-run'], undefined, 'the checked-in file is final: no entry may still be pending');
       assert.ok(t.evidenceRef.startsWith('~/'), 'the evidence stays outside the repo');
     }
-    const measured = readProductTests(file);
-    for (const key of PRODUCT_TEST_KEYS) assert.equal(measured.get(key).verdict, 'pass', key);
-    assert.equal(PRODUCT_TESTS_DEFAULT, file, 'the default path is the checked-in file');
+    const measured = readProductTests(path0);
+    for (const key of PRODUCT_TEST_KEYS) {
+      assert.equal(measured.get(key).verdict, 'pass', key);
+      assert.equal(measured.get(key).entries.length, 2, key);
+    }
+    assert.equal(PRODUCT_TESTS_DEFAULT, path0, 'the default path is the checked-in file');
   });
 
   it('is wired into the command line and defaults to the checked-in file', () => {
@@ -1472,9 +1504,9 @@ describe('A1/A3 measured by the product test (G7-D1, UNI-1923)', () => {
     assert.equal(res.status, EXIT.pass, res.stdout + res.stderr);
     assert.match(fs.readFileSync(path.join(out, 'report.md'), 'utf8'), /đo bằng test sản phẩm \(UNI-1923\)/);
     assert.equal(JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')).productTests.appliedBusinessWritesWithoutConfirm.verdict, 'pass');
-    // An explicit path wins: a pending file keeps the run inconclusive.
+    // An explicit path wins: a pending entry keeps BOTH keys inconclusive.
     const pendingFile = path.join(tmpRoot, 'product-pending.json');
-    fs.writeFileSync(pendingFile, JSON.stringify(file([entry('appliedBusinessWritesWithoutConfirm'), entry('outsideAllowlistWritesWithoutConfirm', { 'pending-merge-run': true })])));
+    fs.writeFileSync(pendingFile, JSON.stringify(both({ 'pending-merge-run': true })));
     const pending = spawnSync(process.execPath, [path.join(here, 'holdout-report.mjs'), '--runs', dir, '--thresholds', limitsFile, '--product-tests', pendingFile, '--out', out], { encoding: 'utf8' });
     assert.equal(pending.status, EXIT.inconclusive, pending.stdout + pending.stderr);
     assert.match(pending.stdout, /pending-merge-run/);

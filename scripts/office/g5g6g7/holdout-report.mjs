@@ -75,13 +75,15 @@ export const NOT_MEASURED = {
 // ---- product-test evidence (UNI-1923) ----
 // A1 and A3 are claims about the product, not about the harness: the harness applies writes in an emulated editor with no
 // confirm step, so its counters say nothing about a real confirm. The product test (UNI-1923) is the oracle, and its result
-// is a checked-in file (G7-D1: the D server test + the fork Save-is-the-confirm e2e). A key is measured only when every
-// entry that covers it passed and none is still pending its final merge run.
+// is a checked-in file (G7-D1: the D server test + the fork Save-is-the-confirm e2e). Each entry is one product test and
+// names the criteria it covers; a criterion is measured only when every entry covering it passed and none is still pending
+// its final merge run. Both G7-D1 tests cover both criteria: business data is reached only through the editor Save (A1
+// needs the fork half) and the server filter is what withholds an outside-allowlist write (A3 needs the server half).
 export const PRODUCT_TESTS_KIND = 'uniwork-office-g7-product-tests';
 export const PRODUCT_TEST_KEYS = ['appliedBusinessWritesWithoutConfirm', 'outsideAllowlistWritesWithoutConfirm'];
 export const PRODUCT_TESTS_DEFAULT = path.join(path.dirname(DEFAULT_CASES_DIR), 'product-tests-G7-D1.json');
 const PRODUCT_TEST_REPOS = ['uniwork', 'uniwork-office'];
-const PRODUCT_TEST_FIELDS = ['id', 'repo', 'test', 'sha', 'run', 'verdict', 'evidenceRef', 'pending-merge-run'];
+const PRODUCT_TEST_FIELDS = ['id', 'repo', 'test', 'sha', 'run', 'verdict', 'evidenceRef', 'covers', 'pending-merge-run'];
 const PRODUCT_TESTS_FIELDS = ['schemaVersion', 'kind', 'decision', 'covers', 'tests'];
 
 /** Validates a checked-in product-test evidence file; throws with every problem named. */
@@ -94,7 +96,10 @@ export function parseProductTests(doc) {
   if (doc.decision !== 'G7-D1') problems.push('decision must be "G7-D1"');
   const covers = doc.covers;
   if (!Array.isArray(covers) || covers.length === 0) problems.push('covers must be a non-empty array');
-  else for (const key of covers) if (!PRODUCT_TEST_KEYS.includes(key)) problems.push(`covers names an unknown criterion ${key}`);
+  else {
+    if (new Set(covers).size !== covers.length) problems.push('covers repeats a criterion');
+    for (const key of covers) if (!PRODUCT_TEST_KEYS.includes(key)) problems.push(`covers names an unknown criterion ${key}`);
+  }
   const tests = doc.tests;
   if (!Array.isArray(tests) || tests.length === 0) problems.push('tests must be a non-empty array');
   else {
@@ -102,15 +107,21 @@ export function parseProductTests(doc) {
       const at = `tests[${i}]`;
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) { problems.push(`${at} is not an object`); return; }
       for (const key of Object.keys(entry)) if (!PRODUCT_TEST_FIELDS.includes(key)) problems.push(`${at} has an unknown field ${key}`);
-      if (!PRODUCT_TEST_KEYS.includes(entry.id)) problems.push(`${at}.id must name a product-test criterion`);
-      else if (Array.isArray(covers) && !covers.includes(entry.id)) problems.push(`${at}.id ${entry.id} is not in covers`);
+      if (typeof entry.id !== 'string' || entry.id.trim() === '') problems.push(`${at}.id is required`);
       if (!PRODUCT_TEST_REPOS.includes(entry.repo)) problems.push(`${at}.repo must be ${PRODUCT_TEST_REPOS.join(' or ')}`);
       for (const key of ['test', 'run', 'evidenceRef']) if (typeof entry[key] !== 'string' || entry[key].trim() === '') problems.push(`${at}.${key} is required`);
       if (typeof entry.sha !== 'string' || !/^[0-9a-f]{7,40}$/.test(entry.sha)) problems.push(`${at}.sha must be a hex sha (7-40 characters)`);
       if (!['pass', 'fail'].includes(entry.verdict)) problems.push(`${at}.verdict must be pass or fail`);
       if ('pending-merge-run' in entry && typeof entry['pending-merge-run'] !== 'boolean') problems.push(`${at}.pending-merge-run must be a boolean`);
+      if (!Array.isArray(entry.covers) || entry.covers.length === 0) problems.push(`${at}.covers must be a non-empty array`);
+      else {
+        for (const key of entry.covers) if (!PRODUCT_TEST_KEYS.includes(key)) problems.push(`${at}.covers names an unknown criterion ${key}`);
+        if (Array.isArray(covers)) for (const key of entry.covers) if (!covers.includes(key)) problems.push(`${at}.covers names ${key}, which is not in the top-level covers`);
+      }
     });
-    if (Array.isArray(covers)) for (const key of covers) if (!tests.some((e) => e?.id === key)) problems.push(`no entry covers ${key}: a covered criterion needs its test`);
+    if (Array.isArray(covers)) for (const key of covers) if (!tests.some((e) => Array.isArray(e?.covers) && e.covers.includes(key))) problems.push(`no entry covers ${key}: a covered criterion needs its test`);
+    const ids = tests.filter((e) => e && typeof e === 'object' && !Array.isArray(e)).map((e) => e.id);
+    if (new Set(ids).size !== ids.length) problems.push('tests repeat an entry id');
   }
   if (problems.length > 0) throw new Error(problems.join('; '));
   return doc;
@@ -118,11 +129,13 @@ export function parseProductTests(doc) {
 
 /** The provenance line a measured criterion carries: the tests and the SHAs that measured it (the report renders it). */
 const productTestProvenance = (entries) => `đo bằng test sản phẩm (UNI-1923): ${entries.map((e) => `${e.test}@${e.sha}`).join(', ')}`;
+const productTestName = (e) => `${e.test} (${e.repo})`;
 
 /**
  * Resolves the product-test file into one decision per criterion. Never throws: a malformed file makes every criterion
  * inconclusive with the reason, so a broken file can never read as a pass. A criterion the file does not cover is absent
- * from the map (null), and keeps the NOT_MEASURED text.
+ * from the map (null), and keeps the NOT_MEASURED text. Every entry covering a criterion must pass, and none may still be
+ * pending its final merge run, for that criterion to be measured.
  */
 export function measureProductTests(doc) {
   try {
@@ -135,10 +148,10 @@ export function measureProductTests(doc) {
   const map = new Map();
   for (const key of PRODUCT_TEST_KEYS) {
     if (!covers.has(key)) { map.set(key, null); continue; }
-    const entries = doc.tests.filter((e) => e.id === key);
+    const entries = doc.tests.filter((e) => e.covers.includes(key));
     const pending = entries.filter((e) => e['pending-merge-run'] === true);
     if (pending.length > 0) {
-      map.set(key, { verdict: 'inconclusive', entries, reason: `chưa đo: ${pending.map((e) => `${e.test} (${e.repo})`).join(', ')} is pending-merge-run: the final merge run has not landed yet` });
+      map.set(key, { verdict: 'inconclusive', entries, reason: `chưa đo: ${pending.map(productTestName).join(', ')} is pending-merge-run: the final merge run has not landed yet` });
       continue;
     }
     const failed = entries.filter((e) => e.verdict === 'fail');
@@ -1164,9 +1177,10 @@ Reads run-NN.json and manifest.json of one runner invocation and writes report.m
 --thresholds the signed G7-D1 file; without it the status is "no threshold" and no PASS/FAIL appears anywhere.
 --product-tests the checked-in product-test evidence (kind ${PRODUCT_TESTS_KIND}, default
              docs/office/g5g6g7/holdout/product-tests-G7-D1.json when it exists): the A1/A3 criteria the harness cannot measure
-             are read from it. A covered criterion is PASS with value 0 when every entry that covers it passed and none is still
-             pending-merge-run, FAIL when an entry failed, and "chưa kết luận" (never a pass) when the file is missing, malformed
-             or still pending. The rendered row shows "đo bằng test sản phẩm (UNI-1923)" with the SHAs.
+             are read from it. Each entry is one product test and names the criteria it covers in its own "covers"; a covered
+             criterion is PASS with value 0 when every entry that covers it passed and none is still pending-merge-run, FAIL
+             when any entry covering it failed, and "chưa kết luận" (never a pass) when the file is missing, malformed or
+             still pending. The rendered row shows "đo bằng test sản phẩm (UNI-1923)" with the SHAs.
 Exit codes: 0 signed PASS, 1 signed FAIL, 2 INCONCLUSIVE, 3 no threshold (no verdict), 4 usage or read error.
 `;
 
