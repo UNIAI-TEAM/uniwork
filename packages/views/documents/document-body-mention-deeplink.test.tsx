@@ -86,6 +86,18 @@ describe("UNI-1968 ?mention=1 deep link", () => {
     expect(document.querySelector(".ProseMirror-selectednode")).toBeNull();
   });
 
+  it("revealMention skips an agent mention that carries the reader's id", async () => {
+    const editorRef = { current: null as DocumentEditorHandle | null };
+    // An agent mention naming the reader is a notification target, not a
+    // person — the deep link must not reveal it.
+    const body = content([{ id: ME, label: "An", type: "agent" }]);
+    render(editorView(editorRef, body, fakeNav("/acme/team/documents/d1?mention=1")));
+    await screen.findByText("@An");
+    act(() => editorRef.current!.revealMention(ME));
+    expect(screen.getByText("@An")).not.toHaveClass("is-mention-reveal");
+    expect(document.querySelector(".ProseMirror-selectednode")).toBeNull();
+  });
+
   it("drops ?mention=1 after revealing, keeping other parameters", async () => {
     const nav = fakeNav("/acme/team/documents/d1?mention=1&foo=bar");
     const reveal = vi.fn();

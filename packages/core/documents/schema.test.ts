@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  collectUserMentionIds,
+  collectUserMentions,
   DEFAULT_SANITIZE_LIMITS,
   DocumentContentError,
   sanitizePageContent,
@@ -79,5 +81,44 @@ describe("document schema parity", () => {
       maxTableRows: 200,
       maxTableCols: 20,
     });
+  });
+});
+
+describe("collectUserMentionIds (UNI-1968)", () => {
+  const page = (mentions: { id: string; type?: string; kind?: string; label?: string }[]) => ({
+    type: "doc",
+    content: mentions.map((m) => ({
+      type: "paragraph",
+      content: [{ type: "mention", attrs: m }],
+    })),
+  });
+
+  it("skips agent mentions on both attr vocabularies", () => {
+    // attrs.type is the editor's spelling; attrs.kind is the legacy one. An
+    // agent never notifies a person, so neither counts as a new mention.
+    const ids = collectUserMentionIds(
+      page([
+        { id: "u-1", type: "agent", label: "Bot" },
+        { id: "u-2", kind: "agent", label: "Bot" },
+        { id: "u-3", type: "member", label: "An" },
+      ]),
+    );
+    expect([...ids].sort()).toEqual(["u-3"]);
+  });
+
+  it("skips mentions without an id and ids dedupe", () => {
+    const ids = collectUserMentionIds(page([{ id: "u-1", type: "member" }, { id: "u-1", type: "member" }, { id: "", type: "member" }]));
+    expect([...ids]).toEqual(["u-1"]);
+  });
+
+  it("collectUserMentions maps id to the mention label", () => {
+    const map = collectUserMentions(
+      page([
+        { id: "u-1", type: "member", label: "Bình" },
+        { id: "u-2", type: "agent", label: "Bot" },
+      ]),
+    );
+    expect(map.get("u-1")).toBe("Bình");
+    expect(map.has("u-2")).toBe(false);
   });
 });
