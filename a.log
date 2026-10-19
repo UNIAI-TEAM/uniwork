@@ -1,0 +1,94 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -5; git diff --stat fd8d8eebb..HEAD
+479a478cd8a0e3d912fb9ff76e849b17d192159d
+479a478cd chore: merge UNI-1981 FU-G7-12-PACK4 (office prompt @4: injected instructions named by location only; fefa1f0d9) into the G5-G7 root
+0756554a2 docs: renumber the folder share-off ADR to 0036
+0c790885b chore: merge root de1176a74 (tenant export fix) into root-int2
+de1176a74 fix(documents): include document_access_requests in the tenant export
+4e7702f6c chore: merge UNI-1974 FOLDER-SHARE-OFF (folders never shared, 1adfd03ec) into the G5-G7 root
+ .../adr/0036-thu-muc-khong-bao-gio-duoc-chia-se.md |  47 ++
+ docs/adr/README.md                                 |   1 +
+ docs/office/g5g6g7/fault/matrix.md                 |   3 +
+ docs/ops/RUNBOOK_OFFICE_SYNC.md                    |   7 +-
+ docs/runbooks/README.md                            |   1 +
+ docs/runbooks/folders-unshare.md                   |  39 ++
+ .../specs/2026-10-02-office-g5-g6-g7-design.md     |   3 +-
+ e2e/documents-folders-fixtures.ts                  |  20 +-
+ e2e/documents-folders.spec.ts                      | 127 ++---
+ e2e/documents-home.spec.ts                         |  21 +-
+ e2e/documents-share-no-folder.spec.ts              | 153 ++++++
+ packages/core/i18n/locales/en.json                 |   3 +-
+ packages/core/i18n/locales/vi.json                 |   3 +-
+ .../views/documents/document-actions-menu.test.tsx |   9 +
+ packages/views/documents/document-actions-menu.tsx |  10 +-
+ packages/views/documents/document-detail-view.tsx  |   2 +-
+ packages/views/documents/document-error-message.ts |   1 +
+ .../views/documents/document-tree-row-menu.tsx     |   1 -
+ .../documents-create-toggle-review-fixes.test.tsx  |  19 +-
+ .../documents/documents-create-toggle.test.tsx     |  73 +--
+ packages/views/documents/documents-create.test.ts  |  16 +
+ packages/views/documents/documents-create.ts       |  35 +-
+ packages/views/documents/documents-home-create.tsx |   6 +-
+ .../documents-home-folder-layout.test.tsx          |  37 ++
+ packages/views/documents/documents-home-header.tsx |   8 +-
+ .../views/documents/documents-library-row.test.tsx |   6 +
+ packages/views/documents/documents-library-row.tsx |   3 +-
+ .../views/documents/documents-my-folder.test.tsx   |   5 +-
+ packages/views/documents/documents-page-view.tsx   |   8 +-
+ packages/views/documents/documents-search.test.tsx |  10 +-
+ packages/views/documents/documents-sidebar.tsx     |   5 +-
+ packages/views/documents/folder-breadcrumb.tsx     |   8 +-
+ packages/views/documents/folder-name-dialog.tsx    |  83 +--
+ .../views/documents/use-library-row-dialogs.tsx    |  21 +-
+ scripts/alerts-runbooks.test.mjs                   |   1 +
+ scripts/office/devset.test.mjs                     |   4 +-
+ scripts/office/g5g6g7/holdout-run.test.mjs         |  30 ++
+ server/cmd/uniwork-admin/main.go                   |  21 +-
+ server/internal/ai/prompts_office.go               |  51 +-
+ server/internal/ai/prompts_office_test.go          |  80 ++-
+ .../testdata/office_uniwork_ai_v1_provisional.json |   6 +-
+ .../ai/testdata/office_uniwork_ai_v4_common.golden |  16 +
+ .../ai/testdata/office_uniwork_ai_v4_docs.golden   |  15 +
+ .../ai/testdata/office_uniwork_ai_v4_html.golden   |   6 +
+ .../testdata/office_uniwork_ai_v4_markdown.golden  |   6 +
+ .../ai/testdata/office_uniwork_ai_v4_pdf.golden    |   7 +
+ .../ai/testdata/office_uniwork_ai_v4_sheets.golden |  28 +
+ .../ai/testdata/office_uniwork_ai_v4_slides.golden |   8 +
+ .../handler/document_archive_impact_test.go        |  10 +-
+ server/internal/handler/document_favorites.go      |   2 +-
+ server/internal/handler/documents.go               |   2 +-
+ server/internal/handler/documents_folders_test.go  |  99 ++++
+ .../internal/handler/documents_my_folder_test.go   |   5 +-
+ server/internal/handler/dto/sdi/document.go        |   8 +-
+ server/internal/handler/dto/sdo/document.go        |   8 +-
+ server/internal/handler/dto/sdo/error_class.go     |   6 +
+ .../internal/handler/dto/sdo/error_class_test.go   |   3 +
+ server/internal/handler/router/documents.go        |  10 +-
+ server/internal/service/audit_coverage_test.go     |  44 ++
+ server/internal/service/document_access_batch.go   |   9 +
+ .../service/document_commit_intent_test.go         |  36 ++
+ server/internal/service/document_copy_test.go      |  33 +-
+ .../service/document_create_visibility_test.go     |   4 +-
+ server/internal/service/document_favorites.go      |   6 +-
+ .../service/document_folder_share_off_test.go      | 598 +++++++++++++++++++++
+ server/internal/service/document_folder_unshare.go | 136 +++++
+ server/internal/service/document_home_row.go       |   3 +
+ server/internal/service/document_links.go          |   1 +
+ .../document_my_folder_admin_listings_test.go      |  46 +-
+ server/internal/service/document_pages.go          |  15 +
+ .../internal/service/document_parent_visibility.go | 126 +++++
+ server/internal/service/document_search.go         |  33 +-
+ server/internal/service/document_share_scope.go    |   4 +
+ .../service/document_shared_by_me_top_test.go      |  11 +-
+ server/internal/service/document_shares.go         |  18 +
+ server/internal/service/document_shares_batch.go   |   3 +
+ server/internal/service/document_tree.go           |  68 ++-
+ server/internal/service/document_types.go          |  17 +
+ server/internal/service/mcp_tools_documents.go     |   2 +-
+ .../internal/service/mcp_tools_documents_test.go   |  57 +-
+ server/internal/service/mcp_tools_test.go          |   2 +-
+ server/internal/service/tenant_export_tables.go    |   1 +
+ server/pkg/db/generated/document_gc.sql.go         |  54 ++
+ server/pkg/db/generated/document_search.sql.go     | 209 +++++--
+ server/pkg/db/queries/document_gc.sql              |  22 +
+ server/pkg/db/queries/document_search.sql          |  61 ++-
+ 86 files changed, 2348 insertions(+), 497 deletions(-)
