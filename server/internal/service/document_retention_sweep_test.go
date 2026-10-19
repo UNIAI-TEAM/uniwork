@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
@@ -170,6 +173,9 @@ func TestDocumentRetentionSweepMultipartRows(t *testing.T) {
 	goneCompleted := f.retentionMultipartRow(t, tn, "completed", old)
 	goneAborted := f.retentionMultipartRow(t, tn, "aborted", old)
 	goneOtherOrg := f.retentionMultipartRow(t, other, "failed", old)
+	// A completed row inside the window must survive beside the fresh expired
+	// one: a predicate that drops closed_at for completed rows would take it.
+	keptFreshCompleted := f.retentionMultipartRow(t, tn, "completed", fresh)
 	keptFresh := f.retentionMultipartRow(t, tn, "expired", fresh)
 	keptOpen := f.retentionMultipartRow(t, tn, "open", time.Time{})
 
@@ -185,7 +191,7 @@ func TestDocumentRetentionSweepMultipartRows(t *testing.T) {
 			t.Fatalf("closed row %s past the window survived", id)
 		}
 	}
-	for _, id := range []string{keptFresh, keptOpen} {
+	for _, id := range []string{keptFreshCompleted, keptFresh, keptOpen} {
 		if !retentionRowExists(t, f, "file_multipart_uploads", id) {
 			t.Fatalf("row %s was deleted", id)
 		}
@@ -254,6 +260,32 @@ func TestDocumentRetentionSweepBatchesStopEarly(t *testing.T) {
 		if retentionRowExists(t, f, "office_jobs", id) {
 			t.Fatalf("row %s survived a two-batch sweep", id)
 		}
+	}
+}
+
+// The batching loop stops at the cap even when every batch comes back full: a
+// pass deletes at most retentionSweepMaxBatches x retentionSweepBatch rows, so
+// one tick cannot hold a connection over an unbounded backlog. The pause
+// between batches makes this take about retentionSweepMaxBatches x
+// retentionSweepPause (~2 s); no fixtures are needed, because the callback
+// answers a full batch.
+func TestDocumentRetentionSweepStopsAtTheBatchCap(t *testing.T) {
+	s := &DocumentService{}
+	var calls int
+	del := func(context.Context, pgtype.Timestamptz, int32) (int64, error) {
+		calls++
+		return int64(retentionSweepBatch), nil
+	}
+
+	n, err := s.sweepRetentionRows(context.Background(), time.Now(), del)
+	if err != nil {
+		t.Fatalf("sweepRetentionRows: %v", err)
+	}
+	if want := int64(retentionSweepBatch) * int64(retentionSweepMaxBatches); n != want {
+		t.Fatalf("total = %d, want %d (%d batches of %d)", n, want, retentionSweepMaxBatches, retentionSweepBatch)
+	}
+	if calls != retentionSweepMaxBatches {
+		t.Fatalf("del calls = %d, want %d: the loop must stop at the cap", calls, retentionSweepMaxBatches)
 	}
 }
 
@@ -416,18 +448,31 @@ func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 
 	w := f.svc.NewDocumentWorkers()
 	// The loops run their first pass immediately, then wait on a channel that
-	// never fires; cancel once both ticks have reported.
+	// never fires. The four loops call w.swept concurrently, so mu guards the
+	// map they share (the same pattern as document_workers_test.go).
 	ctx, cancel := context.WithCancel(f.ctx)
 	defer cancel()
+	var mu sync.Mutex
 	seen := map[string]bool{}
+	// Cancel only once every first pass has reported: the retention sweeps
+	// ride the purge and commit_intent ticks, but cancelling on those two
+	// alone can interrupt the auto-version or compaction pass that started
+	// with them, and their cancellation error would be reported as a failure
+	// of a loop this test does not mean to stop.
+	firstPasses := []string{"auto_version", "purge", "compact", "commit_intent"}
 	w.swept = func(kind string, err error) {
 		if err != nil {
 			t.Errorf("%s sweep: %v", kind, err)
 		}
+		mu.Lock()
+		defer mu.Unlock()
 		seen[kind] = true
-		if seen["purge"] && seen["commit_intent"] {
-			cancel()
+		for _, want := range firstPasses {
+			if !seen[want] {
+				return
+			}
 		}
+		cancel()
 	}
 	w.after = func(time.Duration) <-chan time.Time { return make(chan time.Time) }
 	w.Run(ctx)
@@ -443,9 +488,11 @@ func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 			t.Fatalf("%s row %s survived one worker pass", id.table, id.id)
 		}
 	}
+	// Run has joined every loop, so the recorded sweeps are stable.
+	sweeps := metrics.sweepLabels()
 	for _, want := range []string{"office_job/ok", "multipart_row/ok", "break_glass/ok"} {
-		if !containsString(metrics.sweeps, want) {
-			t.Fatalf("worker sweeps %v, want %s", metrics.sweeps, want)
+		if !containsString(sweeps, want) {
+			t.Fatalf("worker sweeps %v, want %s", sweeps, want)
 		}
 	}
 }
