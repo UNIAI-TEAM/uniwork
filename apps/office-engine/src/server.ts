@@ -172,6 +172,9 @@ function readFrame(req: IncomingMessage, maxInputBytes: number): Frame {
   const raw = req.headers["content-length"];
   const declared = raw === undefined ? null : Number(raw);
   if (contentType !== OFFICE_JOB_CONTENT_TYPE) {
+    if (contentType !== "application/json") {
+      throw new EngineContractViolation("request.content_type", "content_type", "expected " + OFFICE_JOB_CONTENT_TYPE + " or application/json");
+    }
     // Plain JSON: the envelope is the whole body and the job has no input.
     if (declared !== null && (!Number.isSafeInteger(declared) || declared < 0)) throw framing("content_length");
     if (declared !== null && declared > ENVELOPE_MAX_BYTES) {

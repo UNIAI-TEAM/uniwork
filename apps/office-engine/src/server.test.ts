@@ -777,6 +777,19 @@ describe("framed job transport (SIZE-OPS1)", () => {
     expect(h.service.jobs.inputBytesAdmitted).toBe(0);
   });
 
+  it("refuses a signed frame sent as application/octet-stream with 415 content_type before parsing (SIZE-OPS1 E3)", async () => {
+    const job = makeJob(h.target, { text: "octet-stream-frame" });
+    const framed = frame(job.envelope, job.bytes);
+    const res = await call(h, "POST", "/v1/jobs", {
+      grant: job.token,
+      rawBody: framed.body,
+      headers: { ...framed.headers, "content-type": "application/octet-stream" },
+    });
+    expect(res.status).toBe(415);
+    expect(res.body.error).toMatchObject({ code: "contract_violation", field_path: "request.content_type", rule: "content_type" });
+    expect(h.service.jobs.inputBytesAdmitted).toBe(0);
+  });
+
   it("still accepts a chunked plain-JSON submit for a job without input", async () => {
     const j = makeJob(h.target, { text: "", grant: { input: null } });
     const payload = j.envelope.payload as Record<string, unknown>;
