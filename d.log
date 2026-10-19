@@ -1,0 +1,8 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -v ./internal/service/ -run 'TestFolderCannotBeSharedOrOpened|TestChildOfFolderNeverInheritsItsVisibility|TestSharedDocumentIsNotAttachedToTheOwnersFolder|TestSharedByMeNeverListsFolders|TestMoveNeverChangesSharing|TestUnshareFolders|TestSharedByMeShowsOnlyTheTopmostSharedItem|TestEveryAuditedCommandWritesItsRow|TestDocumentCopy|TestDocumentCreateVisibility|TestMCP|Folder|Share|DocumentTree|DocumentList|DocumentSearch|SharedBy' 2>&1 | grep -E "^(--- FAIL|ok|FAIL)|_test.go:[0-9]+:" | head -60; echo "SVC_1974_EXIT=${PIPESTATUS[0]}"
+    chat_presence_test.go:357: REDIS_TEST_URL not set
+    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+ok  	github.com/unicomhub/uniwork/server/internal/service	45.938s
+SVC_1974_EXIT=0
