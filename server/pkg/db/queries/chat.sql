@@ -208,7 +208,6 @@ WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
 FOR UPDATE;
 
 -- name: CountPinnedChatMessagesInRoom :one
--- tenant: workspace_id from RequireMember on the room
 SELECT COUNT(*)::int FROM chat_messages
 WHERE room_id = $1
   AND workspace_id = $2
