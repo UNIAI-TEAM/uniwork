@@ -256,7 +256,6 @@ describe("creates from Documents Home", () => {
   it("uploads and drops into My Folder with no parent_id", async () => {
     route({ list: () => [], upload: () => ({ document: file("d2", "note.txt") }) });
     renderView(vi.fn());
-    expect(await screen.findByText(t("documents.home.quick_create.hint_root"))).toHaveTextContent(/Thư mục của tôi/);
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.create.upload.button") }));
     expect(await screen.findByText(t("documents.upload.description"))).toHaveTextContent(/Thư mục của tôi/);
     const input = await screen.findByLabelText(t("documents.upload.pick"));

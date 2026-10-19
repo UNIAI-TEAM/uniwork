@@ -145,8 +145,8 @@ describe("home layout (Main.dc)", () => {
     );
     expect(screen.getByRole("button", { name: t("documents.home.create.upload.button") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) })).toBeInTheDocument();
-    // The root-create hint stays until MYFOLDER-01.
-    expect(screen.getByText(t("documents.home.quick_create.hint_root"))).toBeInTheDocument();
+    // No My Folder root-create hint line under Tạo nhanh (user 2026-10-19).
+    expect(screen.queryByText(/Thư mục của tôi \(chỉ bạn thấy\)/)).toBeNull();
 
     // The greeting, the create card grid, the scope tabs and the old chips are gone.
     expect(screen.queryByRole("tablist")).toBeNull();
@@ -292,7 +292,6 @@ describe("folder layout (Folder.dc)", () => {
       t("documents.home.search.placeholder_folder"),
     );
     expect(screen.getByText(t("documents.home.folder.info_banner", { folder: "Dự án CCB" }))).toBeInTheDocument();
-    expect(screen.queryByText(t("documents.home.quick_create.hint_root"))).toBeNull();
 
     // No Tạo nhanh strip, no scope tabs, no chip group, no filters inside a folder.
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
