@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+a21d986b9e6d0a54414523c6a18f8be57cc81247
+73d2b5038c2f4d2567ef1bb6fe0f37c1d0c05cca
+a21d986b9 test(documents): DOC-07 pending count rides the shares response (UNI-1631)
+7b613e1e8 Merge commit '536a09d4d' into feature/UNI-1631-s-doc07-w3
+3f4851d42 feat(documents): DOC-07 access-request wire, isolation and realtime client (UNI-1631)
+536a09d4d test(documents): DOC-07 manager-side decisions, list and notifications (UNI-1631)
+02a3997e4 feat(documents): DOC-07 manager side - list/count, approve/decline, share-in-tx, notifications (UNI-1631)
+74bd2006e Merge commit 'a1fbaaef6' into feature/UNI-1631-s-doc07-w3
+e8b1693f5 test(documents): DOC-07 source-org check needs a member-of-both case (UNI-1631)
+b0dce4816 feat(documents): DOC-07 manager-side API surface (UNI-1631)

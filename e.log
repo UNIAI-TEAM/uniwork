@@ -1,0 +1,6 @@
+$ (. scripts/local-env.sh && cd server && AI_PROVIDER=fake go test ./internal/notification -race -count=1 -timeout 30m > /tmp/notif.log 2>&1); rc=$?; grep -E "^\s*--- FAIL|^(ok|FAIL)|DATA RACE" /tmp/notif.log | tail -10; echo; echo "TEST_NOTIF_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/notification	29.433s
+
+TEST_NOTIF_EXIT=0
