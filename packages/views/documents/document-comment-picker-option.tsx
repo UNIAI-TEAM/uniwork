@@ -32,11 +32,11 @@ export function CandidateIdentity({ candidate }: { candidate: MentionCandidate }
   return (
     <>
       <CommentActorAvatar name={label} avatarUrl={candidate.avatar_url} kind="human" />
-      <span className="min-w-0 truncate font-medium">{label}</span>
+      <span className="min-w-0 max-w-[70%] shrink-0 truncate font-medium">{label}</span>
       {candidate.can_view === false ? (
         <NoAccessBadge testId={`mention-candidate-no-access-${candidate.user_id}`} />
       ) : null}
-      {candidate.email ? <span className="min-w-0 truncate text-muted-foreground">{candidate.email}</span> : null}
+      {candidate.email ? <span className="min-w-0 flex-1 truncate text-muted-foreground">{candidate.email}</span> : null}
     </>
   );
 }

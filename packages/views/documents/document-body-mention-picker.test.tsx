@@ -64,6 +64,15 @@ it("renders avatar, email and the no-access badge like the comment picker", asyn
   expect(screen.queryByTestId(`mention-candidate-no-access-${ALICE}`)).toBeNull();
 });
 
+it("lets the email shrink before the name so a narrow row keeps the name", async () => {
+  const editor = await mount();
+  const items = (await suggestion(editor).items({ query: "" })) as MentionItem[];
+  render(<MentionList items={items} query="" command={vi.fn()} />);
+  expect(screen.getByText("Alice").className).toContain("shrink-0");
+  expect(screen.getByText("alice@example.test").className).toContain("flex-1");
+  expect(screen.getByText("alice@example.test").className).not.toContain("shrink-0");
+});
+
 it("filters by what was typed and picking inserts the same mention node", async () => {
   const editor = await mount();
   const items = (await suggestion(editor).items({ query: "bin" })) as MentionItem[];

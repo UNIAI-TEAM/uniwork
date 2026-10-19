@@ -485,7 +485,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               />
             ) : homeView ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                {canCreate ? <DocumentsHomeNote folderTitle={openFolderTitle ?? null} create={folderId ? null : createProps} /> : null}
+                {canCreate ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
                 <LibraryToolbar variant={folderId ? "folder" : "home"} {...toolbar} />
                 <DocumentsSections
                   folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
