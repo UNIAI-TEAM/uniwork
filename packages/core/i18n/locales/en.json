@@ -5555,13 +5555,19 @@
     "you": "You",
     "uni": "UNI",
     "usage_tokens": "{{in}} in · {{out}} out",
+    "notice": {
+      "no_sources": "Nothing you can see in this workspace matches this question yet.",
+      "unavailable": "UNI couldn't answer this one."
+    },
     "errors": {
       "ai_quota_exceeded": "The organization has used its AI token quota for this month.",
       "ai_rate_limited": "You are asking too fast; try again in a minute.",
       "ai_disabled": "AI is not configured on this server.",
       "ai_context_forbidden": "You do not have access to this data.",
       "ai_output_invalid": "UNI answered in an unexpected format; please ask again.",
-      "ai_provider_error": "Could not reach the AI provider. Check the API key/model and try again.",
+      "ai_provider_error": "The AI service isn't responding. Try again in a few minutes.",
+      "ai_provider_timeout": "UNI took too long to answer. Try again.",
+      "ai_tool_not_allowed": "UNI tried something it isn't allowed to do. Ask again.",
       "default": "Could not ask right now; try again later."
     },
     "close": "Close",

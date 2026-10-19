@@ -675,3 +675,49 @@ func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
 		t.Fatal("expected the single-owner unique index to refuse a second owner")
 	}
 }
+
+// Rolling back the notice column hands the rows to a binary that replays every
+// assistant row as a turn, and a provider refuses an empty one: the down
+// migration gives a notice row the text that binary stored. It runs inside a
+// transaction that is rolled back, so the schema is left as it was.
+func TestAiMessagesNoticeDownFillsNoticeRows(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, `INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, notice) VALUES
+		('01NOTICEDOWN00000000000001', 'org', 'conv', 'assistant', '', 'no_sources'),
+		('01NOTICEDOWN00000000000002', 'org', 'conv', 'assistant', 'Câu trả lời', NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, readMigration(t, "9991792125342925_ai_messages_notice.down.sql")); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"01NOTICEDOWN00000000000001": "Chưa đủ dữ liệu trong workspace để trả lời.",
+		"01NOTICEDOWN00000000000002": "Câu trả lời",
+	}
+	for id, content := range want {
+		var got string
+		if err := tx.QueryRow(ctx, `SELECT content FROM ai_messages WHERE id = $1`, id).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != content {
+			t.Errorf("%s content after down = %q, want %q", id, got, content)
+		}
+	}
+}

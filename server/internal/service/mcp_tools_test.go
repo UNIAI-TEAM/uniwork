@@ -1137,7 +1137,7 @@ func TestMcpListWorkspacesOrdersByFoldedNameThenID(t *testing.T) {
 func TestMcpExcerptsAreCapped(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
-	long, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Mô tả dài", Description: strings.Repeat("ạ", 20000)})
+	long, err := x.tools.ask.tasks.Create(ctx, Human(x.ua.ID), x.w.ID, CreateTaskInput{Title: "Mô tả dài mẫu", Description: strings.Repeat("ạ", 20000)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1166,7 +1166,7 @@ func TestMcpExcerptsAreCapped(t *testing.T) {
 			t.Errorf("%s: head or truncation marker missing: %.60q ... %.60q", what, excerpt, tail(excerpt, 60))
 		}
 	}
-	found, err := x.tools.Search(ctx, x.p, x.w.ID, "mô tả dài")
+	found, err := x.tools.Search(ctx, x.p, x.w.ID, "mô tả dài mẫu")
 	if err != nil || len(found) == 0 || found[0].ID != long.ID {
 		t.Fatalf("search = %+v, %v", found, err)
 	}

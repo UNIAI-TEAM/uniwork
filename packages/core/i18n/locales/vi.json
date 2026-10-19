@@ -5551,13 +5551,19 @@
     "you": "Bạn",
     "uni": "UNI",
     "usage_tokens": "{{in}} vào · {{out}} ra",
+    "notice": {
+      "no_sources": "Chưa có dữ liệu nào bạn được xem khớp với câu hỏi này.",
+      "unavailable": "UNI chưa trả lời được câu này."
+    },
     "errors": {
       "ai_quota_exceeded": "Tổ chức đã hết hạn mức token AI của tháng.",
       "ai_rate_limited": "Bạn hỏi quá nhanh, thử lại sau một phút.",
       "ai_disabled": "AI chưa được cấu hình trên server.",
       "ai_context_forbidden": "Bạn không có quyền xem dữ liệu này.",
       "ai_output_invalid": "UNI trả lời không đúng định dạng, hãy hỏi lại.",
-      "ai_provider_error": "Không gọi được nhà cung cấp AI. Kiểm tra key/model rồi thử lại.",
+      "ai_provider_error": "Dịch vụ AI đang gặp sự cố, thử lại sau ít phút.",
+      "ai_provider_timeout": "UNI trả lời quá lâu, thử lại nhé.",
+      "ai_tool_not_allowed": "UNI vừa thử một thao tác không được phép, hãy hỏi lại.",
       "default": "Không hỏi được lúc này, thử lại sau."
     },
     "close": "Đóng",

@@ -92,6 +92,24 @@ func TestAIEndpoints(t *testing.T) {
 	if res.StatusCode != 200 || len(out["messages"].([]any)) != 2 {
 		t.Fatalf("messages: %d %v", res.StatusCode, out)
 	}
+	if _, has := out["messages"].([]any)[1].(map[string]any)["notice"]; has {
+		t.Fatalf("regular answer carries a notice: %v", out["messages"])
+	}
+	// A new conversation: a follow-up would carry the overdue task's sources.
+	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", member, map[string]any{"question": "doanh thu năm 2019", "locale": "vi"})
+	if res.StatusCode != 200 {
+		t.Fatalf("ask without sources: %d %v", res.StatusCode, out)
+	}
+	noSourcesConv := out["conversation_id"].(string)
+	if noSourcesConv == convID {
+		t.Fatalf("question without conversation_id reused %s", convID)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+noSourcesConv+"/messages", member, nil)
+	if msgs := out["messages"].([]any); res.StatusCode != 200 || len(msgs) != 2 {
+		t.Fatalf("messages after no-source turn: %d %v", res.StatusCode, out)
+	} else if last := msgs[1].(map[string]any); last["notice"] != "no_sources" || last["content"] != "" {
+		t.Fatalf("no-source notice: %v", last)
+	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/ai/conversations/"+convID+"/messages", owner, nil)
 	if res.StatusCode != 404 {
 		t.Fatalf("owner reads member's conversation: %d %v", res.StatusCode, out)

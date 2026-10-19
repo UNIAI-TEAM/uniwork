@@ -3,13 +3,22 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/jackc/pgx/v5"
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // The Ask UNI tool registry (spec F-09 §3.4) and the permission-aware source
@@ -104,11 +113,45 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 
 // ---- scoring ------------------------------------------------------------
 
+// tokens splits the diacritic-folded text into words.
+func tokens(q string) []string {
+	return strings.FieldsFunc(foldForSearch(q), notWordRune)
+}
+
+// words splits the lowercased text into words as written. NFC keeps a letter
+// and its marks one rune, so a decomposed "Hà" is the same word as a composed one.
+func words(q string) []string {
+	return strings.FieldsFunc(norm.NFC.String(strings.ToLower(q)), notWordRune)
+}
+
+func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }
+
 // ponytail: keyword overlap; swap for the A-04 search index when it exists.
+// Terms are the question's words of 3+ runes or all digits, as typed, so
+// "do"/"co"/"la" do not match half the workspace while "10" still finds "tháng 10".
 func terms(q string) []string {
-	fields := strings.FieldsFunc(strings.ToLower(q), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
-	out := fields[:0]
-	for _, f := range fields {
+	var out []string
+	for _, f := range words(q) {
+		if len([]rune(f)) >= 3 || strings.IndexFunc(f, func(r rune) bool { return !unicode.IsDigit(r) }) < 0 {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// searchTerms is terms, except that a query made only of 2-rune words (names
+// such as "Hà", "An") scores with those words instead of nothing.
+func searchTerms(q string) []string {
+	if ts := terms(q); len(ts) > 0 {
+		return ts
+	}
+	return wordsOfTwo(q)
+}
+
+// wordsOfTwo returns the words of 2 or more runes, as typed.
+func wordsOfTwo(q string) []string {
+	var out []string
+	for _, f := range words(q) {
 		if len([]rune(f)) >= 2 {
 			out = append(out, f)
 		}
@@ -116,35 +159,73 @@ func terms(q string) []string {
 	return out
 }
 
+// score counts the terms the text holds as whole words. A term typed with
+// diacritics matches only as written ("năm" is not "nằm", "hà" is not "hàng"),
+// wherever the tone mark sits; one typed without them matches the folded text
+// ("tet" finds "Tết").
 func score(text string, ts []string) int {
-	low := strings.ToLower(text)
+	asWritten, folded := map[string]bool{}, map[string]bool{}
+	for _, w := range words(text) {
+		f := foldForSearch(w)
+		folded[f] = true
+		if f != w { // a plain word never equals an accented term's key
+			asWritten[toneKey(w)] = true
+		}
+	}
 	n := 0
 	for _, t := range ts {
-		if strings.Contains(low, t) {
+		if f := foldForSearch(t); (f != t && asWritten[toneKey(t)]) || (f == t && folded[t]) {
 			n++
 		}
 	}
 	return n
 }
 
-func asksOverdue(q string) bool {
-	low := strings.ToLower(q)
-	for _, k := range []string{"quá hạn", "qua han", "trễ hạn", "overdue", "late", "trễ"} {
-		if strings.Contains(low, k) {
+// vietTones are the five tone marks. A syllable carries one, and old and new
+// spelling put it on different vowels ("thủy"/"thuỷ", "hóa"/"hoá").
+var vietTones = map[rune]bool{
+	'\u0300': true, // huyền
+	'\u0301': true, // sắc
+	'\u0303': true, // ngã
+	'\u0309': true, // hỏi
+	'\u0323': true, // nặng
+}
+
+// toneKey is a word with its tone marks moved to the end, so both spellings
+// are one key while the letters, vowel marks and the tone itself still count.
+func toneKey(w string) string {
+	var base, tones []rune
+	for _, r := range norm.NFD.String(w) {
+		if vietTones[r] {
+			tones = append(tones, r)
+		} else {
+			base = append(base, r)
+		}
+	}
+	slices.Sort(tones)
+	return norm.NFC.String(string(base)) + string(tones)
+}
+
+// hasFoldedPhrase reports whether any folded keyword occurs as whole adjacent tokens.
+func hasFoldedPhrase(q string, keywords ...string) bool {
+	hay := " " + strings.Join(tokens(q), " ") + " "
+	for _, k := range keywords {
+		if strings.Contains(hay, " "+k+" ") {
 			return true
 		}
 	}
 	return false
 }
 
+// asksOverdue: "trễ" alone counts only with its accent ("tre" is bamboo);
+// unaccented questions need a phrase.
+func asksOverdue(q string) bool {
+	return slices.Contains(words(q), "trễ") ||
+		hasFoldedPhrase(q, "qua han", "tre han", "bi tre", "dang tre", "tre deadline", "overdue", "late")
+}
+
 func asksMembers(q string) bool {
-	low := strings.ToLower(q)
-	for _, k := range []string{"thành viên", "thanh vien", "member", "ai ", "who", "nhân sự", "đội"} {
-		if strings.Contains(low, k) {
-			return true
-		}
-	}
-	return false
+	return hasFoldedPhrase(q, "thanh vien", "member", "members", "ai", "who", "nhan su", "doi ngu", "doi minh")
 }
 
 type scored struct {
@@ -200,7 +281,7 @@ func (s *AskUNIService) searchWorkItems(ctx context.Context, tc ai.ToolContext, 
 	if err != nil {
 		return nil, err
 	}
-	ts := terms(query)
+	ts := searchTerms(query)
 	overdue := asksOverdue(query)
 	today := s.now().UTC().Truncate(24 * time.Hour)
 	names := s.memberNames(ctx, tc)
@@ -247,6 +328,9 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 	if err != nil {
 		return nil, err
 	}
+	if items, err = s.addIdentifierHits(ctx, tc, query, items); err != nil {
+		return nil, err
+	}
 	chat, err := s.chatContext(ctx, tc, query)
 	if err != nil {
 		return nil, err
@@ -254,6 +338,7 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 	for _, c := range chat {
 		items = append(items, scored{src: c, score: 1, when: s.now()})
 	}
+	items = append(items, s.searchDocumentSources(ctx, tc, query)...)
 	if asksMembers(query) {
 		members, err := s.memberContext(ctx, tc, query)
 		if err != nil {
@@ -264,6 +349,139 @@ func (s *AskUNIService) searchWorkspace(ctx context.Context, tc ai.ToolContext, 
 		}
 	}
 	return topSources(items, ai.MaxSources), nil
+}
+
+// documentsOn mirrors McpToolService.documentsOn: DocumentService wired and the
+// `documents` flag on for the asker's organization and person; no evaluator = off.
+func (s *AskUNIService) documentsOn(ctx context.Context, tc ai.ToolContext) bool {
+	if s.docs == nil || s.flags == nil {
+		return false
+	}
+	def := false
+	if f, ok := featureflags.Lookup(mcpDocumentsFlag); ok {
+		def = f.Default
+	}
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID})
+	return s.flags.IsEnabled(ctx, mcpDocumentsFlag, def)
+}
+
+// searchDocumentSources finds documents the asker may read by the question's
+// three longest terms. Excerpt is the 160-char list Snippet at P0. Any error
+// drops the document half only; the turn still runs.
+func (s *AskUNIService) searchDocumentSources(ctx context.Context, tc ai.ToolContext, query string) []scored {
+	if !s.documentsOn(ctx, tc) {
+		return nil
+	}
+	ts := terms(query)
+	sort.SliceStable(ts, func(i, j int) bool { return len([]rune(ts[i])) > len([]rune(ts[j])) })
+	if len(ts) > 3 {
+		ts = ts[:3]
+	}
+	if len(ts) == 0 {
+		return nil
+	}
+	base, err := s.base(ctx, tc.WorkspaceID)
+	if err != nil {
+		slog.Warn("ask uni: document search skipped", "user_id", tc.ActorID, "workspace_id", tc.WorkspaceID, "error", err)
+		return nil
+	}
+	byID := map[string]*scored{}
+	var order []string
+	for _, term := range ts {
+		page, err := s.docs.ListDocuments(ctx, Human(tc.ActorID), tc.WorkspaceID, ListDocumentsInput{Query: term, Kind: DocumentKindDocument, Limit: 5})
+		if err != nil {
+			slog.Warn("ask uni: document search skipped", "user_id", tc.ActorID, "workspace_id", tc.WorkspaceID, "error", err)
+			return nil
+		}
+		for _, it := range page.Items {
+			d := it.Document
+			if byID[d.ID] != nil {
+				continue
+			}
+			byID[d.ID] = &scored{
+				src:   ai.Source{Kind: "document", Title: d.Title, Href: base + "/documents/" + d.ID, Excerpt: it.Snippet},
+				score: score(d.Title+" "+it.Snippet, ts), when: d.UpdatedAt.Time,
+			}
+			order = append(order, d.ID)
+		}
+	}
+	out := make([]scored, 0, len(order))
+	for _, id := range order {
+		// The store matches folded substrings; a document none of whose words
+		// the question holds as typed is not about it.
+		if byID[id].score > 0 {
+			out = append(out, *byID[id])
+		}
+	}
+	return out
+}
+
+// documentContext reads one document of the workspace as search shows it: the
+// `documents` flag on, a live page or file of this workspace that no work
+// product owns, readable by the asker, the first 160 characters of its text as
+// the excerpt. CanReadDocument leaves no view in the access log, as search does
+// not. Any failure drops it, as in search.
+func (s *AskUNIService) documentContext(ctx context.Context, tc ai.ToolContext, id string) []ai.Source {
+	if !s.documentsOn(ctx, tc) {
+		return nil
+	}
+	d, err := s.q.GetDocumentByID(ctx, id)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		slog.Warn("ask uni: cited document skipped", "user_id", tc.ActorID, "document_id", id, "error", err)
+	}
+	if err != nil || d.WorkspaceID != tc.WorkspaceID || d.ArchivedAt.Valid || d.Kind == DocumentKindFolder || d.OwnerID.Valid {
+		return nil
+	}
+	ok, err := s.docs.CanReadDocument(ctx, tc.ActorID, id)
+	if err != nil {
+		slog.Warn("ask uni: cited document skipped", "user_id", tc.ActorID, "document_id", id, "error", err)
+	}
+	if !ok {
+		return nil
+	}
+	base, err := s.base(ctx, tc.WorkspaceID)
+	if err != nil {
+		slog.Warn("ask uni: cited document skipped", "user_id", tc.ActorID, "document_id", id, "error", err)
+		return nil
+	}
+	return []ai.Source{{Kind: "document", Title: d.Title, Href: base + "/documents/" + d.ID, Excerpt: capRunes(d.ContentText, 160, "")}}
+}
+
+var taskIdentifierRe = regexp.MustCompile(`(?i)\b([a-z][a-z0-9]{1,9})-(\d{1,9})\b`)
+
+// addIdentifierHits boosts (or adds) the task a PREFIX-N reference in the
+// question names. Ask-only: searchWorkItems is shared with MCP search.
+// shortcut: GetByRefIn ignores retired prefixes (workspace_aliases); old-prefix questions fall back to keyword search until the lookup learns aliases.
+func (s *AskUNIService) addIdentifierHits(ctx context.Context, tc ai.ToolContext, query string, items []scored) ([]scored, error) {
+	for _, ref := range taskIdentifierRe.FindAllString(query, 5) {
+		t, err := s.tasks.GetByRefIn(ctx, Human(tc.ActorID), tc.WorkspaceID, ref)
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		found := false
+		for i := range items {
+			if strings.HasSuffix(items[i].src.Href, "/tasks/"+t.ID) {
+				items[i].score += 10
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+		srcs, err := s.taskContext(ctx, tc, t.ID)
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrForbidden) {
+			continue // gone or out of reach since GetByRefIn read it: skip the hit, keep the turn
+		}
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, scored{src: srcs[0], score: 10, when: t.UpdatedAt.Time})
+	}
+	return items, nil
 }
 
 func taskSource(base string, t taskRow, names map[string]string) ai.Source {
