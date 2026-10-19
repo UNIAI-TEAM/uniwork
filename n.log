@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/web exec vitest run platform/office-frame 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "OFFICE_FRAME_EXIT=$rc"
+
+ Test Files  13 passed (13)
+      Tests  168 passed (168)
+   Start at  16:53:47
+   Duration  6.06s (transform 4.86s, setup 1.36s, import 9.43s, tests 896ms, environment 3.50s)
+
+OFFICE_FRAME_EXIT=0

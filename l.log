@@ -1,0 +1,4 @@
+$ node --test scripts/office/**/*.test.mjs 2>&1 | grep -E "^# (pass|fail)"; rc=${PIPESTATUS[0]}; echo "OFFICE_SCRIPTS_EXIT=$rc"
+# pass 422
+# fail 0
+OFFICE_SCRIPTS_EXIT=0

@@ -1,0 +1,7 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -5; true
+fd8d8eebbce0af78dcea60930101e635de89ce54
+fd8d8eebb chore: merge UNI-1964 G7-12-SCHEMA harness (real tool schemas, 386b35fe4) into the G5-G7 root
+8c53b19a0 chore: merge REPIN-2 UNI-1919/1920 D half (six frames at web-0.1.0-55b587b, REBLESS-01 goldens, db41d8a6f) into the G5-G7 root
+339c7b5ba chore: merge the G5-G7 root (5975d8f9e) into S-DOC07
+386b35fe4 fix(office): resolve review r1 F1-F5 findings for G7-12-SCHEMA
+b4de78c90 test(office): add review r1 F1-F5 regression tests for G7-12-SCHEMA
