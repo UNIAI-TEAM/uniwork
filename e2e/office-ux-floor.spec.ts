@@ -25,14 +25,9 @@ import {
  * The Docs frame's own dialog marker is `data-docs-web`; S5_MASK accepts it and `data-office-web`, so a re-pin
  * (REPIN-1) runs this file unchanged: the pin is read from docs.pin.json, never written here.
  *
- * A rule the pinned frame is known to break is a BLOCKING finding: the test
- * reaches the state, then `finding()` marks the rest expected-to-fail with the
- * finding id (a failure before that is a real failure; an unexpected pass means
- * the product was fixed and the marker goes).
- *
- * Reading an expected-fail: `test.fail` also absorbs a timeout or a throw after the state was reached, so read
- * each expected-fail's error against the rule in its `finding` annotation; an error that is not about that rule
- * (a timeout, a selector that slipped) is a real failure. (`expect.soft` under test.fail would absorb the same.)
+ * Every check runs as a normal test: earlier revisions could mark a rule the
+ * pinned frame was known to break expected-to-fail, and UNI-1872 removed the
+ * last marker. UXF ids in comments keep the checklist history.
  *
  * Run with OFFICE_UX_FLOOR_E2E=1 (server with AI_PROVIDER=fake for S7/S9).
  * S9 also needs AI_CONVERSATION_KEY on that server: without it there is no transcript store, so the first
