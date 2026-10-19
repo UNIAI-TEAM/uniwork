@@ -3,15 +3,41 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// releaseRecordingFiles records every ReleaseInTx the chat service makes, so a
+// test can see which references a command dropped; the files fake only keeps
+// that bit privately.
+type releaseRecordingFiles struct {
+	files.Service
+	mu  sync.Mutex
+	ids []files.FileID
+}
+
+func (r *releaseRecordingFiles) ReleaseInTx(ctx context.Context, q *db.Queries, ids []files.FileID) error {
+	r.mu.Lock()
+	r.ids = append(r.ids, ids...)
+	r.mu.Unlock()
+	return r.Service.ReleaseInTx(ctx, q, ids)
+}
+
+func (r *releaseRecordingFiles) released() []files.FileID {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]files.FileID(nil), r.ids...)
+}
 
 // TestCanShareAsDocumentViewerFlag is the L6 read test: can_share_as_document
 // is true only for the sender on an allowlisted live file message that has not
@@ -95,6 +121,8 @@ func TestShareAttachmentAsDocument(t *testing.T) {
 	f := newChatDocumentFixture(t)
 	ctx := context.Background()
 	room := f.dm(t)
+	rel := &releaseRecordingFiles{Service: f.files}
+	f.svc.SetFiles(rel)
 
 	rawBody := []byte("# Báo cáo quý 4\n\nNội dung chi tiết.\n")
 	orig, err := f.svc.SendFileMessage(ctx, f.ua.ID, f.ws.ID, room.ID, SendFileMessageInput{
@@ -109,6 +137,14 @@ func TestShareAttachmentAsDocument(t *testing.T) {
 		t.Fatalf("orig = %+v, want file message with file_id", orig)
 	}
 	origFileID := orig.File.FileID
+	// A reaction from the receiver and a pin from the sender live in the
+	// message metadata; converting the attachment must not drop them (BE-CDS-1).
+	if _, err := f.svc.ToggleChatMessageReaction(ctx, f.ub.ID, f.ws.ID, room.ID, orig.ID, "👍"); err != nil {
+		t.Fatalf("react: %v", err)
+	}
+	if _, err := f.svc.ToggleChatMessagePin(ctx, f.ua.ID, f.ws.ID, room.ID, orig.ID); err != nil {
+		t.Fatalf("pin: %v", err)
+	}
 	f.pub.events = nil
 
 	converted, err := f.svc.ShareAttachmentAsDocument(ctx, f.ua.ID, f.ws.ID, room.ID, orig.ID, ShareAttachmentAsDocumentInput{
@@ -135,6 +171,29 @@ func TestShareAttachmentAsDocument(t *testing.T) {
 	}
 	if converted.Document.Level != string(DocumentLevelManage) || !converted.Document.CanManage {
 		t.Fatalf("sender block = %+v, want manage", converted.Document)
+	}
+
+	if converted.Reactions["👍"] != 1 || len(converted.MyReactions) != 0 || !converted.Pinned {
+		t.Fatalf("converted reactions = %v mine = %v pinned = %v, want the reaction and the pin kept",
+			converted.Reactions, converted.MyReactions, converted.Pinned)
+	}
+	var metaRaw []byte
+	if err := f.pool.QueryRow(ctx, `SELECT metadata FROM chat_messages WHERE id = $1`, orig.ID).Scan(&metaRaw); err != nil {
+		t.Fatal(err)
+	}
+	var meta map[string]json.RawMessage
+	if err := json.Unmarshal(metaRaw, &meta); err != nil {
+		t.Fatalf("metadata %s: %v", metaRaw, err)
+	}
+	for _, key := range []string{"filename", "file_id", "object_key", "content_type", "size_bytes"} {
+		if _, ok := meta[key]; ok {
+			t.Fatalf("metadata still carries file key %q: %s", key, metaRaw)
+		}
+	}
+	for _, key := range []string{"document_id", "reactions", "pinned"} {
+		if _, ok := meta[key]; !ok {
+			t.Fatalf("metadata lost %q: %s", key, metaRaw)
+		}
 	}
 
 	doc, err := f.q.GetDocumentByID(ctx, converted.Document.DocumentID)
@@ -179,6 +238,11 @@ func TestShareAttachmentAsDocument(t *testing.T) {
 	}
 	if storedFileID != nil {
 		t.Fatalf("chat_messages.file_id = %q after conversion, want NULL", *storedFileID)
+	}
+	// The chat reference is released for the attachment's own object and never
+	// for the document's copy (BE-CDS-10, Q2).
+	if got := rel.released(); len(got) != 1 || got[0] != files.FileID(origFileID) {
+		t.Fatalf("released file ids = %v, want exactly [%s]", got, origFileID)
 	}
 
 	// Grants: only the other human member at comment; never the sender; never a folder (UNI-1974).
@@ -588,4 +652,52 @@ func (f *chatDocumentFixture) fileDocumentsCount(t *testing.T) int {
 		t.Fatal(err)
 	}
 	return n
+}
+
+// TestShareAttachmentAsDocumentRefusesOverCapRoom is BE-CDS-11 (share half): a
+// room whose grantable audience is over the batch cap refuses the conversion
+// with 422 share_batch_too_large, creates no document and leaves the message a
+// file.
+func TestShareAttachmentAsDocumentRefusesOverCapRoom(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+
+	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	ids := []string{f.ub.ID}
+	for i := range maxDocumentShareBatch {
+		u := registerVerified(t, f.q, as, fmt.Sprintf("chatdoc-sharecap-%d@example.com", i), fmt.Sprintf("Cap %d", i))
+		addOrgMember(t, f.q, f.orgID, u.ID)
+		addWorkspaceMember(t, f.q, f.ws.ID, u.ID)
+		ids = append(ids, u.ID)
+	}
+	group, err := f.svc.CreateGroup(ctx, f.ua.ID, f.ws.ID, CreateGroupInput{Name: "big", MemberUserIDs: ids})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	orig, err := f.svc.SendFileMessage(ctx, f.ua.ID, f.ws.ID, group.ID, SendFileMessageInput{
+		Filename:    "big-room.md",
+		Body:        bytes.NewReader([]byte("# Big room\n")),
+		ClientMsgID: "big-room-file-1",
+	})
+	if err != nil {
+		t.Fatalf("send file: %v", err)
+	}
+
+	if _, err := f.svc.ShareAttachmentAsDocument(ctx, f.ua.ID, f.ws.ID, group.ID, orig.ID, ShareAttachmentAsDocumentInput{
+		ShareLevel:  "comment",
+		ClientMsgID: "big-room-share-1",
+	}); err == nil {
+		t.Fatal("an over-cap room converted an attachment to a document")
+	} else if ce := wantCode(t, err, "share_batch_too_large"); ce.Status != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", ce.Status)
+	}
+	if got := f.fileDocumentsCount(t); got != 0 {
+		t.Fatalf("documents after the refusal = %d, want 0", got)
+	}
+	if got := f.chatMessagesOfKind(t, group.ID, "file"); got != 1 {
+		t.Fatalf("file messages after the refusal = %d, want 1 (still kind=file)", got)
+	}
+	if got := f.chatMessagesOfKind(t, group.ID, "document"); got != 0 {
+		t.Fatalf("document messages after the refusal = %d, want 0", got)
+	}
 }
