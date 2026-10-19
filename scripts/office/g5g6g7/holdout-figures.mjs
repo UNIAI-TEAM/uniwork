@@ -126,24 +126,25 @@ const maskIdentifiers = (text) => maskFormulas(text.replace(URL_OR_EMAIL_RE, (m)
 // space ("=B2*(1-0.1)") are masked. A figure outside the formula stays a figure, and a masked literal credits nothing.
 const FORMULA_CALL_RE = /(?<![\p{L}\d_])[A-Z][A-Z0-9.]+\(/gu;
 const FORMULA_EXPR_RE = /(?<![\w=<>!])=(?=[A-Za-z$(])/g;
-const FORMULA_ATOM_RE = /(?:(?:'(?:[^'\n]|'')+'|[A-Za-z_][\w.]*)!)?(?:\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3})(?![\p{L}\d_(!])(?:%(?![\p{L}\d_]))?|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?(?:%(?![\p{L}\d_]))?(?![\p{L}\d_])|"(?:[^"\n]|"")*"|(?:TRUE|FALSE)(?![\p{L}\d_])|\.{2,3}|…/uy;
+const FORMULA_ATOM_RE = /"(?:[^"\n]|"")*"|((?:(?:'(?:[^'\n]|'')+'|[A-Za-z_][\w.]*)!)?(?:\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?|\$?[A-Za-z]{1,3}:\$?[A-Za-z]{1,3})(?![\p{L}\d_(!])(?:%(?![\p{L}\d_]))?)|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?(?:%(?![\p{L}\d_]))?(?![\p{L}\d_])|(?:TRUE|FALSE)(?![\p{L}\d_])|\.{2,3}|…/uy;
 const FORMULA_OP_RE = /<>|<=|>=|[-+*/^&=<>]/y;
-const HAS_CELL_REF_RE = /(?:^|[^\p{L}\d_])\$?[A-Za-z]{1,3}(?:\$?\d{1,7}|:\$?[A-Za-z]{1,3})(?![\p{L}\d_(!])/u;
 const SPREADSHEET_FN_RE = /^(?:SUBTOTAL|VLOOKUP|HLOOKUP|XLOOKUP|INDEX|MATCH|OFFSET|SUM|SUMIF|SUMIFS|AVERAGE|AVERAGEIF|AVERAGEIFS|COUNT|COUNTA|COUNTIF|COUNTIFS|MIN|MAX|IF|IFS|IFERROR|IFNA|ROUND|ROUNDUP|ROUNDDOWN)\($/;
 function formulaCallEnd(text, from) {
   let p = from;
   let hasArg = false;
+  let hasRef = false;
   for (let sawSep = false; ; sawSep = true) {
     while (text[p] === ' ' || text[p] === '\t') p += 1;
     if (text[p] === ',' || text[p] === ';') { p += 1; continue; }
-    if (sawSep && text[p] === ')') return hasArg ? p + 1 : -1;
+    if (sawSep && text[p] === ')') return hasArg ? { end: p + 1, hasRef } : { end: -1, hasRef: false };
     const next = formulaExprEnd(text, p, true);
-    if (next < 0) return -1;
+    if (next.end < 0) return { end: -1, hasRef: false };
     hasArg = true;
-    p = next;
+    hasRef = hasRef || next.hasRef;
+    p = next.end;
     while (text[p] === ' ' || text[p] === '\t') p += 1;
-    if (text[p] === ')') return p + 1;
-    if (text[p] !== ',' && text[p] !== ';') return -1;
+    if (text[p] === ')') return { end: p + 1, hasRef };
+    if (text[p] !== ',' && text[p] !== ';') return { end: -1, hasRef: false };
     p += 1;
   }
 }
@@ -156,25 +157,26 @@ function formulaExprEnd(text, from, inParens) {
     skipWs();
     if (text[i] === '(') {
       const inner = formulaExprEnd(text, i + 1, true);
-      return inner > 0 && text[inner] === ')' ? inner + 1 : -1;
+      return inner.end > 0 && text[inner.end] === ')' ? { end: inner.end + 1, hasRef: inner.hasRef } : { end: -1, hasRef: false };
     }
     const call = /[A-Za-z_][A-Za-z0-9_.]*\(/y;
     call.lastIndex = i;
     if (call.exec(text)) return formulaCallEnd(text, call.lastIndex);
     FORMULA_ATOM_RE.lastIndex = i;
-    return FORMULA_ATOM_RE.exec(text) ? FORMULA_ATOM_RE.lastIndex : -1;
+    const atom = FORMULA_ATOM_RE.exec(text);
+    return atom ? { end: FORMULA_ATOM_RE.lastIndex, hasRef: Boolean(atom[1]) } : { end: -1, hasRef: false };
   };
-  let end = atomEnd();
-  if (end < 0) return -1;
+  let cur = atomEnd();
+  if (cur.end < 0) return cur;
   for (;;) {
-    i = end;
+    i = cur.end;
     skipWs();
     FORMULA_OP_RE.lastIndex = i;
-    if (!FORMULA_OP_RE.exec(text)) return i;
+    if (!FORMULA_OP_RE.exec(text)) return { end: i, hasRef: cur.hasRef };
     i = FORMULA_OP_RE.lastIndex;
     const next = atomEnd();
-    if (next < 0) return end;
-    end = next;
+    if (next.end < 0) return cur;
+    cur = { end: next.end, hasRef: cur.hasRef || next.hasRef };
   }
 }
 function maskFormulas(text) {
@@ -182,13 +184,11 @@ function maskFormulas(text) {
   const units = text.split('');
   const mask = (from, to) => { for (let i = from; i < to; i += 1) if (units[i] !== '\n') units[i] = ' '; };
   for (const m of text.matchAll(FORMULA_CALL_RE)) {
-    const bodyStart = m.index + m[0].length;
-    const end = formulaCallEnd(text, bodyStart);
-    const body = end > 0 ? text.slice(bodyStart, end - 1) : '';
-    if (end > 0 && (SPREADSHEET_FN_RE.test(m[0]) || HAS_CELL_REF_RE.test(body))) mask(m.index, end);
+    const { end, hasRef } = formulaCallEnd(text, m.index + m[0].length);
+    if (end > 0 && (SPREADSHEET_FN_RE.test(m[0]) || hasRef)) mask(m.index, end);
   }
   for (const m of text.matchAll(FORMULA_EXPR_RE)) {
-    const end = formulaExprEnd(text, m.index + 1, false);
+    const { end } = formulaExprEnd(text, m.index + 1, false);
     if (end > 0) mask(m.index, end);
   }
   return units.join('');
