@@ -516,7 +516,8 @@ the frame-host protocol); `b5da4d4dc` adds over `9f867d992` AIPANEL-FU slice A (
 UNI-1984 (the PDF frame's `App.tsx`, `edit-state.ts` and `uniwork-save.ts`: a PDF save with nothing changed is a no-op, plus a
 queued-save belt; the fork test host and `pdf-web.spec.ts` follow); `b1cbd5db4` adds over `b5da4d4dc` UNI-1989 (Sheets only:
 `web/modules/sheets/engine/{cached-values,stale-values,save-plan,wasm-transport}.ts`: a web save keeps the cached value of the
-formulas it did not change, so an error or float cached value stays as it was; no frame protocol change), UNI-1920 (the locked-out Docs "Save as a copy" the
+formulas it did not change, so an error or float cached value stays as it was; no frame protocol change)),
+UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
 frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 frame protocol and UI events (with
 `protocolSha256` matching the vendored `packages/core/office/docs-frame-{protocol,endpoint,host}.ts`; the fork touched
