@@ -12,6 +12,24 @@ type AiCapabilitiesSDO struct {
 	AskUni         bool       `json:"ask_uni" example:"true"`
 	MeetingSummary bool       `json:"meeting_summary" description:"Gói có meeting.ai_summary" example:"true"`
 	Quota          AiQuotaDTO `json:"quota"`
+	// Models lists every model the server can run for Ask UNI, with the
+	// organization's switch; auto_model is the key Auto resolves to.
+	Models    []AiModelOptionDTO `json:"models" description:"Model Claude chạy được cho Hỏi UNI, theo thứ tự hiển thị"`
+	AutoModel string             `json:"auto_model" description:"Khóa model mà Tự động dùng; rỗng nếu không trùng model nào" example:"sonnet"`
+}
+
+// AiModelOptionDTO is one selectable Ask UNI model.
+type AiModelOptionDTO struct {
+	Key          string `json:"key" description:"haiku, sonnet hoặc opus" example:"sonnet"`
+	Speed        int    `json:"speed" description:"Độ nhanh, 1-5" example:"4"`
+	Intelligence int    `json:"intelligence" description:"Độ thông minh, 1-5" example:"4"`
+	Cost         int    `json:"cost" description:"Nấc chi phí, 1-5, theo giá vào + ra" example:"3"`
+	Enabled      bool   `json:"enabled" description:"Tổ chức đang bật model này" example:"true"`
+}
+
+// AskModelsSDO is GET and PUT /api/v1/orgs/{org}/ai/ask-models.
+type AskModelsSDO struct {
+	Models []string `json:"models" description:"Các model đang bật, sắp theo thứ tự chữ cái" example:"[\"haiku\",\"sonnet\"]"`
 }
 
 // AiCitationDTO is one validated source behind an answer.

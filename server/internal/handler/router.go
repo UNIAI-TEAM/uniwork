@@ -508,6 +508,8 @@ func New(d Deps) http.Handler {
 		UnsubscribePush:            h.unsubscribePush,
 
 		AiCapabilities:       h.aiCapabilities,
+		GetOrgAskModels:      h.getOrgAskModels,
+		SetOrgAskModels:      h.setOrgAskModels,
 		AskUni:               h.askUni,
 		ChatCatchUp:          h.chatCatchUp,
 		ListAiConversations:  h.listAiConversations,

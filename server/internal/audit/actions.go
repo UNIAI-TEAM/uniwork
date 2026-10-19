@@ -282,6 +282,10 @@ const (
 	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
 	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
 
+	// An organization owner/admin chose which Claude models Ask UNI offers
+	// (AskUNIService.SetAskModels).
+	ActionOrganizationAskModelsChanged = "organization.ask_models_changed"
+
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
 

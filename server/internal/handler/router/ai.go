@@ -16,6 +16,8 @@ import (
 //	DELETE /api/v1/ai/conversations/{conversationID}
 //	GET    /api/v1/workspaces/{workspaceID}/ai/usage
 //	GET    /api/v1/orgs/{orgID}/ai/usage
+//	GET    /api/v1/orgs/{org}/ai/ask-models
+//	PUT    /api/v1/orgs/{org}/ai/ask-models
 func registerAI(r api, h Routes) {
 	r.Get("/workspaces/{workspaceID}/ai/capabilities", h.AiCapabilities, apiOp{
 		summary:     "AI capabilities",
@@ -66,6 +68,21 @@ func registerAI(r api, h Routes) {
 		description: "Tổng hợp theo ngày × capability × actor_kind. Query from, to (RFC3339 hoặc YYYY-MM-DD; mặc định 30 ngày). Owner/admin workspace.",
 		tags:        []string{"ai"},
 		sdo:         sdo.AiUsageSDO{},
+		auth:        true,
+	})
+	r.Get("/orgs/{org}/ai/ask-models", h.GetOrgAskModels, apiOp{
+		summary:     "Ask UNI models of an organization",
+		description: "Các model Claude tổ chức đang bật cho Hỏi UNI (sắp theo chữ cái); chưa chỉnh thì là bộ mặc định (haiku, sonnet). Thành viên tổ chức.",
+		tags:        []string{"ai"},
+		sdo:         sdo.AskModelsSDO{},
+		auth:        true,
+	})
+	r.Put("/orgs/{org}/ai/ask-models", h.SetOrgAskModels, apiOp{
+		summary:     "Set the Ask UNI models of an organization",
+		description: "Owner/admin tổ chức thay bộ model được chọn; khóa lạ -> 400, thành viên thường -> 403. Không đổi gì thì không ghi audit; có đổi thì ghi organization.ask_models_changed.",
+		tags:        []string{"ai"},
+		sdi:         sdi.AskModelsSDI{},
+		sdo:         sdo.AskModelsSDO{},
 		auth:        true,
 	})
 	r.Get("/orgs/{orgID}/ai/usage", h.OrganizationAiUsage, apiOp{

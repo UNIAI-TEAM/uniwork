@@ -78,6 +78,10 @@ type AICapabilities struct {
 	MeetingSummary bool
 	UsedTokens     int64
 	LimitTokens    *int64
+	// Models lists the Claude models Ask UNI can run, enabled or not for the
+	// organization; AutoModel is the key Auto resolves to ("" when none).
+	Models    []AskModelOption
+	AutoModel string
 }
 
 type AskInput struct {
@@ -85,6 +89,9 @@ type AskInput struct {
 	Question       string
 	Focus          *ai.Focus
 	Locale         string
+	// Model is "" (Auto) or a key of askModels; Effort is "low", "medium" or
+	// "high". Both only count behind ask_uni_agent; an unusable value falls back.
+	Model, Effort string
 }
 
 // AskCitation is a validated citation enriched with what the client needs to
@@ -155,6 +162,7 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 		return out, nil
 	}
 	out.AskUni = true
+	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)
 	if err != nil {

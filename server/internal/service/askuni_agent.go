@@ -350,10 +350,11 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	// calls replay it byte for byte, so the cached prefix holds.
 	msgs := append(slices.Clip(hist), provider.Message{Role: "user", Content: prompt.Render(vars)})
 	tools := s.agentTools()
+	model, effort := s.resolveAskModel(runCtx, w.OrganizationID, in.Model, in.Effort)
 	req := ai.Request{
 		Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
 		Capability: ai.CapCopilotAgent, PromptID: ai.PromptCopilotAnswerV2, Vars: vars, History: hist,
-		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Effort: askAgentEffort, // Model "" is Auto
+		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
 	}
 	spentInput := 0 // the input budget's count, cached tokens included (P12)
 	call := func() (ai.Response, error) {

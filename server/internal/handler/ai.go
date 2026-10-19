@@ -32,10 +32,45 @@ func (h *handlers) aiCapabilities(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
+	models := make([]sdo.AiModelOptionDTO, 0, len(c.Models))
+	for _, m := range c.Models {
+		models = append(models, sdo.AiModelOptionDTO{Key: m.Key, Speed: m.Speed, Intelligence: m.Intelligence, Cost: m.Cost, Enabled: m.Enabled})
+	}
 	respondJSON(w, 200, sdo.AiCapabilitiesSDO{
 		Enabled: c.Enabled, AskUni: c.AskUni, MeetingSummary: c.MeetingSummary,
-		Quota: sdo.AiQuotaDTO{UsedTokens: c.UsedTokens, LimitTokens: c.LimitTokens},
+		Quota:  sdo.AiQuotaDTO{UsedTokens: c.UsedTokens, LimitTokens: c.LimitTokens},
+		Models: models, AutoModel: c.AutoModel,
 	})
+}
+
+func (h *handlers) getOrgAskModels(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgIDFromSlug(w, r)
+	if !ok {
+		return
+	}
+	keys, err := h.AskUNI.AskModels(r.Context(), middleware.UserID(r.Context()), orgID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.AskModelsSDO{Models: keys})
+}
+
+func (h *handlers) setOrgAskModels(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := h.orgIDFromSlug(w, r)
+	if !ok {
+		return
+	}
+	var in sdi.AskModelsSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	keys, err := h.AskUNI.SetAskModels(r.Context(), middleware.UserID(r.Context()), orgID, in.Models)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.AskModelsSDO{Models: keys})
 }
 
 func (h *handlers) askUni(w http.ResponseWriter, r *http.Request) {
@@ -43,12 +78,17 @@ func (h *handlers) askUni(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale}
+	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort}
 	if in.Focus != nil {
 		askIn.Focus = &ai.Focus{Kind: in.Focus.Kind, ID: in.Focus.ID}
 	}
 	res, err := h.AskUNI.Ask(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askIn)
 	if err != nil {
+		// The agent's busy and organization limits carry the seconds to wait
+		// in the error's fields; the shared mapping drops them (P13).
+		if retry, ok := uniworkRetryAfter(err); ok {
+			w.Header().Set("Retry-After", retry)
+		}
 		h.mapServiceError(w, err)
 		return
 	}

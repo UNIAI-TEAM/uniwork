@@ -284,6 +284,8 @@ type Routes struct {
 	UnsubscribePush            http.HandlerFunc
 
 	AiCapabilities       http.HandlerFunc
+	GetOrgAskModels      http.HandlerFunc
+	SetOrgAskModels      http.HandlerFunc
 	AskUni               http.HandlerFunc
 	ChatCatchUp          http.HandlerFunc
 	ListAiConversations  http.HandlerFunc

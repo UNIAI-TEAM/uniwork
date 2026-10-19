@@ -1896,20 +1896,23 @@ type OfficeOfflinePolicy struct {
 }
 
 type Organization struct {
-	ID                  string             `json:"id"`
-	Slug                string             `json:"slug"`
-	Name                string             `json:"name"`
-	CreatedBy           string             `json:"created_by"`
-	CreatedAt           pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-	Status              string             `json:"status"`
-	SuspendedAt         pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason     pgtype.Text        `json:"suspended_reason"`
-	McpEnabledAt        pgtype.Timestamptz `json:"mcp_enabled_at"`
-	McpEnabledBy        pgtype.Text        `json:"mcp_enabled_by"`
-	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
-	McpWriteEnabledAt   pgtype.Timestamptz `json:"mcp_write_enabled_at"`
-	McpWriteEnabledBy   pgtype.Text        `json:"mcp_write_enabled_by"`
+	ID                    string             `json:"id"`
+	Slug                  string             `json:"slug"`
+	Name                  string             `json:"name"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	Status                string             `json:"status"`
+	SuspendedAt           pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason       pgtype.Text        `json:"suspended_reason"`
+	McpEnabledAt          pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy          pgtype.Text        `json:"mcp_enabled_by"`
+	DeletionScheduledAt   pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt     pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy     pgtype.Text        `json:"mcp_write_enabled_by"`
+	AskUniModels          []string           `json:"ask_uni_models"`
+	AskUniModelsUpdatedBy pgtype.Text        `json:"ask_uni_models_updated_by"`
+	AskUniModelsUpdatedAt pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
 }
 
 type OrganizationMember struct {

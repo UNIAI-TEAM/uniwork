@@ -12,6 +12,13 @@ type AskUniSDI struct {
 	Question       string          `json:"question" minLength:"1" maxLength:"2000" description:"Câu hỏi; UNI chỉ trả lời từ dữ liệu người gọi được xem" example:"task nào quá hạn?"`
 	Focus          *AskUniFocusSDI `json:"focus,omitempty"`
 	Locale         string          `json:"locale" description:"vi hoặc en; mặc định en" example:"vi"`
+	Model          string          `json:"model,omitempty" maxLength:"20" description:"Rỗng = Tự động; haiku, sonnet hoặc opus. Giá trị không dùng được (tắt, chưa có giá, lạ) thì server dùng Tự động, không báo lỗi. Chỉ có tác dụng khi agent bật" example:"sonnet"`
+	Effort         string          `json:"effort,omitempty" maxLength:"20" description:"low, medium hoặc high; rỗng hoặc giá trị lạ = medium. Chỉ có tác dụng khi agent bật" example:"medium"`
+}
+
+// AskModelsSDI is PUT /api/v1/orgs/{org}/ai/ask-models.
+type AskModelsSDI struct {
+	Models []string `json:"models" description:"Các model Hỏi UNI được dùng trong tổ chức (haiku, sonnet, opus); rỗng = chỉ Tự động. Khóa lạ -> 400" example:"[\"haiku\",\"sonnet\"]"`
 }
 
 // ChatCatchUpSDI is POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up (C-13.7).
