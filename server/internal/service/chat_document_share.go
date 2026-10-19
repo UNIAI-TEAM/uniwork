@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -233,7 +232,7 @@ func (s *ChatService) commitAttachmentAsDocument(
 		return db.ChatMessage{}, false, err
 	}
 
-	meta, err := json.Marshal(map[string]string{"document_id": docRes.Document.ID})
+	meta, err := attachmentToDocumentMetadata(locked.Metadata, docRes.Document.ID)
 	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
@@ -253,6 +252,21 @@ func (s *ChatService) commitAttachmentAsDocument(
 		return db.ChatMessage{}, false, err
 	}
 	return updated, true, nil
+}
+
+// attachmentToDocumentMetadata keeps everything on the message but the file
+// block: reactions and the pin live in the same metadata and belong to other
+// people's input, so a conversion drops only the five file keys and adds the
+// document id.
+func attachmentToDocumentMetadata(raw []byte, documentID string) ([]byte, error) {
+	meta := raw
+	for _, key := range []string{"filename", "file_id", "object_key", "content_type", "size_bytes"} {
+		var err error
+		if meta, err = patchMetadataKey(meta, key, nil); err != nil {
+			return nil, err
+		}
+	}
+	return patchMetadataKey(meta, "document_id", documentID)
 }
 
 func (s *ChatService) resolvedChatDocumentMessageRow(
