@@ -1,0 +1,96 @@
+$ for d in .harness-run-fqs3d/fault/FQ-*/; do echo "=== $d"; ls "$d"; head -n 8 "$d/proxy-log.jsonl" 2>/dev/null; done; for f in .harness-run-fqs3d/logs/*.log; do [ -f "$f" ] && { echo "=== $f"; tail -n 15 "$f"; }; done; true
+=== .harness-run-fqs3d/fault/FQ-40/
+1
+2
+3
+4
+5
+case-result.json
+evidence-g5-a06.log
+result.json
+=== .harness-run-fqs3d/logs/app.log
+[20350:1019/180625.117414:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+
+DevTools listening on ws://127.0.0.1:35605/devtools/browser/b381adf7-43f5-4dca-8e0c-d4fea59a2d44
+[20350:1019/180625.180038:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/180625.201457:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/180625.206755:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/180625.226996:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[20350:1019/180625.227062:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/180625.240076:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/180625.241959:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+[20350:1019/180800.736562:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/181040.409948:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/181532.860810:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/181823.035906:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+[20350:1019/181954.977697:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+=== .harness-run-fqs3d/logs/app-proxy.log
+=== .harness-run-fqs3d/logs/fork-build.log
+../../out/renderer/pdf-password.html                               9.18 kB
+../../out/renderer/assets/inter-latin-400-BOOGhInR.woff2          23.69 kB
+../../out/renderer/assets/inter-latin-600-D273HNI0.woff2          24.30 kB
+../../out/renderer/assets/inter-latin-700-Sckx8rpT.woff2          24.35 kB
+../../out/renderer/assets/inter-latin-500-D2bGa7uu.woff2          24.37 kB
+../../out/renderer/assets/app-icon-D9R8oDUQ.png                   27.10 kB
+../../out/renderer/assets/inter-latin-ext-400-hnt3BR84.woff2      30.68 kB
+../../out/renderer/assets/inter-latin-ext-500-CIS2RHJS.woff2      31.76 kB
+../../out/renderer/assets/inter-latin-ext-700-CzikT_rs.woff2      31.79 kB
+../../out/renderer/assets/inter-latin-ext-600-BnYJhD27.woff2      31.97 kB
+../../out/renderer/assets/index-ELAAmeKl.css                     324.52 kB
+../../out/renderer/assets/update-MrLAWrKO.js                       2.45 kB
+../../out/renderer/assets/pdf-password-BczXYSzC.js                 2.77 kB
+../../out/renderer/assets/index-DwAwRPgr.js                    4,074.39 kB
+✓ built in 2.21s
+=== .harness-run-fqs3d/logs/fork-clone.log
+=== .harness-run-fqs3d/logs/fork-install.log
+240 packages are looking for funding
+  run `npm fund` for details
+
+19 vulnerabilities (2 low, 8 moderate, 7 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues possible (including breaking changes), run:
+  npm audit fix --force
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+=== .harness-run-fqs3d/logs/lib.log
+=== .harness-run-fqs3d/logs/migrate.log
+18:03:09.728 INF migrate done component=server dir=up
+=== .harness-run-fqs3d/logs/server-build.log
+=== .harness-run-fqs3d/logs/server.log
+18:18:59.562 INF http request method=GET path=/api/v1/orgs/01M5ANFVJRPK8EA4G2VDAKEZZ3/ai/cloud status=200 duration=6.218ms request_id=cursor/Naa144RjEJ-000293 correlation_id=d9b78e6f54691c3d0afdf0c9beab69fd trace_id=d9b78e6f54691c3d0afdf0c9beab69fd span_id=48df767ea27a6a66 actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:18:59.825 INF http request method=GET path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/comments status=200 duration=3.349ms request_id=cursor/Naa144RjEJ-000294 correlation_id=60e4573952c8d95b43b1255f010e8e15 trace_id=60e4573952c8d95b43b1255f010e8e15 span_id=f47f064fcd5df274 organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:02.425 INF http request method=POST path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/uploads status=201 duration=8.751ms request_id=cursor/Naa144RjEJ-000295 correlation_id=7253cc4a143020e6e97ec97284fe4883 trace_id=7253cc4a143020e6e97ec97284fe4883 span_id=114b411f65629b3a organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:02.435 INF http request method=POST path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/versions/commit status=200 duration=8.086ms request_id=cursor/Naa144RjEJ-000296 correlation_id=3fd3a25e534635b95640dc0ef4d75374 trace_id=3fd3a25e534635b95640dc0ef4d75374 span_id=6f858190c4a84d2b organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:28.737 INF http request method=POST path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/edit-lock/01M5AP6R93TRDRPYFGP4T7WHNK/heartbeat status=200 duration=5.809ms request_id=cursor/Naa144RjEJ-000297 correlation_id=5f5f9dc765dca5983eaa34551c36130f trace_id=5f5f9dc765dca5983eaa34551c36130f span_id=c5b6ecbe4828515e organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:54.698 INF http request method=GET path=/api/v1/orgs/01M5ANFVJRPK8EA4G2VDAKEZZ3/workspaces status=200 duration=3.742ms request_id=cursor/Naa144RjEJ-000298 correlation_id=dcc86cb3430934952b79190fdb4431e8 trace_id=dcc86cb3430934952b79190fdb4431e8 span_id=d61e2fe0cff17c9b actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:54.706 INF http request method=GET path=/api/v1/workspaces/01M5ANFVK5F4HQB3HAQ0ESV7MS/documents/changes status=200 duration=4.948ms request_id=cursor/Naa144RjEJ-000299 correlation_id=e5a33f8b404f4cd9161b33dbc196945f trace_id=e5a33f8b404f4cd9161b33dbc196945f span_id=201ecd57ac8d8b6a organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:54.722 INF http request method=POST path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/edit-lock/01M5AP6R93TRDRPYFGP4T7WHNK/heartbeat status=200 duration=2.117ms request_id=cursor/Naa144RjEJ-000300 correlation_id=30006d0163bfaf3c0c4bfb4e47bc4a96 trace_id=30006d0163bfaf3c0c4bfb4e47bc4a96 span_id=ce2f88ab7b207a91 organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:54.746 INF http request method=POST path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/uploads status=201 duration=2.775ms request_id=cursor/Naa144RjEJ-000301 correlation_id=18ec6a64441d180c3980329c3b0e4290 trace_id=18ec6a64441d180c3980329c3b0e4290 span_id=ac199bd5b1b028c8 organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:54.753 INF http request method=POST path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/versions/commit status=200 duration=1.905ms request_id=cursor/Naa144RjEJ-000302 correlation_id=cb1f8f01d585a0407470641db499da3c trace_id=cb1f8f01d585a0407470641db499da3c span_id=c330071169f0f0bd organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:54.958 INF http request method=GET path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/versions status=200 duration=2.136ms request_id=cursor/Naa144RjEJ-000303 correlation_id=0dd3cf8120de14b9aeb1b988ee74859f trace_id=0dd3cf8120de14b9aeb1b988ee74859f span_id=5d9e711dd4931ca8 organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVDX3TEE7G87S9G60RYG actor_kind=human
+18:19:54.961 INF http request method=GET path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4 status=200 duration=1.962ms request_id=cursor/Naa144RjEJ-000304 correlation_id=e8f0d5502b50709b0e96aca8fefffb32 trace_id=e8f0d5502b50709b0e96aca8fefffb32 span_id=8f7ef63d9c134bfe organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVDX3TEE7G87S9G60RYG actor_kind=human
+18:19:54.983 INF http request method=DELETE path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/edit-lock/01M5AP6R93TRDRPYFGP4T7WHNK status=204 duration=6.226ms request_id=cursor/Naa144RjEJ-000305 correlation_id=b3b4f024e5fd4fe7963d98a4cab5ca62 trace_id=b3b4f024e5fd4fe7963d98a4cab5ca62 span_id=d24a3b609f0d6aa1 organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVG9B79S00TMVJJT2PES actor_kind=human
+18:19:55.047 INF http request method=GET path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4/versions status=200 duration=1.081ms request_id=cursor/Naa144RjEJ-000306 correlation_id=6ad9748f4adfdbd4fcdcbe4c5f5936ef trace_id=6ad9748f4adfdbd4fcdcbe4c5f5936ef span_id=d11ec5fe49ee5f71 organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVDX3TEE7G87S9G60RYG actor_kind=human
+18:19:55.049 INF http request method=GET path=/api/v1/documents/01M5AP5NGYMS5998AQWK9V0EN4 status=200 duration=1.113ms request_id=cursor/Naa144RjEJ-000307 correlation_id=e61bfea75e28c3837fb2525afc0259d3 trace_id=e61bfea75e28c3837fb2525afc0259d3 span_id=ff50ed287172f5ba organization_id=01M5ANFVJRPK8EA4G2VDAKEZZ3 workspace_id=01M5ANFVK5F4HQB3HAQ0ESV7MS actor_id=01M5ANFVDX3TEE7G87S9G60RYG actor_kind=human
+=== .harness-run-fqs3d/logs/web.log
+  [90m11973 |[0m   color: [36mvar[0m(--selection-foreground);
+  [90m11974 |[0m }
+[33m[1m>[0m [90m11975 |[0m ::highlight(task-find-active) {
+  [90m      |[0m             [33m[1m^[0m
+  [90m11976 |[0m   background-color: [36mvar[0m(--brand);
+  [90m11977 |[0m   color: [36mvar[0m(--brand-foreground);
+  [90m11978 |[0m }
+
+Import trace:
+  Client Component Browser:
+    ./apps/web/app/globals.css [Client Component Browser]
+    ./apps/web/app/layout.tsx [Server Component]
+
+
+ GET /login 200 in 4.5s (next.js: 3.9s, proxy.ts: 125ms, application-code: 512ms)

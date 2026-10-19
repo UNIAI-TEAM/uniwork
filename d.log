@@ -1,0 +1,66 @@
+$ for c in FQ-40; do HARNESS_RUN_DIR="$PWD/.harness-run-fqs3d" OFFICE_FORK_SHA=1d5b68400 timeout -k 15 1500 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case $c --run-dir .harness-run-fqs3d; echo "APP_CASE_${c//-/_}_EXIT=$?"; done; for f in .harness-run-fqs3d/fault/FQ-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:38763 app_api=http://127.0.0.1:43525 proxy_upstream=http://127.0.0.1:38763
+FQ-40 [1/5] reconciling → committed: running
+dbus-daemon[20448]: [session uid=1000 pid=20448] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=20485 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20448]: [session uid=1000 pid=20448] Successfully activated service 'org.a11y.Bus'
+FQ-40 [2/5] reconciling → queued (attempt mới): running
+FQ-40 [3/5] reconciling → paused_admin: running
+FQ-40 [4/5] reconciling → paused_offline: running
+FQ-40 [5/5] reconciling ở lại (in_flight): running
+FQ-40: FAIL (predicted OQ-F11)
+  FQ-40 [reconciling → committed] trace 2026-10-19T18:07:08.143Z ∅ -> queued
+  FQ-40 [reconciling → committed] trace 2026-10-19T18:07:08.192Z queued -> paused_offline code=network
+  FQ-40 [reconciling → committed] trace 2026-10-19T18:08:00.323Z queued -> validating
+  FQ-40 [reconciling → committed] trace 2026-10-19T18:08:00.323Z validating -> uploading
+  FQ-40 [reconciling → committed] trace 2026-10-19T18:08:00.323Z uploading -> committing
+  FQ-40 [reconciling → committed] trace 2026-10-19T18:08:00.323Z committing -> committed http=200
+  FQ-40 [reconciling → committed] proxy 2026-10-19T18:07:08.168Z upload POST 201 key=3366e0a2c928 rule=-
+  FQ-40 [reconciling → committed] proxy 2026-10-19T18:07:08.188Z commit POST dropped key=3366e0a2c928 rule=lose-commit-answer
+  FQ-40 [reconciling → committed] proxy 2026-10-19T18:08:00.355Z upload POST 201 key=3366e0a2c928 rule=-
+  FQ-40 [reconciling → committed] proxy 2026-10-19T18:08:00.363Z commit POST 200 key=3366e0a2c928 rule=-
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T18:08:40.248Z ∅ -> queued
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T18:08:40.287Z queued -> paused_offline code=network
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T18:09:32.491Z queued -> validating
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T18:09:32.491Z validating -> uploading
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T18:09:32.491Z uploading -> committing
+  FQ-40 [reconciling → queued (attempt mới)] trace 2026-10-19T18:09:32.491Z committing -> committed http=200
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-19T18:08:40.267Z upload POST 201 key=b44ce0cc7166 rule=-
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-19T18:08:40.283Z commit POST dropped key=b44ce0cc7166 rule=lose-commit-answer
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-19T18:09:32.506Z upload POST 201 key=b44ce0cc7166 rule=-
+  FQ-40 [reconciling → queued (attempt mới)] proxy 2026-10-19T18:09:32.516Z commit POST 200 key=b44ce0cc7166 rule=-
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T18:11:22.111Z ∅ -> queued
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T18:11:22.148Z queued -> paused_offline code=network
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T18:12:14.404Z queued -> validating
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T18:12:14.404Z validating -> uploading
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T18:12:14.404Z uploading -> committing
+  FQ-40 [reconciling → paused_admin] trace 2026-10-19T18:12:14.404Z committing -> committed http=200
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-19T18:11:22.129Z upload POST 201 key=2037221311cf rule=-
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-19T18:11:22.143Z commit POST dropped key=2037221311cf rule=lose-commit-answer
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-19T18:12:14.419Z upload POST 201 key=2037221311cf rule=-
+  FQ-40 [reconciling → paused_admin] proxy 2026-10-19T18:12:14.434Z commit POST 200 key=2037221311cf rule=-
+  FQ-40 [reconciling → paused_offline] trace 2026-10-19T18:16:12.349Z ∅ -> queued
+  FQ-40 [reconciling → paused_offline] trace 2026-10-19T18:16:12.394Z queued -> paused_offline code=network
+  FQ-40 [reconciling → paused_offline] trace 2026-10-19T18:17:04.567Z queued -> validating
+  FQ-40 [reconciling → paused_offline] trace 2026-10-19T18:17:04.567Z validating -> uploading
+  FQ-40 [reconciling → paused_offline] trace 2026-10-19T18:17:04.567Z uploading -> committing
+  FQ-40 [reconciling → paused_offline] trace 2026-10-19T18:17:04.567Z committing -> committed http=200
+  FQ-40 [reconciling → paused_offline] proxy 2026-10-19T18:16:12.373Z upload POST 201 key=5665b10d4ce8 rule=-
+  FQ-40 [reconciling → paused_offline] proxy 2026-10-19T18:16:12.390Z commit POST dropped key=5665b10d4ce8 rule=lose-commit-answer
+  FQ-40 [reconciling → paused_offline] proxy 2026-10-19T18:17:04.590Z upload POST 201 key=5665b10d4ce8 rule=-
+  FQ-40 [reconciling → paused_offline] proxy 2026-10-19T18:17:04.599Z commit POST 200 key=5665b10d4ce8 rule=-
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-19T18:19:02.407Z ∅ -> queued
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-19T18:19:02.438Z queued -> paused_offline code=network
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-19T18:19:54.731Z queued -> validating
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-19T18:19:54.731Z validating -> uploading
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-19T18:19:54.731Z uploading -> committing
+  FQ-40 [reconciling ở lại (in_flight)] trace 2026-10-19T18:19:54.731Z committing -> committed http=200
+  FQ-40 [reconciling ở lại (in_flight)] proxy 2026-10-19T18:19:02.425Z upload POST 201 key=8f05d8dc7285 rule=-
+  FQ-40 [reconciling ở lại (in_flight)] proxy 2026-10-19T18:19:02.435Z commit POST dropped key=8f05d8dc7285 rule=lose-commit-answer
+  FQ-40 [reconciling ở lại (in_flight)] proxy 2026-10-19T18:19:54.746Z upload POST 201 key=8f05d8dc7285 rule=-
+  FQ-40 [reconciling ở lại (in_flight)] proxy 2026-10-19T18:19:54.754Z commit POST 200 key=8f05d8dc7285 rule=-
+FQ-40 (G5-A06): FAIL predicted OQ-F11
+/workspace/.harness-run-fqs3d/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_40_EXIT=1
+FQ-40 FAIL OQ-F11  client_path: expected "* → reconciling → committed" actual "queued → paused_offline → validating → uploading → committing → committed" | device_b_commit_200: expected 200 actual 423 | lookup_answered_by_server: expected 200 actual "none" | reconciling_to_queued: expected "reconciling → queued" actual "never" | lookup_held: expected "held" actual "never" | reconciling_to_paused_admin: expected "reconciling → paused_admin" actual "never" | no_commit_while_paused: expected 0 actual 2 | reconciling_to_paused_offline: expected "reconciling → paused_offline" actual "never" | no_commit_while_paused: expected 0 actual 2 | in_flight_kept_reconciling: expected "reconciling → reconciling on in_flight" actual "no in_flight lookup traced" | looked_up_again: expected ">= 2 lookups, the first synthetic" actual 0 | client_path: expected "* → reconciling → * → committed" actual "queued → paused_offline → validating → uploading → committing → committed"

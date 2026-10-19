@@ -1,0 +1,4 @@
+$ (command -v gnome-keyring-daemon && command -v psql) >/dev/null || (sudo -n apt-get install -y --no-install-recommends gnome-keyring dbus-x11 postgresql-client || apt-get install -y --no-install-recommends gnome-keyring dbus-x11 postgresql-client); command -v gnome-keyring-daemon psql dbus-run-session; true
+/usr/bin/gnome-keyring-daemon
+/usr/bin/psql
+/usr/bin/dbus-run-session
