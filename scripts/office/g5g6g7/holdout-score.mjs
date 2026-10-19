@@ -328,12 +328,22 @@ const stripFormulaNote = (v) => String(v ?? '')
 
 const EMPTY_CELL_WORDS = new Set(['', 'blank', 'empty', 'trong', 'rong']);
 
-/** Cell-only presentations of the same value: an empty cell written as an empty-cell word (oracle2 O2-S2). */
+/**
+ * Cell-only presentations of the same value (oracle2 O2-S2, O2-S3): an empty cell written as an empty-cell word, a
+ * fraction written as a percent ("10%" for 0.1), and the two forms side by side ("0.1 (10%)"), where both must agree.
+ */
 function cellPresentationEqual(expected, actual) {
   if (String(expected ?? '').trim() === '') {
     return EMPTY_CELL_WORDS.has(foldDiacritics(String(actual ?? '')).toLowerCase().replace(/^\((.*)\)$/, '$1').trim());
   }
-  return false;
+  if (typeof expected !== 'number' || typeof actual !== 'string') return false;
+  const percent = /^\s*([-+]?[\d.,]+)\s*%\s*$/.exec(actual);
+  if (percent) {
+    const n = toNumber(percent[1]);
+    return n !== null && Math.abs(n / 100 - expected) < 1e-9;
+  }
+  const pair = /^\s*([^()]+?)\s*\(([^()]+)\)\s*$/.exec(actual);
+  return Boolean(pair) && [pair[1], pair[2]].every((part) => cellPresentationEqual(expected, part) || toNumber(part) === expected);
 }
 
 export function valuesEqual(expected, actual, kind = null, anchor = '') {
