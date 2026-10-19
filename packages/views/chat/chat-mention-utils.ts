@@ -48,7 +48,7 @@ function escapeRegExp(value: string): string {
  * label, so an address like a@all.com stays an address. An existing
  * `[@label](...)` token is left alone.
  */
-function replaceComposerMention(body: string, label: string, token: string): string {
+export function replaceComposerMention(body: string, label: string, token: string): string {
   if (!label) return body;
   const pattern = new RegExp(`(?<!\\[)@${escapeRegExp(label)}(?=$|[\\s,!?;:])`, "giu");
   return body.replace(pattern, () => token);
@@ -99,7 +99,7 @@ function labelKey(label: string): string {
 }
 
 /** Append a suffix to every label two or more candidates share (serialize matches labels case-insensitively). */
-function suffixSharedLabels(candidates: ChatMentionCandidate[], suffix: (candidate: ChatMentionCandidate) => string): void {
+export function suffixSharedLabels(candidates: ChatMentionCandidate[], suffix: (candidate: ChatMentionCandidate) => string): void {
   const counts = new Map<string, number>();
   for (const candidate of candidates) counts.set(labelKey(candidate.label), (counts.get(labelKey(candidate.label)) ?? 0) + 1);
   for (const candidate of candidates) {
