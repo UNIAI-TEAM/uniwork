@@ -128,6 +128,8 @@ const (
 	ActionChatRoomMemberUpdated   = "chat.room.member_updated"
 	ActionChatRoomSettingsUpdated = "chat.room.settings_updated"
 	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
+	ActionChatVoiceTranscribed    = "chat.voice_message.transcribed"
+	ActionChatMessageForwarded    = "chat.message.forwarded"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
@@ -147,11 +149,18 @@ const (
 
 	// Document access (UNI-676): shares and public links on one document,
 	// and the organization's public-link switch.
-	ActionDocumentShared          = "document.shared"
-	ActionDocumentShareRevoked    = "document.share_revoked"
-	ActionDocumentLinkCreated     = "document.link_created"
-	ActionDocumentLinkRevoked     = "document.link_revoked"
-	ActionDocumentSettingsChanged = "document.settings_changed"
+	ActionDocumentShared       = "document.shared"
+	ActionDocumentShareRevoked = "document.share_revoked"
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	ActionDocumentBreakGlassGranted = "document.break_glass_granted"
+	ActionDocumentBreakGlassRevoked = "document.break_glass_revoked"
+	ActionDocumentLinkCreated       = "document.link_created"
+	ActionDocumentLinkRevoked       = "document.link_revoked"
+	ActionDocumentSettingsChanged   = "document.settings_changed"
+	// ActionDocumentsAccessReportExported is one access report export
+	// (UNI-1643): ids, the filter and counts, never a name.
+	ActionDocumentsAccessReportExported = "documents.access_report_exported"
 
 	// Document comments + favorites (UNI-681): the document half of the
 	// shared comment core. The reaction actions stay document-scoped so
@@ -248,6 +257,16 @@ const (
 
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
+
+	// A host turned action items of a meeting summary into tasks: one row
+	// for the batch, beside the task.created row of each task
+	// (MeetingService.CreateTasksFromSummary, UNI-1853).
+	ActionMeetingSummaryTasksCreated = "meeting_summary.tasks_created"
+
+	// A host or admin generated the meeting's AI summary
+	// (MeetingService.Summarize); metadata names the summary and the usage
+	// row that paid for it.
+	ActionMeetingSummaryCreated = "meeting.summary_created"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"

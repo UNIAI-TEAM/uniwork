@@ -12,6 +12,7 @@ describe("runtime config", () => {
       wsUrl: "ws://localhost:8080",
       appUrl: "http://localhost:3000",
       chatScopeSubscriptionLimit: 25,
+      clientPlatform: "web",
     });
   });
 

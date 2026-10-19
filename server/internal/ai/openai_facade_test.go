@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -936,5 +937,172 @@ func TestAIUniworkUpstreamRateLimitedRetryAfter(t *testing.T) {
 				t.Fatalf("usage row = %s/%s, want failed/%s", status, reason, ErrRateLimited.Code)
 			}
 		})
+	}
+}
+
+// G6-09a (UNI-1374) N1: the slides tools a UniWork AI turn never gets (the web
+// stubs, whole-deck generation and style templates) are out of the table, so a
+// modified client cannot offer them to the model and a call for one is dropped
+// as not_allowlisted, not view_only. The tools the client hides only for a
+// bound document (create_document, the pdf file-level page tools) stay: the
+// table is keyed by module alone and carries no document scope, and R1 (the
+// local-file route) is viewOnly today.
+func TestAIUniworkTableDropsUniworkHiddenSlidesTools(t *testing.T) {
+	removed := []string{"generate_deck", "insert_web_image", "regenerate_slide", "replace_image", "save_style_template"}
+	slides := officeUniworkModulesV1["slides"]
+	for _, name := range removed {
+		for _, group := range [][]string{slides.Read, slides.Write} {
+			for _, have := range group {
+				if have == name {
+					t.Errorf("slides table still lists %q", name)
+				}
+			}
+		}
+	}
+
+	offered := facadeSpecs(append([]string{"apply_ops", "read_slide"}, removed...)...)
+	allow := UniworkModuleAllowlist("slides", offered, false)
+	if got := strings.Join(allow.Tools.Names(), ","); got != "apply_ops,read_slide" {
+		t.Fatalf("slides allowlist = %q, want only the tools UniWork AI keeps", got)
+	}
+	for _, name := range removed {
+		if _, ok := allow.Tools.Get(name); ok {
+			t.Errorf("%q reached the slides allowlist", name)
+		}
+		for _, w := range allow.WriteNames {
+			if w == name {
+				t.Errorf("%q is still a named write tool, so a call for it would read as view_only", name)
+			}
+		}
+	}
+
+	// A view-only turn drops the removed names too, and the reason is
+	// not_allowlisted, not view_only: the five are out of the module table
+	// altogether, so the write set no longer names them (before G6-09a a call
+	// for one read as view_only and drove aiErrViewOnlyEdit).
+	viewOnly := UniworkModuleAllowlist("slides", offered, true)
+	if got := strings.Join(viewOnly.Tools.Names(), ","); got != "read_slide" {
+		t.Fatalf("slides view-only allowlist = %q, want only read_slide", got)
+	}
+	calls := make([]provider.ToolCall, 0, len(removed))
+	for i, name := range removed {
+		calls = append(calls, provider.ToolCall{ID: fmt.Sprintf("call_%d", i), Name: name, Input: json.RawMessage(`{}`)})
+	}
+	kept, dropped := FilterUniworkToolCalls(calls, viewOnly)
+	if len(kept) != 0 || len(dropped) != len(removed) {
+		t.Fatalf("removed-name calls = %d kept, %d dropped, want 0/%d", len(kept), len(dropped), len(removed))
+	}
+	for i, drop := range dropped {
+		if drop.Name != removed[i] || drop.Reason != UniworkDropNotAllowlisted {
+			t.Errorf("dropped[%d] = %+v, want %q not_allowlisted", i, drop, removed[i])
+		}
+	}
+
+	// the rest of the table still holds: every module, and the slides names the client keeps
+	if len(officeUniworkModulesV1) != 6 {
+		t.Fatalf("table has %d modules, want 6", len(officeUniworkModulesV1))
+	}
+	for _, want := range []string{"apply_ops", "edit_chart", "execute_slide_script"} {
+		if !slices.Contains(slides.Write, want) {
+			t.Errorf("slides write tools lost %q", want)
+		}
+	}
+	for _, want := range []string{"read_slide", "plan_deck", "web_search", "image_search", "generate_image"} {
+		if !slices.Contains(slides.Read, want) {
+			t.Errorf("slides read tools lost %q", want)
+		}
+	}
+
+	// bound-only hides stay in the table (the server cannot tell bound from local)
+	for module, names := range map[string][]string{
+		"docs":   {"create_document"},
+		"sheets": {"create_document"},
+		"pdf": {
+			"create_document", "insert_blank_page", "set_page_size", "crop_pages", "replace_pages",
+			"extract_pages", "split_pdf", "split_pages", "merge_pages", "edit_text", "transform_image",
+		},
+	} {
+		for _, name := range names {
+			if !slices.Contains(officeUniworkModulesV1[module].Write, name) {
+				t.Errorf("%s table lost %q, which only a bound document hides", module, name)
+			}
+		}
+	}
+
+	// The exact name sets of all six modules are pinned here: the mechanical
+	// block of docs/office/g5g6g7/genoffice-tools.md §3 plus the group-B rows
+	// decide them — minus the five slides rows G6-09a removes above — so a name
+	// that disappears without the document changing, or that moves between read
+	// and write, fails here.
+	pinned := map[string]uniworkModuleTools{
+		"docs": {
+			Read: []string{
+				"analyze_media", "ask_clarification", "get_document_context", "image_search", "list_styles",
+				"read_attachment", "read_blocks", "read_comments", "read_notes", "read_revisions", "web_search",
+			},
+			Write: []string{
+				"accept_changes", "add_comment", "apply_ops", "create_document", "define_style", "delete_comment",
+				"delete_note", "edit_chart", "edit_note", "generate_image", "insert_chart", "insert_content",
+				"insert_endnote", "insert_footnote", "insert_image", "insert_picture", "insert_section_break",
+				"insert_text_box", "reject_changes", "replace_blocks", "replace_selection", "reply_comment",
+				"resolve_comment", "set_header_footer", "set_page_setup", "set_watermark", "write_document",
+			},
+		},
+		"html": {
+			Read:  []string{"ask_clarification", "get_outline", "read_attachment", "read_source", "web_search"},
+			Write: []string{"apply_ops", "plan_page", "write_document"},
+		},
+		"markdown": {
+			Read:  []string{"ask_clarification", "get_document_context", "image_search", "read_blocks", "read_frontmatter", "web_search"},
+			Write: []string{"apply_ops", "generate_image", "insert_image", "write_document"},
+		},
+		"pdf": {
+			Read: []string{
+				"ask_clarification", "generate_image", "get_outline", "goto_page", "image_search", "list_form_fields",
+				"list_inserted_text", "list_page_images", "read_annotations", "read_pages", "search_text",
+			},
+			Write: []string{
+				"add_form_mark", "add_note", "apply_ops", "create_document", "crop_image", "crop_pages", "delete_image",
+				"delete_inserted_text", "delete_markup", "delete_note", "edit_block", "edit_inserted_text", "edit_note",
+				"edit_text", "extract_pages", "flip_image", "insert_blank_page", "insert_image", "insert_text",
+				"markup_text", "merge_pages", "move_inserted_text", "move_text_block", "remove_image_background",
+				"replace_image", "replace_pages", "reply_note", "rotate_image", "set_header_footer", "set_image_opacity",
+				"set_page_size", "set_watermark", "split_pages", "split_pdf", "transform_image",
+			},
+		},
+		"sheets": {
+			Read: []string{
+				"aggregate_range", "ask_clarification", "compare_ranges", "find_cells", "generate_image",
+				"get_workbook_context", "image_search", "load_guide", "read_attachment", "read_cells", "read_formats",
+				"read_range", "read_sheet_features", "select_range", "summarize_range", "trace_dependents",
+				"trace_precedents", "web_search",
+			},
+			Write: []string{"create_document", "merge_attached_workbooks", "propose_operations"},
+		},
+		"slides": {
+			Read: []string{
+				"analyze_media", "ask_clarification", "generate_image", "image_search", "list_style_templates",
+				"load_guide", "plan_deck", "read_attachment", "read_slide", "web_search",
+			},
+			Write: []string{"apply_ops", "edit_chart", "execute_slide_script"},
+		},
+	}
+	for module, want := range pinned {
+		got := officeUniworkModulesV1[module]
+		facadeAssertExactNames(t, module, "read", got.Read, want.Read)
+		facadeAssertExactNames(t, module, "write", got.Write, want.Write)
+	}
+}
+
+// facadeAssertExactNames fails when a module's pinned name set and the table's
+// disagree; both sides are sorted first, so the order in the table is not part
+// of the pin.
+func facadeAssertExactNames(t *testing.T, module, kind string, got, want []string) {
+	t.Helper()
+	g, w := append([]string(nil), got...), append([]string(nil), want...)
+	slices.Sort(g)
+	slices.Sort(w)
+	if !slices.Equal(g, w) {
+		t.Errorf("%s %s names = %v, want the pinned %v", module, kind, g, w)
 	}
 }

@@ -29,9 +29,14 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   document_discussion_mentioned: moduleTone("documents"),
   document_discussion_replied: moduleTone("documents"),
   document_comment_resolved: moduleTone("documents"),
+  document_break_glass: moduleTone("documents"),
   chat_mentioned: moduleTone("chat"),
   chat_dm: moduleTone("chat"),
   chat_thread_replied: moduleTone("chat"),
+  chat_call_incoming: moduleTone("chat"),
+  document_access_requested: moduleTone("documents"),
+  document_access_approved: moduleTone("documents"),
+  document_access_declined: moduleTone("documents"),
 };
 
 export function kindTone(kind: string): Tint {

@@ -54,6 +54,10 @@ type ChatPageContentDialogsProps = Pick<
   | "canPinMessages"
   | "t"
   | "onMessageSearchOpenChange"
+  | "onVoiceCall"
+  | "voiceCallDisabled"
+  | "onVideoCall"
+  | "videoCallDisabled"
 > & {
   createPollOpen: boolean;
   onCreatePollOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
@@ -106,6 +110,10 @@ export function ChatPageContentDialogs({
   canPinMessages,
   t,
   onMessageSearchOpenChange,
+  onVoiceCall,
+  voiceCallDisabled,
+  onVideoCall,
+  videoCallDisabled,
   createPollOpen,
   onCreatePollOpenChange,
   createReminderOpen,
@@ -137,6 +145,13 @@ export function ChatPageContentDialogs({
           workspaceId={workspaceId}
           roomId={activeRoomId}
           canPinToTop={canPinMessages}
+          destination={
+            target.kind === "group"
+              ? t("chat.poll_send_to_group", { name: headerTitle })
+              : target.kind === "dm"
+                ? t("chat.poll_send_to_dm", { name: headerTitle })
+                : t("chat.poll_send_to_channel", { name: headerTitle })
+          }
         />
       ) : null}
       {activeRoomId ? (
@@ -233,6 +248,10 @@ export function ChatPageContentDialogs({
           unblocking={unblockingContact}
           memberAvatarByUserId={memberAvatarByUserId}
           onOpenSearch={() => onMessageSearchOpenChange(true)}
+          onVoiceCall={onVoiceCall}
+          voiceCallDisabled={voiceCallDisabled}
+          onVideoCall={onVideoCall}
+          videoCallDisabled={videoCallDisabled}
         />
       ) : null}
       {activeChannel ? (

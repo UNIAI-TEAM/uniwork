@@ -45,11 +45,14 @@ const CHECK_HIT = "mx-auto aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.
 const PUSH_BY_DEFAULT = new Set<Kind>([
   "mentioned",
   "document_mentioned",
+  "document_discussion_mentioned",
+  "document_break_glass",
   "task_assigned",
   "meeting_starting",
   "chat_mentioned",
   "chat_dm",
   "chat_reminder",
+  "chat_call_incoming",
 ]);
 
 function serverDefault(kind: Kind): NotificationPreference {

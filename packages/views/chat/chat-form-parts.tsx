@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarDays, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -11,14 +12,14 @@ import { cn } from "@uniwork/ui/lib/utils";
 export function ChatFormFooterNote({ id, error, hint }: { id?: string; error?: string | null; hint?: string | null }) {
   if (error) {
     return (
-      <p id={id} role="alert" className="text-caption text-destructive text-pretty">
+      <p id={id} role="alert" className="text-destructive text-pretty">
         {error}
       </p>
     );
   }
   if (hint) {
     return (
-      <p id={id} className="text-caption text-muted-foreground text-pretty">
+      <p id={id} className="text-muted-foreground text-pretty">
         {hint}
       </p>
     );
@@ -35,17 +36,29 @@ export function nearLimit(length: number, max: number): boolean {
 }
 
 /**
- * "1 820/2 000" once the text nears its limit — invisible before that, so a
- * short note is not watched by a number. The count is polite-live only when
- * it is shown.
+ * "31/200" beside a field's label. By default it shows up only once the text
+ * nears its limit, so a short reminder is not watched by a number; `always`
+ * keeps it on (the canvas' note, post and poll fields). It is polite-live only
+ * near the limit, so typing is not read out key by key.
  */
-export function ChatCharCounter({ id, length, max }: { id: string; length: number; max: number }) {
+export function ChatCharCounter({
+  id,
+  length,
+  max,
+  always = false,
+}: {
+  id: string;
+  length: number;
+  max: number;
+  always?: boolean;
+}) {
   const { t } = useTranslation();
-  if (!nearLimit(length, max)) return null;
+  const near = nearLimit(length, max);
+  if (!near && !always) return null;
   return (
     <span
       id={id}
-      aria-live="polite"
+      aria-live={near ? "polite" : undefined}
       className={cn("text-caption tabular-nums", length >= max ? "text-destructive" : "text-muted-foreground")}
     >
       {t("chat.form_char_count", { length, max })}
@@ -62,5 +75,16 @@ export function RequiredMark() {
     <span aria-hidden className="text-destructive">
       *
     </span>
+  );
+}
+
+/** DateField's trigger body in a chat dialog: calendar, the day, and a chevron at the end. */
+export function renderChatDateTrigger(label: string) {
+  return (
+    <>
+      <CalendarDays aria-hidden className="size-4.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+    </>
   );
 }

@@ -22,16 +22,21 @@ export function filterWorkspaceMembers(
     currentUserId: string;
     excludeUserIds?: ReadonlySet<string>;
     query: string;
+    /** Match the display name only, for a screen that never shows an email. */
+    nameOnly?: boolean;
   },
 ): Member[] {
   const q = options.query.trim();
-  return members.filter((member) => {
+  const matches = members.filter((member) => {
     if (member.user_id === options.currentUserId) return false;
     if (options.excludeUserIds?.has(member.user_id)) return false;
     if (!q) return true;
     // Accent-insensitive, so "tuan" finds "Tuấn".
+    if (options.nameOnly) return foldedIncludes(member.display_name.trim(), q);
     return foldedIncludes(memberDisplayLabel(member), q) || foldedIncludes(member.email, q);
   });
+  // By name, as the canvas lists them ("Hoàng Lan", "Lê Minh Châu", …), not in join order.
+  return matches.sort((a, b) => memberDisplayLabel(a).localeCompare(memberDisplayLabel(b), "vi"));
 }
 
 export function findWorkspaceMemberByEmail(members: Member[], email: string): Member | null {

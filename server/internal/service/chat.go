@@ -100,10 +100,15 @@ type ChatMessageRow struct {
 	Note              *ChatNoteInfo
 	Post              *ChatPostInfo
 	Priority          string
+	ForwardedFrom     *ChatForwardedFrom
 	EditedAt          *time.Time
 	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
 	// its own queued copy without guessing from body and timestamp.
 	ClientMsgID string
+
+	// ThreadParticipantIDs are a root's three latest distinct repliers,
+	// newest first (attachThreadParticipants); nil on other rows.
+	ThreadParticipantIDs []string
 }
 
 type ListChatMessagesInput struct {
@@ -354,7 +359,9 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID)), nil
+	rows := []ChatMessageRow{s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID))}
+	s.attachThreadParticipants(ctx, room, rows)
+	return rows[0], nil
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.
@@ -405,6 +412,7 @@ func (s *ChatService) listSignedMessages(
 		return nil, err
 	}
 	s.signChatMedia(ctx, room, rows)
+	s.attachThreadParticipants(ctx, room, rows)
 	return rows, nil
 }
 
@@ -609,6 +617,9 @@ func (s *ChatService) sendMessage(
 		return ChatMessageRow{}, err
 	}
 	if err := emitChatMessageNotifications(ctx, q, room, userID, msg.ID, "", "", mentions); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := requestChatLinkPreview(ctx, q, userID, room, msg.ID, body); err != nil {
 		return ChatMessageRow{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

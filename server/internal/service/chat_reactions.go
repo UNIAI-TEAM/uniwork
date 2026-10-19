@@ -28,6 +28,7 @@ type chatMessageMetadata struct {
 	Note             *ChatNotePayload     `json:"note,omitempty"`
 	Post             *ChatPostPayload     `json:"post,omitempty"`
 	Priority         string               `json:"priority,omitempty"`
+	ForwardedFrom    *ChatForwardedFrom   `json:"forwarded_from,omitempty"`
 }
 
 func reactionCountsFromMetadata(meta chatMessageMetadata) map[string]int {

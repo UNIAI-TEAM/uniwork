@@ -29,29 +29,31 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	// Hide invalid configuration here; the protected download endpoint reports
-	// configuration errors after checking organization membership.
-	dev, err := h.Cfg.OfficeInstallers("dev")
-	if err != nil || dev == nil {
-		dev = []config.OfficeInstaller{}
-	}
-	beta, err := h.Cfg.OfficeInstallers("beta")
-	if err != nil || beta == nil {
-		beta = []config.OfficeInstaller{}
-	}
-	stable, err := h.Cfg.OfficeInstallers("stable")
-	if err != nil || stable == nil {
-		stable = []config.OfficeInstaller{}
-	}
 	respondJSON(w, 200, sdo.ConfigSDO{
 		Flags:                      featureflags.EvaluateFrontendPublicFlags(ctx, h.FeatureFlags),
 		RumSampleRate:              h.Cfg.RUMSampleRate,
 		WorkManagementCapabilities: workcapability.Catalogue(),
 		OfficeInstallerURLs:        sdo.OfficeInstallerURLsSDO{Dev: h.Cfg.OfficeInstallerDevURL, Beta: h.Cfg.OfficeInstallerBetaURL, Stable: h.Cfg.OfficeInstallerStableURL},
-		OfficeInstallers:           sdo.OfficeInstallerChannelsSDO{Dev: dev, Beta: beta, Stable: stable},
+		OfficeInstallers:           installerChannels(h.Cfg.OfficeInstallers),
 		OfficeDeploymentID:         deploymentID,
 		OfficeAPIOrigin:            officeAPIOrigin(h.Cfg.APIPublicURL),
+		UniChatInstallers:          installerChannels(h.Cfg.UniChatInstallers),
+		UniChatStores:              h.Cfg.UniChatStores(),
 	})
+}
+
+// installerChannels publishes one catalogue per channel. Invalid configuration
+// is hidden here as "nothing published"; Office's protected download endpoint
+// reports configuration errors after checking organization membership.
+func installerChannels(read func(channel string) ([]config.OfficeInstaller, error)) sdo.OfficeInstallerChannelsSDO {
+	channel := func(name string) []config.OfficeInstaller {
+		items, err := read(name)
+		if err != nil || items == nil {
+			return []config.OfficeInstaller{}
+		}
+		return items
+	}
+	return sdo.OfficeInstallerChannelsSDO{Dev: channel("dev"), Beta: channel("beta"), Stable: channel("stable")}
 }
 
 // officeAPIOrigin is the public deployment origin the web hands to the

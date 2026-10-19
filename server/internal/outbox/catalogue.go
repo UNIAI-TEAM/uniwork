@@ -178,6 +178,7 @@ var catalogue = []EventDef{
 	{Topic: "chat.message.mentioned", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.dm.received", Version: 1, Payload: []string{"room_id", "message_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_received", Version: 1, Payload: []string{"room_id", "message_id", "user_id", "thread_root_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	{Topic: "chat.voice.invite_received", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.thread.reply_linked", Version: 1, Payload: []string{"thread_root_id", "message_id", "task_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "chat.reminder.due", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
 	{Topic: "chat.room.created", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryOutbox},
@@ -188,6 +189,16 @@ var catalogue = []EventDef{
 	// A read goes to the reader's own tabs and, in a DM, to the peer: nobody
 	// else renders it, and every client that hears one reloads its sidebar.
 	{Topic: "chat.room.read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
+	// A member of a group or non-default channel moved their read pointer:
+	// sockets holding the room open refetch its member list to count who has
+	// seen a message. Losing one costs nobody anything; the next read or
+	// refetch corrects the count.
+	{Topic: "chat.room.member_read", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A member's device acknowledged holding a DM, group or non-default
+	// channel further (✓✓ grey): the sockets holding it open refetch its
+	// member list, as for a read. Losing one costs nobody anything; the next
+	// ack or refetch corrects the tick.
+	{Topic: "chat.room.member_delivered", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.updated", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
 	{Topic: "chat.room.activity", Version: 1, Payload: []string{"room_id"}, Scope: ScopeRoom, Delivery: DeliveryEphemeral},
 	// Message and typing rows of the workspace's default channel go to the
@@ -196,6 +207,9 @@ var catalogue = []EventDef{
 	{Topic: "chat.message.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id", "thread_root_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.updated", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message.deleted", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	// A message's link card is stored (ADR 0035): open timelines refetch the
+	// room's cards. Losing one costs nothing but a card shown on the next load.
+	{Topic: "chat.message.preview_ready", Version: 1, Payload: []string{"room_id", "message_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	// A mention is addressed to the person mentioned, not to the room, so it
 	// goes out on that user's own scope alongside the room's message event.
 	{Topic: "chat.mention.created", Version: 1, Payload: []string{"room_id", "message_id", "sender_id", "thread_root_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
@@ -242,7 +256,13 @@ var catalogue = []EventDef{
 	{Topic: "conference.session_ready", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "transcript.appended", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
-	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	// The AI summary is written with its audit row in one transaction and
+	// announced from the outbox (UNI-1853): a host who missed the frame would
+	// otherwise keep a stale summary. summary.tasks_linked follows a batch of
+	// tasks created from the summary's action items, so every open copy of
+	// the summary shows which items already became tasks.
+	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "summary.tasks_linked", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "recording.started", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
@@ -257,6 +277,8 @@ var catalogue = []EventDef{
 	// delivery-time filtering goes through DocumentReaderResolver.
 	{Topic: "document.shared", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.share_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.break_glass_granted", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.break_glass_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "grant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_created", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// Pages (UNI-678): title, icon or visibility changed; ids only, no
@@ -313,6 +335,8 @@ var catalogue = []EventDef{
 
 	// FileService derivatives (H15): the slow lane makes a photo's thumbnail.
 	{Topic: "file.thumbnail_requested", Version: 1, Payload: []string{"file_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	// A text message names a link: the slow lane reads its card (ADR 0035).
+	{Topic: "chat.link_preview.requested", Version: 1, Payload: []string{"room_id", "message_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},

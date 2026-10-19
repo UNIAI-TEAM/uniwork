@@ -69,6 +69,11 @@ export function createChatRealtimePatchScheduler(qc: QueryClient, wsId: string) 
     if (refreshRooms) {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) }, { cancelRefetch: false });
     }
+    // The switcher's totals move with any room's activity, on the same floor;
+    // a mention also lands in the default channel, which sends no activity.
+    if (refreshRooms || mentionBatch.length > 0) {
+      void qc.invalidateQueries({ queryKey: chatKeys.unreadSummary() }, { cancelRefetch: false });
+    }
   };
 
   const scheduleFlush = () => {

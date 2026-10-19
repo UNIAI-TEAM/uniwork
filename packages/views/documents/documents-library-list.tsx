@@ -5,9 +5,23 @@ import { FolderOpen, Search, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
+import { libraryGroupSpans, libraryLadder, type LibraryColumnId } from "./library-columns";
 import { rowTypeKey, type RowGroup } from "./library-rows";
+
+const COLUMN_LABEL: Record<LibraryColumnId, string> = {
+  name: "documents.home.columns.name",
+  type: "documents.home.columns.type",
+  source: "documents.home.columns.source",
+  editor: "documents.home.columns.editor",
+  updated: "documents.home.columns.updated",
+  size: "documents.home.columns.size",
+  access: "documents.home.columns.my_access",
+  visibility: "documents.home.columns.visibility",
+  actions: "documents.home.columns.actions",
+};
 
 export interface DocumentsLibraryListProps {
   groups: RowGroup[];
@@ -17,6 +31,10 @@ export interface DocumentsLibraryListProps {
   failure: "error" | "permission" | null;
   /** The rows are empty because a filter is on, not because the library is. */
   filtered: boolean;
+  /** The access filter (not only the type chip) is on, so the empty line names access, not file type. */
+  accessFiltered?: boolean;
+  /** The type chip is on too: with both on, the empty line names the filters, not one of them. */
+  typeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
   /** Show the archive badge on every row (the archive tab). */
@@ -44,6 +62,8 @@ export function DocumentsLibraryList({
   loading,
   failure,
   filtered,
+  accessFiltered = false,
+  typeFiltered = false,
   cardsShown = false,
   archived = false,
   showType = false,
@@ -95,11 +115,19 @@ export function DocumentsLibraryList({
           icon={Search}
           title={t("documents.library.no_matches_title")}
           description={t(
-            hasMore
-              ? "documents.home.no_matches_more_description"
-              : cardsShown
-                ? "documents.home.no_matches_description"
-                : "documents.home.no_matches_plain_description",
+            accessFiltered && typeFiltered
+              ? hasMore
+                ? "documents.home.no_matches_filters_more_description"
+                : "documents.home.no_matches_filters_description"
+              : accessFiltered
+                ? hasMore
+                  ? "documents.home.no_matches_access_more_description"
+                  : "documents.home.no_matches_access_description"
+                : hasMore
+                  ? "documents.home.no_matches_more_description"
+                  : cardsShown
+                    ? "documents.home.no_matches_description"
+                    : "documents.home.no_matches_plain_description",
           )}
           role="status"
           actions={
@@ -129,35 +157,34 @@ export function DocumentsLibraryList({
     return "";
   };
 
+  const ladder = libraryLadder(showType);
+  const groupSpans = libraryGroupSpans(ladder);
+
   return (
-    <div className="flex flex-col">
+    <div className="@container/library flex flex-col">
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.page.title")}>
           {/*
-            Below `md` only Name and Actions exist: the other columns are
-            display:none, so the group header spans two columns there and all
-            columns from `md` (a colSpan wider than the visible columns would add
-            implicit columns that squeeze Name to nothing). Name takes what the
-            fixed columns leave.
+            Every column but Name and Actions joins by the width of this list
+            (`@container/library`, see library-columns.ts), never the
+            viewport: the docs aside and the sidebar take ~500px of it. Name
+            takes what the fixed columns leave and never drops below 280px.
+            The group header spans exactly the columns on screen (a colSpan
+            wider than the visible columns would add implicit columns that
+            squeeze Name to nothing).
           */}
           <colgroup>
-            <col />
-            {showType ? <col className="hidden w-36 md:table-column" /> : null}
-            <col className="hidden w-28 md:table-column" />
-            <col className="hidden w-36 md:table-column" />
-            <col className="hidden w-24 md:table-column" />
-            <col className="hidden w-24 md:table-column" />
-            <col className="w-14 md:w-24" />
+            {ladder.columns.map((column) => (
+              <col key={column.id} className={column.col || undefined} />
+            ))}
           </colgroup>
-          <thead className="hidden bg-muted/50 md:table-header-group">
+          <thead className={ladder.head}>
             <tr className="border-b border-border text-caption text-muted-foreground">
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.name")}</th>
-              {showType ? <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.type")}</th> : null}
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.source")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.editor")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.updated")}</th>
-              <th scope="col" className="px-3 py-2 font-medium">{t("documents.home.columns.size")}</th>
-              <th scope="col" className="px-3 py-2"><span className="sr-only">{t("documents.home.columns.actions")}</span></th>
+              {ladder.columns.map((column) => (
+                <th key={column.id} scope="col" className={cn("px-3 py-2 font-medium", column.cell)}>
+                  {column.id === "actions" ? <span className="sr-only">{t(COLUMN_LABEL[column.id])}</span> : t(COLUMN_LABEL[column.id])}
+                </th>
+              ))}
             </tr>
           </thead>
           {groups.map((group) => (
@@ -168,7 +195,9 @@ export function DocumentsLibraryList({
                     {groupTitle(group)}
                     <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
                   </th>
-                  <th aria-hidden colSpan={showType ? 5 : 4} className="hidden md:table-cell" />
+                  {groupSpans.map((spanner) => (
+                    <th key={spanner.cell} aria-hidden colSpan={spanner.span} className={spanner.cell} />
+                  ))}
                 </tr>
               ) : null}
               {group.rows.map((row) => (
@@ -177,6 +206,7 @@ export function DocumentsLibraryList({
                   row={row}
                   handlers={handlers}
                   archived={archived}
+                  ladder={ladder}
                   typeCell={showType ? t(rowTypeKey(row)) : undefined}
                 />
               ))}

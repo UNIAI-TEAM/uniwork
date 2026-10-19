@@ -420,9 +420,11 @@ type Routes struct {
 	GetChatMediaStatus               http.HandlerFunc
 	MintChatVoiceToken               http.HandlerFunc
 	ListPendingChatVoiceInvites      http.HandlerFunc
+	ListChatCallLogs                 http.HandlerFunc
 	GetWorkspaceChatRoom             http.HandlerFunc
 	EnsureWorkspaceChatRoom          http.HandlerFunc
 	ListChatRooms                    http.HandlerFunc
+	ChatUnreadSummary                http.HandlerFunc
 	ResolveDM                        http.HandlerFunc
 	CreateChatGroup                  http.HandlerFunc
 	InviteChatGroupMembers           http.HandlerFunc
@@ -441,8 +443,13 @@ type Routes struct {
 	ListChatThreads                  http.HandlerFunc
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
+	ForwardChatMessage               http.HandlerFunc
 	ListChatMessageLinks             http.HandlerFunc
 	ListChatRoomMessageLinks         http.HandlerFunc
+	ListChatRoomLinkPreviews         http.HandlerFunc
+	ListChatRoomLinkedTasks          http.HandlerFunc
+	GetChatRoomSharedSummary         http.HandlerFunc
+	TranscribeChatVoiceMessage       http.HandlerFunc
 	DeleteChatMessageLink            http.HandlerFunc
 	SyncChatThreadTask               http.HandlerFunc
 	UnsyncChatThreadTask             http.HandlerFunc
@@ -454,9 +461,12 @@ type Routes struct {
 	ListChatRoomMembers              http.HandlerFunc
 	PatchChatRoomMember              http.HandlerFunc
 	PatchChatRoom                    http.HandlerFunc
+	UploadChatRoomAvatar             http.HandlerFunc
+	RemoveChatRoomAvatar             http.HandlerFunc
 	RemoveChatRoomMember             http.HandlerFunc
 	LeaveChatRoom                    http.HandlerFunc
 	MarkChatRoomRead                 http.HandlerFunc
+	AckChatDelivered                 http.HandlerFunc
 	MuteChatRoom                     http.HandlerFunc
 	UnmuteChatRoom                   http.HandlerFunc
 	ListWorkspaceChatMessages        http.HandlerFunc
@@ -587,17 +597,25 @@ type Routes struct {
 	ListRecentDocuments http.HandlerFunc
 	ListDocumentChanges http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
-	PutOfficeOfflineLease    http.HandlerFunc
-	DeleteOfficeOfflineLease http.HandlerFunc
-	ListSharedWithMe         http.HandlerFunc
-	DocumentTree             http.HandlerFunc
-	MoveDocument             http.HandlerFunc
-	ArchiveDocument          http.HandlerFunc
-	ArchiveImpact            http.HandlerFunc
-	RestoreDocument          http.HandlerFunc
-	ListDocumentShares       http.HandlerFunc
-	CreateDocumentShare      http.HandlerFunc
-	RevokeDocumentShare      http.HandlerFunc
+	PutOfficeOfflineLease      http.HandlerFunc
+	DeleteOfficeOfflineLease   http.HandlerFunc
+	ListSharedWithMe           http.HandlerFunc
+	DocumentAccessReport       http.HandlerFunc
+	ExportDocumentAccessReport http.HandlerFunc
+	DocumentTree               http.HandlerFunc
+	MoveDocument               http.HandlerFunc
+	ArchiveDocument            http.HandlerFunc
+	ArchiveImpact              http.HandlerFunc
+	RestoreDocument            http.HandlerFunc
+	ListDocumentShares         http.HandlerFunc
+	CreateDocumentShare        http.HandlerFunc
+	CreateDocumentShareBatch   http.HandlerFunc
+	RevokeDocumentShare        http.HandlerFunc
+	// Emergency view access for a workspace admin on a restricted document
+	// (DOC-05; UNI-1628).
+	CreateDocumentBreakGlass http.HandlerFunc
+	RevokeDocumentBreakGlass http.HandlerFunc
+	GetDocumentAdminSummary  http.HandlerFunc
 	CreateDocumentLink       http.HandlerFunc
 	RevokeDocumentLink       http.HandlerFunc
 	ListDocumentAccessLogs   http.HandlerFunc

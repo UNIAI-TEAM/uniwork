@@ -43,6 +43,7 @@ export function incomingStateFromInvite(data: VoiceInvitePayload): IncomingState
     peerName,
     callKind,
     callerName: isMultiPartyVoiceCall(callKind) ? callerName : undefined,
+    callerId: isMultiPartyVoiceCall(callKind) ? data.caller_id : undefined,
   };
 }
 

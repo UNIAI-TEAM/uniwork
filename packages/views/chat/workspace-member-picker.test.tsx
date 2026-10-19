@@ -202,6 +202,37 @@ describe("workspace-member-picker", () => {
     );
   });
 
+  it("draws checkbox rows that stay when picked, with the person's two letters", () => {
+    const people = ["u1", "u2"].map((id, index) => ({
+      workspace_id: "ws1",
+      user_id: id,
+      role: "member" as const,
+      email: `${id}@example.com`,
+      display_name: index === 0 ? "Tran Hoang Long" : "Binh",
+    }));
+    render(wrap(<WorkspaceMemberPickerList members={people} selectedUserIds={new Set(["u1"])} onPick={vi.fn()} />));
+    expect(screen.getByRole("checkbox", { name: /Tran Hoang Long/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: /Binh/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("HL")).toBeInTheDocument();
+  });
+
+  it("name-only mode labels a member without a display name generically, never by the email", () => {
+    const unnamed = { workspace_id: "ws1", user_id: "u7", role: "member" as const, email: "nguyen.an@example.com", display_name: "  " };
+    const { t } = initI18n();
+    const generic = t("chat.workspace_member_unnamed");
+    expect(generic).not.toBe("chat.workspace_member_unnamed");
+
+    render(wrap(<WorkspaceMemberPickerList members={[unnamed]} nameOnly onPick={vi.fn()} />));
+    expect(screen.getByRole("button", { name: new RegExp(generic) })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/nguyen\.an|example\.com/);
+  });
+
+  it("chat callers keep the email local part as the label of an unnamed member", () => {
+    const unnamed = { workspace_id: "ws1", user_id: "u7", role: "member" as const, email: "nguyen.an@example.com", display_name: "" };
+    render(wrap(<WorkspaceMemberPickerList members={[unnamed]} onPick={vi.fn()} />));
+    expect(screen.getByRole("button", { name: /nguyen\.an/ })).toBeInTheDocument();
+  });
+
   it("shows external lookup results", () => {
     const onPick = vi.fn();
     render(

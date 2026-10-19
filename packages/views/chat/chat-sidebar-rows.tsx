@@ -1,6 +1,6 @@
 "use client";
 
-import { BellOff, Pin } from "lucide-react";
+import { BellOff, CheckCheck, Image as ImageIcon, Mic, Paperclip, Phone, Pin, type LucideIcon } from "lucide-react";
 import { memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
@@ -13,11 +13,12 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import {
+  chatSidebarPreviewIcon,
   formatChatSidebarPreviewText,
   formatChatSidebarTime,
+  isMissedCallPreview,
 } from "./chat-sidebar-preview";
 import { formatSidebarTypingPreview } from "./chat-sidebar-typing";
-import { SidebarTypingDots } from "./sidebar-typing-dots";
 
 export type SidebarPreviewOptions = {
   currentUserId: string;
@@ -25,6 +26,7 @@ export type SidebarPreviewOptions = {
   youLabel: string;
   voiceCallLabel: string;
   voiceMessageLabel: string;
+  missedCallLabel?: string;
   fileMessageLabel?: string;
   yesterdayLabel: string;
   nicknamesByUserId?: Record<string, string>;
@@ -54,6 +56,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   unreadBadgesReady,
   pinned = false,
   notificationsMuted = false,
+  peerReadAt,
 }: {
   active: boolean;
   onClick: () => void;
@@ -75,6 +78,8 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   unreadBadgesReady: boolean;
   pinned?: boolean;
   notificationsMuted?: boolean;
+  /** A DM's peer read pointer: the ✓✓ on my own last message once they saw it. */
+  peerReadAt?: string;
 }) {
   const { t, i18n } = useTranslation();
   const typingUserIds = useSidebarTypingStore(
@@ -88,26 +93,44 @@ export const SidebarNavItem = memo(function SidebarNavItem({
     contacts,
     fallbackNameByUserId: typingNameByUserId,
   });
-  const previewText = formatChatSidebarPreviewText(preview, {
+  const formatOptions = {
     currentUserId: previewOptions.currentUserId,
     isGroup: previewOptions.isGroup,
     youLabel: previewOptions.youLabel,
     voiceCallLabel: previewOptions.voiceCallLabel,
     voiceMessageLabel: previewOptions.voiceMessageLabel,
+    missedCallLabel: previewOptions.missedCallLabel,
     fileMessageLabel: previewOptions.fileMessageLabel,
     nicknamesByUserId: previewOptions.nicknamesByUserId,
     mediaLabels: {
       sticker: t("chat.media_sticker"),
       gif: t("chat.media_gif"),
-      image: t("chat.media_image"),
+      image: t("chat.sidebar_photo_preview"),
     },
-  });
+  };
+  const previewText = formatChatSidebarPreviewText(preview, formatOptions);
+  // The sender ("Bạn: ", "Minh: ") is what the group line adds to the bare
+  // body; split it off so it can carry the ink while the body stays quiet.
+  const bodyText = previewOptions.isGroup
+    ? formatChatSidebarPreviewText(preview, { ...formatOptions, isGroup: false })
+    : previewText;
+  const senderPrefix =
+    previewText && bodyText && previewText !== bodyText && previewText.endsWith(bodyText)
+      ? previewText.slice(0, previewText.length - bodyText.length)
+      : "";
+  const iconKind = previewText ? chatSidebarPreviewIcon(preview) : null;
+  const missed = isMissedCallPreview(preview, previewOptions.currentUserId);
+  const PreviewIcon = iconKind ? PREVIEW_ICONS[iconKind] : undefined;
   const timeLabel = formatChatSidebarTime(preview?.createdAt, {
     yesterdayLabel: previewOptions.yesterdayLabel,
     locale: i18n.language,
   });
   const subtitle = typingPreview ?? previewText ?? fallbackSubtitle;
   const hasUnread = unread > 0 || mentionUnread > 0;
+  const showBadges = unreadBadgesReady && hasUnread;
+  const ownLast =
+    !!preview && preview.senderId.trim().toUpperCase() === previewOptions.currentUserId.trim().toUpperCase();
+  const seen = ownLast && !!peerReadAt && Date.parse(peerReadAt) >= Date.parse(preview.createdAt);
 
   return (
     <button
@@ -119,93 +142,104 @@ export const SidebarNavItem = memo(function SidebarNavItem({
       // The row publishes its fill as --row-fill so the presence dot's
       // cut-out ring matches whatever the row is painted with.
       className={cn(
-        "relative flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors duration-(--duration-fast)",
+        "relative flex min-h-17.5 w-full items-center gap-3 rounded-[14px] px-3 py-2.25 text-left transition-colors duration-(--duration-fast)",
         active
-          ? "bg-surface-selected text-surface-selected-foreground [--row-fill:var(--surface-selected)]"
+          ? "bg-brand-subtle [--row-fill:var(--brand-subtle)]"
           : "[--row-fill:var(--surface)] hover:bg-surface-hover hover:[--row-fill:var(--surface-hover)]",
       )}
       onClick={onClick}
     >
       {avatar}
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-body font-medium text-foreground",
-              hasUnread && "font-semibold",
-            )}
-          >
+      <span className="flex min-w-0 flex-1 flex-col gap-0.75">
+        <span className="flex items-center gap-1.25">
+          <span className="min-w-0 flex-1 truncate font-display text-body-lg leading-5 font-bold text-foreground">
             {title}
           </span>
-          <span className="flex shrink-0 items-center gap-1">
-            {notificationsMuted ? (
-              <BellOff
-                className="size-3.5 shrink-0 text-muted-foreground"
-                aria-label={t("chat.sidebar_conversation_muted_aria")}
-              />
-            ) : null}
-            {timeLabel ? (
-              <span
-                className={cn(
-                  "text-caption tabular-nums",
-                  hasUnread && !notificationsMuted ? "font-medium text-brand-subtle-foreground" : "text-muted-foreground",
-                )}
-              >
-                {timeLabel}
-              </span>
-            ) : null}
-          </span>
+          {notificationsMuted ? (
+            <BellOff
+              className="size-3.5 shrink-0 text-faint-foreground"
+              aria-label={t("chat.sidebar_conversation_muted_aria")}
+            />
+          ) : null}
+          {seen ? (
+            <CheckCheck
+              className="size-4 shrink-0 text-brand"
+              strokeWidth={2.2}
+              aria-label={t("chat.sidebar_seen_aria")}
+            />
+          ) : null}
+          {timeLabel ? (
+            <span
+              className={cn(
+                "shrink-0 text-caption tabular-nums",
+                hasUnread && !notificationsMuted ? "text-brand" : "text-muted-foreground",
+              )}
+            >
+              {timeLabel}
+            </span>
+          ) : null}
         </span>
-        {subtitle || pinned ? (
-          <span className="mt-0.5 flex items-center gap-2">
-            {subtitle ? (
+        {subtitle || pinned || showBadges ? (
+          <span className="flex items-center gap-1.5">
+            {typingPreview ? (
+              <span className="min-w-0 flex-1 truncate text-body font-medium text-brand">{typingPreview}</span>
+            ) : previewText ? (
               <span
                 className={cn(
-                  "min-w-0 flex-1 truncate text-caption",
-                  typingPreview
-                    ? "inline-flex items-center gap-1.5 italic text-brand-subtle-foreground"
-                    : hasUnread
-                      ? "font-medium text-foreground"
-                      : "text-muted-foreground",
+                  "flex min-w-0 flex-1 items-center gap-1 text-body",
+                  missed ? "text-destructive" : "text-muted-foreground",
                 )}
               >
-                {typingPreview ? (
-                  <>
-                    <span className="truncate">{typingPreview}</span>
-                    <SidebarTypingDots />
-                  </>
-                ) : (
-                  subtitle
-                )}
+                {/* The trailing space stays in the text (names read "Minh: hi"); the flex gap draws it. */}
+                {senderPrefix ? <span className="shrink-0 font-medium text-foreground">{senderPrefix}</span> : null}
+                {PreviewIcon ? (
+                  <PreviewIcon
+                    aria-hidden
+                    // A missed call is red; any other call stays quiet.
+                    className={cn(
+                      "size-3.5 shrink-0",
+                      iconKind !== "call" ? "text-brand" : missed ? "text-destructive" : "text-faint-foreground",
+                    )}
+                  />
+                ) : null}
+                <span className="min-w-0 truncate">{senderPrefix ? bodyText : previewText}</span>
               </span>
             ) : (
-              <span className="min-w-0 flex-1" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-body text-muted-foreground">{subtitle}</span>
             )}
-            {pinned ? (
+            <UnreadBadge
+              count={unread}
+              mentionCount={mentionUnread}
+              ready={unreadBadgesReady}
+              muted={notificationsMuted}
+            />
+            {pinned && !showBadges ? (
               <Pin
-                className="size-3.5 shrink-0 text-muted-foreground"
+                className="size-3.75 shrink-0 rotate-45 text-faint-foreground"
                 aria-label={t("chat.sidebar_conversation_pinned_aria")}
               />
             ) : null}
           </span>
         ) : null}
       </span>
-      <UnreadBadge
-        count={unread}
-        mentionCount={mentionUnread}
-        ready={unreadBadgesReady}
-        muted={notificationsMuted}
-      />
     </button>
   );
 });
 
-const BADGE = "h-5 min-w-5 shrink-0 justify-center rounded-full px-1.5 text-micro font-semibold tabular-nums";
+/** Decorative: the preview text already names the kind ("Tin nhắn thoại", "Ảnh"). */
+const PREVIEW_ICONS: Record<NonNullable<ReturnType<typeof chatSidebarPreviewIcon>>, LucideIcon> = {
+  voice: Mic,
+  call: Phone,
+  image: ImageIcon,
+  file: Paperclip,
+};
+
+const BADGE = "h-5.5 min-w-5.5 shrink-0 justify-center rounded-full px-1.75 text-caption font-semibold tabular-nums";
 
 /**
- * A mention is the one unread that asks for you, so it takes the warning
- * signal; a plain count is the brand. A muted room keeps its counts but drops
- * to neutral, so it no longer competes with rooms that notify.
+ * A mention is the one unread that asks for you: a brand "@" disc ahead of
+ * the count, even in a muted room. A muted room's count drops to neutral
+ * grey, so it no longer competes with rooms that notify.
  */
 function UnreadBadge({
   count,
@@ -223,10 +257,10 @@ function UnreadBadge({
     return null;
   }
   return (
-    <span className="flex shrink-0 items-center gap-1 self-center">
+    <span className="flex shrink-0 items-center gap-1">
       {mentionCount > 0 ? (
         <Badge
-          className={cn(BADGE, "bg-warning-solid text-on-solid")}
+          className={cn(BADGE, "bg-primary px-0 text-label font-bold text-primary-foreground")}
           aria-label={t("chat.mention_unread_badge_aria", { count: mentionCount })}
         >
           @
@@ -234,12 +268,7 @@ function UnreadBadge({
       ) : null}
       {count > 0 ? (
         <Badge
-          // A muted count sits on the page fill with a hairline: bg-muted is
-          // also the row's hover wash, so it would vanish under the pointer.
-          className={cn(
-            BADGE,
-            muted ? "border border-border bg-background text-muted-foreground" : "bg-brand text-brand-foreground",
-          )}
+          className={cn(BADGE, muted ? "bg-tint-gray-solid text-on-solid" : "bg-primary text-primary-foreground")}
           aria-label={t("chat.unread_badge_aria", { count })}
         >
           {count > 99 ? "99+" : String(count)}

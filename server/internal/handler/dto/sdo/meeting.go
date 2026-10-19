@@ -216,19 +216,43 @@ type SummaryActionItemDTO struct {
 	Due   string `json:"due"`
 }
 
+// MeetingSummaryActionItemDTO is one action item of a meeting summary with
+// what the server suggests for it and the task it already became.
+type MeetingSummaryActionItemDTO struct {
+	Index               int     `json:"index" description:"Vị trí trong action_items; gửi lại ở POST .../summary/tasks" example:"0"`
+	Title               string  `json:"title" example:"Gửi báo cáo sprint"`
+	Owner               string  `json:"owner" description:"Tên người phụ trách AI ghi" example:"Minh"`
+	Due                 string  `json:"due" description:"Hạn AI ghi, nguyên văn" example:"thứ Sáu"`
+	SuggestedAssigneeID *string `json:"suggested_assignee_id,omitempty" description:"Thành viên workspace duy nhất khớp tên AI ghi; vắng khi không ai hoặc nhiều người khớp" example:"01JABC1234567890ABCDEFGH"`
+	DueDate             *string `json:"due_date,omitempty" description:"Hạn AI ghi đọc theo ngày họp (YYYY-MM-DD); vắng khi không đọc được" example:"2026-09-04"`
+	TaskID              *string `json:"task_id,omitempty" description:"Task đã tạo từ việc này của bản tóm tắt này, khi task còn tồn tại" example:"01JABC1234567890ABCDEFGH"`
+}
+
 type MeetingSummaryDTO struct {
-	ID          string                 `json:"id"`
-	MeetingID   string                 `json:"meeting_id"`
-	Summary     string                 `json:"summary"`
-	Decisions   []string               `json:"decisions"`
-	ActionItems []SummaryActionItemDTO `json:"action_items"`
-	Model       string                 `json:"model"`
-	CreatedBy   string                 `json:"created_by"`
-	CreatedAt   string                 `json:"created_at"`
+	ID          string                        `json:"id"`
+	MeetingID   string                        `json:"meeting_id"`
+	Summary     string                        `json:"summary"`
+	Decisions   []string                      `json:"decisions"`
+	ActionItems []MeetingSummaryActionItemDTO `json:"action_items"`
+	Model       string                        `json:"model"`
+	CreatedBy   string                        `json:"created_by"`
+	CreatedAt   string                        `json:"created_at"`
 }
 
 type MeetingSummarySDO struct {
 	Summary *MeetingSummaryDTO `json:"summary"`
+}
+
+// SummaryTaskLinkDTO pairs a converted action item with its new task.
+type SummaryTaskLinkDTO struct {
+	Index  int    `json:"index" example:"0"`
+	TaskID string `json:"task_id" example:"01JABC1234567890ABCDEFGH"`
+}
+
+// MeetingSummaryTasksSDO answers POST /api/v1/meetings/{meetingID}/summary/tasks.
+type MeetingSummaryTasksSDO struct {
+	TaskIDs []string             `json:"task_ids" description:"Task đã tạo, theo thứ tự gửi lên"`
+	Items   []SummaryTaskLinkDTO `json:"items" description:"Việc nào thành task nào, theo thứ tự gửi lên"`
 }
 
 type TaskIDListSDO struct {

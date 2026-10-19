@@ -342,6 +342,7 @@ describe("useRealtimeSync", () => {
       expect.arrayContaining([
         JSON.stringify(["notifications", "list"]),
         JSON.stringify(["notifications", "unread-count"]),
+        JSON.stringify(["chat", "unread-summary"]),
       ]),
     );
   });
@@ -864,6 +865,42 @@ describe("useRealtimeSync", () => {
     vi.useRealTimers();
   });
 
+  // "N người đã xem": a member's read refreshes that room's members, nothing else.
+  it("refreshes only the room's members on chat.room.member_read", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.member_read", payload: { room_id: "g1", user_id: "u2" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomMembers("ws1", "g1"))]);
+    vi.useRealTimers();
+  });
+
+  // ✓✓ grey: a member's device acknowledged the room, so only its members (their cursors) refetch.
+  it("refreshes only the room's members on chat.room.member_delivered", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.room.member_delivered", payload: { room_id: "dm1", user_id: "u2" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomMembers("ws1", "dm1"))]);
+    vi.useRealTimers();
+  });
+
+  // ADR 0035: a stored link card refreshes only that room's cards.
+  it("refreshes only the room's link cards on chat.message.preview_ready", async () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "chat.message.preview_ready", payload: { room_id: "g1", message_id: "m1" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(chatKeys.roomLinkPreviewsRoom("ws1", "g1"))]);
+    vi.useRealTimers();
+  });
+
   it("invalidates message links on chat.message.linked without dropping message cache", () => {
     const qc = new QueryClient();
     const messages = [
@@ -1179,6 +1216,27 @@ describe("useRealtimeSync", () => {
     });
     expect(keysCalled(invalidate).filter((k) => k === JSON.stringify(["meeting-transcript", "m1"]))).toHaveLength(1);
   });
+});
+
+describe("useRealtimeSync › meeting summary", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(["summary.created", "summary.tasks_linked"])(
+    "refreshes the meeting's summary and activity on %s",
+    (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { meeting_id: "m1", summary_id: "s1", workspace_id: "ws1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toEqual(
+        expect.arrayContaining([JSON.stringify(["meeting-summary", "m1"]), JSON.stringify(["meeting-activity", "m1"])]),
+      );
+    },
+  );
 });
 
 describe("useRealtimeSync › home summary", () => {

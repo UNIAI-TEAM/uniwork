@@ -143,12 +143,24 @@ ON CONFLICT (user_id, kind) DO UPDATE SET
   in_app = EXCLUDED.in_app, push = EXCLUDED.push, email = EXCLUDED.email, updated_at = now();
 
 -- name: UpsertPushSubscription :one
-INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, now())
+INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, now())
 ON CONFLICT (endpoint) WHERE revoked_at IS NULL DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, last_used_at = now()
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, last_used_at = now()
 RETURNING *;
+
+-- name: RevokePushSubscriptionsForSession :exec
+-- Revoking a native device family closes the pushes registered from it.
+UPDATE push_subscriptions SET revoked_at = now()
+WHERE user_id = $1 AND session_id = $2 AND revoked_at IS NULL;
+
+-- name: RevokeDevicePushSubscriptionsForUser :exec
+-- A user-wide revoke closes every push registered from a native device
+-- session; browser subscriptions stay, the web has no way to re-register them.
+UPDATE push_subscriptions p SET revoked_at = now()
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND p.session_id IN (SELECT d.session_family_id FROM device_sessions d WHERE d.user_id = $1);
 
 -- name: ListActivePushSubscriptions :many
 SELECT * FROM push_subscriptions WHERE user_id = $1 AND revoked_at IS NULL;

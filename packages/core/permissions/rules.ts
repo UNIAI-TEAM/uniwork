@@ -463,21 +463,23 @@ export interface DocumentLevelInput {
   my_level?: string | null;
 }
 
-function documentLevelRank(level: string | null | undefined): number {
+export function documentLevelRank(level: string | null | undefined): number {
   switch (level) {
     case "view":
       return 1;
-    case "edit":
+    case "comment":
       return 2;
-    case "manage":
+    case "edit":
       return 3;
+    case "manage":
+      return 4;
     default:
       return 0;
   }
 }
 
 /**
- * Shared shape of the three document rules.
+ * Shared shape of the document level rules.
  * Backend: DocumentService.effectiveLevel computes the level and
  * decideDocumentAccess turns it into the answer — none → 404, below the
  * required level → 403 (server/internal/service/document_permissions.go).
@@ -510,6 +512,21 @@ export function canViewDocument(doc: DocumentLevelInput | null, ctx: PermissionC
 }
 
 /**
+ * Write or reply to a comment, edit or delete own comment, add or remove own
+ * reaction, or resolve/reopen own thread.
+ * Backend: DocumentService.withDocumentMutation(…, DocumentLevelComment)
+ * (server/internal/service/document_comments.go).
+ */
+export function canCommentDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(
+    doc,
+    ctx,
+    documentLevelRank("comment"),
+    "You can view this document but not comment on it.",
+  );
+}
+
+/**
  * Edit content or title, save a version, restore, upload a new file version,
  * paste an image, create a child page.
  * Backend: DocumentService.withDocumentMutation(…, DocumentLevelEdit) — the
@@ -528,5 +545,26 @@ export function canEditDocument(doc: DocumentLevelInput | null, ctx: PermissionC
  * (server/internal/service/document_permissions.go).
  */
 export function canManageDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(doc, ctx, documentLevelRank("manage"), "Only people who manage this document can do this.");
+}
+
+/** A document level plus DOC-05's `admin_scope` (the caller administers the
+ *  document as a workspace owner/admin without reading it). */
+export interface DocumentAdministerInput extends DocumentLevelInput {
+  admin_scope?: boolean | null;
+}
+
+/**
+ * Open the share dialog and load its access list, transfer the ACL owner
+ * (access addendum §2.1, §2.5). Allowed at manage level or with
+ * `admin_scope`, which a pure admin has with no level at all (`my_level=""`)
+ * and a break-glass admin with `view`.
+ * Backend: access.canAdminister() = Level >= manage || AdminScope, through
+ * DocumentService.withDocumentAdministerMutation /
+ * authorizeDocumentViewOrAdminister (DOC-05,
+ * server/internal/service/document_permissions.go).
+ */
+export function canAdministerDocument(doc: DocumentAdministerInput | null, ctx: PermissionContext): Decision {
+  if (doc?.admin_scope === true && ctx.userId !== null && ctx.orgMemberStatus !== "deactivated") return ALLOW;
   return requireDocumentLevel(doc, ctx, documentLevelRank("manage"), "Only people who manage this document can do this.");
 }

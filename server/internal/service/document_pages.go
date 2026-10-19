@@ -59,6 +59,9 @@ type DocumentView struct {
 	Access      DocumentAccess
 	Breadcrumbs []DocumentCrumb
 	File        *DocumentFileInfo
+	// BreakGlassExpiresAt is when the live emergency grant this view was read
+	// through ends; zero unless Access.Via is break_glass (DOC-05).
+	BreakGlassExpiresAt time.Time
 }
 
 // CreatePageInput is POST /workspaces/{ws}/documents with kind page or
@@ -451,8 +454,12 @@ func (s *DocumentService) GetDocument(ctx context.Context, actor Actor, document
 	if err != nil {
 		return DocumentView{}, err
 	}
+	expires, err := s.breakGlassExpiry(ctx, s.q, actor, doc, access)
+	if err != nil {
+		return DocumentView{}, err
+	}
 	s.RecordDocumentRead(ctx, actor, doc, access, DocumentAccessView, nil)
-	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, File: file}, nil
+	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, File: file, BreakGlassExpiresAt: expires}, nil
 }
 
 // currentFileInfo is the `file` block of a file document: its current
@@ -493,7 +500,11 @@ func (s *DocumentService) documentView(ctx context.Context, q *db.Queries, actor
 	if err != nil {
 		return DocumentView{}, err
 	}
-	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs}, nil
+	expires, err := s.breakGlassExpiry(ctx, q, actor, doc, access)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, BreakGlassExpiresAt: expires}, nil
 }
 
 // documentBreadcrumbs walks up from doc's parent and stops at the first
@@ -595,8 +606,14 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 	}
 
 	var out DocumentView
-	err = s.withDocumentMutationLocked(ctx, actor, documentID, treeLockWorkspace, DocumentLevelView, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
+	// The outer gate admits an AdminScope caller (DOC-05) so they can narrow
+	// visibility; every content field still needs edit, and an admin-only
+	// caller is told the content is restricted.
+	err = s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, treeLockWorkspace, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
 		if in.Title != nil || in.Icon != nil || in.Content != nil {
+			if access.Level == DocumentLevelNone && access.AdminScope {
+				return errDocumentRestricted()
+			}
 			if !access.Level.AtLeast(DocumentLevelEdit) {
 				return ErrForbidden
 			}
@@ -605,8 +622,14 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			if doc.OwnerKind.Valid {
 				return errDocumentOwned()
 			}
-			if !access.Level.AtLeast(DocumentLevelManage) {
+			if !access.canAdminister() {
 				return ErrForbidden
+			}
+			// Opening a restricted document to the workspace would hand the
+			// admin read access by role: manage only, never AdminScope.
+			if doc.Visibility == documentVisibilityRestricted && *in.Visibility != documentVisibilityRestricted &&
+				!access.Level.AtLeast(DocumentLevelManage) {
+				return errBreakGlassRequired()
 			}
 		}
 		if doc.ArchivedAt.Valid {

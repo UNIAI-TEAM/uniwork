@@ -223,8 +223,10 @@ func shareLevelsFor(min DocumentLevel) []string {
 		return []string{string(DocumentLevelManage)}
 	case DocumentLevelEdit:
 		return []string{string(DocumentLevelEdit), string(DocumentLevelManage)}
+	case DocumentLevelComment:
+		return []string{string(DocumentLevelComment), string(DocumentLevelEdit), string(DocumentLevelManage)}
 	default:
-		return []string{string(DocumentLevelView), string(DocumentLevelEdit), string(DocumentLevelManage)}
+		return []string{string(DocumentLevelView), string(DocumentLevelComment), string(DocumentLevelEdit), string(DocumentLevelManage)}
 	}
 }
 
@@ -392,6 +394,12 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 // seeAll is false. Each item's walk up parent_id stops at the first missing or
 // unreadable ancestor, matching documentBreadcrumbs.
 func (s *DocumentService) attachListPaths(ctx context.Context, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
+	return s.attachListPathsQ(ctx, s.q, scope, workspaceID, agent, items)
+}
+
+// attachListPathsQ is attachListPaths read through q, for a caller that holds
+// a snapshot transaction (the access report export).
+func (s *DocumentService) attachListPathsQ(ctx context.Context, q *db.Queries, scope documentListScope, workspaceID string, agent bool, items []DocumentListItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -410,7 +418,7 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 	if len(parentIDs) == 0 {
 		return nil
 	}
-	ancRows, err := s.q.ListDocumentAncestors(ctx, db.ListDocumentAncestorsParams{
+	ancRows, err := q.ListDocumentAncestors(ctx, db.ListDocumentAncestorsParams{
 		OrganizationID: scope.organizationID,
 		WorkspaceID:    workspaceID,
 		Ids:            parentIDs,
@@ -423,18 +431,31 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 		return nil
 	}
 	ancByID := make(map[string]db.ListDocumentAncestorsRow, len(ancRows))
-	var shareCheckIDs []string
+	var shareCheckIDs, adminIDs []string
 	for _, r := range ancRows {
 		ancByID[r.ID] = r
-		if scope.allowShares && !scope.seeAll && !r.OwnerKind.Valid {
+		if r.OwnerKind.Valid {
+			continue
+		}
+		switch {
+		case listAdminScopeRow(scope, db.Document{Visibility: r.Visibility, AclOwnerID: r.AclOwnerID}):
+			// DOC-05: an admin reads a restricted ancestor's title only
+			// through a share or a live break-glass grant.
+			shareCheckIDs = append(shareCheckIDs, r.ID)
+			adminIDs = append(adminIDs, r.ID)
+		case scope.allowShares && !scope.seeAll:
 			if r.Visibility == documentVisibilityRestricted || r.ArchivedAt.Valid || !scope.memberVisible {
 				shareCheckIDs = append(shareCheckIDs, r.ID)
 			}
 		}
 	}
+	grants, err := s.liveBreakGlassFor(ctx, q, scope, workspaceID, adminIDs)
+	if err != nil {
+		return err
+	}
 	var shares map[string][]db.ListLiveSharesForDocumentsRow
 	if len(shareCheckIDs) > 0 {
-		shRows, err := s.q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
+		shRows, err := q.ListLiveSharesForDocuments(ctx, db.ListLiveSharesForDocumentsParams{
 			OrganizationID: scope.organizationID,
 			WorkspaceID:    workspaceID,
 			DocumentIds:    shareCheckIDs,
@@ -471,7 +492,7 @@ func (s *DocumentService) attachListPaths(ctx context.Context, scope documentLis
 				AclOwnerID:     anc.AclOwnerID,
 				ArchivedAt:     anc.ArchivedAt,
 			}
-			acc := listRowAccess(scope, agent, doc, shares[anc.ID])
+			acc := listRowAccess(scope, agent, doc, shares[anc.ID], grants[anc.ID])
 			if decideDocumentAccess(doc, acc, DocumentLevelView) != nil {
 				break
 			}

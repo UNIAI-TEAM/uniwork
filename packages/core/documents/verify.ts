@@ -7,6 +7,7 @@ import {
   type DocumentFavorite,
   type DocumentLinkEnvelope,
   type DocumentSettings,
+  type DocumentShareBatch,
   type DocumentShareEnvelope,
   type DocumentUpload,
   type DocumentVersionResult,
@@ -64,6 +65,22 @@ export function requireVerifiableShare(
   res: DocumentShareEnvelope | null | undefined,
 ): DocumentShareEnvelope {
   if (!res || !res.share?.id || !res.share?.principal_id || !res.share?.level) {
+    throw new DocumentNotVerifiableError();
+  }
+  return res;
+}
+
+/** A batch grant answer proves the write only when it names at least one
+ *  live row and every row carries its identity; one half-populated row makes
+ *  the whole answer unverifiable. */
+export function requireVerifiableShareBatch(
+  res: DocumentShareBatch | null | undefined,
+): DocumentShareBatch {
+  if (
+    !res ||
+    !res.shares.length ||
+    !res.shares.every((row) => !!row.id && !!row.principal_id && !!row.level)
+  ) {
     throw new DocumentNotVerifiableError();
   }
   return res;

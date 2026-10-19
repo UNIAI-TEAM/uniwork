@@ -3,7 +3,9 @@ import {
   resolveChatNicknameForUser,
 } from "@uniwork/core/chat/contacts-store";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
-import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
+import { describeChatMediaBody, parseChatMediaMessageBody, type ChatMediaLabels } from "./chat-expression-utils";
+import { givenNameOf } from "./chat-initials";
+import { formatVoiceCallDuration } from "./voice-call-duration";
 
 export type ChatRoomPreview = {
   body: string;
@@ -11,7 +13,40 @@ export type ChatRoomPreview = {
   senderId: string;
   senderName: string;
   createdAt: string;
+  /** A call log's outcome (completed, declined, unanswered). */
+  callOutcome?: string;
+  /** A voice note's length in milliseconds. */
+  durationMs?: number;
 };
+
+function sameUser(a: string, b: string): boolean {
+  return a.trim().toUpperCase() === b.trim().toUpperCase();
+}
+
+/** A call that rang for me and nobody answered: the list draws it red, as missed. */
+export function isMissedCallPreview(preview: ChatRoomPreview | null | undefined, currentUserId: string): boolean {
+  return (
+    preview?.kind === "voice_call_log" &&
+    preview.callOutcome === "unanswered" &&
+    !sameUser(preview.senderId, currentUserId)
+  );
+}
+
+const IMAGE_FILE_NAME = /\.(avif|bmp|gif|heic|heif|jpe?g|png|webp)$/i;
+
+/** The glyph a list row puts before its preview; null for plain text. */
+export function chatSidebarPreviewIcon(
+  preview: ChatRoomPreview | null | undefined,
+): "voice" | "call" | "image" | "file" | null {
+  if (!preview) return null;
+  if (preview.kind === "voice") return "voice";
+  if (preview.kind === "voice_call_log") return "call";
+  if (preview.kind === "file") return IMAGE_FILE_NAME.test(preview.body.trim()) ? "image" : "file";
+  const media = parseChatMediaMessageBody(preview.body);
+  if (!media) return null;
+  const kind = media.alt.split(":")[0];
+  return kind === "sticker" || kind === "gif" || media.url.toLowerCase().includes(".gif") ? null : "image";
+}
 
 export function formatChatSidebarPreviewText(
   preview: ChatRoomPreview | null | undefined,
@@ -21,6 +56,7 @@ export function formatChatSidebarPreviewText(
     youLabel: string;
     voiceCallLabel: string;
     voiceMessageLabel?: string;
+    missedCallLabel?: string;
     fileMessageLabel?: string;
     nicknamesByUserId?: Readonly<Record<string, string>>;
     mediaLabels?: ChatMediaLabels;
@@ -28,38 +64,46 @@ export function formatChatSidebarPreviewText(
 ): string | null {
   if (!preview) return null;
   if (preview.kind === "voice_call_log") {
-    return options.voiceCallLabel;
+    return isMissedCallPreview(preview, options.currentUserId) && options.missedCallLabel
+      ? options.missedCallLabel
+      : options.voiceCallLabel;
   }
+  let body: string | null;
   if (preview.kind === "voice") {
-    return options.voiceMessageLabel ?? options.voiceCallLabel;
-  }
-  if (preview.kind === "file") {
+    const label = options.voiceMessageLabel ?? options.voiceCallLabel;
+    // "Tin nhắn thoại · 0:42", rounded up as the voice note itself shows it.
+    const ms = preview.durationMs ?? 0;
+    body = ms > 0 ? `${label} · ${formatVoiceCallDuration(Math.ceil(ms / 1000))}` : label;
+  } else if (preview.kind === "file") {
+    // A photo is sent as a file named after itself: the list says "Photo".
     const name = preview.body.trim();
-    return name || options.fileMessageLabel || null;
+    body = name && options.mediaLabels && IMAGE_FILE_NAME.test(name) ? options.mediaLabels.image : name || options.fileMessageLabel || null;
+  } else {
+    const media = options.mediaLabels ? describeChatMediaBody(preview.body, options.mediaLabels) : null;
+    body = media ?? deserializeMessageBodyToComposerDraft(preview.body).trim();
   }
-  const media = options.mediaLabels ? describeChatMediaBody(preview.body, options.mediaLabels) : null;
-  const body = media ?? deserializeMessageBodyToComposerDraft(preview.body).trim();
   if (!body) return null;
   if (options.isGroup) {
-    const isSelf =
-      preview.senderId.trim().toUpperCase() === options.currentUserId.trim().toUpperCase();
+    const isSelf = sameUser(preview.senderId, options.currentUserId);
     const selfNickname = resolveChatNicknameForUser(options.nicknamesByUserId, options.currentUserId);
     const peerNickname = resolveChatNicknameForUser(options.nicknamesByUserId, preview.senderId);
     const peerName = preview.senderName.trim();
     const sender = isSelf
       ? selfNickname || options.youLabel
       : peerNickname ||
-        (peerName && !isPlaceholderChatDisplayName(peerName, preview.senderId) ? peerName : "");
+        (peerName && !isPlaceholderChatDisplayName(peerName, preview.senderId) ? givenNameOf(peerName) : "");
     return sender ? `${sender}: ${body}` : body;
   }
   return body;
 }
 
-type SidebarTimeFormat = "time" | "weekday" | "date";
+type SidebarTimeFormat = "time" | "weekday" | "weekdayNarrow" | "day" | "date";
 
 const SIDEBAR_TIME_OPTIONS: Record<SidebarTimeFormat, Intl.DateTimeFormatOptions> = {
   time: { hour: "2-digit", minute: "2-digit" },
   weekday: { weekday: "short" },
+  weekdayNarrow: { weekday: "narrow" },
+  day: { month: "numeric", day: "numeric" },
   date: { month: "numeric", day: "numeric", year: "numeric" },
 };
 
@@ -101,9 +145,13 @@ export function formatChatSidebarTime(
     return options.yesterdayLabel;
   }
   if (dayDiff < 7) {
-    return sidebarTimeFormatter(options.locale, "weekday").format(date);
+    // Vietnamese writes a weekday "T2"…"CN" (its narrow form, as the canvas
+    // does); elsewhere the narrow form is one ambiguous letter.
+    const narrow = options.locale?.toLowerCase().startsWith("vi") ?? false;
+    return sidebarTimeFormatter(options.locale, narrow ? "weekdayNarrow" : "weekday").format(date);
   }
-  return sidebarTimeFormatter(options.locale, "date").format(date);
+  // This year's dates drop the year ("14/10").
+  return sidebarTimeFormatter(options.locale, date.getFullYear() === now.getFullYear() ? "day" : "date").format(date);
 }
 
 /** A display name that is the person's id is not a name. */

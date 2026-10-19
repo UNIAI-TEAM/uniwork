@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../evidence.mjs";
 import { bashSyntaxError, shBlocks } from "./readme-sh-blocks.mjs";
 import { routeCatalogue, routeMatches } from "./server-contract.helper.mjs";
-import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isAppApiProxyOnline, isMainModule, appOrigin, loopbackOriginsIn, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, setAppApiProxyOnline, startAppApiProxy, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
+import { APP_ENV_PASSTHROUGH, describeExit, handoffEnv, BLOCKED_EXIT, DEFAULT_FORK_SHA, DEV_CLIENT_ID, HARNESS_AI_CREDENTIAL_KEY, HARNESS_DEPLOYMENT_ID, SERVER_ENV_LOOKUPS, appEnv, buildServerEnv, documentStepOutcome, evidenceLine, forkCacheDir, freePorts, harnessPaths, isAppApiProxyOnline, isMainModule, appOrigin, loopbackOriginsIn, officeDeepLink, origin, parseWaitSignin, activeDesktopDevice, readStartStatus, serverCwd, serverDotEnv, setAppApiProxyOnline, startAppApiProxy, startGate, ticketFromLaunchUrl, workingCopyDir, writeRunEnv } from "./lib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "lib.mjs");
@@ -102,6 +102,20 @@ test("buildServerEnv puts every port-derived origin on the command line", () => 
   assert.equal(env.LIVEKIT_URL, "");
   assert.equal(env.LIVEKIT_API_KEY, "");
   assert.equal(env.LIVEKIT_API_SECRET, "");
+});
+
+test("buildServerEnv gives the server a test-only AI_CREDENTIAL_KEY, so the web frame token can grant AI (RFE5-201)", () => {
+  // Since G6-05k a server without the key answers ai_credentials_unavailable and the frame token
+  // carries ai:false, which froze AI-less web goldens at the DOC-05 re-pin. The key is a fixed
+  // test value: a valid 32-byte AES key (secretbox.LoadKey), never a real one.
+  const env = buildServerEnv({ apiPort: 1, webPort: 2, metricsPort: 3, previewPort: 4, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });
+  assert.equal(env.AI_CREDENTIAL_KEY, HARNESS_AI_CREDENTIAL_KEY);
+  assert.equal(Buffer.from(env.AI_CREDENTIAL_KEY, "base64").length, 32);
+  assert.match(Buffer.from(env.AI_CREDENTIAL_KEY, "base64").toString("utf8"), /test-only/);
+  // the run owns the key: the VM's own .env value (a real one, if any) is dropped from the server's copy
+  assert.equal(serverDotEnv("AI_CREDENTIAL_KEY=real-secret\nPORT=1\n", Object.keys(env)).includes("real-secret"), false);
+  // the conversation store keeps its own key and is not switched on here
+  assert.equal("AI_CONVERSATION_KEY" in env, false);
 });
 
 test("the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)", () => {

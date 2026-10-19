@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -22,6 +23,13 @@ type ChatRoomMemberView struct {
 	// IsCreator marks the room's creator, whom canModerateChatRoom and
 	// canDemoteChatAdmin treat apart from the role column.
 	IsCreator bool
+	// LastReadAt is the member's main-timeline read pointer, nil if never
+	// read; the client counts who has seen a message from it.
+	LastReadAt *time.Time
+	// LastDeliveredAt is how far the member's devices acknowledged holding
+	// the room (never behind LastReadAt for a read since UNI-1908); nil if
+	// never acknowledged. ✓✓ grey once every other member reached a message.
+	LastDeliveredAt *time.Time
 }
 
 type UpdateChatRoomMemberInput struct {
@@ -46,6 +54,7 @@ func (s *ChatService) ListChatRoomMembers(
 		out = append(out, ChatRoomMemberView{
 			UserID: row.UserID, Role: row.Role, SendRestricted: row.SendRestricted,
 			Email: row.Email, DisplayName: row.DisplayName, IsCreator: row.UserID == room.CreatedBy,
+			LastReadAt: timePtr(row.LastReadAt), LastDeliveredAt: timePtr(row.LastDeliveredAt),
 		})
 	}
 	return out, nil

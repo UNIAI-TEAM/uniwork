@@ -107,15 +107,15 @@ describe("ChatCreateNoteDialog", () => {
     );
   });
 
-  it("shows a length counter only near the limit", () => {
+  it("counts the body against its limit, announced only near it", () => {
     render(
       wrap(<ChatCreateNoteDialog open onOpenChange={vi.fn()} workspaceId="ws1" roomId="room1" canPinToTop />),
     );
     const field = screen.getByRole("textbox", { name: /Nội dung/ });
     fireEvent.change(field, { target: { value: "ngắn" } });
-    expect(screen.queryByText(/\/2000$/)).toBeNull();
+    expect(screen.getByText("4/2000")).not.toHaveAttribute("aria-live");
     fireEvent.change(field, { target: { value: "a".repeat(1900) } });
-    expect(screen.getByText("1900/2000")).toBeInTheDocument();
+    expect(screen.getByText("1900/2000")).toHaveAttribute("aria-live", "polite");
     expect(field).toHaveAccessibleDescription("1900/2000");
   });
 });

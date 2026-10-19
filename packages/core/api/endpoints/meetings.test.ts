@@ -7,14 +7,11 @@ import {
   appendTranscript,
   createJoinRequest,
   createMeeting,
-  createMeetingSummary,
-  createTasksFromSummary,
   deleteMeeting,
   fetchMeetingCalendar,
   getMeeting,
   getMeetingCapabilities,
   getMeetingStatistics,
-  getMeetingSummary,
   joinMeeting,
   listInviteLinks,
   listMeetingActivity,
@@ -274,24 +271,6 @@ describe("meetings D08b endpoints", () => {
     const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/chat");
     expect(JSON.parse(String(init.body))).toEqual({ message: "hi\nthere" });
-  });
-
-  it("summary get/create return null on drift; tasks return ids", async () => {
-    const summary = { id: "x", meeting_id: "m1", summary: "S", decisions: ["D"], action_items: [{ title: "T" }] };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary }));
-    expect((await getMeetingSummary("m1"))?.decisions).toEqual(["D"]);
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: null }));
-    expect(await getMeetingSummary("m1")).toBeNull();
-    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_found", message: "not found" } }, 404));
-    expect(await getMeetingSummary("m1")).toBeNull();
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { id: "x" } }));
-    expect(await getMeetingSummary("m1")).toBeNull();
-    vi.mocked(fetch).mockResolvedValueOnce(json({ summary }));
-    expect((await createMeetingSummary("m1", "vi"))?.summary).toBe("S");
-    vi.mocked(fetch).mockResolvedValueOnce(json({ task_ids: ["t1", "t2"] }));
-    expect(await createTasksFromSummary("m1", [{ title: "a" }, { title: "b" }])).toEqual(["t1", "t2"]);
-    vi.mocked(fetch).mockResolvedValueOnce(json({ task_ids: "nope" }));
-    expect(await createTasksFromSummary("m1", [{ title: "a" }])).toEqual([]);
   });
 
   it("recordings start/stop/list", async () => {

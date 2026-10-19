@@ -26,8 +26,10 @@ vi.mock("@uniwork/core/chat", () => ({
   // The sidebar list always carries the workspace room the sheet is opened on.
   useChatRooms: () => ({ data: [{ id: "room-ws", kind: "workspace", name: "Chung", workspace_id: "ws1", member_user_ids: [] }] }),
   useSetChatRoomMuted: () => ({ mutate: vi.fn() }),
+  useSetChatRoomAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateChatRoomMember: () => ({ mutateAsync: vi.fn() }),
   useRemoveChatRoomMember: () => ({ mutateAsync: vi.fn() }),
+  useChatRoomSharedSummary: () => ({ data: undefined, isPending: false, isError: false }),
   useUpdateChatRoomSettings: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateChatChannel: () => ({ mutateAsync: state.updateChannel, isPending: false }),
   useArchiveChatChannel: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -116,9 +118,10 @@ describe("member lists that failed to load", () => {
         />,
       ),
     );
+    // The member list opens with the sheet (canvas).
     const section = screen.getByRole("button", { name: /Thành viên nhóm/ });
+    expect(section).toHaveAttribute("aria-expanded", "true");
     expect(section).not.toHaveTextContent(/thành viên$/);
-    fireEvent.click(section);
     expect(screen.getByRole("alert")).toHaveTextContent("Không tải được danh sách thành viên.");
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     expect(state.members.refetch).toHaveBeenCalled();
@@ -128,8 +131,8 @@ describe("member lists that failed to load", () => {
     state.members = { data: [], isPending: false, isError: true, refetch: vi.fn() };
     renderWorkspaceSheet([]);
     const section = screen.getByRole("button", { name: /Thành viên workspace/ });
+    expect(section).toHaveAttribute("aria-expanded", "true");
     expect(section).not.toHaveTextContent("0 thành viên");
-    fireEvent.click(section);
     expect(screen.getByRole("alert")).toHaveTextContent("Không tải được danh sách thành viên.");
   });
 });
@@ -177,7 +180,6 @@ describe("GroupSettingsSheet", () => {
         />,
       ),
     );
-    fireEvent.click(screen.getByRole("button", { name: /Thành viên nhóm/ }));
     fireEvent.click(screen.getByRole("button", { name: /Thao tác.*Binh/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Xóa Binh/ }));
     expect(screen.getByRole("alertdialog", { name: "Gỡ Binh khỏi nhóm chat?" })).toBeInTheDocument();
@@ -191,7 +193,6 @@ describe("WorkspaceSettingsSheet", () => {
   it("says removing from the workspace room removes from the workspace", () => {
     state.members = { data: [member("self", "Tôi", "admin"), member("u2", "Binh")], isPending: false, isError: false, refetch: vi.fn() };
     renderWorkspaceSheet(wsMembers(["self", "u2"]));
-    fireEvent.click(screen.getByRole("button", { name: /Thành viên workspace/ }));
     fireEvent.click(screen.getByRole("button", { name: /Thao tác.*Binh/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Xóa Binh khỏi workspace" }));
     const dialog = screen.getByRole("alertdialog");
@@ -216,7 +217,6 @@ describe("WorkspaceSettingsSheet", () => {
     const many = Array.from({ length: 60 }, (_, i) => member(`u${i}`, i === 42 ? "Nguyễn Thị Tuấn" : `Người ${i}`));
     state.members = { data: many, isPending: false, isError: false, refetch: vi.fn() };
     renderWorkspaceSheet(wsMembers(many.map((m) => m.user_id)));
-    fireEvent.click(screen.getByRole("button", { name: /Thành viên workspace/ }));
     const list = () => screen.getAllByRole("listitem");
     expect(list()).toHaveLength(50);
     fireEvent.click(screen.getByRole("button", { name: /Hiện thêm 10 người/ }));

@@ -81,63 +81,7 @@ export function AppSidebar() {
   const { pathname, replace } = useNavigation();
   const { isCompact, setOpenMobile } = useSidebar();
   const { mutateAsync: logout } = useLogout();
-  const sidebarScrollRef = useRef<HTMLDivElement>(null);
-  const sidebarFadeStyle = useScrollFade(sidebarScrollRef, 24);
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
-  // Documents is feature-flagged: the nav entry appears only where the
-  // workspace has the module, so a hidden route is not advertised.
-  const documentsEnabled = useFlag("documents", false);
-  const unread = useUnreadCount();
-  const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
-  const emailUnread = useEmailHubUnreadCount(workspace.id);
-  const emailUnreadHere = emailUnread.data?.unread ?? 0;
-  const chatUnread = useChatUnreadBadge(workspace.id);
-  const labelId = useId();
-  const reduceMotion = useReducedMotion() ?? false;
-
-  const groups: NavGroup[] = [
-    {
-      id: "lead",
-      items: [
-        { key: "nav.home", module: "home", href: ws.root(), exact: true },
-        { key: "nav.inbox", module: "inbox", href: ws.inbox(), badge: unreadHere },
-      ],
-    },
-    {
-      id: "work",
-      label: "nav.group_work",
-      items: [
-        { key: "nav.tasks", module: "tasks", href: ws.tasks() },
-        { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks() },
-        { key: "nav.projects", module: "projects", href: ws.projects() },
-        { key: "nav.calendar", module: "calendar", href: ws.calendar() },
-      ],
-    },
-    {
-      id: "communication",
-      label: "nav.group_communication",
-      items: [
-        {
-          key: "nav.email",
-          module: "email",
-          href: ws.email(),
-          badge: emailUnreadHere > 0 ? emailUnreadHere : undefined,
-        },
-        { key: "nav.meetings", module: "meetings", href: ws.meetings() },
-        ...(documentsEnabled
-          ? ([{ key: "nav.documents", module: "documents", href: ws.documents() }] as NavItem[])
-          : []),
-        { key: "nav.chat", module: "chat", href: ws.chat(), badge: chatUnread > 0 ? chatUnread : undefined },
-        { key: "nav.people", module: "people", href: ws.people() },
-      ],
-    },
-  ];
-
-  const pins = useSidebarPins(workspace.id);
-  // An open pinned page is marked on its pin row, not also on its section.
-  const onPinnedPage = pins.some((pin) => pathname === pinHref(ws, pin));
-  const isActive = (href: string, exact = false) =>
-    !onPinnedPage && (pathname === href || (!exact && pathname.startsWith(href + "/")));
 
   const dismissSheet = () => {
     if (isCompact) setOpenMobile(false);
@@ -156,85 +100,7 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
-        <nav aria-label={t("nav.workspace_group")} className="flex flex-col pt-1">
-          {groups.map(({ id, label, items }) =>
-            items.length === 0 ? null : (
-              <Fragment key={id}>
-              <SidebarGroup className="py-1 group-data-[collapsible=icon]:px-0">
-                {/* The label names its list through `aria-labelledby`, and is
-                    itself aria-hidden: read as text too, a screen reader said
-                    "Làm việc" twice, and in the icon rail (where the label
-                    fades out) it was a stray line between two lists. A
-                    reference to a hidden element still yields the name. */}
-                {label ? (
-                  <SidebarGroupLabel
-                    id={`${labelId}-${id}`}
-                    aria-hidden
-                    className="h-7 px-2 text-overline text-muted-foreground"
-                  >
-                    {t(label)}
-                  </SidebarGroupLabel>
-                ) : null}
-                <SidebarGroupContent>
-                  <SidebarMenu className="gap-0.5" aria-labelledby={label ? `${labelId}-${id}` : undefined}>
-                    {items.map(({ key, module, href, badge, exact }) => {
-                      const active = isActive(href, exact);
-                      return (
-                        <SidebarMenuItem key={href}>
-                          <SidebarMenuButton
-                            isActive={active}
-                            tooltip={t(key)}
-                            className={navButtonClass}
-                            render={
-                              <AppLink
-                                href={href}
-                                aria-current={active ? "page" : undefined}
-                                onClick={dismissSheet}
-                              />
-                            }
-                          >
-                            {active ? (
-                              <motion.span
-                                aria-hidden
-                                initial={false}
-                                layoutId={reduceMotion ? undefined : "sidebar-active-row"}
-                                transition={{ duration: UI_MOTION_DURATION.settle, ease: UI_EASE_SETTLE }}
-                                data-slot="sidebar-active-indicator"
-                                className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-sidebar-accent"
-                              />
-                            ) : null}
-                            <IconTile
-                              icon={MODULE_ICONS[module]}
-                              size="xs"
-                              variant="solid"
-                              tone={moduleTone(module)}
-                              className="[&_svg]:size-3"
-                            />
-                            <span>{t(key)}</span>
-                            {badge ? (
-                              <SidebarMenuBadge
-                                aria-label={t("notifications.bell_unread", { count: badge })}
-                                className="top-2! right-2 rounded-full bg-primary px-1.5 text-primary-foreground peer-data-active/menu-button:text-primary-foreground peer-hover/menu-button:text-primary-foreground [[data-mobile=true]_&]:top-3!"
-                              >
-                                {badge > 99 ? "99+" : badge}
-                              </SidebarMenuBadge>
-                            ) : null}
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-              {id === "lead" ? (
-                <SidebarPins wsId={workspace.id} ws={ws} pathname={pathname} onNavigate={dismissSheet} />
-              ) : null}
-              </Fragment>
-            ),
-          )}
-        </nav>
-      </SidebarContent>
+      <ModuleNav ws={ws} pathname={pathname} onNavigate={dismissSheet} />
 
       <SidebarFooter className="px-2 pt-1 pb-2 group-data-[collapsible=icon]:px-0">
         <SidebarMenu>
@@ -306,5 +172,157 @@ export function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/** The module groups and pins between the switcher and the account menu. */
+function ModuleNav({
+  ws,
+  pathname,
+  onNavigate,
+}: {
+  ws: ReturnType<typeof paths.workspace>;
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  const { t } = useTranslation();
+  const { workspace } = useWorkspace();
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const sidebarFadeStyle = useScrollFade(sidebarScrollRef, 24);
+  // Documents is feature-flagged: the nav entry appears only where the
+  // workspace has the module, so a hidden route is not advertised.
+  const documentsEnabled = useFlag("documents", false);
+  const unread = useUnreadCount();
+  const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
+  const emailUnread = useEmailHubUnreadCount(workspace.id);
+  const emailUnreadHere = emailUnread.data?.unread ?? 0;
+  const chatUnread = useChatUnreadBadge(workspace.id);
+  const labelId = useId();
+  const reduceMotion = useReducedMotion() ?? false;
+
+  const groups: NavGroup[] = [
+    {
+      id: "lead",
+      items: [
+        { key: "nav.home", module: "home", href: ws.root(), exact: true },
+        { key: "nav.inbox", module: "inbox", href: ws.inbox(), badge: unreadHere },
+      ],
+    },
+    {
+      id: "work",
+      label: "nav.group_work",
+      items: [
+        { key: "nav.tasks", module: "tasks", href: ws.tasks() },
+        { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks() },
+        { key: "nav.projects", module: "projects", href: ws.projects() },
+        { key: "nav.calendar", module: "calendar", href: ws.calendar() },
+      ],
+    },
+    {
+      id: "communication",
+      label: "nav.group_communication",
+      items: [
+        {
+          key: "nav.email",
+          module: "email",
+          href: ws.email(),
+          badge: emailUnreadHere > 0 ? emailUnreadHere : undefined,
+        },
+        { key: "nav.meetings", module: "meetings", href: ws.meetings() },
+        ...(documentsEnabled
+          ? ([{ key: "nav.documents", module: "documents", href: ws.documents() }] as NavItem[])
+          : []),
+        { key: "nav.chat", module: "chat", href: ws.chat(), badge: chatUnread > 0 ? chatUnread : undefined },
+        { key: "nav.people", module: "people", href: ws.people() },
+      ],
+    },
+  ];
+
+  const pins = useSidebarPins(workspace.id);
+  // An open pinned page is marked on its pin row, not also on its section.
+  const onPinnedPage = pins.some((pin) => pathname === pinHref(ws, pin));
+  const isActive = (href: string, exact = false) =>
+    !onPinnedPage && (pathname === href || (!exact && pathname.startsWith(href + "/")));
+
+  return (
+    <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
+      <nav aria-label={t("nav.workspace_group")} className="flex flex-col pt-1">
+        {groups.map(({ id, label, items }) =>
+          items.length === 0 ? null : (
+            <Fragment key={id}>
+            <SidebarGroup className="py-1 group-data-[collapsible=icon]:px-0">
+              {/* The label names its list through `aria-labelledby`, and is
+                  itself aria-hidden: read as text too, a screen reader said
+                  "Làm việc" twice, and in the icon rail (where the label
+                  fades out) it was a stray line between two lists. A
+                  reference to a hidden element still yields the name. */}
+              {label ? (
+                <SidebarGroupLabel
+                  id={`${labelId}-${id}`}
+                  aria-hidden
+                  className="h-7 px-2 text-overline text-muted-foreground"
+                >
+                  {t(label)}
+                </SidebarGroupLabel>
+              ) : null}
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-0.5" aria-labelledby={label ? `${labelId}-${id}` : undefined}>
+                  {items.map(({ key, module, href, badge, exact }) => {
+                    const active = isActive(href, exact);
+                    return (
+                      <SidebarMenuItem key={href}>
+                        <SidebarMenuButton
+                          isActive={active}
+                          tooltip={t(key)}
+                          className={navButtonClass}
+                          render={
+                            <AppLink
+                              href={href}
+                              aria-current={active ? "page" : undefined}
+                              onClick={onNavigate}
+                            />
+                            }
+                        >
+                          {active ? (
+                            <motion.span
+                              aria-hidden
+                              initial={false}
+                              layoutId={reduceMotion ? undefined : "sidebar-active-row"}
+                              transition={{ duration: UI_MOTION_DURATION.settle, ease: UI_EASE_SETTLE }}
+                              data-slot="sidebar-active-indicator"
+                              className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-sidebar-accent"
+                            />
+                          ) : null}
+                          <IconTile
+                            icon={MODULE_ICONS[module]}
+                            size="xs"
+                            variant="solid"
+                            tone={moduleTone(module)}
+                            className="[&_svg]:size-3"
+                          />
+                          <span>{t(key)}</span>
+                          {badge ? (
+                            <SidebarMenuBadge
+                              aria-label={t("notifications.bell_unread", { count: badge })}
+                              className="top-2! right-2 rounded-full bg-primary px-1.5 text-primary-foreground peer-data-active/menu-button:text-primary-foreground peer-hover/menu-button:text-primary-foreground [[data-mobile=true]_&]:top-3!"
+                            >
+                              {badge > 99 ? "99+" : badge}
+                            </SidebarMenuBadge>
+                          ) : null}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            {id === "lead" ? (
+              <SidebarPins wsId={workspace.id} ws={ws} pathname={pathname} onNavigate={onNavigate} />
+            ) : null}
+            </Fragment>
+          ),
+        )}
+      </nav>
+    </SidebarContent>
   );
 }

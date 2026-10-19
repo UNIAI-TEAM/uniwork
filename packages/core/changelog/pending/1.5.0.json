@@ -1,0 +1,2330 @@
+{
+  "schemaVersion": 1,
+  "version": "1.5.0",
+  "date": "2026-10-16",
+  "ready": true,
+  "sourceRef": "396bdf484173223218ed4c7b1b0628a6637ec6f6",
+  "previousSourceRef": "e203954a67dba5ee5be13f20891c486d7e379822",
+  "title": {
+    "vi": "Trợ lý AI làm việc với task, dự án, cuộc họp và tài liệu, hướng dẫn kết nối từng bước và một loạt bản sửa lớn cho chat",
+    "en": "AI assistants that work with tasks, projects, meetings and documents, a step-by-step connection guide and a large batch of chat fixes"
+  },
+  "summary": {
+    "vi": "Trợ lý AI kết nối qua MCP như Claude, ChatGPT hoặc Gemini giờ đọc và ghi được task, dự án, cuộc họp và tài liệu thay mặt người đã cho phép, và Cài đặt › Ứng dụng AI có hướng dẫn kết nối Claude hoặc ChatGPT từng bước. Cuộc họp đã hủy khôi phục được bằng nút Khôi phục. Chat nhận một loạt bản sửa về quyền, đồng bộ thời gian thực, thông báo, thread, tìm kiếm, gửi tin và cuộc gọi. Kèm theo là các bản sửa cho Email Hub và Tài liệu, và các bản demo trên trang giới thiệu bám theo màn hình hiện tại của sản phẩm.",
+    "en": "AI assistants connected over MCP, such as Claude, ChatGPT or Gemini, can now read and write tasks, projects, meetings and documents on behalf of the person who allowed it, and Settings › AI apps has a step-by-step guide for connecting Claude or ChatGPT. A cancelled meeting can be brought back with the Restore button. Chat gets a large batch of fixes to permissions, realtime sync, notifications, threads, search, sending and calls. Alongside are fixes for Email Hub and Documents, and the demos on the marketing site now follow the product's current screens."
+  },
+  "note": {
+    "vi": "Thao tác ghi của trợ lý AI chỉ có khi kết nối được cấp quyền ghi, tổ chức bật công tắc cho phép AI ghi và tính năng đã được bật; trợ lý làm việc thay mặt người đã cho phép, theo đúng quyền của người đó. Thao tác với tài liệu qua trợ lý tuân theo việc bật hoặc tắt Tài liệu của tổ chức; với trang quá dài hoặc có nội dung không chuyển được nguyên vẹn sang Markdown, trợ lý chỉ nối thêm được, không thay thế toàn bộ trang. Hướng dẫn từng bước hiện có cho Claude và ChatGPT; với Claude gói Team hoặc Enterprise, chủ sở hữu tổ chức Claude cần thêm connector trước.",
+    "en": "An AI assistant can only write when the connection was granted write access, the organization has switched on AI write access and the feature is enabled; the assistant acts on behalf of the person who allowed it, with that person's permissions. Document actions through an assistant follow whether Documents is switched on for the organization; for a page that is too long or has content that cannot round-trip through Markdown, the assistant can only append, not replace the whole page. The step-by-step guide covers Claude and ChatGPT; on a Claude Team or Enterprise plan, the Claude organization owner has to add the connector first."
+  },
+  "changes": [
+    {
+      "commit": "b5a0ef30178d5a17a0173e83ac15ea7a5d125394",
+      "subject": "feat(tasks): an update may name the revision it read",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "ee5763d0eba8a1097ad8cce142b06b1f2c59795d",
+      "subject": "feat(mcp): read tools a model needs before it writes a task",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trợ lý AI kết nối với UniWork qua MCP giờ làm việc được với task, dự án, cuộc họp và tài liệu thay mặt người đã cho phép: xem thành viên và task, tạo, sửa task và bình luận; xem, tạo và sửa dự án; xem, lên lịch, sửa, mời người, hủy và khôi phục cuộc họp; tìm, đọc, tạo, sửa tài liệu và bình luận trên tài liệu. Trợ lý không có thao tác xóa, mỗi thao tác ghi cho biết cách hoàn tác, và lệnh sửa bị từ chối nếu nội dung đã đổi kể từ lần trợ lý đọc. Trang đồng ý kết nối và công tắc Truy cập AI nay ghi rõ cả dự án và tài liệu.",
+        "en": "AI assistants connected to UniWork over MCP can now work with tasks, projects, meetings and documents on behalf of the person who allowed it: see members and tasks, create and edit tasks and add comments; view, create and edit projects; view, schedule, edit, invite people to, cancel and restore meetings; search, read, create and edit documents and comment on them. The assistant has no delete action, every write says how to undo it, and an edit is refused if the item changed since the assistant last read it. The consent page and the AI access switch now name projects and documents as well."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "61745326c2d0954cb663da5d04940e197e16e306",
+      "subject": "fix(mcp): task references stay in their workspace, list tools say when they cut",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "3931a246aa73f052b6ab469c15364d9f3d290b20",
+      "subject": "feat(mcp): create_task and add_comment",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "bb62761818567888d3f5f4eed2898d4204a0e297",
+      "subject": "fix(mcp): create_task says what is true and returns its labels; reply_to and blank ids fail loudly",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "b745dd73885e7bbb4206691b313b60a5dbb06463",
+      "subject": "feat(mcp): update_task",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "ae62f311646487e7c453517a50c8fee45103f27e",
+      "subject": "fix(notification): an event reads the audit row of its own step",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #315 chỉ mô tả đây là sửa gốc nội bộ trong notification (mỗi sự kiện đọc đúng dòng audit của bước tạo ra nó), không nêu ảnh hưởng người dùng; không đưa vào mục công khai — người duyệt xác nhận nếu cần.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "07b41bdfb80a6662f49c5b74bc22b4485257b274",
+      "subject": "fix(mcp): update_task says when undo cannot restore, and refuses a label in both lists",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "a8ef2c20993669187be654e16c92871657719969",
+      "subject": "feat(mcp): tool metrics carry read/write kind; span carries mcp.scope",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: thêm nhãn đọc/ghi cho số liệu và trace của tool MCP, không đổi hành vi người dùng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "d0573b7f34d16eccb284d8589633adb912e3bd5c",
+      "subject": "test(mcp): count the read tools from the registry, not a literal 5",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ sửa test đếm tool đọc.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "b817d22306429b5720d9c5ddcb116b79eba5f9da",
+      "subject": "test(mcp): TestIsolationMCP covers the task tools",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test cách ly tenant cho tool task.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "6e27cbfa7b5d8d406454380c5b041df7c9a4d490",
+      "subject": "test(mcp): TestIsolationMCP update controls check note and changes; attacks use live revisions",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ sửa test cách ly tenant của connector MCP.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "6560880f99474037eec41ec7286c82d8e3d943c7",
+      "subject": "fix(mcp): undo holds for a task description, and the task tools say what is true",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "88d01a8fd57e5f0ece08b4dbbdf23df759def67d",
+      "subject": "docs(mcp): spec says long descriptions keep an exact undo",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: chỉnh spec về hoàn tác mô tả dài, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "99fec6242484472be2a5a5b4e1d3747f39a739d0",
+      "subject": "fix(mcp): create_task caps its description where update_task can still edit it",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "cb8373c0043bd34d0efd5b94b9765bbc9d082457",
+      "subject": "docs(mcp): plan status — Phase 0 merged, Phase 1 done on its branch",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: cập nhật trạng thái plan, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "04437977598678880e0e635bbaf43c240e93bddd",
+      "subject": "feat(mcp): list_projects and get_project",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "a66a28b5e9af6da6d32586bcac2c3af3640596ea",
+      "subject": "docs(mcp): spec names the order get_project's tasks really come in",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: chỉnh spec về thứ tự task của get_project, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "340a88bf1abd9854fb3e10e13e4d714c9d41f731",
+      "subject": "feat(mcp): create_project and update_project",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "ad87cb383ba2be3562f7f2e7fef47faa4fe89c98",
+      "subject": "test(mcp): isolation rows for create_project and update_project",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test cách ly tenant cho tool dự án.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "9cec677897250c8017af14977ddd9c6cc3e2e683",
+      "subject": "fix(mcp): update_project leaves an agent lead alone",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "d624b074e029944bc448548c5227d6fa1e0f00fa",
+      "subject": "feat(mcp): consent page and AI access switch name projects",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "04f712ef07e16857039e488e25a8ab9b93e2cc15",
+      "subject": "fix(mcp): project tools tell the truth about undo, lead type and empty updates",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "de7f6dbb5be9b9fa4a1b478e17dd189d14cd6012",
+      "subject": "fix(i18n): AI access page names projects beside tasks and meetings",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "cb05eea06d05c379051010c130fda8d73dc320ce",
+      "subject": "docs(mcp): plan status marks Phase 2 done on its branch",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: cập nhật trạng thái plan, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "538e6f57cd9d84cc8392bc53b4aa20ae78888d16",
+      "subject": "feat(meetings): restore a cancelled meeting; edits may name a version",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục 055cc969f (cùng PR #315): chi tiết triển khai của khôi phục cuộc họp đã hủy, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "055cc969f60bf8f56d5575ab9107fbc60495e67b",
+      "subject": "feat(meetings): Restore button on a cancelled meeting's page",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Cuộc họp đã hủy khôi phục được bằng nút Khôi phục trên trang của cuộc họp; nút chờ yêu cầu hoàn tất rồi mới cho bấm tiếp.",
+        "en": "A cancelled meeting can now be brought back with the Restore button on its page; the button waits for the request to finish before it can be pressed again."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "5da28286cd3353580a546e53a47a97f81080404e",
+      "subject": "feat(mcp): list_meetings; get_meeting gains attendees, revision and description",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "aefbcb931da16cc1bce31281805cb54dcdf97883",
+      "subject": "fix(mcp): get_meeting excerpt is the summary alone; meeting rows read MISSED",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "97c5cabcb45b3feddb1aa8f3d73bb61fff415f73",
+      "subject": "feat(mcp): schedule_meeting, update_meeting, invite_to_meeting",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "6aa398bef899948454a67f3823abb607174241ba",
+      "subject": "fix(mcp): invite_to_meeting fails whole-call refusals; true removed message",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "f3b827c2f19bb1306a4d0402851e9716c1b43797",
+      "subject": "feat(mcp): cancel_meeting and restore_meeting",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "f65ce84ae9e64f5d920cfd79cedad0bffe4aa446",
+      "subject": "docs(mcp): spec says who the meeting tools really notify; Phase 3 done",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: cập nhật spec về người nhận thông báo của tool cuộc họp, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "70e98849bf6de2782ba9a65b6906c52ce8b20baf",
+      "subject": "fix(mcp): meeting tools no longer promise an undo they cannot keep",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "710b88f943ce4643c2d4f28b6928c9b51ec988bb",
+      "subject": "fix(meetings): restore button waits for its request; chunked bodies keep their version",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 055cc969f (cùng PR #315): chi tiết triển khai của khôi phục cuộc họp đã hủy, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "16be0f5a006b1349c3832eb989eb2f4d8d233067",
+      "subject": "feat(document): read Markdown into page JSON",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "29528f6305c2e1e8697d1ab5c728337a4e9eb1f7",
+      "subject": "fix(document): bound what MarkdownToPage parses and stop it dropping content",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "f884c40d0320ea553b3b2696fde7309aab2a325a",
+      "subject": "fix(document): cap Markdown at 50000 characters and make nested marks linear",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "9c701733dbc25d6628148d4dbddf9f3689cbf8e1",
+      "subject": "feat(document): render a page as Markdown and flag what cannot return",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "6ea50376cee67445440e2352b7eb1acba014a685",
+      "subject": "fix(document): find backtick fences in one pass, read editor tables as lossless, judge lossy against the stored page",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "9e757adfec190542fd5f221347e12c443d4d881d",
+      "subject": "feat(mcp): documents in search, list_documents, get_document",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "00ede2f34a81c4247c10125bc13b53f2963e02cc",
+      "subject": "fix(documents): stop the stray scrollbars on the home scope tabs and type chips",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Các tab phạm vi (Tất cả, Gần đây, Được chia sẻ, Lưu trữ) và hàng lọc loại tệp ở Trang chủ Tài liệu không còn hiện thanh cuộn thừa, và vẫn cuộn ngang được trên màn hình hẹp.",
+        "en": "The scope tabs (All, Recent, Shared, Archived) and the file type chips on the Documents home no longer show stray scrollbars, and still scroll sideways on narrow screens."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/309"
+      }
+    },
+    {
+      "commit": "5bf70dfcf9dfcadb39aff547f69db1acbbcb3b4b",
+      "subject": "fix(mcp): honour the documents flag, name the list order, test the log and the share",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "1195815593107548cdc40555da1f572498933636",
+      "subject": "test(billing): reject a tampered VNPay IPN and pin the hash",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test kiểm chữ ký IPN VNPay (PR #313 không có mô tả; diff chỉ có server/internal/billing/vnpay_test.go).",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/313"
+      }
+    },
+    {
+      "commit": "860f4729431f0630fa986d8552101d82fae8bc51",
+      "subject": "test(billing): cover a paid VNPay invoice through refund",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test luồng hoàn tiền VNPay (PR #314 không có mô tả; diff chỉ có admin_billing_refund_test.go).",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/314"
+      }
+    },
+    {
+      "commit": "85baeea26f9526fe675cd2f8065612c2a45afa2b",
+      "subject": "feat(mcp): create_document, update_document, add_document_comment",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "a709de74259b5c518c621dcd9105bbb99ffe3c80",
+      "subject": "feat(mcp): consent page and AI access switch name documents",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "f26afe131001012a4d453b77d7eb29190e945718",
+      "subject": "fix(document): leave the editor's trailing empty paragraph out of append and the lossy check",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "50dc61ad3d221f01f72b3f0522424457ea8b0897",
+      "subject": "docs(changelog): review and publish v1.4.0 — Việt/Anh",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: PR công bố Changelog v1.4.0, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/312"
+      }
+    },
+    {
+      "commit": "1a98e0f6142bbe64c7dea39ce34ff893a8d54388",
+      "subject": "docs(changelog): refresh v1.4.0 to develop e203954a6 and review the delta",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: làm mới bản nháp Changelog v1.4.0 theo develop.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/312"
+      }
+    },
+    {
+      "commit": "48ab0e6aea8f5d88fff130982819d5b5b05b0c85",
+      "subject": "fix(mcp): truthful document tool descriptions, softer failures, English tree errors",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "8add30fe1c8d813ad92fd2629675134a34a6760e",
+      "subject": "fix(mcp): consent page says documents are shared by name too",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục ee5763d0e (cùng PR #315): chi tiết triển khai của connector MCP đọc/ghi task, dự án, cuộc họp, tài liệu, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "e3fda5372efa46d09217aa948bc971895773955d",
+      "subject": "docs(mcp): the write spec and plan ship; A-13 waits on the directory",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: cập nhật trạng thái spec/plan của connector MCP, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/315"
+      }
+    },
+    {
+      "commit": "9c94b49eb656ba34ad9cf3415aa13746400d912c",
+      "subject": "(test): fix test billing_vnpay_test.go",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ sửa test billing VNPay, đẩy thẳng lên develop.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/billing_vnpay_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "fde652d9c629769761cea53dd8c62c816bb5438d",
+      "subject": "feat(mcp): get_task lists comment ids so add_comment can reply to anyone",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khi trợ lý AI đọc một task, kết quả kèm 50 bình luận mới nhất cùng mã bình luận, tên người viết và thời gian, nên trợ lý trả lời được đúng bất kỳ bình luận nào chứ không chỉ bình luận do chính nó viết. Người viết hiện bằng tên hiển thị, không bao giờ bằng email.",
+        "en": "When an AI assistant reads a task, it now also gets the 50 most recent comments with their id, author and time, so it can reply to any comment rather than only the ones it wrote itself. Authors are shown by display name, never by email."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/317"
+      }
+    },
+    {
+      "commit": "d12a4989a99624ed944cf68d8baa10dce67e56a7",
+      "subject": "fix(documents): evaluate the documents flag at the route's organization",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khi Tài liệu bị tắt cho một tổ chức, phần Tài liệu trong ứng dụng cũng đóng với thành viên của tổ chức đó, giống liên kết công khai và trợ lý AI; tổ chức khác không bị ảnh hưởng.",
+        "en": "When Documents is switched off for an organization, the Documents area of the app is now closed for that organization's members too, in line with public links and AI assistants; other organizations are not affected."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/318"
+      }
+    },
+    {
+      "commit": "b59d1c98dba066ccdad3658a5f8f1c5f2bfdfad8",
+      "subject": "fix(chat): count message, note, post and reminder limits in characters",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Gửi tin và gọi trong chat: độ dài tin, ghi chú, bài đăng và nhắc việc được đếm theo ký tự nên tin tiếng Việt không còn bị báo quá dài sớm; poll, ghi chú, bài đăng, nhắc việc không còn bị tạo trùng khi mạng chập chờn, và gửi trong DM thì người nhận có thông báo; ô soạn xóa ngay khi gửi; @nhắc tên gắn đúng người kể cả khi trùng tên, và gợi ý @ trong kênh chỉ gồm thành viên kênh. Tin chờ gửi bị từ chối hẳn được bỏ kèm thông báo, tin thoại gửi lại không tạo bản trùng, GIF và sticker chỉ hiện từ nguồn được phép, tên nhóm mới tối đa 80 ký tự, nhắc việc dừng ở phòng đã lưu trữ và thẻ nhắc việc có nút xóa. Bấm Gọi hai lần chỉ đổ chuông một lần, nghe hoặc từ chối ở một tab thì các tab khác thôi đổ chuông, cuộc gọi đang diễn ra không bị người khác chiếm, và tóm tắt cuộc gọi chỉ được đăng một lần.",
+        "en": "Sending and calling in chat: message, note, post and reminder lengths are counted in characters, so Vietnamese text is no longer called too long early; polls, notes, posts and reminders are no longer duplicated on a flaky network, and sending one in a DM notifies the recipient; the composer clears as soon as you send; @mentions point to the right person even when two people share a name, and @ suggestions in a channel only list its members. A queued message the server refuses for good is dropped with a notice, a retried voice clip no longer arrives twice, GIFs and stickers only load from allowed sources, a new group's name is capped at 80 characters, reminders stop in archived rooms and reminder cards have a delete button. Pressing Call twice rings only once, answering or declining in one tab stops the other tabs ringing, an ongoing call can no longer be taken over by someone else, and a call summary is posted only once."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "6f8294afa1479b9a25e3a895b01bb547d687da26",
+      "subject": "fix(chat): count the serialized mention tokens in the composer limit",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "8e615d7c701860a3221eb9ff515f08407880dfdd",
+      "subject": "fix(chat): say how far an over-limit draft is past the composer limit",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "60ce04b243311f6f337b7ccbcdd003e73aeea914",
+      "subject": "fix(chat): hold a DM block on every write path and keep the blocker out",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Quyền trong chat được siết ở mọi thao tác: người bị chặn trong DM và người bị cấm gửi không còn gửi poll, ghi chú, bài đăng, nhắc việc, sửa tin, thả reaction, ghim, bỏ phiếu, gọi, ghi âm hay nối thread với task. Người bị loại khỏi nhóm không tự vào lại bằng cách tạo nhóm mới với đúng các thành viên cũ; chỉ người quản trị phòng đổi được tên kênh và lần đổi được ghi lại; quản trị viên workspace bị hạ quyền cũng mất quyền ở kênh chung; quản trị viên cuối không rời được phòng còn thành viên; nút quản trị phòng chỉ hiện khi máy chủ cho phép. Poll ẩn kết quả không còn lộ số phiếu trước khi bầu, vào lại kênh công khai đã rời không còn lỗi, đồng nghiệp ở workspace khác vào được cuộc gọi trong DM và nhóm, và mở DM với đồng nghiệp đã bị vô hiệu hóa không còn khóa màn hình của bạn.",
+        "en": "Chat permissions now hold on every action: a person blocked in a DM or barred from sending can no longer post polls, notes, posts or reminders, edit messages, react, pin, vote, call, record or link a thread to a task. A member removed from a group can no longer get back in by creating a new group with the same members; only room moderators can rename a channel and the rename is recorded; a demoted workspace admin also loses admin rights in the default channel; the last admin cannot leave a room that still has members; and room moderation buttons only show where the server allows them. A poll that hides results no longer leaks vote counts before you vote, rejoining a public channel you left no longer fails, a colleague from another workspace can join DM and group calls, and opening a DM with a deactivated colleague no longer locks your own screen."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "0ff6027f3322aa0017b179645ea9fd96bc98107c",
+      "subject": "fix(chat): hold a send restriction on pin, poll vote, call invite and recording",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "cb5939b1126ceaacc97efed0361131a985660fe6",
+      "subject": "fix(chat): make poll, note, post and reminder sends idempotent and notify a DM peer",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "e894c2d5c45d4ddb8d18faa5e6dc726570adae12",
+      "subject": "fix(chat): send a client_msg_id with every poll, note, post and reminder",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "d3bd4b1810147a44c40e5367187ce251bb4e66f5",
+      "subject": "fix(chat): hide per-option poll counts from a viewer who has not voted",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "f9caf6942070655c79c6f7d430f1424aea14c0fd",
+      "subject": "fix(chat): need send standing to link, sync or mirror into a room",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "e5bfc9aecf93b7ff40ce3c1785add3ad437a8f3f",
+      "subject": "fix(chat): answer 404 for a deactivated peer, not member_deactivated",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "b9e1ee0e85e79444a6c3c4c6e9d2b6d4a2a2b60f",
+      "subject": "fix(chat): let a peer from another workspace join DM and group calls",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "03ced016bec0db5f60d3ed8d29993247c5fcc038",
+      "subject": "fix(chat): reuse a group only while its members still match the request",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "c373fb9988eed450b5c2da213e0f9c6699cdf12c",
+      "subject": "fix(chat): rejoin a public channel with a fresh member row",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "e75d587efca5439c3fb0659bd6d89151139a0b22",
+      "subject": "fix(chat): keep a read-only mark when a member rejoins a public channel",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "f941ab2d6494af0f1d0cc5768d377f5705e1a19e",
+      "subject": "fix(chat): cap a new group's name at 80 characters",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "d43d44408661f1859e0f8cab20577eb45385eec9",
+      "subject": "fix(chat): only moderators rename a channel through room settings, audited",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "28b1f0f2b1c23dd1842aa868f89e527ee1230166",
+      "subject": "fix(chat): demote a demoted workspace admin in the default channel too",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "79ed3cb2b8cc63fdbf4045e9a77311deee2eb95a",
+      "subject": "fix(chat): keep a room's last admin from leaving, and name its creator",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "39a3acba34947456c5c74541042a4e4ae734e057",
+      "subject": "fix(chat): show room moderation only where the server allows it",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 60ce04b24 (cùng PR #319): chi tiết triển khai của quyền trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "e45bc4fb3187c81505dae4b63db2d9e9119154fe",
+      "subject": "fix(realtime): cap workspace sockets per user on each node",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "89aac4e89e3055e0cc47ec901c142cf596e033c8",
+      "subject": "fix(realtime): give a socket slot back when the hub evicts a slow client",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "69ae394220b0f620162c7f312073fd28208fad97",
+      "subject": "fix(chat): close a chat's notification row when the chat is read",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "73070e52337227f9700585880595514165329ec0",
+      "subject": "fix(notification): point a merged chat row at its newest message",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "dcc7e10ee999b1110c81ae6953b9fe6b4e1c5c19",
+      "subject": "fix(realtime): tell a removed chat member they left the room",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "5ea09f7ef9d0da182681004fa18921cb49f5edbf",
+      "subject": "fix(realtime): recheck every listener when a chat channel changes",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "d6ddb7eea920f239359a9311cbbf45a2d8af7f25",
+      "subject": "fix(chat): stop following a thread just because it was opened",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "a3ac6ae4b060bc106b6ceaaba877a799188bd750",
+      "subject": "fix(chat): add Follow / Unfollow to the open thread's bar",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "543f5821aa1abd52b41121ef126b53fdcf06fa6a",
+      "subject": "fix(chat): lead a busy thread's first page with its root",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "c3a3944a77b5d6c593df3ec9761ee8b35f865df2",
+      "subject": "fix(chat): bound a thread reply's notification rows like @all",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "12e7dca0732f25ea47fe4ad3fa54342c2208cc31",
+      "subject": "fix(chat): keep a room's notification mute on the server",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "5c36149ca77d2e8e3d933f69267ac712e5164f5d",
+      "subject": "fix(chat): read the room mute from the server on every device",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "3a3ac97fde42b9eaa9b7a8b8e6edaa4331e2b786",
+      "subject": "fix(chat): take a deleted thread reply off its root's summary",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "ebb6388ac10f7a2301bdb84afd32f987407f8527",
+      "subject": "fix(chat): carry edits and deletes across a linked thread and task",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "0c0f15798c18bd279e082b636f9662f7a257fa3c",
+      "subject": "fix(chat): drop a task's chat links when the task is deleted",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "df84274adcf0fcd2f3df7b23a8cd65541b100107",
+      "subject": "fix(chat): keep thread replies off the jump-to-message timeline",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "7458c4c4acf123f2d4392446cadadca8c5b24a7c",
+      "subject": "fix(chat): page a thread's replies by cursor with the root on the first page",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Thread và tìm kiếm trong chat: thread dài xem được cả các trả lời cũ; mở thread không còn tự theo dõi và thanh thread có nút Theo dõi / Bỏ theo dõi; xóa trả lời cập nhật số trả lời của tin gốc; trả lời gửi lúc mất mạng nằm đúng trong thread; nhảy tới tin không còn chèn trả lời thread vào luồng chính, và nút Về tin mới nhất đưa về cuối phòng và đánh dấu đã đọc; Tóm tắt trong thread tóm đúng các trả lời chưa đọc. Tìm tin gõ không dấu vẫn ra kết quả (hop ra Họp), thư mục kênh lọc đúng kể cả khi gõ _ hoặc %. Sửa hoặc xóa tin trong thread đã nối task lan sang bình luận bên task và ngược lại, còn xóa task thì gỡ link chat của task đó.",
+        "en": "Chat threads and search: a long thread now shows its older replies too; opening a thread no longer follows it, and the thread bar has a Follow / Unfollow button; deleting a reply updates the root's reply count; a reply sent while offline stays in its thread; jumping to a message no longer mixes thread replies into the main timeline, and Back to newest returns to the end of the room and marks it read; Summarize in a thread covers its unread replies. Searching without Vietnamese marks still finds messages (hop finds Họp), and the channel directory filters correctly even when you type _ or %. Editing or deleting a message in a thread linked to a task carries over to the task comment and the other way round, and deleting a task removes its chat links."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "4d7b5ded51ffe47807e6e5bf66c5ccec1ea243e3",
+      "subject": "fix(chat): load older replies in an open thread",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "3f7d349afcf605a3e3a8bb49c976e7ab31319047",
+      "subject": "fix(chat): start a thread catch-up from the pointer before opening",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "29bf867dd134ca00a4691faf3feccfe820d6635b",
+      "subject": "fix(chat): stop reminders in archived rooms and let moderators retire them",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "b553c9b967cfc91b4dd626f159bb6454a20372f3",
+      "subject": "fix(chat): show a delete button on reminder cards",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "82546fb95eb450638e877a798ac20c1a99fb9ba9",
+      "subject": "fix(chat): find room messages typed without Vietnamese marks",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "efc70a4cb2ba5c82723a67b47044e9795f1db258",
+      "subject": "fix(chat): refuse a live call_id on re-invite and serialise voice sessions",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "c4c67dcb1a345b4518cf838c8f07846d0c352b41",
+      "subject": "fix(chat): commit the call log, its audit row and summary job together",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "6f5859e574b67951b17bf39ce27a7778d8238034",
+      "subject": "fix(chat): post a call summary at most once and skip a deleted call log",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "a644cc70561f399171a214975b11455db42a7eb6",
+      "subject": "fix(chat): ring once when Call is pressed twice while a call starts",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "7a846f89ace4afe264b183358f9671f2c88dc108",
+      "subject": "fix(chat): stop the other tabs ringing once one tab answers or declines",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "93f349ccdf9c9152c516bc6abd913f3bb66c972a",
+      "subject": "fix(chat): re-read the recording state when the socket reconnects",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "95cc7d40ba8124ee6cc5af2cb03183aeb59bf670",
+      "subject": "fix(chat): keep a voice clip's client_msg_id when its send is retried",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "3b5dbfd16c9e9698479dc08ae75fea87678df71a",
+      "subject": "fix(chat): reload the sidebar at most once per 5 s per tab",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chat đồng bộ thời gian thực và thông báo ổn định hơn: thanh bên tải lại có giới hạn và kênh chỉ gửi số thành viên thay vì cả danh sách, nên kênh đông người không còn làm chậm mọi người; kênh chuyển sang riêng tư thì người ngoài thôi nhận tin; kênh đổi tên, lưu trữ hoặc mới tạo và người bị loại khỏi phòng được cập nhật ngay trên thanh bên; sau khi mất kết nối, phòng đang mở, link task và trạng thái ghi âm được tải lại. Đọc tin trong chat đóng thông báo tương ứng nên push của DM chạy lại, hàng thông báo gộp mở đúng tin mới nhất, tắt thông báo một phòng áp dụng trên mọi thiết bị, và dòng xem trước, số chưa đọc ở thanh bên không còn sai khi tin cũ thay đổi hoặc có trả lời thread trong kênh chung. Đóng một trong các tab không còn làm bạn hiện offline với người khác.",
+        "en": "Chat realtime sync and notifications are steadier: the sidebar reloads at a bounded rate and channels send a member count instead of the whole member list, so a busy channel no longer slows everyone down; a channel switched to private stops reaching outsiders; renamed, archived or new channels and members removed from a room update the sidebar straight away; and after a connection drop the open room, task links and recording state are loaded again. Reading a chat closes its notification so DM pushes resume, a merged notification row opens the newest message, muting a room applies on every device, and the sidebar preview and unread counts stay right when an older message changes or a thread reply lands in the default channel. Closing one of your tabs no longer shows you as offline to others."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "7175bc7ec642bb1e34ce20693bf693a1bc595248",
+      "subject": "fix(chat): stamp the sidebar reload before the flush awaits its GETs",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "3d3ccf0bdd109f8ce19cb7c95face49b52114b60",
+      "subject": "test(chat): dispose test covers deletes and mentions that are still pending",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ thêm test cho việc dọn hàng chờ thanh bên.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "8457a0e5c6a3237d561ba2edba3be7ca729f186a",
+      "subject": "fix(chat): keep the sidebar preview when an older message changes",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "73d9b37e18430478edc362b4bc5ed1f0103c0a3d",
+      "subject": "fix(chat): stop counting default-channel thread replies as unread",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "de412d7d423b40b76dc982713c70b7ac30f4df63",
+      "subject": "fix(chat): count a thread reply once when its thread is not loaded",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "6f0d9225c4b68c4536d43035d54afc684d0263d8",
+      "subject": "fix(chat): refresh the sidebar and channel lists on chat.channel.* frames",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "f1a32fd34f81bdee9bf6341dc96f1ff008b0ed8a",
+      "subject": "fix(chat): refresh open rooms and room-scoped lists after a reconnect",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "a04782813fc1d4c7b0cf3d3f25aa3ecbfa84bd92",
+      "subject": "fix(chat): fetch room task links again after a reconnect",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "33b0f593ed49f3b3ea94e4ee2c933103a370f58b",
+      "subject": "fix(chat): drop queued sends the server refuses for good and say so",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "b1f807d817b3117f3b6ae253d93067bc064788a6",
+      "subject": "fix(chat): toast dropped queued sends instead of the room error line",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "1b004e7d39ad899eb665ac0ea435982f60378f88",
+      "subject": "fix(chat): keep queued thread replies in their thread",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "23261e106362aa34aa658be6f6108cd6eda42e4b",
+      "subject": "fix(chat): send a channel's member count instead of its member ids",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "d75b462d92f0678aeec539040eddf66dca439cae",
+      "subject": "fix(chat): read a channel's roster from one room-members call",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "519bc3f1cacd3b2584ffb3666a3606a666ae55f7",
+      "subject": "fix(chat): clear the composer when a message is sent, not when the server answers",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "91bfcccef704980b1d03ed1e4296f8e2db6ff51c",
+      "subject": "fix(chat): give members who share a name distinct @ labels and keep edit ids",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "779f9c2913ef2e814e324eca673c10e1389a5f1a",
+      "subject": "fix(chat): list only channel members in channel @ suggestions",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "4ed0f60334634637a8949538ccd9b041892bc7e9",
+      "subject": "fix(chat): return to the newest message and mark read from the jump banner",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "9e75a41ec834cf66286e7240497cb2246dbfedf4",
+      "subject": "fix(chat): search the channel directory only on the client",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 7458c4c4a (cùng PR #319): chi tiết triển khai của thread và tìm kiếm trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "f88057e19e553d0653b4e3ed0e18c96a03cb0d55",
+      "subject": "fix(chat): draw media messages only from the hosts the picker produces",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b59d1c98d (cùng PR #319): chi tiết triển khai của gửi tin và gọi trong chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "6efb73ddbaea27034c8d2b05b2b8e06adbee9430",
+      "subject": "fix(chat): keep a person online when one of their tabs leaves",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "e269d5077a12068860a690cb4a25a0b4d3d44583",
+      "subject": "fix(chat): reconcile the stage-1 lanes where their fixes meet",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 3b5dbfd16 (cùng PR #319): chi tiết triển khai của đồng bộ thời gian thực và thông báo chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/319"
+      }
+    },
+    {
+      "commit": "40162807c57e0b78fa49939fbd4dd4f82d366510",
+      "subject": "test(governance): pin 9c94b49eb in the commit history exceptions",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: ghim commit vào danh sách ngoại lệ của test governance.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/316"
+      }
+    },
+    {
+      "commit": "86bc2151c422d299c06c2bafc393cccfdac52866",
+      "subject": "test(documents): give the create-folder breadcrumb wait a 5s budget",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ nới thời gian chờ trong test tài liệu chập chờn trên CI.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/316"
+      }
+    },
+    {
+      "commit": "b8db488814c8f81523fae678d92bf08f62087d6a",
+      "subject": "feat(settings): step-by-step guide for connecting Claude or ChatGPT",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Cài đặt › Ứng dụng AI có nút Hướng dẫn kết nối, mở hộp thoại từng bước cho Claude hoặc ChatGPT: chọn trợ lý, sao chép địa chỉ UniWork, mở trang của trợ lý trong tab mới, thêm UniWork, rồi đăng nhập và cho phép; mỗi bước có hình minh họa khoanh đúng chỗ cần bấm. Khi hộp thoại đang mở, UniWork tự nhận ra kết nối mới và gợi ý câu hỏi đầu tiên, kèm nút Kiểm tra lại nếu chưa thấy. Logo Claude, ChatGPT và Gemini hiện ở mục kết nối của Ứng dụng AI và Truy cập AI; ở dòng ứng dụng đã kết nối, logo chỉ hiện khi ứng dụng đã được xác minh.",
+        "en": "Settings › AI apps has a Connection guide button that opens a step-by-step dialog for Claude or ChatGPT: pick the assistant, copy the UniWork address, open the assistant's page in a new tab, add UniWork, then sign in and allow access; each step has a drawing that circles exactly what to click. While the dialog is open, UniWork notices the new connection by itself and suggests a first question, with a Check again button if it is not seen yet. Claude, ChatGPT and Gemini logos appear beside the connection sections of AI apps and AI access; on a connected app's row, the logo only shows when that app is verified."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/321"
+      }
+    },
+    {
+      "commit": "249b4aa5ac9a5c35c5b8dd58cbd8a076faab9f44",
+      "subject": "docs: user guide for the MCP connector",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu hướng dẫn trong repo (docs/guides/mcp-connector.md), không phải thay đổi ứng dụng; tính năng hướng dẫn trong ứng dụng đã nằm ở mục b8db48881.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/321"
+      }
+    },
+    {
+      "commit": "afd43c23e8d4d2d8d6dc0a92695720e8fe17a3ae",
+      "subject": "fix(settings): ChatGPT steps follow its Plugins page, open to every plan",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b8db48881 (cùng PR #321): chi tiết triển khai của hướng dẫn kết nối trợ lý AI và logo, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/321"
+      }
+    },
+    {
+      "commit": "0147ee21f00df7e94aad5a513a57072445f9e0e5",
+      "subject": "fix(settings): connect-guide drawings traced from the live Claude and ChatGPT pages",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục b8db48881 (cùng PR #321): chi tiết triển khai của hướng dẫn kết nối trợ lý AI và logo, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/321"
+      }
+    },
+    {
+      "commit": "6764d566d5eb554969fc4b987ae3e8e3a66708af",
+      "subject": "fix(email-hub): sync starred/spam/trash folders and fix Ask UNI compose",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Email Hub: thư mục Gắn sao lấy đúng thư đã gắn sao trong hộp thư (kể cả Gmail), Spam được đồng bộ nền, Thùng rác và Spam đồng bộ ngay khi mở, và chuyển thư sang thư mục khác thì thư mục đích được đồng bộ trước. Khi soạn thư, nội dung dài cuộn được và ảnh dán vào thành tệp đính kèm; màn trống của Hẹn giờ và Tạm ẩn nói rõ chỉ gồm thư hẹn giờ, tạm ẩn trong UniWork.",
+        "en": "Email Hub: the Starred folder now pulls the mail you starred in your mailbox (Gmail included), Spam syncs in the background, Trash and Spam sync as soon as you open them, and moving mail to another folder syncs the target folder first. When writing, a long draft scrolls and pasted images become attachments; the empty Scheduled and Snoozed folders explain that they only hold mail scheduled or snoozed in UniWork."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/320"
+      }
+    },
+    {
+      "commit": "3b6b5e056e51fc40456505f76e4e0dd115be87f2",
+      "subject": "ci: ignore G712-10 holdout redaction test fixtures in gitleaks",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hạ tầng CI: cấu hình gitleaks bỏ qua fixture test.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/320"
+      }
+    },
+    {
+      "commit": "cbc6ff68514ee4fd6860d5394f48707c9d405056",
+      "subject": "feat(settings): Claude and ChatGPT marks in the connect guide",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục b8db48881 (cùng PR #321): chi tiết triển khai của hướng dẫn kết nối trợ lý AI và logo, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/321"
+      }
+    },
+    {
+      "commit": "636900419ae86169fd5ca3966dccf1fd8510e891",
+      "subject": "feat(settings): assistant marks on the AI apps and AI access screens",
+      "kind": "features",
+      "include": false,
+      "excludeReason": "Gộp vào mục b8db48881 (cùng PR #321): chi tiết triển khai của hướng dẫn kết nối trợ lý AI và logo, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/321"
+      }
+    },
+    {
+      "commit": "f89e9e6a585200b2731f706427ed33cd0af1fcbc",
+      "subject": "fix(email-hub): drop UNI-1648 Ask UNI changes from this PR",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gỡ phần Ask UNI (UNI-1648) đã thêm ở 6764d566d ra khỏi PR #320; sau commit này không còn thay đổi Ask UNI nào được merge, nên mô tả PR nhắc Ask UNI không được đưa vào notes.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/320"
+      }
+    },
+    {
+      "commit": "51312aff9b52ff271ef8267adce5a559460b3002",
+      "subject": "ci: let gitleaks skip the holdout redaction test's fake keys",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hạ tầng CI: cấu hình gitleaks bỏ qua khóa giả trong test.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/321"
+      }
+    },
+    {
+      "commit": "d363ca48e750a9dfe29aa3efbef9a9c4045c48de",
+      "subject": "fix(email-hub): body load retry and prefetch stale cache",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Email Hub mở thư nhanh và chắc hơn: hiện đoạn trích trong lúc tải nội dung, tự thử lại khi tải nội dung lỗi, tải trước các thư bên cạnh, và chỉ đánh dấu đã đọc sau khi nội dung đã tải xong.",
+        "en": "Email Hub opens mail faster and more reliably: it shows the snippet while the body loads, retries a failed body load by itself, preloads the neighbouring messages, and only marks mail read once the body has loaded."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/322"
+      }
+    },
+    {
+      "commit": "13087a29b3cb2ad63dc7a132870cbb4b3018c836",
+      "subject": "fix(documents): deep-link chat source files to room and message (UNI-1814)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trong Tài liệu, lệnh tới nguồn của một tệp lấy từ chat nay mở đúng phòng và làm nổi tin nhắn chứa tệp, thay vì chỉ mở trang Chat.",
+        "en": "In Documents, going to the source of a file that came from chat now opens the right room and highlights the message that carries the file, instead of just opening Chat."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "0b2de346744f58d309346612c1aa84fc9b719e64",
+      "subject": "fix(chat): return 410 when resending deleted client_msg_id (UNI-1731)",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 8d3b95395 (cùng PR #323): chi tiết triển khai của thông báo và sửa tin chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "8e9153c59bc75400dff20c98edd0604ab6830187",
+      "subject": "fix(chat): propagate read-pointer DB failures from MarkRoomRead (UNI-1734)",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 8d3b95395 (cùng PR #323): chi tiết triển khai của thông báo và sửa tin chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "cb3e08f53d8773c94b69ff5dc6ffe7965e53b620",
+      "subject": "fix(chat): deliver thread replies to public-channel followers (UNI-1721)",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 8d3b95395 (cùng PR #323): chi tiết triển khai của thông báo và sửa tin chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "0b9e614ba891afc3484960dca1c6270e74bffe26",
+      "subject": "fix(chat): retry notification delivery on membership gate outages (UNI-1709)",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 8d3b95395 (cùng PR #323): chi tiết triển khai của thông báo và sửa tin chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "8d3b953959e51a40d91645de8e49a89fa4e7a9a2",
+      "subject": "fix(chat): notify newly added mentions on message edit (UNI-1730)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Thông báo chat chắc chắn hơn: sửa tin để thêm @nhắc tên thì người mới được nhắc nhận thông báo, cuộc gọi nhỡ trong DM tạo thông báo cho người nhận, người theo dõi thread trong kênh công khai nhận trả lời dù chưa vào kênh, và thông báo được thử lại khi hệ thống tạm lỗi thay vì bị mất. Sửa tin giữ nguyên mức ưu tiên và các dữ liệu khác của tin, còn gửi lại một tin đã bị xóa nhận báo lỗi rõ ràng thay vì lỗi máy chủ.",
+        "en": "Chat notifications are more reliable: editing a message to add an @mention notifies the newly mentioned people, a missed call in a DM notifies the recipient, followers of a thread in a public channel get its replies even before joining the channel, and notifications are retried after a temporary failure instead of being lost. Editing a message keeps its priority and other message data, and resending a message that was deleted now gets a clear error instead of a server error."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "e5da0e52d77d2e44eec4f66d9e395b4646944812",
+      "subject": "fix(chat): DM missed-call log triggers durable DM notification (UNI-1735)",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 8d3b95395 (cùng PR #323): chi tiết triển khai của thông báo và sửa tin chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "4b6499dff7d1358b117b09f1c4dec4e872a3a9b0",
+      "subject": "fix(chat): preserve metadata keys on edit and mention encode (UNI-1729)",
+      "kind": "fixes",
+      "include": false,
+      "excludeReason": "Gộp vào mục 8d3b95395 (cùng PR #323): chi tiết triển khai của thông báo và sửa tin chat, đã nằm trong mục đó.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "27e191d920966037cec50fe0bc1cdab4b10d00c0",
+      "subject": "refactor(chat): single INSERT metadata and one member read on send (UNI-1746)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Refactor kỹ thuật: gộp ghi metadata và đọc thành viên khi gửi tin, không đổi hành vi người dùng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    },
+    {
+      "commit": "1f375e0f006bbac633448fcbfe0478dada0afbd1",
+      "subject": "UNI-1808 (feat): spec và plan tích hợp pavietnam",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: spec và plan tích hợp tên miền/email (pavietnam), đẩy thẳng lên develop; là tính năng dự kiến, chưa có mã.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/superpowers/plans/2026-10-16-domain-email-reseller.md",
+          "docs/superpowers/specs/2026-10-16-domain-email-reseller-design.md"
+        ]
+      }
+    },
+    {
+      "commit": "0ec00567d931c302d0f8cb9ad80d9e788ed44dfa",
+      "subject": "feat(landing): align interactive demos with current product screens",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Các bản demo tương tác trên trang giới thiệu nay dựng từ màn hình hiện tại của sản phẩm — task, dự án, chat, Email Hub, cuộc họp, lịch, tài liệu, thành viên và Ask UNI — với dữ liệu mẫu, và tự chạy lại chuỗi thao tác minh họa.",
+        "en": "The interactive demos on the marketing site are now built from the product's current screens — tasks, projects, chat, Email Hub, meetings, calendar, documents, people and Ask UNI — with sample data, and they play their action sequences automatically again."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/animation/landing-motion.test.tsx",
+          "apps/web/features/landing/animation/landing-motion.tsx",
+          "apps/web/features/landing/animation/use-demo-item-motion.ts",
+          "apps/web/features/landing/catalog-previews.tsx",
+          "apps/web/features/landing/feature-page.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "79c9177ae35f63ebc262532d43519a766fb51846",
+      "subject": "docs: spec và kế hoạch epic UniChat — ứng dụng native cho Chat",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: spec và kế hoạch epic UniChat; chưa có mã nguồn, là tính năng dự kiến nên không đưa vào Changelog.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/324"
+      }
+    },
+    {
+      "commit": "dd376a058fbf5ef0accea63d5c8d97d751ef9f52",
+      "subject": "docs(seo): clarify public sitemap coverage",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Nội bộ: tài liệu SEO về phạm vi sitemap, đẩy thẳng lên develop, không phải thay đổi ứng dụng.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/seo.md"
+        ]
+      }
+    },
+    {
+      "commit": "d4d126fab144ba7c30d72f39b6bcea93c89084f9",
+      "subject": "test(notification): use event_id in delivery ledger assertion (UNI-1709)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Chỉ sửa test sổ giao thông báo.",
+      "text": {
+        "vi": "",
+        "en": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/323"
+      }
+    }
+  ]
+}

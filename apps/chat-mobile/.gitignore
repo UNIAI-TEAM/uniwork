@@ -1,0 +1,6 @@
+# Expo prebuild output and caches; app.config.ts is the source.
+ios/
+android/
+.expo/
+dist/
+expo-env.d.ts

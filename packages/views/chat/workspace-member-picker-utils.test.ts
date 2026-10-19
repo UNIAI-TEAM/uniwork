@@ -41,6 +41,31 @@ describe("workspace-member-picker-utils", () => {
     expect(filtered.map((m) => m.user_id)).toEqual(["u1"]);
   });
 
+  it("name-only search never matches the email text, nor the local part of an unnamed member", () => {
+    const unnamed = { workspace_id: "ws1", user_id: "u3", role: "member" as const, email: "nguyen.an@example.com", display_name: "" };
+    const all = [...members, unnamed];
+    const ids = (query: string, nameOnly: boolean) =>
+      filterWorkspaceMembers(all, { currentUserId: "self", query, nameOnly }).map((m) => m.user_id);
+    expect(ids("alice@example.com", true)).toEqual([]);
+    expect(ids("nguyen", true)).toEqual([]);
+    expect(ids("alice", true)).toEqual(["u2"]);
+    // Chat callers still find people by email and by the local part.
+    expect(ids("alice@example.com", false)).toEqual(["u2"]);
+    expect(ids("nguyen", false)).toEqual(["u3"]);
+  });
+
+  it("lists members by name, not in join order", () => {
+    const people = ["Võ Minh", "Hoàng Lan", "Lê Minh Châu"].map((display_name, i) => ({
+      workspace_id: "ws1",
+      user_id: `p${i}`,
+      role: "member" as const,
+      email: `p${i}@example.com`,
+      display_name,
+    }));
+    const names = filterWorkspaceMembers(people, { currentUserId: "self", query: "" }).map((m) => m.display_name);
+    expect(names).toEqual(["Hoàng Lan", "Lê Minh Châu", "Võ Minh"]);
+  });
+
   it("finds member by exact email", () => {
     expect(findWorkspaceMemberByEmail(members, "alice@example.com")?.user_id).toBe("u2");
   });

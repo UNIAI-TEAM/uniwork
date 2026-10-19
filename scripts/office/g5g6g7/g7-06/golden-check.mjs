@@ -21,7 +21,7 @@ import { dirname, join } from "node:path";
 import { sha256Hex } from "../../../../apps/web/platform/office-frame/frame-bundle.mjs";
 import { VIEWPORTS } from "./capture/constants.mjs";
 import { captureBrandHits, MIN_VISIBLE_CHARS, visibleChars } from "./brand-check.mjs";
-import { capturePairBlocker, DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
+import { captureAiBlocker, capturePairBlocker, DEFAULT_GOLDENS_DIR, HOSTS, fixtureIds, loadPngjs, readJsonState, relativeToOut } from "./job-lib.mjs";
 
 export const DEFAULT_TOLERANCE = Object.freeze({ channel: 16, ratio: 0.001 });
 /** How much of the frame a mask may blank, per mask and per entry (F-05, FS-3). */
@@ -205,6 +205,7 @@ export function runGoldenCheck({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, 
       const blocker = capturePairBlocker(metaState, fixture, { forkSha, pinVersion }) ?? viewportBlocker(metaState, manifest.viewport[host]);
       let report;
       if (blocker) report = pairBlocked(pair, blocker);
+      else if (captureAiBlocker(metaState, host, fixture)) report = { ...pair, status: "FAIL", reasons: ["capture_ai_off"] };
       else if (!existsSync(capturePath)) report = pairBlocked(pair, "capture_missing");
       else if (!entry || !existsSync(goldenPath)) report = { ...pair, status: "FAIL", reasons: ["golden_missing"] };
       else {
@@ -289,6 +290,7 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
   const previous = previousState.value ?? {};
   const entries = { ...(previous.entries ?? {}) };
   const blocked = [];
+  const failed = [];
   const blessedHosts = new Set();
   const metaStates = new Map(hosts.map((host) => [host, readJsonState(join(capturesDir, host, "meta.json"))]));
   for (const host of hosts) {
@@ -317,6 +319,12 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
       const viewportBlock = viewportBlocker(metaState, viewportProblem(previous) ? null : previous.viewport[host]);
       if (viewportBlock) {
         blocked.push(`${viewportBlock}:${host}/${fixture}`);
+        continue;
+      }
+      // an AI-less web frame is never blessed (RFE5-202): a FAIL, not a missing precondition
+      const aiOff = captureAiBlocker(metaState, host, fixture);
+      if (aiOff) {
+        failed.push(`${aiOff}:${host}/${fixture}`);
         continue;
       }
       const textPath = join(capturesDir, host, `${fixture}.txt`);
@@ -365,10 +373,10 @@ export function updateGoldens({ capturesDir, goldensDir = DEFAULT_GOLDENS_DIR, f
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   const summaryPath = join(outDir, "golden", "update.json");
   mkdirSync(dirname(summaryPath), { recursive: true });
-  writeFileSync(summaryPath, `${JSON.stringify({ entries: Object.keys(entries).length, blocked }, null, 2)}\n`);
+  writeFileSync(summaryPath, `${JSON.stringify({ entries: Object.keys(entries).length, failed, blocked }, null, 2)}\n`);
   return {
-    status: blocked.length > 0 ? "BLOCKED" : "PASS",
-    reasons: blocked,
+    status: failed.length > 0 ? "FAIL" : blocked.length > 0 ? "BLOCKED" : "PASS",
+    reasons: [...failed, ...blocked],
     artifacts: [relativeToOut(outDir, summaryPath), relativeToOut(outDir, manifestPath)],
   };
 }

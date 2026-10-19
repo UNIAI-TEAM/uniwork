@@ -91,10 +91,27 @@ func New(d Deps, h Routes) http.Handler {
 		// grants, so an MCP access token falls back to the client address, and
 		// every team behind one AI vendor's egress address would share 300 a
 		// minute. /mcp has its own per-token budget (registerMCP).
+		// Native refresh skips it for the same reason: phones behind one
+		// carrier address would share 300 a minute; it has its own
+		// per-device budget under an address ceiling (refreshLimit).
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
-		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
+		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
+	// Native refresh: per (address, device) under a ceiling per address; the
+	// ceiling runs first so a request it refuses opens no device counter. The
+	// address is part of the key because a device id is not a secret: keyed by
+	// id alone, anyone who learned one could spend that device's budget from
+	// elsewhere. Phones behind one carrier address still get a budget each.
+	refreshCeiling := mw.RateLimitByIdentityBucket(d.Redis, "desktop-refresh-ip", 600, time.Minute, proxies, nil)
+	refreshPerDevice := mw.RateLimitByIdentityBucket(d.Redis, "desktop-refresh", 60, time.Minute, proxies, func(r *http.Request) string {
+		id := desktopDevice(r)
+		if id == "" {
+			return ""
+		}
+		return mw.ClientIP(r, proxies) + ":" + id
+	})
+	refreshLimit := func(next http.Handler) http.Handler { return refreshCeiling(refreshPerDevice(next)) }
 	// In-room limiters budget per verified person, not per address: a formal
 	// meeting often sits behind one office NAT. They run after OptionalAuth.
 	inRoom := meetingCaller([]byte(d.Cfg.JWTSecret))
@@ -111,6 +128,9 @@ func New(d Deps, h Routes) http.Handler {
 			"Content-Type",
 			"Idempotency-Key",
 			"If-Match",
+			// Native refresh budget key (registerAuth); a browser-origin caller
+			// that sends it must pass preflight too.
+			"X-UniWork-Device",
 			mw.CorrelationHeader,
 			telemetry.DebugTraceHeader,
 			meetings.GuestSessionHeader,
@@ -132,6 +152,9 @@ func New(d Deps, h Routes) http.Handler {
 			// G6-05 reads both off the response: the conversation to continue
 			// and, from G6-03b on, the run id.
 			ai.UniworkConversationHeader, ai.UniworkRunHeader,
+			// The access report export (UNI-1643): the file name and the
+			// counts the web shows after the download.
+			"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At",
 		},
 		AllowCredentials: true,
 	}))
@@ -166,7 +189,7 @@ func New(d Deps, h Routes) http.Handler {
 			mw.RateLimitByIdentityBucket(d.Redis, "mcp", 120, time.Minute, proxies, mcpBearer)))
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
-		registerAuth(v1, h, credentialLimit)
+		registerAuth(v1, h, credentialLimit, refreshLimit)
 		registerDemoRequests(v1, h, mw.RateLimit(d.Redis, 5, time.Hour, proxies))
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
@@ -239,7 +262,12 @@ func New(d Deps, h Routes) http.Handler {
 			registerAudit(authed, h)
 			registerPrivacy(authed, h)
 			registerGraph(authed, h)
-			registerMeetings(authed, h)
+			// An AI meeting summary pays the model for the whole meeting:
+			// 6 a minute per signed-in person on its own bucket (UNI-1853 M9),
+			// so a member who makes instant meetings to host cannot drain the
+			// organization's AI quota through the 300/min global budget. The
+			// service adds one run per meeting at a time (summary_in_progress).
+			registerMeetings(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-meeting-summary", 6, time.Minute, proxies, bearerUser(d.Minter)))
 			// Chat writes budget per signed-in person and per route: an office
 			// NAT must not pool everyone's sends, and walking message or room
 			// ids must not mint a fresh budget per id.
@@ -258,6 +286,9 @@ func New(d Deps, h Routes) http.Handler {
 			registerChatThreads(authed, h, chatWriteLimit)
 			registerChatLinks(authed, h, chatWriteLimit)
 			registerChatFollowUps(authed, h, chatWriteLimit)
+			registerChatDelivery(authed, h)
+			registerChatForward(authed, h, chatWriteLimit)
+			registerChatVoiceTranscript(authed, h, chatWriteLimit)
 			registerFiles(authed, h)
 			// The `documents` gate evaluates at the organization the path acts
 			// in, so an organization override closes these routes like it

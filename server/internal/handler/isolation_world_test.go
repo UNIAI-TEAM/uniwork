@@ -646,6 +646,8 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 		fields: map[string]string{"client_msg_id": util.NewID(), "duration_ms": "4000"}, filename: "voice.webm", contentType: "audio/webm", content: tinyWebM,
 	})
 	tn.ids["voiceMessage"] = isoID(t, out, "message")
+	// Its transcript (UNI-1908 F2), on the fake transcriber the world runs.
+	w.call(t, "POST", ws+"/chat/messages/"+tn.ids["voiceMessage"]+"/transcript", tn.token, nil)
 	out = w.call(t, "POST", ws+"/chat/messages/"+tn.ids["message"]+"/follow-ups", tn.token, map[string]any{"note": m + " follow up"})
 	tn.ids["followUp"] = isoID(t, out, "follow_up")
 	out = w.call(t, "POST", ws+"/chat/messages/"+tn.ids["message"]+"/links", tn.token, map[string]any{"target_type": "task", "target_id": tn.ids["task"]})
@@ -677,6 +679,27 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	tn.ids["docComment"] = isoID(t, out, "comment")
 	out = w.call(t, "POST", dp+"/shares", tn.token, map[string]any{"principal_type": "user", "principal_id": tn.peerID, "level": "view"})
 	tn.ids["share"] = isoID(t, out, "share")
+	// DOC-05 (UNI-1628): a restricted page whose ACL owner is the tenant's peer,
+	// so the tenant's owner (an implicit workspace admin) holds AdminScope on it
+	// and can open, and end, emergency access; one live grant of theirs is
+	// seeded by SQL because the API only grants to the caller.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Restricted", "kind": "page",
+		"content": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": m + " restricted body"}}}}},
+	})
+	tn.ids["restrictedDocument"] = isoID(t, out, "document")
+	if _, err := w.pool.Exec(context.Background(),
+		`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`, tn.ids["restrictedDocument"], tn.peerID); err != nil {
+		t.Fatal(err)
+	}
+	grantID := util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_break_glass_grants (
+		id, organization_id, workspace_id, document_id, actor_id, actor_kind, level, reason, expires_at
+	) VALUES ($1, $2, $3, $4, $5, 'human', 'view', $6, now() + interval '1 hour')`,
+		grantID, tn.orgID, tn.wsID, tn.ids["restrictedDocument"], tn.userID, m+" break-glass reason for the audit"); err != nil {
+		t.Fatal(err)
+	}
+	tn.ids["breakGlassGrant"] = grantID
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/documents/settings", tn.token, map[string]any{"public_links_enabled": true})
 	out = w.call(t, "POST", dp+"/links", tn.token, map[string]any{})
 	tn.ids["docLink"] = isoID(t, out, "link")
@@ -1023,4 +1046,35 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		tn.orgID, tn.ids["meeting"], tn.peerID); err != nil {
 		t.Fatalf("meeting attendee: %v", err)
 	}
+
+	// A summary of the scheduled meeting with action items to convert - the
+	// fake model answers with none. The reference cases convert items 0-2;
+	// item 3 becomes a task here, so meeting_summary_task_links holds a row.
+	items := make([]map[string]string, 0, 4)
+	for i := range 4 {
+		items = append(items, map[string]string{"title": fmt.Sprintf("%s summary item %d", m, i), "owner": m + " Peer"})
+	}
+	rawItems, err := json.Marshal(items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tn.ids["meetingSummary"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_summaries
+		(id, organization_id, meeting_id, summary, decisions, action_items, model, created_by)
+		VALUES ($1, $2, $3, $4, '[]', $5, 'fake', $6)`,
+		tn.ids["meetingSummary"], tn.orgID, tn.ids["meeting"], m+" summary", string(rawItems), tn.userID); err != nil {
+		t.Fatalf("meeting summary: %v", err)
+	}
+	// A summary run's lease lives only while the run does; an expired one is
+	// what a node that died mid-run leaves, so meeting_summary_runs holds a
+	// row without holding the meeting's summaries up.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_summary_runs
+		(organization_id, meeting_id, run_id, expires_at)
+		VALUES ($1, $2, $3, now() - interval '1 minute')`,
+		tn.orgID, tn.ids["meeting"], util.NewID()); err != nil {
+		t.Fatalf("meeting summary run: %v", err)
+	}
+	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/summary/tasks", tn.token, map[string]any{
+		"summary_id": tn.ids["meetingSummary"], "items": []any{map[string]any{"index": 3, "assignee_id": tn.peerID}},
+	})
 }

@@ -28,6 +28,9 @@ env:
   # rest shard). GO-2026-6612 / 6613 are fixed in net/http from go1.27.2.
   GOVULN_GO_VERSION: "1.27.2"
   PNPM_VERSION: "10.28.2"
+  # apps/chat-desktop: CI only typechecks, lints, tests (node env) and
+  # electron-vite-builds the shell; nothing runs the Electron binary.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
 jobs:
   changes:
@@ -61,6 +64,9 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'scripts/**'
+              # the contract tests read the pinned office tool schema and the
+              # tool table under docs/office; a docs-only re-pin must run this job.
+              - 'docs/office/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/changelog.yml'
               - 'server/internal/service/reserved_slugs.json'
@@ -130,7 +136,7 @@ jobs:
         # wiring (AGENTS.md, hooks, doc/hook agreement), and the turbo
         # dependency-hash probe that proves `test` cannot replay a stale pass.
         run: |
-          node --test scripts/catalog-check.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/lucide-aliases.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/landing-artwork.test.mjs scripts/landing-marks.test.mjs scripts/landing-mascot.test.mjs scripts/landing-motion.test.mjs scripts/landing-studio.test.mjs scripts/i18n-landing-keys.test.mjs scripts/office/installer-urls.test.mjs scripts/office/frame-protocol-vendor.test.mjs scripts/office-modules.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/g5g6g7/make-fixtures.test.mjs scripts/office/g5g6g7/harness/lib.test.mjs scripts/office/g5g6g7/harness/api-contract.test.mjs scripts/office/g5g6g7/holdout.test.mjs scripts/office/g5g6g7/g7-06/job.test.mjs
+          node --test scripts/catalog-check.test.mjs scripts/mobile-core-allowlist.test.mjs scripts/no-usf-leak.test.mjs scripts/no-legacy-tokens.test.mjs scripts/lucide-aliases.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs scripts/alerts-runbooks.test.mjs scripts/landing-artwork.test.mjs scripts/landing-marks.test.mjs scripts/landing-mascot.test.mjs scripts/landing-motion.test.mjs scripts/landing-studio.test.mjs scripts/i18n-landing-keys.test.mjs scripts/office/installer-urls.test.mjs scripts/office/frame-protocol-vendor.test.mjs scripts/office-modules.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/g5g6g7/make-fixtures.test.mjs scripts/office/g5g6g7/harness/lib.test.mjs scripts/office/g5g6g7/harness/api-contract.test.mjs scripts/office/g5g6g7/holdout.test.mjs scripts/office/g5g6g7/genoffice-tool-schemas.test.mjs scripts/office/g5g6g7/g7-06/job.test.mjs
           node --test scripts/changelog-draft.test.mjs scripts/changelog-automation.test.mjs scripts/changelog-review-notify.test.mjs scripts/changelog-workflow.test.mjs scripts/changelog-review-pr.test.mjs
           bash scripts/turbo-cache-check.sh
       - name: Validate reviewed Changelog publication
@@ -141,7 +147,8 @@ jobs:
         run: node scripts/changelog-review-pr.mjs check --base "$REVIEW_BASE" --head "$REVIEW_HEAD"
       - name: Build, typecheck
         if: ${{ needs.changes.outputs.frontend == 'true' }}
-        run: pnpm exec turbo build typecheck
+        # apps/chat-mobile verifies in mobile-verify.yml (ADR 0011); it has no build script.
+        run: pnpm exec turbo build typecheck --filter=!@uniwork/chat-mobile
       - name: Lint (package boundaries are lint errors)
         # Through the root script, not `turbo lint`: scripts/lint-gate.sh is
         # what reads GATE_LEVEL. docs/adr/0014 — at fast the findings print and

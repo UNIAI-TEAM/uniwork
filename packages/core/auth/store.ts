@@ -2,11 +2,12 @@
 
 import { create } from "zustand";
 import * as auth from "../api/endpoints/auth";
-import { getAccessToken, subscribe as subscribeToToken } from "../api/session";
+import { getAccessToken, setAccessToken, subscribe as subscribeToToken } from "../api/session";
 import { endOfficeDraftSession } from "../office/draft-session-key";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
 import { syncSessionHint } from "./session-hint";
+import { getSessionProvider, registerSessionProvider, type SessionProvider } from "./session-provider";
 
 export type SessionStatus = "loading" | "authed" | "anon";
 
@@ -48,6 +49,15 @@ function endDraftSession(): void {
   void endOfficeDraftSession();
 }
 
+/** Host-owned session: take its access token, then ask the server who it belongs to. */
+async function providerSession(p: SessionProvider): Promise<{ user: User } | null> {
+  const token = await p.getAccessToken();
+  setAccessToken(token);
+  const user = token ? await auth.me() : null;
+  // The host may drop the token while /me is in flight; a user without a token is not a session.
+  return user && getAccessToken() !== null ? { user } : null;
+}
+
 /** Drop to anon. Logout callback runs only for an explicit logout, not token loss. */
 function clearSession(runLogoutCallback = true): void {
   const state = useAuthStore.getState();
@@ -77,10 +87,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (initialized) return Promise.resolve();
     initInFlight ??= (async () => {
       try {
-        const sess = await auth.refreshSession();
+        const provider = getSessionProvider();
+        const sess = provider ? await providerSession(provider) : await auth.refreshSession();
         // Login/register may finish while refresh is still in flight; do not downgrade.
         if (useAuthStore.getState().status === "authed") return;
-        set(sess ? { user: sess.user, status: "authed" } : { user: null, status: "anon" });
+        set(sess?.user ? { user: sess.user, status: "authed" } : { user: null, status: "anon" });
       } catch {
         if (useAuthStore.getState().status !== "authed") {
           set({ user: null, status: "anon" });
@@ -104,7 +115,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     clearSession();
-    await auth.logout();
+    const provider = getSessionProvider();
+    if (provider) {
+      try {
+        await provider.logout();
+      } finally {
+        setAccessToken(null);
+      }
+    } else {
+      await auth.logout();
+    }
   },
 
   setOnLogout: (cb) => {
@@ -112,13 +132,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
+// The token a host-emitted upgrade is resolving through /me, so one token runs once.
+let upgrading: string | null = null;
+
 // A failed refresh inside the transport clears the token without telling
 // anyone. Drop to anon so the UI cannot keep rendering a stale session, but
 // do not run logout cleanup — drafts stay for the same person signing back in.
+// The reverse only exists with a session provider: the host finishing its
+// login hands a token to an already-anon store (initialize has latched), so
+// ask /me who it belongs to. The cookie path never has a token arrive this way.
 subscribeToToken(() => {
-  if (getAccessToken() === null && useAuthStore.getState().status === "authed") {
-    clearSession(false);
+  const token = getAccessToken();
+  const status = useAuthStore.getState().status;
+  if (token === null) {
+    if (status === "authed") clearSession(false);
+    return;
   }
+  if (status !== "anon" || !getSessionProvider() || upgrading === token) return;
+  upgrading = token;
+  void auth
+    .me()
+    .then((user) => {
+      // Stale when the host changed or dropped the token meanwhile, or someone else signed the store in.
+      if (user && getAccessToken() === token && useAuthStore.getState().status === "anon") {
+        useAuthStore.setState({ user, status: "authed" });
+      }
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      if (upgrading === token) upgrading = null;
+    });
 });
 
 useAuthStore.subscribe((state, prev) => {
@@ -135,5 +178,7 @@ export function resetAuthStoreForTests(): void {
   initialized = false;
   onLogout = null;
   lastUserId = null;
+  upgrading = null;
+  registerSessionProvider(null);
   useAuthStore.setState({ user: null, status: "loading" });
 }

@@ -83,6 +83,21 @@ export function useChatUnreadBadge(workspaceId: string): number {
 }
 
 /**
+ * Chat unread per workspace for the workspace switcher. One account-level
+ * entry; realtime invalidates it (chat.room.activity, chat.mention.created,
+ * own chat.room.read, notification.created).
+ */
+export function useChatUnreadSummary() {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  return useQuery({
+    queryKey: chatKeys.unreadSummary(),
+    queryFn: ({ signal }) => chat.getChatUnreadSummary(signal),
+    enabled: authReady,
+    staleTime: 30_000,
+  });
+}
+
+/**
  * Mutes or unmutes one room for the caller. Optimistic: the flag only moves
  * this person's own row of the rooms list, and a failure restores it.
  */
@@ -105,6 +120,10 @@ export function useSetChatRoomMuted(workspaceId: string) {
     },
     onError: (_err, _input, context) => {
       if (context?.previous) qc.setQueryData(key, context.previous);
+    },
+    // The switcher's per-workspace pill leaves muted rooms out of its count.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.unreadSummary() });
     },
   });
 }
@@ -207,13 +226,30 @@ export function useUpdateChatRoomSettings(workspaceId: string) {
     mutationFn: (input: {
       roomId: string;
       name?: string;
+      /** The room's description; "" clears it. */
+      topic?: string;
       member_permissions?: Partial<chat.ChatRoomMemberPermissions>;
     }) =>
       chat.patchChatRoom(workspaceId, input.roomId, {
         name: input.name,
+        topic: input.topic,
         member_permissions: input.member_permissions,
       }),
     // Settings change no message (the server writes none): the timeline stays.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
+/** Sets (file) or removes (null) a group's avatar. */
+export function useSetChatRoomAvatar(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { roomId: string; file: File | null }) =>
+      input.file
+        ? chat.uploadChatRoomAvatar(workspaceId, input.roomId, input.file)
+        : chat.removeChatRoomAvatar(workspaceId, input.roomId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },

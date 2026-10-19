@@ -511,6 +511,84 @@ func (q *Queries) ListChatMessageLinksByRoomMessages(ctx context.Context, arg Li
 	return items, nil
 }
 
+const listChatRoomLinkedTasks = `-- name: ListChatRoomLinkedTasks :many
+SELECT
+  t.id, t.workspace_id, t.number, t.title, t.status, t.priority,
+  t.assignee_id, t.assignee_kind,
+  COALESCE(NULLIF(u.display_name, ''), u.email, a.name, '')::text AS assignee_name,
+  t.due_date,
+  l.linked_at,
+  (COUNT(*) OVER ())::int AS total
+FROM (
+  SELECT target_id, MAX(created_at)::timestamptz AS linked_at
+  FROM chat_message_links
+  WHERE room_id = $1 AND target_type = 'task'
+  GROUP BY target_id
+) l
+JOIN tasks t ON t.id = l.target_id AND t.workspace_id = $2
+LEFT JOIN users u ON t.assignee_kind = 'human' AND u.id = t.assignee_id
+LEFT JOIN agents a ON t.assignee_kind = 'agent' AND a.id = t.assignee_id
+ORDER BY l.linked_at DESC, t.id DESC
+LIMIT $3
+`
+
+type ListChatRoomLinkedTasksParams struct {
+	RoomID      string `json:"room_id"`
+	WorkspaceID string `json:"workspace_id"`
+	RowLimit    int32  `json:"row_limit"`
+}
+
+type ListChatRoomLinkedTasksRow struct {
+	ID           string             `json:"id"`
+	WorkspaceID  string             `json:"workspace_id"`
+	Number       int64              `json:"number"`
+	Title        string             `json:"title"`
+	Status       string             `json:"status"`
+	Priority     string             `json:"priority"`
+	AssigneeID   pgtype.Text        `json:"assignee_id"`
+	AssigneeKind string             `json:"assignee_kind"`
+	AssigneeName string             `json:"assignee_name"`
+	DueDate      pgtype.Date        `json:"due_date"`
+	LinkedAt     pgtype.Timestamptz `json:"linked_at"`
+	Total        int32              `json:"total"`
+}
+
+// The info panel's "tasks from this conversation": each task linked from one
+// room's messages once, most recently linked first, with the full count.
+// Only tasks of the workspace the service admitted the caller to.
+func (q *Queries) ListChatRoomLinkedTasks(ctx context.Context, arg ListChatRoomLinkedTasksParams) ([]ListChatRoomLinkedTasksRow, error) {
+	rows, err := q.db.Query(ctx, listChatRoomLinkedTasks, arg.RoomID, arg.WorkspaceID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChatRoomLinkedTasksRow{}
+	for rows.Next() {
+		var i ListChatRoomLinkedTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Number,
+			&i.Title,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeID,
+			&i.AssigneeKind,
+			&i.AssigneeName,
+			&i.DueDate,
+			&i.LinkedAt,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unlinkChatThreadTask = `-- name: UnlinkChatThreadTask :one
 DELETE FROM chat_thread_task_links
 WHERE thread_root_id = $1 AND workspace_id = $2

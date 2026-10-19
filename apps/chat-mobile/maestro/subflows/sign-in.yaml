@@ -1,0 +1,46 @@
+# The real PKCE sign-in, done the way a person does it: the app opens the system
+# browser sheet (ASWebAuthenticationSession on iOS, a Chrome Custom Tab on
+# Android), the web signs the test account in, the consent page approves this
+# device and its "Open" button hands the callback back to the app. There is no
+# test-only shortcut in any build. A restored session skips all of it.
+#
+# Text, not ids: the browser pages belong to the web app. Patterns cover vi and
+# en because the app and the web follow the device and browser language.
+appId: com.uniworkos.chat.staging
+---
+- extendedWaitUntil:
+    visible: "Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Sign in|Đăng nhập"
+    commands:
+      - tapOn: "Sign in|Đăng nhập"
+      # iOS asks first: '"UniChat (Staging)" Wants to Use "…" to Sign In'.
+      - runFlow:
+          when:
+            visible: "Continue|Tiếp tục"
+          commands:
+            - tapOn: "Continue|Tiếp tục"
+      # A browser that still holds a web session goes straight to consent.
+      - extendedWaitUntil:
+          visible: "you@company.com|ban@congty.com|Allow desktop app|Cho phép ứng dụng desktop"
+          timeout: 30000
+      - runFlow:
+          when:
+            visible: "you@company.com|ban@congty.com"
+          commands:
+            - tapOn: "you@company.com|ban@congty.com"
+            - inputText: ${MAESTRO_TEST_EMAIL}
+            - tapOn: "Password|Mật khẩu"
+            - inputText: ${MAESTRO_TEST_PASSWORD}
+            # Enter submits the form; the page title and its button share "Log in".
+            - pressKey: Enter
+      - extendedWaitUntil:
+          visible: "Allow desktop app|Cho phép ứng dụng desktop"
+          timeout: 30000
+      - tapOn: "Allow desktop app|Cho phép ứng dụng desktop"
+      - tapOn: "(Open|Mở) .+"
+      - extendedWaitUntil:
+          visible: "Chat|Trò chuyện|Choose a workspace|Chọn workspace"
+          timeout: 30000

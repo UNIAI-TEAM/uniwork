@@ -280,6 +280,20 @@ type ChatBlock struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type ChatLinkPreview struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	UrlHash        string             `json:"url_hash"`
+	Url            string             `json:"url"`
+	Status         string             `json:"status"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	SiteName       string             `json:"site_name"`
+	ImageFileID    pgtype.Text        `json:"image_file_id"`
+	FetchedAt      pgtype.Timestamptz `json:"fetched_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type ChatMessage struct {
 	ID                    string             `json:"id"`
 	RoomID                string             `json:"room_id"`
@@ -332,6 +346,14 @@ type ChatMessageLink struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type ChatMessageLinkPreview struct {
+	MessageID      string             `json:"message_id"`
+	OrganizationID string             `json:"organization_id"`
+	RoomID         string             `json:"room_id"`
+	PreviewID      string             `json:"preview_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type ChatReminder struct {
 	MessageID      string             `json:"message_id"`
 	OrganizationID string             `json:"organization_id"`
@@ -367,6 +389,7 @@ type ChatRoom struct {
 	CreatedByKind     string             `json:"created_by_kind"`
 	ArchivedAt        pgtype.Timestamptz `json:"archived_at"`
 	ArchivedBy        pgtype.Text        `json:"archived_by"`
+	AvatarFileID      pgtype.Text        `json:"avatar_file_id"`
 }
 
 type ChatRoomMember struct {
@@ -385,6 +408,7 @@ type ChatRoomMember struct {
 	SendRestricted     bool               `json:"send_restricted"`
 	OrganizationID     string             `json:"organization_id"`
 	NotificationsMuted bool               `json:"notifications_muted"`
+	LastDeliveredAt    pgtype.Timestamptz `json:"last_delivered_at"`
 }
 
 type ChatThreadFollower struct {
@@ -440,6 +464,20 @@ type ChatVoiceRecording struct {
 	EndedAt          pgtype.Timestamptz `json:"ended_at"`
 	// FileService file id (FS-C1); NULL = legacy egress row located by file_url.
 	FileID pgtype.Text `json:"file_id"`
+}
+
+type ChatVoiceTranscript struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MessageID      string             `json:"message_id"`
+	Text           string             `json:"text"`
+	Language       string             `json:"language"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Status         string             `json:"status"`
+	ClaimedAt      pgtype.Timestamptz `json:"claimed_at"`
 }
 
 type CommentReaction struct {
@@ -612,6 +650,21 @@ type DocumentAsset struct {
 	CreatedByKind  string             `json:"created_by_kind"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	OrphanedAt     pgtype.Timestamptz `json:"orphaned_at"`
+}
+
+type DocumentBreakGlassGrant struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	ActorID        string             `json:"actor_id"`
+	ActorKind      string             `json:"actor_kind"`
+	Level          string             `json:"level"`
+	Reason         string             `json:"reason"`
+	GrantedAt      pgtype.Timestamptz `json:"granted_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
 }
 
 type DocumentChangeSnapshot struct {
@@ -1604,6 +1657,27 @@ type MeetingSummary struct {
 	OrganizationID string             `json:"organization_id"`
 }
 
+type MeetingSummaryRun struct {
+	OrganizationID string             `json:"organization_id"`
+	MeetingID      string             `json:"meeting_id"`
+	RunID          string             `json:"run_id"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type MeetingSummaryTaskLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MeetingID      string             `json:"meeting_id"`
+	SummaryID      string             `json:"summary_id"`
+	ItemIndex      int32              `json:"item_index"`
+	TaskID         string             `json:"task_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type MeetingTranscriptSegment struct {
 	ID             string             `json:"id"`
 	MeetingID      string             `json:"meeting_id"`
@@ -1882,6 +1956,7 @@ type PushSubscription struct {
 	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	SessionID  pgtype.Text        `json:"session_id"`
 }
 
 type RefreshToken struct {

@@ -3,7 +3,7 @@
 ## URL and indexing contract
 
 English keeps the existing public URLs. Vietnamese uses `/vi` and the same
-relative path, for example `/office` and `/vi/office`. The URL determines public
+relative path, for example `/apps/office` and `/vi/apps/office`. The URL determines public
 copy even when a language cookie has another value. Language links navigate to
 the corresponding URL; application pages retain their existing cookie preference.
 
@@ -29,6 +29,17 @@ Other configured origins get a disallow-all robots policy and an empty sitemap.
 Production robots allows crawling so Google can observe private route noindex.
 The sitemap contains only catalogued canonical public URLs, in both languages.
 It omits `lastmod` until accurate per-page editorial dates are available.
+
+The current 70 entries are 35 public marketing/guide pages in two languages,
+not every application screen. For example `/features/tasks` explains task
+management; `/{orgSlug}/{workspaceSlug}/tasks` is authenticated application
+content and never belongs in this sitemap. Login, registration, onboarding,
+admin, workspace, invitation, shared-token and API routes are excluded. Sitemap
+URLs come from the explicit catalog rather than a filesystem or database scan.
+Titles, descriptions, Open Graph, Twitter cards and JSON-LD belong in each
+page's HTML, not inside sitemap XML. A browser's flattened presentation of XML
+does not establish whether Google can parse it; inspect its XML response and
+Search Console's sitemap result.
 
 The proxy redirects `www.uniworkos.com` to the canonical origin. DNS and TLS for
 www must be configured separately before that redirect can receive traffic.

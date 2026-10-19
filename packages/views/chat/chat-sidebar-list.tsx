@@ -17,8 +17,8 @@ import {
 
 /** Past this many rows only the visible slice is mounted. */
 const SIDEBAR_VIRTUALIZE_AFTER = 100;
-/** A row: 32px mark, a name line and a preview line, 8px padding each side. */
-const ROW_ESTIMATE_PX = 54;
+/** A row: the canvas' 70px (a 50px face with 9px above and below, rows touching). */
+const ROW_ESTIMATE_PX = 70;
 
 const ROW_SELECTOR = "[data-chat-sidebar-row]";
 const NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
@@ -40,6 +40,8 @@ type RowData = {
   labels: SidebarRowLabels;
   memberAvatarByUserId: MemberAvatarUrlMap;
   typingNameByUserId: Record<string, string>;
+  /** DM rooms' peer read pointers, for the ✓✓ on my own last message. */
+  peerReadAtByRoomId: Record<string, string>;
 };
 
 /**
@@ -128,6 +130,7 @@ export function ChatSidebarList(props: RowData) {
         onRowFocus={setFocusIndex}
         memberAvatarByUserId={props.memberAvatarByUserId}
         typingNameByUserId={props.typingNameByUserId}
+        peerReadAt={roomId ? props.peerReadAtByRoomId[roomId] : undefined}
       />
     );
   };
@@ -138,7 +141,7 @@ export function ChatSidebarList(props: RowData) {
       // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
       <ul
         ref={listRef}
-        className="-mx-1 min-h-0 shrink space-y-px overflow-y-auto px-1 py-1"
+        className="-mx-1 min-h-0 shrink overflow-y-auto px-1 pb-4"
         onKeyDown={onKeyDown}
       >
         {entries.map((entry, index) => (
@@ -149,7 +152,7 @@ export function ChatSidebarList(props: RowData) {
   }
 
   return (
-    <div ref={scrollRef} className="-mx-1 min-h-0 shrink overflow-y-auto px-1 py-1">
+    <div ref={scrollRef} className="-mx-1 min-h-0 shrink overflow-y-auto px-1 pb-4">
       {/* The list only forwards arrow keys to its row buttons; the rows are the interactive elements. */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <ul
@@ -168,7 +171,7 @@ export function ChatSidebarList(props: RowData) {
               ref={virtualizer.measureElement}
               aria-setsize={entries.length}
               aria-posinset={item.index + 1}
-              className="absolute top-0 left-0 w-full pb-px"
+              className="absolute top-0 left-0 w-full"
               style={{ transform: `translateY(${item.start}px)` }}
             >
               {renderRow(entry, item.index)}

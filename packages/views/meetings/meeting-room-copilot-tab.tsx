@@ -1,29 +1,24 @@
 "use client";
-import { useId, useMemo, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
-import { buildSummaryTaskItems, previewAssigneeId } from "@uniwork/core/meetings/summary-task-items";
-import { useMembers } from "@uniwork/core/workspaces";
 import { toastApiError } from "../toast-api-error";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
-import {
-  useAddNote,
-  useCreateMeetingSummary,
-  useCreateTasksFromSummary,
-  useMeetingCapabilities,
-  useMeetingSummary,
-  useMeetingChat,
-  useNotes,
-  useRecordings,
-  useTranscript,
-} from "@uniwork/core/meetings";
+import { useAddNote, useRecordings } from "@uniwork/core/meetings";
+import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { MeetingCopilotFooter, MeetingCopilotTasksCta } from "./meeting-copilot/meeting-copilot-footer";
+import { MeetingCopilotFooter } from "./meeting-copilot/meeting-copilot-footer";
 import { MeetingCopilotHeader } from "./meeting-copilot/meeting-copilot-header";
-import { MeetingActionItemRow } from "./meeting-copilot/meeting-action-item-row";
 import { MeetingNotesCard, MeetingSummaryAttribution } from "./meeting-copilot/meeting-notes-card";
+import { SummaryActionItems } from "./meeting-summary/summary-action-items";
+import {
+  SummaryGenerateButton,
+  SummaryLiveRegion,
+  SummaryRegenerateConfirm,
+} from "./meeting-summary/summary-generate-controls";
+import { summarySourceFacts, summarySourceList } from "./meeting-summary/summary-sources";
+import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
+import type { SummarySelection } from "./meeting-summary/use-summary-task-creation";
 import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
@@ -35,22 +30,23 @@ const SECTIONS: CopilotSection[] = ["notes", "transcript", "insights", "actions"
 export function MeetingRoomCopilotTab({
   workspaceId,
   meetingId,
+  projectId,
   canHost,
 }: {
   workspaceId?: string;
   meetingId: string;
+  /** The meeting's project: tasks created from the summary start there, as on the detail page. */
+  projectId?: string;
   canHost: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState<CopilotSection>("insights");
-  const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
-  const summaryQuery = useMeetingSummary(meetingId);
-  const transcriptQuery = useTranscript(meetingId);
-  const chatQuery = useMeetingChat(meetingId);
-  const notesQuery = useNotes(meetingId);
-  const summary = summaryQuery.data;
+  // The host's ticks outlive the Actions section, so a look at the transcript
+  // does not cost them; they are tagged with the summary they were made on.
+  const actionSelection = useState<SummarySelection | null>(null);
+  const gen = useSummaryGeneration({ workspaceId, meetingId, canHost });
+  const { summary, summaryQuery, transcriptQuery, chatQuery, notesQuery } = gen;
   const transcript = transcriptQuery.data;
-  const chat = chatQuery.data;
   const notes = notesQuery.data;
   const transcriptFailed = transcriptQuery.isError && !transcript;
   const notesFailed = notesQuery.isError && !notes;
@@ -61,30 +57,28 @@ export function MeetingRoomCopilotTab({
   const retryInsights = () => {
     for (const q of sources) if (q.isError) void q.refetch();
   };
-  const { data: members } = useMembers(workspaceId ?? "");
   const { data: recordings } = useRecordings(meetingId);
-  const generate = useCreateMeetingSummary(meetingId);
-  const createTasks = useCreateTasksFromSummary(workspaceId ?? "", meetingId);
+  // Only a project that still resolves is offered for new tasks (no FK on the meeting row).
+  const { data: project } = useProject(workspaceId ?? "", projectId ?? "");
   const addNote = useAddNote(meetingId);
-  const [picked, setPicked] = useState<Set<number>>(new Set());
-  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [note, setNote] = useState("");
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
-  const memberPreview = useMemo(
-    () => (members ?? []).map((m) => ({ user_id: m.user_id, display_name: m.display_name })),
-    [members],
-  );
-
   const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
-  const hasSource = (transcript?.length ?? 0) > 0 || (notes?.length ?? 0) > 0 || (chat?.length ?? 0) > 0;
-  const aiOn = caps?.ai_summary === true;
   // The live recording state is the stage header's REC badge; this panel
   // only offers a finished recording to play back.
   const completedRecording = (recordings ?? []).find((r) => r.status === "COMPLETE");
   const panelBaseId = useId();
+  const generateReasonId = useId();
   const sectionPanelId = (id: CopilotSection) => `${panelBaseId}-section-${id}`;
+  const summarySources = summary
+    ? summarySourceList(
+        summarySourceFacts(summary.created_at, gen.sourceTimes).sources,
+        t,
+        meetingLocale(i18n.language),
+      )
+    : null;
 
   const sectionLabel = (id: CopilotSection) => {
     switch (id) {
@@ -98,44 +92,6 @@ export function MeetingRoomCopilotTab({
         return t("meetings.actionsTab");
     }
   };
-
-  function onGenerate() {
-    generate.mutate(i18n.language.startsWith("en") ? "en" : "vi", {
-      onSuccess: () => setPicked(new Set()),
-      onError: (err) => {
-        const code = errorCode(err);
-        toast.error(
-          code === "nothing_to_summarize"
-            ? t("meetings.summaryNothing")
-            : code === "ai_not_configured"
-              ? t("meetings.aiUnavailable")
-              : apiErrorMessage(err) ?? t("common.error"),
-        );
-      },
-    });
-  }
-
-  function onCreateTasks() {
-    const items = buildSummaryTaskItems(actionItems, picked, assigneeOverrides);
-    if (items.length === 0 || !workspaceId) return;
-    createTasks.mutate(items, {
-      onSuccess: (ids) => {
-        toast.success(t("meetings.tasksCreated", { count: ids.length }));
-        setPicked(new Set());
-        setAssigneeOverrides({});
-      },
-      onError: (err) => toastApiError(err, t("common.error")),
-    });
-  }
-
-  function assigneePreviewName(index: number, owner?: string) {
-    const override = assigneeOverrides[index];
-    if (override) {
-      return members?.find((m) => m.user_id === override)?.display_name;
-    }
-    const previewId = previewAssigneeId(owner, memberPreview);
-    return previewId ? members?.find((m) => m.user_id === previewId)?.display_name : undefined;
-  }
 
   // Date and time: a summary made yesterday must not read as made today.
   const summaryUpdatedAt = summary?.created_at
@@ -152,15 +108,23 @@ export function MeetingRoomCopilotTab({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <MeetingCopilotHeader
-        canHost={canHost}
-        aiOn={aiOn}
-        hasSource={hasSource}
-        hasSummary={Boolean(summary)}
-        generating={generate.isPending}
-        onGenerate={onGenerate}
+        action={
+          <SummaryGenerateButton
+            gen={gen}
+            variant="outline"
+            className="shrink-0"
+            reasonId={gen.blockedReason ? generateReasonId : undefined}
+          />
+        }
       />
+      {gen.showGenerate && gen.blockedReason ? (
+        <p id={generateReasonId} className="sr-only">
+          {gen.blockedReason}
+        </p>
+      ) : null}
+      <SummaryLiveRegion message={gen.announcement} />
 
-      {!aiOn && caps ? (
+      {!gen.aiOn && gen.capsLoaded ? (
         <p className="shrink-0 pb-2 text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
       ) : null}
 
@@ -189,8 +153,9 @@ export function MeetingRoomCopilotTab({
             decisions={decisions}
             summaryUpdatedAt={summaryUpdatedAt}
             summaryModel={summary?.model}
-            summarizing={generate.isPending}
-            emptyHint={hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
+            summarySources={summarySources}
+            summarizing={gen.generating}
+            emptyHint={gen.hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
           />
         ) : null}
 
@@ -272,46 +237,22 @@ export function MeetingRoomCopilotTab({
           <section className="space-y-3">
             <h3 className="text-caption font-medium text-foreground">{t("meetings.actionItems")}</h3>
             {actionItems.length > 0 && summaryUpdatedAt ? (
-              <MeetingSummaryAttribution model={summary?.model} time={summaryUpdatedAt} />
+              <MeetingSummaryAttribution model={summary?.model} time={summaryUpdatedAt} sources={summarySources} />
             ) : null}
-            {actionItems.length > 0 ? (
-              <ul className="space-y-2">
-                {actionItems.map((it, i) => (
-                  <MeetingActionItemRow
-                    key={i}
-                    title={it.title}
-                    owner={it.owner}
-                    due={it.due}
-                    selectable={canHost && Boolean(workspaceId)}
-                    checked={picked.has(i)}
-                    workspaceId={workspaceId}
-                    assigneeId={assigneeOverrides[i]}
-                    assigneePreviewName={assigneePreviewName(i, it.owner)}
-                    onAssigneeChange={
-                      canHost && workspaceId
-                        ? (userId) => setAssigneeOverrides((prev) => ({ ...prev, [i]: userId }))
-                        : undefined
-                    }
-                    onCheckedChange={(v) =>
-                      setPicked((s) => {
-                        const next = new Set(s);
-                        if (v) next.add(i);
-                        else next.delete(i);
-                        return next;
-                      })
-                    }
-                  />
-                ))}
-              </ul>
+            {summary && actionItems.length > 0 ? (
+              <SummaryActionItems
+                summary={summary}
+                workspaceId={workspaceId}
+                meetingId={meetingId}
+                canHost={canHost}
+                projectId={project?.id}
+                variant="copilot"
+                announce={gen.announce}
+                selection={actionSelection}
+              />
             ) : (
               <p className="text-label text-muted-foreground">{t("meetings.actionItemsEmpty")}</p>
             )}
-            <MeetingCopilotTasksCta
-              count={picked.size}
-              disabled={!canHost || !workspaceId}
-              pending={createTasks.isPending}
-              onClick={onCreateTasks}
-            />
           </section>
         ) : null}
 
@@ -325,6 +266,7 @@ export function MeetingRoomCopilotTab({
       </div>
 
       <MeetingCopilotFooter />
+      <SummaryRegenerateConfirm gen={gen} />
       {playbackId ? (
         <MeetingRecordingDialog
           open

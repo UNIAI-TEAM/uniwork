@@ -28,9 +28,14 @@ var titles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "{{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”.",
 		KindDocumentDiscussionReplied:   "{{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu “{{document}}”.",
 		KindDocumentCommentResolved:     "{{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết.",
+		KindDocumentBreakGlass:          "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “{{document}}”.",
 		KindChatMentioned:               "{{actor}} đã nhắc đến bạn trong {{room}}",
 		KindChatDM:                      "{{actor}} đã nhắn tin cho bạn",
+		KindChatCallIncoming:            "{{actor}} đang gọi",
 		KindChatThreadReplied:           "{{actor}} đã trả lời thread trong {{room}}",
+		KindDocumentAccessRequested:     "{{actor}} xin quyền truy cập tài liệu “{{document}}”.",
+		KindDocumentAccessApproved:      "{{actor}} đã cấp cho bạn quyền truy cập “{{document}}”.",
+		KindDocumentAccessDeclined:      "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
 	},
 	"en": {
 		KindTaskAssigned:                "{{actor}} assigned you “{{task}}”",
@@ -52,9 +57,14 @@ var titles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "{{actor}} mentioned you in a discussion on “{{document}}”.",
 		KindDocumentDiscussionReplied:   "{{actor}} replied to your discussion post in “{{document}}”.",
 		KindDocumentCommentResolved:     "{{actor}} marked your comment in “{{document}}” as resolved.",
+		KindDocumentBreakGlass:          "{{actor}} opened emergency view access (24h) to “{{document}}”.",
 		KindChatMentioned:               "{{actor}} mentioned you in {{room}}",
 		KindChatDM:                      "{{actor}} sent you a message",
+		KindChatCallIncoming:            "{{actor}} is calling",
 		KindChatThreadReplied:           "{{actor}} replied to a thread in {{room}}",
+		KindDocumentAccessRequested:     "{{actor}} requested access to “{{document}}”.",
+		KindDocumentAccessApproved:      "{{actor}} gave you access to “{{document}}”.",
+		KindDocumentAccessDeclined:      "Your request to access a document was declined.",
 	},
 }
 
@@ -71,6 +81,10 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "Bạn được nhắc tên trong thảo luận",
 		KindDocumentDiscussionReplied:   "Có phản hồi thảo luận mới",
 		KindDocumentCommentResolved:     "Bình luận đã được giải quyết",
+		KindDocumentBreakGlass:          "Truy cập khẩn cấp vào tài liệu",
+		KindDocumentAccessRequested:     "Yêu cầu truy cập tài liệu",
+		KindDocumentAccessApproved:      "Đã được cấp quyền",
+		KindDocumentAccessDeclined:      "Yêu cầu bị từ chối",
 	},
 	"en": {
 		KindDocumentMentioned:           "You were mentioned in a comment",
@@ -78,6 +92,10 @@ var kindTitles = map[string]map[string]string{
 		KindDocumentDiscussionMentioned: "You were mentioned in a discussion",
 		KindDocumentDiscussionReplied:   "New reply in a discussion",
 		KindDocumentCommentResolved:     "Comment resolved",
+		KindDocumentBreakGlass:          "Emergency access to document",
+		KindDocumentAccessRequested:     "Document access request",
+		KindDocumentAccessApproved:      "Access granted",
+		KindDocumentAccessDeclined:      "Request declined",
 	},
 }
 

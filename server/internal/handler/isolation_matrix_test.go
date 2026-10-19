@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -57,6 +58,12 @@ func TestIsolationMatrix(t *testing.T) {
 	if stale := isoStaleRows(routes); len(stale) > 0 {
 		t.Fatalf("isoRoutes rows that match no registered route:\n  %s", strings.Join(stale, "\n  "))
 	}
+
+	narrowed := strings.TrimSpace(os.Getenv("ISO_ONLY")) != ""
+	if narrowed {
+		t.Logf("ISO_ONLY=%q: SKIPPED the \"references\" subtest and the member-of-both reference loop; a narrowed run is NOT merge evidence", os.Getenv("ISO_ONLY"))
+	}
+	routes = isoOnly(routes, os.Getenv("ISO_ONLY"))
 
 	t.Run("control", func(t *testing.T) {
 		for _, r := range routes {
@@ -181,6 +188,9 @@ func TestIsolationMatrix(t *testing.T) {
 	// a project, a share principal. Each must be refused or ignored, and B's
 	// rows must not come to point at A's.
 	t.Run("references", func(t *testing.T) {
+		if narrowed {
+			t.Skip("ISO_ONLY narrows the run to routes; the reference cases are a fixed list")
+		}
 		w.referenceControls(t)
 		for _, c := range isoReferences {
 			path, ok := c.refPath(t, w.bravo)
@@ -225,6 +235,9 @@ func TestIsolationMatrix(t *testing.T) {
 			w.attackAs(t, both, "member-of-both mixed "+r.method+" "+r.pattern, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), refused)
 		}
 		for _, c := range isoReferences {
+			if narrowed {
+				break
+			}
 			path, ok := c.refPath(t, w.bravo)
 			if !ok {
 				continue
@@ -359,6 +372,29 @@ func TestIsolationMatrix(t *testing.T) {
 
 type isoRoute struct{ method, pattern string }
 
+// isoOnly narrows a run to the routes whose "METHOD pattern" contains one of
+// the comma-separated substrings of ISO_ONLY. CI never sets it, so the full
+// matrix is what gates a merge; it lets a lane that may not run the whole
+// matrix on a shared box exercise just the routes it added. The routes are
+// still checked for a class and for staleness before this narrows them.
+// A narrowed run also skips the "references" subtest and the reference loop, so
+// it is NOT merge evidence; the test logs a banner saying so.
+func isoOnly(routes []isoRoute, only string) []isoRoute {
+	if strings.TrimSpace(only) == "" {
+		return routes
+	}
+	var out []isoRoute
+	for _, r := range routes {
+		for _, sub := range strings.Split(only, ",") {
+			if sub = strings.TrimSpace(sub); sub != "" && strings.Contains(r.method+" "+r.pattern, sub) {
+				out = append(out, r)
+				break
+			}
+		}
+	}
+	return out
+}
+
 func isoWalk(t *testing.T, h http.Handler) []isoRoute {
 	t.Helper()
 	var out []isoRoute
@@ -405,7 +441,7 @@ func isoWritePhase(r isoRoute) int {
 
 // isoQueryNamesRow: the query string carries a tenant row (not a date).
 func isoQueryNamesRow(q string) bool {
-	for _, p := range []string{"{emailAccount}", "{callID}", "{peerEmail}", "{peerID}", "{orgID}"} {
+	for _, p := range []string{"{emailAccount}", "{callID}", "{peerEmail}", "{peerID}", "{orgID}", "{folderID}"} {
 		if strings.Contains(q, p) {
 			return true
 		}
@@ -565,6 +601,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		case strings.HasSuffix(pattern, "/task-sync"):
 			// A group thread cannot sync to a task (H12); a public channel's can.
 			return tn.get(t, "channelMessage")
+		case strings.HasSuffix(pattern, "/transcript"):
+			return tn.get(t, "voiceMessage")
 		}
 		return tn.get(t, "message")
 	case "{followUpID}":
@@ -591,6 +629,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if under("/download") || under("/office/") || under("/uploads") || under("/versions/commit") || under("/copies") {
 			return tn.get(t, "fileDocument")
 		}
+		// The break-glass routes act on a restricted page the tenant's owner
+		// administers without owning (DOC-05).
+		if under("/break-glass") {
+			return tn.get(t, "restrictedDocument")
+		}
 		return tn.get(t, "document")
 	case "{assetID}":
 		if under("/office-frame/") {
@@ -611,6 +654,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{deviceSessionID}":
 		return tn.get(t, "deviceSession")
 	case "{grantID}":
+		if under("/break-glass/") {
+			return tn.get(t, "breakGlassGrant")
+		}
 		return tn.get(t, "mcpGrant")
 	case "{attemptID}":
 		return tn.get(t, "mcpAttempt")
@@ -919,6 +965,8 @@ func isoQuery(q string, tn *isoTenant) string {
 		"{callID}", tn.ids["callID"],
 		"{peerID}", tn.peerID,
 		"{orgID}", tn.orgID,
+		// The access report's folder (UNI-1643) rides in ?folder_id=.
+		"{folderID}", tn.ids["folder"],
 		// The calendar window around the fixture's meetings (now + 24h).
 		"{fromDate}", time.Now().AddDate(0, 0, -30).Format("2006-01-02"),
 		"{toDate}", time.Now().AddDate(0, 0, 60).Format("2006-01-02"),
@@ -1087,13 +1135,15 @@ func (w *isoWorld) emptyTenantTables(t *testing.T, tn *isoTenant) []string {
 // isoUnseeded lists tenant tables the fixture leaves empty, with the reason
 // no route of the API can fill them.
 var isoUnseeded = map[string]string{
-	"task_source_contexts":    "no code path writes it today; only the files backfill reads it",
-	"invoices":                "written by a billing provider's webhook; the manual provider in tests issues none",
-	"billing_payment_intents": "created only by owner checkout; isolation matrix does not run paid checkout",
-	"file_backfill_items":     "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
-	"meeting_reminders":       "written only by the meeting reminder job (internal/notification); no route fills it",
-	"graph_dirty":             "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
-	"file_derivatives":        "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
+	"task_source_contexts":       "no code path writes it today; only the files backfill reads it",
+	"invoices":                   "written by a billing provider's webhook; the manual provider in tests issues none",
+	"billing_payment_intents":    "created only by owner checkout; isolation matrix does not run paid checkout",
+	"file_backfill_items":        "operator ledger of cmd/files-backfill, exempt from ADR 0008 (tenantExemptTables)",
+	"meeting_reminders":          "written only by the meeting reminder job (internal/notification); no route fills it",
+	"graph_dirty":                "written only by the graph marker consumer; the isolation world runs no dispatcher and no route reads it",
+	"file_derivatives":           "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
+	"chat_link_previews":         "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",
+	"chat_message_link_previews": "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",
 }
 
 // isoDigestSkip lists tenant tables a refused request is allowed to write:

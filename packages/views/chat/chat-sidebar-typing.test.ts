@@ -44,9 +44,9 @@ describe("formatSidebarTypingPreview", () => {
         t,
         locale: "vi",
         contacts: [],
-        fallbackNameByUserId: { [userId]: "Nam Nguyễn" },
+        fallbackNameByUserId: { [userId]: "Nguyễn Văn Nam" },
       }),
-    ).toBe("Nam Nguyễn đang nhập…");
+    ).toBe("Nam đang nhập…");
   });
 
   it("skips a contact stored under the raw id and uses the known name", () => {
@@ -57,9 +57,9 @@ describe("formatSidebarTypingPreview", () => {
         t,
         locale: "vi",
         contacts: [{ user_id: userId, email: "nam@example.com", display_name: userId }],
-        fallbackNameByUserId: { [userId]: "Nam Nguyễn" },
+        fallbackNameByUserId: { [userId]: "Nguyễn Văn Nam" },
       }),
-    ).toBe("Nam Nguyễn đang nhập…");
+    ).toBe("Nam đang nhập…");
   });
 
   it("does not print a raw id when the typist has no name", () => {

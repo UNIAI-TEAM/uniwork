@@ -5,8 +5,11 @@ export * from "./chat-hooks-rooms";
 export * from "./channel-hooks";
 export * from "./thread-hooks";
 export * from "./link-hooks";
+export * from "./link-preview-hooks";
+export * from "./forward-hooks";
 export * from "./follow-up-hooks";
 export * from "./voice-recording-hooks";
+export * from "./voice-transcript-hooks";
 export * from "./voice-recording-playback-cache";
 export * from "./chat-hooks-messages";
 export * from "./chat-contacts-hooks";
@@ -15,7 +18,7 @@ export {
   DEFAULT_CHAT_SCOPE_LIMIT,
   selectLazyChatScopeRoomIds,
 } from "./lazy-chat-scopes";
-export { useChatSendOutboxFlush, useChatSendOutboxCount } from "./use-chat-send-outbox-flush";
+export { useChatSendOutboxFlush, useChatSendOutboxCount, useRetryChatSend } from "./use-chat-send-outbox-flush";
 export { useClearDeliveredChatSends } from "./use-clear-delivered-chat-sends";
 export { useSyncChatRoomsOnAuth } from "./use-sync-chat-rooms-on-auth";
 export { useMarkChatRoomReadAtLatest } from "./use-mark-chat-room-read-at-latest";

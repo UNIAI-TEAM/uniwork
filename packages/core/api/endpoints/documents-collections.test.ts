@@ -93,6 +93,16 @@ describe("documents-collections endpoints", () => {
     expect(out.documents[0]?.title).toBe("Kế hoạch Q4");
   });
 
+  it("list rows keep admin_scope: true and degrade a non-boolean admin_scope to undefined", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody({ documents: [summary({ my_level: "view", admin_scope: true }), summary({ id: "d2", admin_scope: "yes" })] })),
+    );
+    const out = await listDocuments("w1");
+    expect(out.documents[0]?.admin_scope).toBe(true);
+    expect(out.documents[1]?.id).toBe("d2");
+    expect(out.documents[1]?.admin_scope).toBeUndefined();
+  });
+
   it("listDocuments omits parent_id when the flat list is wanted", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ next_cursor: "n1" })));
     await listDocuments("w1");

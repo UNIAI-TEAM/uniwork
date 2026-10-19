@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { Ban } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
@@ -140,5 +141,81 @@ describe("ConfirmDialog while the action runs", () => {
     fireEvent.click(cancel);
     expect(onConfirm).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("ConfirmDialog optional look", () => {
+  function confirm(props: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) {
+    render(
+      <ConfirmDialog open onOpenChange={() => {}} title="Chặn nhắn tin?" confirmLabel="Chặn" onConfirm={() => {}} {...props} />,
+    );
+    return {
+      dialog: screen.getByRole("alertdialog"),
+      confirmButton: screen.getByRole("button", { name: "Chặn" }),
+      cancelButton: screen.getByRole("button", { name: "Hủy" }),
+    };
+  }
+
+  it("renders as before when no new prop is given", () => {
+    const { dialog, confirmButton, cancelButton } = confirm();
+    expect(dialog.querySelector('[data-slot="icon-tile"]')).toBeNull();
+    expect(confirmButton).toHaveClass("bg-destructive-soft");
+    expect(cancelButton).toHaveClass("border-input");
+  });
+
+  it("draws a soft tile above the title in the tone of the step", () => {
+    const { dialog } = confirm({ icon: Ban });
+    const tile = dialog.querySelector('[data-slot="icon-tile"]');
+    expect(tile).toHaveAttribute("data-tone", "destructive");
+    expect(tile).toHaveAttribute("aria-hidden", "true");
+    // Above the title: the tile comes first in the header.
+    expect(tile?.nextElementSibling).toHaveTextContent("Chặn nhắn tin?");
+  });
+
+  it("lets the tile tone differ from the button (a warning before a soft action)", () => {
+    const { dialog, confirmButton } = confirm({ icon: Ban, tone: "warning" });
+    expect(dialog.querySelector('[data-slot="icon-tile"]')).toHaveAttribute("data-tone", "warning");
+    expect(confirmButton).toHaveClass("bg-destructive-soft");
+  });
+
+  it("follows a non-destructive step with the info tint", () => {
+    const { dialog } = confirm({ icon: Ban, destructive: false });
+    expect(dialog.querySelector('[data-slot="icon-tile"]')).toHaveAttribute("data-tone", "info");
+  });
+
+  it("fills the confirm solid on request, red only when destructive", () => {
+    const { confirmButton } = confirm({ solid: true });
+    expect(confirmButton).toHaveClass("bg-destructive-solid");
+    expect(confirmButton).not.toHaveClass("bg-destructive-soft");
+  });
+
+  it("passes the cancel variant and the class name through", () => {
+    const { dialog, cancelButton } = confirm({ cancelVariant: "secondary", className: "rounded-2xl" });
+    expect(cancelButton).toHaveClass("bg-secondary");
+    expect(dialog).toHaveClass("rounded-2xl");
+  });
+});
+
+describe("FormDialogFooter cancel variant", () => {
+  function cancelOf(props: Partial<Parameters<typeof FormDialogFooter>[0]> = {}) {
+    render(
+      <Dialog open>
+        <FormDialogContent>
+          <FormDialogHeader title="Đổi tên phòng" />
+          <FormDialogFooter onCancel={() => {}} submitLabel="Lưu" {...props} />
+        </FormDialogContent>
+      </Dialog>,
+    );
+    return screen.getByRole("button", { name: "Hủy" });
+  }
+
+  it("keeps the outline cancel by default", () => {
+    expect(cancelOf()).toHaveClass("border-input");
+  });
+
+  it("takes the variant a module asks for", () => {
+    const cancel = cancelOf({ cancelVariant: "secondary" });
+    expect(cancel).toHaveClass("bg-secondary");
+    expect(cancel).not.toHaveClass("border-input");
   });
 });

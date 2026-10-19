@@ -26,6 +26,8 @@ export const ChatMessageSchema = z.object({
   thread_root_id: z.string().optional(),
   reply_count: z.number().optional().default(0),
   last_reply_at: z.string().optional(),
+  /** A root's three latest distinct repliers, newest first (the thread pill's faces). */
+  thread_participant_ids: z.array(z.string()).optional().catch(undefined),
   thread_unread: z.boolean().optional().default(false),
   /** Set on a thread's root in a thread listing: the caller follows it, unmuted. */
   thread_following: z.boolean().optional().catch(undefined),
@@ -166,6 +168,15 @@ export const ChatMessageSchema = z.object({
     })
     .optional(),
   priority: z.enum(["important", "urgent"]).optional(),
+  /** The original author of a forwarded message; never the room it came from. A drifted value reads as not forwarded. */
+  forwarded_from: z
+    .object({
+      sender_id: z.string(),
+      sender_name: z.string().optional().default(""),
+      sent_at: z.string().optional().default(""),
+    })
+    .optional()
+    .catch(undefined),
   // Echo of the sender's idempotency key; a client drops its own queued copy
   // when this comes back, instead of guessing from body and timestamp.
   client_msg_id: z.string().optional(),
@@ -199,6 +210,7 @@ export const ChatRoomMemberPermissionsSchema = z.object({
   allow_create_notes: z.boolean().optional().default(true),
   allow_create_polls: z.boolean().optional().default(true),
   allow_send_messages: z.boolean().optional().default(true),
+  allow_forward: z.boolean().optional().default(true),
 });
 export type ChatRoomMemberPermissions = z.infer<typeof ChatRoomMemberPermissionsSchema>;
 
@@ -220,12 +232,18 @@ export const ChatRoomSchema = z.object({
   peer_email: z.string().optional(),
   peer_display_name: z.string().optional(),
   peer_last_read_at: z.string().optional(),
+  /** How far the DM peer's devices hold the room (✓✓ grey). */
+  peer_last_delivered_at: z.string().optional().catch(undefined),
   /** The caller's own read pointer: where "new messages" starts. */
   last_read_at: z.string().optional().catch(undefined),
   last_message_body: z.string().optional(),
   last_message_kind: z.string().optional(),
   last_message_sender_id: z.string().optional(),
   last_message_sender_name: z.string().optional(),
+  /** A call log's outcome (completed, declined, unanswered): an unanswered call from someone else is missed. */
+  last_message_call_outcome: z.string().optional().catch(undefined),
+  /** A voice note's length, for the list line's "· 0:42". */
+  last_message_duration_ms: z.number().optional().catch(undefined),
   last_message_at: z.string().optional(),
   member_permissions: ChatRoomMemberPermissionsSchema.optional(),
   visibility: z.string().optional(),
@@ -234,6 +252,8 @@ export const ChatRoomSchema = z.object({
   is_default: z.boolean().optional(),
   /** The caller muted this room's notifications; kept on the server, so on every device. */
   notifications_muted: z.boolean().optional().catch(undefined),
+  /** A group's uploaded avatar, signed; absent when the group shows its members. */
+  avatar_url: z.string().optional().catch(undefined),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 
@@ -266,6 +286,10 @@ export const ChatRoomMemberSchema = z.object({
   display_name: z.string(),
   /** The room's creator, whom the server's moderation rules treat apart from `role`. */
   is_creator: z.boolean().catch(false),
+  /** Main-timeline read cursor (RFC 3339, sub-second); absent if never read. */
+  last_read_at: z.string().optional().catch(undefined),
+  /** How far the member's devices hold the room (never behind a read); absent if never acknowledged. */
+  last_delivered_at: z.string().optional().catch(undefined),
 });
 export type ChatRoomMemberRecord = z.infer<typeof ChatRoomMemberSchema>;
 

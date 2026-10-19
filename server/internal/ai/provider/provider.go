@@ -25,6 +25,11 @@ var ErrUnsupported = errors.New("ai: unsupported by provider")
 // ErrRefused is returned when the model declined to answer.
 var ErrRefused = errors.New("ai: request refused")
 
+// ErrTruncated is returned when an answer that must be a JSON object stopped
+// at the max_tokens ceiling: what came back cannot be parsed. The response
+// returned with it still carries the usage, which was spent.
+var ErrTruncated = errors.New("ai: output truncated at max_tokens")
+
 // StatusError is a vendor's non-2xx answer: the HTTP status and the
 // Retry-After it asked for (0 when absent or unreadable), so a caller can
 // tell a rate limit from an outage with errors.As (spike G6-02 §4.5). Detail

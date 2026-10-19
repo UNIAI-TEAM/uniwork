@@ -50,7 +50,6 @@ describe("VoiceCallSummaryRow", () => {
         <VoiceCallSummaryRow
           workspaceId="ws1"
           message={summaryMessage()}
-          senderLabel="Alice"
         />,
       ),
     );
@@ -69,7 +68,6 @@ describe("VoiceCallSummaryRow", () => {
         <VoiceCallSummaryRow
           workspaceId="ws1"
           message={summaryMessage()}
-          senderLabel="Alice"
         />,
       ),
     );
@@ -93,7 +91,6 @@ describe("VoiceCallSummaryRow", () => {
         <VoiceCallSummaryRow
           workspaceId="ws1"
           message={summaryMessage()}
-          senderLabel="Alice"
           callLog={callLog}
           onJumpToMessage={onJumpToMessage}
         />,
@@ -114,7 +111,7 @@ describe("VoiceCallSummaryRow", () => {
       highlights: [],
       action_items: [],
     };
-    render(wrap(<VoiceCallSummaryRow workspaceId="ws1" message={message} senderLabel="Alice" />));
+    render(wrap(<VoiceCallSummaryRow workspaceId="ws1" message={message} />));
     expect(
       screen.getByText("AI không tìm thấy nội dung nào để tóm tắt trong cuộc gọi này."),
     ).toBeInTheDocument();

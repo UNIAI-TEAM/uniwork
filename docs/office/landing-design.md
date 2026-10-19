@@ -1,6 +1,6 @@
 # Office introduction — approved B
 
-Recorded 2026-10-14. Surface: `/office` and the public Office menu, within the incumbent [UniWork design system](../../DESIGN.md).
+Recorded 2026-10-14. Surface: `/apps/office` (`/office` redirects there since UNI-1913) and the public Apps menu, within the incumbent [UniWork design system](../../DESIGN.md).
 
 ## Decision and contract
 
