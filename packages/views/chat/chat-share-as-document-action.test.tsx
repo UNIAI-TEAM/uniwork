@@ -47,6 +47,21 @@ describe("ChatShareAsDocumentAction", () => {
     expect(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" })).toBeInTheDocument();
   });
 
+  it("lists the levels in the composer's order: view, comment, edit (F-05)", async () => {
+    render(
+      wrapWithNav(
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
+    await screen.findByRole("menuitem", { name: "Chỉ xem" });
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "Chỉ xem",
+      "Nhận xét",
+      "Chỉnh sửa",
+    ]);
+  });
+
   it("sends the chosen level and the message id on convert", async () => {
     const mutate = vi.fn();
     useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });

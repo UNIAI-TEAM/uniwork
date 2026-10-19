@@ -20,12 +20,12 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { chatDocumentSendError } from "./chat-error-message";
 import type { ChatMessage } from "./chat-messages";
 
-const SHARE_LEVELS: readonly ChatDocumentShareLevel[] = ["comment", "view", "edit"];
+const SHARE_LEVELS: readonly ChatDocumentShareLevel[] = ["view", "comment", "edit"];
 
 /**
  * "Chia sẻ dạng tài liệu" on the sender's `kind:"file"` card: a level choice
- * (Nhận xét first, the composer's own order) then one menu item converts
- * the attachment in place - the same message id comes back as kind
+ * (Chỉ xem, Nhận xét, Chỉnh sửa: the composer's own order) then one menu item
+ * converts the attachment in place - the same message id comes back as kind
  * "document", so the row swaps cards without a second entry.
  */
 export function ChatShareAsDocumentAction({
