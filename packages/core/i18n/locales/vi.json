@@ -2486,7 +2486,7 @@
       "comment_delete_description": "Bình luận sẽ bị xóa khỏi luồng hoạt động.",
       "comment_delete_confirm": "Xóa bình luận",
       "reply": "Trả lời",
-      "reply_cancel": "Huỷ trả lời",
+      "reply_cancel": "Hủy trả lời",
       "comment_preview_empty": "Bình luận không có chữ",
       "activity_error": "Không tải được hoạt động. Thử lại sau.",
       "thread_resolved_one": "Luồng đã giải quyết · {{count}} trả lời",
@@ -2595,7 +2595,7 @@
       "clear": "Hôm nay bạn không có việc gấp."
     },
     "actions": {
-      "customize": "Tuỳ chỉnh"
+      "customize": "Tùy chỉnh"
     },
     "stats": {
       "label": "Tổng quan hôm nay",
@@ -2687,7 +2687,7 @@
       "retry": "Thử lại"
     },
     "customize": {
-      "title": "Tuỳ chỉnh trang chủ",
+      "title": "Tùy chỉnh trang chủ",
       "description": "Bật hoặc tắt khối, đổi thứ tự và chọn mật độ. Lưu riêng cho bạn trong workspace này.",
       "sections": "Khối hiển thị",
       "layout": "Mật độ bố cục",
@@ -2695,14 +2695,14 @@
       "reset": "Đặt lại",
       "close": "Đóng",
       "saving": "Đang lưu…",
-      "save_failed": "Không lưu được tuỳ chỉnh. Đã quay về bản trước.",
+      "save_failed": "Không lưu được tùy chỉnh. Đã quay về bản trước.",
       "move_up": "Đưa {{section}} lên",
       "move_down": "Đưa {{section}} xuống",
       "all_hidden": "Bạn đã ẩn mọi khối trên trang chủ.",
-      "open": "Mở tuỳ chỉnh",
+      "open": "Mở tùy chỉnh",
       "reset_done": "Đã đặt lại trang chủ về mặc định.",
       "undo": "Hoàn tác",
-      "all_hidden_hint": "Bật lại khối cần xem trong Tuỳ chỉnh."
+      "all_hidden_hint": "Bật lại khối cần xem trong Tùy chỉnh."
     },
     "layout": {
       "compact": "Gọn",
@@ -3280,7 +3280,7 @@
     "joinNow": "Vào ngay",
     "clearFilters": "Bỏ bộ lọc",
     "noResults": "Không tìm thấy cuộc họp",
-    "noResultsHint": "Thử từ khoá khác hoặc bỏ bộ lọc.",
+    "noResultsHint": "Thử từ khóa khác hoặc bỏ bộ lọc.",
     "showAll": "Xem tất cả cuộc họp",
     "filterCount_one": "{{count}} cuộc họp",
     "filterCount_other": "{{count}} cuộc họp",
@@ -8512,7 +8512,7 @@
         "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
         "tabs": "Trình soạn thảo",
         "imageAlt": "UniWork Office: {{editor}} với bảng AI",
-        "imageCaption": "Giao diện minh hoạ",
+        "imageCaption": "Giao diện minh họa",
         "imageUnavailable": "Không tải được ảnh xem trước. Tải lại trang để thử lại.",
         "docs": {
           "name": "Văn bản",
@@ -9180,13 +9180,13 @@
       "apply_all_button": "Áp dụng cho tất cả",
       "apply_all_confirm": "Đặt tất cả {{count}} đối tượng thành {{level}}?",
       "apply_all_accept": "Áp dụng",
-      "apply_all_cancel": "Huỷ",
+      "apply_all_cancel": "Hủy",
       "on_existing_keep": "Giữ {{level}}",
       "on_existing_update": "Cập nhật thành {{level}}",
       "shared_toast": "Đã chia sẻ cho {{count}} đối tượng",
       "updated_toast": "Đã cập nhật quyền của {{name}} thành {{level}}",
       "confirm_accept": "Xác nhận",
-      "confirm_cancel": "Huỷ",
+      "confirm_cancel": "Hủy",
       "warning_wide_scope_workspace": "Chia sẻ cho Workspace {{name}} ({{count}} thành viên) ở mức {{level}}",
       "warning_wide_scope_organization": "Chia sẻ cho toàn bộ Tổ chức {{name}} ({{count}} thành viên) ở mức {{level}}",
       "warning_direct_below_group": "{{name}} vẫn có quyền {{effectiveLevel}} qua {{source}}",
@@ -9296,7 +9296,7 @@
       "declined": "Đã từ chối yêu cầu của {{name}}",
       "closed": "Yêu cầu này đã được xử lý hoặc đã hết hạn.",
       "none_pending": "Không còn yêu cầu nào đang chờ.",
-      "level_comment": "Bình luận",
+      "level_comment": "Nhận xét",
       "decision_failed": "Chưa xử lý được yêu cầu này. Hãy thử lại.",
       "sent_message_label": "Lời nhắn"
     },
@@ -9358,7 +9358,7 @@
       "source_break_glass": "Truy cập khẩn cấp",
       "source_other": "Khác",
       "level_view": "Chỉ xem",
-      "level_comment": "Bình luận",
+      "level_comment": "Nhận xét",
       "level_edit": "Chỉnh sửa",
       "level_manage": "Quản lý",
       "level_none": "Không có",
@@ -9617,7 +9617,7 @@
       "inboxBack": "Về $t(nav.inbox)"
     },
     "levels": {
-      "comment": "Bình luận"
+      "comment": "Nhận xét"
     },
     "breakGlass": {
       "lockedTitle": "Tài liệu này là riêng tư",
@@ -9833,7 +9833,7 @@
       },
       "access": {
         "view": "Chỉ xem",
-        "comment": "Bình luận",
+        "comment": "Nhận xét",
         "edit": "Chỉnh sửa",
         "manage": "Quản lý",
         "owner": "Chủ sở hữu",
@@ -10380,7 +10380,7 @@
       "reason": {
         "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ.",
         "file_invalid_path": "Vị trí của tệp này không hợp lệ. Mở lại tệp từ danh sách tệp.",
-        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xoá.",
+        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xóa.",
         "file_access_denied": "UniWork Office không dùng được tệp này vì đây là lối tắt hoặc liên kết. Hãy mở tệp gốc.",
         "file_locked": "Tệp đang được chương trình khác sử dụng. Đóng tệp ở đó rồi thử lại.",
         "file_changed_on_disk": "Tệp đã thay đổi trên máy sau khi bạn mở. Thay đổi của bạn vẫn được giữ: hãy lưu thành tên khác hoặc mở lại tệp.",
@@ -10649,8 +10649,8 @@
       "error": "Không tải được danh sách tệp gần đây.",
       "retry": "Thử lại",
       "missing": "Không tìm thấy tệp",
-      "remove": "Xoá",
-      "removeNamed": "Xoá {{name}} khỏi danh sách",
+      "remove": "Xóa",
+      "removeNamed": "Xóa {{name}} khỏi danh sách",
       "openNamed": "Mở {{name}}",
       "updated": "Mở lần cuối {{time}}",
       "unsupported": "Chỉ hỗ trợ tệp {{formats}} trên máy.",

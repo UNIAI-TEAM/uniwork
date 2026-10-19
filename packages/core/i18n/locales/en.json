@@ -9841,7 +9841,7 @@
       "access": {
         "view": "View only",
         "comment": "Comment",
-        "edit": "Can edit",
+        "edit": "Edit",
         "manage": "Manage",
         "owner": "Owner",
         "you_prefix": "You: {{level}}"
