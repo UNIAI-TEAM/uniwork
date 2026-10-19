@@ -200,6 +200,22 @@ describe('O2-F2: the literals of a spreadsheet formula quoted in prose are no fi
     assert.equal(verdict(c, say('A2 is 25 via =B2*(1-.1),31.')), 'fail', 'P-F2-OUTSIDE-ADJACENT after leading-decimal formula');
     assert.equal(verdict(c, say('A2 is 25 via XLOOKUP(A2,B2:B7,C2:C7,,0),31.')), 'fail', 'P-F2-OUTSIDE-ADJACENT after omitted-arg call');
   });
+
+  it('O2R3-01: never treats reference-shaped text inside double-quoted strings as a real cell or column reference', () => {
+    assert.equal(verdict(c, say('Total 25; NOTE("A:A",31).')), 'fail', 'P-R3-QUOTED-COLUMN');
+    assert.equal(verdict(c, say('Total 25; NOTE(OTHER("A:A"),31).')), 'fail', 'P-R3-QUOTED-COLUMN-NESTED');
+    assert.equal(verdict(c, say('Total 25; NOTE("A:A",,31).')), 'fail', 'P-R3-QUOTED-COLUMN-OMITTED');
+    assert.equal(verdict(c, say('Total 25; NOTE("UTC:UTC",31).')), 'fail', 'P-R3-QUOTED-TIME');
+    assert.equal(verdict(c, say('Total 25; NOTE("A2",31).')), 'fail', 'P-R3-QUOTED-CELL-BASELINE');
+    assert.equal(verdict(c, say('Total 25; NOTE("a""A2""b",31).')), 'fail', 'P-R3-QUOTED-CELL-ESCAPED');
+    assert.equal(verdict(c, say('Total 25; NOTE("a""A:A""b",31).')), 'fail', 'P-R3-QUOTED-COLUMN-ESCAPED');
+    assert.equal(verdict(c, say('Total 25; CUSTOM(A:A,31).')), 'pass', 'P-R3-GENUINE-UNKNOWN-REF');
+    assert.equal(verdict(c, say('Total 25; CUSTOM(OTHER(A:A),31).')), 'pass', 'P-R3-GENUINE-UNKNOWN-REF-NESTED');
+    assert.equal(verdict(c, say('Total 25; SUM("A:A",31).')), 'pass', 'P-R3-ALLOWLIST-STRING');
+    assert.equal(verdict(c, say('Total 25; IF(A2>0,"a""31",37).')), 'pass', 'P-R3-VALID-ESCAPED-STRING');
+    assert.equal(verdict(c, say('Total 25; IF(A2>0,,31).')), 'pass', 'P-R3-VALID-OMISSION');
+    assert.equal(verdict(c, say('Total 25; SUM(A:A,31).')), 'pass', 'P-R3-VALID-COLUMN');
+  });
 });
 
 describe('O2-F3: a block or row ordinal that a read holds is a location, not a figure', () => {
