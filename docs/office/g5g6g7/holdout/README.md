@@ -459,6 +459,7 @@ phạm mà người duyệt cũng không gỡ được không thành "chưa bi�
 (`xlsx` 40 / `docx` 20 / `other` 20 / `cross` 20): nhóm chưa có ca chờ duyệt và không dùng module chỉ-có-tên có thể đã `PASS` ngay cả khi
 cả tiêu chí còn chưa kết luận. `staleApplied` và các hàng viewer/thu hồi quyền là mô phỏng nên **không gate** (`KHÔNG GATE`), không
 bao giờ làm tiêu chí nào trượt hay đạt.
+- **Bổ sung 2026-10-19 09:55 (UTC+7)**: một `FAIL` ở tiêu chí **chất lượng** (`numericPassRate`, `successRateOverall`, `successRateGroupMin` và từng nhóm, độ trễ) có ca góp số đo thuộc bề mặt chỉ-có-tên (slides / pdf / markdown / html, tức nhóm `other` và `cross`) tính **chưa kết luận** cho tới card lược đồ thật; nhóm toàn ca chấm được (`xlsx`, `docx`) giữ đạt/trượt bình thường (`successRateGroupMin` chỉ `FAIL` khi một nhóm chấm được trượt), các tiêu chí an toàn (A1, A2 `leaks`, A3) không đổi, và báo cáo in thêm giá trị tham khảo không gate `judgeable-only (xlsx+docx), info` theo từng lần chạy với cùng luật ca không ổn định.
 
 **Dòng tổng chỉ `PASS` khi mọi tiêu chí gate được là `PASS`**; có tiêu chí `FAIL` thì tổng là `FAIL`; còn lại là `INCONCLUSIVE`
 (thoát mã 2). Bộ lần chạy thật đầu tiên vì vậy sẽ không ra `PASS` cho tới khi: (1) có tệp `--reviews` phủ đủ 32 ca cần người duyệt (cần chỉ

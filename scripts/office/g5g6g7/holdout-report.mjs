@@ -32,6 +32,10 @@ export const THRESHOLDS_KIND = 'uniwork-office-g7-holdout-thresholds';
 export { REVIEWS_KIND };
 export const NO_THRESHOLD = 'chưa có ngưỡng (no threshold)';
 export const GROUPS = ['xlsx', 'docx', 'other', 'cross'];
+export const JUDGEABLE_GROUPS = ['xlsx', 'docx'];
+export const JUDGEABLE_LABEL = 'judgeable-only (xlsx+docx), info';
+export const NAME_ONLY_FAIL = 'a FAIL on a name-only surface counts inconclusive until real schemas (G7-D1 addendum 2026-10-19 09:55 UTC+7)';
+const QUALITY_KEYS = new Set(['numericPassRate', 'successRateOverall', 'successRateGroupMin', 'modelLatencyP50Ms', 'modelLatencyP95Ms']);
 export const FORMATS = ['xlsx', 'docx', 'pptx', 'pdf', 'md', 'html', 'cross'];
 // The suite D1 is about: a run set over fewer cases is a subset, never a verdict.
 export const MIN_CASES = 100;
@@ -159,8 +163,12 @@ function tallyOf(asks, statusOf) {
 /** Every §9.2 metric of one run. `flaky` (a Set of ask keys) is forced to fail, as the G7-D1 aggregation rule asks. */
 export function summarizeRun(run, flaky = new Set()) {
   const statusOf = (ask) => (flaky.has(askKey(ask)) ? 'fail' : ask.status);
+  const numericFailed = (a) => flaky.has(askKey(a)) || a.errored || a.checks.some((c) => c.id.startsWith('numeric') && c.status === 'fail');
   const numericAsks = run.asks.filter((a) => a.expects.numeric > 0);
-  const numericOk = numericAsks.filter((a) => !flaky.has(askKey(a)) && !a.errored && !a.checks.some((c) => c.id.startsWith('numeric') && c.status === 'fail'));
+  const numericOk = numericAsks.filter((a) => !numericFailed(a));
+  const judgeableAsks = run.asks.filter((a) => JUDGEABLE_GROUPS.includes(a.group));
+  const judgeableNumeric = judgeableAsks.filter((a) => a.expects.numeric > 0);
+  const judgeableNumericOk = judgeableNumeric.filter((a) => !numericFailed(a));
   const leakAsks = run.asks.filter((a) => a.expects.mustNotContain > 0);
   const leakNotClean = leakAsks.filter((a) => a.errored || a.checks.some((c) => (c.id.startsWith('must_not_contain:') || c.id === 'text_reported') && c.status === 'fail'));
   const lat = callLatencies(run);
@@ -182,7 +190,12 @@ export function summarizeRun(run, flaky = new Set()) {
     byGroup: Object.fromEntries(GROUPS.map((g) => [g, tallyOf(run.asks.filter((a) => a.group === g), statusOf)])),
     byFormat: Object.fromEntries(FORMATS.map((f) => [f, tallyOf(run.asks.filter((a) => a.format === f), statusOf)])),
     outsideAllowlist: { asks: outside.length, occurrences: outside.reduce((n, a) => n + a.outsideAllowlist.length, 0), names: [...new Set(outside.flatMap((a) => a.outsideAllowlist))].sort() },
-    numeric: { asks: numericAsks.length, passed: numericOk.length, rate: rate(numericOk.length, numericAsks.length) },
+    numeric: { asks: numericAsks.length, passed: numericOk.length, rate: rate(numericOk.length, numericAsks.length), groups: GROUPS.filter((g) => numericAsks.some((a) => a.group === g)) },
+    judgeable: {
+      groups: JUDGEABLE_GROUPS,
+      overall: tallyOf(judgeableAsks, statusOf),
+      numeric: { asks: judgeableNumeric.length, passed: judgeableNumericOk.length, rate: rate(judgeableNumericOk.length, judgeableNumeric.length) },
+    },
     outsideAllowlistWrites: run.asks.filter(executedOutsideWrite).length,
     unauthorizedWrites: run.asks.filter((a) => a.writes > a.expects.writes).length,
     leaks: { asks: leakNotClean.length, checked: leakAsks.length, unverified: leakNotClean.filter((a) => a.errored || a.checks.some((c) => c.id === 'text_reported' && c.status === 'fail')).length },
@@ -606,7 +619,10 @@ function groupVerdict(group, summaries, limit, { reasons, nameOnly, awaiting }) 
   const rescued = perRun.every((t) => t.rateIfReviewed >= limit);
   const blocked = [...reasons, ...(perRun.length < all.length ? [`the group has no asks in ${all.length - perRun.length} run(s)`] : []), ...(nameOnly.groups.includes(group) ? [nameOnly.text] : []), ...(awaiting.has(group) ? [`${awaiting.get(group)} ask(s) of this group still wait for a reviewer`] : [])];
   if (worst >= limit && blocked.length === 0) return { group, worst, verdict: 'pass', reasons: [] };
-  if (!rescued && worst < limit) return { group, worst, verdict: 'fail', reasons: [] };
+  if (!rescued && worst < limit) {
+    if (nameOnly.groups.includes(group)) return { group, worst, verdict: 'inconclusive', reasons: [...blocked, NAME_ONLY_FAIL] };
+    return { group, worst, verdict: 'fail', reasons: [] };
+  }
   return { group, worst, verdict: 'inconclusive', reasons: worst >= limit ? blocked : [...blocked, 'only passes if every case awaiting a reviewer is confirmed'] };
 }
 
@@ -652,8 +668,14 @@ export function evaluateThresholds(summaries, thresholds, { completeRuns, tuple,
       entry.verdict = groups.some((g) => g.verdict === 'fail') ? 'fail' : groups.every((g) => g.verdict === 'pass') && reasons.length === 0 ? 'pass' : 'inconclusive';
       entry.reasons = entry.verdict === 'inconclusive' ? [...new Set([...reasons, ...groups.flatMap((g) => g.reasons)])] : [];
     } else if (!okAll && !rescued) {
-      entry.verdict = 'fail';
-      entry.reasons = [];
+      const feeding = key === 'numericPassRate' ? [...new Set(summaries.flatMap((s) => s.numeric.groups ?? GROUPS))] : GROUPS;
+      if (QUALITY_KEYS.has(key) && nameOnly.groups.some((g) => feeding.includes(g))) {
+        entry.verdict = 'inconclusive';
+        entry.reasons = [...reasons, NAME_ONLY_FAIL];
+      } else {
+        entry.verdict = 'fail';
+        entry.reasons = [];
+      }
     } else if (okAll && reasons.length === 0) {
       entry.verdict = 'pass';
       entry.reasons = [];
@@ -681,6 +703,7 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
   const flaky = findFlaky(runs);
   const flakyKeys = new Set(flaky.map(askKey));
   const summaries = runs.map((r) => summarizeRun(r));
+  const adjusted = runs.map((r) => summarizeRun(r, flakyKeys));
   const completeRuns = runs.filter((r) => r.status === 'completed' && !r.partial && r.asks.length === (r.caseCount ?? r.config.casesRead) * r.config.langs.length).length;
   const tuple = tupleConsistency(runs);
   const runSet = checkRunSet(runs, session);
@@ -731,9 +754,15 @@ export function buildReport(runsIn, { thresholds = null, reviews = null, session
     editCases: editCaseSplit(runs),
     invalidArgumentAsks: listAsks(runs, (a) => ((a.invalidArguments ?? []).length > 0 ? 1 : 0)),
     notMeasured: ['silent overwrite', 'lost acknowledged draft'],
+    judgeableOnly: {
+      label: JUDGEABLE_LABEL,
+      groups: JUDGEABLE_GROUPS,
+      numericPassRate: distribution(adjusted.map((s) => s.judgeable.numeric.rate)),
+      successRateOverall: distribution(adjusted.map((s) => s.judgeable.overall.rate)),
+      perRun: adjusted.map((s) => ({ runIndex: s.runIndex, numericPassRate: s.judgeable.numeric.rate, successRateOverall: s.judgeable.overall.rate })),
+    },
   };
   if (thresholds) {
-    const adjusted = runs.map((r) => summarizeRun(r, flakyKeys));
     const extraBlockers = [...runSet, ...conditions.scoped.all];
     const seen = session?.manifest && !session.manifest.unreadable ? session.manifest : runs[0];
     if (thresholds.caseSetSha256 !== seen?.caseSetSha256 || thresholds.caseCount !== seen?.caseCount) {
@@ -1016,6 +1045,11 @@ export function renderReport(report) {
     for (const [key, m] of Object.entries(report.overall.metrics)) {
       w(`| ${key} | ${m.comparator === 'max' ? '≤' : '≥'} ${m.limit} | ${NOT_MEASURED[key] ? 'chưa đo (cần test sản phẩm)' : num(m.worst)} | ${word(m.verdict)} | ${(m.verdict === 'not_gating' ? m.reason : (m.reasons ?? []).join('; ')) || '-'} |`);
       for (const g of m.groups ?? []) w(`| ↳ nhóm ${g.group} | ≥ ${m.limit} | ${num(g.worst)} | ${word(g.verdict)} | ${g.reasons.join('; ') || '-'} |`);
+    }
+    if (report.judgeableOnly) {
+      const j = report.judgeableOnly;
+      w();
+      w(`- **${j.label}** (chỉ tính ca chấm được của nhóm xlsx + docx, cùng luật lượt hỏi không ổn định tính là lệch; không gate): numericPassRate ${j.numericPassRate.values.map(pct).join(' / ')} (min / trung vị / max: ${triple(j.numericPassRate, pct)}); successRateOverall ${j.successRateOverall.values.map(pct).join(' / ')} (min / trung vị / max: ${triple(j.successRateOverall, pct)}).`);
     }
     if (report.reviews?.grading) {
       w();
