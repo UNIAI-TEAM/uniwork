@@ -1,0 +1,2 @@
+$ (cd server && gofmt -l internal/handler && go vet ./internal/handler/); echo "GO_STATIC_HANDLER_EXIT=$?"
+GO_STATIC_HANDLER_EXIT=0

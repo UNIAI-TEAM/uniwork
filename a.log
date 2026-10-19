@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+4ed2a2a8c188f82821c7d50262e75402d4788cfd
+4ed2a2a8c test(server): read the framed envelope in the handler fake engines (SIZE-OPS1 r3)
+81597861a fix(office): negotiate job_transport before redispatching accepted jobs (SIZE-OPS1 r3)
+bd7ba67ad docs(office-engine): document input budget default, startup floor and envelope charge (SIZE-OPS1 r3)
