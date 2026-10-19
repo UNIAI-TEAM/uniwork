@@ -1,0 +1,2 @@
+$ cd server && test -z "$(gofmt -l ./internal ./cmd ./pkg)"; echo "GOFMT_EXIT=$?"
+GOFMT_EXIT=0

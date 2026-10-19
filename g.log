@@ -1,0 +1,3 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 -timeout 30m ./internal/service/ -run "Office|Export|Capability" 2>&1 | grep -E "^(--- FAIL|ok|FAIL)|_test.go:[0-9]+:" | head -30; echo "SVC_OFFICE_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/service	34.972s
+SVC_OFFICE_EXIT=0

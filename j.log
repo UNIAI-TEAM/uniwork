@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/office-contracts --filter @uniwork/office-engine --filter @uniwork/office-engine-app --filter @uniwork/web typecheck 2>&1 | tail -6; echo "TC_EXIT=${PIPESTATUS[0]}"
+packages/office-contracts typecheck: Done
+apps/web typecheck: Done
+packages/office-engine typecheck$ tsc --noEmit
+packages/office-engine typecheck: Done
+apps/office-engine typecheck$ tsc --noEmit
+apps/office-engine typecheck: Done
+TC_EXIT=0

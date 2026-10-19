@@ -1,0 +1,4 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; node --test scripts/office/*.test.mjs scripts/office/g5g6g7/*.test.mjs 2>&1 | grep -E "^# (pass|fail)"; echo "OFFICE_SCRIPTS_EXIT=${PIPESTATUS[0]}"
+# pass 517
+# fail 0
+OFFICE_SCRIPTS_EXIT=0

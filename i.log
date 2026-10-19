@@ -1,0 +1,11 @@
+$ pnpm --filter @uniwork/office-contracts --filter @uniwork/office-engine --filter @uniwork/office-engine-app test 2>&1 | grep -E "Tests|Test Files|FAIL|ERR" | head -20; echo "ENGINE_TS_EXIT=${PIPESTATUS[0]}"
+packages/office-contracts test$ vitest run --passWithNoTests=false --coverage
+packages/office-contracts test:  Test Files  3 passed (3)
+packages/office-contracts test:       Tests  46 passed (46)
+packages/office-engine test$ vitest run --passWithNoTests=false --coverage
+packages/office-engine test:  Test Files  71 passed | 1 skipped (72)
+packages/office-engine test:       Tests  921 passed | 5 skipped (926)
+apps/office-engine test$ vitest run --passWithNoTests=false --coverage
+apps/office-engine test:  Test Files  11 passed (11)
+apps/office-engine test:       Tests  135 passed | 11 skipped (149)
+ENGINE_TS_EXIT=0

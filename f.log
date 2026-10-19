@@ -1,0 +1,4 @@
+$ cd server && unset OPENAI_API_KEY && AI_PROVIDER=fake go test -count=1 ./internal/office/... ./internal/ 2>&1 | grep -E "^(--- FAIL|ok|FAIL)|_test.go:[0-9]+:" | head -30; echo "OFFICE_GO_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/office	1.437s
+ok  	github.com/unicomhub/uniwork/server/internal	1.165s
+OFFICE_GO_EXIT=0

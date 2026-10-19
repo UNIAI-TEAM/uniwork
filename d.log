@@ -1,0 +1,2 @@
+$ cd server && go build ./... && go vet ./internal/office/... ./internal/service ./internal/handler/... 2>&1 | tail -5; echo "BUILD_VET_EXIT=${PIPESTATUS[0]}"
+BUILD_VET_EXIT=0
