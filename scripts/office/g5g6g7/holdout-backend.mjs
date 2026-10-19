@@ -586,7 +586,7 @@ const FORMULA_FUNCS = new Set(['IF', 'SUM', 'SUBTOTAL', 'AVERAGE', 'MIN', 'MAX',
 
 function tokenizeFormula(text) {
   const tokens = [];
-  const re = /\s*(?:(\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)|("(?:[^"]|"")*")|(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?)(?![A-Za-z0-9_(])|([A-Za-z_][A-Za-z0-9_.]*)(?=\s*\()|(TRUE|FALSE)\b|(<>|<=|>=|[-+*/^&=<>(),]))/gy;
+  const re = /\s*(?:(\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)|("(?:[^"]|"")*")|(#REF!(?::\$?[A-Za-z]{1,3}\$?\d+)?|\$?[A-Za-z]{1,3}\$?\d+(?::(?:\$?[A-Za-z]{1,3}\$?\d+|#REF!))?)(?![A-Za-z0-9_(])|([A-Za-z_][A-Za-z0-9_.]*)(?=\s*\()|(TRUE|FALSE)\b|(<>|<=|>=|[-+*/^&=<>(),]))/gy;
   let m;
   let at = 0;
   while (at < text.length) {
@@ -611,6 +611,7 @@ function evaluateFormula(formula, sheet) {
   const peek = () => tokens[pos];
   const take = (v) => { const tok = tokens[pos]; if (v !== undefined && (!tok || tok.v !== v)) throw new Unsupported(String(v)); pos += 1; return tok; };
   const cellValue = (ref) => {
+    if (ref.includes('#REF!')) throw new Unsupported('#REF!');
     const cell = sheet.cells[ref];
     if (!cell || cell.v === null || cell.v === undefined || cell.v === '') return BLANK;
     if (typeof cell.v === 'string' && /^#/.test(cell.v)) throw new Unsupported(cell.v);
@@ -660,7 +661,7 @@ function evaluateFormula(formula, sheet) {
     const tok = take();
     if (!tok) throw new Unsupported('end');
     if (tok.t === 'num' || tok.t === 'str' || tok.t === 'bool') return dry ? 0 : tok.v;
-    if (tok.t === 'ref') return dry ? 0 : (tok.v.includes(':') ? { range: true, cells: rangeCells(tok.v) } : cellValue(tok.v));
+    if (tok.t === 'ref') return dry ? 0 : (!tok.v.includes('#REF!') && tok.v.includes(':') ? { range: true, cells: rangeCells(tok.v) } : cellValue(tok.v));
     if (tok.t === 'fn') {
       if (!FORMULA_FUNCS.has(tok.v)) throw new Unsupported(tok.v);
       take('(');
@@ -717,6 +718,7 @@ function recalcSheet(sheet) {
         if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') cell.v = v;
       } catch (err) {
         if (!(err instanceof Unsupported)) throw err;
+        if (err.message === '#REF!') cell.v = '#REF!';
       }
     }
   }
@@ -730,7 +732,7 @@ function shiftFormula(formula, dr, dc) {
     if (/[A-Za-z0-9_.]/.test(whole[offset - 1] ?? '')) return all;
     const c = colAbs ? colNum(col.toUpperCase()) : colNum(col.toUpperCase()) + dc;
     const r = rowAbs ? Number(row) : Number(row) + dr;
-    return c >= 1 && r >= 1 ? `${colAbs}${colName(c)}${rowAbs}${r}` : all;
+    return c >= 1 && r >= 1 ? `${colAbs}${colName(c)}${rowAbs}${r}` : '#REF!';
   });
 }
 
