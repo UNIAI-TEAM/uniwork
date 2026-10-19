@@ -494,7 +494,7 @@ func TestAskDropsDocumentsTheQuestionDoesNotMatch(t *testing.T) {
 	ctx := context.Background()
 	docs := askDocs(t, s, mcpFlags(true))
 	for _, title := range []string{"Nằm lòng quy trình", "Kế hoạch năm 2027"} {
-		if _, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: title}); err != nil {
+		if _, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: title, Visibility: documentVisibilityWorkspace}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -638,7 +638,7 @@ func TestAskFindsDocuments(t *testing.T) {
 	docs := askDocs(t, s, mcpFlags(true))
 	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
 	addMember(t, s.meetings, w.ID, ub.ID)
-	if _, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép"}); err != nil {
+	if _, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép", Visibility: documentVisibilityWorkspace}); err != nil {
 		t.Fatal(err)
 	}
 	// A owns the organization (implicit admin), so the asker is member B.
@@ -794,7 +794,7 @@ func TestAskFollowUpRereadsCitationsAsTheAsker(t *testing.T) {
 			docs := askDocs(t, s, mcpFlags(true))
 			addOrgMember(t, s.q, w.OrganizationID, ub.ID)
 			addMember(t, s.meetings, w.ID, ub.ID)
-			page, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép"})
+			page, err := docs.CreatePage(ctx, Human(ua.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép", Visibility: documentVisibilityWorkspace})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -857,7 +857,7 @@ func TestAskFollowUpIgnoresForeignCitations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	page, err := docs.CreatePage(ctx, Human(other.ID), ov.Workspace.ID, CreatePageInput{Title: "Tài liệu bí mật"})
+	page, err := docs.CreatePage(ctx, Human(other.ID), ov.Workspace.ID, CreatePageInput{Title: "Tài liệu bí mật", Visibility: documentVisibilityWorkspace})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -871,7 +871,7 @@ func TestAskFollowUpIgnoresForeignCitations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sidePage, err := docs.CreatePage(ctx, Human(ua.ID), side.Workspace.ID, CreatePageInput{Title: "Ghi chú bên khác"})
+	sidePage, err := docs.CreatePage(ctx, Human(ua.ID), side.Workspace.ID, CreatePageInput{Title: "Ghi chú bên khác", Visibility: documentVisibilityWorkspace})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -112,7 +112,7 @@ func seedAskEval(t *testing.T) *evalWorld {
 		t.Fatal(err)
 	}
 
-	if _, err := docs.CreatePage(ctx, Human(owner.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép"}); err != nil {
+	if _, err := docs.CreatePage(ctx, Human(owner.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép", Visibility: documentVisibilityWorkspace}); err != nil {
 		t.Fatal(err)
 	}
 	secret, err := docs.CreatePage(ctx, Human(owner.ID), w.ID, CreatePageInput{Title: "Lương thưởng 2026"})
