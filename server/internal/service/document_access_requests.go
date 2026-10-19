@@ -273,7 +273,6 @@ func (s *DocumentService) CreateDocumentAccessRequest(ctx context.Context, actor
 	}
 	sourceKind, sourceID := s.resolveAccessRequestSource(ctx, actor, doc, body.sourceKind, body.sourceID)
 
-	now := s.now()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return DocumentAccessRequestResult{}, err
@@ -281,7 +280,35 @@ func (s *DocumentService) CreateDocumentAccessRequest(ctx context.Context, actor
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
 
-	// (1) The cooldown of the requester's own latest decline on this document.
+	// (1) Take the document row lock decisions and purge take, then re-read
+	// eligibility inside the transaction so an archive, ownership change, purge
+	// or concurrent grant that committed after the preflight still returns the
+	// uniform 202 and stores nothing (BE-SD7-1, BE-SD7-5).
+	doc, err = q.LockDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sent, nil
+	}
+	if err != nil {
+		return DocumentAccessRequestResult{}, err
+	}
+	if doc.OwnerKind.Valid || doc.ArchivedAt.Valid {
+		return sent, nil
+	}
+	access, err = s.effectiveLevel(ctx, q, actor, doc)
+	if err != nil {
+		if isGateRefusal(err) {
+			return sent, nil
+		}
+		return DocumentAccessRequestResult{}, err
+	}
+	if access.Level.AtLeast(body.level) {
+		return sent, nil
+	}
+	now := s.now()
+
+	// (2) The cooldown of the requester's own latest decline on this document,
+	// read under the document lock so a concurrent decline is seen before the
+	// upsert.
 	declined, err := q.GetLatestDeclinedDocumentAccessRequest(ctx, db.GetLatestDeclinedDocumentAccessRequestParams{
 		OrganizationID: doc.OrganizationID, DocumentID: doc.ID, CreatedBy: actor.ID,
 	})
@@ -297,7 +324,7 @@ func (s *DocumentService) CreateDocumentAccessRequest(ctx context.Context, actor
 		return DocumentAccessRequestResult{}, err
 	}
 
-	// (2) The upsert: a new row, or the caller's own expired pending row
+	// (3) The upsert: a new row, or the caller's own expired pending row
 	// refreshed in place. A live pending row makes the DO UPDATE's WHERE
 	// false, so no row comes back and the answer is 409 - the same answer the
 	// loser of two concurrent sends gets, which is what the partial unique
@@ -316,7 +343,7 @@ func (s *DocumentService) CreateDocumentAccessRequest(ctx context.Context, actor
 		return DocumentAccessRequestResult{}, err
 	}
 
-	// (3) Audit and outbox in the same transaction as the row. The message
+	// (4) Audit and outbox in the same transaction as the row. The message
 	// text is never in the audit metadata: it lives in the request row, which
 	// only the document's managers read.
 	metadata := map[string]any{

@@ -712,3 +712,151 @@ func TestDocumentAccessRequestDoesNotGrant(t *testing.T) {
 		t.Fatalf("a request created %d shares", shares)
 	}
 }
+
+// waitLockOrDone waits until a session in this database is blocked on a lock
+// (pg_locks NOT granted) or the background call finishes early (when a red
+// probe drops the lock).
+func (f *accessRequestFixture) waitLockOrDone(t *testing.T, done <-chan struct{}) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-done:
+			return
+		default:
+		}
+		var waiting bool
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_stat_activity
+				 WHERE datname = current_database()
+				   AND wait_event_type = 'Lock'
+				   AND pid <> pg_backend_pid()
+			)`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for lock wait or completion")
+}
+
+// TestDocumentAccessRequestCreateInterleavings covers BE-SD7-1 and BE-SD7-5:
+// CreateDocumentAccessRequest takes the document row lock inside its
+// transaction and re-reads both eligibility (archived/owner/gone) and the
+// decline cooldown before upserting.
+func TestDocumentAccessRequestCreateInterleavings(t *testing.T) {
+	f := newAccessRequestFixture(t, "ar01i")
+	actor := Human(f.tn.member.ID)
+
+	t.Run("an uncommitted decline that commits after create starts enforces the cooldown", func(t *testing.T) {
+		doc := f.restrictedDoc(t)
+		reqID := f.seedPending(t, doc, f.tn.member.ID, "view", "đang chờ", f.now.Add(time.Hour))
+		declinedAt := f.now.Add(time.Minute)
+		f.now = declinedAt
+
+		tx, err := f.pool.Begin(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback(f.ctx) }()
+		q := f.q.WithTx(tx)
+		if _, err := q.LockDocumentByID(f.ctx, doc.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := q.GetDocumentAccessRequestForUpdate(f.ctx, db.GetDocumentAccessRequestForUpdateParams{
+			OrganizationID: doc.OrganizationID, DocumentID: doc.ID, ID: reqID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := q.DecideDocumentAccessRequest(f.ctx, db.DecideDocumentAccessRequestParams{
+			Status:    AccessRequestStatusDeclined,
+			DecidedBy: nullText(f.tn.aclOwner.ID), DecidedByKind: nullText(string(audit.KindHuman)),
+			DecidedAt: ts(declinedAt), UpdatedAt: ts(declinedAt),
+			ID: reqID, OrganizationID: doc.OrganizationID, DocumentID: doc.ID,
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		done := make(chan struct{})
+		var createErr error
+		go func() {
+			defer close(done)
+			_, createErr = f.svc.CreateDocumentAccessRequest(context.Background(), actor, doc.ID, DocumentAccessRequestInput{
+				RequestedLevel: "view",
+			})
+		}()
+		f.waitLockOrDone(t, done)
+		if err := tx.Commit(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		<-done
+
+		ce := wantCode(t, createErr, "access_request_cooldown")
+		if ce.Status != 429 {
+			t.Fatalf("status = %d, want 429", ce.Status)
+		}
+		rows := f.rows(t, doc.ID)
+		if len(rows) != 1 || rows[0].ID != reqID || rows[0].Status != AccessRequestStatusDeclined {
+			t.Fatalf("rows = %+v, want only the declined row", rows)
+		}
+		if n := len(f.auditMeta(t, doc.ID)); n != 0 {
+			t.Fatalf("audit rows = %d, want none", n)
+		}
+		if n := f.countOutbox(t, doc.ID); n != 0 {
+			t.Fatalf("outbox rows = %d, want none", n)
+		}
+	})
+
+	t.Run("a document archived between preflight and the transaction lock returns 202 and stores nothing", func(t *testing.T) {
+		doc := f.restrictedDoc(t)
+
+		tx, err := f.pool.Begin(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback(f.ctx) }()
+		// Hold an uncommitted archive on the document row: preflight's unlocked
+		// SELECT still reads archived_at IS NULL under READ COMMITTED, then the
+		// create transaction waits on the document row lock until the archive
+		// commits.
+		if _, err := tx.Exec(f.ctx,
+			`UPDATE documents SET archived_at = $2, archived_by = $3 WHERE id = $1`,
+			doc.ID, f.now, f.tn.aclOwner.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		done := make(chan struct{})
+		var got DocumentAccessRequestResult
+		var createErr error
+		go func() {
+			defer close(done)
+			got, createErr = f.svc.CreateDocumentAccessRequest(context.Background(), actor, doc.ID, DocumentAccessRequestInput{
+				RequestedLevel: "view", Message: "xin ngay lúc vừa xóa",
+			})
+		}()
+		f.waitLockOrDone(t, done)
+		if err := tx.Commit(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		<-done
+
+		if createErr != nil {
+			t.Fatalf("want uniform sent, got %v", createErr)
+		}
+		if got != (DocumentAccessRequestResult{Status: AccessRequestSent}) {
+			t.Fatalf("result = %+v, want sent", got)
+		}
+		if n := f.countRows(t, doc.ID); n != 0 {
+			t.Fatalf("rows = %d, want none on an archived document", n)
+		}
+		if n := len(f.auditMeta(t, doc.ID)); n != 0 {
+			t.Fatalf("audit rows = %d, want none", n)
+		}
+		if n := f.countOutbox(t, doc.ID); n != 0 {
+			t.Fatalf("outbox rows = %d, want none", n)
+		}
+	})
+}
