@@ -1,0 +1,92 @@
+$ for c in FQ-22 FQ-24 FQ-40 FQ-41 FQ-42 FQ-43 FQ-44; do HARNESS_RUN_DIR="$PWD/.harness-run-1918c" OFFICE_FORK_SHA=1f7b4aa15 timeout -k 15 420 dbus-run-session -- bash scripts/office/g5g6g7/fault/app-keyring.sh node scripts/office/g5g6g7/fault/app-cases.mjs --case $c --run-dir .harness-run-1918c; echo "APP_CASE_${c//-/_}_EXIT=$?"; done; for f in .harness-run-1918c/fault/FQ-*/result.json; do [ -f "$f" ] && node -e 'const r=require(process.argv[1]);console.log(r.case,r.result,r.predicted||"",r.blocker||"",(r.assertions||[]).filter(a=>!a.ok).map(a=>a.name+": expected "+JSON.stringify(a.expected)+" actual "+JSON.stringify(a.actual)).join(" | "))' "$PWD/$f"; done; true
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33917 app_api=http://127.0.0.1:34979 proxy_upstream=http://127.0.0.1:33917
+FQ-22: running
+dbus-daemon[303001]: [session uid=1000 pid=303001] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=303038 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[303001]: [session uid=1000 pid=303001] Successfully activated service 'org.a11y.Bus'
+FQ-22: FAIL (infra: timeout-after-commit trên app: app đối soát bằng tra intent, không tạo key mới: run_execution: uniworkOpenDocument refused the document ("not_found"))
+FQ-22 (G5-A06): FAIL
+/workspace/.harness-run-1918c/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_22_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33917 app_api=http://127.0.0.1:44409 proxy_upstream=http://127.0.0.1:33917
+FQ-24: running
+dbus-daemon[303192]: [session uid=1000 pid=303192] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=303228 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[303192]: [session uid=1000 pid=303192] Successfully activated service 'org.a11y.Bus'
+FQ-24: FAIL (infra: claim upload hết hạn trước khi thiết bị online: resume theo logical intent, chỉ re-upload sau khi attempt cũ bị fence, một version: run_execution: uniworkOpenDocument refused the document ("not_found"))
+FQ-24 (G5-A06): FAIL
+/workspace/.harness-run-1918c/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_24_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33917 app_api=http://127.0.0.1:46281 proxy_upstream=http://127.0.0.1:33917
+FQ-40 [1/5] reconciling → committed: running
+dbus-daemon[303374]: [session uid=1000 pid=303374] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=303410 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[303374]: [session uid=1000 pid=303374] Successfully activated service 'org.a11y.Bus'
+FQ-40 [2/5] reconciling → queued (attempt mới): BLOCKED — earlier exit reconciling → committed failed
+FQ-40 [3/5] reconciling → paused_admin: BLOCKED — earlier exit reconciling → committed failed
+FQ-40 [4/5] reconciling → paused_offline: BLOCKED — earlier exit reconciling → committed failed
+FQ-40 [5/5] reconciling ở lại (in_flight): BLOCKED — earlier exit reconciling → committed failed
+FQ-40: FAIL (infra: reconciling → committed: run_execution: uniworkOpenDocument refused the document ("not_found"))
+FQ-40 (G5-A06): FAIL — reconciling → queued (attempt mới): earlier exit reconciling → committed failed; reconciling → paused_admin: earlier exit reconciling → committed failed; reconciling → paused_offline: earlier exit reconciling → committed failed; reconciling ở lại (in_flight): earlier exit reconciling → committed failed
+/workspace/.harness-run-1918c/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_40_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33917 app_api=http://127.0.0.1:37905 proxy_upstream=http://127.0.0.1:33917
+FQ-41: running
+dbus-daemon[303557]: [session uid=1000 pid=303557] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=303593 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[303557]: [session uid=1000 pid=303557] Successfully activated service 'org.a11y.Bus'
+FQ-41: FAIL (infra: reconciling → reconciling-stuck: run_execution: uniworkOpenDocument refused the document ("not_found"))
+FQ-41 (G5-A06): FAIL
+/workspace/.harness-run-1918c/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_41_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33917 app_api=http://127.0.0.1:42507 proxy_upstream=http://127.0.0.1:33917
+FQ-42: running
+dbus-daemon[303741]: [session uid=1000 pid=303741] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=303777 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[303741]: [session uid=1000 pid=303741] Successfully activated service 'org.a11y.Bus'
+FQ-42: FAIL (infra: reconciling → reconciling-stuck (hết giờ): run_execution: uniworkOpenDocument refused the document ("not_found"))
+FQ-42 (G5-A06): FAIL
+/workspace/.harness-run-1918c/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_42_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33917 app_api=http://127.0.0.1:33951 proxy_upstream=http://127.0.0.1:33917
+FQ-43 [1/9] reconciling → blocked session_expired: running
+dbus-daemon[303927]: [session uid=1000 pid=303927] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=303963 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[303927]: [session uid=1000 pid=303927] Successfully activated service 'org.a11y.Bus'
+FQ-43 [2/9] reconciling → blocked organization_suspended: BLOCKED — earlier exit reconciling → blocked session_expired failed
+FQ-43 [3/9] reconciling → blocked member_deactivated: BLOCKED — earlier exit reconciling → blocked session_expired failed
+FQ-43 [4/9] reconciling → blocked document_archived: BLOCKED — earlier exit reconciling → blocked session_expired failed
+FQ-43 [5/9] reconciling → blocked permission_revoked: BLOCKED — earlier exit reconciling → blocked session_expired failed
+FQ-43 [6/9] reconciling → blocked document_deleted: BLOCKED — earlier exit reconciling → blocked session_expired failed
+FQ-43 [7/9] real: reconciling → blocked organization_suspended: BLOCKED — earlier exit reconciling → blocked session_expired failed
+FQ-43 [8/9] real: reconciling → blocked member_deactivated: BLOCKED — earlier exit reconciling → blocked session_expired failed
+FQ-43 [9/9] real: reconciling → blocked document_deleted: BLOCKED — earlier exit reconciling → blocked session_expired failed
+FQ-43: FAIL (infra: reconciling → blocked session_expired: run_execution: uniworkOpenDocument refused the document ("not_found"))
+FQ-43 (G5-A06): FAIL — reconciling → blocked organization_suspended: earlier exit reconciling → blocked session_expired failed; reconciling → blocked member_deactivated: earlier exit reconciling → blocked session_expired failed; reconciling → blocked document_archived: earlier exit reconciling → blocked session_expired failed; reconciling → blocked permission_revoked: earlier exit reconciling → blocked session_expired failed; reconciling → blocked document_deleted: earlier exit reconciling → blocked session_expired failed; real: reconciling → blocked organization_suspended: earlier exit reconciling → blocked session_expired failed; real: reconciling → blocked member_deactivated: earlier exit reconciling → blocked session_expired failed; real: reconciling → blocked document_deleted: earlier exit reconciling → blocked session_expired failed
+/workspace/.harness-run-1918c/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_43_EXIT=1
+APP_KEYRING unlocked=yes
+APP_RUNNER api=http://127.0.0.1:33917 app_api=http://127.0.0.1:34267 proxy_upstream=http://127.0.0.1:33917
+FQ-44 [1/3] reconciling-stuck → committed: running
+dbus-daemon[304113]: [session uid=1000 pid=304113] Activating service name='org.a11y.Bus' requested by ':1.6' (uid=1000 pid=304149 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[304113]: [session uid=1000 pid=304113] Successfully activated service 'org.a11y.Bus'
+FQ-44 [2/3] reconciling-stuck → blocked: BLOCKED — earlier exit reconciling-stuck → committed failed
+FQ-44 [3/3] reconciling-stuck ở lại: BLOCKED — earlier exit reconciling-stuck → committed failed
+FQ-44: FAIL (infra: reconciling-stuck → committed: run_execution: uniworkOpenDocument refused the document ("not_found"))
+FQ-44 (G5-A06): FAIL — reconciling-stuck → blocked: earlier exit reconciling-stuck → committed failed; reconciling-stuck ở lại: earlier exit reconciling-stuck → committed failed
+/workspace/.harness-run-1918c/fault
+APP_CASES_EXIT=1
+APP_CASE_FQ_44_EXIT=1
+FQ-22 FAIL   run_execution: expected "no unhandled error" actual "uniworkOpenDocument refused the document (\"not_found\")"
+FQ-24 FAIL   run_execution: expected "no unhandled error" actual "uniworkOpenDocument refused the document (\"not_found\")"
+FQ-40 FAIL  reconciling → queued (attempt mới): earlier exit reconciling → committed failed; reconciling → paused_admin: earlier exit reconciling → committed failed; reconciling → paused_offline: earlier exit reconciling → committed failed; reconciling ở lại (in_flight): earlier exit reconciling → committed failed run_execution: expected "no unhandled error" actual "uniworkOpenDocument refused the document (\"not_found\")"
+FQ-41 FAIL   run_execution: expected "no unhandled error" actual "uniworkOpenDocument refused the document (\"not_found\")"
+FQ-42 FAIL   run_execution: expected "no unhandled error" actual "uniworkOpenDocument refused the document (\"not_found\")"
+FQ-43 FAIL  reconciling → blocked organization_suspended: earlier exit reconciling → blocked session_expired failed; reconciling → blocked member_deactivated: earlier exit reconciling → blocked session_expired failed; reconciling → blocked document_archived: earlier exit reconciling → blocked session_expired failed; reconciling → blocked permission_revoked: earlier exit reconciling → blocked session_expired failed; reconciling → blocked document_deleted: earlier exit reconciling → blocked session_expired failed; real: reconciling → blocked organization_suspended: earlier exit reconciling → blocked session_expired failed; real: reconciling → blocked member_deactivated: earlier exit reconciling → blocked session_expired failed; real: reconciling → blocked document_deleted: earlier exit reconciling → blocked session_expired failed run_execution: expected "no unhandled error" actual "uniworkOpenDocument refused the document (\"not_found\")"
+FQ-44 FAIL  reconciling-stuck → blocked: earlier exit reconciling-stuck → committed failed; reconciling-stuck ở lại: earlier exit reconciling-stuck → committed failed run_execution: expected "no unhandled error" actual "uniworkOpenDocument refused the document (\"not_found\")"

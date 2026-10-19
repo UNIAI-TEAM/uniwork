@@ -1,0 +1,847 @@
+$ node --test scripts/office/g5g6g7/fault/*.test.mjs; echo "FAULT_UNIT_EXIT=$?"
+TAP version 13
+# Subtest: every ready app row's expect is sound and resolves a version delta for every run
+ok 1 - every ready app row's expect is sound and resolves a version delta for every run
+  ---
+  duration_ms: 1.730605
+  ...
+# Subtest: every app row, ready and pending, resolves an integer versionDelta for every run and exit
+ok 2 - every app row, ready and pending, resolves an integer versionDelta for every run and exit
+  ---
+  duration_ms: 0.635158
+  ...
+# Subtest: a {run: count} map is not a versionDelta
+ok 3 - a {run: count} map is not a versionDelta
+  ---
+  duration_ms: 0.402182
+  ...
+# Subtest: deltaAssertion expects the run's expect.server.versionDelta and fails when the measured delta differs
+ok 4 - deltaAssertion expects the run's expect.server.versionDelta and fails when the measured delta differs
+  ---
+  duration_ms: 0.965805
+  ...
+# Subtest: a row whose expect.server.versionDelta changes changes what the driver expects
+ok 5 - a row whose expect.server.versionDelta changes changes what the driver expects
+  ---
+  duration_ms: 0.206246
+  ...
+# Subtest: the shared assertions take their numbers from ctx.expect
+ok 6 - the shared assertions take their numbers from ctx.expect
+  ---
+  duration_ms: 0.480951
+  ...
+# Subtest: no app driver compares a number of its own
+ok 7 - no app driver compares a number of its own
+  ---
+  duration_ms: 0.306681
+  ...
+# Subtest: every machine-readable expectation an app row carries is read by an app driver
+ok 8 - every machine-readable expectation an app row carries is read by an app driver
+  ---
+  duration_ms: 0.575782
+  ...
+# Subtest: parseExitRange reads a-b and n, and refuses everything else
+ok 9 - parseExitRange reads a-b and n, and refuses everything else
+  ---
+  duration_ms: 1.171254
+  ...
+# Subtest: selectExitRange keeps the range and skips the rest, numbering by position
+ok 10 - selectExitRange keeps the range and skips the rest, numbering by position
+  ---
+  duration_ms: 2.512444
+  ...
+# Subtest: a skipped exit prints its own line, never a verdict
+ok 11 - a skipped exit prints its own line, never a verdict
+  ---
+  duration_ms: 0.964231
+  ...
+# Subtest: a sliced row is never PASS: the worst of the exits it ran, with exitRange recorded
+ok 12 - a sliced row is never PASS: the worst of the exits it ran, with exitRange recorded
+  ---
+  duration_ms: 1.094483
+  ...
+# Subtest: without --exits nothing changes: every exit runs and no result is rewritten
+ok 13 - without --exits nothing changes: every exit runs and no result is rewritten
+  ---
+  duration_ms: 0.91887
+  ...
+# Subtest: parseAppCasesArgs reads --exits and refuses it without --case
+ok 14 - parseAppCasesArgs reads --exits and refuses it without --case
+  ---
+  duration_ms: 0.496563
+  ...
+# Subtest: app-cases.mjs --exits: a bad range exits 2, and a pending row still reports BLOCKED
+ok 15 - app-cases.mjs --exits: a bad range exits 2, and a pending row still reports BLOCKED
+  ---
+  duration_ms: 249.090602
+  ...
+# Subtest: FQ-51 carries both rules and renders them with no fault rewritten
+ok 16 - FQ-51 carries both rules and renders them with no fault rewritten
+  ---
+  duration_ms: 0.964018
+  ...
+# Subtest: the matrix row names FQ-51's dead refresh and the re-auth precondition
+ok 17 - the matrix row names FQ-51's dead refresh and the re-auth precondition
+  ---
+  duration_ms: 1.511088
+  ...
+# Subtest: the member deactivate/reactivate calls carry the organization SLUG, not its id
+ok 18 - the member deactivate/reactivate calls carry the organization SLUG, not its id
+  ---
+  duration_ms: 1.236816
+  ...
+# Subtest: signOut answers the G5-11 S3 prompt the way the product's UI does
+ok 19 - signOut answers the G5-11 S3 prompt the way the product's UI does
+  ---
+  duration_ms: 0.264153
+  ...
+# Subtest: a sliced row's exits keep their row ordinal, a whole row and a one-exit row unchanged (review r6 R6-1)
+ok 20 - a sliced row's exits keep their row ordinal, a whole row and a one-exit row unchanged (review r6 R6-1)
+  ---
+  duration_ms: 0.793989
+  ...
+# Subtest: the signed-out facts probe reports a missing sync center instead of throwing
+ok 21 - the signed-out facts probe reports a missing sync center instead of throwing
+  ---
+  duration_ms: 0.223776
+  ...
+# Subtest: FQ-51's signed-out exits assert the surfaces that carry the signed_out reason
+ok 22 - FQ-51's signed-out exits assert the surfaces that carry the signed_out reason
+  ---
+  duration_ms: 0.13704
+  ...
+# Subtest: FQ-53's fill reaches the G5-11 store budget (1 GiB), not the G5-04 one (256 MiB)
+ok 23 - FQ-53's fill reaches the G5-11 store budget (1 GiB), not the G5-04 one (256 MiB)
+  ---
+  duration_ms: 0.192976
+  ...
+# Subtest: FQ-50's exits carry OQ-F12 on 1/4/5 and OQ-F6 on 2/3 (Advisor qa-fault_local:46)
+ok 24 - FQ-50's exits carry OQ-F12 on 1/4/5 and OQ-F6 on 2/3 (Advisor qa-fault_local:46)
+  ---
+  duration_ms: 1.277516
+  ...
+# Subtest: the OQ-F12 exits are the ones that lift a real condition; the OQ-F6 ones meet the 403
+ok 25 - the OQ-F12 exits are the ones that lift a real condition; the OQ-F6 ones meet the 403
+  ---
+  duration_ms: 0.156286
+  ...
+# Subtest: FQ-51 gains no tag: the reading fix is what its session_expired exit needs (qa-fault_local:46)
+ok 26 - FQ-51 gains no tag: the reading fix is what its session_expired exit needs (qa-fault_local:46)
+  ---
+  duration_ms: 0.106211
+  ...
+# Subtest: the matrix FQ-50 row and the OQ-F6 / OQ-F12 paragraphs name the tags and the decision id
+ok 27 - the matrix FQ-50 row and the OQ-F6 / OQ-F12 paragraphs name the tags and the decision id
+  ---
+  duration_ms: 0.531179
+  ...
+# Subtest: with every FQ-50 exit tagged, a FAIL on one exit never blocks the exits after it
+ok 28 - with every FQ-50 exit tagged, a FAIL on one exit never blocks the exits after it
+  ---
+  duration_ms: 0.299183
+  ...
+# Subtest: (a) the r13/r14 FQ-51 exit-1 shape passes client_path, expectation unchanged
+ok 29 - (a) the r13/r14 FQ-51 exit-1 shape passes client_path, expectation unchanged
+  ---
+  duration_ms: 0.347024
+  ...
+# Subtest: (b) a real queue-machine blocked followed by validating still fails client_path
+ok 30 - (b) a real queue-machine blocked followed by validating still fails client_path
+  ---
+  duration_ms: 0.229044
+  ...
+# Subtest: only the hook's signed-out render is a lift: its own code AND the record staying put
+ok 31 - only the hook's signed-out render is a lift: its own code AND the record staying put
+  ---
+  duration_ms: 0.129129
+  ...
+# Subtest: (c) FQ-50 and FQ-51 keep their expectations; the reading does not loosen FQ-50
+ok 32 - (c) FQ-50 and FQ-51 keep their expectations; the reading does not loosen FQ-50
+  ---
+  duration_ms: 0.314794
+  ...
+# Subtest: the matrix FQ-51 row and the §6 clientPath line name the hook-lift reading and the decision id
+ok 33 - the matrix FQ-51 row and the §6 clientPath line name the hook-lift reading and the decision id
+  ---
+  duration_ms: 0.657707
+  ...
+# Subtest: the r14 shape (clean park, lockedCount 0) passes the reading the exits 2-3 use
+ok 34 - the r14 shape (clean park, lockedCount 0) passes the reading the exits 2-3 use
+  ---
+  duration_ms: 0.504386
+  ...
+# Subtest: a snapshot with no locked row still FAILs when the exit truly expects a held item
+ok 35 - a snapshot with no locked row still FAILs when the exit truly expects a held item
+  ---
+  duration_ms: 0.16458
+  ...
+# Subtest: a snapshot with no signed-out summary always FAILs: the surface must exist
+ok 36 - a snapshot with no signed-out summary always FAILs: the surface must exist
+  ---
+  duration_ms: 0.282436
+  ...
+# Subtest: the probe feeds the reading: a snapshot without signedOut is a FAIL, one with it is read
+ok 37 - the probe feeds the reading: a snapshot without signedOut is a FAIL, one with it is read
+  ---
+  duration_ms: 0.604452
+  ...
+# Subtest: the FQ-51 driver reads the summary and never demands a locked item for this path
+ok 38 - the FQ-51 driver reads the summary and never demands a locked item for this path
+  ---
+  duration_ms: 0.148396
+  ...
+# Subtest: the matrix FQ-51 row records the R7-1 reading and the fork citations it rests on
+ok 39 - the matrix FQ-51 row records the R7-1 reading and the fork citations it rests on
+  ---
+  duration_ms: 0.352766
+  ...
+# Subtest: FQ-50 permission_revoked: prepare restricts the document and shares it at edit
+ok 40 - FQ-50 permission_revoked: prepare restricts the document and shares it at edit
+  ---
+  duration_ms: 28.319036
+  ...
+# Subtest: FQ-50 permission_revoked: set downgrades the same share to view, lift restores edit
+ok 41 - FQ-50 permission_revoked: set downgrades the same share to view, lift restores edit
+  ---
+  duration_ms: 9.489237
+  ...
+# Subtest: FQ-50's other exits keep their own conditions and carry the fix17 per-exit tags
+ok 42 - FQ-50's other exits keep their own conditions and carry the fix17 per-exit tags
+  ---
+  duration_ms: 0.189979
+  ...
+# Subtest: the matrix row names FQ-50's permission downgrade and the 403 it produces
+ok 43 - the matrix row names FQ-50's permission downgrade and the 403 it produces
+  ---
+  duration_ms: 0.545158
+  ...
+# Subtest: R2-1: a run whose only failure is run_execution (unreachable) is a FAIL with infraFailure and never predicted
+ok 44 - R2-1: a run whose only failure is run_execution (unreachable) is a FAIL with infraFailure and never predicted
+  ---
+  duration_ms: 1.042854
+  ...
+# Subtest: R2-1: a product assertion FAIL on FQ-22 is still predicted OQ-F11 and carries no infraFailure
+ok 45 - R2-1: a product assertion FAIL on FQ-22 is still predicted OQ-F11 and carries no infraFailure
+  ---
+  duration_ms: 0.489894
+  ...
+# Subtest: R2-1: a run with both a product and an infra failure is a product FAIL (the tag stays); harness_started is infra too
+ok 46 - R2-1: a run with both a product and an infra failure is a product FAIL (the tag stays); harness_started is infra too
+  ---
+  duration_ms: 0.175041
+  ...
+# Subtest: R2-1: an unpredicted infra FAIL does not hide another run's predicted FAIL tag, nor the reverse
+ok 47 - R2-1: an unpredicted infra FAIL does not hide another run's predicted FAIL tag, nor the reverse
+  ---
+  duration_ms: 0.137668
+  ...
+# Subtest: R2-1: a BLOCKED row has no infraFailure and the harness guard keeps none on a BLOCKED row
+ok 48 - R2-1: a BLOCKED row has no infraFailure and the harness guard keeps none on a BLOCKED row
+  ---
+  duration_ms: 0.196665
+  ...
+# Subtest: R2-5: run_execution.actual carries the cause clause once for an unreachable TenantError
+ok 49 - R2-5: run_execution.actual carries the cause clause once for an unreachable TenantError
+  ---
+  duration_ms: 26.779163
+  ...
+# Subtest: R2-5: an Error that is not a TenantError gets its fetch cause once, a plain Error nothing
+ok 50 - R2-5: an Error that is not a TenantError gets its fetch cause once, a plain Error nothing
+  ---
+  duration_ms: 0.718574
+  ...
+# Subtest: R2-6: runnerApiOrigin maps localhost, [::1] and bare ::1 to the IPv4 loopback and leaves other hosts alone
+ok 51 - R2-6: runnerApiOrigin maps localhost, [::1] and bare ::1 to the IPv4 loopback and leaves other hosts alone
+  ---
+  duration_ms: 0.350081
+  ...
+# Subtest: R2-6: the precondition reason names the origin it probed, and the published API_ORIGIN when it differs
+ok 52 - R2-6: the precondition reason names the origin it probed, and the published API_ORIGIN when it differs
+  ---
+  duration_ms: 0.264859
+  ...
+# Subtest: N-1: after an exit FAILs, each later exit is BLOCKED 'earlier exit <x> failed'; a clean row is untouched
+ok 53 - N-1: after an exit FAILs, each later exit is BLOCKED 'earlier exit <x> failed'; a clean row is untouched
+  ---
+  duration_ms: 0.539731
+  ...
+# Subtest: N-1: a complete PASS stays PASS, and a BLOCKED exit alone does not stop the row
+ok 54 - N-1: a complete PASS stays PASS, and a BLOCKED exit alone does not stop the row
+  ---
+  duration_ms: 0.188987
+  ...
+# Subtest: R3-1: FQ-40 exit 1 is a predicted FAIL (OQ-F11): exits 2..5 still run, and the row stays FAIL
+ok 55 - R3-1: FQ-40 exit 1 is a predicted FAIL (OQ-F11): exits 2..5 still run, and the row stays FAIL
+  ---
+  duration_ms: 2.296642
+  ...
+# Subtest: R3-1: a predicted FAIL followed by a non-predicted FAIL blocks what comes after the second
+ok 56 - R3-1: a predicted FAIL followed by a non-predicted FAIL blocks what comes after the second
+  ---
+  duration_ms: 0.327916
+  ...
+# Subtest: R3-1: a non-predicted FAIL first blocks every later exit of FQ-40, and the row is FAIL
+ok 57 - R3-1: a non-predicted FAIL first blocks every later exit of FQ-40, and the row is FAIL
+  ---
+  duration_ms: 0.230018
+  ...
+# Subtest: R3-1: an infra FAIL on a predicted exit still blocks the rest (runResult drops the tag from it)
+ok 58 - R3-1: an infra FAIL on a predicted exit still blocks the rest (runResult drops the tag from it)
+  ---
+  duration_ms: 0.220629
+  ...
+# Subtest: R3-3a: FQ-20's app_process_tree_killed says '0 pids: <cause>' and is not ok when the crash killed nothing
+ok 59 - R3-3a: FQ-20's app_process_tree_killed says '0 pids: <cause>' and is not ok when the crash killed nothing
+  ---
+  duration_ms: 6.385841
+  ...
+# Subtest: R3-3a: runAppCases with the server dead before seeding returns BLOCKED rows, the HARNESS_DOWN line and 77
+ok 60 - R3-3a: runAppCases with the server dead before seeding returns BLOCKED rows, the HARNESS_DOWN line and 77
+  ---
+  duration_ms: 13.868507
+  ...
+# Subtest: R4-1: a multi-exit row's `predicted FAIL X` note tags none of its exits, so N-1 still blocks after an untagged FAIL
+ok 61 - R4-1: a multi-exit row's `predicted FAIL X` note tags none of its exits, so N-1 still blocks after an untagged FAIL
+  ---
+  duration_ms: 1.313931
+  ...
+# Subtest: R4-1: a per-exit tag on a multi-exit row still applies to that exit only, with the row note present
+ok 62 - R4-1: a per-exit tag on a multi-exit row still applies to that exit only, with the row note present
+  ---
+  duration_ms: 0.242453
+  ...
+# Subtest: R4-1: a single-exit row keeps its note tag
+ok 63 - R4-1: a single-exit row keeps its note tag
+  ---
+  duration_ms: 0.150273
+  ...
+# Subtest: R4-2: infraFailureOf names a run with no assertion at all as infra
+ok 64 - R4-2: infraFailureOf names a run with no assertion at all as infra
+  ---
+  duration_ms: 0.127842
+  ...
+# Subtest: R4-2: a predicted exit that FAILs with no assertion is an infra FAIL, carries no tag and blocks the rest of the row
+ok 65 - R4-2: a predicted exit that FAILs with no assertion is an infra FAIL, carries no tag and blocks the rest of the row
+  ---
+  duration_ms: 1.471148
+  ...
+# Subtest: R4-2: a BLOCKED run with no assertion stays BLOCKED, with no infraFailure
+ok 66 - R4-2: a BLOCKED run with no assertion stays BLOCKED, with no infraFailure
+  ---
+  duration_ms: 0.089734
+  ...
+# Subtest: exactly these exits of FQ-40..FQ-44 carry OQ-F11: every run of every one of the five rows
+ok 67 - exactly these exits of FQ-40..FQ-44 carry OQ-F11: every run of every one of the five rows
+  ---
+  duration_ms: 1.156397
+  ...
+# Subtest: the OQ-F11 tag is the exit's own field, never a row note on a multi-exit row
+ok 68 - the OQ-F11 tag is the exit's own field, never a row note on a multi-exit row
+  ---
+  duration_ms: 0.249435
+  ...
+# Subtest: FQ-22 and FQ-24 tags are unchanged, FQ-50 carries its fix17 tags; no other row gains a tag
+ok 69 - FQ-22 and FQ-24 tags are unchanged, FQ-50 carries its fix17 tags; no other row gains a tag
+  ---
+  duration_ms: 0.320011
+  ...
+# Subtest: a predicted FAIL on an earlier exit no longer blocks FQ-40's later exits or FQ-43's: every exit runs
+ok 70 - a predicted FAIL on an earlier exit no longer blocks FQ-40's later exits or FQ-43's: every exit runs
+  ---
+  duration_ms: 1.096504
+  ...
+# Subtest: selectAppCases runs the ready app rows and reports pending ones with their dependency
+ok 71 - selectAppCases runs the ready app rows and reports pending ones with their dependency
+  ---
+  duration_ms: 3.065863
+  ...
+# Subtest: every ready app row has a driver and every driver serves a ready row
+ok 72 - every ready app row has a driver and every driver serves a ready row
+  ---
+  duration_ms: 0.778588
+  ...
+# Subtest: the client assertions of every app row read the trace hook
+ok 73 - the client assertions of every app row read the trace hook
+  ---
+  duration_ms: 0.882162
+  ...
+# Subtest: FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight
+ok 74 - FQ-42 drops the first commit so the intent reconciles, then the lookup only says in_flight
+  ---
+  duration_ms: 0.774544
+  ...
+# Subtest: parseTraceText keeps allow-listed keys and counts torn or foreign lines
+ok 75 - parseTraceText keeps allow-listed keys and counts torn or foreign lines
+  ---
+  duration_ms: 0.377028
+  ...
+# Subtest: an app row's intent-log.jsonl carries the documented keys on every line, mapped from the trace (matrix §4)
+ok 76 - an app row's intent-log.jsonl carries the documented keys on every line, mapped from the trace (matrix §4)
+  ---
+  duration_ms: 0.68613
+  ...
+# Subtest: intent-log attempt counts dispatch runs per intent; keyTag is null without exactly one commit key; empty trace -> empty files
+ok 77 - intent-log attempt counts dispatch runs per intent; keyTag is null without exactly one commit key; empty trace -> empty files
+  ---
+  duration_ms: 0.346793
+  ...
+# Subtest: the server rows' intent-log entries carry the same documented keys as the app rows' (one schema)
+ok 78 - the server rows' intent-log entries carry the same documented keys as the app rows' (one schema)
+  ---
+  duration_ms: 0.458037
+  ...
+# Subtest: matrix §4 documents the intent-log keys the runners write, and the app-trace artifact
+ok 79 - matrix §4 documents the intent-log keys the runners write, and the app-trace artifact
+  ---
+  duration_ms: 0.699422
+  ...
+# Subtest: filterTrace keeps one document, in order, optionally since a timestamp
+ok 80 - filterTrace keeps one document, in order, optionally since a timestamp
+  ---
+  duration_ms: 0.373758
+  ...
+# Subtest: statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation
+ok 81 - statePath and matchStatePath: adjacency, '*' gaps and 'a|b' alternation
+  ---
+  duration_ms: 0.324214
+  ...
+# Subtest: transition assertions report the expected and the actual path
+ok 82 - transition assertions report the expected and the actual path
+  ---
+  duration_ms: 0.292374
+  ...
+# Subtest: proxy log helpers split commit, lookup and upload traffic per document
+ok 83 - proxy log helpers split commit, lookup and upload traffic per document
+  ---
+  duration_ms: 0.323686
+  ...
+# Subtest: expandExits runs each exit once; a row without exits is one run
+ok 84 - expandExits runs each exit once; a row without exits is one run
+  ---
+  duration_ms: 1.627539
+  ...
+# Subtest: runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS
+ok 85 - runResult and caseResult: FAIL wins, PASS needs every run, a blocked run is never a PASS
+  ---
+  duration_ms: 0.443179
+  ...
+# Subtest: runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)
+ok 86 - runExitCode: ready rows decide; nothing ready ran is BLOCKED (77)
+  ---
+  duration_ms: 0.105932
+  ...
+# Subtest: predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL
+ok 87 - predictedTag reads the row's notes; FQ-24 is the predicted F4 FAIL
+  ---
+  duration_ms: 1.689262
+  ...
+# Subtest: every exit of FQ-40 is the predicted FAIL OQ-F11, tagged per exit (Advisor qa-fault_local:10 and :23)
+ok 88 - every exit of FQ-40 is the predicted FAIL OQ-F11, tagged per exit (Advisor qa-fault_local:10 and :23)
+  ---
+  duration_ms: 0.873666
+  ...
+# Subtest: a case is reported predicted only when every FAIL run is: an unpredicted FAIL is never hidden
+ok 89 - a case is reported predicted only when every FAIL run is: an unpredicted FAIL is never hidden
+  ---
+  duration_ms: 0.206401
+  ...
+# Subtest: app-cases.mjs --case <pending row>: exit 77, result.json written, the artifact directory is the last line
+ok 90 - app-cases.mjs --case <pending row>: exit 77, result.json written, the artifact directory is the last line
+  ---
+  duration_ms: 195.356918
+  ...
+# Subtest: app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree
+ok 91 - app plumbing: attempt id, store scope, fault env through appEnv, env files, process tree
+  ---
+  duration_ms: 0.863646
+  ...
+# Subtest: parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result
+ok 92 - parseAppCasesArgs reads --case, --run-dir, --cases-file and --verify-result
+  ---
+  duration_ms: 0.296339
+  ...
+# Subtest: deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI
+ok 93 - deviceBCommit sends base_revision as a decimal string, like CommitDocumentVersionSDI
+  ---
+  duration_ms: 33.869819
+  ...
+# Subtest: authedRequest renews an expired session once on a 401 and retries once
+ok 94 - authedRequest renews an expired session once on a 401 and retries once
+  ---
+  duration_ms: 7.373885
+  ...
+# Subtest: authedRequest never loops: a second 401 is returned after one renewal
+ok 95 - authedRequest never loops: a second 401 is returned after one renewal
+  ---
+  duration_ms: 3.995964
+  ...
+# Subtest: a session older than the renew window is renewed before the request; a stub without password never is
+ok 96 - a session older than the renew window is renewed before the request; a stub without password never is
+  ---
+  duration_ms: 4.725518
+  ...
+# Subtest: totpCode matches the RFC 6238 SHA-1 vectors
+ok 97 - totpCode matches the RFC 6238 SHA-1 vectors
+  ---
+  duration_ms: 0.622582
+  ...
+# Subtest: login completes the MFA step with the enrolled secret; enrollTotp confirms with a live code
+ok 98 - login completes the MFA step with the enrolled secret; enrollTotp confirms with a live code
+  ---
+  duration_ms: 9.430637
+  ...
+# Subtest: expireStagedClaims reports the aged row count and BLOCKS a setup that aged nothing
+ok 99 - expireStagedClaims reports the aged row count and BLOCKS a setup that aged nothing
+  ---
+  duration_ms: 1.189209
+  ...
+# Subtest: a run's evidence carries the full trace and every sync request; FAIL runs print them
+ok 100 - a run's evidence carries the full trace and every sync request; FAIL runs print them
+  ---
+  duration_ms: 0.504836
+  ...
+# Subtest: dRequest reports the fetch cause for a closed port without leaking the token
+ok 101 - dRequest reports the fetch cause for a closed port without leaking the token
+  ---
+  duration_ms: 4.522151
+  ...
+# Subtest: runnerApiOrigin maps localhost to the IPv4 loopback and leaves other hosts alone
+ok 102 - runnerApiOrigin maps localhost to the IPv4 loopback and leaves other hosts alone
+  ---
+  duration_ms: 0.227661
+  ...
+# Subtest: parsePsTable reads pid, ppid and pgid, and tolerates a two-column ps
+ok 103 - parsePsTable reads pid, ppid and pgid, and tolerates a two-column ps
+  ---
+  duration_ms: 1.162606
+  ...
+# Subtest: harnessPidsFromFile reads stop.sh's `<name> <pid> <port>` lines
+ok 104 - harnessPidsFromFile reads stop.sh's `<name> <pid> <port>` lines
+  ---
+  duration_ms: 0.131083
+  ...
+# Subtest: crashTargets is the launched Electron's tree, deepest first, the root last
+ok 105 - crashTargets is the launched Electron's tree, deepest first, the root last
+  ---
+  duration_ms: 0.341611
+  ...
+# Subtest: crashTargets never includes a pid outside the launched tree
+ok 106 - crashTargets never includes a pid outside the launched tree
+  ---
+  duration_ms: 0.26501
+  ...
+# Subtest: crashTargets refuses a root that is not the runner's own child (gone or reused pid)
+ok 107 - crashTargets refuses a root that is not the runner's own child (gone or reused pid)
+  ---
+  duration_ms: 0.190361
+  ...
+# Subtest: crashTargets drops a descendant in a harness group or in the runner's own group
+ok 108 - crashTargets drops a descendant in a harness group or in the runner's own group
+  ---
+  duration_ms: 0.870443
+  ...
+# Subtest: ownGroupTarget signals only the group of a real spawned pid
+ok 109 - ownGroupTarget signals only the group of a real spawned pid
+  ---
+  duration_ms: 0.129808
+  ...
+# Subtest: serverShutdownOf finds the last shutdown line and its signal
+ok 110 - serverShutdownOf finds the last shutdown line and its signal
+  ---
+  duration_ms: 0.199914
+  ...
+# Subtest: harnessDownReason: null while /healthz is ok, else the BLOCKED reason with the kill time
+ok 111 - harnessDownReason: null while /healthz is ok, else the BLOCKED reason with the kill time
+  ---
+  duration_ms: 0.40671
+  ...
+# Subtest: guardCaseResult leaves every result alone while the server is up
+ok 112 - guardCaseResult leaves every result alone while the server is up
+  ---
+  duration_ms: 0.326172
+  ...
+# Subtest: guardCaseResult turns a FAIL against a dead server into BLOCKED with the reason, dropping the predicted tag
+ok 113 - guardCaseResult turns a FAIL against a dead server into BLOCKED with the reason, dropping the predicted tag
+  ---
+  duration_ms: 0.141059
+  ...
+# Subtest: guardCaseResult keeps a complete PASS, blocks a PASS cut short, and keeps a BLOCKED row
+ok 114 - guardCaseResult keeps a complete PASS, blocks a PASS cut short, and keeps a BLOCKED row
+  ---
+  duration_ms: 0.108967
+  ...
+# Subtest: FIX-6-2: a BLOCKED downgrade leaves no predicted tag at the case level or on any exit; a kept result keeps its tags
+ok 115 - FIX-6-2: a BLOCKED downgrade leaves no predicted tag at the case level or on any exit; a kept result keeps its tags
+  ---
+  duration_ms: 0.15847
+  ...
+# Subtest: FIX-6-4: a server already dead before seeding gives the guard's reason and never calls seed
+ok 116 - FIX-6-4: a server already dead before seeding gives the guard's reason and never calls seed
+  ---
+  duration_ms: 0.131544
+  ...
+# Subtest: FIX-6-4: a failing seed against a server that died meanwhile is BLOCKED; with the server up it is rethrown
+ok 117 - FIX-6-4: a failing seed against a server that died meanwhile is BLOCKED; with the server up it is rethrown
+  ---
+  duration_ms: 0.381771
+  ...
+# Subtest: FIX-6-3: crashZeroCause names why a crash had no target, and is null when it has one
+ok 118 - FIX-6-3: crashZeroCause names why a crash had no target, and is null when it has one
+  ---
+  duration_ms: 0.228001
+  ...
+# Subtest: FIX-6-3: crash() with a stale pid kills 0, records the cause, and an already closed session says so
+ok 119 - FIX-6-3: crash() with a stale pid kills 0, records the cause, and an already closed session says so
+  ---
+  duration_ms: 3.304825
+  ...
+# Subtest: case ids are unique and carry the card prefix
+ok 120 - case ids are unique and carry the card prefix
+  ---
+  duration_ms: 0.745677
+  ...
+# Subtest: the card AC lists in the file match the plan cards
+ok 121 - the card AC lists in the file match the plan cards
+  ---
+  duration_ms: 0.440038
+  ...
+# Subtest: every AC a card lists appears in at least one of its rows
+ok 122 - every AC a card lists appears in at least one of its rows
+  ---
+  duration_ms: 0.228807
+  ...
+# Subtest: the version delta in the matrix row is the version delta in cases.json expect
+ok 123 - the version delta in the matrix row is the version delta in cases.json expect
+  ---
+  duration_ms: 4.707357
+  ...
+# Subtest: a row lists only AC rows of its own card
+ok 124 - a row lists only AC rows of its own card
+  ---
+  duration_ms: 0.228553
+  ...
+# Subtest: every row has a layer, an expectation, artifacts and a status
+ok 125 - every row has a layer, an expectation, artifacts and a status
+  ---
+  duration_ms: 1.159109
+  ...
+# Subtest: pending rows name a dependency and ready rows have none
+ok 126 - pending rows name a dependency and ready rows have none
+  ---
+  duration_ms: 0.176637
+  ...
+# Subtest: every G7-03b row is pending and notes the G5-D1 gate
+ok 127 - every G7-03b row is pending and notes the G5-D1 gate
+  ---
+  duration_ms: 0.131069
+  ...
+# Subtest: a row runs on a fixture every one of its AC rows declares
+ok 128 - a row runs on a fixture every one of its AC rows declares
+  ---
+  duration_ms: 0.34982
+  ...
+# Subtest: proxy rules follow the proxy contract
+ok 129 - proxy rules follow the proxy contract
+  ---
+  duration_ms: 0.569184
+  ...
+# Subtest: proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+ok 130 - proxy forwards methods, rewrites Host to target, passes multipart intact, and never forwards control paths
+  ---
+  duration_ms: 31.565197
+  ...
+# Subtest: proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+ok 131 - proxy proves delay, drop_request, drop_response_after_forward, status, reset, nth, once, and hold + release
+  ---
+  duration_ms: 99.172428
+  ...
+# Subtest: proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+ok 132 - proxy log records required fields only and never logs bodies, Authorization, cookies, tokens or key values
+  ---
+  duration_ms: 10.597255
+  ...
+# Subtest: proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+ok 133 - proxy passes WebSocket upgrade connections through and CLI prints FAULT_PROXY_ORIGIN
+  ---
+  duration_ms: 46.563481
+  ...
+# Subtest: collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+ok 134 - collect.mjs reads paginated document versions via public API, writes server-versions.json, and enforces FAULT_API_TOKEN from env only
+  ---
+  duration_ms: 9.806
+  ...
+# Subtest: stripQuery removes query strings and fragments and normalizes full URLs
+ok 135 - stripQuery removes query strings and fragments and normalizes full URLs
+  ---
+  duration_ms: 0.612785
+  ...
+# Subtest: validateRule and validateRules accept all six action types and reject malformed rules
+ok 136 - validateRule and validateRules accept all six action types and reject malformed rules
+  ---
+  duration_ms: 0.975235
+  ...
+# Subtest: first matching rule wins and once rules disarm after the first hit
+ok 137 - first matching rule wins and once rules disarm after the first hit
+  ---
+  duration_ms: 0.465549
+  ...
+# Subtest: nth (1-based) triggers only on the nth matching request
+ok 138 - nth (1-based) triggers only on the nth matching request
+  ---
+  duration_ms: 1.013911
+  ...
+# Subtest: hold action blocks until release(ruleId) is called
+ok 139 - hold action blocks until release(ruleId) is called
+  ---
+  duration_ms: 15.796386
+  ...
+# Subtest: selectServerCases selects all 13 ready server rows or a single --case row
+ok 140 - selectServerCases selects all 13 ready server rows or a single --case row
+  ---
+  duration_ms: 1.421606
+  ...
+# Subtest: parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+ok 141 - parseServerCasesArgs parses --case, --run-dir, env defaults, and rejects unknown flags
+  ---
+  duration_ms: 2.314443
+  ...
+# Subtest: renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+ok 142 - renderCaseRules renders server rules, substitutes <id>, and substitutes per-exit for FQ-43
+  ---
+  duration_ms: 1.06813
+  ...
+# Subtest: evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+ok 143 - evaluateCaseResult, aggregateExitCode, and buildIntentLogEntry follow contract rules
+  ---
+  duration_ms: 0.797221
+  ...
+# Subtest: runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+ok 144 - runServerCaseDriver executes all 13 server cases (FQ-01..FQ-13) against a fake transport
+  ---
+  duration_ms: 30.25932
+  ...
+# Subtest: every expectation of a server row in cases.json is asserted by its driver: the version delta of every row, every other value mutated
+ok 145 - every expectation of a server row in cases.json is asserted by its driver: the version delta of every row, every other value mutated
+  ---
+  duration_ms: 180.210976
+  ...
+# Subtest: every expect.proxyLog key of a server row is its own proxy_log.<key> assertion, and a mutated key fails only that one
+ok 146 - every expect.proxyLog key of a server row is its own proxy_log.<key> assertion, and a mutated key fails only that one
+  ---
+  duration_ms: 67.438545
+  ...
+# Subtest: a driver reading an expectation its row lacks throws instead of falling back to a number of its own
+ok 147 - a driver reading an expectation its row lacks throws instead of falling back to a number of its own
+  ---
+  duration_ms: 0.564201
+  ...
+# Subtest: case-result.json carries {case, ac, result, assertions: [{name, expected, actual, ok}]} (matrix §4)
+ok 148 - case-result.json carries {case, ac, result, assertions: [{name, expected, actual, ok}]} (matrix §4)
+  ---
+  duration_ms: 22.760558
+  ...
+# Subtest: runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+ok 149 - runSelectedServerCases reports BLOCKED (77) and writes per-case artifacts when harness is absent
+  ---
+  duration_ms: 2.573893
+  ...
+# Subtest: server-cases.mjs --case <id>: exit 77 without a harness, the artifact directory is the last line; --verify-result rereads it
+ok 150 - server-cases.mjs --case <id>: exit 77 without a harness, the artifact directory is the last line; --verify-result rereads it
+  ---
+  duration_ms: 190.883523
+  ...
+# Subtest: SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+ok 151 - SETUP_STATUS matches the handlers: register answers 200 (not 201), create org/workspace 201
+  ---
+  duration_ms: 0.086915
+  ...
+# Subtest: readVerificationCode reads the run's server.env, then the process env, then the harness default
+ok 152 - readVerificationCode reads the run's server.env, then the process env, then the harness default
+  ---
+  duration_ms: 0.45445
+  ...
+# Subtest: registerAndVerifyUser accepts register 200 and sends the run's verification code
+ok 153 - registerAndVerifyUser accepts register 200 and sends the run's verification code
+  ---
+  duration_ms: 0.664676
+  ...
+# Subtest: registerAndVerifyUser names the step and both statuses when the server answers otherwise
+ok 154 - registerAndVerifyUser names the step and both statuses when the server answers otherwise
+  ---
+  duration_ms: 0.215621
+  ...
+# Subtest: seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+ok 155 - seedFaultTenant builds org, workspace and memberB through the real statuses and re-invites idempotently
+  ---
+  duration_ms: 0.603682
+  ...
+# Subtest: revisions go on the wire as decimal strings and are never a Number (sdi.CommitDocumentVersionSDI.base_revision)
+ok 156 - revisions go on the wire as decimal strings and are never a Number (sdi.CommitDocumentVersionSDI.base_revision)
+  ---
+  duration_ms: 0.208553
+  ...
+# Subtest: revisionGreater compares decimal strings exactly past 2^53
+ok 157 - revisionGreater compares decimal strings exactly past 2^53
+  ---
+  duration_ms: 0.065958
+  ...
+# Subtest: the fake server refuses a numeric base_revision like the real commit handler (400 invalid_request)
+ok 158 - the fake server refuses a numeric base_revision like the real commit handler (400 invalid_request)
+  ---
+  duration_ms: 0.207787
+  ...
+# Subtest: commit requests carry upload_id and a string base_revision, and the Idempotency-Key header
+ok 159 - commit requests carry upload_id and a string base_revision, and the Idempotency-Key header
+  ---
+  duration_ms: 0.205443
+  ...
+# Subtest: a lookup 410 is parsed from the real envelope {error:{code,fields}} and a 200 from CommitIntentSDO
+ok 160 - a lookup 410 is parsed from the real envelope {error:{code,fields}} and a 200 from CommitIntentSDO
+  ---
+  duration_ms: 0.293302
+  ...
+# Subtest: describeResponse names the error code of every refusal, not `undefined`
+ok 161 - describeResponse names the error code of every refusal, not `undefined`
+  ---
+  duration_ms: 0.078113
+  ...
+# Subtest: a conflict reads fields.current_revision from the envelope as a string revision
+ok 162 - a conflict reads fields.current_revision from the envelope as a string revision
+  ---
+  duration_ms: 0.318838
+  ...
+# Subtest: the AI turn sends {messages:[{role:user}]} and continues with the X-UniWork-AI-Conversation header
+ok 163 - the AI turn sends {messages:[{role:user}]} and continues with the X-UniWork-AI-Conversation header
+  ---
+  duration_ms: 0.307586
+  ...
+# Subtest: restore then move sends a string revision and parent_id, a folder is created with kind folder
+ok 164 - restore then move sends a string revision and parent_id, a folder is created with kind folder
+  ---
+  duration_ms: 0.184841
+  ...
+# Subtest: FQ-13 expects 403 document_archived for a commit on an archived document (G5-07 F6), not 410 document_deleted
+ok 165 - FQ-13 expects 403 document_archived for a commit on an archived document (G5-07 F6), not 410 document_deleted
+  ---
+  duration_ms: 0.21249
+  ...
+# Subtest: workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204
+ok 166 - workspace member removal targets /workspaces/{ws}/members/{userId} and answers 204
+  ---
+  duration_ms: 0.092418
+  ...
+# Subtest: createWireContext builds each upload as a multipart file with the Idempotency-Key header
+ok 167 - createWireContext builds each upload as a multipart file with the Idempotency-Key header
+  ---
+  duration_ms: 0.183356
+  ...
+1..167
+# tests 167
+# suites 0
+# pass 167
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1025.020107
+FAULT_UNIT_EXIT=0

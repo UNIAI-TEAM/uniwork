@@ -1,0 +1,3 @@
+$ HARNESS_RUN_DIR="$PWD/.harness-run-1918c" bash scripts/office/g5g6g7/harness/stop.sh; echo "HARNESS_STOP_EXIT=$?"
+harness: stopped 4 process group(s) from /workspace/.harness-run-1918c
+HARNESS_STOP_EXIT=0
