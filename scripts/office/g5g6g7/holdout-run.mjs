@@ -6,6 +6,10 @@
 //   node scripts/office/g5g6g7/holdout-run.mjs --server-url <origin> --redis on|off [--db-url <postgres-url>] \
 //     [--runs 3] [--threads 1|2] [--out <dir>] [--server-sha <sha>] [--tool-schemas <file>]
 //
+// --tool-schemas defaults to the committed docs/office/g5g6g7/genoffice-tool-schemas.json (G7-12-SCHEMA, UNI-1964), so a
+// run no longer falls back to a hollow name-only surface by accident; --allow-name-only with no file is the explicit
+// hollow escape, and a file whose header.rev does not match the committed §3 block of genoffice-tools.md fails preflight.
+//
 // Cases are read at runtime from docs/office/g5g6g7/holdout/cases; no question, answer or marker is copied into code.
 // The run files may echo reference values, so they go OUTSIDE the repo (default ~/office-g5g6g7/reports/g6-ai_server/
 // g712-runs/); an --out inside the repo (symlinks resolved) is refused unless --allow-in-repo is given (tests use a temp
@@ -38,6 +42,15 @@ export const MANIFEST_KIND = 'uniwork-office-g7-holdout-manifest';
 export const sha256Hex = (value) => createHash('sha256').update(value).digest('hex');
 export const DEFAULT_CASES_DIR = path.join(repoRoot, 'docs/office/g5g6g7/holdout/cases');
 export const DEFAULT_OUT_DIR = path.join(os.homedir(), 'office-g5g6g7/reports/g6-ai_server/g712-runs');
+// G7-12-SCHEMA (UNI-1964): the committed genoffice tool-schema file is the default --tool-schemas, so a real run can no
+// longer fall back to the hollow name-only surface by accident (C6 did: --allow-name-only, no file). --allow-name-only
+// stays the explicit hollow escape. The file is content-current against the committed §3 block of genoffice-tools.md;
+// a run whose header.rev does not match that block is refused at preflight (no spend on a stale surface).
+export const DEFAULT_TOOL_SCHEMAS = path.join(repoRoot, 'docs/office/g5g6g7/genoffice-tool-schemas.json');
+const TOOLS_DOC = path.join(repoRoot, 'docs/office/g5g6g7/genoffice-tools.md');
+const EXTRACT_BEGIN = '<!-- extract:begin -->';
+const EXTRACT_END = '<!-- extract:end -->';
+const EXTRACT_REV_RE = /^<!-- genoffice-tools-extract v1 rev=([0-9a-f]{7,64}) -->$/;
 // One run allows 1 question turn + 8 tool-result turns = 9 model calls (A3; server/internal/ai/run_store.go,
 // design G6-03b §4.4/§5.4): the ninth tool round - the tenth call - is refused by contract, so the loop never sends
 // it. The answer's own x_uniwork.step/limit ends the loop even earlier when the run's cap is already spent
@@ -615,11 +628,38 @@ function assertFreshDir(dir) {
 }
 
 /**
- * Preflight of a real run (the CLI always calls it): Redis must be declared, and every module's tool surface must be a
- * real one (--tool-schemas) unless --allow-name-only says the run is knowingly hollow (a signed verdict will be INCONCLUSIVE).
+ * The rev the committed §3 block of genoffice-tools.md pins (its first line, `<!-- genoffice-tools-extract v1 rev=… -->`),
+ * or null when the block is unreadable. The default --tool-schemas file must agree with it (G7-12-SCHEMA): a file whose
+ * header.rev differs describes a different frame revision than the one the harness maps tools from.
  */
-export function preflight({ redis, catalogue, allowNameOnly = false }) {
+export function committedBlockRev(file = TOOLS_DOC) {
+  try {
+    const lines = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').split('\n');
+    const begin = lines.indexOf(EXTRACT_BEGIN);
+    if (begin < 0) return null;
+    return EXTRACT_REV_RE.exec(lines[begin + 1] ?? '')?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** A --tool-schemas file read from disk: the parsed document, its sha256 and its header (null header when absent). */
+export function readToolSchemasFile(file) {
+  const bytes = fs.readFileSync(file);
+  const doc = JSON.parse(bytes.toString('utf8'));
+  return { doc, sha256: sha256Hex(bytes), rev: doc?.header?.rev ?? null };
+}
+
+/**
+ * Preflight of a real run (the CLI always calls it): Redis must be declared, every module's tool surface must be a real
+ * one (--tool-schemas) unless --allow-name-only says the run is knowingly hollow (a signed verdict will be INCONCLUSIVE),
+ * and a --tool-schemas file's header.rev must match the committed §3 block rev, so a stale surface never reaches a run.
+ */
+export function preflight({ redis, catalogue, allowNameOnly = false, toolSchemas = null }) {
   if (redis !== 'on' && redis !== 'off') throw new Error('--redis on|off is required for a real run (the release tuple needs it; "unknown" is refused)');
+  if (toolSchemas?.rev && toolSchemas.rev !== committedBlockRev()) {
+    throw new Error(`--tool-schemas header.rev ${toolSchemas.rev} does not match the committed §3 block rev ${committedBlockRev() ?? 'unknown'} of genoffice-tools.md`);
+  }
   const hollow = Object.entries(toolSurface(catalogue)).filter(([, v]) => v.source === 'name-only').map(([m]) => m);
   if (hollow.length > 0 && !allowNameOnly) {
     throw new Error(`no real tool schemas for module(s) ${hollow.join(', ')}: pass --tool-schemas <file> covering them, or --allow-name-only to run knowingly with name-only tools`);
@@ -675,6 +715,8 @@ export async function runHoldout({
       config: {
         threads, answerProtocol: 'v1', numbers: options.numbers, anchors: options.anchors, computeByReply: options.computeByReply, maxRetries: options.maxRetries,
         langs: LANGS, casesRead: cases.length, footerSha256: sha256Hex(reportingFooter()), toolSurface: surface,
+        // G7-12-SCHEMA: the surface file a run used, recorded so a report can name it: its sha256 and its header.rev.
+        toolSchemas: options.toolSchemasSha256 ? { path: options.toolSchemasPath ?? null, sha256: options.toolSchemasSha256, rev: options.toolSchemasRev ?? null } : null,
         toolSurfaceSha256: sha256Hex(JSON.stringify(surface)), usageReader: usageReader ? 'ai_usage_events' : 'none', usageReaderError,
         harness: {
           backend: 'emulated fixture backend (tool results from synthetic fixtures; writes counted, never applied; viewer, revoke and stale emulated)',
@@ -965,6 +1007,7 @@ export function isInsideRepo(target, root = repoRoot) {
 export function parseArgs(argv) {
   const args = { runs: 3, threads: 2, out: DEFAULT_OUT_DIR, cases: DEFAULT_CASES_DIR, redis: 'unknown', numbers: 'strict', anchors: 'strict', maxRetries: 3, allowInRepo: false, allowNameOnly: false };
   const need = (i) => { if (argv[i + 1] === undefined) throw new Error(`${argv[i]} needs a value`); return argv[i + 1]; };
+  let toolSchemasGiven = false;
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     if (flag === '--server-url') args.serverUrl = need(i++).replace(/\/+$/, '');
@@ -979,7 +1022,7 @@ export function parseArgs(argv) {
     else if (flag === '--anchors') args.anchors = need(i++);
     else if (flag === '--compute-by-reply') args.computeByReply = need(i++);
     else if (flag === '--max-retries') args.maxRetries = Number(need(i++));
-    else if (flag === '--tool-schemas') args.toolSchemas = path.resolve(need(i++));
+    else if (flag === '--tool-schemas') { args.toolSchemas = path.resolve(need(i++)); toolSchemasGiven = true; }
     else if (flag === '--allow-name-only') args.allowNameOnly = true;
     else if (flag === '--only') args.only = need(i++).split(',').filter(Boolean);
     else if (flag === '--limit') args.limit = Number(need(i++));
@@ -988,6 +1031,9 @@ export function parseArgs(argv) {
     else throw new Error(`unknown argument ${flag}`);
   }
   if (args.help) return args;
+  // G7-12-SCHEMA: the committed file is the default surface. --allow-name-only with no file keeps the hollow path
+  // reachable on purpose (the explicit escape); an explicit --tool-schemas always wins.
+  if (!toolSchemasGiven && !args.allowNameOnly) args.toolSchemas = DEFAULT_TOOL_SCHEMAS;
   if (!Number.isInteger(args.runs) || args.runs < 1) throw new Error('--runs must be an integer >= 1');
   if (![1, 2].includes(args.threads)) throw new Error('--threads must be 1 or 2 (the sign-off profile is at most 2 concurrent threads)');
   if (!['on', 'off', 'unknown'].includes(args.redis)) throw new Error('--redis must be on, off or unknown');
@@ -1005,7 +1051,10 @@ const HELP = `Usage: node scripts/office/g5g6g7/holdout-run.mjs --server-url <or
   [--out <dir>] [--server-sha <sha>] [--tool-schemas <file>] [--allow-name-only] [--numbers strict|lenient] [--anchors strict|lenient]
   [--compute-by-reply on|off] [--max-retries 3] [--only HO-ID,HO-ID] [--limit N] [--allow-in-repo]
 Writes ONE session folder <out>/<sessionId>/ with run-NN.json and manifest.json (default --out is outside the repo). A real run needs
---redis on|off and real tool schemas for every module (--tool-schemas, or --allow-name-only for a knowingly hollow run).
+--redis on|off and real tool schemas for every module: --tool-schemas defaults to the committed file
+(docs/office/g5g6g7/genoffice-tool-schemas.json), so a run no longer falls back to name-only by accident; --allow-name-only with no
+file is the explicit hollow escape (a signed verdict on such a run is INCONCLUSIVE). A file whose header.rev does not match the
+committed §3 block of genoffice-tools.md fails preflight.
 --only/--limit make a partial run, which the report never counts as complete. --anchors lenient and --numbers lenient are opt-in
 policies; a signed verdict on such runs is INCONCLUSIVE.
 Read the result with: node scripts/office/g5g6g7/holdout-report.mjs --runs <session folder> [--reviews <file>] [--thresholds <signed.json>]
@@ -1016,7 +1065,9 @@ async function main() {
   if (args.help) { process.stdout.write(HELP); return; }
   const schemaBytes = args.toolSchemas ? fs.readFileSync(args.toolSchemas) : null;
   const toolSchemas = schemaBytes ? JSON.parse(schemaBytes.toString('utf8')) : null;
-  preflight({ redis: args.redis, catalogue: toolCatalogue(toolSchemas), allowNameOnly: args.allowNameOnly });
+  const toolSchemasSha256 = schemaBytes ? sha256Hex(schemaBytes) : null;
+  const toolSchemasRev = toolSchemas?.header?.rev ?? null;
+  preflight({ redis: args.redis, catalogue: toolCatalogue(toolSchemas), allowNameOnly: args.allowNameOnly, toolSchemas: { rev: toolSchemasRev } });
   if (!args.dbUrl) process.stderr.write('warning: no --db-url: provider, prompt_id and server latency stay unknown, so a signed verdict on these runs is INCONCLUSIVE\n');
   const { cases } = loadCases(args.cases);
   const sessionId = newSessionId();
@@ -1027,7 +1078,7 @@ async function main() {
     usageReader: createUsageReader({ dbUrl: args.dbUrl }), redis: args.redis, serverSha: args.serverSha ?? '', onlyIds: args.only ?? null, limit: args.limit ?? 0,
     opts: {
       numbers: args.numbers, anchors: args.anchors, computeByReply: args.computeByReply !== 'off', maxRetries: args.maxRetries, toolSchemas,
-      toolSchemasSha256: schemaBytes ? sha256Hex(schemaBytes) : null,
+      toolSchemasSha256, toolSchemasRev, toolSchemasPath: args.toolSchemas ?? null,
     },
     log: (line) => process.stdout.write(`${line}\n`),
   });

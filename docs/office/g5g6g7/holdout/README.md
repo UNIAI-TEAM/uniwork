@@ -219,6 +219,11 @@ node scripts/office/g5g6g7/holdout-report.mjs --runs ~/office-g5g6g7/reports/g6-
   thật (`--tool-schemas <file>` phải phủ slides/pdf/markdown/html; sheets và docs dùng lược đồ của dev set), trừ khi có
   `--allow-name-only` (chạy cố ý với công cụ chỉ có tên; kết luận đã ký trên lần chạy đó là `INCONCLUSIVE`). Nguồn lược đồ
   từng module (`devset` | `file:<sha256>` | `name-only`) và sha256 bộ công cụ được ghi vào `config.toolSurface`.
+- **`--tool-schemas` mặc định là tệp đã commit (G7-12-SCHEMA, UNI-1964).** Không truyền cờ thì lần chạy dùng
+  `docs/office/g5g6g7/genoffice-tool-schemas.json`, nên một lần chạy không còn âm thầm rơi về mặt chỉ-có-tên như C6. `--allow-name-only`
+  **không kèm tệp** vẫn là lối thoát cố ý (mặt rỗng; kết luận đã ký là `INCONCLUSIVE`), còn `--tool-schemas <tệp>` vẫn thắng. Tệp phải
+  khớp `header.rev` với khối §3 đã commit của `genoffice-tools.md`, nếu không `preflight` từ chối trước khi tốn phí; `config` của
+  lần chạy ghi `toolSchemas.sha256` và `toolSchemas.rev` bên cạnh `config.toolSurface`.
 - **Bộ công cụ cấp cho model là một phần của bản phát hành (G712-20).** Harness chỉ ánh xạ một số công cụ mỗi module sang thao tác
   trừu tượng của ca (`TOOL_OPS` trong `holdout-backend.mjs`), nên số công cụ được cấp nhỏ hơn bảng công cụ của khung
   (`genoffice-tools.md` §3, bảng công cụ của khung, không phải đếm cả tệp: sheets 21, docs 38, slides 18, pdf 46, markdown 10, html 8, tổng 141 dòng như §3.1 đối chiếu; ví dụ sheets cấp 11 trên 21). Một công cụ chưa ánh xạ không bao giờ được cấp nên không thể bị gọi: "0 công
