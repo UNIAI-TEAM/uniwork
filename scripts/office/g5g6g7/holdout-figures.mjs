@@ -126,8 +126,22 @@ const maskIdentifiers = (text) => maskFormulas(text.replace(URL_OR_EMAIL_RE, (m)
 // space ("=B2*(1-0.1)") are masked. A figure outside the formula stays a figure, and a masked literal credits nothing.
 const FORMULA_CALL_RE = /(?<![\p{L}\d_])[A-Z][A-Z0-9.]+\(/gu;
 const FORMULA_EXPR_RE = /(?<![\w=<>!])=(?=[A-Za-z$(])/g;
-const FORMULA_ATOM_RE = /(?:(?:'(?:[^'\n]|'')+'|[A-Za-z_][\w.]*)!)?\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?(?![\p{L}\d_(!])|\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?:%(?![\p{L}\d_]))?(?![\p{L}\d_])|"(?:[^"\n]|"")*"|(?:TRUE|FALSE)(?![\p{L}\d_])/uy;
+const FORMULA_ATOM_RE = /(?:(?:'(?:[^'\n]|'')+'|[A-Za-z_][\w.]*)!)?\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?(?![\p{L}\d_(!])|\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?:%(?![\p{L}\d_]))?(?![\p{L}\d_])|"(?:[^"\n]|"")*"|(?:TRUE|FALSE)(?![\p{L}\d_])|\.{2,3}|…/uy;
 const FORMULA_OP_RE = /<>|<=|>=|[-+*/^&=<>]/y;
+const HAS_CELL_REF_RE = /(?:^|[^\p{L}\d_])\$?[A-Za-z]{1,3}\$?\d{1,7}(?![\p{L}\d_(!])/u;
+const SPREADSHEET_FN_RE = /^(?:SUBTOTAL|VLOOKUP|HLOOKUP|XLOOKUP|INDEX|MATCH|OFFSET|SUM|SUMIF|SUMIFS|AVERAGE|AVERAGEIF|AVERAGEIFS|COUNT|COUNTA|COUNTIF|COUNTIFS|MIN|MAX|IF|IFS|IFERROR|IFNA|ROUND|ROUNDUP|ROUNDDOWN)\($/;
+function formulaCallEnd(text, from) {
+  let p = from;
+  for (;;) {
+    const next = formulaExprEnd(text, p, true);
+    if (next < 0) return -1;
+    p = next;
+    while (text[p] === ' ' || text[p] === '\t') p += 1;
+    if (text[p] === ')') return p + 1;
+    if (text[p] !== ',' && text[p] !== ';') return -1;
+    p += 1;
+  }
+}
 function formulaExprEnd(text, from, inParens) {
   let i = from;
   const skipWs = () => { if (inParens) while (text[i] === ' ' || text[i] === '\t') i += 1; };
@@ -141,18 +155,7 @@ function formulaExprEnd(text, from, inParens) {
     }
     const call = /[A-Za-z_][A-Za-z0-9_.]*\(/y;
     call.lastIndex = i;
-    if (call.exec(text)) {
-      let p = call.lastIndex;
-      for (;;) {
-        const next = formulaExprEnd(text, p, true);
-        if (next < 0) return -1;
-        p = next;
-        while (text[p] === ' ' || text[p] === '\t') p += 1;
-        if (text[p] === ')') return p + 1;
-        if (text[p] !== ',' && text[p] !== ';') return -1;
-        p += 1;
-      }
-    }
+    if (call.exec(text)) return formulaCallEnd(text, call.lastIndex);
     FORMULA_ATOM_RE.lastIndex = i;
     return FORMULA_ATOM_RE.exec(text) ? FORMULA_ATOM_RE.lastIndex : -1;
   };
@@ -174,18 +177,10 @@ function maskFormulas(text) {
   const units = text.split('');
   const mask = (from, to) => { for (let i = from; i < to; i += 1) if (units[i] !== '\n') units[i] = ' '; };
   for (const m of text.matchAll(FORMULA_CALL_RE)) {
-    let depth = 0;
-    let quote = null;
-    let end = -1;
-    for (let i = m.index + m[0].length - 1; i < text.length; i += 1) {
-      const ch = text[i];
-      if (quote) { if (ch === quote) quote = null; continue; }
-      if (ch === "'" || ch === '"') quote = ch;
-      else if (ch === '(') depth += 1;
-      else if (ch === ')') { depth -= 1; if (depth === 0) { end = i + 1; break; } }
-      else if (ch === '\n') break;
-    }
-    if (end > 0) mask(m.index, end);
+    const bodyStart = m.index + m[0].length;
+    const end = formulaCallEnd(text, bodyStart);
+    const body = end > 0 ? text.slice(bodyStart, end - 1) : '';
+    if (end > 0 && (HAS_CELL_REF_RE.test(body) || (SPREADSHEET_FN_RE.test(m[0]) && /[,;]/.test(body)))) mask(m.index, end);
   }
   for (const m of text.matchAll(FORMULA_EXPR_RE)) {
     const end = formulaExprEnd(text, m.index + 1, false);
