@@ -266,6 +266,12 @@ describe('O2-B2: an overview tool returns truncated previews, as the real frame 
     assert.ok(!JSON.stringify(backend.execute('get_outline', {})).includes('4.321.000'));
     assert.ok(JSON.stringify(backend.execute('read_pages', { start: 1 })).includes('4.321.000'));
   });
+
+  it('O2R1-05: html get_outline honours an explicit depth argument while keeping default 3', () => {
+    const backend = createBackend(html, { views: [{ format: 'html', lines: [...htmlLines] }] });
+    assert.deepEqual(backend.execute('get_outline', { depth: 1 }).blocks, [], 'P-B2-HTML-DEPTH-ARG shallower than h1/table');
+    assert.ok(JSON.stringify(backend.execute('get_outline', { depth: 4 })).includes('4.321.000'), 'P-B2-HTML-DEPTH-ARG deeper reaches tr');
+  });
 });
 
 describe('O2-B3: a written formula is filled and evaluated as the editor would', () => {
