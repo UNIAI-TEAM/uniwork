@@ -12,6 +12,7 @@ export const ACTION_TYPES = new Set([
   "status",
   "reset",
   "hold",
+  "rewrite_json",
 ]);
 
 /**
@@ -33,6 +34,30 @@ export function stripQuery(rawUrl = "") {
     }
   }
   return withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
+}
+
+/**
+ * True for plain JSON objects (`{}`-style), excluding arrays and `null`.
+ */
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Deep-copies a JSON-compatible value so normalized rules never alias caller data.
+ */
+function cloneJsonValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneJsonValue(item));
+  }
+  if (isPlainObject(value)) {
+    const copy = {};
+    for (const [key, item] of Object.entries(value)) {
+      copy[key] = cloneJsonValue(item);
+    }
+    return copy;
+  }
+  return value;
 }
 
 /**
@@ -102,6 +127,37 @@ export function validateRule(rawRule, index = 0) {
       throw new Error(`rule[${index}] (${id}): hold action requires until="release"`);
     }
     normalizedAction.until = "release";
+  } else if (action.type === "rewrite_json") {
+    const patch = action.patch;
+    if (!isPlainObject(patch)) {
+      throw new Error(`rule[${index}] (${id}): rewrite_json action requires a patch object`);
+    }
+    const patchKeys = Object.keys(patch);
+    if (patchKeys.length === 0) {
+      throw new Error(`rule[${index}] (${id}): rewrite_json action requires a non-empty patch object`);
+    }
+    const normalizedPatch = {};
+    for (const key of patchKeys) {
+      if (typeof key !== "string" || key.length === 0) {
+        throw new Error(`rule[${index}] (${id}): rewrite_json patch keys must be non-empty strings`);
+      }
+      const value = patch[key];
+      if (
+        isPlainObject(value) &&
+        Object.keys(value).length === 1 &&
+        Object.prototype.hasOwnProperty.call(value, "now_plus_ms")
+      ) {
+        if (!Number.isInteger(value.now_plus_ms) || value.now_plus_ms < 0) {
+          throw new Error(
+            `rule[${index}] (${id}): rewrite_json patch.${key}.now_plus_ms must be a non-negative integer`,
+          );
+        }
+        normalizedPatch[key] = { now_plus_ms: value.now_plus_ms };
+        continue;
+      }
+      normalizedPatch[key] = cloneJsonValue(value);
+    }
+    normalizedAction.patch = normalizedPatch;
   }
 
   const once = rawRule.once === undefined ? false : Boolean(rawRule.once);

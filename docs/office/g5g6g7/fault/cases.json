@@ -2806,8 +2806,8 @@
         "G5-A04"
       ],
       "fixture": "fx-pdf-invoice-vi",
-      "dependency": "G5-05",
-      "blockedGate": "G5-D1",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "tải thư viện offline bị gián đoạn: không báo \"sẵn sàng\"",
       "source": "spec §5.1; EXPERIENCE Offline library rows › interrupted",
       "proxyRules": [
@@ -2827,34 +2827,52 @@
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "rule cut-download: proxy reset đúng GET …/download lần 1 (nội dung), rồi ghim lại"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0,
+          "downloadRequestsMin": 2
+        },
+        "offline": {
+          "capabilityOn": true,
+          "neverReadyWhileFaulted": true,
+          "faultedStates": [
+            "interrupted"
+          ],
+          "recoveredStates": [
+            "ready"
+          ]
+        },
         "notes": {
           "client": [
-            "downloading → interrupted; Thử lại → ready chỉ khi đủ file/asset/checksum"
+            "downloading → interrupted; Thử lại → ready chỉ khi đủ file/asset/checksum (không bao giờ ready trước khi tải xong + xác minh)"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-05",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-faulted.json",
+        "offline-store-after.json",
+        "s3-offline-tab.png"
       ]
     },
     {
@@ -2864,42 +2882,83 @@
         "G5-A04"
       ],
       "fixture": "fx-html-page-vi",
-      "dependency": "G5-05",
-      "blockedGate": "G5-D1",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "disk full khi tải lần đầu: giữ bản cũ, hiện lỗi",
       "source": "spec §5.1 (\"Disk full giữ bản cũ\"); S3 › disk-full",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "hold-content",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$",
+            "nth": 1
+          },
+          "action": {
+            "type": "hold",
+            "until": "release"
+          },
+          "once": true
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "tmpfs nhỏ làm userData (sudo mount -t tmpfs); lấp đầy còn diskLeaveBytes rồi ghim tài liệu thứ hai = ENOSPC thật; không mount được thì file sparse chạm ngân sách của store thư viện = store_full; báo cơ chế nào đã chạy; giải phóng chỗ rồi Thử lại"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0,
+          "downloadRequestsMin": 2
+        },
+        "offline": {
+          "firstLaunchStates": [
+            "ready"
+          ],
+          "faultedStates": [
+            "disk-full"
+          ],
+          "recoveredStates": [
+            "ready"
+          ],
+          "keptOldCopy": true,
+          "diskMountMb": 512,
+          "diskLeaveBytes": 1024,
+          "layerBudgetBytes": 2432696320
+        },
         "notes": {
           "client": [
-            "downloading → disk-full; không ready"
+            "downloading → disk-full; không ready; giải phóng chỗ → Thử lại → ready"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
+          ],
+          "disk": [
+            "tmpfs/loop mount, hoặc fill sparse 1 GiB = store_full (báo cái nào đã chạy)"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-05",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-faulted.json",
+        "offline-disk-mechanism.json",
+        "offline-store-after.json",
+        "s3-offline-tab.png"
       ]
     },
     {
@@ -2909,60 +2968,203 @@
         "G5-A04"
       ],
       "fixture": "fx-pdf-invoice-vi",
-      "dependency": "G5-05",
-      "blockedGate": "G5-D1",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "cache hỏng / checksum lệch: pin thất bại, không phục vụ từ cache dở",
       "source": "AC G5-A04; S3 › corrupt",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "lật byte ciphertext giữa hai lần khởi động; khởi động lại; rule cut-open: proxy reset mọi GET …/download để Mở chỉ còn đường cache offline; rồi gỡ rule và Thử lại"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0,
+          "downloadRequestsMin": 2
+        },
+        "offline": {
+          "firstLaunchStates": [
+            "ready"
+          ],
+          "tamperAccepts": [
+            "corrupt"
+          ],
+          "tamperNeverStates": [
+            "ready"
+          ],
+          "openRefusalCodes": [
+            "corrupt"
+          ],
+          "plaintextCopies": 0,
+          "recoveredStates": [
+            "ready"
+          ]
+        },
         "notes": {
           "client": [
-            "verifying → corrupt; không ready"
+            "verifying → corrupt; không ready; lần mở sau khi lật byte không bao giờ phục vụ byte hỏng (corrupt hoặc tải lại)"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-05",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-faulted.json",
+        "offline-store-after.json",
+        "s3-offline-tab.png",
+        "s11-lock-panel.png"
       ]
     },
     {
-      "id": "FL-04",
+      "id": "FL-04a",
       "layer": "app",
       "ac": [
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "G5-08c",
-      "blockedGate": "G5-D1",
-      "scenario": "lease hết hạn (kể cả khi đang mở dirty): khóa cloud payload, giữ ciphertext + checkpoint; gia hạn khi online",
-      "source": "spec §5.1 Gate G5-D1; EXPERIENCE Lý do bị chặn › lease_expired (+ khi offline_library tắt)",
-      "proxyRules": [],
+      "dependency": "none",
+      "status": "ready",
+      "scenario": "lease hết hạn khi bản đọc offline đang mở: khóa cloud payload, giữ ciphertext, mở lại khi gia hạn",
+      "source": "spec §5.1; EXPERIENCE Lý do bị chặn › lease_expired",
+      "proxyRules": [
+        {
+          "id": "short-lease",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$"
+          },
+          "action": {
+            "type": "rewrite_json",
+            "patch": {
+              "expires_at": {
+                "now_plus_ms": 120000
+              }
+            }
+          }
+        },
+        {
+          "id": "cut-lease",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        },
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "rule short-lease: proxy ghi lại expires_at của JSON trả lời PUT …/office/offline-lease thành now + 120 s (action rewrite_json, không chờ 24 h) trong lúc ghim; rồi cut-lease + cut-open (offline), mở bản đọc offline, chờ hết hạn"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
+        "offline": {
+          "shortLeaseStates": [
+            "lease-expiring"
+          ],
+          "faultedStates": [
+            "lease-expired"
+          ],
+          "lockReason": "lease_expired",
+          "openRefusalCodes": [
+            "lease_unusable"
+          ],
+          "contentNotServed": true,
+          "recoveredStates": [
+            "ready"
+          ]
+        },
+        "notes": {
+          "client": [
+            "ready → lease-expired (S11 lease_expired) → (online, ACL còn) gia hạn → mở; nội dung không được phục vụ khi đã khóa"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
+          ]
+        }
+      },
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "app-trace.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-faulted.json",
+        "offline-store-after.json",
+        "s3-offline-tab.png",
+        "s11-lock-panel.png"
+      ]
+    },
+    {
+      "id": "FL-04b",
+      "layer": "app",
+      "ac": [
+        "G5-A07"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "none",
+      "status": "SUPERSEDED",
+      "supersededReason": "D1 (UNI-1645, edit-lock addendum §10.1): bản offline là read-only khi không có hold, nên một tài liệu offline dirty không thể tồn tại; chữ gõ trước khi mất mạng là checkpoint/nháp chứ không phải intent (đã phủ bởi G5-06 / G7-03a). Không có gì để chạy ở đây.",
+      "scenario": "lease hết hạn khi đang mở tài liệu dirty (offline)",
+      "source": "contract G7-03b v0.2, hàng FL-04b",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b"
         }
       ],
       "expect": {
@@ -2971,25 +3173,77 @@
         },
         "notes": {
           "client": [
-            "ready → blocked lease_expired → (online, ACL còn) gia hạn → mở; offline_library tắt → S11 uwLockLibraryOff"
+            "không áp dụng: bản offline read-only (D1); chữ gõ trước khi rớt mạng là checkpoint, không phải intent"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-08c",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-after.json",
+        "s3-offline-tab.png",
+        "s11-lock-panel.png"
+      ]
+    },
+    {
+      "id": "FL-04c",
+      "layer": "app",
+      "ac": [
+        "G5-A07"
+      ],
+      "fixture": "fx-docx-report-vi",
+      "dependency": "none",
+      "status": "BLOCKED(G5-08d)",
+      "blockedOwner": "G5-08d / EL-DESKTOP",
+      "blockedReason": "fork chưa có client hold (không có `offline-hold` / `offline_hold_until` trong apps/shell/src), nên TTL hold (<= 8 h) chưa lái được trên app",
+      "scenario": "hold hết hạn (TTL hiện tại, <= 8 h)",
+      "source": "contract G7-03b v0.2, hàng FL-04c; edit-lock addendum §10.1",
+      "proxyRules": [],
+      "faults": [
+        {
+          "kind": "g7-03b"
+        }
+      ],
+      "expect": {
+        "server": {
+          "versionDelta": 0
+        },
+        "notes": {
+          "client": [
+            "không chạy được: chưa có client hold trên fork; owner G5-08d / EL-DESKTOP"
+          ],
+          "proxyLog": [
+            "không request ghi ngoài chính sách"
+          ],
+          "store": [
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
+          ]
+        }
+      },
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
+      "serverOnly": false,
+      "artifacts": [
+        "intent-log.jsonl",
+        "app-trace.jsonl",
+        "server-versions.json",
+        "proxy-log.jsonl",
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-after.json",
+        "s3-offline-tab.png",
+        "s11-lock-panel.png"
       ]
     },
     {
@@ -2999,42 +3253,91 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "G5-08c",
-      "blockedGate": "G5-D1",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "lùi đồng hồ: không kéo dài quyền offline",
       "source": "spec §5.1; EXPERIENCE › clock_rollback",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "cut-lease",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        },
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "ghim → ready; tắt app; khởi động lại với LD_PRELOAD=libfaketime FAKETIME=-<clockSkewMinutes>m (không giả monotonic) cùng userData; cut-lease + cut-open; Mở bị từ chối clock_rollback; rồi trả đồng hồ thật + gỡ rule + Thử lại"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
+        "offline": {
+          "firstLaunchStates": [
+            "ready"
+          ],
+          "faultedStates": [
+            "lease-expired",
+            "locked"
+          ],
+          "lockReason": "clock_rollback",
+          "openRefusalCodes": [
+            "lease_unusable"
+          ],
+          "contentNotServed": true,
+          "neverExtendsLease": true,
+          "plaintextCopies": 0,
+          "clockSkewMinutes": 10,
+          "recoveredStates": [
+            "ready"
+          ]
+        },
         "notes": {
           "client": [
-            "blocked clock_rollback → (online, kiểm giờ server) mở"
+            "lease-expired clock_rollback → (online, kiểm giờ server) mở; không kéo dài quyền offline"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-08c",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-faulted.json",
+        "offline-store-after.json",
+        "s3-offline-tab.png",
+        "s11-lock-panel.png"
       ]
     },
     {
@@ -3044,42 +3347,122 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "G5-08c",
-      "blockedGate": "G5-D1",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "revoke khi offline: có hiệu lực lúc nhận revoke hoặc lease hết hạn; xóa bản commit + asset, nháp giữ khóa",
       "source": "spec §5.1; S3 › revoked",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "short-lease",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$"
+          },
+          "action": {
+            "type": "rewrite_json",
+            "patch": {
+              "expires_at": {
+                "now_plus_ms": 120000
+              }
+            }
+          }
+        },
+        {
+          "id": "refuse-regrant",
+          "match": {
+            "method": "PUT",
+            "path": "^/api/v1/documents/[^/]+/office/offline-lease$",
+            "nth": 2
+          },
+          "action": {
+            "type": "status",
+            "code": 403,
+            "body": {
+              "error": {
+                "code": "offline_lease_revoked",
+                "message": "offline lease revoked",
+                "error_class": "permission"
+              }
+            }
+          }
+        },
+        {
+          "id": "cut-network",
+          "match": {
+            "path": "^/api/"
+          },
+          "action": {
+            "type": "reset"
+          }
+        },
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "ghim với short-lease → lease-expiring; rule cut-network: proxy reset mọi request /api/; admin CLI `uniwork-admin revoke-offline-leases --org-id <org>` thu hồi lease trên D (epoch N); chờ nửa TTL; khôi phục mạng → lượt online của lease manager gia hạn: PUT 1 nhận 403 offline_lease_revoked, PUT 2 (cấp lại một lần trong cùng lượt, THEO THIẾT KẾ) là 200 policy_epoch = N, hàng dùng lại được (cửa sổ A; không downloadNow, không ghim lần hai; không có PUT = BLOCKED fork did not renew); cửa sổ B (hành vi TIÊM ở proxy, không phải hành vi của D): revoke lần nữa + chờ đến hạn, rule TIÊM refuse-regrant từ chối lần cấp lại (proxy trả 403 offline_lease_revoked thay cho D) → grant() chạy và bị từ chối → hàng revoked; rule cut-open để Mở chỉ còn đường offline → S11 permission_revoked"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
+        "offline": {
+          "shortLeaseStates": [
+            "lease-expiring"
+          ],
+          "faultedStates": [
+            "revoked"
+          ],
+          "lockReason": "permission_revoked",
+          "openRefusalCodes": [
+            "revoked"
+          ],
+          "renewRefusalStatus": 403,
+          "plaintextCopies": 0,
+          "renewRefusalCode": "offline_lease_revoked",
+          "regrantStates": [
+            "lease-expiring"
+          ]
+        },
         "notes": {
           "client": [
-            "ready → revoked; 0 plaintext"
+            "ready → revoked; 0 plaintext; nháp giữ khóa"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-08c",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-faulted.json",
+        "offline-store-after.json",
+        "s3-offline-tab.png",
+        "s11-lock-panel.png"
       ]
     },
     {
@@ -3089,42 +3472,59 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "G5-11",
-      "blockedGate": "G5-D1",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "logout A → B: không còn khóa/plaintext/ciphertext đọc được của A",
       "source": "spec §5.3; AC G5-A07",
       "proxyRules": [],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "hai tài khoản đã seed: A (tenant.app) ghim → đăng xuất → B (tenant.foreign, org khác) đăng nhập; quét store/copies của A"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
+        "offline": {
+          "accountBRows": 0,
+          "accountBCopies": 0,
+          "signedOutKeepsNoName": true,
+          "accountALockedWhileSignedOut": true,
+          "accountAScopeWiped": true,
+          "firstLaunchStates": [
+            "ready"
+          ],
+          "plaintextCopies": 0
+        },
         "notes": {
           "client": [
-            "queue A khóa (signed_out), B không thấy tên tài liệu"
+            "A khóa (signed_out), B không thấy tên tài liệu của A; store A bị xóa ở ranh giới phiên; quét copies thấy 0 plaintext của A"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh pane đồng bộ khi đã đăng xuất (tab offline ẩn: bản đã bị xóa ở đăng xuất, chưa có org nên chưa có capability)"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-11",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-after.json",
+        "s3-signed-out-pane.png"
       ]
     },
     {
@@ -3134,42 +3534,57 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "G5-11",
-      "blockedGate": "G5-D1",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "deployment switch: phạm vi A không cập nhật cursor/cache B",
       "source": "spec §4.1 dòng cuối; AC G5-A07",
       "proxyRules": [],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "UNIWORK_DEPLOYMENT_ID=default (A) ghim → khởi động lại cùng userData với UNIWORK_DEPLOYMENT_ID khác (B), không đăng nhập trên B"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
+        "offline": {
+          "deploymentBRows": 0,
+          "deploymentBCopies": 0,
+          "deploymentARows": 1,
+          "deploymentAScopeUnchanged": true,
+          "firstLaunchStates": [
+            "ready"
+          ]
+        },
         "notes": {
           "client": [
-            "store theo deployment tách biệt"
+            "store theo deployment tách biệt: B rỗng, phạm vi A (cursor/cache/ghim) không đổi"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh pane đồng bộ trên deployment B (tab offline ẩn: không ai đăng nhập, không có org, không có bản giữ)"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-11",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-after.json",
+        "s3-signed-out-pane.png"
       ]
     },
     {
@@ -3179,42 +3594,76 @@
         "G5-A07"
       ],
       "fixture": "fx-docx-report-vi",
-      "dependency": "G5-08c",
-      "blockedGate": "G5-D1",
+      "dependency": "none",
+      "status": "ready",
       "scenario": "keystore khóa: chặn đường Lưu, không hạ xuống store không bảo vệ; mở khóa → về đúng trạng thái trước (reconciling vẫn reconciling)",
       "source": "EXPERIENCE Lý do bị chặn › keystore_locked; spec §5.1",
-      "proxyRules": [],
+      "proxyRules": [
+        {
+          "id": "cut-open",
+          "match": {
+            "method": "GET",
+            "path": "^/api/v1/documents/[^/]+/download$"
+          },
+          "action": {
+            "type": "reset"
+          }
+        }
+      ],
       "faults": [
         {
           "kind": "g7-03b",
-          "step": "theo spec fault G7-03b khi task phụ thuộc merge"
+          "step": "ghim → ready; tắt app; khóa gnome-keyring qua kênh điều khiển của app-keyring.sh (APP_KEYRING_CONTROL=1); khởi động lại; Mở bị từ chối keystore_locked; mở khóa rồi Thử lại"
         }
       ],
       "expect": {
         "server": {
           "versionDelta": 0
         },
+        "proxyLog": {
+          "commitPosts": 0,
+          "uploadPosts": 0
+        },
+        "offline": {
+          "firstLaunchStates": [
+            "ready"
+          ],
+          "lockReason": "keystore_locked",
+          "openRefusalCodes": [
+            "keystore_locked",
+            "keyring_unavailable"
+          ],
+          "nothingDecrypted": true,
+          "recoveredStates": [
+            "ready"
+          ]
+        },
         "notes": {
           "client": [
-            "overlay keystore_locked → trạng thái trước đó; không bao giờ queued chỉ vì mở khóa"
+            "overlay keystore_locked → trạng thái trước đó; không bao giờ queued chỉ vì mở khóa; không hạ xuống store không bảo vệ"
           ],
           "proxyLog": [
             "không request ghi ngoài chính sách"
           ],
           "store": [
-            "trạng thái store trước/sau + ảnh S3/S11"
+            "trạng thái store trước/sau (tên, kích thước, sha256 của ciphertext; không plaintext, không khóa) + ảnh S3/S11"
           ]
         }
       },
-      "clientAssertions": "trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
-      "status": "pending G5-08c",
+      "clientAssertions": "window.uniworkSyncCenter.getSnapshot().offline.rows[].state (S3) + store before/after; trace (UNIWORK_SYNC_TRACE_FILE, fork 13642a5e)",
       "serverOnly": false,
       "artifacts": [
         "intent-log.jsonl",
         "app-trace.jsonl",
         "server-versions.json",
         "proxy-log.jsonl",
-        "case-result.json"
+        "case-result.json",
+        "offline-store-before.json",
+        "offline-store-faulted.json",
+        "offline-store-after.json",
+        "keyring-prompt-injected.json",
+        "s3-keystore-locked-pane.png",
+        "s11-lock-panel.png"
       ]
     }
   ]
