@@ -1,0 +1,6 @@
+$ npm run typecheck:web > /tmp/tcw.log 2>&1; rc=$?; grep -E "error TS" /tmp/tcw.log | head -30; echo "files with errors:"; grep -oE "^[^(]+\([0-9]+,[0-9]+\): error" /tmp/tcw.log | sed 's/(.*//' | sort | uniq -c; echo; echo "TYPECHECK_WEB_ASIS_EXIT=$rc"
+web/modules/pdf/webapi.ts(778,9): error TS2739: Type '{ consumePending(): Promise<string | null>; noteDocumentMounted(): void; readFile(path: string): Promise<ArrayBuffer>; onReloadRequest(handler: (path: string) => void): () => void; ... 68 more ...; fetchImage: (url: string) => Promise<...>; }' is missing the following properties from type 'PdfWebApi': onUniworkStateChanged, uniworkReadOnlySave
+files with errors:
+      1 web/modules/pdf/webapi.ts
+
+TYPECHECK_WEB_ASIS_EXIT=2

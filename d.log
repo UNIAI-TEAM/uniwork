@@ -1,0 +1,3 @@
+$ npm run typecheck:web > /tmp/tcw2.log 2>&1; rc=$?; grep -E "error TS" /tmp/tcw2.log | head -30; echo; echo "TYPECHECK_WEB_MERGED_EXIT=$rc"
+
+TYPECHECK_WEB_MERGED_EXIT=0

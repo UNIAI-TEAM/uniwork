@@ -1,0 +1,6 @@
+$ git -c user.email=ci@example.invalid -c user.name=ci merge --no-edit origin/main > /tmp/m.log 2>&1; rc=$?; tail -3 /tmp/m.log; echo; echo "INVM_MERGE_EXIT=$rc"
+Merge made by the 'ort' strategy.
+ web/modules/pdf/webapi.ts | 3 +++
+ 1 file changed, 3 insertions(+)
+
+INVM_MERGE_EXIT=0
