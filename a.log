@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -8
+c1129a7e781b93476c1ef5dff5d4d6f6e137afd4
+5975d8f9e4532e8c33f5564462386d65c701258c
+c1129a7e7 chore: merge the G5-G7 root (5975d8f9e) into CHAT-DOC-SHARE
+5733820dd test(chat): pin attachment conversion, L1 replay, version line and L6
+503d2d574 feat(chat): share attachment as document, version line and L6 flag
+edb731f5f test(chat): a skipped member is not a document-share recipient
+55110f9b7 test(chat): attack the document send's reply target across tenants
+67bac90d3 test(chat): pin the document card, the send order and the L8 MIME subset
+fc024c6dd feat(chat): send a document into a room and resolve its card per viewer
+4fcc254cf feat(chat): document message kinds, send/read wire types and the narrower MIME set
