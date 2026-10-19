@@ -19,8 +19,8 @@ import (
 )
 
 // The office pack (G6-14, UNI-1369; tuned in G6-08, UNI-1373; hardened in
-// FU-G7-12-PACK3, UNI-1875) ships as versioned registry entries
-// office_uniwork_ai@1, office_uniwork_ai@2 and office_uniwork_ai@3 with six
+// FU-G7-12-PACK3, UNI-1875; no-echo draft FU-G7-12-PACK4, UNI-1981) ships as
+// versioned registry entries office_uniwork_ai@1 to office_uniwork_ai@4 with six
 // assembled System variants. These tests pin their text three ways: golden
 // files (wording), the draft's token estimator (the G6-D1 A2 caps) and a
 // per-version sha256 pin (a wording change cannot ride a regenerated golden
@@ -50,8 +50,8 @@ func officePack(t *testing.T) Prompt {
 	if !ok {
 		t.Fatalf("%s is not registered", PromptOfficeUniworkAI)
 	}
-	if p.ID != "office_uniwork_ai" || p.Version != 3 {
-		t.Fatalf("registry entry is %s, want office_uniwork_ai@3", p.Key())
+	if p.ID != "office_uniwork_ai" || p.Version != 4 {
+		t.Fatalf("registry entry is %s, want office_uniwork_ai@4", p.Key())
 	}
 	return p
 }
@@ -67,7 +67,7 @@ func officeGoldenVersion(t *testing.T, version int, name string) string {
 
 func officeGolden(t *testing.T, name string) string {
 	t.Helper()
-	return officeGoldenVersion(t, 3, name)
+	return officeGoldenVersion(t, 4, name)
 }
 
 // firstDiff names the first differing byte so a wording drift points at the
@@ -131,10 +131,8 @@ func TestOfficePackGoldens(t *testing.T) {
 		})
 	}
 
-	// @1 and @2 stay registered and match their v1/v2 goldens untouched; @4
-	// (UNI-1981 draft) is registered beside the released @3 and matches its
-	// v4 goldens.
-	for _, version := range []int{1, 2, 4} {
+	// @1, @2 and @3 stay registered and match their goldens untouched.
+	for _, version := range []int{1, 2, 3} {
 		key := fmt.Sprintf("office_uniwork_ai@%d", version)
 		pv, ok := LookupPrompt(key)
 		if !ok {
@@ -160,7 +158,10 @@ func TestOfficePackGoldens(t *testing.T) {
 // in FU-G7-12-PACK3 (UNI-1875, user decision 2026-10-17) by its stable key
 // phrase constant, and replaces the @1/@2 "never your own arithmetic" ban.
 func TestOfficePackV3Rules(t *testing.T) {
-	p := officePack(t)
+	p, ok := LookupPrompt("office_uniwork_ai@3")
+	if !ok {
+		t.Fatal("office_uniwork_ai@3 is not registered")
+	}
 	commonRules := []struct {
 		name   string
 		phrase string

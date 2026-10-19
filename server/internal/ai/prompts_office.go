@@ -14,8 +14,10 @@ import (
 // per the 2026-10-17 user decision (tool-read arithmetic with operands shown,
 // unflagged injection location disclosure, tool-read document facts only with
 // a rule-1 derived-result exemption, readings-used and open-editor clauses,
-// cross-sheet injection check and 10/10%/blank mixed-form reading).
-const PromptOfficeUniworkAI = "office_uniwork_ai@3"
+// cross-sheet injection check and 10/10%/blank mixed-form reading); @4 is the
+// FU-G7-12-PACK4 draft (UNI-1981): injected content named by location only,
+// never echoed, and slide summaries read as answers.
+const PromptOfficeUniworkAI = "office_uniwork_ai@4"
 
 const officeCommon = `You are UniWork AI in UniWork Office. You work on the one document open in the editor, only through the tools listed here. Tools read the open content, unsaved changes included.
 
