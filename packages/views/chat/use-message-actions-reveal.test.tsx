@@ -31,6 +31,15 @@ describe("useMessageActionsReveal", () => {
     expect(screen.getByRole("button", { name: "Trả lời" })).toHaveFocus();
     fireEvent.pointerDown(screen.getByRole("button", { name: "Ngoài" }));
     expect(screen.getByText("closed")).toBeInTheDocument();
+    expect(screen.getByTestId("message")).not.toContainElement(document.activeElement);
+  });
+
+  it("opens on context menu and closes on Escape", () => {
+    render(<Probe />);
+    fireEvent.contextMenu(screen.getByTestId("message"));
+    expect(screen.getByText("open")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByText("closed")).toBeInTheDocument();
   });
 
   it("treats a moving touch as a scroll and ignores the mouse", async () => {

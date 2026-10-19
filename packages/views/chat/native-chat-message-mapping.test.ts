@@ -19,6 +19,15 @@ const base: ChatMessageRecord = {
 };
 
 describe("toChatMessage", () => {
+  it("refreshes the cache when pin state changes on the same record object", () => {
+    const record: ChatMessageRecord = { ...base, pinned: false };
+    const before = toChatMessage(record);
+    record.pinned = true;
+    record.pinned_at = "2026-03-26T12:00:00.000Z";
+    expect(toChatMessage(record).pinned).toBe(true);
+    expect(toChatMessage(record)).not.toBe(before);
+  });
+
   it("maps base fields and optional edited_at", () => {
     const mapped = toChatMessage({
       ...base,

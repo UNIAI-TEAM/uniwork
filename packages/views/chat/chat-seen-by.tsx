@@ -13,6 +13,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import { chatPersonFaceClass } from "./chat-person-card";
@@ -72,6 +74,52 @@ export function ChatSeenByProvider({
  * "N người đã xem" at the top of an own message's ⋯ menu, opening the readers.
  * Nothing for a thread reply: the pointers follow the main timeline only.
  */
+const SEEN_BY_CONTEXT_ROW = cn(
+  "flex w-full min-h-10 items-center gap-2.5 rounded-control px-2.5 text-body text-foreground",
+  "hover:bg-muted focus-visible:bg-muted focus-visible:outline-none",
+);
+
+/** Flat context menu row; opens a popover list of readers (Telegram-style menu, no ⋯ submenu). */
+export function ChatSeenByContextRow({ message }: { message: ChatMessage }) {
+  const { t } = useTranslation();
+  const seenBy = useContext(SeenByContext);
+  if (!seenBy || message.threadRootId) return null;
+  const readers = seenBy.members.filter(
+    (member) => member.user_id !== message.sender && isMessageSeenByPeer(message.ts, member.last_read_at),
+  );
+  if (readers.length === 0) return null;
+  const names = new Map(seenBy.nameContext.map((entry) => [entry.user_id, entry.display_name.trim()]));
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button type="button" role="menuitem" className={SEEN_BY_CONTEXT_ROW}>
+            <CheckCheck className="size-4.5 shrink-0 text-brand" aria-hidden />
+            <span className="min-w-0 truncate text-left">{t("chat.seen_by_count", { count: readers.length })}</span>
+          </button>
+        }
+      />
+      <PopoverContent align="start" className="max-h-72 w-48 overflow-y-auto p-1">
+        {readers.map((member) => {
+          const name = names.get(member.user_id) || member.display_name.trim() || member.email;
+          return (
+            <div key={member.user_id} className="flex min-h-10 items-center gap-2.5 rounded-control px-2.5">
+              <ActorAvatar
+                name={name}
+                initials={initialOf(name)}
+                avatarUrl={resolveAvatarUrlFromNameContext(seenBy.nameContext, member.user_id)}
+                size="md"
+                className={chatPersonFaceClass(member.user_id)}
+              />
+              <span className="min-w-0 truncate text-body">{name}</span>
+            </div>
+          );
+        })}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function ChatSeenByMenuItem({ message }: { message: ChatMessage }) {
   const { t } = useTranslation();
   const seenBy = useContext(SeenByContext);

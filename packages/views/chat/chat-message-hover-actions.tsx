@@ -1,28 +1,33 @@
 "use client";
 
-import { lazy, Suspense, useContext, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   Bookmark,
+  ChevronDown,
   Copy,
   Link2,
   MessageSquareText,
-  Ellipsis,
   Forward,
   Pencil,
   Pin,
   Reply,
   FaceSlightlySmilingPlus,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import {
@@ -33,7 +38,7 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
-import { ChatSeenByMenuItem } from "./chat-seen-by";
+import { ChatSeenByContextRow } from "./chat-seen-by";
 import { ChatForwardContext, isForwardableChatMessage } from "./chat-forward-context";
 import { emojiPickerStrings } from "./chat-expression-utils";
 import { useActionsBarPlacement } from "./use-actions-bar-placement";
@@ -48,12 +53,13 @@ export function chatMessageActionsRailClass(isOwn: boolean): string {
   return cn("flex w-fit max-w-full flex-col", isOwn ? "self-end" : "self-start");
 }
 
-/** The more menu's rows, the seen-by row among them: 40px, 10px corners, 18px glyphs (canvas). */
-const MENU_CLASS = cn(
-  "min-w-50 rounded-[14px] p-1.5",
-  "*:data-[slot=dropdown-menu-item]:min-h-10 *:data-[slot=dropdown-menu-item]:gap-2.5 *:data-[slot=dropdown-menu-item]:rounded-control *:data-[slot=dropdown-menu-item]:px-2.5",
-  "*:data-[slot=dropdown-menu-sub-trigger]:min-h-10 *:data-[slot=dropdown-menu-sub-trigger]:gap-2.5 *:data-[slot=dropdown-menu-sub-trigger]:rounded-control *:data-[slot=dropdown-menu-sub-trigger]:px-2.5",
+const CONTEXT_MENU_ROW = cn(
+  "flex w-full min-h-10 items-center gap-2.5 rounded-control px-2.5 text-body text-foreground",
+  "hover:bg-muted focus-visible:bg-muted focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
 );
+
+const CONTEXT_PANEL = "min-w-52 rounded-xl border border-border bg-popover py-1 shadow-floating";
+const REACTION_PILL = "flex items-center gap-0.5 rounded-full border border-border bg-popover px-1.5 py-1 shadow-floating";
 
 /** The quick reactions the bar offers before the other actions. */
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "😮", "🙏"] as const;
@@ -79,6 +85,7 @@ export function MessageReactionPicker({
   side = "top",
   triggerClassName = "size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground",
   iconClassName = "size-5",
+  icon: Icon = FaceSlightlySmilingPlus,
 }: {
   label: string;
   align: "start" | "end";
@@ -88,6 +95,7 @@ export function MessageReactionPicker({
   side?: "top" | "bottom";
   triggerClassName?: string;
   iconClassName?: string;
+  icon?: LucideIcon;
 }) {
   const { t, i18n } = useTranslation();
   const strings = useMemo(() => emojiPickerStrings(i18n.language, t), [i18n.language, t]);
@@ -103,7 +111,7 @@ export function MessageReactionPicker({
             />
           }
         >
-          <FaceSlightlySmilingPlus className={iconClassName} aria-hidden />
+          <Icon className={iconClassName} aria-hidden />
         </TooltipTrigger>
         <TooltipContent>{label}</TooltipContent>
       </Tooltip>
@@ -164,6 +172,33 @@ function MessageActionButton({
   );
 }
 
+function ContextMenuRow({
+  label,
+  icon: Icon,
+  onClick,
+  disabled,
+  destructive,
+}: {
+  label: string;
+  icon: LucideIcon;
+  onClick?: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={cn(CONTEXT_MENU_ROW, destructive && "text-destructive hover:bg-destructive/10 focus-visible:bg-destructive/10")}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon className="size-4.5 shrink-0" aria-hidden />
+      <span className="min-w-0 truncate text-left">{label}</span>
+    </button>
+  );
+}
+
 export function ChatMessageHoverActions({
   message,
   isOwn,
@@ -197,13 +232,16 @@ export function ChatMessageHoverActions({
   onFollowUp?: (message: ChatMessage) => void;
   /** When false the edit control is left out (someone else's message, a call log). */
   canEdit?: boolean;
-  /** Opened by a long press on touch, where there is no hover. */
+  /** Opened by right-click or a long press on touch. */
   forceOpen?: boolean;
 }) {
   const { t } = useTranslation();
   const barRef = useRef<HTMLDivElement>(null);
   // The bar stays up while its picker is open: the pointer and focus are in the popover then.
   const [pickerOpen, setPickerOpen] = useState(false);
+  useEffect(() => {
+    if (!forceOpen) setPickerOpen(false);
+  }, [forceOpen]);
   const onForward = useContext(ChatForwardContext);
   const canInteract = Boolean(onReply && onReact);
   const canDelete = isOwn && Boolean(onDelete);
@@ -216,7 +254,7 @@ export function ChatMessageHoverActions({
   // One tab stop per message: Tab enters on the first action, arrows move
   // along the bar (roving tabindex), so a long thread is not dozens of stops.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
     // Quick reactions a narrow timeline hides are not stops.
     const buttons = Array.from(barRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []).filter(
       (button) => getComputedStyle(button).display !== "none",
@@ -224,12 +262,13 @@ export function ChatMessageHoverActions({
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (index < 0) return;
     event.preventDefault();
+    const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
     const next =
       event.key === "Home"
         ? 0
         : event.key === "End"
           ? buttons.length - 1
-          : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+          : (index + (forward ? 1 : -1) + buttons.length) % buttons.length;
     buttons.forEach((button, i) => button.setAttribute("tabindex", i === next ? "0" : "-1"));
     buttons[next]?.focus();
   };
@@ -247,147 +286,111 @@ export function ChatMessageHoverActions({
 
   const mine = new Set(message.myReactions ?? []);
 
+  const showSecondary =
+    Boolean(onThread || (canEdit && onEdit) || workHubActions || isOwn);
+
   return (
-    // Floats above the bubble on the sender's side; an invisible ::after
-    // bridges the gap so the pointer can travel from the bubble into the bar
-    // without losing group/message hover. Hidden until hover/focus (or a long
-    // press on touch); buttons stay in the tab order (roving tabindex). On a
-    // phone the bar wraps to two rows instead of running off the screen.
+    // Telegram-style stack: reaction pill, then a labelled context menu. Shown on
+    // right-click, long press, or keyboard focus into the message.
     <div
       ref={barRef}
-      role="toolbar"
-      aria-label={t("chat.message_actions_aria")}
       data-message-actions
       onKeyDown={onKeyDown}
       onFocusCapture={onFocusCapture}
       className={cn(
-        "pointer-events-none absolute bottom-full z-10 mb-1.5 flex w-max items-center rounded-xl border border-border bg-popover p-1 opacity-0 shadow-floating",
+        "pointer-events-none absolute bottom-full z-10 mb-1.5 flex w-max flex-col gap-1.5 opacity-0",
         "after:absolute after:inset-x-0 after:top-full after:h-1.5 after:content-['']",
-        // No room above (first message under the header): sit inside the bubble's top edge instead.
         "data-[place=inside]:bottom-auto data-[place=inside]:mb-0 data-[place=inside]:after:hidden",
         (forceOpen || pickerOpen) && "pointer-events-auto opacity-100",
-        "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
-        // Never wider than the timeline (a docked panel or the thread narrows it): it wraps instead of running under.
-        "max-w-[calc(100cqw-3.5rem)] flex-wrap max-sm:max-w-72",
-        isOwn ? "right-0" : "left-0",
+        "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100",
+        isOwn ? "right-0 items-end" : "left-0 items-start",
       )}
     >
-      <TooltipProvider delay={300}>
-        {onToggleReaction ? (
-          <>
-            {QUICK_REACTIONS.map((emoji, index) => (
-              <MessageActionButton
-                key={emoji}
-                label={t("chat.action_react_emoji", { emoji })}
-                onClick={() => onToggleReaction(message, emoji)}
-                pressed={mine.has(emoji)}
-                // A narrow timeline keeps three; the rest are one tap away in the picker.
-                className={index >= 3 ? "@max-xl/timeline:hidden" : undefined}
-              >
-                <span aria-hidden className="text-display-sm leading-none">
-                  {emoji}
-                </span>
-              </MessageActionButton>
-            ))}
-            <MessageReactionPicker
-              label={t("chat.action_react_more")}
-              align={isOwn ? "end" : "start"}
-              open={pickerOpen}
-              onOpenChange={setPickerOpen}
-              onPick={(emoji) => {
-                onToggleReaction(message, emoji);
-                setPickerOpen(false);
-              }}
-            />
-            <span aria-hidden className="mx-1 h-6 w-px bg-border max-sm:hidden" />
-          </>
-        ) : (
-          <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
-            <FaceSlightlySmilingPlus className="size-5" aria-hidden />
-          </MessageActionButton>
-        )}
-        <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)}>
-          <Reply className="size-5" aria-hidden />
-        </MessageActionButton>
+      <div
+        role="toolbar"
+        aria-label={t("chat.message_actions_aria")}
+        className={REACTION_PILL}
+      >
+        <TooltipProvider delay={300}>
+          {onToggleReaction ? (
+            <>
+              {QUICK_REACTIONS.map((emoji, index) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-full text-display-sm hover:bg-muted",
+                    mine.has(emoji) && "bg-brand-subtle",
+                    index >= 3 && "@max-xl/timeline:hidden",
+                  )}
+                  aria-label={t("chat.action_react_emoji", { emoji })}
+                  aria-pressed={mine.has(emoji) ? true : undefined}
+                  onClick={() => onToggleReaction(message, emoji)}
+                >
+                  <span aria-hidden>{emoji}</span>
+                </button>
+              ))}
+              <MessageReactionPicker
+                label={t("chat.action_react_more")}
+                align={isOwn ? "end" : "start"}
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+                onPick={(emoji) => {
+                  onToggleReaction(message, emoji);
+                  setPickerOpen(false);
+                }}
+                triggerClassName="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/80 aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground"
+                iconClassName="size-4"
+                icon={ChevronDown}
+              />
+            </>
+          ) : (
+            <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
+              <FaceSlightlySmilingPlus className="size-5" aria-hidden />
+            </MessageActionButton>
+          )}
+        </TooltipProvider>
+      </div>
+
+      <div role="menu" aria-label={t("chat.message_actions_aria")} className={CONTEXT_PANEL}>
+        <ContextMenuRow label={t("chat.action_reply")} icon={Reply} onClick={() => onReply?.(message)} />
+        {onPin ? (
+          <ContextMenuRow label={pinLabel} icon={Pin} onClick={() => onPin(message)} />
+        ) : null}
+        <ContextMenuRow label={t("chat.action_copy")} icon={Copy} onClick={() => onCopy?.(message)} disabled={!onCopy} />
+        {onForward && isForwardableChatMessage(message) ? (
+          <ContextMenuRow label={t("chat.forward.action")} icon={Forward} onClick={() => onForward(message)} />
+        ) : null}
+        {canDelete ? (
+          <ContextMenuRow
+            label={t("chat.action_delete")}
+            icon={Trash2}
+            destructive
+            onClick={() => onDelete?.(message)}
+          />
+        ) : null}
+        {showSecondary ? <div role="separator" className="my-1 h-px bg-border" aria-hidden /> : null}
         {onThread ? (
-          <MessageActionButton
-            label={t("chat.action_thread")}
-            onClick={() => onThread(message)}
-          >
-            <MessageSquareText className="size-5" aria-hidden />
-          </MessageActionButton>
+          <ContextMenuRow label={t("chat.action_thread")} icon={MessageSquareText} onClick={() => onThread(message)} />
         ) : null}
         {canEdit && onEdit ? (
-          <MessageActionButton label={t("chat.action_edit")} onClick={() => onEdit(message)}>
-            <Pencil className="size-5" aria-hidden />
-          </MessageActionButton>
+          <ContextMenuRow label={t("chat.action_edit")} icon={Pencil} onClick={() => onEdit(message)} />
         ) : null}
-        {onPin ? (
-          <MessageActionButton label={pinLabel} onClick={() => onPin(message)} pressed={message.pinned}>
-            <Pin className="size-5" aria-hidden />
-          </MessageActionButton>
+        {onFollowUp ? (
+          <ContextMenuRow label={t("chat.follow_up.action")} icon={Bookmark} onClick={() => onFollowUp(message)} />
         ) : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-lg"
-                className="size-11 shrink-0 rounded-lg text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground"
-                aria-label={t("chat.action_more")}
-              >
-                <Ellipsis className="size-5" aria-hidden />
-              </Button>
-            }
+        {onCreateTask ? (
+          <ContextMenuRow
+            label={t("chat.link.create_task")}
+            icon={MODULE_ICONS.tasks}
+            onClick={() => onCreateTask(message)}
           />
-          {/* Roomier rows than the default menu: 40px each, 18px glyphs (canvas). */}
-          <DropdownMenuContent
-            align={isOwn ? "end" : "start"}
-            className={MENU_CLASS}
-          >
-            {isOwn ? <ChatSeenByMenuItem message={message} /> : null}
-            {workHubActions ? (
-              <>
-                <DropdownMenuItem onClick={() => onFollowUp?.(message)} disabled={!onFollowUp}>
-                  <Bookmark className="size-4.5" aria-hidden />
-                  {t("chat.follow_up.action")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onCreateTask?.(message)}
-                  disabled={!onCreateTask}
-                >
-                  <MODULE_ICONS.tasks className="size-4.5" aria-hidden />
-                  {t("chat.link.create_task")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onLinkTask?.(message)} disabled={!onLinkTask}>
-                  <Link2 className="size-4.5" aria-hidden />
-                  {t("chat.link.link_task")}
-                </DropdownMenuItem>
-              </>
-            ) : null}
-            <DropdownMenuItem onClick={() => onCopy?.(message)} disabled={!onCopy}>
-              <Copy className="size-4.5" aria-hidden />
-              {t("chat.action_copy")}
-            </DropdownMenuItem>
-            {onForward && isForwardableChatMessage(message) ? (
-              <DropdownMenuItem onClick={() => onForward(message)}>
-                <Forward className="size-4.5" aria-hidden />
-                {t("chat.forward.action")}
-              </DropdownMenuItem>
-            ) : null}
-            {canDelete ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(message)}>
-                  <Trash2 className="size-4.5" aria-hidden />
-                  {t("chat.action_delete")}
-                </DropdownMenuItem>
-              </>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TooltipProvider>
+        ) : null}
+        {onLinkTask ? (
+          <ContextMenuRow label={t("chat.link.link_task")} icon={Link2} onClick={() => onLinkTask(message)} />
+        ) : null}
+        {isOwn ? <ChatSeenByContextRow message={message} /> : null}
+      </div>
     </div>
   );
 }

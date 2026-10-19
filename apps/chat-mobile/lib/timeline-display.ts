@@ -29,7 +29,7 @@ const mapped = new WeakMap<ChatMessageRecord, TimelineMessage>();
 
 export function toTimelineMessage(record: ChatMessageRecord): TimelineMessage {
   const cached = mapped.get(record);
-  if (cached) return cached;
+  if (cached && cached.record?.pinned === record.pinned && cached.record?.pinned_at === record.pinned_at) return cached;
   const message: TimelineMessage = {
     id: record.id,
     sender: record.sender_id,

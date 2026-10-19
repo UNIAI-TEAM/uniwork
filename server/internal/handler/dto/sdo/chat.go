@@ -183,6 +183,7 @@ type ChatMessageDTO struct {
 	Cursor            string                `json:"cursor,omitempty" description:"Opaque history position; pass it back verbatim as ?cursor= to list older messages" example:"1774519200123456.01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 	EditedAt          string                `json:"edited_at,omitempty" description:"RFC3339 timestamp when the message was last edited" example:"2026-03-26T10:05:00Z"`
 	Pinned            bool                  `json:"pinned,omitempty" description:"true when pinned in the room" example:"true"`
+	PinnedAt          string                `json:"pinned_at,omitempty" description:"RFC3339 when the message was pinned" example:"2026-03-26T10:00:00Z"`
 	MentionedUserIDs  []string              `json:"mentioned_user_ids,omitempty" description:"User ids notified by @mention in this message" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
 	Reactions         map[string]int        `json:"reactions,omitempty" description:"Emoji reaction counts keyed by emoji" example:"{\"👍\":2}"`
 	MyReactions       []string              `json:"my_reactions,omitempty" description:"Emojis the caller reacted with" example:"[\"👍\"]"`

@@ -15,6 +15,7 @@ export interface ChatMessage {
   threadUnread?: boolean;
   editedAt?: number;
   pinned?: boolean;
+  pinnedAt?: number;
   mentionedUserIds?: string[];
   reactions: Record<string, number>;
   /** Emojis I reacted with (server `my_reactions`). */

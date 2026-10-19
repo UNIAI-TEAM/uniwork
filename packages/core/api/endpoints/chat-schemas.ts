@@ -36,6 +36,7 @@ export const ChatMessageSchema = z.object({
   cursor: z.string().optional().catch(undefined),
   edited_at: z.string().optional(),
   pinned: z.boolean().optional().default(false),
+  pinned_at: z.string().optional(),
   mentioned_user_ids: z
     .array(z.string())
     .nullish()

@@ -92,8 +92,18 @@ export const DEFAULT_ARCHIVE_LIMITS = Object.freeze({
   timeoutMs: 120_000,
 });
 
-// `tar -tv` of GNU tar and busybox: type+mode, owner/group, size, date, time, name.
-const LISTING_LINE = /^([-dlhcbpsC])\S*\s+\S+\s+(\d+)\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?\s+(.+)$/;
+// `tar -tv` of GNU tar and busybox: fields between mode and size vary (uid/gid,
+// owner/group, link count); date, time and name stay at the end (ISO or
+// `Oct 18 11:25` when --full-time is unavailable).
+const LISTING_TIME =
+  "(?:\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}(?::\\d{2})?|[A-Z][a-z]{2}\\s+\\d{1,2}\\s+\\d{2}:\\d{2})";
+const LISTING_LINE = new RegExp(`^([-dlhcbpsC])\\S*\\s+.+\\s+(\\d+)\\s+${LISTING_TIME}\\s+(.+)$`);
+
+/** Git for Windows tar treats `D:\path` as host `D`; forward slashes stay local. */
+function tarLocalPath(path) {
+  const abs = resolve(path);
+  return process.platform === "win32" ? abs.replace(/\\/g, "/") : abs;
+}
 
 /**
  * Lists an archive and refuses it before a byte is extracted: only regular
@@ -101,17 +111,19 @@ const LISTING_LINE = /^([-dlhcbpsC])\S*\s+\S+\s+(\d+)\s+\d{4}-\d{2}-\d{2}\s+\d{2
  * unpacked size. A listing line it cannot read is a refusal, not a guess.
  */
 export function assertSafeArchive(archive, limits = DEFAULT_ARCHIVE_LIMITS) {
-  if (statSync(archive).size > limits.maxArchiveBytes) throw new Error(`archive is larger than ${limits.maxArchiveBytes} bytes`);
-  const listing = execFileSync("tar", ["-tvzf", archive], { encoding: "utf8", timeout: limits.timeoutMs, maxBuffer: 16 * 1024 * 1024 });
+  const archivePath = tarLocalPath(archive);
+  if (statSync(archivePath).size > limits.maxArchiveBytes) throw new Error(`archive is larger than ${limits.maxArchiveBytes} bytes`);
+  const listing = execFileSync("tar", ["-tvzf", archivePath], { encoding: "utf8", timeout: limits.timeoutMs, maxBuffer: 16 * 1024 * 1024 });
   let entries = 0;
   let unpacked = 0;
-  for (const line of listing.split("\n")) {
+  for (const raw of listing.split("\n")) {
+    const line = raw.replace(/\r$/, "");
     if (line.trim() === "") continue;
     const match = LISTING_LINE.exec(line);
     if (!match) throw new Error(`archive listing line is not understood: ${JSON.stringify(line.slice(0, 120))}`);
     const [, type, size, name] = match;
     if (type !== "-" && type !== "d") throw new Error(`archive member ${JSON.stringify(name)} is not a regular file or directory (type ${type})`);
-    const path = name.replace(/^\.\//, "");
+    const path = name.replace(/\r$/, "").replace(/^\.\//, "");
     if (path.startsWith("/") || path.includes("\\") || path.includes("\0") || path.split("/").includes("..")) {
       throw new Error(`archive member ${JSON.stringify(name)} escapes the bundle`);
     }
@@ -157,7 +169,7 @@ export async function materialize(source, scratch, limits = DEFAULT_ARCHIVE_LIMI
     assertSafeArchive(archive, limits);
     const out = join(scratch, "unpacked");
     mkdirSync(out);
-    execFileSync("tar", ["-xzf", archive, "-C", out], { stdio: "inherit", timeout: limits.timeoutMs });
+    execFileSync("tar", ["-xzf", tarLocalPath(archive), "-C", tarLocalPath(out)], { stdio: "inherit", timeout: limits.timeoutMs });
     return out;
   }
   return resolve(source);

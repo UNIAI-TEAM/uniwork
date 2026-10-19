@@ -218,6 +218,36 @@ func TestChatRoomModerationPromoteMuteAndGroupKick(t *testing.T) {
 	}
 }
 
+func TestChatPinTwoMessagesInRoom(t *testing.T) {
+	s, _, q, ua, ub, w, _ := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	dm, err := s.CreateOrGetDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("dm: %v", err)
+	}
+	first, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "first"})
+	if err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	second, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{Body: "second"})
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	p1, err := s.ToggleChatMessagePin(ctx, ua.ID, w.ID, dm.ID, first.ID)
+	if err != nil || !p1.Pinned {
+		t.Fatalf("pin first: err=%v pinned=%v", err, p1.Pinned)
+	}
+	p2, err := s.ToggleChatMessagePin(ctx, ua.ID, w.ID, dm.ID, second.ID)
+	if err != nil || !p2.Pinned || p2.PinnedAt == "" {
+		t.Fatalf("pin second: err=%v pinned=%v at=%q", err, p2.Pinned, p2.PinnedAt)
+	}
+	if p1.PinnedAt == "" {
+		t.Fatalf("first pin should carry pinned_at")
+	}
+}
+
 func TestChatMessageEditDeletePin(t *testing.T) {
 	s, pub, q, ua, ub, w, pool := chatFixtureWithPool(t)
 	ctx := context.Background()

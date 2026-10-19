@@ -17,10 +17,20 @@ const mapped = new WeakMap<ChatMessageRecord, ChatMessage>();
 
 export function toChatMessage(record: ChatMessageRecord): ChatMessage {
   const cached = mapped.get(record);
-  if (cached) return cached;
+  if (cached && mappedRecordStillMatches(record, cached)) return cached;
   const message = mapRecord(record);
   mapped.set(record, message);
   return message;
+}
+
+function mappedRecordStillMatches(record: ChatMessageRecord, cached: ChatMessage): boolean {
+  const pinnedAt = record.pinned_at ? Date.parse(record.pinned_at) : undefined;
+  return (
+    cached.pinned === record.pinned &&
+    cached.pinnedAt === pinnedAt &&
+    cached.body === record.body &&
+    cached.editedAt === (record.edited_at ? Date.parse(record.edited_at) : undefined)
+  );
 }
 
 function mapRecord(record: ChatMessageRecord): ChatMessage {
@@ -39,6 +49,7 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
     threadUnread: record.thread_unread,
     editedAt: record.edited_at ? Date.parse(record.edited_at) : undefined,
     pinned: record.pinned,
+    pinnedAt: record.pinned_at ? Date.parse(record.pinned_at) : undefined,
     mentionedUserIds: record.mentioned_user_ids,
     reactions: record.reactions ?? {},
     myReactions: record.my_reactions,

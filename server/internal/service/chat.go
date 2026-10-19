@@ -90,6 +90,7 @@ type ChatMessageRow struct {
 	Reactions         map[string]int
 	MyReactions       []string // emojis the viewer reacted with; empty without a viewer
 	Pinned            bool
+	PinnedAt          string
 	MentionedUserIDs  []string
 	VoiceCall         *VoiceCallLogInfo
 	VoiceCallSummary  *VoiceCallSummaryInfo
