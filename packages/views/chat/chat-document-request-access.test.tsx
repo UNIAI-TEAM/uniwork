@@ -50,6 +50,23 @@ describe("ChatDocumentRequestAccess", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("has the status region before the send resolves and keeps keyboard focus off the body after", async () => {
+    let resolve!: (v: unknown) => void;
+    requestMock.mockImplementation(() => new Promise((r) => { resolve = r; }));
+    renderButton();
+    // A live region created together with its text is not announced: it must be there first.
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+    button().focus();
+    fireEvent.click(button());
+    await waitFor(() => expect(button()).toHaveAttribute("aria-disabled", "true"));
+    resolve({ status: "sent" });
+    await waitFor(() => expect(status).toHaveTextContent(K("sent")));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toBe(status);
+  });
+
   it("does not send twice while a request is in flight", async () => {
     let resolve!: (v: unknown) => void;
     requestMock.mockImplementation(() => new Promise((r) => { resolve = r; }));
@@ -81,7 +98,7 @@ describe("ChatDocumentRequestAccess", () => {
     fireEvent.click(button());
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(K("cooldown", { minutes: 40 })));
     expect(button()).not.toHaveAttribute("aria-disabled");
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   it("toasts the limiter on a 429 without the cooldown code", async () => {
@@ -111,6 +128,6 @@ describe("ChatDocumentRequestAccess", () => {
     renderButton();
     fireEvent.click(button());
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(K("send_failed")));
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

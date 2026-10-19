@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode, errorFields } from "@uniwork/core/api";
@@ -39,7 +39,10 @@ export function chatDocumentVersionError(err: unknown, t: TFunction, fallback: s
  * `sent` is shown as sent; 409 `access_request_pending` reads as "already
  * waiting". Both replace the button in place, so a second send is not offered;
  * the refusals (cooldown, limiter, anything else) stay a toast and keep the
- * button for another try.
+ * button for another try. The sentence is written into a status region that is
+ * mounted from the start (a live region created with its text is not
+ * announced) and takes focus when the button it replaces had it, so a keyboard
+ * user keeps their place.
  */
 export function ChatDocumentRequestAccess({
   workspaceId,
@@ -51,8 +54,14 @@ export function ChatDocumentRequestAccess({
   const { t } = useTranslation();
   const send = useRequestDocumentAccess(workspaceId, documentId);
   const [done, setDone] = useState<"sent" | "already_pending" | null>(null);
-  const run = () => {
+  const statusRef = useRef<HTMLParagraphElement>(null);
+  const restoreFocus = useRef(false);
+  useEffect(() => {
+    if (done && restoreFocus.current) statusRef.current?.focus();
+  }, [done]);
+  const run = (event: MouseEvent<HTMLButtonElement>) => {
     if (send.isPending) return;
+    restoreFocus.current = document.activeElement === event.currentTarget;
     send.mutate(
       { requested_level: "view" },
       {
@@ -72,24 +81,29 @@ export function ChatDocumentRequestAccess({
       },
     );
   };
-  if (done) {
-    return (
-      <p role="status" className="min-w-0 text-caption text-muted-foreground">
-        {t(`documents.access_request.${done}`)}
-      </p>
-    );
-  }
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="pointer-coarse:min-h-11 gap-1.5"
-      aria-disabled={send.isPending || undefined}
-      onClick={run}
-    >
-      {send.isPending ? <Spinner /> : null}
-      {t("chat.document_request_access")}
-    </Button>
+    <>
+      <p
+        ref={statusRef}
+        role="status"
+        tabIndex={-1}
+        className={done ? "min-w-0 text-caption text-muted-foreground" : undefined}
+      >
+        {done ? t(`documents.access_request.${done}`) : null}
+      </p>
+      {done ? null : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="pointer-coarse:min-h-11 gap-1.5"
+          aria-disabled={send.isPending || undefined}
+          onClick={run}
+        >
+          {send.isPending ? <Spinner /> : null}
+          {t("chat.document_request_access")}
+        </Button>
+      )}
+    </>
   );
 }
