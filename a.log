@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+e1770b81c6966b3fa15a71f0d6ce591dd54c6618
+e1770b81c chore(merge): develop a6f327a11 into the G5-G7 part 4 PR branch, base cac52dabe because #347 was squashed (UNI-923)
+987417ea2 chore(merge): PR 3 branch cac52dabe (squash-merged into develop as #347) into the part 4 PR branch (UNI-923)
+e1181a8ce test(e2e): open My Folder from its tree row now that the collection row is gone
