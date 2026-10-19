@@ -479,7 +479,9 @@ test.describe("Ctrl/Cmd+P", () => {
     const frame = page.frameLocator('iframe[src*="/office-frame/html/"]');
     await installPrintProbe(frame);
     await installPrintProbe(page);
-    await frame.locator("body").click({ position: { x: 20, y: 20 } });
+    // A tab in the module's own chrome keeps the focus in this document: the preview
+    // body is itself an iframe, and a keydown inside it never reaches the accelerator.
+    await frame.getByRole("tab").first().click();
     await page.keyboard.press("Control+p");
     await expect.poll(async () => (await readPrintCounts(frame)).windowPrints).toBe(1);
     expect((await readPrintCounts(frame)).hostPrints).toBe(0);
