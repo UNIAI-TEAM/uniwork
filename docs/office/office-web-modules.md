@@ -501,8 +501,8 @@ the document skill's access object (`66ac839f8` red test, `2946de792` fix), so a
 UNI-1972 app comments parity (via `e21f050d9`: the shared collab thread shows the `(edited)` / `(đã sửa)` marker as a
 `collab-link collab-edited` button and regroups the thread body), UNI-1847 first save (a durable per-account first-save
 record, a replayed first-save key never re-binds, a first save never writes over an existing store copy), UNI-1975 folder
-share off, UNI-1963 date bomb, UNI-1918 save-path residuals (fork half), UNI-1958 copy sync and UNI-1920 docs hooks (the
-Docs watermark effect clears its timers once disposed), all desktop-shell or shared-kit changes with no frame protocol
+share off, UNI-1963 date bomb (a cli test only, packages/cli/tests/docx.test.ts), UNI-1918 save-path residuals (fork half), UNI-1958 copy sync and UNI-1920 docs hooks (the
+Docs watermark effect clears its timers once disposed), all other desktop-shell or shared-kit changes with no frame protocol
 change), UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
 frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 frame protocol and UI events (with
@@ -700,6 +700,11 @@ unchanged (`img-src data: blob: https:`, `connect-src 'none'`): the frame
 inlines what the preview needs before handing the copy over (pictures as
 `data:` URIs as today, mapped stylesheets as `<style>`, mapped scripts as
 inline `<script>`, fetched same-origin from the map), so no policy is widened.
+
+**Frame avatar CSP limit.** Since `0.1.0-3d4ccd1` the frame comment thread renders the author photo (`avatar_url`)
+when present, but the frame CSP `img-src 'self' data: blob:` blocks remote avatar URLs on purpose, so web frames show
+the initials fallback and the browser logs one CSP violation per such comment. Widening `img-src` or stripping
+`avatar_url` in the host is a separate decision.
 
 **Frame side (fork) to do.** Accept `image/webp` and `image/svg+xml` in the
 asset store's display/read paths (upload stays PNG/JPEG/GIF/WebP), inline
