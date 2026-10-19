@@ -13,6 +13,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // countingFiles counts what the office service pulls out of FileService, so a
@@ -22,6 +23,7 @@ type countingFiles struct {
 	opens    atomic.Int64
 	closes   atomic.Int64
 	read     atomic.Int64
+	outputs  atomic.Int64
 	readHook func([]byte) (int, error)
 }
 
@@ -57,6 +59,11 @@ func (c *countingFiles) Open(ctx context.Context, in files.OpenInput) (files.Rea
 	c.opens.Add(1)
 	r.Body = &countedBody{ReadCloser: r.Body, n: &c.read, closes: &c.closes, readHook: c.readHook}
 	return r, nil
+}
+
+func (c *countingFiles) RegisterProviderOutput(ctx context.Context, in files.ProviderOutputInput) (files.ProviderOutput, error) {
+	c.outputs.Add(1)
+	return c.bridgeFiles.RegisterProviderOutput(ctx, in)
 }
 
 func (f *officeFixture) streamService(engine OfficeEngine, cf files.Service) *DocumentOfficeService {
@@ -229,6 +236,69 @@ func TestOfficeInputBudgetRefusalKeepsTheRowAcceptedAndRetryReopensTheBase(t *te
 	}
 	if got := cf.opens.Load(); got != 2 {
 		t.Fatalf("the base was opened %d times, want one fresh open per dispatch", got)
+	}
+}
+
+func TestOfficeSubmitRedispatchNegotiatesJobTransport(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, "retry transport gate\n")
+	cf := &countingFiles{bridgeFiles: f.files}
+	eng := newScriptedEngine()
+	seen := recordSubmits(eng, cf, func(n int) error {
+		if n == 1 {
+			return office.NewEngineError("engine_overloaded", "input_budget")
+		}
+		return nil
+	})
+	svc := f.streamService(eng, cf)
+
+	row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-redispatch-transport"))
+	if !office.Retryable(err) || office.ErrorCode(err) != "engine_overloaded" {
+		t.Fatalf("first dispatch: %v", err)
+	}
+	if row.State != string(office.JobAccepted) || row.DispatchedAt.Valid {
+		t.Fatalf("expected accepted/undispatched row after retryable refusal: %+v", row)
+	}
+	if cf.outputs.Load() != 1 || len(*seen) != 1 {
+		t.Fatalf("after first attempt: outputs=%d submits=%d, want 1 and 1", cf.outputs.Load(), len(*seen))
+	}
+
+	for _, tr := range []string{"", "json/1"} {
+		v := tr
+		eng.jobTransport = &v
+		_, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-redispatch-transport"))
+		if err == nil {
+			t.Fatalf("job_transport %q redispatched an accepted row", tr)
+		}
+		if ee := wantOfficeCode(t, err, "engine_incompatible"); ee.Reason != "job_transport:"+tr {
+			t.Fatalf("job_transport %q refusal = %+v, want job_transport:%s", tr, ee, tr)
+		}
+		persisted, err := f.q.GetOfficeJob(ctx, db.GetOfficeJobParams{ID: row.ID, OrganizationID: f.org, WorkspaceID: f.ws})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if persisted.State != string(office.JobAccepted) || persisted.DispatchedAt.Valid {
+			t.Fatalf("job_transport %q mutated row: %+v", tr, persisted)
+		}
+		if cf.outputs.Load() != 1 {
+			t.Fatalf("job_transport %q registered provider output %d times, want 1", tr, cf.outputs.Load())
+		}
+		if len(*seen) != 1 || len(eng.grants) != 0 {
+			t.Fatalf("job_transport %q called Submit: submits=%d grants=%d", tr, len(*seen), len(eng.grants))
+		}
+	}
+
+	framed := office.JobTransport
+	eng.jobTransport = &framed
+	again, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-redispatch-transport"))
+	if err != nil {
+		t.Fatalf("redispatch after restoring %s: %v", office.JobTransport, err)
+	}
+	if again.ID != row.ID || again.GrantID != row.GrantID || again.State != string(office.JobRunning) || !again.DispatchedAt.Valid {
+		t.Fatalf("redispatch row: %+v", again)
+	}
+	if cf.outputs.Load() != 2 || len(*seen) != 2 || len(eng.grants) != 1 {
+		t.Fatalf("after valid redispatch: outputs=%d submits=%d grants=%d, want 2, 2, 1", cf.outputs.Load(), len(*seen), len(eng.grants))
 	}
 }
 

@@ -441,6 +441,9 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 		if input.checksum != row.InputChecksum {
 			return row, officeErr("payload_fingerprint_mismatch", "base_changed")
 		}
+		if _, err := office.Negotiate(ctx, s.engine, office.Format(row.Format)); err != nil {
+			return row, err
+		}
 		out, err := s.files.RegisterProviderOutput(ctx, files.ProviderOutputInput{
 			Actor: actor, Purpose: files.DocumentFile,
 			Scope:       files.Scope{OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID},
