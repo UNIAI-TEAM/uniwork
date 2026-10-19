@@ -180,7 +180,7 @@ function maskFormulas(text) {
     const bodyStart = m.index + m[0].length;
     const end = formulaCallEnd(text, bodyStart);
     const body = end > 0 ? text.slice(bodyStart, end - 1) : '';
-    if (end > 0 && (HAS_CELL_REF_RE.test(body) || (SPREADSHEET_FN_RE.test(m[0]) && /[,;]/.test(body)))) mask(m.index, end);
+    if (end > 0 && (SPREADSHEET_FN_RE.test(m[0]) || HAS_CELL_REF_RE.test(body))) mask(m.index, end);
   }
   for (const m of text.matchAll(FORMULA_EXPR_RE)) {
     const end = formulaExprEnd(text, m.index + 1, false);
