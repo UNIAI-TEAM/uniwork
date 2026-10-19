@@ -61,6 +61,9 @@ type McpTask struct {
 	// with CommentsTruncated when older ones were left out.
 	Comments          []McpTaskComment `json:"comments,omitempty"`
 	CommentsTruncated bool             `json:"comments_truncated,omitempty"`
+	// number is the N of the PREFIX-N reference, for Ask UNI's text; no tool
+	// output carries it.
+	number int64
 }
 
 // McpTaskComment is a comment as get_task lists it; its id is what
@@ -119,6 +122,7 @@ func (s *McpToolService) taskOf(base string, t db.Task) McpTask {
 	out := McpTask{
 		McpItem:  McpItem{Kind: "task", ID: t.ID, WorkspaceID: t.WorkspaceID, Title: t.Title, Status: t.Status, URL: s.frontend + base + "/tasks/" + t.ID, Excerpt: capRunes(t.Description, mcpMaxHitRunes, mcpHitCut)},
 		Revision: t.Revision, Priority: t.Priority, AssigneeID: t.AssigneeID.String, ProjectID: t.ProjectID.String, ParentTaskID: t.ParentTaskID.String,
+		number: t.Number,
 	}
 	if t.DueDate.Valid {
 		out.DueDate = t.DueDate.Time.Format("2006-01-02")

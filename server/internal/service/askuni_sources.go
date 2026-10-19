@@ -581,7 +581,7 @@ func (s *AskUNIService) chatContext(ctx context.Context, tc ai.ToolContext, quer
 		if i == 5 {
 			break
 		}
-		msgs, err := s.chat.ListRoomMessages(ctx, tc.ActorID, tc.WorkspaceID, room.ID, ListChatMessagesInput{Limit: 20})
+		msgs, err := s.chat.ListRoomMessages(ctx, tc.ActorID, tc.WorkspaceID, room.ID, ListChatMessagesInput{Limit: 20, SkipMarkRead: true})
 		if err != nil {
 			return nil, err
 		}

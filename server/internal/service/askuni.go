@@ -32,6 +32,7 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	flags    McpFlags
+	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
 	gw       *ai.Gateway
 	ent      *EntitlementService
 	rdb      *redis.Client
@@ -49,6 +50,10 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // SetFlags wires the feature-flag evaluator; without it the documents flag
 // reads as off (fail closed, as in McpToolService).
 func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
+
+// SetReadTools wires the MCP connector's read methods, which the agent's tools
+// call as the asker (set from main after construction).
+func (s *AskUNIService) SetReadTools(m *McpToolService) { s.reads = m }
 
 // taskRow is what the source reader renders; it is the sqlc row.
 type taskRow = db.Task
