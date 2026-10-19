@@ -1,0 +1,15 @@
+$ npm run typecheck -w @genoffice/shell && npm run typecheck -w @genoffice/docs && npm run typecheck -w @genoffice/slides; rc=$?; echo; echo "TYPECHECK_EXIT=$rc"
+
+> @genoffice/shell@1.0.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/docs@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @genoffice/slides@0.1.0 typecheck
+> tsc --noEmit
+
+
+TYPECHECK_EXIT=0
