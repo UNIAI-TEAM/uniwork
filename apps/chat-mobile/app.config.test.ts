@@ -45,6 +45,7 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(config.ios).toMatchObject({
       bundleIdentifier: appId,
       associatedDomains: ["applinks:app.uniworkos.com"],
+      config: { usesNonExemptEncryption: false },
     });
     expect(config.android).toMatchObject({
       package: appId,

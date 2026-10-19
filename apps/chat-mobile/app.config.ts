@@ -96,6 +96,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       appleTeamId: process.env.EXPO_APPLE_TEAM_ID,
       bundleIdentifier: appId,
       associatedDomains: [`applinks:${APP_LINK_HOST}`],
+      // HTTPS, WSS and WebRTC only: exempt encryption, so TestFlight does not hold every build on the export question.
+      config: { usesNonExemptEncryption: false },
       // A call keeps its audio when the person switches app or locks the phone.
       infoPlist: { UIBackgroundModes: ["audio"] },
     },
