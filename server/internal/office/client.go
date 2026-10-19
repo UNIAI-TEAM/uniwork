@@ -188,17 +188,68 @@ func (c *Client) Capability(ctx context.Context, format Format) (CapabilityResul
 	return out, nil
 }
 
+// InputSource is the raw input bytes of one job. Open is called once per
+// attempt (and again if the transport replays the body): a consumed reader is
+// never reused. Length and Checksum are the digest the envelope and the grant
+// already carry; the engine verifies them against the bytes it receives.
+type InputSource struct {
+	Length   int64
+	Checksum string
+	Open     func() (io.ReadCloser, error)
+}
+
+// jobFrameType is the Content-Type of a protocol-2 job body: the JSON
+// envelope (X-Office-Envelope-Length bytes) immediately followed by the raw
+// input bytes, no separator.
+const jobFrameType = "application/vnd.uniwork.office-job"
+
 // Submit sends one job. A 2xx answer is a job (new or replayed); anything
-// else is a typed error. The request timeout grows with the envelope
-// (+250 ms per MiB): the engine decodes and hashes the base64 input before it
-// answers, which takes seconds for a large base.
-func (c *Client) Submit(ctx context.Context, grant string, env Envelope) (JobStatus, error) {
+// else is a typed error. The body is a frame (envelope + raw input streamed
+// from input.Open, explicit Content-Length), so the input is never held in
+// memory here. The request timeout grows with the input (+250 ms per MiB):
+// the engine hashes the input before it answers. A source without Open sends
+// the envelope alone as JSON.
+func (c *Client) Submit(ctx context.Context, grant string, env Envelope, input InputSource) (JobStatus, error) {
 	raw, err := json.Marshal(env)
 	if err != nil {
 		return JobStatus{}, err
 	}
-	extra := time.Duration(len(raw)>>20) * 250 * time.Millisecond
-	return c.jobWithin(ctx, c.cfg.RequestTimeout+extra, http.MethodPost, "/v1/jobs", grant, raw)
+	if input.Open == nil {
+		return c.jobWithin(ctx, c.cfg.RequestTimeout, http.MethodPost, "/v1/jobs", grant, raw)
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.cfg.RequestTimeout+time.Duration(input.Length>>20)*250*time.Millisecond)
+	defer cancel()
+	req, err := c.newRequest(ctx, http.MethodPost, "/v1/jobs", grant)
+	if err != nil {
+		return JobStatus{}, err
+	}
+	body, err := frameBody(raw, input)
+	if err != nil {
+		return JobStatus{}, err
+	}
+	req.Body = body
+	req.ContentLength = int64(len(raw)) + input.Length
+	req.GetBody = func() (io.ReadCloser, error) { return frameBody(raw, input) }
+	req.Header.Set("Content-Type", jobFrameType)
+	req.Header.Set("X-Office-Envelope-Length", strconv.Itoa(len(raw)))
+	status, resp, err := c.roundTrip(req)
+	if err != nil {
+		return JobStatus{}, err
+	}
+	return parseJob(status, resp)
+}
+
+type frame struct {
+	io.Reader
+	io.Closer
+}
+
+func frameBody(envelope []byte, input InputSource) (io.ReadCloser, error) {
+	src, err := input.Open()
+	if err != nil {
+		return nil, err
+	}
+	return frame{Reader: io.MultiReader(bytes.NewReader(envelope), src), Closer: src}, nil
 }
 
 // Status reads one job with its grant.
@@ -221,6 +272,10 @@ func (c *Client) jobWithin(ctx context.Context, timeout time.Duration, method, p
 	if err != nil {
 		return JobStatus{}, err
 	}
+	return parseJob(status, raw)
+}
+
+func parseJob(status int, raw []byte) (JobStatus, error) {
 	if status < 200 || status > 299 {
 		return JobStatus{}, decodeFailure(status, raw)
 	}
@@ -243,21 +298,32 @@ func (c *Client) do(ctx context.Context, method, path, grant string, body []byte
 func (c *Client) doWithin(ctx context.Context, timeout time.Duration, method, path, grant string, body []byte) (int, []byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	var reader io.Reader
-	if body != nil {
-		reader = bytes.NewReader(body)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, c.base.String()+path, reader)
+	req, err := c.newRequest(ctx, method, path, grant)
 	if err != nil {
 		return 0, nil, err
+	}
+	if body != nil {
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.ContentLength = int64(len(body))
+		req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(body)), nil }
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return c.roundTrip(req)
+}
+
+func (c *Client) newRequest(ctx context.Context, method, path, grant string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, c.base.String()+path, nil)
+	if err != nil {
+		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	if grant != "" {
 		req.Header.Set("X-Office-Grant", grant)
 	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
+	return req, nil
+}
+
+func (c *Client) roundTrip(req *http.Request) (int, []byte, error) {
 	res, err := c.http.Do(req)
 	if err != nil {
 		// Unreachable, reset or timed out: the engine may or may not have the
