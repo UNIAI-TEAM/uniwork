@@ -51,7 +51,8 @@ describe("PageToolbar", () => {
     renderToolbar(mount());
     const bar = screen.getByRole("toolbar", { name: label("label") });
     const names = within(bar).getAllByRole("button").map((node) => node.getAttribute("aria-label"));
-    expect(names.slice(0, 3)).toEqual([t("documents.page_ui.toolbar.style_aria", { style: t("documents.page_ui.blocks.paragraph.label") }), label("undo"), label("redo")]);
+    // the approved board order: history, text style, then the groups
+    expect(names.slice(0, 3)).toEqual([label("undo"), label("redo"), t("documents.page_ui.toolbar.style_aria", { style: t("documents.page_ui.blocks.paragraph.label") })]);
     for (const tool of TOOL_GROUPS.flat()) expect(names).toContain(label(tool.id));
     expect(names.at(-1)).toBe(label("help_button"));
   });
@@ -139,10 +140,11 @@ describe("PageToolbar", () => {
     const bar = screen.getByRole("toolbar");
     const stops = within(bar).getAllByRole("button").filter((node) => node.tabIndex === 0);
     expect(stops).toHaveLength(1);
-    const first = within(bar).getAllByRole("button")[0]!;
+    // undo and redo are disabled on a fresh document, so the Tab stop and the arrows start at the style menu
+    const first = within(bar).getAllByRole("button")[2]!;
+    expect(stops[0]).toBe(first);
     first.focus();
     fireEvent.keyDown(first, { key: "ArrowRight" });
-    // undo and redo are disabled on a fresh document, so the arrow skips them
     expect(document.activeElement).toBe(button("bold"));
     fireEvent.keyDown(document.activeElement!, { key: "End" });
     expect(document.activeElement).toBe(button("help_button"));

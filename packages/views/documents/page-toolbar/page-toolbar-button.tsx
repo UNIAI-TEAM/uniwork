@@ -43,7 +43,7 @@ export function ToolbarButton({
       pressed={pressed}
       disabled={disabled}
       tabIndex={tabIndex}
-      className={cn(TOOLBAR_BUTTON_CLASS)}
+      className={cn(TOOLBAR_BUTTON_CLASS, "aria-pressed:bg-primary/10 aria-pressed:text-primary hover:aria-pressed:bg-primary/15")}
       onPressedChange={onRun}
       onFocus={onFocus}
       onMouseDown={(event) => event.preventDefault()}

@@ -28,7 +28,7 @@ export function PageStyleMenu({ editor, tabIndex, onFocus }: { editor: Editor; t
         onFocus={onFocus}
         onMouseDown={(event) => event.preventDefault()}
         className={cn(
-          "inline-flex h-8 min-w-28 items-center justify-between gap-1.5 rounded-control px-2.5 text-body font-medium",
+          "inline-flex h-8 min-w-28 shrink-0 items-center justify-between gap-1.5 rounded-control px-2.5 text-body font-medium whitespace-nowrap",
           "outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50", TOOLBAR_BUTTON_CLASS, "pointer-coarse:w-auto",
         )}
       >

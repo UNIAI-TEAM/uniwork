@@ -35,7 +35,7 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
   const linkAnchorRef = useRef<HTMLButtonElement>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [rovingId, setRovingId] = useState<string>(STYLE_ID);
+  const [rovingId, setRovingId] = useState<string>("");
 
   const states = useEditorState({
     editor,
@@ -80,9 +80,27 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
   }, []);
 
   // The one Tab stop must survive its button turning disabled (undo emptied, caret in a table).
-  const enabledIds = [STYLE_ID, ...TOOL_GROUPS.flat().filter((tool) => !states?.[tool.id]?.disabled).map((tool) => tool.id), HELP_ID];
-  const stopId = enabledIds.includes(rovingId) ? rovingId : STYLE_ID;
+  const [history = [], ...rest] = TOOL_GROUPS;
+  const enabled = (tool: ToolbarTool) => !states?.[tool.id]?.disabled;
+  const enabledIds = [...history.filter(enabled).map((tool) => tool.id), STYLE_ID, ...rest.flat().filter(enabled).map((tool) => tool.id), HELP_ID];
+  const stopId = enabledIds.includes(rovingId) ? rovingId : enabledIds[0];
   const tabIndexFor = (id: string) => (stopId === id ? 0 : -1);
+  const renderTool = (tool: ToolbarTool) => {
+    const isLink = tool.id === "link";
+    return (
+      <ToolbarButton
+        key={tool.id}
+        tool={tool}
+        pressed={states?.[tool.id]?.pressed ?? false}
+        disabled={states?.[tool.id]?.disabled ?? false}
+        tabIndex={tabIndexFor(tool.id)}
+        onRun={() => run(tool)}
+        onFocus={() => setRovingId(tool.id)}
+        triggerRef={isLink ? linkAnchorRef : undefined}
+        popupOpen={isLink ? linkOpen : undefined}
+      />
+    );
+  };
 
   return (
     <TooltipProvider delay={300}>
@@ -96,26 +114,14 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
           onKeyDown={onKeyDown}
         >
           <div className="mx-auto flex w-max items-center gap-0.5">
+            {/* Order follows the approved board: history, text style, then the groups. */}
+            {history.map(renderTool)}
+            <Separator orientation="vertical" className="mx-1.5 h-5" />
             <PageStyleMenu editor={editor} tabIndex={tabIndexFor(STYLE_ID)} onFocus={() => setRovingId(STYLE_ID)} />
-            {TOOL_GROUPS.map((group, groupIndex) => (
+            {rest.map((group, groupIndex) => (
               <Fragment key={groupIndex}>
                 <Separator orientation="vertical" className="mx-1.5 h-5" />
-                {group.map((tool) => {
-                  const isLink = tool.id === "link";
-                  return (
-                    <ToolbarButton
-                      key={tool.id}
-                      tool={tool}
-                      pressed={states?.[tool.id]?.pressed ?? false}
-                      disabled={states?.[tool.id]?.disabled ?? false}
-                      tabIndex={tabIndexFor(tool.id)}
-                      onRun={() => run(tool)}
-                      onFocus={() => setRovingId(tool.id)}
-                      triggerRef={isLink ? linkAnchorRef : undefined}
-                      popupOpen={isLink ? linkOpen : undefined}
-                    />
-                  );
-                })}
+                {group.map(renderTool)}
               </Fragment>
             ))}
             <Separator orientation="vertical" className="mx-1.5 h-5" />
@@ -139,7 +145,7 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
             side="bottom"
             align="end"
             sideOffset={6}
-            className="max-h-[min(24rem,var(--available-height,24rem))] w-64 gap-0.5 overflow-y-auto p-1"
+            className="max-h-[min(32rem,var(--available-height,32rem))] w-64 gap-0.5 overflow-y-auto p-1"
             initialFocus={focusOnKeyboardOpen}
             finalFocus={focusOnKeyboardOpen}
             onKeyDown={menuArrowKeys}

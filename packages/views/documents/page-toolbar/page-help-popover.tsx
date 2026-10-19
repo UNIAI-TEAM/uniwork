@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { CircleQuestionMark, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createShortcutChord, type ShortcutChord } from "@uniwork/core/shortcuts";
@@ -72,12 +72,18 @@ export function PageHelpPopover({
 }: { open: boolean; onOpenChange: (open: boolean) => void; tabIndex: number; onFocus: () => void }) {
   const { t } = useTranslation();
   const label = t("documents.page_ui.toolbar.help.title");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // The tip can open this while the toolbar is scrolled away from the "?" button (phones).
+  useEffect(() => {
+    if (open) triggerRef.current?.scrollIntoView?.({ inline: "center", block: "nearest" });
+  }, [open]);
   return (
     <Popover modal={false} open={open} onOpenChange={onOpenChange}>
       <Tooltip>
         <TooltipTrigger
           render={
             <PopoverTrigger
+              ref={triggerRef}
               data-tool="help"
               aria-label={t("documents.page_ui.toolbar.help_button")}
               tabIndex={tabIndex}
