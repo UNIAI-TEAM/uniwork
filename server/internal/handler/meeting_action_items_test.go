@@ -56,6 +56,12 @@ func TestMeetingActionItemsHTTP(t *testing.T) {
 	reportID := add(map[string]any{"title": "Gửi báo cáo", "owner_text": "Minh", "due_text": "ngày mai"})
 	roomID := add(map[string]any{"title": "Đặt phòng"})
 
+	// A meeting without a project carries nothing over: an empty list, not null.
+	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/carried-over-items", member, nil)
+	if items, ok := out["items"].([]any); res.StatusCode != http.StatusOK || !ok || len(items) != 0 {
+		t.Fatalf("carried over without a project: %d %v", res.StatusCode, out)
+	}
+
 	// Any member reads the list; the summary no longer carries the items.
 	res, out = doJSON(t, srv, "GET", base, member, nil)
 	if res.StatusCode != http.StatusOK {

@@ -152,6 +152,86 @@ func (q *Queries) InsertMeetingActionItem(ctx context.Context, arg InsertMeeting
 	return i, err
 }
 
+const listCarriedOverActionItems = `-- name: ListCarriedOverActionItems :many
+SELECT i.id AS action_item_id,
+  m.id AS meeting_id, m.title AS meeting_title,
+  COALESCE(m.actual_start_at, m.starts_at)::timestamptz AS meeting_started_at,
+  t.id AS task_id, t.title AS task_title, t.status AS task_status,
+  t.assignee_id AS task_assignee_id, t.due_date AS task_due_date
+FROM meetings m
+JOIN meeting_action_items i ON i.meeting_id = m.id AND i.organization_id = m.organization_id
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE m.organization_id = $1 AND m.workspace_id = $2
+  AND m.project_id = $3::text AND m.id <> $4
+  AND m.status = 'ENDED'
+  AND COALESCE(m.actual_start_at, m.starts_at) < $5::timestamptz
+  AND i.dismissed_at IS NULL
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+ORDER BY t.due_date NULLS LAST, COALESCE(m.actual_start_at, m.starts_at), m.id, i.position, i.id
+LIMIT 100
+`
+
+type ListCarriedOverActionItemsParams struct {
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ProjectID      string             `json:"project_id"`
+	MeetingID      string             `json:"meeting_id"`
+	StartedBefore  pgtype.Timestamptz `json:"started_before"`
+}
+
+type ListCarriedOverActionItemsRow struct {
+	ActionItemID     string             `json:"action_item_id"`
+	MeetingID        string             `json:"meeting_id"`
+	MeetingTitle     string             `json:"meeting_title"`
+	MeetingStartedAt pgtype.Timestamptz `json:"meeting_started_at"`
+	TaskID           string             `json:"task_id"`
+	TaskTitle        string             `json:"task_title"`
+	TaskStatus       string             `json:"task_status"`
+	TaskAssigneeID   pgtype.Text        `json:"task_assignee_id"`
+	TaskDueDate      pgtype.Date        `json:"task_due_date"`
+}
+
+// Carried over to a meeting (spec §6.5): converted items whose task is still
+// open, from the other ENDED meetings of the same project that started
+// before it (actual start, else the scheduled one). Open reads the status
+// category as ListMeetingActionItems does. Soonest due first, no due last.
+func (q *Queries) ListCarriedOverActionItems(ctx context.Context, arg ListCarriedOverActionItemsParams) ([]ListCarriedOverActionItemsRow, error) {
+	rows, err := q.db.Query(ctx, listCarriedOverActionItems,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.MeetingID,
+		arg.StartedBefore,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCarriedOverActionItemsRow{}
+	for rows.Next() {
+		var i ListCarriedOverActionItemsRow
+		if err := rows.Scan(
+			&i.ActionItemID,
+			&i.MeetingID,
+			&i.MeetingTitle,
+			&i.MeetingStartedAt,
+			&i.TaskID,
+			&i.TaskTitle,
+			&i.TaskStatus,
+			&i.TaskAssigneeID,
+			&i.TaskDueDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMeetingActionItems = `-- name: ListMeetingActionItems :many
 SELECT i.id, i.organization_id, i.workspace_id, i.meeting_id, i.source, i.summary_id, i.position, i.title, i.owner_text, i.due_text, i.task_id, i.converted_at, i.converted_by, i.dismissed_at, i.dismissed_by, i.dismiss_reason, i.created_by, i.created_by_kind, i.created_at, i.updated_at,
   (t.id IS NOT NULL)::boolean AS task_live,

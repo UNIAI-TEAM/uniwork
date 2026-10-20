@@ -620,6 +620,7 @@ func New(d Deps) http.Handler {
 		GetMeetingSummary:              h.getMeetingSummary,
 		CreateSummary:                  h.createSummary,
 		ListActionItems:                h.listActionItems,
+		ListCarriedOverItems:           h.listCarriedOverItems,
 		AddActionItem:                  h.addActionItem,
 		DismissActionItem:              h.dismissActionItem,
 		RestoreActionItem:              h.restoreActionItem,

@@ -77,3 +77,26 @@ WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(
 -- this lock in their transaction first, so a conversion never lands on an
 -- item a regenerated summary is replacing. Released at commit or rollback.
 SELECT pg_advisory_xact_lock(hashtextextended('meeting_summary_tx:' || sqlc.arg(meeting_id)::text, 0));
+
+-- name: ListCarriedOverActionItems :many
+-- Carried over to a meeting (spec §6.5): converted items whose task is still
+-- open, from the other ENDED meetings of the same project that started
+-- before it (actual start, else the scheduled one). Open reads the status
+-- category as ListMeetingActionItems does. Soonest due first, no due last.
+SELECT i.id AS action_item_id,
+  m.id AS meeting_id, m.title AS meeting_title,
+  COALESCE(m.actual_start_at, m.starts_at)::timestamptz AS meeting_started_at,
+  t.id AS task_id, t.title AS task_title, t.status AS task_status,
+  t.assignee_id AS task_assignee_id, t.due_date AS task_due_date
+FROM meetings m
+JOIN meeting_action_items i ON i.meeting_id = m.id AND i.organization_id = m.organization_id
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
+WHERE m.organization_id = sqlc.arg(organization_id) AND m.workspace_id = sqlc.arg(workspace_id)
+  AND m.project_id = sqlc.arg(project_id)::text AND m.id <> sqlc.arg(meeting_id)
+  AND m.status = 'ENDED'
+  AND COALESCE(m.actual_start_at, m.starts_at) < sqlc.arg(started_before)::timestamptz
+  AND i.dismissed_at IS NULL
+  AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
+ORDER BY t.due_date NULLS LAST, COALESCE(m.actual_start_at, m.starts_at), m.id, i.position, i.id
+LIMIT 100;

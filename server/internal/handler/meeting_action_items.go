@@ -113,3 +113,23 @@ func (h *handlers) convertActionItems(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, 200, out)
 }
+
+func (h *handlers) listCarriedOverItems(w http.ResponseWriter, r *http.Request) {
+	items, err := h.Meetings.CarriedOverItems(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.MeetingCarriedOverItemsSDO{Items: make([]sdo.MeetingCarriedOverItemDTO, 0, len(items))}
+	for _, it := range items {
+		t := it.Task
+		out.Items = append(out.Items, sdo.MeetingCarriedOverItemDTO{
+			ActionItemID: it.ActionItemID,
+			Meeting:      sdo.MeetingCarriedOverMeetingDTO{ID: it.MeetingID, Title: it.MeetingTitle, StartedAt: rfc3339(it.MeetingStartedAt)},
+			Task: sdo.MeetingActionItemTaskDTO{
+				ID: t.ID, Title: t.Title, Status: t.Status, Done: t.Done, Overdue: t.Overdue, AssigneeID: t.AssigneeID, DueDate: t.DueDate,
+			},
+		})
+	}
+	respondJSON(w, 200, out)
+}

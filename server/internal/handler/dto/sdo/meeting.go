@@ -276,6 +276,25 @@ type MeetingActionItemsSDO struct {
 	Counts MeetingActionItemCountsDTO `json:"counts"`
 }
 
+// MeetingCarriedOverMeetingDTO is the earlier meeting a carried-over task came from.
+type MeetingCarriedOverMeetingDTO struct {
+	ID        string `json:"id" example:"01J8X4MTNG1P2Q3R4S5T6U7V"`
+	Title     string `json:"title" example:"Giao ban tuần 42"`
+	StartedAt string `json:"started_at" description:"Giờ bắt đầu thực tế, chưa có thì theo lịch (RFC 3339)" example:"2026-10-13T02:00:00Z"`
+}
+
+// MeetingCarriedOverItemDTO is a converted item of an earlier meeting whose task is still open.
+type MeetingCarriedOverItemDTO struct {
+	ActionItemID string                       `json:"action_item_id" example:"01J8X4ACTN1P2Q3R4S5T6U7V"`
+	Meeting      MeetingCarriedOverMeetingDTO `json:"meeting"`
+	Task         MeetingActionItemTaskDTO     `json:"task"`
+}
+
+// MeetingCarriedOverItemsSDO answers GET /api/v1/meetings/{meetingID}/carried-over-items.
+type MeetingCarriedOverItemsSDO struct {
+	Items []MeetingCarriedOverItemDTO `json:"items"`
+}
+
 // MeetingActionItemSDO answers POST /api/v1/meetings/{meetingID}/action-items.
 type MeetingActionItemSDO struct {
 	Item MeetingActionItemDTO `json:"item"`

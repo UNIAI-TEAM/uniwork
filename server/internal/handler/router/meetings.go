@@ -189,6 +189,13 @@ func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Hand
 			"còn lại PENDING (task bị xoá thì việc về chờ xử lý). Gợi ý người và hạn chỉ có với việc chờ xử lý.",
 		sdo: sdo.MeetingActionItemsSDO{}, auth: true,
 	})
+	r.Get("/meetings/{meetingID}/carried-over-items", h.ListCarriedOverItems, apiOp{
+		summary: "Open tasks carried over from earlier meetings of the same project", tags: []string{"meetings"},
+		description: "Mọi thành viên workspace. Việc đã giao mà task chưa xong (nhóm trạng thái khác done/cancelled) từ các cuộc họp " +
+			"ENDED khác cùng workspace và dự án, bắt đầu trước cuộc họp này (giờ thực tế nếu có, không thì theo lịch). " +
+			"Sắp theo hạn, không hạn xếp cuối, tối đa 100. Cuộc họp không có dự án → items rỗng.",
+		sdo: sdo.MeetingCarriedOverItemsSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/action-items", h.AddActionItem, apiOp{
 		summary: "Add an action item by hand (clerk)", tags: []string{"meetings"},
 		description: "Cuộc họp IN_PROGRESS hoặc ENDED, không thì 409 invalid_meeting_state. Việc tay không bị thay khi tạo lại tóm tắt.",
