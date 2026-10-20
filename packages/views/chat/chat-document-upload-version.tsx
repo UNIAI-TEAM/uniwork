@@ -3,11 +3,17 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { errorCode, errorFields } from "@uniwork/core/api";
 import { chatKeys } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useDocumentVersionUpload } from "../documents/use-document-version-upload";
+import { CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./chat-dialog-look";
 import { chatDocumentVersionMessage, isDocumentLocked } from "./chat-document-actions";
+
+// The upload dialog's own form stands in for FormDialogBody: p-0 content like
+// FormDialogContent, the gutters on the form, the footer bleeding to the edges.
+const UPLOAD_DIALOG_CLASS = `${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.narrow} gap-0 p-0 [&_form]:gap-4 [&_form]:px-6 [&_form]:pt-5 [&_form]:pb-1 [&_[data-slot=dialog-footer]]:-mx-6`;
 
 /**
  * "Tải lên phiên bản mới" from a chat document card (UNI-2012 S6): the
@@ -53,7 +59,11 @@ export function ChatDocumentUploadVersion({
           {t("chat.document_menu.open_document_page")}
         </Button>
       ) : null,
-    onCommitted: refreshRoom,
+    dialogClassName: UPLOAD_DIALOG_CLASS,
+    onCommitted: () => {
+      refreshRoom();
+      toast.success(t("chat.document_menu.version_uploaded"));
+    },
     onFailed: (err) => {
       // A stale revision: the card re-reads the current one (and the
       // document_version line the winning commit wrote arrives with it, RFC-04).

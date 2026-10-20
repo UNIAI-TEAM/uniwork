@@ -45,6 +45,8 @@ export interface DocumentUploadDialogProps {
   onCancelUpload?: (file: File | null) => void;
   hasResumable?: (file: File) => boolean;
   onPickFile?: (file: File | null) => void;
+  /** The host's dressing for the dialog (the chat card's UniChat look); joins the default width. */
+  className?: string;
 }
 
 /**
@@ -71,6 +73,7 @@ export function DocumentUploadDialog({
   onCancelUpload,
   hasResumable,
   onPickFile,
+  className,
 }: DocumentUploadDialogProps) {
   const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
@@ -140,7 +143,7 @@ export function DocumentUploadDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-md"
+        className={cn("sm:max-w-md", className)}
         showCloseButton={!pending && !isUploading && !isVerifying}
         closeLabel={t("common.close")}
       >

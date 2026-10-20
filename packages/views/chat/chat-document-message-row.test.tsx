@@ -13,7 +13,7 @@ import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
 import { ChatDocumentMessageRow } from "./chat-document-message-row";
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), message: vi.fn(), info: vi.fn() },
+  toast: { error: vi.fn(), message: vi.fn(), info: vi.fn(), success: vi.fn() },
 }));
 
 import { toast } from "sonner";
@@ -374,6 +374,11 @@ describe("ChatDocumentMessageRow", () => {
       expect(labels).not.toContain("Mở để xem và nhận xét");
     });
 
+    it("draws the page mark when the server sends no format, a page document (UNI-2012 V1-F3)", () => {
+      renderCard(documentMessage({ ...DOC, format: undefined }), LIVE);
+      expect(screen.getByRole("img", { name: "UniNote" })).toBeInTheDocument();
+    });
+
     it("hides the upload entry without the grant or without a revision", async () => {
       renderCard(documentMessage({ ...DOC, viewer_level: "edit", viewer_can_upload_version: true, revision: undefined }), LIVE);
       expect(menuLabels(await openMenu())).not.toContain("Tải lên phiên bản mới");
@@ -520,6 +525,15 @@ describe("ChatDocumentMessageRow", () => {
           idempotencyKey: expect.any(String),
         }),
       );
+    });
+
+    it("confirms a committed version with a toast (UNI-2012 V1-F4)", async () => {
+      const { commit } = mockUpload();
+      renderCard(documentMessage(FULL), LIVE);
+      await uploadFromMenu();
+
+      await waitFor(() => expect(commit.mutateAsync).toHaveBeenCalled());
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã tải lên phiên bản mới"));
     });
 
     it("refreshes the room timeline after a committed version so the card carries the new revision", async () => {

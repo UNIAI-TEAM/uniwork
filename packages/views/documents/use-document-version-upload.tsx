@@ -34,6 +34,8 @@ export interface DocumentVersionUploadOptions {
   describeError?: (err: unknown) => string | null;
   /** A way out rendered under the error sentence for this failure, or null. */
   errorAction?: (err: unknown) => ReactNode;
+  /** The host's dressing for the dialog (the chat card's UniChat look). */
+  dialogClassName?: string;
   onCommitted?: () => void;
   onFailed?: (err: unknown) => void;
 }
@@ -63,6 +65,7 @@ export function useDocumentVersionUpload({
   versionIdBefore,
   describeError,
   errorAction,
+  dialogClassName,
   onCommitted,
   onFailed,
 }: DocumentVersionUploadOptions): DocumentVersionUpload {
@@ -207,6 +210,7 @@ export function useDocumentVersionUpload({
       error={failure?.message ?? null}
       errorAction={failure && errorAction ? errorAction(failure.cause) : null}
       showShareToggle={false}
+      className={dialogClassName}
       onSubmit={(picked) => void stageNewVersion(picked)}
       chunkedProgress={chunked.progress}
       onPause={chunked.pause}

@@ -4370,7 +4370,8 @@
       "edit_on_web": "Edit on web",
       "open_to_view": "Open to view and comment",
       "version_history": "Version history",
-      "open_document_page": "Open the document page"
+      "open_document_page": "Open the document page",
+      "version_uploaded": "New version uploaded"
     },
     "sidebar_typing": "Typing…",
     "loading": "Connecting to the chat room…",
