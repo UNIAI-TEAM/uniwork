@@ -1,0 +1,1 @@
+$ awk '/--- FAIL: TestIsolationMatrix\/write-control/{f=1} f{print} /^--- FAIL: TestIsolationMatrix /{exit}' /tmp/uni2012r1b-iso.log | cut -c1-700 | head -80

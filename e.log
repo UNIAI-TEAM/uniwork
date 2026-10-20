@@ -1,0 +1,7 @@
+$ grep -nE "FAIL|Error Trace|Error:|Messages:|isolation_matrix_test.go:[0-9]+" /tmp/uni2012r1b-iso.log | cut -c1-500 | head -60
+3109:    isolation_matrix_test.go:385: write control DELETE /api/v1/documents/{documentID}/shares/{shareID} on C's own rows = 404, the refusal B got too: {"error":{"code":"not_found","message":"not found","error_class":"missing"}}
+3142:--- FAIL: TestIsolationMatrix (676.51s)
+3157:    --- FAIL: TestIsolationMatrix/write-control (1.49s)
+3158:FAIL
+3159:FAIL	github.com/unicomhub/uniwork/server/internal/handler	676.527s
+3160:FAIL

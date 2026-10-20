@@ -1,0 +1,6 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; cd server && go test -count=1 -v ./internal/handler -run '^TestIsolationMatrix$' -timeout 40m > /tmp/uni2012r1b-iso.log 2>&1; echo "ISO_TEST_EXIT=$?"; grep -nE "^\s*--- (FAIL|PASS)" /tmp/uni2012r1b-iso.log | grep -v "PASS" | head -20
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ISO_TEST_EXIT=1
+3142:--- FAIL: TestIsolationMatrix (676.51s)
+3157:    --- FAIL: TestIsolationMatrix/write-control (1.49s)
