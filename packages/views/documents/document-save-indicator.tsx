@@ -6,6 +6,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { readonlyKeys } from "./document-readonly-copy";
 
 export interface DocumentSaveIndicatorProps {
   /** The page save machine's snapshot. Omitted for a read-only mount. */
@@ -13,6 +14,8 @@ export interface DocumentSaveIndicatorProps {
   /** Assets still uploading: nothing is "saved" until they land. */
   pendingUploads?: number;
   readonly?: boolean;
+  /** A read-only reader who can still comment: the badge names that level, not "View only". */
+  canComment?: boolean;
   onRetry?: () => void;
   onResolveConflict?: () => void;
   className?: string;
@@ -46,6 +49,7 @@ export function DocumentSaveIndicator({
   state,
   pendingUploads = 0,
   readonly = false,
+  canComment = false,
   onRetry,
   onResolveConflict,
   className,
@@ -59,7 +63,7 @@ export function DocumentSaveIndicator({
   const statusProps = announce ? { role: "status" as const, "aria-live": "polite" as const } : {};
 
   if (readonly) {
-    return <span className={cn(BASE, className)}>{t("documents.save.readonly")}</span>;
+    return <span className={cn(BASE, className)}>{t(readonlyKeys(canComment).badge)}</span>;
   }
   if (pendingUploads > 0) {
     return (

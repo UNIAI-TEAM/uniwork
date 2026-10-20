@@ -8907,6 +8907,8 @@
       "back_to_owner": "Back to Work Products",
       "readonly_title": "You have view access only",
       "readonly_description": "You can read and download the committed copy, but not edit it. Editing needs the edit level.",
+      "readonly_comment_title": "You can view and comment",
+      "readonly_comment_description": "You can read the committed copy and comment on it, but not edit it. Editing needs the edit level.",
       "revoked_title": "You no longer have access to this document",
       "revoked_description": "Its content is hidden under your current access. Ask for access again if you need it.",
       "archived_banner": "This document is in the trash — read-only.",
@@ -8933,7 +8935,8 @@
       "review_conflict": "Resolve",
       "asset_uploading": "Uploading image…",
       "asset_load_failed": "Could not load the image",
-      "readonly": "View only"
+      "readonly": "View only",
+      "readonly_comment": "View and comment"
     },
     "conflict": {
       "title": "Someone else just saved",
@@ -9075,6 +9078,7 @@
       "office_unknown_description": "The organization's editor settings did not load, so the file stays here for now. Try again, or download the file.",
       "office_unknown_retry": "Try again",
       "readonly_hint": "You have view access to this file: you can download it, but not upload a new version.",
+      "readonly_comment_hint": "You can view and comment on this file: you can download it, but not upload a new version.",
       "upload_failed": "Could not upload the file",
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
