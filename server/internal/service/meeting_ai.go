@@ -233,15 +233,16 @@ func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID s
 	}, nil
 }
 
-// Summarize gathers transcript, notes, chat, the attendance report and the
-// closed votes, asks the gateway (capability meeting_summarization) and
-// stores the result with the usage row that paid for it. Any host/admin may
-// re-run it; the latest row wins. One run per meeting at a time
+// Summarize gathers transcript, notes, chat, the attendance report, the
+// closed votes and the meeting's handled action items, asks the gateway
+// (capability meeting_summarization) and stores the result with the usage row
+// that paid for it. Any clerk (host, secretary, workspace admin) may re-run
+// it; the latest row wins. One run per meeting at a time
 // (claimSummaryRun): a second one answers 409 summary_in_progress instead of
 // paying the model twice. Every failure carries a fixed message and a code
 // the client translates (summaryFailure); the cause is logged, ids only.
 func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, locale string) (db.MeetingSummary, error) {
-	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
+	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
@@ -268,6 +269,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	var chat []db.MeetingChatMessage
 	var rep AttendanceReport
 	var closed []db.MeetingMotion
+	var existing []string
 	g, gctx := errgroup.WithContext(runCtx)
 	g.Go(func() error {
 		var err error
@@ -294,6 +296,11 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	g.Go(func() error {
 		var err error
 		closed, err = s.q.ListClosedMeetingMotions(gctx, meetingID)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		existing, err = s.handledActionItemTitles(gctx, m)
 		return err
 	})
 	if err := g.Wait(); err != nil {
@@ -334,6 +341,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 			"title": m.Title, "agenda": m.Description, "locale": locale,
 			"transcript": transcript, "notes": noteLines, "chat": chatLines,
 			"attendance": summaryAttendanceFacts(m, rep), "motions": summaryMotionFacts(closed),
+			"existing_action_items": existing,
 		},
 	})
 	if err != nil {

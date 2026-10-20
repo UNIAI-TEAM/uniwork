@@ -1596,19 +1596,46 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
-		// UNI-1853: the host turns action items of a meeting summary into tasks.
-		audit.ActionMeetingSummaryTasksCreated: func(t *testing.T, f *auditFixture) {
-			w := f.build(t)
-			svc := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
-			svc.Tasks = f.tasks
-			m, err := svc.CreateInstant(f.ctx, f.owner.ID, w.ID, "Giao ban")
+		// UNI-1998: a clerk turns pending action items into tasks.
+		audit.ActionMeetingActionItemsConverted: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			sum := seedSummary(t, svc, m, f.owner.ID, ai.ActionItem{Title: "Gửi báo cáo"})
-			if _, err := svc.CreateTasksFromSummary(f.ctx, f.owner.ID, m.ID, SummaryTasksInput{
-				SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0}},
-			}); err != nil {
+			if _, err := svc.ConvertActionItems(f.ctx, f.owner.ID, m.ID, []ConvertActionItem{{ActionItemID: items.Items[0].Item.ID}}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1998: a clerk adds an item by hand.
+		audit.ActionMeetingActionItemCreated: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f)
+			if _, err := svc.AddActionItem(f.ctx, f.owner.ID, m.ID, AddActionItemInput{Title: "Đặt phòng"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-1998: a clerk dismisses a pending item, then restores it.
+		audit.ActionMeetingActionItemDismissed: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DismissActionItem(f.ctx, f.owner.ID, m.ID, items.Items[0].Item.ID, "trùng"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingActionItemRestored: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := items.Items[0].Item.ID
+			if err := svc.DismissActionItem(f.ctx, f.owner.ID, m.ID, id, ""); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RestoreActionItem(f.ctx, f.owner.ID, m.ID, id); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1903,7 +1930,10 @@ func auditActions() []string {
 		audit.ActionMcpGrantScopeChanged,
 		audit.ActionMcpTokenFamilyRevoked,
 		audit.ActionMeetingRestored,
-		audit.ActionMeetingSummaryTasksCreated,
+		audit.ActionMeetingActionItemsConverted,
+		audit.ActionMeetingActionItemCreated,
+		audit.ActionMeetingActionItemDismissed,
+		audit.ActionMeetingActionItemRestored,
 		audit.ActionMeetingSummaryCreated,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
@@ -2374,4 +2404,23 @@ func auditMultipartDocService(t *testing.T, f *auditFixture) (*DocumentService, 
 	svc.SetClock(clock.Now)
 	svc.store.spoolDir = t.TempDir()
 	return svc, store, clock
+}
+
+// auditMeetingWithItems is an instant meeting of the fixture's workspace with
+// a summary proposing these action items.
+func auditMeetingWithItems(t *testing.T, f *auditFixture, titles ...string) (*MeetingService, db.Meeting) {
+	t.Helper()
+	w := f.build(t)
+	svc := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+	svc.Tasks = f.tasks
+	m, err := svc.CreateInstant(f.ctx, f.owner.ID, w.ID, "Giao ban")
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := make([]ai.ActionItem, 0, len(titles))
+	for _, title := range titles {
+		items = append(items, ai.ActionItem{Title: title})
+	}
+	seedSummary(t, svc, m, f.owner.ID, items...)
+	return svc, m
 }

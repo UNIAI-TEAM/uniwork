@@ -34,6 +34,11 @@ const (
 	summaryNotesRunes = summaryTranscriptRunes / 4
 	summaryNoteRunes  = 4000
 
+	// The handled action items the prompt lists (spec §7.1) are bounded so
+	// a long-running meeting's backlog cannot crowd out its transcript.
+	summaryExistingItems     = 100
+	summaryExistingItemRunes = 300
+
 	// summaryRunLease is how long a claimed run keeps other runs of its
 	// meeting out. It is also how long a meeting stays refused after the node
 	// running its summary died.
@@ -204,16 +209,22 @@ func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting) (fun
 	}, nil
 }
 
-// storeSummary writes the summary, its meeting timeline row, its audit row
-// and its summary.created event in one transaction (ADR 0009, ADR 0012): a
-// summary that is stored is always audited and always announced, and an
-// audit failure stores nothing.
+// storeSummary writes the summary, its action items, its meeting timeline
+// row, its audit row and its summary.created event in one transaction (ADR
+// 0009, ADR 0012): a summary that is stored is always audited and always
+// announced, and an audit failure stores nothing.
+//
+// The action items follow spec §7.1 (D6): the AI items nobody has handled
+// yet are replaced by the new summary's; converted, dismissed, manual and
+// live items stay; a new item whose title matches one that stays (or an
+// earlier one of the same answer) is skipped, so a dismissed item does not
+// come back.
 func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID string, res ai.MeetingSummary, resp ai.Response) (db.MeetingSummary, error) {
 	decisions, err := json.Marshal(res.Decisions)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
-	items, err := json.Marshal(res.ActionItems)
+	rawItems, err := json.Marshal(res.ActionItems)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
@@ -223,16 +234,20 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	// A conversion of the meeting's current summary under way finishes
-	// first: it then links its tasks to a summary that was still the latest.
+	// A command on the meeting's action items under way (a conversion above
+	// all) finishes first: it never links a task to an item replaced here.
 	if err := q.LockMeetingSummaryChanges(ctx, m.ID); err != nil {
 		return db.MeetingSummary{}, err
 	}
 	row, err := q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Summary: res.Summary,
-		Decisions: string(decisions), ActionItems: string(items), Model: resp.Model, CreatedBy: userID,
+		Decisions: string(decisions), ActionItems: string(rawItems), Model: resp.Model, CreatedBy: userID,
 		UsageEventID: strText(resp.UsageEventID),
 	})
+	if err != nil {
+		return db.MeetingSummary{}, err
+	}
+	items, err := replaceSummaryActionItems(ctx, q, m, row, res.ActionItems)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
@@ -248,6 +263,7 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 		Metadata: map[string]any{
 			"summary_id": row.ID, "usage_event_id": resp.UsageEventID, "model": resp.Model,
 			"decisions": len(res.Decisions), "action_items": len(res.ActionItems),
+			"replaced_pending": items.replaced, "kept": items.kept, "skipped_duplicates": items.skipped,
 		},
 	}, audit.Event{Topic: "summary.created", Payload: map[string]string{
 		"meeting_id": m.ID, "summary_id": row.ID, "workspace_id": m.WorkspaceID,
@@ -285,4 +301,76 @@ func summaryNoteLines(notes []db.ListMeetingNotesRow) ([]string, int) {
 		used += utf8.RuneCountInString(l) + 1
 	}
 	return lines, used
+}
+
+// summaryItemsOutcome is what storing a summary did to the meeting's items.
+type summaryItemsOutcome struct{ replaced, kept, skipped int }
+
+// replaceSummaryActionItems applies spec §7.1 inside storeSummary's
+// transaction, under the meeting's summary lock.
+func replaceSummaryActionItems(ctx context.Context, q *db.Queries, m db.Meeting, sum db.MeetingSummary, proposed []ai.ActionItem) (summaryItemsOutcome, error) {
+	var out summaryItemsOutcome
+	replaced, err := q.DeletePendingAIMeetingActionItems(ctx, db.DeletePendingAIMeetingActionItemsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
+	if err != nil {
+		return out, err
+	}
+	out.replaced = int(replaced)
+	kept, err := q.ListMeetingActionItems(ctx, db.ListMeetingActionItemsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
+	if err != nil {
+		return out, err
+	}
+	out.kept = len(kept)
+	titles := make(map[string]struct{}, len(kept)+len(proposed))
+	for _, k := range kept {
+		titles[normalizeTaskTitle(k.MeetingActionItem.Title)] = struct{}{}
+	}
+	creator := audit.System("meeting_summary")
+	position := int32(0)
+	for _, it := range proposed {
+		title := strings.TrimSpace(it.Title)
+		key := normalizeTaskTitle(title)
+		if key == "" {
+			continue
+		}
+		if _, dup := titles[key]; dup {
+			out.skipped++
+			continue
+		}
+		titles[key] = struct{}{}
+		if _, err := q.InsertMeetingActionItem(ctx, db.InsertMeetingActionItemParams{
+			ID: util.NewID(), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
+			Source: ActionItemSourceAI, SummaryID: strText(sum.ID), Position: position, Title: title,
+			OwnerText: strings.TrimSpace(it.Owner), DueText: strings.TrimSpace(it.Due),
+			CreatedBy: creator.ID, CreatedByKind: string(creator.Kind),
+		}); err != nil {
+			return out, err
+		}
+		position++
+	}
+	return out, nil
+}
+
+// handledActionItemTitles are the titles of the items a new summary keeps
+// (converted, dismissed, manual, live): the prompt is told not to propose
+// them again. The pending AI items are left out; the new summary replaces
+// them anyway.
+func (s *MeetingService) handledActionItemTitles(ctx context.Context, m db.Meeting) ([]string, error) {
+	rows, err := s.q.ListMeetingActionItems(ctx, db.ListMeetingActionItemsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
+	if err != nil {
+		return nil, err
+	}
+	titles := make([]string, 0, len(rows))
+	for _, r := range rows {
+		it := r.MeetingActionItem
+		if it.Source == ActionItemSourceAI && actionItemStatus(it, r.TaskLive) == ActionItemPending {
+			continue
+		}
+		titles = append(titles, capRunes(it.Title, summaryExistingItemRunes, "…"))
+	}
+	// shortcut: past summaryExistingItems the oldest handled items are not
+	// shown to the model; the title filter of storeSummary still drops them.
+	if len(titles) > summaryExistingItems {
+		titles = titles[len(titles)-summaryExistingItems:]
+	}
+	return titles, nil
 }

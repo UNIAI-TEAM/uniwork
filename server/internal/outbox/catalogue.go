@@ -258,11 +258,15 @@ var catalogue = []EventDef{
 	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	// The AI summary is written with its audit row in one transaction and
 	// announced from the outbox (UNI-1853): a host who missed the frame would
-	// otherwise keep a stale summary. summary.tasks_linked follows a batch of
-	// tasks created from the summary's action items, so every open copy of
-	// the summary shows which items already became tasks.
+	// otherwise keep a stale summary (and, since UNI-1998, stale action items).
 	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
-	{Topic: "summary.tasks_linked", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// The meeting's action items (UNI-1998): a clerk added, dismissed or
+	// restored one, or turned a batch into tasks (one event per batch), so
+	// every open copy of the list shows what is still pending.
+	{Topic: "action_item.created", Version: 1, Payload: []string{"meeting_id", "action_item_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "action_item.dismissed", Version: 1, Payload: []string{"meeting_id", "action_item_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "action_item.restored", Version: 1, Payload: []string{"meeting_id", "action_item_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "action_item.converted", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "recording.started", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},

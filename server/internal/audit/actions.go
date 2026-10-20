@@ -285,14 +285,21 @@ const (
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"
 
-	// A host turned action items of a meeting summary into tasks: one row
-	// for the batch, beside the task.created row of each task
-	// (MeetingService.CreateTasksFromSummary, UNI-1853).
-	ActionMeetingSummaryTasksCreated = "meeting_summary.tasks_created"
+	// The action items of a meeting (UNI-1998). A clerk turned pending items
+	// into tasks: one row for the batch, beside the task.created row of each
+	// task, metadata action_item_ids and task_ids
+	// (MeetingService.ConvertActionItems; replaces meeting_summary.tasks_created).
+	// A clerk added an item by hand, dismissed one (changes.reason) or
+	// restored a dismissed one.
+	ActionMeetingActionItemsConverted = "meeting.action_items_converted"
+	ActionMeetingActionItemCreated    = "meeting.action_item_created"
+	ActionMeetingActionItemDismissed  = "meeting.action_item_dismissed"
+	ActionMeetingActionItemRestored   = "meeting.action_item_restored"
 
-	// A host or admin generated the meeting's AI summary
-	// (MeetingService.Summarize); metadata names the summary and the usage
-	// row that paid for it.
+	// A clerk generated the meeting's AI summary (MeetingService.Summarize);
+	// metadata names the summary, the usage row that paid for it, and what
+	// became of the meeting's action items: replaced_pending, kept,
+	// skipped_duplicates.
 	ActionMeetingSummaryCreated = "meeting.summary_created"
 
 	ActionAuditExportRequested = "audit.export_requested"

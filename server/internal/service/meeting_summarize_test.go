@@ -382,24 +382,6 @@ func TestSummarizeStoresABilledAnswerAfterTheRequestEnds(t *testing.T) {
 	}
 }
 
-// The view of a summary just stored, when describing it fails, still lists
-// every stored item with what the model said about it.
-func TestStoredSummaryViewListsTheItems(t *testing.T) {
-	sum := db.MeetingSummary{ID: "s1", ActionItems: `[{"title":"Gửi báo cáo","owner":"B","due":"ngày mai"},{"title":"Đặt phòng"}]`}
-	v := StoredSummaryView(sum)
-	if v.Summary.ID != "s1" || len(v.Items) != 2 {
-		t.Fatalf("view = %+v", v)
-	}
-	first := v.Items[0]
-	if first.Index != 0 || first.Title != "Gửi báo cáo" || first.Owner != "B" || first.Due != "ngày mai" ||
-		first.SuggestedAssigneeID != nil || first.DueDate != nil || first.TaskID != nil {
-		t.Fatalf("first item = %+v", first)
-	}
-	if v.Items[1].Index != 1 || v.Items[1].Title != "Đặt phòng" {
-		t.Fatalf("second item = %+v", v.Items[1])
-	}
-}
-
 // UNI-1853 review: the store of a new summary waits for a conversion of the
 // meeting's summary under way (here, a transaction holding the same lock), so
 // the conversion never links tasks to a summary that was replaced under it.

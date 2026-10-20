@@ -104,20 +104,27 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("expected nil summary, got %+v %v", empty, err)
 	}
 
-	res, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{
-		SummaryID: sum.ID, Items: []MeetingSummaryTaskItem{{Index: 0, AssigneeID: &ub.ID}},
-	})
-	if err != nil || len(res.Tasks) != 1 {
-		t.Fatalf("%d %v", len(res.Tasks), err)
+	// The stored summary's items are the meeting's action items; any member
+	// reads them, the host converts one.
+	items, err := s.ActionItems(ctx, ub.ID, m.ID)
+	if err != nil || len(items.Items) != 1 || items.Items[0].Item.Title != "Gửi báo cáo" || items.Items[0].Item.SummaryID.String != sum.ID {
+		t.Fatalf("%+v %v", items, err)
 	}
-	tasks := res.Tasks
-	if tasks[0].Title != "Gửi báo cáo" || !strings.Contains(tasks[0].Description, "Từ cuộc họp: AI") || tasks[0].AssigneeID.String != ub.ID {
-		t.Fatalf("stored item with the host's assignee: %+v", tasks[0])
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: items.Items[0].Item.ID, AssigneeID: &ub.ID}})
+	if err != nil || len(links) != 1 {
+		t.Fatalf("%+v %v", links, err)
 	}
-	if tasks[0].OriginType.String != "meeting" || tasks[0].OriginID.String != m.ID {
-		t.Fatalf("origin: type=%s id=%s", tasks[0].OriginType.String, tasks[0].OriginID.String)
+	task, err := s.q.GetTask(ctx, links[0].TaskID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := s.CreateTasksFromSummary(ctx, ua.ID, m.ID, SummaryTasksInput{SummaryID: sum.ID}); err == nil {
+	if task.Title != "Gửi báo cáo" || !strings.Contains(task.Description, "Từ cuộc họp: AI") || task.AssigneeID.String != ub.ID {
+		t.Fatalf("stored item with the host's assignee: %+v", task)
+	}
+	if task.OriginType.String != "meeting" || task.OriginID.String != m.ID {
+		t.Fatalf("origin: type=%s id=%s", task.OriginType.String, task.OriginID.String)
+	}
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, nil); err == nil {
 		t.Fatal("empty items accepted")
 	}
 
@@ -263,7 +270,7 @@ func TestSummarizeWithClosedMotionOnly(t *testing.T) {
 	if fake.Calls != 1 || sum.Summary != "Đã biểu quyết." {
 		t.Fatalf("calls=%d summary=%+v", fake.Calls, sum)
 	}
-	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@3" {
+	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@4" {
 		t.Fatalf("usage row: %+v %v", ev, err)
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
