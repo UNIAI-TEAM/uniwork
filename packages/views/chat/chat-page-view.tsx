@@ -71,7 +71,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { Member } from "@uniwork/core/types/workspace";
-import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
 
 /* Stable fallbacks while queries load: a fresh `[]` / `{}` per render would
    change every memo downstream (and re-render the memoised sidebar). */

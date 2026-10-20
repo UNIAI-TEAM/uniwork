@@ -227,7 +227,13 @@ test("a new version uploaded from the card writes a version line into the conver
   const card = page.locator(`article#chat-msg-${messageId}`);
   await expect(card.getByRole("button", { name: /^Mở trong Tài liệu:/ })).toBeVisible({ timeout: 60_000 });
 
-  await card.getByRole("button", { name: "Tải lên phiên bản mới" }).click();
+  // The document's actions live in the message menu (UNI-2012 S7): a right
+  // click on the card opens it; the card itself has no upload button.
+  await expect(card.getByRole("button", { name: "Tải lên phiên bản mới" })).toHaveCount(0);
+  await card.getByRole("button", { name: /^Mở trong Tài liệu:/ }).click({ button: "right" });
+  const menu = page.getByRole("menu");
+  await expect(menu.getByRole("menuitem", { name: "Lịch sử phiên bản" })).toBeVisible({ timeout: 15_000 });
+  await menu.getByRole("menuitem", { name: "Tải lên phiên bản mới" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 15_000 });
   // Different bytes: an identical upload is refused as "nothing changed".

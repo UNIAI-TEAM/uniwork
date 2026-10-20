@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { errorCode, errorFields } from "@uniwork/core/api";
+import { ApiError, errorCode, errorFields } from "@uniwork/core/api";
 import {
   accessRequestOutcome,
   readDocumentAccessRequestSentAt,
@@ -36,11 +36,12 @@ export function documentMutedClass(isOwn: boolean): string {
 }
 
 /**
- * One sentence for a failed version upload from the document card. The two
- * named refusals (contract §4.4 / §2.3) get their own copy before the shared
- * chat table or the caller's fallback.
+ * The card's own sentence for a failed version upload, or null when the
+ * failure has none (the caller then keeps the documents copy). The two named
+ * refusals (contract §4.4 / §2.3) and the edit lock (423, UNI-1645) come
+ * first, then the shared chat table.
  */
-export function chatDocumentVersionError(err: unknown, t: TFunction, fallback: string): string {
+export function chatDocumentVersionMessage(err: unknown, t: TFunction): string | null {
   const code = errorCode(err);
   // The card's own conflict copy (RFC-04): there is no history view behind a
   // chat card for the restore_conflict sentence to send the reader to.
@@ -48,7 +49,20 @@ export function chatDocumentVersionError(err: unknown, t: TFunction, fallback: s
   if (code === "unsupported_media_type" && errorFields(err)?.reason === "format_changed") {
     return t("chat.errors.document_format_changed");
   }
-  return chatErrorMessage(err, t, fallback);
+  if (isDocumentLocked(err)) {
+    const fields = errorFields(err);
+    // The reader's own hold in another tab or window: the 423 sends no lock id,
+    // so this tab cannot write through it (contract D6).
+    if (fields?.held_by_me === true) return t("chat.errors.document_locked_by_me");
+    const name = typeof fields?.holder_name === "string" ? fields.holder_name.trim() : "";
+    return name ? t("chat.errors.document_locked", { name }) : t("chat.errors.document_locked_unnamed");
+  }
+  return chatErrorMessage(err, t, "") || null;
+}
+
+/** A 423 `document_locked`, from the server or the chunked pre-check. */
+export function isDocumentLocked(err: unknown): boolean {
+  return errorCode(err) === "document_locked" || (err instanceof ApiError && err.status === 423);
 }
 
 /** "10:32" in the reader's clock, for the note about this device's earlier request. */
