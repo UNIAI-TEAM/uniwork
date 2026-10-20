@@ -710,6 +710,7 @@ func TestOpenAudioUploadSessionChecksTheMinutesFirst(t *testing.T) {
 func TestSpeakerLabelsHideSupersededUploadRuns(t *testing.T) {
 	e := transcriptionFixture(t)
 	ctx := context.Background()
+	var oldLabel string
 	run := func(at time.Duration) string {
 		t.Helper()
 		id := util.NewID()
@@ -720,11 +721,15 @@ func TestSpeakerLabelsHideSupersededUploadRuns(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, l := range []string{"1", "2"} {
+			lid := util.NewID()
 			if _, err := e.s.q.InsertMeetingSpeakerLabel(ctx, db.InsertMeetingSpeakerLabelParams{
-				ID: util.NewID(), OrganizationID: e.m.OrganizationID, WorkspaceID: e.m.WorkspaceID, MeetingID: e.m.ID,
+				ID: lid, OrganizationID: e.m.OrganizationID, WorkspaceID: e.m.WorkspaceID, MeetingID: e.m.ID,
 				LabelKey: "upload:" + id + ":" + l, CreatedBy: "meeting_transcription", CreatedByKind: "system",
 			}); err != nil {
 				t.Fatal(err)
+			}
+			if oldLabel == "" {
+				oldLabel = lid
 			}
 		}
 		return id
@@ -742,5 +747,19 @@ func TestSpeakerLabelsHideSupersededUploadRuns(t *testing.T) {
 		if !strings.HasPrefix(l.LabelKey, "upload:"+latest+":") || l.Number != int32(i+1) || strings.Contains(l.LabelKey, old) {
 			t.Fatalf("label %d = %s number %d", i, l.LabelKey, l.Number)
 		}
+	}
+	// Naming a hidden label is refused before anything is written.
+	if _, err := e.s.AssignSpeakerLabel(ctx, e.host.ID, e.m.ID, oldLabel, nil, ptr("Chị Lan")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("assigning a superseded run's label = %v, want not found", err)
+	}
+	var name string
+	if err := e.s.pool.QueryRow(ctx, `SELECT name FROM meeting_speaker_labels WHERE id = $1`, oldLabel).Scan(&name); err != nil || name != "" {
+		t.Fatalf("the hidden label changed: %q %v", name, err)
+	}
+	if n := countWhere(t, e.s, `SELECT count(*) FROM audit_events WHERE resource_id = $1`, oldLabel); n != 0 {
+		t.Fatalf("%d audit rows for a refused assignment", n)
+	}
+	if n := countWhere(t, e.s, `SELECT count(*) FROM outbox_events WHERE topic = 'speaker_label.updated' AND payload::jsonb->>'meeting_id' = $1`, e.m.ID); n != 0 {
+		t.Fatalf("%d speaker_label.updated events for a refused assignment", n)
 	}
 }
