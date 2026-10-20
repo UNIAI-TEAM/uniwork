@@ -8,11 +8,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -472,5 +474,76 @@ func TestOfficeSubmitLegacySpoolCopyBudgetAbortsStalledReaderAndDeletesTheSpool(
 	}
 	if n := f.officeJobCount(t, f.doc); n != 0 {
 		t.Fatalf("office_jobs = %d, want 0", n)
+	}
+}
+
+func TestOfficeSubmitLegacySpoolHeldByDescriptorSurvivesPathRemoval(t *testing.T) {
+	ctx := context.Background()
+	content := strings.Repeat("legacy descriptor survives sweep unlink\n", 1024)
+	f := newOfficeFixture(t, content)
+	spool := t.TempDir()
+	t.Setenv("TMPDIR", spool)
+	cf := &countingFiles{bridgeFiles: f.files}
+	svc := f.streamService(newScriptedEngine(), cf)
+
+	v, err := f.q.GetOfficeJobBaseVersion(ctx, db.GetOfficeJobBaseVersionParams{
+		ID: f.ver, OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: f.doc,
+	})
+	if err != nil {
+		t.Fatalf("GetOfficeJobBaseVersion: %v", err)
+	}
+	in, err := svc.readBase(ctx, files.Scope{OrganizationID: f.org, WorkspaceID: f.ws}, files.FileID(v.FileID.String), pgtype.Text{})
+	if err != nil {
+		t.Fatalf("readBase: %v", err)
+	}
+	want := sha256Hex([]byte(content))
+	if in.checksum != want || in.length != int64(len(content)) {
+		t.Fatalf("readBase digest = (%s, %d), want (%s, %d)", in.checksum, in.length, want, len(content))
+	}
+	if cf.opens.Load() != 1 || cf.closes.Load() != 1 {
+		t.Fatalf("after readBase: baseOpens=%d baseCloses=%d, want 1 and 1", cf.opens.Load(), cf.closes.Load())
+	}
+
+	entries, err := os.ReadDir(spool)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) != 1 || !strings.HasPrefix(entries[0].Name(), officeSpoolPrefix) {
+		t.Fatalf("spool entries = %v, want 1 %s* file", entries, officeSpoolPrefix)
+	}
+	spoolPath := filepath.Join(spool, entries[0].Name())
+	if err := os.Remove(spoolPath); err != nil {
+		t.Fatalf("Remove(%s): %v", spoolPath, err)
+	}
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		rc, err := in.open()
+		if err != nil {
+			t.Fatalf("open attempt %d after os.Remove: %v", attempt, err)
+		}
+		got, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("ReadAll attempt %d: %v", attempt, err)
+		}
+		if err := rc.Close(); err != nil {
+			t.Fatalf("Close attempt %d: %v", attempt, err)
+		}
+		if !bytes.Equal(got, []byte(content)) {
+			t.Fatalf("attempt %d read %d bytes, want %d bytes byte-exact", attempt, len(got), len(content))
+		}
+	}
+
+	in.release()
+	in.release()
+
+	if entries, _ := os.ReadDir(spool); len(entries) != 0 {
+		t.Fatalf("spool files after release: %v, want 0", entries)
+	}
+	if rc, err := in.open(); err == nil {
+		_, readErr := rc.Read(make([]byte, 1))
+		_ = rc.Close()
+		if !errors.Is(readErr, os.ErrClosed) {
+			t.Fatalf("read after release err = %v, want os.ErrClosed", readErr)
+		}
 	}
 }

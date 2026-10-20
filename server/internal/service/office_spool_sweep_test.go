@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/unicomhub/uniwork/server/internal/office"
 )
 
 func TestOfficeSpoolSweepRemovesOnlyStaleSpoolRegularFiles(t *testing.T) {
@@ -20,13 +18,11 @@ func TestOfficeSpoolSweepRemovesOnlyStaleSpoolRegularFiles(t *testing.T) {
 	if officeSpoolCopyBudget != 20*time.Minute {
 		t.Fatalf("officeSpoolCopyBudget = %v, want 20m", officeSpoolCopyBudget)
 	}
-	clientTimeout := 2*10*time.Second + time.Duration(office.MaxInputBytes>>20)*250*time.Millisecond
-	if officeSpoolMaxSubmitTimeout != clientTimeout {
-		t.Fatalf("officeSpoolMaxSubmitTimeout = %v, want %v", officeSpoolMaxSubmitTimeout, clientTimeout)
+	if officeSpoolMinStaleAge != time.Hour {
+		t.Fatalf("officeSpoolMinStaleAge = %v, want 1h", officeSpoolMinStaleAge)
 	}
-	if officeSpoolMinStaleAge <= officeSpoolCopyBudget+clientTimeout+officeSpoolLiveMargin {
-		t.Fatalf("officeSpoolMinStaleAge (%v) must exceed officeSpoolCopyBudget (%v) + clientTimeout (%v) + margin (%v)",
-			officeSpoolMinStaleAge, officeSpoolCopyBudget, clientTimeout, officeSpoolLiveMargin)
+	if officeSpoolSweepInterval != 15*time.Minute {
+		t.Fatalf("officeSpoolSweepInterval = %v, want 15m", officeSpoolSweepInterval)
 	}
 
 	dir := t.TempDir()

@@ -519,7 +519,7 @@ func (s *DocumentOfficeService) copyBudget() time.Duration {
 // still fails before any row exists), a later attempt reopens, and the
 // engine's digest check is the proof (a mismatch settles upload_checksum_mismatch).
 // Without one (a legacy row) the base is spooled to a temp file while it is
-// hashed, and the spool is deleted by release.
+// hashed, read through that open descriptor, and closed and deleted by release.
 func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope, id files.FileID, want pgtype.Text) (officeInput, error) {
 	limit := s.documentFileMaxBytes()
 	if want.Valid && want.String != "" {
@@ -576,8 +576,8 @@ func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope,
 	name := spool.Name()
 	keep := false
 	defer func() {
-		_ = spool.Close()
 		if !keep {
+			_ = spool.Close()
 			_ = os.Remove(name)
 		}
 	}()
@@ -595,12 +595,20 @@ func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope,
 	if n > limit {
 		return officeInput{}, officeErr("upload_bounds", "base_too_large")
 	}
-	_ = spool.Close()
 	keep = true
+	released := false
 	return officeInput{
 		checksum: hex.EncodeToString(h.Sum(nil)), length: n,
-		open:    func() (io.ReadCloser, error) { return os.Open(name) },
-		release: func() { _ = os.Remove(name) },
+		open: func() (io.ReadCloser, error) {
+			return io.NopCloser(io.NewSectionReader(spool, 0, n)), nil
+		},
+		release: func() {
+			if !released {
+				released = true
+				_ = spool.Close()
+				_ = os.Remove(name)
+			}
+		},
 	}, nil
 }
 

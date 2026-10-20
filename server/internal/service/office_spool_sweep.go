@@ -9,20 +9,17 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/unicomhub/uniwork/server/internal/office"
 )
 
 // The API spool sweep (SIZE-OPS2, UNI-1991): readBase spools a legacy version
-// (no stored checksum) to os.CreateTemp("", officeSpoolPrefix+"*") and removes
-// it on every normal path. After an API crash the file stays in os.TempDir().
+// (no stored checksum) to os.CreateTemp("", officeSpoolPrefix+"*"), keeps that
+// descriptor open for every open() via io.NewSectionReader, and closes and
+// removes it on release. After an API crash the file stays in os.TempDir().
 // The sweeper removes regular files in os.TempDir() whose name starts with
 // officeSpoolPrefix and whose mtime is older than max(1h, 2*MaxDeadline), at
-// startup and every 15 minutes. Several API processes may share one host's
-// temp directory; a spool's mtime moves while it is written, so it can only
-// sit with an unchanging mtime while the copy into it is stalled (bounded by
-// officeSpoolCopyBudget) or after the copy while Negotiate + Submit run
-// (bounded by the office client request timeouts for office.MaxInputBytes).
+// startup and every 15 minutes. A live spool is read through the descriptor
+// held since creation, so removing its name cannot break it; the stale age only
+// decides when crash leftovers go.
 // Temp files are not business state, so the sweep writes no audit row.
 const (
 	officeSpoolPrefix = "office-base-"
@@ -30,25 +27,11 @@ const (
 	// storage body into a temp spool file before aborting the reader and
 	// deleting the spool.
 	officeSpoolCopyBudget = 20 * time.Minute
-	// officeSpoolClientRequestTimeout and officeSpoolClientTimeoutPerMiB mirror
-	// the office.Client request budget (10s base + 250ms per MiB of input,
-	// ~9m at office.MaxInputBytes = 2 GiB) that bounds Negotiate and Submit
-	// after the spool copy finishes and before defer input.release() unlinks it.
-	officeSpoolClientRequestTimeout = 10 * time.Second
-	officeSpoolClientTimeoutPerMiB  = 250 * time.Millisecond
-	officeSpoolMaxSubmitTimeout     = 2*officeSpoolClientRequestTimeout +
-		time.Duration(office.MaxInputBytes>>20)*officeSpoolClientTimeoutPerMiB
-	officeSpoolLiveMargin = 15 * time.Minute
-	// officeSpoolMinStaleAge is the floor for Sweep's mtime cutoff. Keeping
-	// officeSpoolMinStaleAge > officeSpoolCopyBudget + officeSpoolMaxSubmitTimeout + officeSpoolLiveMargin
-	// ensures another API process sharing os.TempDir() never unlinks a live spool.
+	// officeSpoolMinStaleAge is the floor for Sweep's mtime cutoff when
+	// collecting crash leftovers.
 	officeSpoolMinStaleAge   = time.Hour
 	officeSpoolSweepInterval = 15 * time.Minute
 )
-
-// Compile-time invariant: officeSpoolMinStaleAge > officeSpoolCopyBudget +
-// the office client timeout for office.MaxInputBytes + margin.
-const _ = uint(officeSpoolMinStaleAge - (officeSpoolCopyBudget + officeSpoolMaxSubmitTimeout + officeSpoolLiveMargin) - 1)
 
 func officeSpoolStaleAge(maxDeadline time.Duration) time.Duration {
 	if d := 2 * maxDeadline; d > officeSpoolMinStaleAge {
