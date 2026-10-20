@@ -1,7 +1,8 @@
 import json
 
-from scribe.job import parse_metadata, reports_finished, should_transcribe
+from scribe.job import parse_metadata, reports_finished, shared_mic, should_transcribe
 from scribe.keyterms import build_keyterms, refresh_keyterms
+from scribe.stt import make_stt
 
 META = json.dumps({"meeting_id": "01M", "token": "uwma_abc.def", "locale": "vi"})
 
@@ -67,3 +68,16 @@ async def test_keyterms_refresh_in_place_and_survive_a_failed_read():
     assert same is terms and terms == ["Giao ban", "An", "Bình"]
     await refresh_keyterms(broken, terms)
     assert terms == ["Giao ban", "An", "Bình"]
+
+
+def test_shared_mic_is_the_servers_attribute():
+    assert shared_mic({"uw.shared_mic": "1"})
+    assert not shared_mic({"uw.shared_mic": ""})  # the server deletes it with an empty value
+    assert not shared_mic({})
+
+
+def test_assemblyai_diarizes_only_the_shared_mic(monkeypatch):
+    monkeypatch.setenv("ASSEMBLYAI_API_KEY", "test")
+    assert make_stt("assemblyai", ["Giao ban"], diarize=True)._opts.speaker_labels is True
+    assert make_stt("assemblyai", ["Giao ban"])._opts.speaker_labels is not True
+    assert make_stt("fake", [], diarize=True).diarize

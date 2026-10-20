@@ -168,3 +168,47 @@ async def test_stt_failure_drops_the_session_and_reopens_after_backoff():
     assert stt_impl.streams == 2
     assert [f.text for f in finals] == ["từ1"]
     await t.close()
+
+
+async def test_shared_mic_reopens_the_session_with_speaker_labels():
+    """Spec §4.3: the attribute turns on, the open session closes, and the next
+    one diarizes; every final then carries <identity>:<session>:<label>, "?"
+    for a line the vendor could not attribute. Turning it off stops that."""
+    clock = Clock()
+    t, _, finals = make(clock)
+    await speak(t, clock, 1.0)
+    assert t.open and t.sessions == 1
+    await t.set_stt(FakeSTT(diarize=True), diarize=True)
+    assert not t.open  # the plain session closed at once
+    await speak(t, clock, 1.6)  # a long turn: the fake labels it A
+    await speak(t, clock, 0.6)  # a short one: no label
+    assert t.sessions == 2
+    assert [f.speaker_label for f in finals] == [
+        "",
+        "uw_participant_p1:AJ_1-TR_a-2:A",
+        "uw_participant_p1:AJ_1-TR_a-2:?",
+    ]
+    assert "speaker_label" not in finals[0].as_json()
+    assert finals[1].as_json()["speaker_label"] == "uw_participant_p1:AJ_1-TR_a-2:A"
+    await t.set_stt(FakeSTT(), diarize=False)
+    await speak(t, clock, 1.6)
+    assert t.sessions == 3 and finals[-1].speaker_label == ""
+    await t.close()
+
+
+async def test_shared_mic_switched_mid_sentence_keeps_listening():
+    clock = Clock()
+    t, _, finals = make(clock)
+    t.on_vad_start([frame(True)])
+    for _ in range(60):
+        await t.push(frame(True))
+        clock.t += 0.01
+    await t.set_stt(FakeSTT(diarize=True), diarize=True)
+    for _ in range(120):
+        await t.push(frame(True))
+        clock.t += 0.01
+    t.on_vad_end(1.8)
+    await asyncio.sleep(0.05)
+    assert t.sessions == 2
+    assert finals[-1].speaker_label == "uw_participant_p1:AJ_1-TR_a-2:A"
+    await t.close()

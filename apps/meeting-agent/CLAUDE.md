@@ -19,6 +19,10 @@ plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0036.
 - Phiên STT mở và đóng **chỉ trong vòng lặp khung âm thanh** (`TrackTranscriber.push`), đóng
   sau `SCRIBE_IDLE_CLOSE_S` (30 s) im lặng theo VAD: nhà cung cấp tính tiền theo thời gian mở
   phiên.
+- **Micro hội trường (S2, UNI-2024):** chỉ server đặt attribute `uw.shared_mic`; agent thấy nó
+  đổi thì đóng phiên đang mở và phiên sau tách người nói (`speaker_labels=True` chỉ cho track
+  đó). Nhãn mỗi đoạn: `<identity>:<job>-<track>-<số phiên>:<nhãn nhà cung cấp>`, `?` khi nhà
+  cung cấp không gán được.
 - Phiên bản ghim theo kết quả S0 (`livekit-agents==1.8.8`); đổi phiên bản là đổi có chủ đích.
 
 ## Cấu trúc

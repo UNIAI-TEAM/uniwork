@@ -12,15 +12,21 @@ FAKE_WORD_S = 0.5
 FAKE_VOICE_RMS = 300.0
 
 
+# Fake diarization: a turn of at least this many words is speaker "A"; a
+# shorter one has no speaker, as AssemblyAI leaves short turns unlabelled.
+FAKE_LABEL_WORDS = 2
+
+
 class FakeSTT(stt.STT):
     """Deterministic streaming STT: an interim per word, a final when flushed.
     AssemblyAI ends turns itself; the fake needs the VAD's end of speech."""
 
     flush_on_vad_end = True
 
-    def __init__(self, language: str = "vi") -> None:
+    def __init__(self, language: str = "vi", diarize: bool = False) -> None:
         super().__init__(capabilities=stt.STTCapabilities(streaming=True, interim_results=True))
         self._language = language
+        self.diarize = diarize
 
     async def _recognize_impl(self, buffer, *, language, conn_options):  # noqa: ANN001
         raise NotImplementedError("streaming only")
@@ -31,13 +37,14 @@ class FakeSTT(stt.STT):
         language: NotGivenOr[str] = NOT_GIVEN,
         conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
     ) -> stt.RecognizeStream:
-        return _FakeStream(stt=self, conn_options=conn_options, language=self._language)
+        return _FakeStream(stt=self, conn_options=conn_options, language=self._language, diarize=self.diarize)
 
 
 class _FakeStream(stt.RecognizeStream):
-    def __init__(self, *, stt: FakeSTT, conn_options: APIConnectOptions, language: str) -> None:
+    def __init__(self, *, stt: FakeSTT, conn_options: APIConnectOptions, language: str, diarize: bool) -> None:
         super().__init__(stt=stt, conn_options=conn_options)
         self._language = language
+        self._diarize = diarize
 
     async def _run(self) -> None:
         words, voiced_s = 0, 0.0
@@ -56,14 +63,19 @@ class _FakeStream(stt.RecognizeStream):
 
     def _emit(self, kind: stt.SpeechEventType, words: int) -> None:
         text = " ".join(f"từ{i}" for i in range(1, words + 1))
+        speaker = "A" if self._diarize and words >= FAKE_LABEL_WORDS else None
         self._event_ch.send_nowait(
-            stt.SpeechEvent(type=kind, alternatives=[stt.SpeechData(language=self._language, text=text)])
+            stt.SpeechEvent(
+                type=kind, alternatives=[stt.SpeechData(language=self._language, text=text, speaker_id=speaker)]
+            )
         )
 
 
-def make_stt(provider: str, keyterms: list[str]) -> stt.STT:
+def make_stt(provider: str, keyterms: list[str], diarize: bool = False) -> stt.STT:
+    """diarize: the shared microphone's track (spec §4.3), and only that one -
+    diarization thins out the vendor's interim captions."""
     if provider == "fake":
-        return FakeSTT()
+        return FakeSTT(diarize=diarize)
     if provider == "assemblyai":
         from livekit.plugins import assemblyai
 
@@ -74,5 +86,6 @@ def make_stt(provider: str, keyterms: list[str]) -> stt.STT:
             keyterms_prompt=keyterms[:100],
             mode="max_accuracy",
             voice_focus="near-field",
+            speaker_labels=True if diarize else NOT_GIVEN,
         )
     raise ValueError(f"unknown SCRIBE_STT_PROVIDER {provider!r}")

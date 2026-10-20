@@ -22,7 +22,15 @@ from livekit.plugins import silero
 from scribe import config, metrics
 from scribe.api import ApiError, UniworkClient
 from scribe.batcher import SegmentBatcher
-from scribe.job import AGENT_IDENTITY, AGENT_NAME, parse_metadata, reports_finished, should_transcribe
+from scribe.job import (
+    AGENT_IDENTITY,
+    AGENT_NAME,
+    SHARED_MIC_ATTR,
+    parse_metadata,
+    reports_finished,
+    shared_mic,
+    should_transcribe,
+)
 from scribe.keyterms import build_keyterms, refresh_keyterms
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
@@ -89,15 +97,17 @@ async def entrypoint(ctx: JobContext) -> None:
         )
 
     async def transcribe(p: rtc.RemoteParticipant, track: rtc.Track) -> None:
+        diarize = shared_mic(p.attributes)
         t = TrackTranscriber(
             # The job id keeps segment ids unique across the runs of one meeting.
             segment_prefix=f"{ctx.job.id}-{track.sid}",
             identity=p.identity,
-            stt_impl=make_stt(SETTINGS.stt_provider, keyterms),
+            stt_impl=make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize),
             publish=publish,
             on_final=lambda f: batcher.add(f.as_json()),
             idle_close_s=SETTINGS.idle_close_s,
             language=meta["locale"],
+            diarize=diarize,
         )
         transcribers[track.sid] = t
         audio = rtc.AudioStream(track, sample_rate=16000, num_channels=1)
@@ -159,6 +169,23 @@ async def entrypoint(ctx: JobContext) -> None:
         for pub in p.track_publications.values():
             if pub.track is not None:
                 maybe_start(pub.track, pub)
+
+    def on_attributes(changed: dict[str, str], p: rtc.Participant) -> None:
+        # Spec §4.3: the server set or cleared uw.shared_mic; reopen that
+        # participant's streams with or without diarization.
+        if SHARED_MIC_ATTR not in changed:
+            return
+        diarize = shared_mic(p.attributes)
+        for t in list(transcribers.values()):
+            if t.identity == p.identity:
+                task = asyncio.create_task(
+                    t.set_stt(make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize), diarize=diarize)
+                )
+                tasks.add(task)
+                task.add_done_callback(tasks.discard)
+        log.info("shared mic identity=%s on=%s", p.identity, diarize)
+
+    ctx.room.on("participant_attributes_changed", on_attributes)
 
     disconnect: dict[str, str | None] = {"reason": None}
 

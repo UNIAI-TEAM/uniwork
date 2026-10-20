@@ -44,9 +44,10 @@ class Final:
     spoken_at: datetime
     ended_at: datetime
     speech_ms: int
+    speaker_label: str = ""
 
     def as_json(self) -> dict:
-        return {
+        out = {
             "segment_id": self.segment_id,
             "participant_identity": self.identity,
             "spoken_at": self.spoken_at.isoformat(timespec="milliseconds"),
@@ -55,6 +56,9 @@ class Final:
             "text": self.text,
             "language": self.language,
         }
+        if self.speaker_label:
+            out["speaker_label"] = self.speaker_label
+        return out
 
 
 class TrackTranscriber:
@@ -75,6 +79,7 @@ class TrackTranscriber:
         on_final: Callable[[Final], None],
         idle_close_s: float = 30.0,
         language: str = "vi",
+        diarize: bool = False,
         clock: Callable[[], float] = time.monotonic,
         wall: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
@@ -85,6 +90,7 @@ class TrackTranscriber:
         self._on_final = on_final
         self._idle = idle_close_s
         self._language = language
+        self._diarize = diarize
         self._clock = clock
         self._wall = wall
         self._session: stt.RecognizeStream | None = None
@@ -128,6 +134,20 @@ class TrackTranscriber:
             update(keyterms_prompt=terms[:100])
         except TypeError:
             pass  # a provider without keyterms
+
+    @property
+    def identity(self) -> str:
+        return self._identity
+
+    async def set_stt(self, stt_impl: stt.STT, *, diarize: bool) -> None:
+        """Spec §4.3: the shared-mic attribute changed. The open session ends
+        now (its finals go out unlabelled or labelled as they were), and the
+        next speech opens one on the new STT."""
+        async with self._lock:
+            await self._close("shared mic changed")
+            self._stt, self._diarize = stt_impl, diarize
+            if self._speaking:
+                self._preroll = []  # mid-sentence: the next frame reopens, not the next sentence
 
     @property
     def open(self) -> bool:
@@ -238,8 +258,12 @@ class TrackTranscriber:
             self._end_at = None
         metrics.SEGMENTS.inc()
         metrics.SPEECH_SECONDS.inc(self._speech_ms / 1000)
+        label = ""
+        if self._diarize:
+            # Vendor labels hold within one session only, so the session names the label.
+            label = f"{self._identity}:{self._sid}-{self.sessions}:{alt.speaker_id or '?'}"
         self._on_final(
-            Final(seg_id, self._identity, alt.text, language, self._seg_started, self._wall(), self._speech_ms)
+            Final(seg_id, self._identity, alt.text, language, self._seg_started, self._wall(), self._speech_ms, label)
         )
         self._seg_started, self._speech_ms = None, 0
         log.info("final seg=%s chars=%d", seg_id, len(alt.text))

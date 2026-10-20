@@ -7,6 +7,7 @@ import json
 AGENT_IDENTITY = "uw_agent_scribe"
 AGENT_NAME = "UniWork AI"
 ROOM_PREFIX = "uw_mtg_"
+SHARED_MIC_ATTR = "uw.shared_mic"
 TOKEN_PREFIX = "uwma_"
 
 
@@ -39,3 +40,9 @@ def reports_finished(disconnect_reason: str | None) -> bool:
     (DUPLICATE_IDENTITY): the run is the other agent's now, and closing it
     would make the sweep dispatch a third agent."""
     return disconnect_reason != "DUPLICATE_IDENTITY"
+
+
+def shared_mic(attributes: dict[str, str]) -> bool:
+    """The participant's mic is the room's shared one (spec §4.3): diarize it.
+    Only the server sets the attribute; it deletes it with an empty value."""
+    return attributes.get(SHARED_MIC_ATTR) == "1"
