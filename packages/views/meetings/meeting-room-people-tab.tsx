@@ -26,7 +26,7 @@ import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingMuteAllButton } from "./meeting-moderation";
 import { MeetingParticipantRow } from "./meeting-participant-row";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
-import { guestIdentities, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
+import { guestIdentities, humanParticipants, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 import { useWindowedList } from "./use-windowed-list";
@@ -89,7 +89,8 @@ export function MeetingRoomPeopleTab({
   guestMode?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const liveParticipants = useLiveKitParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const roomParticipants = useLiveKitParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const liveParticipants = useMemo(() => humanParticipants(roomParticipants), [roomParticipants]);
   const { hands } = useMeetingSignals();
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const avatarOf = useRoomAvatarOf();

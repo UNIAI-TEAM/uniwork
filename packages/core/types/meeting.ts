@@ -23,6 +23,10 @@ export const MeetingSchema = z.object({
   has_playable_recording: z.boolean().optional(),
   /** Minimum attendance (%); null or absent = none. */
   quorum_percent: z.number().nullish(),
+  /** The AI scribe is on for this meeting (default on; host/admin switch it). */
+  scribe_enabled: z.boolean().optional(),
+  /** Detail only: the latest scribe run, DISPATCHED | ACTIVE | FINISHED | FAILED. */
+  scribe_status: z.string().optional(),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
@@ -200,6 +204,8 @@ export const MeetingSummarySchema = z.object({
   model: z.string().nullish(),
   created_by: z.string().nullish(),
   created_at: z.string().nullish(),
+  /** The transcript was longer than the summary's input budget. */
+  partial: z.boolean().optional(),
 });
 export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
 
@@ -217,7 +223,8 @@ export type MeetingRecording = z.infer<typeof RecordingSchema>;
 export const MeetingCapabilitiesSchema = z.object({
   ai_summary: z.boolean().optional(),
   recording: z.boolean().optional(),
-  server_stt: z.boolean().optional(),
+  /** The AI scribe agent serves this workspace's meetings. */
+  scribe: z.boolean().optional(),
 });
 export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;
 

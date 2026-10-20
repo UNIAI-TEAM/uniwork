@@ -320,6 +320,11 @@ function keysFor(
       }
       break;
     }
+    // The AI scribe was switched, or its run changed state.
+    case "scribe.updated": {
+      if (payload.meeting_id) push(meetingKeys.detail(payload.meeting_id));
+      break;
+    }
     case "transcript.appended": {
       if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
       break;

@@ -172,6 +172,19 @@ describe("MeetingSummaryPanel attribution", () => {
     expect(time.getAttribute("title")).toBeTruthy();
   });
 
+  it("says when the summary read only part of a long meeting", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) {
+        return Promise.resolve({ summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", partial: true, created_at: new Date().toISOString() } });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    expect(await screen.findByTestId("ai-summary-partial")).toHaveTextContent("Tóm tắt dựa trên một phần cuộc họp");
+  });
+
   it("lets the host summarise from notes alone", async () => {
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);

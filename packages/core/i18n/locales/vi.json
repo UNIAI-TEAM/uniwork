@@ -3764,7 +3764,20 @@
       "activityMotionDetail": "“{{title}}”",
       "activityMotionDetailOutcome": "“{{title}}” · {{outcome}}"
     },
-    "editSectionFormal": "Điểm danh"
+    "editSectionFormal": "Điểm danh",
+    "scribe": {
+      "chipOn": "AI đang ghi lời",
+      "chipJoining": "AI ghi lời đang vào phòng",
+      "chipFailed": "AI ghi lời đang gặp lỗi",
+      "chipOff": "AI ghi lời đã tắt",
+      "explain": "UniWork AI nghe từng người trong phòng, ghi lời vào transcript của cuộc họp và hiện phụ đề cho mọi người. AI không nói, không bật camera và không được tính là người tham gia.",
+      "explainOff": "Cuộc họp này không có AI ghi lời. Phụ đề dùng giọng nói trên máy của từng người.",
+      "turnOff": "Tắt AI ghi lời cho cuộc họp này",
+      "turnOn": "Bật AI ghi lời",
+      "captionsLabel": "Phụ đề · UniWork AI",
+      "unknownSpeaker": "Người nói"
+    },
+    "summaryPartial": "Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn mức AI đọc được một lần."
   },
   "calendar": {
     "title": "Lịch",

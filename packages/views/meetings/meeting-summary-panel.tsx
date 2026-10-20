@@ -251,6 +251,11 @@ function SummaryAttribution({ summary, times }: { summary: MeetingSummary; times
           {t("meetings.summaryStale")}
         </p>
       ) : null}
+      {summary.partial ? (
+        <p data-testid="ai-summary-partial" className="text-caption text-muted-foreground">
+          {t("meetings.summaryPartial")}
+        </p>
+      ) : null}
     </div>
   );
 }

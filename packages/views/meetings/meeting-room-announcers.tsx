@@ -77,7 +77,7 @@ export function ParticipantPresenceAnnouncer() {
       if (parts.length > 0) setText(parts.join(". "));
     };
     const queue = (list: string[], p: RemoteParticipant) => {
-      if (Date.now() < readyAt) return;
+      if (Date.now() < readyAt || p.isAgent) return;
       list.push(p.name || p.identity);
       clearTimeout(timer);
       timer = setTimeout(flush, PRESENCE_BATCH_MS);

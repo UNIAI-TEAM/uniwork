@@ -1269,6 +1269,22 @@ describe("useRealtimeSync › meeting summary", () => {
   );
 });
 
+describe("useRealtimeSync › meeting scribe", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("refreshes the meeting detail on scribe.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "scribe.updated", payload: { meeting_id: "m1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting", "m1"])]));
+  });
+});
+
 describe("useRealtimeSync › home summary", () => {
   afterEach(() => {
     vi.useRealTimers();

@@ -115,6 +115,17 @@ export function useUpdateMeeting(workspaceId: string, meetingId: string) {
   });
 }
 
+/** Switch the AI scribe for one meeting; the detail carries the new state. */
+export function useSetMeetingScribe(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => meetings.setMeetingScribe(meetingId, enabled),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
+    },
+  });
+}
+
 export function useDeleteMeeting(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({

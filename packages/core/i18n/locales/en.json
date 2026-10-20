@@ -3765,7 +3765,20 @@
       "activityMotionDetail": "“{{title}}”",
       "activityMotionDetailOutcome": "“{{title}}” · {{outcome}}"
     },
-    "editSectionFormal": "Attendance"
+    "editSectionFormal": "Attendance",
+    "scribe": {
+      "chipOn": "AI is transcribing",
+      "chipJoining": "AI transcriber is joining",
+      "chipFailed": "AI transcription is having trouble",
+      "chipOff": "AI transcription is off",
+      "explain": "UniWork AI listens to each person in the room, writes what they say into the meeting transcript and shows captions to everyone. It never speaks, has no camera and is not counted as a participant.",
+      "explainOff": "This meeting has no AI transcription. Captions use the speech recognition on each person's device.",
+      "turnOff": "Turn off AI transcription for this meeting",
+      "turnOn": "Turn on AI transcription",
+      "captionsLabel": "Captions · UniWork AI",
+      "unknownSpeaker": "Speaker"
+    },
+    "summaryPartial": "This summary covers part of the meeting: the transcript was longer than the AI reads at once."
   },
   "calendar": {
     "title": "Calendar",

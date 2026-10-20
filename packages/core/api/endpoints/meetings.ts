@@ -156,6 +156,14 @@ export async function updateMeeting(meetingId: string, body: UpdateMeetingBody):
   })?.meeting ?? null;
 }
 
+/** PUT /meetings/{id}/scribe: host or admin switch the AI scribe for one meeting. */
+export async function setMeetingScribe(meetingId: string, enabled: boolean): Promise<Meeting | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/scribe`, { method: "PUT", body: { enabled } });
+  return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {
+    endpoint: "PUT /api/v1/meetings/{id}/scribe",
+  })?.meeting ?? null;
+}
+
 export async function deleteMeeting(meetingId: string): Promise<void> {
   await request(`/api/v1/meetings/${enc(meetingId)}`, { method: "DELETE" });
 }
