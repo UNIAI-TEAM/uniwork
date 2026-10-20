@@ -182,7 +182,7 @@ function ChatFileMessageRowImpl({
                 </div>
                 {gif ? <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall /> : null}
                 {message.canShareAsDocument ? (
-                  <ChatShareAsDocumentAction workspaceId={workspaceId} roomId={roomId} message={message} />
+                  <ChatShareAsDocumentAction workspaceId={workspaceId} roomId={roomId} message={message} isOwn={isOwn} />
                 ) : null}
               </div>
               <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
