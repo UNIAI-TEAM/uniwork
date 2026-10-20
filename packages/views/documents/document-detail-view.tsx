@@ -109,6 +109,9 @@ export function DocumentDetailView({
       ? paths.workspace(workspaceCtx.workspace.organization_slug, workspaceCtx.workspace.slug).documentsFolder(folderId)
       : `${libraryHref}?folder=${encodeURIComponent(folderId)}`
     : null;
+  const inboxHref = workspaceCtx
+    ? paths.workspace(workspaceCtx.workspace.organization_slug, workspaceCtx.workspace.slug).inbox()
+    : null;
   const replace = nav?.replace;
   useEffect(() => {
     if (folderHref && replace) replace(folderHref);
@@ -207,7 +210,7 @@ export function DocumentDetailView({
   // One predicate for the card's "Manage access" button and the deep link.
   const canManageAccess = canBreakGlass && !!adminSummary.data;
   // The member 404 card has no Share to open: it only consumes the parameter.
-  const memberLocked = !query.data && errorClass === "missing" && !fromInbox;
+  const memberLocked = !query.data && errorClass === "missing";
 
   // The pure admin's entry for `?access=requests` (access addendum §2.5, N-02):
   // once the summary answered, an unarchived, unowned document opens Share at
@@ -382,11 +385,15 @@ export function DocumentDetailView({
   const resolvedDoc = query.data ?? null;
 
   if (!resolvedDoc) {
-    if (fromInbox && (errorClass === "missing" || errorClass === "gone")) {
+    if (fromInbox && errorClass === "gone") {
       return <DocumentInboxState reason="gone" className="mx-auto w-full max-w-3xl" />;
     }
     // DOC-07: a 404 (missing, unshared or another organization's, on purpose
     // indistinguishable) is the member locked card with a way to ask for access.
+    // A 404 reached from a notice (F-G819-A07b) is a revoked reader as often as a
+    // deleted document, and the person already knows the document exists: the card
+    // says "no access" with the way back to the Inbox. The request route answers a
+    // uniform 202 for any id, so offering the form reveals nothing.
     if (errorClass === "missing") {
       return (
         <DocumentLockedCard
@@ -399,6 +406,7 @@ export function DocumentDetailView({
           retrying={query.isFetching}
           answeredAt={query.errorUpdatedAt}
           onBack={onBackToList}
+          inboxHref={fromInbox ? inboxHref : null}
         />
       );
     }
