@@ -105,3 +105,6 @@ func parseOfficeFormat(raw string) (office.Format, bool) {
 func NewOfficeEngineClient(baseURL, serviceToken, grantKey string) (OfficeEngine, error) {
 	return office.NewClient(office.Config{BaseURL: baseURL, ServiceToken: serviceToken, GrantKey: grantKey}, nil)
 }
+
+// officeFormatTXT is a placeholder so the red tests compile.
+const officeFormatTXT office.Format = "txt"
