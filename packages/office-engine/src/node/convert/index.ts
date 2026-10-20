@@ -3,6 +3,8 @@ import { CfbError, readCompoundStreams } from "./cfb.ts";
 import { writeDocxPackage } from "./docx-write.ts";
 import { OdfError, readOdfTextPackage } from "./odt.ts";
 import { writeXlsxPackage } from "./xlsx-write.ts";
+
+export { PageInputError, pageToDocx } from "./page-docx.ts";
 import { ZipError, type ZipBoundMode } from "./zip.ts";
 
 // Q7 conversion engine (G2-07b / UNI-690): legacy/ODF -> OOXML, node-only.

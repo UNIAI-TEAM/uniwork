@@ -116,6 +116,41 @@ describe("capability and unsupported operations", () => {
     expect(md.find((r) => r.operation === "export")).toMatchObject({ supported: false, runtime: "none" });
   });
 
+  it("claims export for a UniNote page to docx and pdf, as pending evidence (UNI-2004)", async () => {
+    type Row = { operation: string; supported: boolean; runtime: string; evidence_level: string; reason?: string };
+    const page = (await call(h, "GET", "/v1/capability?format=page")).body.capabilities as Row[];
+    expect(page.find((r) => r.operation === "export")).toMatchObject({
+      supported: true,
+      runtime: "internal_service",
+      evidence_level: "pending",
+      reason: expect.stringContaining("page -> docx, pdf"),
+    });
+    expect(page.find((r) => r.operation === "open")).toMatchObject({ supported: false });
+  });
+
+  it("runs export:page to docx through the real job path and uploads the package", async () => {
+    const input = { title: "Biên bản họp", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Đã chốt ngân sách" }] }] } };
+    const job = makeJob(h.target, {
+      operation: "export",
+      format: "page",
+      bytes: Buffer.from(JSON.stringify(input)),
+      payload: {
+        document_model_ref: undefined,
+        base_revision: undefined,
+        base_version_id: undefined,
+        source_version_id: "ver-3",
+        target_format: "docx",
+      },
+    });
+    const res = await submit(h, job);
+    expect(res.status).toBe(202);
+    const done = await waitTerminal(h, job);
+    expect(done.body).toMatchObject({ state: "completed", result: { source_format: "page", target_format: "docx", source_version_id: "ver-3" } });
+    const upload = h.target.uploads.at(-1)!;
+    expect(upload.body.subarray(0, 4).toString("latin1")).toBe("PK\x03\x04");
+    expect(upload.body.toString("utf8")).toContain("Đã chốt ngân sách");
+  });
+
   it("runs export:docx through the real job path; without the staged renderer it fails as engine_incompatible", async () => {
     const bytes = readFileSync(new URL("../../../docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx", import.meta.url));
     const job = makeJob(h.target, {
