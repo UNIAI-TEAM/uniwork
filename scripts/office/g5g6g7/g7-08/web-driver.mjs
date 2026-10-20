@@ -210,12 +210,13 @@ const toolCall = (rowId, name, args) => ({ toolCalls: [{ id: `call_${rowId}`, ty
 /** Scripted model for `--dry-run` via `startStubFacade`: derives replies/edits from fixture truth. */
 export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
   const rowId = rowOrEntry?.rowId ?? rowOrEntry?.id;
-  return ({ state }) => {
+  return ({ state, body } = {}) => {
     if (state.step === 0) {
       if (rowId === 'X-R1') return { toolCalls: [{ id: 'call_xr1', type: 'function', function: { name: 'aggregate_range', arguments: JSON.stringify({ range: 'G2:G7' }) } }] };
       if (rowId === 'X-R2') return { toolCalls: [{ id: 'call_xr2', type: 'function', function: { name: 'read_range', arguments: JSON.stringify({ range: 'A1:G9' }) } }] };
       if (rowId === 'X-E1') {
-        const operations = [2, 3, 4, 5, 6, 7].map((r) => ({ op: 'set_formula', address: `AA${r}`, formula: `=D${r}*E${r}*(1-IF(F${r}>1,F${r}/100,F${r}))` }));
+        const sheetId = state?.sheetId ?? /Active sheet:[^(\n]*\(id=([^,)\s"]+)/.exec(JSON.stringify(body?.messages ?? []))?.[1];
+        const operations = [2, 3, 4, 5, 6, 7].map((r) => ({ op: 'set_formula', ...(sheetId ? { sheetId } : {}), address: `AA${r}`, formula: `=D${r}*E${r}*(1-IF(F${r}>1,F${r}/100,F${r}))` }));
         return { toolCalls: [{ id: 'call_xe1', type: 'function', function: { name: 'propose_operations', arguments: JSON.stringify({ summary: 'Ghi đè (overwritten) AA2:AA7', operations }) } }] };
       }
       if (rowId === 'D-R1') return { toolCalls: [{ id: 'call_dr1', type: 'function', function: { name: 'read_blocks', arguments: JSON.stringify({ startBlockIndex: 0, endBlockIndex: 9 }) } }] };
