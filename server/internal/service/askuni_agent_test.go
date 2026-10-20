@@ -140,6 +140,31 @@ func TestAskAgentAnswersFromToolResults(t *testing.T) {
 	}
 }
 
+// Free writing starts from the workspace's own documents (UNI-2008): in the
+// live eval "viết email xin nghỉ phép" got a generic email in one call while
+// the workspace had a leave procedure page. The prompt and the search tool
+// both tell the model to look one up first.
+func TestAskAgentLooksUpDocumentsBeforeWriting(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	reqs := scriptAgent(fake, "nghỉ phép", "Kính gửi anh chị")
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "viết email xin nghỉ phép", Locale: "vi"}); err != nil {
+		t.Fatal(err)
+	}
+	first := (*reqs)[0]
+	v3, ok := ai.LookupPrompt("copilot_answer@3")
+	if !ok || first.System != v3.System {
+		t.Fatalf("first request does not use copilot_answer@3 (registered %v):\n%s", ok, first.System)
+	}
+	if !strings.Contains(first.System, "Before you write, search the workspace for its own procedure, policy, template or example") {
+		t.Fatalf("system prompt does not ask for a document lookup before writing:\n%s", first.System)
+	}
+	for _, tool := range first.Tools {
+		if tool.Name == "search" && !strings.Contains(tool.Description, "Search here first before writing an email, a request or a template") {
+			t.Fatalf("search tool does not point free writing at it: %q", tool.Description)
+		}
+	}
+}
+
 func TestAskAgentFlagOffKeepsP0(t *testing.T) {
 	s, fake, ua, _, w := askFixture(t)
 	ctx := context.Background()
@@ -822,7 +847,7 @@ func TestAskAgentFocusIsNumberedAndCapped(t *testing.T) {
 	if prompt := first[len(first)-1].Content; !strings.Contains(prompt, "<untrusted source=\"S1\">\nBanner Tết") {
 		t.Fatalf("focus block:\n%s", prompt)
 	}
-	if tool := lastToolMessage(t, *reqs); !strings.Contains(tool, "<untrusted source=\"S1\">\nBanner Tết") || strings.Contains(tool, "S2") {
+	if tool := lastToolMessage(t, *reqs); !strings.Contains(tool, "<untrusted source=\"S1\">\nBanner Tết") || strings.Contains(tool, "[S2]") {
 		t.Fatalf("the search must find the focused task as S1:\n%s", tool)
 	}
 	if len(res.Citations) != 1 || res.Citations[0].Href != href {

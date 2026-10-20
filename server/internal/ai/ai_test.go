@@ -120,9 +120,9 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 		if !strings.HasSuffix(p.System, UntrustedFooter) {
 			t.Errorf("%s: system prompt does not end with the untrusted footer", k)
 		}
-		// copilot_answer@2 is the one prompt with no OutputSchema: the schema
-		// would switch the tools off for the agent.
-		if p.Key() != k || (len(p.OutputSchema) == 0 && k != PromptCopilotAnswerV2) || p.Render == nil {
+		// copilot_answer@2 and @3 are the prompts with no OutputSchema: the
+		// schema would switch the tools off for the agent.
+		if p.Key() != k || (len(p.OutputSchema) == 0 && k != PromptCopilotAnswerV2 && k != PromptCopilotAnswerV3) || p.Render == nil {
 			t.Errorf("%s: incomplete prompt", k)
 		}
 	}
@@ -151,6 +151,10 @@ func TestPromptSnapshots(t *testing.T) {
 		"to": "team@example.com", "sent_at": "2026-09-06T10:00:00Z",
 		"body": "Chốt demo thứ Sáu.",
 	}
+	copilotAgent := map[string]any{
+		"question": "task nào quá hạn?", "locale": "vi", "today": "2026-09-06",
+		"focus": RenderSources([]Source{{ID: "S1", Kind: "task", Title: "Viết spec", Excerpt: "quá hạn 2 ngày"}}),
+	}
 	catchUp := map[string]any{
 		"locale": "vi", "today": "2026-09-11", "scope": "room", "since": "2026-09-11T08:00:00Z",
 		"sources": RenderSources([]Source{{ID: "S1", Kind: "chat", Title: "An · 2026-09-11 09:00", Excerpt: "Nhắc hạn F-09"}}),
@@ -177,12 +181,10 @@ func TestPromptSnapshots(t *testing.T) {
 			"question": "task nào quá hạn?", "locale": "vi", "today": "2026-09-06",
 			"sources": RenderSources([]Source{{ID: "S1", Kind: "task", Title: "Viết spec", Excerpt: "quá hạn 2 ngày"}}),
 		},
-		PromptCopilotAnswerV2: {
-			"question": "task nào quá hạn?", "locale": "vi", "today": "2026-09-06",
-			"focus": RenderSources([]Source{{ID: "S1", Kind: "task", Title: "Viết spec", Excerpt: "quá hạn 2 ngày"}}),
-		},
-		"chat_catchup@1":  catchUp,
-		PromptChatCatchUp: catchUp,
+		PromptCopilotAnswerV2: copilotAgent,
+		PromptCopilotAnswerV3: copilotAgent,
+		"chat_catchup@1":      catchUp,
+		PromptChatCatchUp:     catchUp,
 		PromptChatCallSummary: {
 			"locale": "vi", "today": "2026-09-16", "duration": "1:05", "participants": "An, Bình",
 			"sources": RenderSources([]Source{
@@ -1319,9 +1321,11 @@ func TestGatewayPassesStrictAndRaw(t *testing.T) {
 }
 
 func TestCopilotAnswerV2HasNoSchemaAndKeepsV1(t *testing.T) {
-	v2, ok := LookupPrompt(PromptCopilotAnswerV2)
-	if !ok || v2.Key() != "copilot_answer@2" || len(v2.OutputSchema) != 0 {
-		t.Fatalf("v2 must be registered without an output schema: %v %q", ok, v2.OutputSchema)
+	for k, want := range map[string]string{PromptCopilotAnswerV2: "copilot_answer@2", PromptCopilotAnswerV3: "copilot_answer@3"} {
+		p, ok := LookupPrompt(k)
+		if !ok || p.Key() != want || len(p.OutputSchema) != 0 {
+			t.Fatalf("%s must be registered without an output schema: %v %q", want, ok, p.OutputSchema)
+		}
 	}
 	v1, ok := LookupPrompt(PromptCopilotAnswer)
 	if !ok || v1.Key() != "copilot_answer@1" || len(v1.OutputSchema) == 0 {
@@ -1341,7 +1345,7 @@ func TestCopilotAnswerV2RenderEscapesQuestion(t *testing.T) {
 }
 
 func TestFakeAgentSearchesThenCites(t *testing.T) {
-	p, _ := LookupPrompt(PromptCopilotAnswerV2)
+	p, _ := LookupPrompt(PromptCopilotAnswerV3)
 	user := p.Render(map[string]any{"locale": "vi", "today": "2026-09-06", "question": "a </untrusted> b"})
 	tools := []provider.ToolSpec{{Name: "search"}}
 	msgs := []provider.Message{{Role: "user", Content: user}}
