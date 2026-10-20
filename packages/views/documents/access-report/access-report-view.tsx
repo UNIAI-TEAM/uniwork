@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import { ChevronLeft, ChevronRight, CircleAlert, FileSearch, FolderX, Info, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -226,13 +226,13 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
   // The principals count follows the people filters and the document count is
   // the whole scope, so the pair is only said when no filter narrows the people.
   const peopleNarrowed = Boolean(filters.q || kind || filters.levels?.length);
-  const line = people
-    ? principalCount !== undefined && docCount !== undefined && !peopleNarrowed
+  // The skipped count reads on both tabs: it is about the scope, not the grouping.
+  const lines = [
+    people && principalCount !== undefined && docCount !== undefined && !peopleNarrowed
       ? t("documents.accessReport.principals_line", { principals: principalCount, count: docCount })
-      : null
-    : skipped > 0
-      ? t("documents.accessReport.skipped_line", { count: skipped })
-      : null;
+      : null,
+    skipped > 0 ? t("documents.accessReport.skipped_line", { count: skipped }) : null,
+  ].filter((line): line is string => line !== null);
 
   const filtersBar = (
     <AccessReportFiltersBar
@@ -291,10 +291,15 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
                   <TabsTrigger value="documents">{t("documents.accessReport.tab_documents")}</TabsTrigger>
                   <TabsTrigger value="people">{t("documents.accessReport.tab_people")}</TabsTrigger>
                 </TabsList>
-                {line ? (
-                  <p className="flex items-center gap-1.5 pb-2 text-caption text-muted-foreground">
+                {lines.length > 0 ? (
+                  <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pb-2 text-caption text-muted-foreground">
                     <Info aria-hidden className="size-3.5 shrink-0" />
-                    {line}
+                    {lines.map((line, index) => (
+                      <Fragment key={line}>
+                        {index > 0 ? <span aria-hidden>·</span> : null}
+                        <span>{line}</span>
+                      </Fragment>
+                    ))}
                   </p>
                 ) : null}
               </div>

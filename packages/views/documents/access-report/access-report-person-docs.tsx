@@ -22,7 +22,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
-import { accessLevelLabel, accessSourceLabel } from "./access-report-labels";
+import { accessLevelLabel, accessSourceLabel, revokeText } from "./access-report-labels";
 
 /** Empty pages read in a row before the reader is left to ask for more (the server may return short pages). */
 const MAX_EMPTY_PAGES = 5;
@@ -93,7 +93,7 @@ export function AccessReportPersonDocs({ wsId, folderId, levels, principal, name
     if (!pending?.row.revoke_target || revoke.isPending) return;
     try {
       await revoke.mutateAsync({ documentId: pending.documentId, target: pending.row.revoke_target });
-      toast.success(t("documents.accessReport.revoke_done", { name }));
+      toast.success(revokeText(t, principal.principal_type, "done", name));
     } catch {
       toast.error(t("documents.accessReport.revoke_failed"));
     }
@@ -141,8 +141,8 @@ export function AccessReportPersonDocs({ wsId, folderId, levels, principal, name
                   <Badge variant="secondary">{accessLevelLabel(t, row.level)}</Badge>
                   {row.active ? null : <span className="text-caption text-muted-foreground">{t("documents.accessReport.inactive")}</span>}
                 </span>
-                <span className="w-48 text-caption text-muted-foreground">{accessSourceLabel(t, row)}</span>
-                <span className="flex w-24 justify-end">
+                <span className="min-w-0 text-caption text-muted-foreground sm:w-48">{accessSourceLabel(t, row)}</span>
+                <span className="ml-auto flex justify-end sm:w-24">
                   {row.revoke_target ? (
                     <Button type="button" variant="outline" size="sm" className="text-destructive" onClick={() => setConfirming({ documentId: doc.id, title, row })}>
                       {t("documents.accessReport.revoke")}
@@ -173,7 +173,7 @@ export function AccessReportPersonDocs({ wsId, folderId, levels, principal, name
       <AlertDialog open={confirming !== null} onOpenChange={(open) => (open ? null : setConfirming(null))}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("documents.accessReport.revoke_title", { name })}</AlertDialogTitle>
+            <AlertDialogTitle>{revokeText(t, principal.principal_type, "title", name)}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirming ? `${confirming.title} · ${accessSourceLabel(t, confirming.row)} · ${accessLevelLabel(t, confirming.row.level)}` : null}
             </AlertDialogDescription>

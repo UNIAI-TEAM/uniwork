@@ -51,6 +51,16 @@ export function principalTypeLabel(t: TFunction, principalType: string): string 
   }
 }
 
+/**
+ * The Revoke wording for one principal: a person or group is named ("Revoke
+ * Lan's access"); the public link has no one to name, so it is turned off.
+ */
+export function revokeText(t: TFunction, principalType: string, part: "title" | "label" | "done", name: string): string {
+  return principalType === "link"
+    ? t(`documents.accessReport.revoke_${part}_link`)
+    : t(`documents.accessReport.revoke_${part}`, { name });
+}
+
 /** The general access pill: private, the workspace at a level, or the whole organization at a level. */
 export function generalScopeLabel(t: TFunction, scope: { kind: string; level: string | null }): string {
   const level = accessLevelLabel(t, scope.level ?? "");
@@ -81,17 +91,22 @@ interface WhoRow {
  * "The whole workspace · 1 person": groups first, then people, then links.
  * The counts come from `deriveReportFacts`, the one place they are made.
  */
-export function whoSummary(
+export function whoParts(
   t: TFunction,
   facts: Pick<ReportFacts, "people" | "links" | "otherWorkspaces" | "workspaceWide" | "organizationWide">,
-): string {
+): string[] {
   const parts: string[] = [];
   if (facts.organizationWide) parts.push(t("documents.accessReport.who_organization"));
   if (facts.workspaceWide) parts.push(t("documents.accessReport.who_workspace"));
   if (facts.otherWorkspaces > 0) parts.push(t("documents.accessReport.who_other_workspaces", { count: facts.otherWorkspaces }));
   if (facts.people > 0) parts.push(t("documents.accessReport.who_people", { count: facts.people }));
   if (facts.links > 0) parts.push(t("documents.accessReport.who_links", { count: facts.links }));
-  return parts.join(" · ");
+  return parts;
+}
+
+/** `whoParts` as one line. */
+export function whoSummary(t: TFunction, facts: Parameters<typeof whoParts>[1]): string {
+  return whoParts(t, facts).join(" · ");
 }
 
 /** The small note beside a grantee's name: "You", the kind of group, or nothing for another person. */

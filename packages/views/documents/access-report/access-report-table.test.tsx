@@ -265,6 +265,36 @@ describe("AccessReportTable", () => {
     expect(chevron).toHaveClass("px-2");
   });
 
+  it("lets a long general-access pill wrap inside its cell instead of running into the next one", () => {
+    renderTable();
+    const pill = within(docRow("Theo dõi chi phí.xlsx")).getByText(at("scope_workspace_level", { level: at("level_view") }));
+    expect(pill).toHaveClass("max-w-full");
+    expect(pill).not.toHaveClass("whitespace-nowrap");
+    expect(pill).toHaveAttribute("title", pill.textContent!);
+    expect(pill.closest("td")).toHaveClass("overflow-hidden");
+  });
+
+  it("truncates the first part of the who line and keeps the counts after it whole", () => {
+    renderTable();
+    const head = within(docRow("Theo dõi chi phí.xlsx")).getByText(at("who_workspace"));
+    expect(head).toHaveClass("truncate");
+    const tail = within(docRow("Theo dõi chi phí.xlsx")).getByText(`· ${at("who_people", { count: 1 })}`);
+    expect(tail).toHaveClass("shrink-0", "whitespace-nowrap");
+  });
+
+  it("stacks each open grant under its name on a phone: level, Revoke, then source and dates", () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
+    // No width floor below sm, so nothing important sits off-screen behind a hidden scroll.
+    expect(grants.className).toContain("sm:min-w-[36rem]");
+    expect(grants.className).not.toMatch(/(^|\s)min-w-\[36rem\]/);
+    const line = screen.getByText("Trần Bình").closest("tr")!;
+    expect(line).toHaveClass("max-sm:flex", "max-sm:flex-wrap");
+    const revoke = within(line).getByRole("button", { name: at("revoke_label", { name: "Trần Bình" }) });
+    expect(revoke.closest("td")).toHaveClass("max-sm:ml-auto");
+  });
+
   it("shows the whole document name above the open grants, whatever the row cut short", () => {
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
@@ -281,14 +311,14 @@ describe("AccessReportTable", () => {
     expect(within(row).getByText(at("path_owner", { path: "Kế hoạch", owner: "Nguyễn An" }))).toBeInTheDocument();
     expect(within(row).getByText(at("scope_private"))).toBeInTheDocument();
     // The inactive grant is not counted.
-    expect(within(row).getByText(`${at("who_people", { count: 2 })} · ${at("who_links", { count: 1 })}`)).toBeInTheDocument();
+    expect(within(row).getAllByRole("cell")[2]).toHaveTextContent(`${at("who_people", { count: 2 })} · ${at("who_links", { count: 1 })}`);
     expect(within(row).getByText(at("flag_public_link"))).toBeInTheDocument();
     expect(within(row).getByText(at("flag_direct_manage"))).toBeInTheDocument();
     expect(within(row).getAllByRole("cell").at(-2)!.textContent).toBe(formatWhen("2026-10-20T14:41:00Z", i18n.language));
 
     const other = docRow("Theo dõi chi phí.xlsx");
     expect(within(other).getByText(at("scope_workspace_level", { level: at("level_view") }))).toBeInTheDocument();
-    expect(within(other).getByText(`${at("who_workspace")} · ${at("who_people", { count: 1 })}`)).toBeInTheDocument();
+    expect(within(other).getAllByRole("cell")[2]).toHaveTextContent(`${at("who_workspace")} · ${at("who_people", { count: 1 })}`);
     // No access_changed_at: the content's updated_at stands in.
     expect(within(other).getAllByRole("cell").at(-2)!.textContent).toBe(formatWhen("2026-09-05T03:00:00Z", i18n.language));
   });
@@ -346,7 +376,7 @@ describe("AccessReportTable", () => {
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
     const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
     expect(within(grants).getByRole("button", { name: at("revoke_label", { name: "Trần Bình" }) })).toBeInTheDocument();
-    expect(within(grants).getByRole("button", { name: at("revoke_label", { name: at("anyone_with_link") }) })).toBeInTheDocument();
+    expect(within(grants).getByRole("button", { name: at("revoke_label_link") })).toBeInTheDocument();
   });
 
   it("revokes after a confirmation, through the share route, and says so", async () => {
@@ -374,7 +404,7 @@ describe("AccessReportTable", () => {
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
     const linkLine = screen.getByText(at("anyone_with_link")).closest("tr")!;
-    fireEvent.click(within(linkLine).getByRole("button", { name: at("revoke_label", { name: at("anyone_with_link") }) }));
+    fireEvent.click(within(linkLine).getByRole("button", { name: at("revoke_label_link") }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: at("revoke") }));
 

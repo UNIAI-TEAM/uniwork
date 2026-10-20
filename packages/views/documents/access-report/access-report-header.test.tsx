@@ -105,6 +105,10 @@ describe("AccessReportHeader - scope", () => {
     ).toBeInTheDocument();
   });
 
+  it("reads the scope chip as the board does: Toàn workspace {name}", () => {
+    expect(t("documents.accessReport.scope_workspace", { name: "UNICOM" })).toBe("Toàn workspace UNICOM");
+  });
+
   it("names the folder the report is for", () => {
     renderHeader({ folderId: "f1", folderTitle: "Hợp đồng" });
     expect(

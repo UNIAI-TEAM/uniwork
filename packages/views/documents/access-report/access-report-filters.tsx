@@ -113,70 +113,74 @@ export function AccessReportFiltersBar({
     : Boolean(filters.q || kind || levels.length);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SearchField
-        label={t(documents ? "documents.accessReport.search_documents" : "documents.accessReport.search_people")}
-        value={filters.q ?? ""}
-        onCommit={(q) => set({ q: q || undefined })}
-      />
-
-      {documents ? (
-        <PrincipalFilter wsId={wsId} folderId={folderId} value={filters.principal} onPick={(principal) => set({ principal })} />
-      ) : (
-        <RadioFilter
-          label={t("documents.accessReport.filter_kind")}
-          value={kind}
-          options={PRINCIPAL_KINDS.map((value) => ({ value, label: kindLabel(t, value) }))}
-          onChange={onKindChange}
+    // The toggle keeps its own place at the right on a wide screen: a chip or "Clear filters"
+    // wraps inside the group on the left, so the row does not jump when one appears.
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <SearchField
+          label={t(documents ? "documents.accessReport.search_documents" : "documents.accessReport.search_people")}
+          value={filters.q ?? ""}
+          onCommit={(q) => set({ q: q || undefined })}
         />
-      )}
 
-      <CheckFilter
-        label={t("documents.accessReport.filter_level")}
-        values={levels}
-        options={REPORT_LEVELS.map((value) => ({ value, label: accessLevelLabel(t, value) }))}
-        onChange={(next) => set({ levels: next.length ? next : undefined })}
-      />
-
-      {documents ? (
-        <>
+        {documents ? (
+          <PrincipalFilter wsId={wsId} folderId={folderId} value={filters.principal} onPick={(principal) => set({ principal })} />
+        ) : (
           <RadioFilter
-            label={t("documents.accessReport.filter_scope")}
-            value={filters.scope}
-            options={REPORT_SCOPES.map((value) => ({ value, label: scopeLabel(t, value) }))}
-            onChange={(scope) => set({ scope })}
+            label={t("documents.accessReport.filter_kind")}
+            value={kind}
+            options={PRINCIPAL_KINDS.map((value) => ({ value, label: kindLabel(t, value) }))}
+            onChange={onKindChange}
           />
-          <CheckFilter
-            label={t("documents.accessReport.filter_source")}
-            values={sources}
-            options={REPORT_SOURCES.map((value) => ({ value, label: accessSourceLabel(t, SOURCE_ROW[value]) }))}
-            onChange={(next) => set({ sources: next.length ? next : undefined })}
-          />
-          {filters.flag ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="gap-1"
-              aria-label={t("documents.accessReport.clear_chip", { name: flagChipLabel(t, filters.flag) })}
-              onClick={() => set({ flag: undefined })}
-            >
-              {flagChipLabel(t, filters.flag)}
-              <X aria-hidden className="size-3.5" />
-            </Button>
-          ) : null}
-        </>
-      ) : null}
+        )}
 
-      {active ? (
-        <Button type="button" variant="ghost" size="sm" onClick={onReset} className="gap-1">
-          <FunnelX aria-hidden className="size-3.5" />
-          {t("documents.accessReport.filter_reset")}
-        </Button>
-      ) : null}
+        <CheckFilter
+          label={t("documents.accessReport.filter_level")}
+          values={levels}
+          options={REPORT_LEVELS.map((value) => ({ value, label: accessLevelLabel(t, value) }))}
+          onChange={(next) => set({ levels: next.length ? next : undefined })}
+        />
+
+        {documents ? (
+          <>
+            <RadioFilter
+              label={t("documents.accessReport.filter_scope")}
+              value={filters.scope}
+              options={REPORT_SCOPES.map((value) => ({ value, label: scopeLabel(t, value) }))}
+              onChange={(scope) => set({ scope })}
+            />
+            <CheckFilter
+              label={t("documents.accessReport.filter_source")}
+              values={sources}
+              options={REPORT_SOURCES.map((value) => ({ value, label: accessSourceLabel(t, SOURCE_ROW[value]) }))}
+              onChange={(next) => set({ sources: next.length ? next : undefined })}
+            />
+            {filters.flag ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="gap-1"
+                aria-label={t("documents.accessReport.clear_chip", { name: flagChipLabel(t, filters.flag) })}
+                onClick={() => set({ flag: undefined })}
+              >
+                {flagChipLabel(t, filters.flag)}
+                <X aria-hidden className="size-3.5" />
+              </Button>
+            ) : null}
+          </>
+        ) : null}
+
+        {active ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onReset} className="gap-1">
+            <FunnelX aria-hidden className="size-3.5" />
+            {t("documents.accessReport.filter_reset")}
+          </Button>
+        ) : null}
+      </div>
 
       {documents ? (
-        <label htmlFor={nonDefaultId} className="flex items-center gap-2 text-caption text-foreground sm:ml-auto pointer-coarse:min-h-11">
+        <label htmlFor={nonDefaultId} className="flex shrink-0 items-center gap-2 text-caption whitespace-nowrap text-foreground sm:h-8 pointer-coarse:min-h-11">
           <Checkbox
             id={nonDefaultId}
             checked={Boolean(filters.nonDefault)}

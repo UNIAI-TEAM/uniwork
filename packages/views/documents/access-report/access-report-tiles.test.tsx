@@ -42,6 +42,14 @@ describe("AccessReportTiles", () => {
     expect(tile("tile_documents")).toHaveTextContent(at("tile_documents_hint", { restricted: 2, workspace: 9 }));
   });
 
+  it("adds the organization count to the documents hint only when some document is open to the organization", () => {
+    renderTiles({ totals: { ...totals, tiles: { ...totals.tiles, documents: 13, restricted: 2, workspace: 9, organization: 2 } } });
+    expect(tile("tile_documents")).toHaveTextContent(
+      at("tile_documents_hint_org", { restricted: 2, workspace: 9, organization: 2 }),
+    );
+    expect(tile("tile_documents")).toHaveTextContent(/2[^\d]+2[^\d]+9|2[^\d]+9[^\d]+2/);
+  });
+
   it("presses the documents tile with no flag, and the flag's tile when one is set", () => {
     renderTiles();
     expect(tile("tile_documents")).toHaveAttribute("aria-pressed", "true");

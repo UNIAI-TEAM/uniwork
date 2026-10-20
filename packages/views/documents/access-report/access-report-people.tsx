@@ -135,14 +135,15 @@ export function AccessReportPeople({ wsId, folderId, search, kind, levels, docum
   );
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table aria-label={t("documents.accessReport.tab_people")} aria-busy={query.isFetching || undefined} className="w-full min-w-[56rem] border-collapse text-body">
+    // A size container: an open row's documents size themselves to this box (cqw), not to the viewport.
+    <div className="overflow-x-auto rounded-lg border border-border [container-type:inline-size]">
+      <table aria-label={t("documents.accessReport.tab_people")} aria-busy={query.isFetching || undefined} className="w-full border-collapse text-body sm:min-w-[56rem]">
         <thead className="bg-muted/40">
           <tr className="border-b border-border">
             {sortHeader("name", t("documents.accessReport.col_principal"))}
             {sortHeader("count", t("documents.accessReport.col_count"))}
-            <th scope="col" className={TH}>{t("documents.accessReport.col_split")}</th>
-            <th scope="col" className={TH}>{t("documents.accessReport.col_main_source")}</th>
+            <th scope="col" className={cn(TH, NARROW_HIDDEN)}>{t("documents.accessReport.col_split")}</th>
+            <th scope="col" className={cn(TH, NARROW_HIDDEN)}>{t("documents.accessReport.col_main_source")}</th>
             <th scope="col" className={cn(TH, "w-12")}>
               <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
             </th>
@@ -172,6 +173,8 @@ export function AccessReportPeople({ wsId, folderId, search, kind, levels, docum
 
 const TH = "px-3 py-2 text-left text-caption font-medium whitespace-nowrap text-muted-foreground";
 const TD = "px-3 py-3 align-middle";
+// Below sm the split bar and the main source leave the row (an open row lists each document's level and source).
+const NARROW_HIDDEN = "max-sm:hidden";
 
 function next(current: { sort: PeopleSortKey; order: PeopleSortOrder }, column: PeopleSortKey) {
   if (current.sort !== column) return { sort: column, order: DEFAULT_ORDER[column] };
@@ -235,7 +238,7 @@ function PersonRow({ wsId, principal: p, open, onToggle, folderId, levels, docum
           </button>
         </td>
         <td className={cn(TD, "font-semibold")}>{p.document_count}</td>
-        <td className={TD}>
+        <td className={cn(TD, NARROW_HIDDEN)}>
           <div className="flex max-w-72 flex-col gap-1.5">
             {total > 0 ? (
               <div data-slot="level-split" aria-hidden className="flex h-2 gap-px overflow-hidden rounded-full bg-muted">
@@ -249,7 +252,7 @@ function PersonRow({ wsId, principal: p, open, onToggle, folderId, levels, docum
             </span>
           </div>
         </td>
-        <td className={cn(TD, "text-muted-foreground")}>{accessSourceLabel(t, MAIN_SOURCE[p.main_source] ?? { source: "" })}</td>
+        <td className={cn(TD, NARROW_HIDDEN, "text-muted-foreground")}>{accessSourceLabel(t, MAIN_SOURCE[p.main_source] ?? { source: "" })}</td>
         <td className={cn(TD, "text-right")}>
           {/* A bigger target for the pointer; the name button is the one keyboard and screen-reader stop. */}
           <button
@@ -265,16 +268,22 @@ function PersonRow({ wsId, principal: p, open, onToggle, folderId, levels, docum
       </tr>
       {open ? (
         <tr className="border-b border-border bg-muted/20">
-          <td colSpan={5} className="px-3 pt-1 pb-4 pl-14">
-            <AccessReportPersonDocs
-              id={panelId}
-              wsId={wsId}
-              folderId={folderId}
-              levels={levels}
-              principal={p}
-              name={name}
-              documentHref={documentHref}
-            />
+          <td colSpan={5} className="px-3 pt-1 pb-4 md:pl-14">
+            {/* Pinned to the left and never wider than the scroll box, so the list opens on screen. */}
+            <div
+              data-people-pin
+              className="sticky left-3 w-[min(100%,calc(100cqw_-_1.5rem))] md:left-14 md:w-[min(100%,calc(100cqw_-_4.25rem))]"
+            >
+              <AccessReportPersonDocs
+                id={panelId}
+                wsId={wsId}
+                folderId={folderId}
+                levels={levels}
+                principal={p}
+                name={name}
+                documentHref={documentHref}
+              />
+            </div>
           </td>
         </tr>
       ) : null}

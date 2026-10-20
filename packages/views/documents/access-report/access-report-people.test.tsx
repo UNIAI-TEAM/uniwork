@@ -303,6 +303,43 @@ describe("AccessReportPeople - open row", () => {
     expect(within(third).getByText(at("source_chat"))).toBeInTheDocument();
   });
 
+  it("drops the split bar and the main source below sm, and sizes an open row to the scroll box", async () => {
+    serve();
+    renderPeople();
+    const table = await screen.findByRole("table", { name: at("tab_people") });
+    expect(table.className).toContain("sm:min-w-[56rem]");
+    for (const col of ["col_split", "col_main_source"]) {
+      expect(within(table).getByRole("columnheader", { name: at(col) })).toHaveClass("max-sm:hidden");
+    }
+    const hung = personRow("Hưng Nguyễn Duy");
+    expect(within(hung).getAllByRole("cell").filter((c) => c.classList.contains("max-sm:hidden"))).toHaveLength(2);
+    expect(table.parentElement).toHaveClass("overflow-x-auto", "[container-type:inline-size]");
+
+    fireEvent.click(screen.getByRole("button", { name: expandLabel("Hưng Nguyễn Duy") }));
+    const list = await screen.findByRole("list", { name: expandLabel("Hưng Nguyễn Duy") });
+    const pinned = list.closest("[data-people-pin]")!;
+    expect(pinned).toHaveClass("sticky", "left-3");
+    expect(pinned.className).toContain("100cqw");
+    // Source and Revoke wrap under the name on a phone; they are fixed columns only from sm.
+    const item = within(list).getAllByRole("listitem")[0]!;
+    expect(within(item).getByText(at("source_direct"))).toHaveClass("sm:w-48");
+    expect(within(item).getByRole("button", { name: at("revoke") }).parentElement).toHaveClass("sm:w-24");
+  });
+
+  it("turns the public link off in words the link can bear: no one's name to revoke", async () => {
+    const linkGrant = grant({ source: "link", principal_type: "link", principal_id: "l1", principal_name: null, share_id: undefined, revoke_target: { kind: "link", id: "l1" } });
+    serve(() => reportFor([docEntry("d1", "Bảng giá 2026.xlsx", [linkGrant])]));
+    renderPeople();
+    await screen.findByRole("table");
+    fireEvent.click(screen.getByRole("button", { name: expandLabel(at("anyone_with_link")) }));
+    const list = await screen.findByRole("list", { name: expandLabel(at("anyone_with_link")) });
+    fireEvent.click(within(list).getByRole("button", { name: at("revoke") }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(at("revoke_title_link"))).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: at("revoke") }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(at("revoke_done_link")));
+  });
+
   it("collapses again and keeps one row open at a time", async () => {
     serve();
     renderPeople();

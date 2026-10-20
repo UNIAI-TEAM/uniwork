@@ -27,12 +27,15 @@ import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink } from "../../navigation";
 import { formatWhen } from "../document-format";
 import { ShareDialog, type ShareDialogTarget } from "../share-dialog";
-import { accessLevelLabel, accessSourceLabel, grantKindNote, principalTypeLabel } from "./access-report-labels";
+import { accessLevelLabel, accessSourceLabel, grantKindNote, principalTypeLabel, revokeText } from "./access-report-labels";
 
 const NONE = "—";
 
 const TH = "px-3 py-2 text-left text-caption font-medium whitespace-nowrap text-muted-foreground";
 const TD = "px-3 py-2 align-middle";
+// Below sm a grant is a wrapping block, not a table row: name on its own line, then the
+// level and Revoke, then source and dates, so nothing sits behind a hidden scroll.
+const TD_STACKED = "max-sm:block max-sm:px-0 max-sm:py-0";
 
 export interface AccessReportGrantsProps {
   wsId: string;
@@ -105,7 +108,7 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
     const name = grantName(t, row);
     try {
       await revoke.mutateAsync({ documentId: doc.id, target: row.revoke_target });
-      toast.success(t("documents.accessReport.revoke_done", { name }));
+      toast.success(revokeText(t, row.principal_type, "done", name));
     } catch {
       toast.error(t("documents.accessReport.revoke_failed"));
     }
@@ -120,8 +123,8 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
       </p>
       {/* Wide table, own box: on a phone it scrolls here, starting at the first column. */}
       <div className="overflow-x-auto">
-      <table aria-label={title} className="w-full min-w-[36rem] border-collapse text-body">
-        <thead>
+      <table aria-label={title} className="w-full border-collapse text-body max-sm:block sm:min-w-[36rem]">
+        <thead className="max-sm:sr-only">
           <tr className="border-b border-border">
             <th scope="col" className={TH}>{t("documents.accessReport.col_principal")}</th>
             <th scope="col" className={TH}>{t("documents.accessReport.col_level")}</th>
@@ -133,16 +136,19 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="max-sm:block">
           {rows.map((row, index) => {
             const name = grantName(t, row);
             const note = grantKindNote(t, row, wsId, viewerId);
             return (
               <tr
                 key={`${row.source}:${row.principal_type}:${row.principal_id}:${row.share_id ?? index}`}
-                className={cn("border-b border-border last:border-b-0", !row.active && "text-muted-foreground")}
+                className={cn(
+                  "border-b border-border last:border-b-0 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:gap-y-1 max-sm:py-2",
+                  !row.active && "text-muted-foreground",
+                )}
               >
-                <td className={TD}>
+                <td className={cn(TD, TD_STACKED, "max-sm:w-full")}>
                   <span className="flex min-w-0 items-center gap-2">
                     <GrantGlyph type={row.principal_type} name={name} />
                     <span title={name} className="min-w-0 truncate font-medium">
@@ -151,7 +157,7 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
                     {note ? <span className="shrink-0 text-caption text-muted-foreground">{note}</span> : null}
                   </span>
                 </td>
-                <td className={TD}>
+                <td className={cn(TD, TD_STACKED, "max-sm:order-1")}>
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <Badge variant="secondary">{accessLevelLabel(t, row.level)}</Badge>
                     {row.effective_level !== row.level ? (
@@ -164,19 +170,19 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
                     )}
                   </span>
                 </td>
-                <td className={cn(TD, "text-muted-foreground")}>{accessSourceLabel(t, row)}</td>
-                <td className={cn(TD, "text-muted-foreground")}>{row.granted_by_name || NONE}</td>
-                <td className={cn(TD, "whitespace-nowrap text-muted-foreground")}>
+                <td className={cn(TD, TD_STACKED, "text-muted-foreground max-sm:order-2 max-sm:text-caption")}>{accessSourceLabel(t, row)}</td>
+                <td className={cn(TD, TD_STACKED, "text-muted-foreground max-sm:order-2 max-sm:text-caption")}>{row.granted_by_name || NONE}</td>
+                <td className={cn(TD, TD_STACKED, "whitespace-nowrap text-muted-foreground max-sm:order-2 max-sm:text-caption")}>
                   {row.granted_at ? formatWhen(row.granted_at, i18n.language) || NONE : NONE}
                 </td>
-                <td className={cn(TD, "text-right")}>
+                <td className={cn(TD, TD_STACKED, "text-right max-sm:order-1 max-sm:ml-auto")}>
                   {row.revoke_target ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       className="text-destructive"
-                      aria-label={t("documents.accessReport.revoke_label", { name })}
+                      aria-label={revokeText(t, row.principal_type, "label", name)}
                       onClick={() => setConfirming(row)}
                     >
                       {t("documents.accessReport.revoke")}
@@ -206,7 +212,7 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("documents.accessReport.revoke_title", { name: confirming ? grantName(t, confirming) : "" })}
+              {confirming ? revokeText(t, confirming.principal_type, "title", grantName(t, confirming)) : ""}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirming ? `${title} · ${accessSourceLabel(t, confirming)} · ${accessLevelLabel(t, confirming.level)}` : null}

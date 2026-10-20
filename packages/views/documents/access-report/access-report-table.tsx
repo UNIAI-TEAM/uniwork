@@ -12,7 +12,7 @@ import { initialOf } from "../../chat/chat-initials";
 import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
 import { formatWhen } from "../document-format";
 import { AccessReportGrants, grantName } from "./access-report-grants";
-import { flagLabel, generalScopeLabel, whoSummary } from "./access-report-labels";
+import { flagLabel, generalScopeLabel, whoParts } from "./access-report-labels";
 import {
   AccessReportSortHeader,
   type PendingSortFocus,
@@ -131,7 +131,8 @@ function DocumentRow({
   const where = owner
     ? t("documents.accessReport.path_owner", { path: path || t("documents.home.search.path_root"), owner })
     : path;
-  const who = whoSummary(t, facts);
+  const who = whoParts(t, facts);
+  const scopeText = generalScopeLabel(t, facts.generalScope);
   const changed = formatWhen(facts.changedAt, i18n.language);
   const toggleLabel = expanded
     ? t("documents.accessReport.collapse", { name: title })
@@ -162,14 +163,16 @@ function DocumentRow({
             </span>
           </button>
         </td>
-        <td className={TD}>
+        <td className={cn(TD, "overflow-hidden")}>
+          {/* The pill never outgrows its cell: a long label wraps inside it, the full text on hover. */}
           <span
+            title={scopeText}
             className={cn(
-              "inline-flex h-6 items-center rounded-full px-2.5 text-caption font-medium whitespace-nowrap",
+              "inline-flex min-h-6 max-w-full items-center rounded-full px-2.5 py-0.5 text-caption leading-tight font-medium [overflow-wrap:anywhere]",
               SCOPE_TONE[facts.generalScope.kind] ?? "bg-muted text-foreground",
             )}
           >
-            {generalScopeLabel(t, facts.generalScope)}
+            {scopeText}
           </span>
         </td>
         <td className={TD}>
@@ -223,7 +226,7 @@ function DocumentRow({
 }
 
 /** Up to four faces of who has access, then the short line that counts them all. */
-function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts: ReportFacts; who: string }) {
+function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts: ReportFacts; who: readonly string[] }) {
   const { t } = useTranslation();
   const seen = new Set<string>();
   const faces = rows.filter((row) => {
@@ -252,8 +255,10 @@ function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts
           </span>
         ) : null}
       </span>
-      <span className="min-w-0 truncate text-muted-foreground" title={who || undefined}>
-        {who || NONE}
+      {/* Short on room, the first part gives way to the ellipsis; the counts after it stay whole. */}
+      <span className="flex min-w-0 items-baseline text-muted-foreground" title={who.length > 0 ? who.join(" · ") : undefined}>
+        <span className="min-w-0 truncate">{who[0] ?? NONE}</span>
+        {who.length > 1 ? <span className="shrink-0 whitespace-nowrap">{` · ${who.slice(1).join(" · ")}`}</span> : null}
       </span>
     </span>
   );

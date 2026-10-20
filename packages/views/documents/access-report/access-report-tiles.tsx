@@ -42,10 +42,17 @@ export function AccessReportTiles({ totals, failed, flag, onPick }: AccessReport
         const hint =
           tile.key === "documents"
             ? totals
-              ? t("documents.accessReport.tile_documents_hint", {
-                  restricted: number.format(totals.tiles.restricted),
-                  workspace: number.format(totals.tiles.workspace),
-                })
+              ? t(
+                  // The hint adds up to the tile's total: the organization part appears when it is not zero.
+                  totals.tiles.organization > 0
+                    ? "documents.accessReport.tile_documents_hint_org"
+                    : "documents.accessReport.tile_documents_hint",
+                  {
+                    restricted: number.format(totals.tiles.restricted),
+                    workspace: number.format(totals.tiles.workspace),
+                    organization: number.format(totals.tiles.organization),
+                  },
+                )
               : null
             : t(`documents.accessReport.${tile.hint}`);
         return (

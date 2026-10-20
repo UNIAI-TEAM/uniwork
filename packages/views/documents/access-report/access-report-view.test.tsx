@@ -239,6 +239,13 @@ describe("AccessReportView - tabs", () => {
     expect(screen.queryByRole("button", { name: new RegExp(at("tile_public_link")) })).toBeNull();
   });
 
+  it("By person: the skipped line shows beside the principals line", async () => {
+    serve();
+    renderView(`${BASE_URL}?view=person`);
+    expect(await screen.findByText(at("principals_line", { principals: 2, count: 11 }))).toBeInTheDocument();
+    expect(await screen.findByText(at("skipped_line", { count: 14 }))).toBeInTheDocument();
+  });
+
   it("By person: the type and level in the URL are sent with the principals", async () => {
     serve();
     renderView(`${BASE_URL}?view=person&kind=member&level=manage`);
@@ -314,6 +321,18 @@ describe("AccessReportView - filters", () => {
     renderView();
     const search = await screen.findByRole("searchbox", { name: at("search_documents") });
     expect(search.closest(".flex-wrap")).not.toBeNull();
+  });
+
+  it("keeps the non-default toggle out of the wrapping group, so a chip never pushes it onto its own line", async () => {
+    serve();
+    renderView(`${BASE_URL}?flag=public_link`);
+    const search = await screen.findByRole("searchbox", { name: at("search_documents") });
+    const toggle = screen.getByRole("checkbox", { name: at("only_non_default") });
+    expect(screen.getByRole("button", { name: at("clear_chip", { name: at("flag_public_link") }) }).closest(".flex-wrap")).toBe(
+      search.closest(".flex-wrap"),
+    );
+    expect(toggle.closest(".flex-wrap")).toBeNull();
+    expect(toggle.closest("label")).toHaveClass("shrink-0");
   });
 });
 
