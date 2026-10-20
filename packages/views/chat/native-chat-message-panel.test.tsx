@@ -179,7 +179,7 @@ describe("NativeChatMessagePanel", () => {
     const onFocusComposer = vi.fn();
     const onReplyToChange = vi.fn();
     render(wrap(panel({ onFocusComposer, onReplyToChange })));
-    fireEvent.click(within(messageArticle("Hi team")).getByRole("menuitem", { name: "Trả lời" }));
+    fireEvent.click(within(messageArticle("Hi team")).getByRole("button", { name: "Trả lời" }));
     expect(onReplyToChange).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }));
     expect(onFocusComposer).toHaveBeenCalled();
   });
@@ -189,7 +189,8 @@ describe("NativeChatMessagePanel", () => {
     deleteMessage.mockRejectedValueOnce(new ApiError("forbidden", "forbidden", 403));
     render(wrap(panel()));
 
-    await user.click(within(messageArticle("Reply")).getByRole("menuitem", { name: "Xóa" }));
+    await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Thêm" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Xóa" }));
     expect(deleteMessage).not.toHaveBeenCalled();
 
     const dialog = await screen.findByRole("alertdialog");
