@@ -754,6 +754,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{versionNo}":
 		return tn.get(t, "version")
 	case "{jobID}":
+		// The zip download job (UNI-2045) lives under the workspace's documents
+		// collection; the office job under a document.
+		if under("/documents/download-jobs/") {
+			return tn.get(t, "downloadJob")
+		}
 		return tn.get(t, "officeJob")
 	case "{exportID}":
 		return tn.get(t, "auditExport")
@@ -1008,7 +1013,7 @@ func (w *isoWorld) referencesTo(t *testing.T, in, of *isoTenant) []string {
 			if _, skip := isoDigestSkip[name]; skip {
 				continue
 			}
-			parts = append(parts, fmt.Sprintf(`SELECT %s, count(*) FROM %q x WHERE organization_id = $1 AND lower(x::text) ~ $2`, isoSQLString(name), name))
+			parts = append(parts, fmt.Sprintf(`SELECT %s, count(*) FROM %q x WHERE organization_id = $1 AND lower(%s) ~ $2`, isoSQLString(name), name, isoRowText(name)))
 		}
 		rows.Close()
 		w.refSQL = strings.Join(parts, "\nUNION ALL\n")
@@ -1039,6 +1044,29 @@ func (w *isoWorld) referencesTo(t *testing.T, in, of *isoTenant) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// isoRowEchoColumns are columns that echo what the caller typed, so a request
+// that names another tenant's id is answered, never refused, and the row keeps
+// the id the person sent: the zip download job (UNI-2045 SV-9) keeps the ids it
+// was asked for and the ones it skipped as not_found - the same answer an
+// unknown id gets, so the echo tells nothing about the other tenant. Every
+// other column of the row is still searched, and no other table is exempt.
+var isoRowEchoColumns = map[string][]string{
+	"document_download_jobs": {"document_ids", "skipped"},
+}
+
+// isoRowText is the SQL text the reference search reads for one table's row.
+func isoRowText(table string) string {
+	expr := "x::text"
+	if cols := isoRowEchoColumns[table]; len(cols) > 0 {
+		expr = "(to_jsonb(x)"
+		for _, c := range cols {
+			expr += " - " + isoSQLString(c)
+		}
+		expr += ")::text"
+	}
+	return expr
 }
 
 func isoValues(m map[string]string) []string {

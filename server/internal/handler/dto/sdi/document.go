@@ -410,3 +410,9 @@ type UploadSessionPartSDI struct {
 	PartNumber int    `json:"part_number" description:"Số thứ tự phần, 1..total_parts" example:"1"`
 	ETag       string `json:"etag" description:"ETag S3 trả về ở header ETag của PUT phần, kể cả dấu ngoặc kép" example:"\"3858f62230ac3c915f300c664312c63f\""`
 }
+
+// CreateDocumentDownloadJobSDI is POST
+// /api/v1/workspaces/{workspaceID}/documents/download-jobs (UNI-2045 SV-9).
+type CreateDocumentDownloadJobSDI struct {
+	DocumentIDs []string `json:"document_ids" minItems:"1" maxItems:"100" description:"1-100 ULID tài liệu khác nhau cần nén thành một zip; chỉ tệp, trang và thư mục bị bỏ qua" example:"[\"01J8X4DOC0N1P2Q3R4S5T6U7\"]"`
+}

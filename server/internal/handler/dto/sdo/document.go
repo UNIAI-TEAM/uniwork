@@ -820,3 +820,25 @@ type UploadSessionCompleteSDO struct{}
 func (UploadSessionCompleteSDO) JSONSchemaOneOf() []interface{} {
 	return []interface{}{DocumentSDO{}, DocumentUploadSDO{}}
 }
+
+// DocumentDownloadSkipSDO is one requested document the zip does not carry.
+// reason is not_found (unreadable, foreign or missing: never a title),
+// not_a_file (a page or folder) or too_large.
+type DocumentDownloadSkipSDO struct {
+	DocumentID string `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Reason     string `json:"reason" description:"not_found | not_a_file | too_large" example:"not_a_file"`
+}
+
+// DocumentDownloadJobSDO is the multi-document zip download job (UNI-2045
+// SV-9), answered by the 202 create and by the poll. status is queued,
+// running, ready, failed or expired (the set is open: read it with a default).
+type DocumentDownloadJobSDO struct {
+	ID          string                    `json:"id" example:"01J8X4DLJ0N1P2Q3R4S5T6U7"`
+	Status      string                    `json:"status" description:"queued | running | ready | failed | expired" example:"ready"`
+	CreatedAt   string                    `json:"created_at" example:"2026-10-21T02:00:00Z"`
+	ExpiresAt   *string                   `json:"expires_at" description:"Hết hạn tải, 1 giờ sau khi sẵn sàng; null khi chưa xong" example:"2026-10-21T03:00:00Z"`
+	DownloadURL *string                   `json:"download_url" description:"Đường tải zip qua proxy; chỉ có khi status=ready" example:"/api/v1/workspaces/01J8X4WS0N1P2Q3R4S5T6U7V8/documents/download-jobs/01J8X4DLJ0N1P2Q3R4S5T6U7/download"`
+	FileCount   *int                      `json:"file_count" description:"Số tệp trong zip; null khi chưa xong" example:"3"`
+	Skipped     []DocumentDownloadSkipSDO `json:"skipped" description:"Tài liệu không có trong zip và lý do"`
+	Error       *string                   `json:"error" description:"nothing_to_download | build_failed khi status=failed" example:"nothing_to_download"`
+}

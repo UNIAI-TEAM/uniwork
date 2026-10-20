@@ -25,6 +25,9 @@ import (
 //	GET    /api/v1/workspaces/{workspaceID}/documents/changes      (G5-01a)
 //	GET    /api/v1/workspaces/{workspaceID}/documents/shared-with-me (G1-05b)
 //	GET    /api/v1/workspaces/{workspaceID}/documents/tree         (G1-05b)
+//	POST   /api/v1/workspaces/{workspaceID}/documents/download-jobs  (UNI-2045)
+//	GET    /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}
+//	GET    /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download
 //	GET    /api/v1/documents/{documentID}
 //	PATCH  /api/v1/documents/{documentID}
 //	POST   /api/v1/documents/{documentID}/move                    (G1-05b)
@@ -566,6 +569,29 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		tags:        []string{"documents"},
 		sdi:         sdi.DocumentAccessReportExportSDI{},
 		produces:    "text/csv; charset=utf-8",
+		auth:        true,
+	})
+	d.Post("/workspaces/{workspaceID}/documents/download-jobs", h.CreateDocumentDownloadJob, apiOp{
+		summary:     "Request a zip of several documents",
+		description: "Xếp hàng một zip các tệp đã chọn (UNI-2045). Body {document_ids}: 1-100 ULID khác nhau, sai -> 400 invalid_request. Chỉ tệp: trang và thư mục bị bỏ qua (not_a_file); tài liệu không đọc được, của workspace/tổ chức khác hoặc không tồn tại đều là not_found, không kèm tiêu đề. Tổng dung lượng bản hiện hành của các tệp người gọi tải được > 1 GiB -> 422 download_too_large kèm fields.max_bytes. Trả 202 {id, status:queued, ...}; hỏi GET cho tới khi ready. Mỗi tệp ghi access log tải đúng một lần khi build; một dòng audit documents.download_job_created.",
+		tags:        []string{"documents"},
+		sdi:         sdi.CreateDocumentDownloadJobSDI{},
+		sdo:         sdo.DocumentDownloadJobSDO{},
+		status:      http.StatusAccepted,
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}", h.GetDocumentDownloadJob, apiOp{
+		summary:     "Get a document zip download job",
+		description: "Trạng thái job và link tải khi ready. Chỉ người tạo đọc được; người khác (kể cả thành viên cùng workspace) -> 404. Link hết hạn 1 giờ sau khi ready; sau đó status=expired và download_url=null.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentDownloadJobSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download", h.DownloadDocumentDownloadJob, apiOp{
+		summary:     "Download the zip of a document download job",
+		description: "Tải zip qua FileService proxy; người tạo, workspace và cửa sổ 1 giờ được kiểm tra lại mỗi lần tải. Hết hạn -> 410 document_download_expired; chưa ready hoặc failed -> 404.",
+		tags:        []string{"documents"},
+		produces:    "application/zip",
 		auth:        true,
 	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
