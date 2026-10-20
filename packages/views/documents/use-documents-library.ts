@@ -168,6 +168,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   // differs if the server sort is dropped for "auto-load, then sort on the
   // client": `sortedOnServer` false, `sortedOnClient` true, and the auto-paging
   // below extended from the folder to those views.
+  // The sort the lists on screen were fetched with: it trails `sort` while a re-sorted page is loading.
+  const [settledSort, setSettledSort] = useState(sort);
   const sortedOnServer =
     (home && !folderId) || view.kind === "recent" || view.kind === "shared" || view.kind === "sharedByMe" || view.kind === "sources";
   const sortedOnClient = view.kind === "starred" || (home && Boolean(folderId));
@@ -366,10 +368,14 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
         break;
       }
       const merge = sourcesWanted && sourcesAvailable;
+      // While either list still shows the previous pages (a header click, until the re-ordered page 1
+      // arrives) they are merged with the sort they were fetched with, never the one just picked.
+      const placeholder = homeQuery.isPlaceholderData || sourcesQuery.isPlaceholderData;
+      if (!placeholder && settledSort !== sort) setSettledSort(sort);
       state = merge
         ? {
             ...docs,
-            rows: mergeSorted(docs.rows, sourceRows, { docs: docs.hasMore, sources: Boolean(sourcesQuery.hasNextPage) }, sort, editorNames),
+            rows: mergeSorted(docs.rows, sourceRows, { docs: docs.hasMore, sources: Boolean(sourcesQuery.hasNextPage) }, placeholder ? settledSort : sort, editorNames),
             hasMore: docs.hasMore || Boolean(sourcesQuery.hasNextPage),
             loadingMore: docs.loadingMore || sourcesQuery.isFetchingNextPage,
             loadMore: () => {
