@@ -32,6 +32,7 @@ def load() -> Settings:
         # Spec §4.6: warm processes per CPU; a job is one process.
         idle_processes=int(os.environ.get("SCRIBE_IDLE_PROCESSES", str(os.cpu_count() or 2))),
         # Spec §4.6: a draining pod lets every meeting it serves end (4 h),
-        # equal to terminationGracePeriodSeconds in the chart.
-        drain_timeout_s=int(os.environ.get("SCRIBE_DRAIN_TIMEOUT_S", "14400")),
+        # two minutes under terminationGracePeriodSeconds (14400 s in the chart)
+        # so a job the drain cuts off can still post /agent/finished.
+        drain_timeout_s=int(os.environ.get("SCRIBE_DRAIN_TIMEOUT_S", "14280")),
     )

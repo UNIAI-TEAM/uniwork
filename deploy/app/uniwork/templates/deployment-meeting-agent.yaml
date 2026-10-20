@@ -53,7 +53,9 @@ spec:
             - { name: SCRIBE_STT_PROVIDER, value: {{ $ma.sttProvider | quote }} }
             - { name: SCRIBE_HEALTH_PORT, value: {{ $ma.healthPort | quote }} }
             - { name: SCRIBE_METRICS_PORT, value: {{ $ma.metricsPort | quote }} }
-            - { name: SCRIBE_DRAIN_TIMEOUT_S, value: {{ $ma.terminationGracePeriodSeconds | quote }} }
+            # Two minutes under the grace period: a job the drain cuts off still
+            # flushes its segments and reports /agent/finished before the kill.
+            - { name: SCRIBE_DRAIN_TIMEOUT_S, value: {{ sub (int $ma.terminationGracePeriodSeconds) 120 | quote }} }
             - { name: UNIWORK_API_URL, value: "http://uniwork-be:{{ .Values.be.port }}" }
             - { name: LIVEKIT_URL, value: {{ default .Values.public.livekitUrl $ma.livekitUrl | quote }} }
             {{- with $ma.otlpEndpoint }}

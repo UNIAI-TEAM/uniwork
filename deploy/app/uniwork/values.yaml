@@ -168,9 +168,10 @@ meetingAgent:
   resources:
     requests: { cpu: "4", memory: 8Gi }
     limits: { cpu: "4", memory: 8Gi }
-  # Equal to the worker's drain_timeout (SCRIBE_DRAIN_TIMEOUT_S, 14400 s in
-  # apps/meeting-agent/scribe/config.py): a draining pod takes no new job and
-  # lets every meeting it serves end before Kubernetes kills it.
+  # The worker's drain_timeout is this minus 120 s (SCRIBE_DRAIN_TIMEOUT_S, set
+  # by the template; 14280 s default in apps/meeting-agent/scribe/config.py): a
+  # draining pod takes no new job and lets every meeting it serves end, and a
+  # job the drain cuts off still has two minutes to post /agent/finished.
   terminationGracePeriodSeconds: 14400
   otlpEndpoint: ""
   secrets:
