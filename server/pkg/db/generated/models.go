@@ -1750,6 +1750,7 @@ type MeetingScribeRun struct {
 	CreatedByKind          string             `json:"created_by_kind"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	AgentParticipantSid    string             `json:"agent_participant_sid"`
 }
 
 type MeetingSummary struct {

@@ -125,6 +125,11 @@ type AppendAgentSegmentsSDI struct {
 	Segments []AgentSegmentSDI `json:"segments" minItems:"1" maxItems:"50" description:"Tối đa 50 đoạn final"`
 }
 
+// AgentStartedSDI is POST /api/v1/meetings/{meetingID}/agent/started.
+type AgentStartedSDI struct {
+	ParticipantSID string `json:"participant_sid" maxLength:"64" description:"SID LiveKit của kết nối agent; webhook participant_left của đúng SID này đóng lần chạy" example:"PA_aBcD1234"`
+}
+
 // AgentFinishedSDI is POST /api/v1/meetings/{meetingID}/agent/finished.
 type AgentFinishedSDI struct {
 	SttSessionMs int64 `json:"stt_session_ms" minimum:"0" description:"Tổng thời gian mở phiên STT của lần chạy (nhà cung cấp tính tiền theo nó), để đối chiếu với phút đã tính" example:"95000"`

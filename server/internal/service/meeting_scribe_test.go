@@ -176,7 +176,7 @@ func TestEnsureScribeConcurrentCallsDispatchOnce(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s.ensureScribeNow(context.Background(), m.ID)
+			s.ensureScribeNow(context.Background(), m.ID, false)
 		}()
 	}
 	wg.Wait()
@@ -192,7 +192,7 @@ func TestEnsureScribeRoomEmptiesThenRefills(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := claimsOf(t, s, fake)
-	if err := s.AgentStarted(ctx, c); err != nil {
+	if err := s.AgentStarted(ctx, c, "PA_agent1"); err != nil {
 		t.Fatal(err)
 	}
 	first := latestRun(t, s, m.ID)
@@ -226,7 +226,7 @@ func TestEnsureScribeRoomEmptiesThenRefills(t *testing.T) {
 		t.Fatalf("dispatched %d times, want 2", d)
 	}
 	// The first run's token no longer starts anything.
-	if err := s.AgentStarted(ctx, c); !isInvalidMeetingState(err) {
+	if err := s.AgentStarted(ctx, c, "PA_agent1"); !isInvalidMeetingState(err) {
 		t.Fatalf("stale run started: %v", err)
 	}
 }
@@ -304,7 +304,7 @@ func TestAgentSegmentsDeduplicateAndMeter(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := claimsOf(t, s, fake)
-	if err := s.AgentStarted(ctx, c); err != nil {
+	if err := s.AgentStarted(ctx, c, "PA_agent1"); err != nil {
 		t.Fatal(err)
 	}
 	p, _ := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ua.ID)})
@@ -396,7 +396,7 @@ func TestAgentCallsRefuseOtherClaims(t *testing.T) {
 		"other run":          {MeetingID: c.MeetingID, OrganizationID: c.OrganizationID, RunID: "01OTHERRUN"},
 		"other meeting":      {MeetingID: "01OTHERMEETING", OrganizationID: c.OrganizationID, RunID: c.RunID},
 	} {
-		if err := s.AgentStarted(ctx, bad); !errors.Is(err, ErrNotFound) {
+		if err := s.AgentStarted(ctx, bad, ""); !errors.Is(err, ErrNotFound) {
 			t.Errorf("%s: started %v", name, err)
 		}
 		if _, err := s.AgentContext(ctx, bad); !errors.Is(err, ErrNotFound) {
@@ -518,4 +518,96 @@ func mustUserID(t *testing.T, s *MeetingService, email string) string {
 func isInvalidMeetingState(err error) bool {
 	var ce CodedError
 	return errors.As(err, &ce) && ce.Code == "invalid_meeting_state"
+}
+
+func scribeLeftEvent(m db.Meeting, sid string) ProviderNeutralEvent {
+	return ProviderNeutralEvent{
+		Type: "conference.participant_left", RoomName: meetings.RoomNameForMeeting(m.ID),
+		Identity: meetings.ScribeIdentity, ParticipantSID: sid, ProviderEventID: util.NewID(),
+	}
+}
+
+// Review item 4: a job that dies without /agent/finished is closed by the
+// participant_left webhook of its own connection, as a normal end; the next
+// sweep dispatches again. The leave of another connection (an agent a
+// duplicate replaced) closes nothing.
+func TestScribeAgentLeftClosesItsRun(t *testing.T) {
+	s, fake, _, m := scribeFixture(t)
+	ctx := context.Background()
+	if err := s.ensureScribe(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	c := claimsOf(t, s, fake)
+	if err := s.AgentStarted(ctx, c, "PA_agent1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.HandleProviderEvent(ctx, scribeLeftEvent(m, "PA_replaced")); err != nil {
+		t.Fatal(err)
+	}
+	if r := latestRun(t, s, m.ID); r.Status != ScribeActive {
+		t.Fatalf("another connection's leave closed the run: %+v", r)
+	}
+	if err := s.HandleProviderEvent(ctx, scribeLeftEvent(m, "PA_agent1")); err != nil {
+		t.Fatal(err)
+	}
+	first := latestRun(t, s, m.ID)
+	if first.Status != ScribeFinished || first.Failures != 0 {
+		t.Fatalf("after the agent left: %+v", first)
+	}
+	if err := s.ensureScribe(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if r := latestRun(t, s, m.ID); r.ID == first.ID || r.Status != ScribeDispatched {
+		t.Fatalf("no redispatch after the agent left: %+v", r)
+	}
+}
+
+// Review item 13: switching the scribe back on asks for it now, inside the
+// ten-minute wait after a FAILED run.
+func TestSetScribeOnSkipsTheFailedRetryWait(t *testing.T) {
+	s, fake, ua, m := scribeFixture(t)
+	ctx := context.Background()
+	if err := s.ensureScribe(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	run := latestRun(t, s, m.ID)
+	if _, err := s.pool.Exec(ctx, `UPDATE meeting_scribe_runs SET status = 'FAILED', finished_at = now() WHERE id = $1`, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ensureScribe(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := fake.ScribeCalls(); d != 1 {
+		t.Fatalf("the sweep retried inside the wait: %d dispatches", d)
+	}
+	if _, err := s.SetScribe(ctx, ua.ID, m.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetScribe(ctx, ua.ID, m.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if r := latestRun(t, s, m.ID); r.ID == run.ID || r.Status != ScribeDispatched {
+		t.Fatalf("switching on did not dispatch: %+v", r)
+	}
+}
+
+// Review item 14: with MEETING_SCRIBE_ENABLED off, the sweep still closes an
+// open run and takes its agent out of the room, and dispatches nothing.
+func TestSweepWithScribeDisabledClosesOpenRuns(t *testing.T) {
+	s, fake, _, m := scribeFixture(t)
+	ctx := context.Background()
+	if err := s.ensureScribe(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	s.rt.ScribeEnabled = false
+	if err := s.sweepScribes(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r := latestRun(t, s, m.ID); r.Status != ScribeFinished {
+		t.Fatalf("open run with the scribe disabled: %+v", r)
+	}
+	dispatches, removals := fake.ScribeCalls()
+	if dispatches != 1 || removals != 1 {
+		t.Fatalf("dispatches=%d removals=%d", dispatches, removals)
+	}
 }

@@ -73,14 +73,16 @@ func (s *MeetingService) agentRun(ctx context.Context, c meetings.AgentClaims) (
 	return m, r, nil
 }
 
-// AgentStarted marks the run ACTIVE. A run already closed answers 409: the
-// agent was removed (switched off, failed, room emptied) and should leave.
-func (s *MeetingService) AgentStarted(ctx context.Context, c meetings.AgentClaims) error {
+// AgentStarted marks the run ACTIVE and records the agent's LiveKit
+// participant SID (scribeLeft closes the run when that connection leaves). A
+// run already closed answers 409: the agent was removed (switched off,
+// failed, room emptied) and should leave.
+func (s *MeetingService) AgentStarted(ctx context.Context, c meetings.AgentClaims, participantSID string) error {
 	m, run, err := s.agentRun(ctx, c)
 	if err != nil {
 		return err
 	}
-	r, err := s.q.StartScribeRun(ctx, run.ID)
+	r, err := s.q.StartScribeRun(ctx, db.StartScribeRunParams{ID: run.ID, AgentParticipantSid: participantSID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return errInvalidState()
 	}
@@ -246,14 +248,8 @@ func (s *MeetingService) AgentFinished(ctx context.Context, c meetings.AgentClai
 	if err != nil {
 		return err
 	}
-	r, err := s.q.FinishScribeRun(ctx, db.FinishScribeRunParams{ID: run.ID, SttSessionMs: sttSessionMs})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return s.q.AddScribeRunSessionTime(ctx, db.AddScribeRunSessionTimeParams{ID: run.ID, SttSessionMs: sttSessionMs})
-	}
-	if err != nil {
-		return err
-	}
-	if err := s.meterScribeRunTx(ctx, r); err != nil {
+	closed, err := s.finishScribeRun(ctx, run.ID, sttSessionMs)
+	if err != nil || !closed {
 		return err
 	}
 	s.emitScribeUpdated(ctx, m)

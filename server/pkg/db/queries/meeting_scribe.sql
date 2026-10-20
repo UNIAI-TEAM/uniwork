@@ -39,8 +39,10 @@ RETURNING *;
 
 -- name: StartScribeRun :one
 -- tenant: by-id
-UPDATE meeting_scribe_runs SET status = 'ACTIVE', started_at = COALESCE(started_at, now()), updated_at = now()
-WHERE id = $1 AND status IN ('DISPATCHED', 'ACTIVE')
+-- The agent's participant SID is the latest connection that reported in.
+UPDATE meeting_scribe_runs SET status = 'ACTIVE', started_at = COALESCE(started_at, now()), updated_at = now(),
+  agent_participant_sid = COALESCE(NULLIF(sqlc.arg('agent_participant_sid')::text, ''), agent_participant_sid)
+WHERE id = sqlc.arg('id') AND status IN ('DISPATCHED', 'ACTIVE')
 RETURNING *;
 
 -- name: FinishScribeRun :one
@@ -83,14 +85,17 @@ SELECT
 
 -- name: ListScribeSweepMeetings :many
 -- tenant: system
--- Meetings the 15 s scribe sweep looks at: in progress with people in the
--- room, or holding an open run that may need closing.
+-- Meetings the 15 s scribe sweep looks at: those holding an open run that
+-- may need closing, and, when dispatching is on (with_people), the ones in
+-- progress with people in the room. Oldest start first, so a batch that does
+-- not cover everyone always serves the same meetings before newer ones.
 SELECT m.id FROM meetings m
-WHERE (m.status = 'IN_PROGRESS' AND EXISTS (
+WHERE (sqlc.arg('with_people')::bool AND m.status = 'IN_PROGRESS' AND EXISTS (
     SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = m.id AND a.left_at IS NULL))
   OR EXISTS (
     SELECT 1 FROM meeting_scribe_runs r WHERE r.meeting_id = m.id AND r.status IN ('DISPATCHED', 'ACTIVE'))
-LIMIT $1;
+ORDER BY m.actual_start_at ASC NULLS LAST, m.id
+LIMIT sqlc.arg('row_limit');
 
 -- name: SetMeetingScribeOff :one
 -- tenant: by-id

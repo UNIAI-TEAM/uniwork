@@ -33,7 +33,7 @@ UPDATE meeting_scribe_runs SET
   segments = segments + $2::int,
   updated_at = now()
 WHERE id = $3
-RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid
 `
 
 type AddScribeRunSpeechParams struct {
@@ -68,6 +68,7 @@ func (q *Queries) AddScribeRunSpeech(ctx context.Context, arg AddScribeRunSpeech
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AgentParticipantSid,
 	)
 	return i, err
 }
@@ -80,7 +81,7 @@ UPDATE meeting_scribe_runs SET
   dispatched_at = now(),
   updated_at = now()
 WHERE id = $2 AND status = 'DISPATCHED' AND failures = $3
-RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid
 `
 
 type FailScribeRunDispatchParams struct {
@@ -118,6 +119,7 @@ func (q *Queries) FailScribeRunDispatch(ctx context.Context, arg FailScribeRunDi
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AgentParticipantSid,
 	)
 	return i, err
 }
@@ -126,7 +128,7 @@ const finishScribeRun = `-- name: FinishScribeRun :one
 UPDATE meeting_scribe_runs SET status = 'FINISHED', finished_at = now(), updated_at = now(),
   stt_session_ms = GREATEST(stt_session_ms, $1::bigint)
 WHERE id = $2 AND status IN ('DISPATCHED', 'ACTIVE')
-RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid
 `
 
 type FinishScribeRunParams struct {
@@ -162,12 +164,13 @@ func (q *Queries) FinishScribeRun(ctx context.Context, arg FinishScribeRunParams
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AgentParticipantSid,
 	)
 	return i, err
 }
 
 const getLatestScribeRun = `-- name: GetLatestScribeRun :one
-SELECT id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at FROM meeting_scribe_runs WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid FROM meeting_scribe_runs WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
 // tenant: parent meeting_id
@@ -196,12 +199,13 @@ func (q *Queries) GetLatestScribeRun(ctx context.Context, meetingID string) (Mee
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AgentParticipantSid,
 	)
 	return i, err
 }
 
 const getScribeRun = `-- name: GetScribeRun :one
-SELECT id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at FROM meeting_scribe_runs WHERE id = $1
+SELECT id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid FROM meeting_scribe_runs WHERE id = $1
 `
 
 // tenant: by-id
@@ -230,6 +234,7 @@ func (q *Queries) GetScribeRun(ctx context.Context, id string) (MeetingScribeRun
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AgentParticipantSid,
 	)
 	return i, err
 }
@@ -302,7 +307,7 @@ const insertScribeRun = `-- name: InsertScribeRun :one
 INSERT INTO meeting_scribe_runs (id, organization_id, workspace_id, meeting_id, created_by, created_by_kind)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (meeting_id) WHERE status IN ('DISPATCHED', 'ACTIVE') DO NOTHING
-RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid
 `
 
 type InsertScribeRunParams struct {
@@ -349,24 +354,33 @@ func (q *Queries) InsertScribeRun(ctx context.Context, arg InsertScribeRunParams
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AgentParticipantSid,
 	)
 	return i, err
 }
 
 const listScribeSweepMeetings = `-- name: ListScribeSweepMeetings :many
 SELECT m.id FROM meetings m
-WHERE (m.status = 'IN_PROGRESS' AND EXISTS (
+WHERE ($1::bool AND m.status = 'IN_PROGRESS' AND EXISTS (
     SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = m.id AND a.left_at IS NULL))
   OR EXISTS (
     SELECT 1 FROM meeting_scribe_runs r WHERE r.meeting_id = m.id AND r.status IN ('DISPATCHED', 'ACTIVE'))
-LIMIT $1
+ORDER BY m.actual_start_at ASC NULLS LAST, m.id
+LIMIT $2
 `
 
+type ListScribeSweepMeetingsParams struct {
+	WithPeople bool  `json:"with_people"`
+	RowLimit   int32 `json:"row_limit"`
+}
+
 // tenant: system
-// Meetings the 15 s scribe sweep looks at: in progress with people in the
-// room, or holding an open run that may need closing.
-func (q *Queries) ListScribeSweepMeetings(ctx context.Context, limit int32) ([]string, error) {
-	rows, err := q.db.Query(ctx, listScribeSweepMeetings, limit)
+// Meetings the 15 s scribe sweep looks at: those holding an open run that
+// may need closing, and, when dispatching is on (with_people), the ones in
+// progress with people in the room. Oldest start first, so a batch that does
+// not cover everyone always serves the same meetings before newer ones.
+func (q *Queries) ListScribeSweepMeetings(ctx context.Context, arg ListScribeSweepMeetingsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listScribeSweepMeetings, arg.WithPeople, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -487,7 +501,7 @@ func (q *Queries) SetMeetingScribeOff(ctx context.Context, arg SetMeetingScribeO
 const setScribeRunDispatch = `-- name: SetScribeRunDispatch :one
 UPDATE meeting_scribe_runs SET dispatch_id = $2, dispatched_at = now(), updated_at = now()
 WHERE id = $1 AND status = 'DISPATCHED'
-RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid
 `
 
 type SetScribeRunDispatchParams struct {
@@ -522,19 +536,27 @@ func (q *Queries) SetScribeRunDispatch(ctx context.Context, arg SetScribeRunDisp
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AgentParticipantSid,
 	)
 	return i, err
 }
 
 const startScribeRun = `-- name: StartScribeRun :one
-UPDATE meeting_scribe_runs SET status = 'ACTIVE', started_at = COALESCE(started_at, now()), updated_at = now()
-WHERE id = $1 AND status IN ('DISPATCHED', 'ACTIVE')
-RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at
+UPDATE meeting_scribe_runs SET status = 'ACTIVE', started_at = COALESCE(started_at, now()), updated_at = now(),
+  agent_participant_sid = COALESCE(NULLIF($1::text, ''), agent_participant_sid)
+WHERE id = $2 AND status IN ('DISPATCHED', 'ACTIVE')
+RETURNING id, organization_id, workspace_id, meeting_id, dispatch_id, status, failures, dispatched_at, started_at, finished_at, speech_ms, segments, metered_ms, stt_session_ms, extract_cursor_segment_id, extracts, last_extract_at, created_by, created_by_kind, created_at, updated_at, agent_participant_sid
 `
 
+type StartScribeRunParams struct {
+	AgentParticipantSid string `json:"agent_participant_sid"`
+	ID                  string `json:"id"`
+}
+
 // tenant: by-id
-func (q *Queries) StartScribeRun(ctx context.Context, id string) (MeetingScribeRun, error) {
-	row := q.db.QueryRow(ctx, startScribeRun, id)
+// The agent's participant SID is the latest connection that reported in.
+func (q *Queries) StartScribeRun(ctx context.Context, arg StartScribeRunParams) (MeetingScribeRun, error) {
+	row := q.db.QueryRow(ctx, startScribeRun, arg.AgentParticipantSid, arg.ID)
 	var i MeetingScribeRun
 	err := row.Scan(
 		&i.ID,
@@ -558,6 +580,7 @@ func (q *Queries) StartScribeRun(ctx context.Context, id string) (MeetingScribeR
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AgentParticipantSid,
 	)
 	return i, err
 }

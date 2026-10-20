@@ -96,6 +96,9 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 	if changed {
 		s.publishAttendanceChanged(ctx, sess.MeetingID)
 	}
+	if (ev.Type == "conference.participant_left" || ev.Type == "conference.participant_connection_aborted") && ev.Identity == meetings.ScribeIdentity {
+		s.scribeLeft(ctx, sess.MeetingID, ev.ParticipantSID)
+	}
 	if ev.Type == "conference.room_finished" {
 		// Best effort: RunAutoEnd ends an overdue meeting on its next tick
 		// anyway; this only spares an empty overtime room the wait.

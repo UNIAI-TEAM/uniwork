@@ -20,7 +20,11 @@ const agentSegmentsBody = 1 << 20
 // meeting; the service checks its organization and run.
 
 func (h *handlers) meetingAgentStarted(w http.ResponseWriter, r *http.Request) {
-	if err := h.Meetings.AgentStarted(r.Context(), middleware.MeetingAgentClaims(r.Context())); err != nil {
+	var in sdi.AgentStartedSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if err := h.Meetings.AgentStarted(r.Context(), middleware.MeetingAgentClaims(r.Context()), in.ParticipantSID); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}

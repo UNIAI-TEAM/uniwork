@@ -35,7 +35,7 @@ const (
 	// (summaryWindow); ai.estimateTokens counts ~4 runes per token, so the
 	// budgets are ~15k tokens of transcript and ~4k of chat (G18). The
 	// transcript budget is MEETING_SUMMARY_MAX_RUNES when set (parent spec
-	// §7.8: ~400k runes, four hours of speech); these are the floor.
+	// §7.8: 240k runes by default, sized for a 128k-token model); these are the floor.
 	summaryTranscriptRows  = 2000
 	summaryChatRows        = 500
 	summaryTranscriptRunes = 60000

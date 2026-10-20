@@ -92,13 +92,15 @@ func scribeRunOpen(r db.MeetingScribeRun) bool {
 
 // ensureScribeNow runs ensureScribe for a request that must not wait on or
 // fail because of it (Start, instant meeting, the switch): bounded, logged.
-func (s *MeetingService) ensureScribeNow(ctx context.Context, meetingID string) {
+// retryNow skips the wait after a FAILED run: a host who switches the scribe
+// back on asks for it now.
+func (s *MeetingService) ensureScribeNow(ctx context.Context, meetingID string, retryNow bool) {
 	if !s.scribeConfigured() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), scribeCallTimeout)
 	defer cancel()
-	if err := s.ensureScribe(ctx, meetingID); err != nil {
+	if err := s.ensureScribeRun(ctx, meetingID, retryNow); err != nil {
 		slog.Warn("meeting scribe: ensure failed", "meeting", meetingID, "err", err)
 	}
 }
@@ -109,6 +111,10 @@ func (s *MeetingService) ensureScribeNow(ctx context.Context, meetingID string) 
 // open run the meeting no longer wants or whose room emptied; it counts a
 // dispatch that never became ACTIVE.
 func (s *MeetingService) ensureScribe(ctx context.Context, meetingID string) error {
+	return s.ensureScribeRun(ctx, meetingID, false)
+}
+
+func (s *MeetingService) ensureScribeRun(ctx context.Context, meetingID string, retryNow bool) error {
 	m, err := s.q.GetMeeting(ctx, meetingID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
@@ -142,13 +148,16 @@ func (s *MeetingService) ensureScribe(ctx context.Context, meetingID string) err
 	if !want || !pres.Present {
 		return nil
 	}
-	if hasRun && latest.Status == ScribeFailed && latest.FinishedAt.Valid && now.Sub(latest.FinishedAt.Time) < scribeRetryAfter {
+	if !retryNow && hasRun && latest.Status == ScribeFailed && latest.FinishedAt.Valid && now.Sub(latest.FinishedAt.Time) < scribeRetryAfter {
 		return nil
 	}
 	// D9: a run starts only with minutes left; a running one is never cut.
 	if err := s.ent.CheckQuota(ctx, m.OrganizationID, FeatureMeetingTranscription, 1); err != nil {
-		s.count("scribe_quota_refused")
-		return nil
+		if errors.Is(err, ErrQuotaExceeded) || errors.Is(err, ErrEntitlementRequired) || errors.Is(err, ErrSubscriptionInactive) {
+			s.count("scribe_quota_refused")
+			return nil
+		}
+		return err
 	}
 	run, err := s.q.InsertScribeRun(ctx, db.InsertScribeRunParams{
 		ID: util.NewID(), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
@@ -229,18 +238,40 @@ func (s *MeetingService) closeScribeRun(ctx context.Context, m db.Meeting, run d
 	if remove {
 		s.removeScribe(ctx, m, run.DispatchID)
 	}
-	r, err := s.q.FinishScribeRun(ctx, db.FinishScribeRunParams{ID: run.ID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if err := s.meterScribeRunTx(ctx, r); err != nil {
+	closed, err := s.finishScribeRun(ctx, run.ID, 0)
+	if err != nil || !closed {
 		return err
 	}
 	s.emitScribeUpdated(ctx, m)
 	return nil
+}
+
+// finishScribeRun closes an open run and meters its last seconds in one
+// transaction, so a closed run is never left unmetered. closed is false when
+// the run was already closed; then only the vendor session time is kept.
+func (s *MeetingService) finishScribeRun(ctx context.Context, runID string, sttSessionMs int64) (closed bool, err error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	r, err := q.FinishScribeRun(ctx, db.FinishScribeRunParams{ID: runID, SttSessionMs: sttSessionMs})
+	if errors.Is(err, pgx.ErrNoRows) {
+		if sttSessionMs > 0 {
+			if err := q.AddScribeRunSessionTime(ctx, db.AddScribeRunSessionTimeParams{ID: runID, SttSessionMs: sttSessionMs}); err != nil {
+				return false, err
+			}
+		}
+		return false, tx.Commit(ctx)
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := s.meterScribeRun(ctx, q, r); err != nil {
+		return false, err
+	}
+	return true, tx.Commit(ctx)
 }
 
 // meterScribeRun moves the run's spoken time into meeting.transcription in
@@ -268,18 +299,6 @@ func (s *MeetingService) meterScribeRun(ctx context.Context, q *db.Queries, r db
 	})
 }
 
-func (s *MeetingService) meterScribeRunTx(ctx context.Context, r db.MeetingScribeRun) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := s.meterScribeRun(ctx, s.q.WithTx(tx), r); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
-}
-
 // emitScribeUpdated tells the meeting's workspace a run changed state. It is
 // the run's lifecycle, not a command anyone gave, so it carries no audit row;
 // the switch (SetScribe) records meeting.scribe_toggled with its own event.
@@ -292,13 +311,12 @@ func (s *MeetingService) emitScribeUpdated(ctx context.Context, m db.Meeting) {
 	}
 }
 
-// sweepScribes is the 15 s worker: every in-progress meeting with people in
-// the room and every meeting holding an open run goes through ensureScribe.
+// sweepScribes is the 15 s worker: every meeting holding an open run goes
+// through ensureScribe, and with dispatching on, every in-progress meeting
+// with people in the room. With MEETING_SCRIBE_ENABLED off it still closes the
+// open runs and removes their agents.
 func (s *MeetingService) sweepScribes(ctx context.Context) error {
-	if !s.rt.ScribeEnabled {
-		return nil
-	}
-	ids, err := s.q.ListScribeSweepMeetings(ctx, scribeSweepBatch)
+	ids, err := s.q.ListScribeSweepMeetings(ctx, db.ListScribeSweepMeetingsParams{WithPeople: s.scribeConfigured(), RowLimit: scribeSweepBatch})
 	if err != nil {
 		return err
 	}
@@ -344,7 +362,30 @@ func (s *MeetingService) SetScribe(ctx context.Context, userID, meetingID string
 		return db.Meeting{}, err
 	}
 	if changed && updated.Status == MeetingInProgress {
-		s.ensureScribeNow(ctx, m.ID)
+		s.ensureScribeNow(ctx, m.ID, enabled)
 	}
 	return updated, nil
+}
+
+// scribeLeft closes the run whose agent connection just left the room (a
+// participant_left webhook for uw_agent_scribe): LiveKit ended the job, maybe
+// without the agent reaching /agent/finished. A normal end, not a failure;
+// the next sweep dispatches again while people are in the room. Only the
+// connection the run recorded at /agent/started counts, so the leave of an
+// agent another one replaced (duplicate identity) closes nothing.
+func (s *MeetingService) scribeLeft(ctx context.Context, meetingID, participantSID string) {
+	if participantSID == "" {
+		return
+	}
+	r, err := s.q.GetLatestScribeRun(ctx, meetingID)
+	if err != nil || !scribeRunOpen(r) || r.AgentParticipantSid != participantSID {
+		return
+	}
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil {
+		return
+	}
+	if err := s.closeScribeRun(ctx, m, r, false); err != nil {
+		slog.Warn("meeting scribe: run not closed after the agent left", "meeting", meetingID, "run", r.ID, "err", err)
+	}
 }

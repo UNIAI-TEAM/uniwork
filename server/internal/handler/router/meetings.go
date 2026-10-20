@@ -295,7 +295,7 @@ func registerMeetingAgent(r api, h Routes, agentAuth, agentLimit func(http.Handl
 	a.Post("/meetings/{meetingID}/agent/started", h.MeetingAgentStarted, apiOp{
 		summary:     "Scribe agent joined the room",
 		description: "Token uwma_ của cuộc họp. Lần chạy chuyển ACTIVE; lần chạy đã đóng trả 409 (agent nên rời phòng).",
-		tags:        []string{"meeting-agent"}, sdo: sdo.StatusSDO{}, auth: true,
+		tags:        []string{"meeting-agent"}, sdi: sdi.AgentStartedSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	a.Get("/meetings/{meetingID}/agent/context", h.MeetingAgentContext, apiOp{
 		summary:     "Keyterm context for the scribe agent",

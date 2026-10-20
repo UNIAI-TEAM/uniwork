@@ -55,7 +55,7 @@ Web Speech khi không có agent.
      `scribe_status`.
    - Cờ `meeting_scribe` (review 2027-01-18); env `MEETING_SCRIBE_ENABLED`,
      `MEETING_SCRIBE_AGENT_NAME`, `MEETING_SUMMARY_MAX_RUNES`.
-   - Spec cha §7.8: ngân sách tóm tắt theo cấu hình (mặc định 400.000 ký tự), lease tăng theo
+   - Spec cha §7.8: ngân sách tóm tắt theo cấu hình (mặc định 240.000 ký tự, vừa model 128k token; gateway không cho biết cửa sổ ngữ cảnh), lease tăng theo
      độ dài, `meeting_summaries.partial`.
 4. **Agent + CI + deploy.** `apps/meeting-agent/` (Python 3.13, `livekit-agents==1.8.8`,
    `CLAUDE.md`), STT `assemblyai` (`universal-3-6-pro`, `["vi","en"]`, keyterms ≤ 100) hoặc

@@ -114,7 +114,10 @@ type Config struct {
 	MeetingScribeEnabled   bool
 	MeetingScribeAgentName string
 	// MeetingSummaryMaxRunes caps the transcript a summary reads (parent spec
-	// §7.8); keep it under the gateway model's context window.
+	// §7.8). The gateway does not expose its model's context window, so the
+	// default (240k runes, ~80k tokens at ~3 runes per Vietnamese token, about
+	// 2.5 hours of speech) fits a 128k-token model with room for the prompt;
+	// raise it only for a model known to take more.
 	MeetingSummaryMaxRunes int
 	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
 	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
@@ -396,7 +399,7 @@ func Load() (Config, error) {
 		LiveKitRecordingBucket:        os.Getenv("LIVEKIT_RECORDING_BUCKET"),
 		MeetingScribeEnabled:          strings.EqualFold(os.Getenv("MEETING_SCRIBE_ENABLED"), "true"),
 		MeetingScribeAgentName:        getenv("MEETING_SCRIBE_AGENT_NAME", "uniwork-scribe"),
-		MeetingSummaryMaxRunes:        int(parseInt32(os.Getenv("MEETING_SUMMARY_MAX_RUNES"), 400000)),
+		MeetingSummaryMaxRunes:        int(parseInt32(os.Getenv("MEETING_SUMMARY_MAX_RUNES"), 240000)),
 		AppEnv:                        getenv("APP_ENV", "development"),
 		devVerificationCode:           os.Getenv("DEV_VERIFICATION_CODE"),
 		APIPublicURL:                  getenv("API_PUBLIC_URL", "http://localhost:8080"),
