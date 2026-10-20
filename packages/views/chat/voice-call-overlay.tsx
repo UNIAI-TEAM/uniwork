@@ -85,6 +85,8 @@ export function VoiceCallOverlay({
   onConnected,
   onRetryEnded,
   onDismissEnded,
+  panelMode,
+  onPanelModeChange,
 }: {
   workspaceId: string;
   state: VoiceCallOverlayState;
@@ -98,9 +100,11 @@ export function VoiceCallOverlay({
   onConnected: () => void;
   onRetryEnded: () => void;
   onDismissEnded: () => void;
+  /** Panel, pill or fullscreen: the host keeps it, so the chat's call bar can bring the panel back. */
+  panelMode: VoiceCallPanelMode;
+  onPanelModeChange: (mode: VoiceCallPanelMode) => void;
 }) {
   const { t } = useTranslation();
-  const [panelMode, setPanelMode] = useState<VoiceCallPanelMode>("expanded");
   const incomingRecording = useIncomingRecording(workspaceId, state);
   const identity = useVoiceCallIdentityValue(workspaceId, state);
   useReturnFocus(state.status !== "idle");
@@ -128,10 +132,10 @@ export function VoiceCallOverlay({
   };
 
   useEffect(() => {
-    if (state.status === "idle" || state.status === "ended") {
-      setPanelMode("expanded");
+    if ((state.status === "idle" || state.status === "ended") && panelMode !== "expanded") {
+      onPanelModeChange("expanded");
     }
-  }, [state.status]);
+  }, [state.status, panelMode, onPanelModeChange]);
 
   const ringtoneKind =
     state.status === "incoming"
@@ -144,20 +148,14 @@ export function VoiceCallOverlay({
   useCallRingtone(ringtoneKind);
 
   const handleMinimize = useCallback(() => {
-    setPanelMode((current) => {
-      if (current === "fullscreen") return "expanded";
-      if (current === "expanded") return "minimized";
-      return current;
-    });
-  }, []);
+    if (panelMode === "fullscreen") onPanelModeChange("expanded");
+    else if (panelMode === "expanded") onPanelModeChange("minimized");
+  }, [panelMode, onPanelModeChange]);
 
   const handleMaximize = useCallback(() => {
-    setPanelMode((current) => {
-      if (current === "minimized") return "expanded";
-      if (current === "expanded") return "fullscreen";
-      return current;
-    });
-  }, []);
+    if (panelMode === "minimized") onPanelModeChange("expanded");
+    else if (panelMode === "expanded") onPanelModeChange("fullscreen");
+  }, [panelMode, onPanelModeChange]);
 
   // One always-mounted live region for how a call ended: the ended panel is
   // a fresh element, and text present at insertion is not reliably read.

@@ -51,6 +51,8 @@ export const chatKeys = {
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>
     ["chat", "room-message-search", wsId, roomId, query] as const,
+  /** The sidebar's search across my rooms in one scope (Tin nhắn or a workspace). */
+  messageSearch: (wsId: string, scope: string, query: string) => ["chat", "message-search", wsId, scope, query] as const,
   roomMembers: (wsId: string, roomId: string) => ["chat", "room-members", wsId, roomId] as const,
   lookup: (wsId: string, email: string) => ["chat", "lookup", wsId, email] as const,
   block: (wsId: string, userId: string) => ["chat", "block", wsId, userId] as const,

@@ -867,6 +867,31 @@ func (h *handlers) searchChatRoomMessages(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusOK, map[string]any{"messages": out})
 }
 
+// searchChatMessages is the sidebar's search: every room of mine in one scope.
+func (h *handlers) searchChatMessages(w http.ResponseWriter, r *http.Request) {
+	in, err := parseChatSearchQuery(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "before must be RFC3339")
+		return
+	}
+	msgs, err := h.Chat.SearchMessages(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		strings.TrimSpace(r.URL.Query().Get("scope")),
+		in,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.ChatMessageDTO, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, toChatMessageDTO(m))
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"messages": out})
+}
+
 func (h *handlers) listChatRoomMessagesAround(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {

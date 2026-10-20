@@ -83,6 +83,16 @@ describe("KeyboardShortcutsTab labels", () => {
     expect(recorder("Hỏi UNI")).toBeInTheDocument();
   });
 
+  it("in UniChat keeps only ⌘K, as finding a conversation, and the composer's fixed keys", () => {
+    render(wrap(<KeyboardShortcutsTab scope="chat" />));
+    expect(screen.getAllByRole("button", { name: /^Đổi phím tắt cho / })).toHaveLength(1);
+    expect(within(recorder("Tìm cuộc trò chuyện")).getByTitle("K")).toBeInTheDocument();
+    expect(screen.queryByText("Tạo việc")).toBeNull();
+    expect(screen.getByText("Gửi tin nhắn")).toBeInTheDocument();
+    expect(screen.getByText("Xuống dòng trong ô nhập")).toBeInTheDocument();
+    expect(screen.queryByText("Ẩn hoặc hiện thanh bên")).toBeNull();
+  });
+
   it("filters rows by translated label and description", () => {
     render(wrap(<KeyboardShortcutsTab />));
     fireEvent.change(screen.getByRole("textbox", { name: "Tìm thao tác…" }), { target: { value: "cuộc họp" } });

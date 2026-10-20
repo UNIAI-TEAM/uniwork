@@ -58,6 +58,30 @@ describe("UniChatLoginGate", () => {
     expect(login).toHaveBeenCalledTimes(2);
   });
 
+  it("says what UniChat does, walks the browser steps, and can go back to the start", async () => {
+    w.desktopAPI = { app: "unichat", appInfo: { version: "0.1.0-beta.2", os: "macos" }, session: { login } };
+    await act(async () => root.render(<UniChatLoginGate />));
+    const features = Array.from(host.querySelectorAll("ul li")).map((li) => li.textContent);
+    expect(features).toEqual([
+      "Direct messages, groups and every workspace's channels in one place",
+      "Voice and video calls, and screen sharing",
+      "UNI sums up your unread messages and calls",
+    ]);
+    expect(host.textContent).toContain("UniChat 0.1.0-beta.2");
+
+    await click(button());
+    // The drawn step numbers are decoration (the <ol> numbers them for a screen reader).
+    const steps = Array.from(host.querySelectorAll("ol li")).map((li) => li.textContent?.replace(/^\d/, ""));
+    expect(steps).toEqual([
+      "The browser opened the UniWork sign-in page",
+      "Choose “Allow desktop app” there",
+      "Come back here: UniChat opens your conversations",
+    ]);
+    const cancel = Array.from(host.querySelectorAll("button")).find((b) => b.textContent === "Cancel") ?? null;
+    await click(cancel);
+    expect(button()?.textContent).toBe("Sign in");
+  });
+
   it("shows the shell's refusal and keeps the sign-in button live", async () => {
     login.mockRejectedValueOnce(new Error("keyring unavailable"));
     await act(async () => root.render(<UniChatLoginGate />));
