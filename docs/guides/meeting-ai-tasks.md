@@ -55,6 +55,10 @@ Mục **Việc sau họp** trên trang chi tiết (và mục **Việc cần làm
 5. Task bị xóa thì việc của nó quay về chờ xử lý. Mọi người đang mở cuộc họp thấy thay đổi ngay (sự kiện realtime `action_item.*`).
 6. Task mới nằm cột **Todo**, nguồn `meeting`. Mô tả có dòng `Từ cuộc họp: <tiêu đề>`; khi task không có người phụ trách hay hạn, chữ được nhắc giữ lại trong mô tả (“Người phụ trách (AI): …”, “Hạn (AI): …”).
 
+### Việc còn tồn từ các cuộc họp trước
+
+Cuộc họp **chưa bắt đầu** hoặc **đang diễn ra** có dự án thì trang chi tiết hiện mục **Việc còn tồn từ các cuộc họp trước** (Copilot: nhóm thu gọn **Việc còn tồn (n)** trong **Việc cần làm**): các việc đã giao mà task chưa xong (trạng thái không thuộc nhóm hoàn thành hay đã hủy) từ những cuộc họp **đã kết thúc** khác cùng workspace và cùng dự án, bắt đầu trước cuộc họp này (giờ bắt đầu thực tế nếu có, không thì theo lịch). Việc gom theo cuộc họp gốc, sắp theo hạn (không hạn xếp cuối), tối đa 100. Không có việc nào thì mục không hiện; cuộc họp không có dự án không có mục này.
+
 ### Cách server gợi ý người và hạn
 
 - **Người phụ trách:** server so tên AI ghi với các thành viên workspace có thể được giao việc (thành viên đã bị vô hiệu hóa và khách không tính), theo tên hồ sơ và tên hiển thị trong cuộc họp. Thứ tự ưu tiên: khớp cả tên; khớp các chữ cuối của tên (“An”, “Văn An” khớp “Nguyễn Văn An”; “An” không khớp “Thanh”); cuối cùng, một chữ đơn khớp một chữ bất kỳ trong tên nếu chỉ đúng một người như vậy (“Hùng” khớp “Hùng Nguyễn”, “Lan” khớp một “Lan Anh” duy nhất). Danh xưng đứng trước (“anh”, “chị”, “sếp”, “Mr”…) được đọc cả hai cách, nên “anh Tuấn” ưu tiên người tên đúng “Tuấn”, còn tên đệm “Anh” trong “Nguyễn Anh Thư” vẫn khớp. Dấu tiếng Việt và chữ hoa không ảnh hưởng (“ĐỨC” khớp “Đức”, “Duc”). Nhiều người cùng khớp thì chỉ chọn khi đúng một người trong số đó dự họp; còn lại không gợi ý ai.
