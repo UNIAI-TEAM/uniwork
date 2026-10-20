@@ -12,7 +12,7 @@ import { initialOf } from "../../chat/chat-initials";
 import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
 import { formatWhen } from "../document-format";
 import { AccessReportGrants, grantName } from "./access-report-grants";
-import { flagLabel, generalScopeLabel, whoParts } from "./access-report-labels";
+import { flagLabel, generalScopeLabel, whoLines } from "./access-report-labels";
 import {
   AccessReportSortHeader,
   type PendingSortFocus,
@@ -80,8 +80,8 @@ export function AccessReportTable({ wsId, documents, sort, order, onSortChange, 
       <table aria-label={t("documents.accessReport.title")} className="w-full min-w-[60rem] table-fixed border-collapse text-body">
         <thead className="bg-muted/40">
           <tr className="border-b border-border">
-            <AccessReportSortHeader column="title" label={t("documents.accessReport.col_document")} className="w-[30%]" {...sortProps} />
-            <th scope="col" className={cn(TH, "w-[16%]")}>{t("documents.accessReport.col_general_scope")}</th>
+            <AccessReportSortHeader column="title" label={t("documents.accessReport.col_document")} className="w-[28%]" {...sortProps} />
+            <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_general_scope")}</th>
             <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_people")}</th>
             <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_warnings")}</th>
             <AccessReportSortHeader column="changed" label={t("documents.accessReport.col_changed")} className="w-[14%]" {...sortProps} />
@@ -131,7 +131,7 @@ function DocumentRow({
   const where = owner
     ? t("documents.accessReport.path_owner", { path: path || t("documents.home.search.path_root"), owner })
     : path;
-  const who = whoParts(t, facts);
+  const who = whoLines(t, facts);
   const scopeText = generalScopeLabel(t, facts.generalScope);
   const changed = formatWhen(facts.changedAt, i18n.language);
   const toggleLabel = expanded
@@ -164,18 +164,18 @@ function DocumentRow({
           </button>
         </td>
         <td className={cn(TD, "overflow-hidden")}>
-          {/* The pill never outgrows its cell: a long label wraps inside it, the full text on hover. */}
+          {/* The pill never outgrows its cell: a long label wraps inside it to two lines at most, the full text on hover. */}
           <span
             title={scopeText}
             className={cn(
-              "inline-flex min-h-6 max-w-full items-center rounded-full px-2.5 py-0.5 text-caption leading-tight font-medium [overflow-wrap:anywhere]",
+              "block w-fit max-w-full line-clamp-2 rounded-full px-2.5 py-1 text-caption leading-tight font-medium [overflow-wrap:anywhere]",
               SCOPE_TONE[facts.generalScope.kind] ?? "bg-muted text-foreground",
             )}
           >
             {scopeText}
           </span>
         </td>
-        <td className={TD}>
+        <td className={cn(TD, "overflow-hidden")}>
           <WhoCell rows={rows} facts={facts} who={who} />
         </td>
         <td className={TD}>
@@ -225,8 +225,13 @@ function DocumentRow({
   );
 }
 
-/** Up to four faces of who has access, then the short line that counts them all. */
-function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts: ReportFacts; who: readonly string[] }) {
+/**
+ * Up to four faces of who has access, and under them the lines that count them
+ * all: the groups, then the people and links. The cell clips and each line
+ * truncates on its own with the full text on hover, so the counts never run
+ * into the Warnings column and a long group name never pushes them out.
+ */
+function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts: ReportFacts; who: { groups: readonly string[]; counts: readonly string[] } }) {
   const { t } = useTranslation();
   const seen = new Set<string>();
   const faces = rows.filter((row) => {
@@ -237,9 +242,10 @@ function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts
   });
   // Before link rows arrive (S2) a live link is only a count: it gets a face too.
   const linkFace = facts.links > 0 && !faces.some((row) => row.principal_type === "link");
+  const lines = [who.groups, who.counts].filter((parts) => parts.length > 0).map((parts) => parts.join(" · "));
   return (
-    <span className="flex min-w-0 items-center gap-2.5">
-      {/* The line beside says who; the faces are a picture of it. */}
+    <span className="flex min-w-0 flex-col gap-1">
+      {/* The lines below say who; the faces are a picture of it. */}
       <span aria-hidden className="flex shrink-0 pl-1.5">
         {faces.slice(0, MAX_AVATARS).map((row) => {
           const name = grantName(t, row);
@@ -255,10 +261,8 @@ function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts
           </span>
         ) : null}
       </span>
-      {/* Short on room, the first part gives way to the ellipsis; the counts after it stay whole. */}
-      <span className="flex min-w-0 items-baseline text-muted-foreground" title={who.length > 0 ? who.join(" · ") : undefined}>
-        <span className="min-w-0 truncate">{who[0] ?? NONE}</span>
-        {who.length > 1 ? <span className="shrink-0 whitespace-nowrap">{` · ${who.slice(1).join(" · ")}`}</span> : null}
+      <span className="flex min-w-0 flex-col text-muted-foreground" title={lines.length > 0 ? lines.join(" · ") : undefined}>
+        {lines.length > 0 ? lines.map((line) => <span key={line} className="truncate">{line}</span>) : NONE}
       </span>
     </span>
   );

@@ -77,6 +77,8 @@ export interface AccessReportPeopleProps {
   kind?: string;
   /** Level filter; it narrows the counts and the documents an open row lists. */
   levels?: string[];
+  /** Documents the reader can view but does not manage; with no filter and nobody listed, the empty state says so. */
+  skipped?: number;
   documentHref?: (documentId: string) => string;
 }
 
@@ -85,7 +87,7 @@ export interface AccessReportPeopleProps {
  * access — document count, how the levels split, the main source. The server
  * totals and sorts; a row opens onto that principal's documents. Names only.
  */
-export function AccessReportPeople({ wsId, folderId, search, kind, levels, documentHref }: AccessReportPeopleProps) {
+export function AccessReportPeople({ wsId, folderId, search, kind, levels, skipped = 0, documentHref }: AccessReportPeopleProps) {
   const { t } = useTranslation();
   const [sort, setSort] = useState<{ sort: PeopleSortKey; order: PeopleSortOrder }>({ sort: "count", order: "desc" });
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -127,7 +129,8 @@ export function AccessReportPeople({ wsId, folderId, search, kind, levels, docum
   }
   const people = data?.principals ?? [];
   if (people.length === 0) {
-    return <CollectionPageState icon={UsersRound} title={t("documents.accessReport.empty")} />;
+    // Nobody listed because the reader manages nothing here: the By document wording, not "nothing matches".
+    return <CollectionPageState icon={UsersRound} title={t(skipped > 0 ? "documents.accessReport.skipped_only" : "documents.accessReport.empty")} />;
   }
 
   const sortHeader = (column: PeopleSortKey, label: string) => (

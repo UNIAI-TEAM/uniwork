@@ -91,21 +91,27 @@ interface WhoRow {
  * "The whole workspace · 1 person": groups first, then people, then links.
  * The counts come from `deriveReportFacts`, the one place they are made.
  */
-export function whoParts(
-  t: TFunction,
-  facts: Pick<ReportFacts, "people" | "links" | "otherWorkspaces" | "workspaceWide" | "organizationWide">,
-): string[] {
-  const parts: string[] = [];
-  if (facts.organizationWide) parts.push(t("documents.accessReport.who_organization"));
-  if (facts.workspaceWide) parts.push(t("documents.accessReport.who_workspace"));
-  if (facts.otherWorkspaces > 0) parts.push(t("documents.accessReport.who_other_workspaces", { count: facts.otherWorkspaces }));
-  if (facts.people > 0) parts.push(t("documents.accessReport.who_people", { count: facts.people }));
-  if (facts.links > 0) parts.push(t("documents.accessReport.who_links", { count: facts.links }));
-  return parts;
+export function whoParts(t: TFunction, facts: WhoFacts): string[] {
+  const { groups, counts } = whoLines(t, facts);
+  return [...groups, ...counts];
+}
+
+type WhoFacts = Pick<ReportFacts, "people" | "links" | "otherWorkspaces" | "workspaceWide" | "organizationWide">;
+
+/** `whoParts` in the two lines the People cell draws: the groups, then the people and link counts. */
+export function whoLines(t: TFunction, facts: WhoFacts): { groups: string[]; counts: string[] } {
+  const groups: string[] = [];
+  if (facts.organizationWide) groups.push(t("documents.accessReport.who_organization"));
+  if (facts.workspaceWide) groups.push(t("documents.accessReport.who_workspace"));
+  if (facts.otherWorkspaces > 0) groups.push(t("documents.accessReport.who_other_workspaces", { count: facts.otherWorkspaces }));
+  const counts: string[] = [];
+  if (facts.people > 0) counts.push(t("documents.accessReport.who_people", { count: facts.people }));
+  if (facts.links > 0) counts.push(t("documents.accessReport.who_links", { count: facts.links }));
+  return { groups, counts };
 }
 
 /** `whoParts` as one line. */
-export function whoSummary(t: TFunction, facts: Parameters<typeof whoParts>[1]): string {
+export function whoSummary(t: TFunction, facts: WhoFacts): string {
   return whoParts(t, facts).join(" · ");
 }
 

@@ -316,7 +316,7 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
               <TabsContent value="people" className="flex flex-col gap-3">
                 {filtersBar}
                 {people ? (
-                  <AccessReportPeople wsId={wsId} folderId={folderId} search={filters.q} kind={kind} levels={filters.levels} documentHref={documentHref} />
+                  <AccessReportPeople wsId={wsId} folderId={folderId} search={filters.q} kind={kind} levels={filters.levels} skipped={peopleNarrowed ? 0 : skipped} documentHref={documentHref} />
                 ) : null}
               </TabsContent>
             </Tabs>

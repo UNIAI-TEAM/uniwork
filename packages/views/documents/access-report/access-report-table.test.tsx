@@ -256,7 +256,7 @@ describe("AccessReportTable", () => {
     renderTable();
     const heads = screen.getAllByRole("columnheader");
     // "Toàn tổ chức · Chỉnh sửa" stays inside its cell at the table's width floor.
-    expect(heads[1]).toHaveClass("w-[16%]");
+    expect(heads[1]).toHaveClass("w-[18%]");
     expect(heads[2]).toHaveClass("w-[18%]");
     // The 44px coarse-pointer chevron fits: 64px column, 16px padding, 48px of room.
     const expand = heads.at(-1)!;
@@ -274,12 +274,31 @@ describe("AccessReportTable", () => {
     expect(pill.closest("td")).toHaveClass("overflow-hidden");
   });
 
-  it("truncates the first part of the who line and keeps the counts after it whole", () => {
+  it("keeps the who lines inside their cell: the groups and the counts each truncate, the full text on hover", () => {
     renderTable();
-    const head = within(docRow("Theo dõi chi phí.xlsx")).getByText(at("who_workspace"));
-    expect(head).toHaveClass("truncate");
-    const tail = within(docRow("Theo dõi chi phí.xlsx")).getByText(`· ${at("who_people", { count: 1 })}`);
-    expect(tail).toHaveClass("shrink-0", "whitespace-nowrap");
+    const cell = within(docRow("Theo dõi chi phí.xlsx")).getAllByRole("cell")[2]!;
+    expect(cell).toHaveClass("overflow-hidden");
+    const groups = within(cell).getByText(at("who_workspace"));
+    const counts = within(cell).getByText(at("who_people", { count: 1 }));
+    expect(groups).toHaveClass("truncate");
+    expect(counts).toHaveClass("truncate");
+    // Two lines, no dot between them, and none leading a line.
+    expect(groups.parentElement).toBe(counts.parentElement);
+    expect(cell.textContent).not.toContain("·");
+    expect(groups.parentElement).toHaveAttribute("title", `${at("who_workspace")} · ${at("who_people", { count: 1 })}`);
+  });
+
+  it("starts the line with the first part: no leading dot when there are no groups", () => {
+    renderTable();
+    const cell = within(docRow("Đề xuất ngân sách Q4.docx")).getAllByRole("cell")[2]!;
+    expect(cell.textContent).not.toMatch(/^s*·/);
+    expect(within(cell).getByText(`${at("who_people", { count: 2 })} · ${at("who_links", { count: 1 })}`)).toHaveClass("truncate");
+  });
+
+  it("clamps the general-access pill to two lines with the full label in its title", () => {
+    renderTable();
+    const pill = within(docRow("Theo dõi chi phí.xlsx")).getByText(at("scope_workspace_level", { level: at("level_view") }));
+    expect(pill).toHaveClass("line-clamp-2");
   });
 
   it("stacks each open grant under its name on a phone: level, Revoke, then source and dates", () => {
@@ -318,7 +337,7 @@ describe("AccessReportTable", () => {
 
     const other = docRow("Theo dõi chi phí.xlsx");
     expect(within(other).getByText(at("scope_workspace_level", { level: at("level_view") }))).toBeInTheDocument();
-    expect(within(other).getAllByRole("cell")[2]).toHaveTextContent(`${at("who_workspace")} · ${at("who_people", { count: 1 })}`);
+    expect(within(other).getAllByRole("cell")[2]).toHaveTextContent(`${at("who_workspace")}${at("who_people", { count: 1 })}`);
     // No access_changed_at: the content's updated_at stands in.
     expect(within(other).getAllByRole("cell").at(-2)!.textContent).toBe(formatWhen("2026-09-05T03:00:00Z", i18n.language));
   });

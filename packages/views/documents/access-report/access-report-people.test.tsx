@@ -250,6 +250,13 @@ describe("AccessReportPeople - states", () => {
     expect(screen.queryByRole("table")).toBeNull();
   });
 
+  it("says the reader manages nothing here, not that nothing matches, when documents were skipped", async () => {
+    serve(undefined, { generated_at: "x", principals: [], truncated: false });
+    renderPeople({ skipped: 11 });
+    expect(await screen.findByRole("heading", { name: at("skipped_only") })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: at("empty") })).toBeNull();
+  });
+
   it("shows an alert with Retry when the call fails, and asks again", async () => {
     let fail = true;
     serve(undefined, () => {

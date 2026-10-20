@@ -256,6 +256,17 @@ describe("AccessReportView - tabs", () => {
     expect(line.className).toContain("gap-x-3");
   });
 
+  it("By person: an empty list with documents skipped reads like By document's skipped-only state", async () => {
+    requestMock.mockImplementation(async (path: string) => {
+      const url = new URL(path, "http://api.test");
+      if (url.pathname === SUMMARY_PATH) return totals();
+      if (url.pathname === PRINCIPALS_PATH) return { generated_at: "x", principals: [], truncated: false };
+      return page();
+    });
+    renderView(`${BASE_URL}?view=person`);
+    expect(await screen.findByRole("heading", { name: at("skipped_only") })).toBeInTheDocument();
+  });
+
   it("By person: the type and level in the URL are sent with the principals", async () => {
     serve();
     renderView(`${BASE_URL}?view=person&kind=member&level=manage`);
