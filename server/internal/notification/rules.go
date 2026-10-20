@@ -687,17 +687,13 @@ func ruleDocumentCommentResolved(ctx context.Context, e env, ev outbox.Row, p ma
 			add(uid)
 		}
 	}
-	docAdmins := e.docAdmins
-	if docAdmins == nil {
-		docAdmins, _ = e.docs.(DocumentAdministerChecker)
-	}
-	if docAdmins != nil {
+	if e.docAdmins != nil {
 		candidates, err := documentManagerCandidates(ctx, e, doc)
 		if err != nil {
 			return nil, err
 		}
 		if len(candidates) > 0 {
-			admins, err := docAdmins.FilterDocumentAdministrators(ctx, doc.ID, candidates)
+			admins, err := e.docAdmins.FilterDocumentAdministrators(ctx, doc.ID, candidates)
 			if err != nil {
 				return nil, err
 			}
