@@ -499,6 +499,7 @@ func main() {
 	// expiry sweep is awaited in the shutdown sequence below.
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewDocumentEditLockReleaser(documentSvc))
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatDocumentShareRevoker(documentSvc))
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatDocumentCardRefresher(q, chatSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
