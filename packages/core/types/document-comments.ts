@@ -34,6 +34,7 @@ export const DocumentCommentSchema = z.object({
   kind: z.string().optional().default("discussion"),
   anchor: DocumentCommentAnchorSchema.nullish().transform((v) => v ?? null),
   anchor_version_id: z.string().nullish(),
+  anchor_version_no: z.number().nullable().optional(),
   anchor_state: z.string().nullish(),
   deleted_at: z.string().nullish(),
   deleted_by_id: z.string().nullish(),

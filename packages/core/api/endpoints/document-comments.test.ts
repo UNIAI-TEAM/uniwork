@@ -552,4 +552,75 @@ describe("document comment endpoints", () => {
       ).resolves.toEqual([]);
     }
   });
+
+  // ---- UNI-2033: anchor_version_no --------------------------------------
+
+  it("parses anchor_version_no when valid or null and degrades through parseWithFallback when malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          commentBody({
+            id: "c1",
+            anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+            anchor_version_id: "v2",
+            anchor_version_no: 2,
+            anchor_state: "lost",
+          }),
+          commentBody({
+            id: "c2",
+            kind: "discussion",
+            type: "discussion",
+            anchor: null,
+            anchor_version_id: null,
+            anchor_version_no: null,
+            anchor_state: null,
+          }),
+        ],
+        list_token: "lt1:abc",
+        unchanged: false,
+      }),
+    );
+    const listed = await listDocumentComments("d1");
+    if (!listed || listed.unchanged) throw new Error("expected a full list");
+    expect(listed.comments[0]?.anchor_version_no).toBe(2);
+    expect(listed.comments[1]?.anchor_version_no).toBeNull();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: commentBody({
+          anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+          anchor_version_id: "v3",
+          anchor_version_no: 3,
+          anchor_state: "exact",
+        }),
+      }),
+    );
+    const single = await createDocumentComment("d1", {
+      body: "Chỗ này",
+      kind: "comment",
+      anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+      base_version_id: "v3",
+    });
+    expect(single?.anchor_version_no).toBe(3);
+
+    // A malformed anchor_version_no (e.g. a string) degrades through parseWithFallback to null instead of throwing.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: commentBody({
+          anchor_version_id: "v3",
+          anchor_version_no: "not-a-number",
+        }),
+      }),
+    );
+    await expect(createDocumentComment("d1", { body: "x" })).resolves.toBeNull();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [commentBody({ anchor_version_no: "not-a-number" })],
+        list_token: "lt1:abc",
+        unchanged: false,
+      }),
+    );
+    await expect(listDocumentComments("d1")).resolves.toBeNull();
+  });
 });
