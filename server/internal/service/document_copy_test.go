@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -113,6 +116,32 @@ func TestDocumentCopy(t *testing.T) {
 			}
 		})
 
+		// UNI-1974: a folder is never a source of access. A copy takes its source
+		// file's visibility, not that of the (legacy, still workspace-open)
+		// folder it lands in, and a folder itself is not copyable.
+		t.Run("a copy into a legacy workspace folder stays private like its source", func(t *testing.T) {
+			src := env.createFile(t, member, "private-src.md", []byte("# Rieng\n"))
+			if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, src.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc cu"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'workspace' WHERE id = $1`, folder.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			copied, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", ParentID: folder.Document.ID, IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "copy into the folder")
+			if copied.Document.Visibility != documentVisibilityRestricted {
+				t.Fatalf("copy visibility = %q, want restricted (the source's, not the folder's)", copied.Document.Visibility)
+			}
+			_, err = env.svc.CopyDocument(ctx, member, folder.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
+			wantCode(t, err, "folder_not_supported")
+		})
+
 		t.Run("replay of the same key answers the same copy", func(t *testing.T) {
 			src := env.createFile(t, member, "replay-copy.md", []byte("# Replay\n"))
 			key := util.NewID()
@@ -212,12 +241,13 @@ func TestDocumentCopy(t *testing.T) {
 		// are not a member.
 		t.Run("a member without edit on the parent folder still gets forbidden", func(t *testing.T) {
 			src := env.createFile(t, member, "parent-gate.md", []byte("# Cong cha\n"))
-			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc han che"})
+			folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Title: "Trang cha han che"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			// The folder is restricted to its ACL owner; the copier may view it
-			// through a share (so it is visible, not a 404) but not edit it.
+			// The parent is restricted to its ACL owner (a folder cannot be shared,
+			// UNI-1974, so a page stands in); the copier may view it through a
+			// share (so it is visible, not a 404) but not edit it.
 			copier := human(env.tn.creator)
 			for _, row := range []struct {
 				id    string
@@ -300,6 +330,57 @@ func TestDocumentCopy(t *testing.T) {
 				t.Fatal("a refused copy still wrote a document")
 			}
 		})
+	})
+}
+
+// G5-13 A98: a copy is a create in the source's workspace, so it is a tree
+// write and takes the workspace tree lock BEFORE the source row lock - the one
+// order every naming command keeps (appendix §3.3). The barrier holds the tree
+// lock in a test transaction; the copy can only reach the parent row lock after
+// the holder commits, so a waiter proves the tree lock comes first. With the
+// old envelope (no tree lock) the copy would take the source row lock and the
+// parent row lock and finish without ever waiting here.
+func TestDocumentCopyTakesTheTreeLockFirst(t *testing.T) {
+	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
+		ctx := context.Background()
+		member := human(env.tn.member)
+		src := env.createFile(t, member, "tree-order.md", []byte("# Khoa cay\n"))
+		folder, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc dich"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		watch, err := pgx.ConnectConfig(ctx, env.f.pool.Config().ConnConfig.Copy())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = watch.Close(ctx) }()
+		holder, err := env.f.pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = holder.Rollback(ctx) }()
+		if err := env.f.q.WithTx(holder).LockDocumentTree(ctx, env.tn.wsA); err != nil {
+			t.Fatal(err)
+		}
+		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		done := make(chan error, 1)
+		go func() {
+			_, err := env.svc.CopyDocument(cctx, member, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", ParentID: folder.Document.ID, IdempotencyKey: util.NewID(),
+			})
+			done <- err
+		}()
+		waitForLockWaitersOn(t, watch, 1)
+		if err := holder.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-done:
+			mustf(t, err, "copy after the tree lock was released")
+		case <-time.After(30 * time.Second):
+			t.Fatal("the copy did not finish after the tree lock was released")
+		}
 	})
 }
 

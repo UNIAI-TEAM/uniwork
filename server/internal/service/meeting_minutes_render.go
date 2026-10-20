@@ -230,5 +230,3 @@ func mdCell(s string) string {
 	}
 	return mdEscape(s)
 }
-
-func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }

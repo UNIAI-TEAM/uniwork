@@ -39,7 +39,9 @@ export function unauthenticated(): HttpFailure {
 }
 
 function contractViolation(violation: EngineContractViolation): HttpFailure {
-  return { status: 400, body: { error: { code: "contract_violation", ...violation.toJSON() } } };
+  // A job with input sent as plain JSON is the wrong media type, not a bad body.
+  const status = violation.rule === "content_type" ? 415 : 400;
+  return { status, body: { error: { code: "contract_violation", ...violation.toJSON() } } };
 }
 
 export function notFoundRoute(): HttpFailure {

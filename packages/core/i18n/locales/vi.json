@@ -218,6 +218,23 @@
           "cdefc46087dd47e7b2e383fa681b092a855e46e0f": "Tạo việc từ bản tóm tắt AI của cuộc họp: các việc được tạo đúng như chủ trì xác nhận, đúng một lần và trọn cả lô; mục đã thành việc hoặc bản tóm tắt đã cũ không tạo việc lần nữa. Hộp thoại xem lại cho chỉnh người phụ trách, hạn, ưu tiên và dự án; gợi ý người phụ trách khớp theo nguyên từ và bỏ trống khi tên trùng nhau, còn hạn chót hiểu đúng kiểu \"thứ Ba tuần sau\" và không nhận ngày đã qua. Việc đã tạo có liên kết tới task, mỗi lỗi có hướng dẫn riêng, và mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm.",
           "c9138dd10cf4ec713e49bc35b9b7bfdd181d24aba": "Chat và thông báo: số lần nhắc tên trong một phòng nay khớp với số hiện ở danh sách phòng, và email tóm tắt thông báo chỉ gồm mục từ workspace và phòng chat bạn vẫn còn quyền truy cập."
         }
+      },
+      "v1_7_0": {
+        "title": "Khung trò chuyện mới, tìm tin trên mọi phòng và ghim tin trong Chat; thanh định dạng cho UniNote",
+        "summary": "Chat có khung trò chuyện mới dạng bong bóng, tìm tin nhắn trên mọi phòng bạn tham gia, ghim tối đa 10 tin mỗi phòng, menu thao tác khi chuột phải, dải cuộc gọi khi thu nhỏ và nút tắt thông báo ngay trên thẻ thông tin của một người; phòng đã tắt thông báo không còn đổ chuông khi có cuộc gọi. UniNote có thanh định dạng và bảng phím tắt, tệp .txt mở được trong trình soạn, còn thư viện Tài liệu và hộp thoại chia sẻ được chỉnh gọn và rõ hơn.",
+        "note": "Tìm tin chỉ gồm các phòng bạn đang là thành viên. Khi phòng đã có đủ 10 tin ghim, cần bỏ ghim một tin cũ để ghim tin mới.",
+        "features": {
+          "cba68789f9922643c1e51b57f8f6810d23507e22f": "Tìm tin nhắn trên mọi phòng chat bạn đang tham gia ngay từ danh sách cuộc trò chuyện; kết quả có đoạn trích tô sáng từ khớp, bấm vào để tới đúng tin đó. Danh sách cuộc trò chuyện cũng gọn hơn và ghi \"Nháp:\" với tin bạn đang soạn dở.",
+          "c5db3ec268ccf43bf9b336db1fa571d76fd9d69e4": "Khi thu nhỏ một cuộc gọi, đầu khung chat hiện một dải cho biết cuộc gọi vẫn đang diễn ra."
+        },
+        "improvements": {
+          "cd57d97c03c0b3e0b03d598d69392631b8237d348": "Cuộc gọi: phòng bạn đã tắt thông báo không còn đổ chuông khi có cuộc gọi đến, và cuộc gọi trong kênh không phát nhạc chuông.",
+          "cdd0a583f74e20745388dd74aefeba55db328c1f5": "Ghim tin trong Chat: mỗi phòng ghim được tối đa 10 tin, tin ghim mới nhất hiện trước; khi đã đủ, bạn được hỏi có thay tin ghim cũ nhất không. Chuột phải vào một tin mở menu thao tác kèm dải cảm xúc, và menu này cho biết ai đã xem tin của bạn.",
+          "caac706f2ad896b32b0fcbae89dd466d42909629f": "Khung trò chuyện trong Chat được làm lại: tin hiện dạng bong bóng và trò chuyện riêng không còn hiện ảnh đại diện; di chuột lên tin chỉ hiện một nút thả tim nhanh, còn dùng bàn phím thì mở đủ thanh thao tác; thanh trả lời hoặc sửa tin nằm ngay trên ô soạn và nhấn Esc để hủy trả lời. Hiệu ứng chuyển động tắt khi bạn bật chế độ giảm chuyển động.",
+          "c5444b681da437e1adf9ed8893851a17fa86891ba": "Menu thao tác của tin luôn bấm được trong cuộc trò chuyện dài, tự mở xuống dưới khi phía trên không đủ chỗ và đóng lại khi bạn cuộn. Thẻ thông tin của một người có nút tắt hoặc bật thông báo cho cuộc trò chuyện đang mở.",
+          "c0424076a5c7443babfeeb091d77e84d18446fc28": "Tài liệu và UniNote: trình soạn UniNote có thanh định dạng, mẹo cho lần dùng đầu và bảng phím tắt; menu \"/\" và phím tắt Markdown dùng được cả ở dòng sau khi ngắt dòng. Tệp .txt mở được trong trình soạn ở chế độ văn bản thuần. Hộp thoại lưu lần đầu cho chọn thư mục, tài liệu Office có mục In, và hộp thoại chia sẻ rõ ràng hơn, dùng thống nhất chữ \"Riêng tư\". \"Thư mục của tôi\" là một mục duy nhất trong cây thư mục, \"Tôi đã chia sẻ\" chỉ liệt kê mục cao nhất được chia sẻ, ô bình luận hiện @Tên khi nhắc ai đó, và luồng thảo luận có giao diện mới.",
+          "c5f3b1fb9b72701e4053bd93ccc2f4e2cc053d750": "Thư viện Tài liệu được chỉnh nhiều chi tiết: nhãn chia sẻ cho người có quyền bình luận, tên thư mục dài được rút gọn, mở đường dẫn của một tài liệu sẽ mở đúng thư mục chứa nó, \"Chia sẻ với workspace\" tách riêng khỏi mục Thư mục, và trạng thái trống phù hợp hơn khi tệp nằm trong các thư mục."
+        }
       }
     }
   },
@@ -336,7 +353,15 @@
       "unichat_login_button": "Đăng nhập",
       "unichat_login_waiting": "Hoàn tất đăng nhập trong trình duyệt vừa mở.",
       "unichat_login_reopen": "Mở lại trình duyệt",
-      "unichat_login_failed": "Không mở được trình duyệt để đăng nhập. Thử lại."
+      "unichat_login_failed": "Không mở được trình duyệt để đăng nhập. Thử lại.",
+      "unichat_login_feature_chats": "Tin riêng, nhóm và kênh của mọi workspace ở một chỗ",
+      "unichat_login_feature_calls": "Gọi thoại, gọi video và chia sẻ màn hình",
+      "unichat_login_feature_uni": "UNI tóm tắt tin chưa đọc và cuộc gọi cho bạn",
+      "unichat_login_step_opened": "Trình duyệt đã mở trang đăng nhập UniWork",
+      "unichat_login_step_allow": "Bấm “Cho phép ứng dụng desktop” trên trang đó",
+      "unichat_login_step_return": "Quay lại đây, UniChat tự mở cuộc trò chuyện",
+      "unichat_login_cancel": "Hủy",
+      "unichat_login_version": "UniChat {{version}}"
     },
     "connect": {
       "eyebrow": "Kết nối trợ lý AI",
@@ -605,6 +630,7 @@
         "email_hub_new_mail": "Thư mới (Email Hub)",
         "document_commented": "Bình luận trong tài liệu",
         "document_mentioned": "Được nhắc đến trong tài liệu",
+        "document_body_mentioned": "Được nhắc đến trong nội dung tài liệu",
         "document_comment_replied": "Phản hồi bình luận",
         "document_discussion_mentioned": "Được nhắc đến trong thảo luận",
         "document_discussion_replied": "Phản hồi thảo luận",
@@ -685,6 +711,22 @@
       "avatarUploadFailed": "Chưa tải được ảnh lên, thử lại.",
       "emailHint": "Địa chỉ bạn dùng để đăng nhập.",
       "displayNameRequired": "Tên hiển thị không được để trống."
+    },
+    "unichat": {
+      "nav_aria": "Mục cài đặt",
+      "about": "Về UniChat",
+      "about_description": "Phiên bản đang chạy trên máy tính này.",
+      "app_name": "UniChat",
+      "version": "Phiên bản {{version}}",
+      "web_build": "Đang chạy trên trình duyệt",
+      "updates": "Khi có bản mới, UniChat tự báo cho bạn.",
+      "notifications_description": "Tin nào báo cho bạn, báo qua đâu, và máy này báo thế nào.",
+      "device_sound": "Âm thanh khi có tin mới",
+      "device_sound_hint": "Phát âm báo của máy cùng thông báo.",
+      "device_preview": "Hiện nội dung tin trong thông báo",
+      "device_preview_hint": "Tắt để chỉ hiện tên người gửi.",
+      "device_badge": "Số chưa đọc trên biểu tượng ứng dụng",
+      "device_badge_hint": "Trên Dock (macOS) hoặc thanh tác vụ."
     },
     "preferences": {
       "timezone": "Múi giờ",
@@ -1317,7 +1359,10 @@
         "title": "Phím cố định",
         "description": "Những phím này không đổi được, để luôn dùng được.",
         "toggle_sidebar": "Ẩn hoặc hiện thanh bên",
-        "close_dialog": "Đóng hộp thoại hoặc menu"
+        "close_dialog": "Đóng hộp thoại hoặc menu",
+        "chat_send": "Gửi tin nhắn",
+        "chat_new_line": "Xuống dòng trong ô nhập",
+        "chat_escape": "Đóng menu, hủy trả lời hoặc hủy sửa"
       },
       "actions": {
         "ai_ask_uni": {
@@ -1383,6 +1428,10 @@
         "go_settings": {
           "label": "Tới Cài đặt",
           "description": "Mở cài đặt."
+        },
+        "chat_search": {
+          "label": "Tìm cuộc trò chuyện",
+          "description": "Đưa con trỏ vào ô tìm ở đầu danh sách chat."
         }
       }
     },
@@ -2629,7 +2678,7 @@
       "comment_delete_description": "Bình luận sẽ bị xóa khỏi luồng hoạt động.",
       "comment_delete_confirm": "Xóa bình luận",
       "reply": "Trả lời",
-      "reply_cancel": "Huỷ trả lời",
+      "reply_cancel": "Hủy trả lời",
       "comment_preview_empty": "Bình luận không có chữ",
       "activity_error": "Không tải được hoạt động. Thử lại sau.",
       "thread_resolved_one": "Luồng đã giải quyết · {{count}} trả lời",
@@ -2738,7 +2787,7 @@
       "clear": "Hôm nay bạn không có việc gấp."
     },
     "actions": {
-      "customize": "Tuỳ chỉnh"
+      "customize": "Tùy chỉnh"
     },
     "stats": {
       "label": "Tổng quan hôm nay",
@@ -2830,7 +2879,7 @@
       "retry": "Thử lại"
     },
     "customize": {
-      "title": "Tuỳ chỉnh trang chủ",
+      "title": "Tùy chỉnh trang chủ",
       "description": "Bật hoặc tắt khối, đổi thứ tự và chọn mật độ. Lưu riêng cho bạn trong workspace này.",
       "sections": "Khối hiển thị",
       "layout": "Mật độ bố cục",
@@ -2838,14 +2887,14 @@
       "reset": "Đặt lại",
       "close": "Đóng",
       "saving": "Đang lưu…",
-      "save_failed": "Không lưu được tuỳ chỉnh. Đã quay về bản trước.",
+      "save_failed": "Không lưu được tùy chỉnh. Đã quay về bản trước.",
       "move_up": "Đưa {{section}} lên",
       "move_down": "Đưa {{section}} xuống",
       "all_hidden": "Bạn đã ẩn mọi khối trên trang chủ.",
-      "open": "Mở tuỳ chỉnh",
+      "open": "Mở tùy chỉnh",
       "reset_done": "Đã đặt lại trang chủ về mặc định.",
       "undo": "Hoàn tác",
-      "all_hidden_hint": "Bật lại khối cần xem trong Tuỳ chỉnh."
+      "all_hidden_hint": "Bật lại khối cần xem trong Tùy chỉnh."
     },
     "layout": {
       "compact": "Gọn",
@@ -3425,7 +3474,7 @@
     "joinNow": "Vào ngay",
     "clearFilters": "Bỏ bộ lọc",
     "noResults": "Không tìm thấy cuộc họp",
-    "noResultsHint": "Thử từ khoá khác hoặc bỏ bộ lọc.",
+    "noResultsHint": "Thử từ khóa khác hoặc bỏ bộ lọc.",
     "showAll": "Xem tất cả cuộc họp",
     "filterCount_one": "{{count}} cuộc họp",
     "filterCount_other": "{{count}} cuộc họp",
@@ -4151,7 +4200,13 @@
       "rate_limited": "Bạn thao tác quá nhanh. Chờ một chút rồi thử lại.",
       "idempotency_in_flight": "Yêu cầu trước vẫn đang xử lý. Thử lại sau giây lát.",
       "network": "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.",
-      "internal": "Máy chủ gặp lỗi. Thử lại sau."
+      "internal": "Máy chủ gặp lỗi. Thử lại sau.",
+      "share_batch_too_large": "Cuộc trò chuyện có quá nhiều người để chia sẻ tài liệu. Hãy chia sẻ từ trang Tài liệu.",
+      "document_quota_exceeded": "Tổ chức đã hết dung lượng lưu trữ. Hãy giải phóng dung lượng hoặc nâng cấp gói.",
+      "document_format": "Định dạng tệp này chưa được hỗ trợ.",
+      "document_format_changed": "Phiên bản mới phải giữ đúng định dạng của tài liệu.",
+      "document_version_conflict": "Tài liệu vừa có phiên bản mới. Tải lại rồi thử lại.",
+      "source_not_saveable": "Không thể chia sẻ tệp này dạng tài liệu: định dạng không được hỗ trợ hoặc dung lượng quá lớn."
     },
     "media_unavailable": "Không tải được {{name}}",
     "media_image": "Hình ảnh",
@@ -4286,6 +4341,9 @@
     "composer_more": "Thêm",
     "composer_more_menu": "Thêm tùy chọn",
     "composer_stickers": "Nhãn dán",
+    "composer_send_as_document": "Gửi dạng tài liệu",
+    "composer_send_as_file": "Chỉ gửi tệp",
+    "composer_share_level": "Quyền cho mọi người trong cuộc trò chuyện",
     "expression_picker_open": "Sticker, emoji và GIF",
     "emoji_search": "Tìm emoji",
     "emoji_frequent": "Dùng gần đây",
@@ -4392,6 +4450,17 @@
     "sidebar_voice_call_preview": "Cuộc gọi thoại",
     "sidebar_voice_message_preview": "Tin nhắn thoại",
     "sidebar_file_message_preview": "Tệp đính kèm",
+    "sidebar_document_message_preview": "Tài liệu",
+    "document_card_title": "Tài liệu",
+    "document_open_in_documents": "Mở trong Tài liệu",
+    "document_no_access": "Không có quyền truy cập",
+    "document_request_access": "Yêu cầu quyền truy cập",
+    "document_share_as_document": "Chia sẻ dạng tài liệu",
+    "document_shared_with_count_one": "Đã chia sẻ với {{count}} người",
+    "document_shared_with_count_other": "Đã chia sẻ với {{count}} người",
+    "document_manage_access": "Quản lý quyền truy cập",
+    "document_open_in_office": "Mở bằng UniWork Office",
+    "document_version_line": "{{name}} đã tải lên phiên bản {{version}}",
     "sidebar_typing": "Đang nhập…",
     "loading": "Đang kết nối phòng trò chuyện…",
     "members_title": "Thành viên",
@@ -4556,6 +4625,11 @@
     "sidebar_list_menu_aria": "Tùy chọn trò chuyện trong {{name}}",
     "sidebar_photo_preview": "Ảnh",
     "sidebar_seen_aria": "Đã xem",
+    "sidebar_draft_label": "Nháp:",
+    "sidebar_search_messages_title": "Tin nhắn",
+    "sidebar_search_messages_loading": "Đang tìm trong tin nhắn…",
+    "sidebar_search_messages_failed": "Chưa tìm được trong tin nhắn. Thử lại sau.",
+    "sidebar_search_messages_empty": "Không có tin nhắn nào khớp.",
     "unread_count_chip": "{{count}} tin chưa đọc",
     "catch_up_quick": "Tóm tắt nhanh",
     "action_react_more": "Thêm cảm xúc",
@@ -5140,8 +5214,8 @@
         "done_other": "Đã chuyển {{count}} tài liệu cho {{name}}.",
         "skipped_not_member_one": "{{count}} tài liệu ở workspace mà {{name}} chưa tham gia chưa được chuyển.",
         "skipped_not_member_other": "{{count}} tài liệu ở workspace mà {{name}} chưa tham gia chưa được chuyển.",
-        "skipped_self_one": "{{count}} tài liệu hạn chế không thể chuyển cho chính bạn.",
-        "skipped_self_other": "{{count}} tài liệu hạn chế không thể chuyển cho chính bạn.",
+        "skipped_self_one": "{{count}} tài liệu riêng tư không thể chuyển cho chính bạn.",
+        "skipped_self_other": "{{count}} tài liệu riêng tư không thể chuyển cho chính bạn.",
         "failed": "Chưa chuyển được tài liệu. Tài khoản đã được vô hiệu hóa; bạn có thể thử lại.",
         "failed_active": "Chưa chuyển được tài liệu. Bạn có thể thử lại.",
         "retry": "Thử lại",
@@ -5655,6 +5729,8 @@
       "document_commented_untitled": "{{actor}} đã bình luận trong một tài liệu",
       "document_mentioned": "{{actor}} đã nhắc đến bạn trong bình luận tại tài liệu “{{document}}”.",
       "document_mentioned_untitled": "{{actor}} đã nhắc đến bạn trong bình luận tại một tài liệu.",
+      "document_body_mentioned": "{{actor}} đã nhắc đến bạn trong tài liệu “{{document}}”.",
+      "document_body_mentioned_untitled": "{{actor}} đã nhắc đến bạn trong một tài liệu.",
       "document_comment_replied": "{{actor}} đã phản hồi bình luận của bạn trong tài liệu “{{document}}”.",
       "document_comment_replied_untitled": "{{actor}} đã phản hồi bình luận của bạn trong một tài liệu.",
       "document_discussion_mentioned": "{{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”.",
@@ -5691,6 +5767,7 @@
       "document_mentioned": "Bạn được nhắc tên trong bình luận",
       "document_comment_replied": "Có phản hồi bình luận mới",
       "document_discussion_mentioned": "Bạn được nhắc tên trong thảo luận",
+      "document_body_mentioned": "Bạn được nhắc đến trong tài liệu",
       "document_discussion_replied": "Có phản hồi thảo luận mới",
       "document_comment_resolved": "Bình luận đã được giải quyết",
       "document_break_glass": "Truy cập khẩn cấp vào tài liệu",
@@ -9076,7 +9153,7 @@
         "formats": "Hỗ trợ DOCX, XLSX, PPTX, PDF, HTML và Markdown",
         "tabs": "Trình soạn thảo",
         "imageAlt": "UniOffice: {{editor}} với bảng AI",
-        "imageCaption": "Giao diện minh hoạ",
+        "imageCaption": "Giao diện minh họa",
         "imageUnavailable": "Không tải được ảnh xem trước. Tải lại trang để thử lại.",
         "docs": {
           "name": "Văn bản",
@@ -9647,6 +9724,59 @@
       "choose_image": "Chọn ảnh để chèn",
       "image_loading": "Đang tải ảnh…",
       "focus_end": "Tiếp tục viết cuối tài liệu",
+      "toolbar": {
+        "label": "Định dạng UniNote",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "style_aria": "Kiểu chữ: {{style}}",
+        "style_menu": "Kiểu chữ",
+        "bold": "Đậm",
+        "italic": "Nghiêng",
+        "strikethrough": "Gạch ngang",
+        "code": "Code trong dòng",
+        "link": "Chèn liên kết",
+        "bulletList": "Danh sách chấm",
+        "orderedList": "Danh sách số",
+        "taskList": "Checklist",
+        "blockquote": "Trích dẫn",
+        "codeBlock": "Khối code",
+        "horizontalRule": "Đường kẻ",
+        "table": "Bảng",
+        "image": "Ảnh",
+        "mention": "Nhắc tên",
+        "help_button": "Trợ giúp và phím tắt",
+        "help": {
+          "title": "Phím tắt UniNote",
+          "close": "Đóng",
+          "quick": "Chèn nhanh",
+          "quick_slash": "Mở menu khối",
+          "quick_mention": "Nhắc tên thành viên",
+          "line": "Gõ ở đầu dòng",
+          "line_headings": "Tiêu đề 1 / 2 / 3",
+          "line_bullet": "Danh sách chấm",
+          "line_ordered": "Danh sách số",
+          "line_task": "Checklist",
+          "line_quote": "Trích dẫn",
+          "line_code": "Khối code",
+          "line_divider": "Đường kẻ",
+          "keys": "Phím tắt",
+          "keys_format": "Đậm / Nghiêng",
+          "keys_strike": "Gạch ngang",
+          "keys_code": "Code trong dòng",
+          "keys_undo": "Hoàn tác / Làm lại",
+          "note": "Trên Mac dùng ⌘ thay cho Ctrl. Gõ mẫu ở đầu dòng rồi nhấn Dấu cách (riêng --- thì không cần)."
+        },
+        "more": "Thêm định dạng",
+        "more_title": "Thêm định dạng",
+        "hint": {
+          "title": "Mẹo dùng UniNote",
+          "aria": "Mẹo cho người mới",
+          "body": "Chọn định dạng trên thanh công cụ, hoặc gõ <kbd>/</kbd> ở đầu dòng để chèn khối, <kbd>@</kbd> để nhắc tên, bôi đen chữ để định dạng nhanh.",
+          "got_it": "Đã hiểu",
+          "show_shortcuts": "Xem phím tắt",
+          "close": "Đóng gợi ý"
+        }
+      },
       "toggle_task": "Đánh dấu việc: {{task}}",
       "blocks": {
         "paragraph": {
@@ -9716,13 +9846,20 @@
       "back_to_owner": "Về Kết quả công việc",
       "readonly_title": "Bạn chỉ có quyền xem",
       "readonly_description": "Bạn xem được bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.",
+      "readonly_comment_title": "Bạn có quyền xem và nhận xét",
+      "readonly_comment_description": "Bạn xem và nhận xét được trên bản đã lưu trên server nhưng không chỉnh sửa được. Cần có quyền chỉnh sửa để thay đổi nội dung.",
       "revoked_title": "Bạn không còn quyền xem tài liệu này",
       "revoked_description": "Nội dung đã bị ẩn theo quyền hiện tại. Xin lại quyền truy cập nếu bạn cần xem tiếp.",
       "archived_banner": "Tài liệu này đang ở trong thùng rác — chỉ xem.",
       "first_save": {
         "title": "Đặt tên tài liệu",
-        "hint": "Bạn có thể đổi tên sau trong thư mục.",
-        "submit": "Lưu"
+        "hint": "Bạn có thể đổi tên hoặc di chuyển sau.",
+        "submit": "Lưu",
+        "location": "Vị trí",
+        "change": "Đổi",
+        "picker_title": "Chọn nơi lưu",
+        "picker_description": "Chọn thư mục chứa tài liệu này.",
+        "picker_submit": "Chọn"
       }
     },
     "save": {
@@ -9737,7 +9874,8 @@
       "review_conflict": "Xử lý",
       "asset_uploading": "Đang tải ảnh lên…",
       "asset_load_failed": "Không tải được ảnh",
-      "readonly": "Chỉ xem"
+      "readonly": "Chỉ xem",
+      "readonly_comment": "Xem và nhận xét"
     },
     "conflict": {
       "title": "Người khác vừa lưu",
@@ -9879,6 +10017,7 @@
       "office_unknown_description": "Chưa tải được cấu hình trình soạn thảo của tổ chức, nên tạm thời tệp hiển thị ở đây. Thử lại, hoặc tải tệp về.",
       "office_unknown_retry": "Thử lại",
       "readonly_hint": "Bạn chỉ có quyền xem tệp này: tải về được, nhưng không tải lên phiên bản mới được.",
+      "readonly_comment_hint": "Bạn có quyền xem và nhận xét tệp này: tải về được, nhưng không tải lên phiên bản mới được.",
       "upload_failed": "Không tải được tệp lên",
       "commit_failed": "Không lưu được phiên bản mới",
       "missing_file": "Tài liệu này chưa có tệp."
@@ -9911,6 +10050,7 @@
       "versions": "Lịch sử phiên bản",
       "download_original": "Tải tệp gốc",
       "upload_version": "Tải lên phiên bản mới",
+      "print": "In",
       "share": "Chia sẻ",
       "access_log": "Nhật ký truy cập",
       "copy": "Tạo bản sao",
@@ -9973,7 +10113,7 @@
         "transfer_confirm": "Chuyển",
         "transferred": "Đã chuyển quyền sở hữu cho {{name}}",
         "target_not_member": "{{name}} chưa là thành viên của workspace này nên không thể làm chủ sở hữu.",
-        "self_transfer_error": "Quản trị viên không thể tự nhận quyền sở hữu tài liệu hạn chế. Hãy nhờ một quản trị viên khác chuyển, hoặc mở truy cập khẩn cấp để kiểm tra.",
+        "self_transfer_error": "Quản trị viên không thể tự nhận quyền sở hữu tài liệu riêng tư. Hãy nhờ một quản trị viên khác chuyển, hoặc mở truy cập khẩn cấp để kiểm tra.",
         "title_untitled": "Chuyển quyền sở hữu tài liệu",
         "search_placeholder": "Tìm thành viên của workspace",
         "no_candidates": "Không có thành viên nào khác nhận được tài liệu này.",
@@ -10017,13 +10157,13 @@
       "apply_all_button": "Áp dụng cho tất cả",
       "apply_all_confirm": "Đặt tất cả {{count}} đối tượng thành {{level}}?",
       "apply_all_accept": "Áp dụng",
-      "apply_all_cancel": "Huỷ",
+      "apply_all_cancel": "Hủy",
       "on_existing_keep": "Giữ {{level}}",
       "on_existing_update": "Cập nhật thành {{level}}",
       "shared_toast": "Đã chia sẻ cho {{count}} đối tượng",
       "updated_toast": "Đã cập nhật quyền của {{name}} thành {{level}}",
       "confirm_accept": "Xác nhận",
-      "confirm_cancel": "Huỷ",
+      "confirm_cancel": "Hủy",
       "warning_wide_scope_workspace": "Chia sẻ cho Workspace {{name}} ({{count}} thành viên) ở mức {{level}}",
       "warning_wide_scope_organization": "Chia sẻ cho toàn bộ Tổ chức {{name}} ({{count}} thành viên) ở mức {{level}}",
       "warning_direct_below_group": "{{name}} vẫn có quyền {{effectiveLevel}} qua {{source}}",
@@ -10071,12 +10211,13 @@
       "people_not_in_org_one": "Không chia sẻ được: {{names}} không thuộc tổ chức này. Bỏ chọn rồi thử lại.",
       "people_not_in_org_other": "Không chia sẻ được: {{names}} không thuộc tổ chức này. Bỏ chọn rồi thử lại.",
       "level_label": "Mức quyền",
+      "level_for": "Mức quyền của {{name}}",
       "submit": "Chia sẻ",
       "submitting": "Đang chia sẻ…",
       "submit_failed": "Không chia sẻ được. Kiểm tra lại đối tượng và mức quyền.",
       "grant_added": "Đã cập nhật quyền.",
       "visibility_workspace": "Cả workspace",
-      "visibility_restricted": "Hạn chế",
+      "visibility_restricted": "Riêng tư",
       "links_title": "Liên kết công khai",
       "links_description": "Ai có URL đều xem được, không cần đăng nhập.",
       "links_policy_enabled": "Tổ chức cho phép liên kết công khai",
@@ -10132,7 +10273,7 @@
       "declined": "Đã từ chối yêu cầu của {{name}}",
       "closed": "Yêu cầu này đã được xử lý hoặc đã hết hạn.",
       "none_pending": "Không còn yêu cầu nào đang chờ.",
-      "level_comment": "Bình luận",
+      "level_comment": "Nhận xét",
       "decision_failed": "Chưa xử lý được yêu cầu này. Hãy thử lại.",
       "sent_message_label": "Lời nhắn"
     },
@@ -10194,7 +10335,7 @@
       "source_break_glass": "Truy cập khẩn cấp",
       "source_other": "Khác",
       "level_view": "Chỉ xem",
-      "level_comment": "Bình luận",
+      "level_comment": "Nhận xét",
       "level_edit": "Chỉnh sửa",
       "level_manage": "Quản lý",
       "level_none": "Không có",
@@ -10406,6 +10547,7 @@
       "collabSave": "Lưu",
       "collabCancel": "Hủy",
       "collabDelete": "Xóa",
+      "collabEditedMark": "(đã sửa)",
       "collabHistory": "Xem lịch sử sửa",
       "collabHistoryTitle": "Lịch sử sửa",
       "collabHistoryCurrent": "Bản hiện tại",
@@ -10447,17 +10589,18 @@
       "collabPostSendNoAccess": "{{names}} chưa xem được tài liệu này nên đã không nhận thông báo.",
       "collabPostSendShareAction": "Chia sẻ quyền Xem",
       "collabPostSendNoRetroNote": "Chia sẻ lúc này không gửi lại thông báo cho bình luận trên; hãy nhắc lại họ ở bình luận mới nếu cần.",
+      "collabBodyMentionNoAccess": "{{names}} chưa xem được tài liệu này nên đã không nhận thông báo.",
       "inboxDocGone": "Tài liệu không còn tồn tại hoặc đã bị xóa.",
       "inboxDocNoAccess": "Bạn không có quyền truy cập tài liệu này.",
       "inboxSessionExpired": "Phiên đăng nhập đã hết. Hãy đăng nhập lại để mở bình luận này.",
       "inboxBack": "Về $t(nav.inbox)"
     },
     "levels": {
-      "comment": "Bình luận"
+      "comment": "Nhận xét"
     },
     "breakGlass": {
-      "lockedTitle": "Tài liệu này ở chế độ hạn chế",
-      "lockedBody": "Quản trị viên quản lý được tài liệu nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
+      "lockedTitle": "Tài liệu này là riêng tư",
+      "lockedBody": "Quản trị viên quản lý được tài liệu riêng tư này nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
       "openButton": "Mở truy cập khẩn cấp (24 giờ)",
       "reasonLabel": "Lý do truy cập khẩn cấp",
       "reasonHint": "Chủ tài liệu sẽ được thông báo và hành động này được ghi vào nhật ký kiểm toán. Quyền Xem hết hạn sau 24 giờ.",
@@ -10474,7 +10617,7 @@
       "viaBreakGlass": "Truy cập khẩn cấp",
       "selfShareError": "Quản trị viên không thể tự cấp quyền qua mục Chia sẻ. Hãy dùng Truy cập khẩn cấp (24 giờ, có ghi nhật ký).",
       "memberTitle": "Bạn cần quyền truy cập tài liệu này",
-      "memberBody": "Tài liệu này đang ở chế độ hạn chế. Hãy liên hệ chủ sở hữu hoặc người quản lý tài liệu để được cấp quyền.",
+      "memberBody": "Tài liệu này là riêng tư. Hãy liên hệ chủ sở hữu hoặc người quản lý tài liệu để được cấp quyền.",
       "ownerLabel": "Chủ sở hữu: {{owner}}",
       "updatedLabel": "Cập nhật {{time}}",
       "submitFailed": "Không mở được truy cập khẩn cấp. Thử lại.",
@@ -10532,7 +10675,6 @@
         "failed": "Không thể đổi tên tài liệu. Thử lại."
       },
       "quick_create": {
-        "hint_root": "File mới tạo hoặc tải lên ở đây sẽ nằm trong Thư mục của tôi (chỉ bạn thấy) và mở ngay trong trình soạn thảo.",
         "label": "Tạo nhanh"
       },
       "create": {
@@ -10565,7 +10707,7 @@
         "md": {
           "chip": "Tệp Markdown",
           "hint": ".md",
-          "menu": "Markdown",
+          "menu": "Tệp Markdown",
           "ext": ".md"
         },
         "html": {
@@ -10588,7 +10730,7 @@
         },
         "share_workspace_toggle": "Chia sẻ với workspace",
         "share_workspace_hint": "Mọi thành viên của workspace này sẽ {{level}} tài liệu mới",
-        "share_workspace_inherited": "Thư mục này đang chia sẻ với workspace nên tài liệu mới cũng vậy",
+        "share_workspace_inherited": "UniNote này đang chia sẻ với workspace nên tài liệu mới cũng vậy",
         "share_workspace_level_view": "chỉ xem"
       },
       "sections": {
@@ -10597,7 +10739,6 @@
         "documents": "Tài liệu"
       },
       "folder": {
-        "info_banner": "Tạo mới và tải lên ở đây sẽ vào thư mục “{{folder}}”. Kéo thả tệp vào danh sách để tải lên.",
         "menu": "Thao tác với thư mục"
       },
       "folder_card": {
@@ -10666,11 +10807,11 @@
         "all": "Tất cả",
         "manage": "Tôi quản lý",
         "edit": "Tôi sửa được",
-        "restricted": "Hạn chế"
+        "restricted": "Riêng tư"
       },
       "access": {
         "view": "Chỉ xem",
-        "comment": "Bình luận",
+        "comment": "Nhận xét",
         "edit": "Chỉnh sửa",
         "manage": "Quản lý",
         "owner": "Chủ sở hữu",
@@ -10718,7 +10859,6 @@
         "unstar": "Bỏ gắn sao",
         "go_to_source": "Xem nơi đính kèm",
         "go_to_source_named": "Xem nơi đính kèm: {{title}}",
-        "preview_loading": "Đang tải ảnh…",
         "preview_failed": "Không xem được file. Thử lại.",
         "preview_close": "Đóng",
         "view_only_notice": "Chỉ xem · thay đổi sẽ không được lưu",
@@ -10738,6 +10878,8 @@
         "title": "Workspace chưa có tài liệu",
         "folder_title": "Thư mục này chưa có gì",
         "description": "Chọn một loại ở hàng Tạo mới phía trên, hoặc kéo thả file vào đây để tải lên.",
+        "outside_folders_title": "Không có tài liệu nào ngoài thư mục",
+        "outside_folders_description": "Hãy xem trong các thư mục phía trên, chọn một loại ở hàng Tạo mới, hoặc kéo thả file vào đây để tải lên ngoài thư mục.",
         "view_only": "Bạn chỉ có quyền xem thư mục này.",
         "recent_title": "Chưa có tài liệu nào gần đây",
         "recent_description": "Tài liệu bạn mở hoặc sửa sẽ hiện ở đây.",
@@ -10838,6 +10980,7 @@
       "document_cycle": "Không thể chuyển một mục vào chính nó hoặc vào mục con của nó.",
       "document_too_deep": "Cây tài liệu tối đa {{max}} cấp.",
       "folder_not_supported": "Thư mục không có nội dung để mở hay chỉnh sửa.",
+      "folder_not_shareable": "Thư mục không thể chia sẻ. Hãy chia sẻ từng tài liệu bên trong.",
       "folder_too_large": "Thư mục có hơn 1.000 mục nên chưa chuyển vào thùng rác được một lần. Hãy chuyển từng phần bên trong trước.",
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
@@ -11217,7 +11360,7 @@
       "reason": {
         "xlsx_recalc_unavailable": "Bản UniWork Office này chưa kèm bộ tính lại công thức nên chưa lưu được sổ tính có công thức trên máy. Thay đổi của bạn vẫn được giữ.",
         "file_invalid_path": "Vị trí của tệp này không hợp lệ. Mở lại tệp từ danh sách tệp.",
-        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xoá.",
+        "file_not_found": "Không tìm thấy tệp. Tệp có thể đã bị di chuyển hoặc xóa.",
         "file_access_denied": "UniWork Office không dùng được tệp này vì đây là lối tắt hoặc liên kết. Hãy mở tệp gốc.",
         "file_locked": "Tệp đang được chương trình khác sử dụng. Đóng tệp ở đó rồi thử lại.",
         "file_changed_on_disk": "Tệp đã thay đổi trên máy sau khi bạn mở. Thay đổi của bạn vẫn được giữ: hãy lưu thành tên khác hoặc mở lại tệp.",
@@ -11486,8 +11629,8 @@
       "error": "Không tải được danh sách tệp gần đây.",
       "retry": "Thử lại",
       "missing": "Không tìm thấy tệp",
-      "remove": "Xoá",
-      "removeNamed": "Xoá {{name}} khỏi danh sách",
+      "remove": "Xóa",
+      "removeNamed": "Xóa {{name}} khỏi danh sách",
       "openNamed": "Mở {{name}}",
       "updated": "Mở lần cuối {{time}}",
       "unsupported": "Chỉ hỗ trợ tệp {{formats}} trên máy.",

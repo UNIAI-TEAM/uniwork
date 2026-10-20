@@ -49,17 +49,22 @@ func TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters(t *testing.T) {
 	flags := &stubDocumentFlags{}
 	intentMetrics := &stubOfficeIntentMetrics{}
 	policy := service.CommitIntentPolicy{ClaimTTL: 13 * time.Minute, Retention: 72 * time.Hour, SweepTick: 45 * time.Second}
+	idempPolicy := service.IdempotencyKeyPolicy{Retention: 96 * time.Hour, SweepTick: 37 * time.Second}
 
 	svc := newDocumentService(documentServiceOptions{
-		Flags: flags, IntentMetrics: intentMetrics, Policy: policy,
+		Flags: flags, IntentMetrics: intentMetrics, Policy: policy, IdempotencyKeyPolicy: idempPolicy,
 	})
 
 	wiring := svc.IntentWiringForTest()
 	if wiring.Policy != policy {
 		t.Errorf("commit intent policy = %+v, want %+v; without it the route commits claim with the default TTL and resume window", wiring.Policy, policy)
 	}
-	if w := svc.NewDocumentWorkers(); w.IntentTick != policy.SweepTick {
+	w := svc.NewDocumentWorkers()
+	if w.IntentTick != policy.SweepTick {
 		t.Errorf("NewDocumentWorkers().IntentTick = %v, want %v", w.IntentTick, policy.SweepTick)
+	}
+	if w.IdempotencyKeyTick != idempPolicy.SweepTick {
+		t.Errorf("NewDocumentWorkers().IdempotencyKeyTick = %v, want %v", w.IdempotencyKeyTick, idempPolicy.SweepTick)
 	}
 	if wiring.Flags != flags {
 		t.Errorf("flag evaluator = %#v, want the evaluator main.go passes in; without it office_sync_write never reaches the routes", wiring.Flags)
@@ -177,7 +182,7 @@ func TestMainPassesTheFullDocumentServiceOptions(t *testing.T) {
 			}
 		}
 	}
-	for _, key := range []string{"Pool", "Queries", "Organizations", "Workspaces", "Files", "Flags", "Metrics", "IntentMetrics", "Policy", "EditLock"} {
+	for _, key := range []string{"Pool", "Queries", "Organizations", "Workspaces", "Files", "Flags", "Metrics", "IntentMetrics", "Policy", "IdempotencyKeyPolicy", "EditLock"} {
 		if _, ok := values[key]; !ok {
 			t.Errorf("main.go's documentServiceOptions literal does not set %s; the one DocumentService would lose it and bring back BE-I4-1", key)
 		}
@@ -215,6 +220,39 @@ func TestMainPassesTheFullDocumentServiceOptions(t *testing.T) {
 	}
 	for key := range wantFromCfg {
 		t.Errorf("Policy in main.go's literal does not set %s from cfg; the routes would fall back to the default window (BE-I4-1)", key)
+	}
+
+	idempPolicy, ok := values["IdempotencyKeyPolicy"].(*ast.CompositeLit)
+	if !ok {
+		t.Fatal("IdempotencyKeyPolicy in main.go's literal is not a service.IdempotencyKeyPolicy{...} literal")
+	}
+	wantIdempFromCfg := map[string]string{
+		"Retention": "IdempotencyKeyRetention",
+		"SweepTick": "IdempotencyKeySweepTick",
+	}
+	for _, elt := range idempPolicy.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key, _ := kv.Key.(*ast.Ident)
+		if key == nil {
+			continue
+		}
+		if field, want := wantIdempFromCfg[key.Name]; want {
+			sel, ok := kv.Value.(*ast.SelectorExpr)
+			var recv *ast.Ident
+			if ok {
+				recv, _ = sel.X.(*ast.Ident)
+			}
+			if !ok || recv == nil || recv.Name != "cfg" || sel.Sel.Name != field {
+				t.Errorf("IdempotencyKeyPolicy.%s must be cfg.%s", key.Name, field)
+			}
+			delete(wantIdempFromCfg, key.Name)
+		}
+	}
+	for key := range wantIdempFromCfg {
+		t.Errorf("IdempotencyKeyPolicy in main.go's literal does not set %s from cfg", key)
 	}
 }
 

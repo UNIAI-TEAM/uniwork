@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -8,10 +9,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -28,6 +32,7 @@ type OfficeFrameService struct {
 	// read of an ofs1. token re-run the source's own gate through it. Nil
 	// leaves the source routes not_found.
 	sources *DocumentSourceService
+	people  *PeopleService
 	key     []byte
 	ttl     time.Duration
 	now     func() time.Time
@@ -117,7 +122,11 @@ func NewOfficeFrameService(documents *DocumentService, secret string) *OfficeFra
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte("uniwork/office-frame/v1"))
-	return &OfficeFrameService{documents: documents, key: mac.Sum(nil), ttl: OfficeFrameTokenTTL, now: time.Now}
+	var people *PeopleService
+	if documents.q != nil || documents.orgs != nil {
+		people = NewPeopleService(documents.pool, documents.q, documents.orgs)
+	}
+	return &OfficeFrameService{documents: documents, people: people, key: mac.Sum(nil), ttl: OfficeFrameTokenTTL, now: time.Now}
 }
 
 // SetSources wires the source frame (UNI-1869). Without it the source routes
@@ -127,6 +136,16 @@ func (s *OfficeFrameService) SetSources(sources *DocumentSourceService) {
 		return
 	}
 	s.sources = sources
+}
+
+// SetPeople wires the organization directory reader used by OpenAvatar
+// (UNI-1986). When left unset, NewOfficeFrameService builds one over the
+// document service's queries and organization gate.
+func (s *OfficeFrameService) SetPeople(people *PeopleService) {
+	if s == nil || people == nil {
+		return
+	}
+	s.people = people
 }
 
 // SetClock replaces the clock (tests).
@@ -260,6 +279,9 @@ func (s *OfficeFrameService) load(ctx context.Context, actor Actor, documentID s
 	if file == nil {
 		return OfficeFrameDocument{}, ErrNotFound
 	}
+	if isTxtFilename(file.Filename) && !s.documents.txtOpenEnabled(ctx, actor.ID, doc.WorkspaceID, doc.OrganizationID) {
+		return OfficeFrameDocument{}, ErrNotFound
+	}
 	module, ok := officeFrameModuleOf(file.MimeType, file.Filename)
 	if !ok {
 		return OfficeFrameDocument{}, ErrNotFound
@@ -385,6 +407,7 @@ func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClai
 			fileIDs = append(fileIDs, files.FileID(v.FileID.String))
 		}
 	}
+	txtOpen := s.documents.txtOpenEnabled(ctx, claims.UserID, claims.WorkspaceID, claims.OrganizationID)
 	names := s.fileNames(ctx, claims, fileIDs)
 	for _, doc := range candidates {
 		v, ok := byID[doc.FileVersionID.String]
@@ -393,7 +416,10 @@ func (s *OfficeFrameService) Recents(ctx context.Context, claims OfficeFrameClai
 		}
 		name := doc.Title
 		if n := names[files.FileID(v.FileID.String)]; n != "" {
-			name = n
+			name = s.documents.versionFilename(ctx, doc, v, n)
+		}
+		if isTxtFilename(name) && !txtOpen {
+			continue
 		}
 		if m, ok := officeFrameModuleOf(v.MimeType.String, name); !ok || m != claims.ModuleName() {
 			continue
@@ -523,4 +549,137 @@ func (s *OfficeFrameService) AbortUploadSession(ctx context.Context, claims Offi
 		return err
 	}
 	return s.documents.AbortFrameUploadSession(ctx, claims, documentID, sessionID)
+}
+
+const (
+	// officeFrameAvatarMaxBytes is the user_avatar upload cap (2 MiB, FS-C1).
+	officeFrameAvatarMaxBytes int64 = 2 << 20
+	officeFrameAvatarSniffLen       = 512
+)
+
+type officeFrameReadCloser struct {
+	io.Reader
+	io.Closer
+}
+
+// OpenAvatar streams a same-organization member's file-backed avatar to an
+// Office web frame (UNI-1986). Every "nothing to serve" case — another
+// organization, a deactivated member, no avatar, a legacy or external
+// avatar_url, a missing/locked/deleted/out-of-scope file, a genuine missing
+// storage object (storage.ErrNotFound), a non-ULID userID, bytes over 2 MiB,
+// or bytes whose first 512 bytes do not sniff as PNG, JPEG, GIF or WebP (never
+// SVG) — returns ErrNotFound so the handler answers one uniform 404. Transient
+// storage/read or DB failures after authorization travel through filesError so
+// mapServiceError answers 5xx instead of a negatively cached 404.
+func (s *OfficeFrameService) OpenAvatar(ctx context.Context, claims OfficeFrameClaims, userID string) (files.Reader, error) {
+	if s == nil {
+		return files.Reader{}, ErrNotFound
+	}
+	d, err := s.Authorize(ctx, claims)
+	if err != nil {
+		return files.Reader{}, err
+	}
+	if !isOfficeFrameULID(userID) || s.people == nil {
+		return files.Reader{}, ErrNotFound
+	}
+	fileID, err := s.people.AvatarFileOf(ctx, d.Document.OrganizationID, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return files.Reader{}, ErrNotFound
+		}
+		return files.Reader{}, err
+	}
+	fs := s.avatarFiles()
+	if fs == nil {
+		return files.Reader{}, ErrNotFound
+	}
+	rd, err := fs.Open(ctx, files.OpenInput{
+		Scope:   files.Scope{UserID: userID},
+		FileID:  fileID,
+		Variant: files.VariantThumb,
+	})
+	if err != nil {
+		return files.Reader{}, officeFrameAvatarOpenError(err)
+	}
+	if rd.File.SizeBytes <= 0 || rd.File.SizeBytes > officeFrameAvatarMaxBytes {
+		_ = rd.Close()
+		return files.Reader{}, ErrNotFound
+	}
+	var head [officeFrameAvatarSniffLen]byte
+	n, rerr := io.ReadFull(rd.Body, head[:])
+	if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+		_ = rd.Close()
+		return files.Reader{}, officeFrameAvatarOpenError(files.StorageUnavailable(rerr))
+	}
+	ct, ok := officeFrameAvatarContentType(head[:n])
+	if !ok {
+		_ = rd.Close()
+		return files.Reader{}, ErrNotFound
+	}
+	rd.File.ContentType = ct
+	rd.Body = &officeFrameReadCloser{
+		Reader: io.LimitReader(io.MultiReader(bytes.NewReader(head[:n]), rd.Body), rd.File.SizeBytes),
+		Closer: rd.Body,
+	}
+	return rd, nil
+}
+
+// officeFrameAvatarOpenError keeps every genuine "nothing to serve" refusal
+// (including a missing storage object wrapped in files.StorageUnavailable) as
+// ErrNotFound, while preserving transient storage outages and non-files.Error
+// DB/context errors for mapServiceError's 5xx handling (RBF-01, RBF-06).
+func officeFrameAvatarOpenError(err error) error {
+	if errors.Is(err, storage.ErrNotFound) {
+		return ErrNotFound
+	}
+	var fe *files.Error
+	if errors.As(err, &fe) {
+		if fe.Code == files.CodeStorageUnavailable {
+			return filesError(fe)
+		}
+		return ErrNotFound
+	}
+	return filesError(err)
+}
+
+func (s *OfficeFrameService) avatarFiles() files.Service {
+	if s.people != nil && s.people.files != nil {
+		return s.people.files
+	}
+	if s.documents != nil {
+		return s.documents.files
+	}
+	return nil
+}
+
+func isOfficeFrameULID(id string) bool {
+	if len(id) != 26 {
+		return false
+	}
+	for i := range len(id) {
+		c := id[i]
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'A' && c <= 'H':
+		case c == 'J' || c == 'K':
+		case c >= 'M' && c <= 'N':
+		case c >= 'P' && c <= 'T':
+		case c >= 'V' && c <= 'Z':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func officeFrameAvatarContentType(head []byte) (string, bool) {
+	if len(head) == 0 {
+		return "", false
+	}
+	switch ct := http.DetectContentType(head); ct {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return ct, true
+	default:
+		return "", false
+	}
 }

@@ -123,7 +123,8 @@ test("discussion panel posts, replies, edits, resolves, reopens and survives a r
   await editBox.fill("Bài thảo luận đã sửa");
   await rail.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(rail.getByText("Bài thảo luận đã sửa").first()).toBeVisible({ timeout: 30_000 });
-  await rail.getByRole("button", { name: /^Đã sửa/ }).first().click();
+  // UNI-1970: the edited marker is the history toggle; the "Đã sửa · time" text is its title now.
+  await rail.getByRole("button", { name: "(đã sửa)", exact: true }).first().click();
   await expect(rail.getByText("Bản hiện tại")).toBeVisible({ timeout: 30_000 });
   await expect(rail.getByText("Bài thảo luận đầu tiên").first()).toBeVisible({ timeout: 30_000 });
 

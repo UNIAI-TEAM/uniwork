@@ -39,40 +39,96 @@ func escapeILIKEPattern(query string) string {
 	return b.String()
 }
 
-// SearchRoomMessages finds text messages in a room matching query (does not update last_read_at).
-func (s *ChatService) SearchRoomMessages(
-	ctx context.Context, userID, workspaceID, roomID string, in SearchChatMessagesInput,
-) ([]ChatMessageRow, error) {
-	query := strings.TrimSpace(in.Query)
+// chatSearchPattern checks a query's length and folds it into the ILIKE
+// pattern the queries compare with uw_fold_search(body), so "hop" finds "Họp".
+func chatSearchPattern(raw string) (string, error) {
+	query := strings.TrimSpace(raw)
 	if utf8.RuneCountInString(query) < minChatSearchQueryRunes {
-		return nil, Invalid("từ khóa tìm kiếm quá ngắn")
+		return "", Invalid("từ khóa tìm kiếm quá ngắn")
 	}
 	if utf8.RuneCountInString(query) > maxChatSearchQueryRunes {
-		return nil, Invalid("từ khóa tìm kiếm quá dài")
+		return "", Invalid("từ khóa tìm kiếm quá dài")
 	}
-	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
-	if err != nil {
-		return nil, err
-	}
-	limit := in.Limit
+	return "%" + escapeILIKEPattern(foldForSearch(query)) + "%", nil
+}
+
+func chatSearchLimit(limit int) int32 {
 	if limit <= 0 {
 		limit = defaultChatSearchLimit
 	}
 	if limit > maxChatSearchLimit {
 		limit = maxChatSearchLimit
 	}
-	var before pgtype.Timestamptz
-	if in.Before != nil {
-		before = pgtype.Timestamptz{Time: *in.Before, Valid: true}
+	return int32(limit)
+}
+
+func chatSearchBefore(before *time.Time) pgtype.Timestamptz {
+	if before == nil {
+		return pgtype.Timestamptz{}
 	}
-	// The query compares against uw_fold_search(body), so "hop" finds "Họp".
-	pattern := "%" + escapeILIKEPattern(foldForSearch(query)) + "%"
+	return pgtype.Timestamptz{Time: *before, Valid: true}
+}
+
+// The sidebar's two lists: Tin nhắn (the organization's DMs and groups) and a
+// workspace (its room and channels).
+var chatSearchScopes = map[string]bool{"messages": true, "workspace": true}
+
+// SearchMessages finds text messages across every room the reader is an
+// active member of, within one scope (UniChat's sidebar search), newest
+// first. It moves no read pointer. Only text messages match, and they carry
+// no file or voice, so there is no media to sign.
+func (s *ChatService) SearchMessages(
+	ctx context.Context, userID, workspaceID, scope string, in SearchChatMessagesInput,
+) ([]ChatMessageRow, error) {
+	if !chatSearchScopes[scope] {
+		return nil, Invalid("phạm vi tìm kiếm không hợp lệ")
+	}
+	pattern, err := chatSearchPattern(in.Query)
+	if err != nil {
+		return nil, err
+	}
+	member, err := s.ws.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.SearchChatMessagesForMember(ctx, db.SearchChatMessagesForMemberParams{
+		UserID:         userID,
+		OrganizationID: member.OrganizationID,
+		Scope:          scope,
+		WorkspaceID:    workspaceID,
+		SearchPattern:  pattern,
+		BeforeAt:       chatSearchBefore(in.Before),
+		ResultLimit:    chatSearchLimit(in.Limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ChatMessageRow, 0, len(rows))
+	for _, row := range rows {
+		// Same columns as the room search's row: one mapping for both.
+		out = append(out, chatMessageRowFromSearchRow(db.SearchChatMessagesByRoomRow(row), userID))
+	}
+	return out, nil
+}
+
+// SearchRoomMessages finds text messages in a room matching query (does not update last_read_at).
+func (s *ChatService) SearchRoomMessages(
+	ctx context.Context, userID, workspaceID, roomID string, in SearchChatMessagesInput,
+) ([]ChatMessageRow, error) {
+	pattern, err := chatSearchPattern(in.Query)
+	if err != nil {
+		return nil, err
+	}
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.q.SearchChatMessagesByRoom(ctx, db.SearchChatMessagesByRoomParams{
 		RoomID:        roomID,
 		WorkspaceID:   roomAnchorWorkspaceID(room),
 		SearchPattern: pattern,
-		BeforeAt:      before,
-		ResultLimit:   int32(limit),
+		BeforeAt:      chatSearchBefore(in.Before),
+		ResultLimit:   chatSearchLimit(in.Limit),
 	})
 	if err != nil {
 		return nil, err
@@ -82,6 +138,7 @@ func (s *ChatService) SearchRoomMessages(
 		out = append(out, chatMessageRowFromSearchRow(row, userID))
 	}
 	s.signChatMedia(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, userID)
 	return out, nil
 }
 
@@ -155,6 +212,7 @@ func (s *ChatService) ListRoomMessagesAround(
 	}
 	s.signChatMedia(ctx, room, out)
 	s.attachThreadParticipants(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, userID)
 	return out, nil
 }
 

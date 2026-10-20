@@ -80,6 +80,8 @@ func TestIsolationMatrix(t *testing.T) {
 				status, raw := w.do(t, r.method, path, tn.token, spec.bodyFor(w, tn))
 				if !spec.controlOK(status, raw) {
 					t.Errorf("%s %s as %s owner = %d, want success on own ids: %s", r.method, r.pattern, tn.tag, status, isoClip(raw))
+				} else if spec.checkControl != nil {
+					spec.checkControl(t, tn, raw)
 				}
 			}
 		}
@@ -101,7 +103,19 @@ func TestIsolationMatrix(t *testing.T) {
 			if !ok {
 				continue
 			}
-			w.attack(t, r.method+" "+r.pattern, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), spec.refused)
+			label := r.method + " " + r.pattern
+			if spec.uniformAnswer != "" {
+				// A uniform route answers an outsider with the same 202 it
+				// gives an unknown id: the check holds that equality and the
+				// no-row rule, then the ordinary change/leak/reference checks
+				// run through attackAs against the answer it produced.
+				w.isoUniformCheck(t, label, r.method, r.pattern, spec, path+isoQuery(spec.query, w.alpha))
+				w.attackAs(t, isoCaller{name: "B's owner", token: w.bravo.token}, label,
+					r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha),
+					func(status int, raw []byte) bool { return status < 500 })
+				continue
+			}
+			w.attack(t, label, r.method, path+isoQuery(spec.query, w.alpha), spec.bodyFor(w, w.alpha), spec.refused)
 		}
 	})
 
@@ -178,6 +192,7 @@ func TestIsolationMatrix(t *testing.T) {
 	// the Markdown document's own, either tenant's), session token, other
 	// tenant's signature or bare path does.
 	t.Run("frame-linked", w.frameLinkedChecks)
+	t.Run("frame-avatar", w.frameAvatarChecks)
 
 	// A change-feed cursor is bound to its account, organization and
 	// workspace: replayed by B's owner in B's own workspace it is invalid and
@@ -209,6 +224,9 @@ func TestIsolationMatrix(t *testing.T) {
 			label := "references " + c.method + " " + c.pattern + " " + c.what
 			raw := w.attack(t, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
 			c.checkMustNotContain(t, label, raw, w.alpha)
+			if c.afterAttack != nil {
+				c.afterAttack(t, w, label)
+			}
 		}
 	})
 
@@ -250,6 +268,9 @@ func TestIsolationMatrix(t *testing.T) {
 			label := "member-of-both references " + c.method + " " + c.pattern + " " + c.what
 			raw := w.attackAs(t, both, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
 			c.checkMustNotContain(t, label, raw, w.alpha)
+			if c.afterAttack != nil {
+				c.afterAttack(t, w, label)
+			}
 		}
 	})
 
@@ -613,6 +634,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "channelMessage")
 		case strings.HasSuffix(pattern, "/transcript"):
 			return tn.get(t, "voiceMessage")
+		case strings.HasSuffix(pattern, "/share-as-document"):
+			return tn.get(t, "fileMessage")
 		}
 		return tn.get(t, "message")
 	case "{followUpID}":
@@ -625,6 +648,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		return tn.get(t, "uploadSession")
 	case "{documentID}":
+		// DOC-07's access-request routes act on the requests the fixture
+		// seeded, which hang on their own page; naming that page lets the
+		// owner's own GET list and approve/decline calls reach those requests.
+		if strings.Contains(pattern, "/access-requests") {
+			return tn.get(t, "accessRequestDocument")
+		}
 		// The restore and purge routes act on a folder in the trash (E6 FD-02,
 		// RESTORE-01 §2): the folder kind is what the matrix varies on it, so
 		// the name it has to place back among live siblings is part of every
@@ -681,6 +710,16 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{lockID}":
 		return tn.get(t, "docEditLock")
 	case "{requestID}":
+		// DOC-07 reuses the {documentID,requestID} pair for its approve and
+		// decline routes; the fixture keys are distinct so an edit request and
+		// an access request are never confused, and approve and decline each
+		// close a request of their own (two pending rows, two requesters).
+		if strings.HasSuffix(pattern, "/decline") {
+			return tn.get(t, "accessRequestDecline")
+		}
+		if under("/access-requests/") {
+			return tn.get(t, "accessRequest")
+		}
 		return tn.get(t, "docEditRequest")
 	case "{assetID}":
 		if under("/office-frame/") {
@@ -743,13 +782,10 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		// send the id percent-escaped (its colon travels as %3A, UNI-1815;
 		// url.PathEscape would keep a raw colon), so the matrix names it
 		// the way the wire does.
-		// The Office frame routes (UNI-1869) mint and serve a source token
-		// for a source one of the web modules opens: the seeded docx
-		// attachment, not the png one the download/save rows use.
-		if strings.Contains(pattern, "/office-frame/sources/") || strings.HasSuffix(pattern, "/office/frame-token") {
-			return "task%3A" + tn.get(t, "sourceDocx")
-		}
-		return "task%3A" + tn.get(t, "attachment")
+		// Only document files are sources (UNI-1967), so every source
+		// route - download, save and the Office frame mint/serve
+		// (UNI-1869) - names the seeded docx attachment, not the png.
+		return "task%3A" + tn.get(t, "sourceDocx")
 	case "{provider}":
 		return "google"
 	case "{resourceType}":
@@ -763,6 +799,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{nodeID}":
 		return tn.get(t, "task")
 	case "{userID}":
+		if under("/office-frame/") {
+			return tn.get(t, "frameAvatarUser")
+		}
 		return tn.peerID
 	case "{commentID}":
 		if strings.HasPrefix(pattern, "/api/v1/documents/") {

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
+import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notification-store";
 import { initI18n } from "@uniwork/core/i18n";
 import { registerSystemNotificationClickHandler } from "@uniwork/core/platform";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -253,12 +254,12 @@ describe("WorkspaceChatAttention", () => {
     });
 
     function stubBanners() {
-      const shown: Array<{ title: string; body?: string }> = [];
+      const shown: Array<{ title: string; body?: string; silent?: boolean }> = [];
       class FakeNotification {
         static permission = "granted";
         onclick: (() => void) | null = null;
         constructor(title: string, options?: NotificationOptions) {
-          shown.push({ title, body: options?.body });
+          shown.push({ title, body: options?.body, ...(options?.silent ? { silent: true } : {}) });
         }
         close() {}
       }
@@ -280,7 +281,20 @@ describe("WorkspaceChatAttention", () => {
       await deliverToComponent();
     }
 
-    afterEach(() => useActiveChatRoomStore.getState().setActiveRoom(null, null));
+    afterEach(() => {
+      useActiveChatRoomStore.getState().setActiveRoom(null, null);
+      useChatDeviceNotificationStore.setState({ sound: true, preview: true, badge: true });
+    });
+
+    it("keeps the text out and the sound off when this device says so", async () => {
+      const shown = stubBanners();
+      setHidden(true);
+      useChatDeviceNotificationStore.setState({ sound: false, preview: false });
+      const old = "2026-10-19T01:00:00Z";
+      rooms = [said("d1", "dm", old, "u2", "cũ")];
+      await loadThenReceive([said("d1", "dm", "2026-10-19T02:00:00Z", "u2", "Mật khẩu là…")]);
+      await waitFor(() => expect(shown).toEqual([{ title: "Trần Minh", body: "", silent: true }]));
+    });
 
     it("banners each new message from someone else with its list line, never a muted room or my own", async () => {
       const shown = stubBanners();

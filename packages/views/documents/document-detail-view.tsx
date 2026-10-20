@@ -18,6 +18,7 @@ import { documentKeys } from "@uniwork/core/documents/keys";
 import { useOrgMembers } from "@uniwork/core/organizations";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { clearDocumentAccessRequestSent } from "@uniwork/core/documents/hooks-access-requests";
+import { paths } from "@uniwork/core/paths";
 import type { Document } from "@uniwork/core/types/document";
 import type { DocumentBreakGlassGrant } from "@uniwork/core/types/document-access";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -63,7 +64,7 @@ export interface DocumentDetailViewProps {
   ownerHref?: (ownerId: string) => string;
   /** Called when the caller should go back to the library. */
   onBackToList: () => void;
-  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean; officeFormat?: string | null }>;
 }
 
 /**
@@ -98,6 +99,20 @@ export function DocumentDetailView({
   const accessDeepLink = nav?.searchParams.get("access") === "break_glass";
   const requestSource = useRequestSourceFromUrl(documentId);
   const loaded = !!query.data;
+  // A folder has no file or body of its own: its page is the library opened on it,
+  // so the detail URL hands over instead of showing the no-file banner (UNI-1994).
+  // A refetch that errored keeps the cached folder: the revoked or error card wins over the hand-over.
+  const folderId = enabled && !error && query.data?.kind === "folder" ? query.data.id : null;
+  const workspaceCtx = useOptionalWorkspace();
+  const folderHref = folderId
+    ? workspaceCtx
+      ? paths.workspace(workspaceCtx.workspace.organization_slug, workspaceCtx.workspace.slug).documentsFolder(folderId)
+      : `${libraryHref}?folder=${encodeURIComponent(folderId)}`
+    : null;
+  const replace = nav?.replace;
+  useEffect(() => {
+    if (folderHref && replace) replace(folderHref);
+  }, [folderHref, replace]);
   // An open document ends any request this device sent for it (F-08).
   useEffect(() => {
     if (loaded) clearDocumentAccessRequestSent(documentId);
@@ -181,7 +196,6 @@ export function DocumentDetailView({
 
   // The locked card names the ACL owner from the member list; an owner the
   // list does not know reads as a neutral label, never as an id.
-  const workspaceCtx = useOptionalWorkspace();
   const orgMembers = useOrgMembers(showLockedAdmin ? (workspaceCtx?.workspace.organization_slug ?? "") : "");
   const memberRows = useMemo(
     () => orgMembers.data?.pages.flatMap((page) => page.members) ?? [],
@@ -223,7 +237,7 @@ export function DocumentDetailView({
     return <DocumentsGateState gate={gate} retry={retryGate} className="mx-auto w-full max-w-3xl" />;
   }
 
-  if (query.isPending) {
+  if (query.isPending || (folderHref && replace)) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pt-12 md:pt-16" aria-busy="true">
         <Skeleton className="mb-8 h-10 w-2/3" />
@@ -383,6 +397,7 @@ export function DocumentDetailView({
           source={requestSource}
           onRetryOpen={() => void query.refetch()}
           retrying={query.isFetching}
+          answeredAt={query.errorUpdatedAt}
           onBack={onBackToList}
         />
       );
@@ -435,6 +450,7 @@ export function DocumentDetailView({
             key={workspaceDoc.id}
             wsId={wsId}
             doc={workspaceDoc}
+            bodyRefreshing={query.isFetching}
             libraryHref={libraryHref}
             documentHref={documentHref}
             ownerHref={ownerHref}
@@ -451,7 +467,7 @@ export function DocumentDetailView({
           />
           <DocumentCommentsPanel />
         </div>
-        {!resolvedDoc.owner_kind && shareOpen ? (
+        {!resolvedDoc.owner_kind && resolvedDoc.kind !== "folder" && shareOpen ? (
           <ShareDialog
             open={shareOpen}
             onOpenChange={setShareOpen}

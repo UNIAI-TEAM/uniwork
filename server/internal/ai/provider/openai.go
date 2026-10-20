@@ -112,9 +112,11 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 	if len(req.Tools) > 0 && len(req.JSONSchema) == 0 {
 		tools := make([]map[string]any, 0, len(req.Tools))
 		for _, t := range req.Tools {
-			tools = append(tools, map[string]any{"type": "function", "function": map[string]any{
-				"name": t.Name, "description": t.Description, "parameters": json.RawMessage(t.Schema),
-			}})
+			fn := map[string]any{"name": t.Name, "description": t.Description, "parameters": json.RawMessage(t.Schema)}
+			if t.Strict {
+				fn["strict"] = true
+			}
+			tools = append(tools, map[string]any{"type": "function", "function": fn})
 		}
 		body["tools"] = tools
 	}

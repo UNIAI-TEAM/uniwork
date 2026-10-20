@@ -25,16 +25,15 @@ import {
  * The Docs frame's own dialog marker is `data-docs-web`; S5_MASK accepts it and `data-office-web`, so a re-pin
  * (REPIN-1) runs this file unchanged: the pin is read from docs.pin.json, never written here.
  *
- * A rule the pinned frame is known to break is a BLOCKING finding: the test
- * reaches the state, then `finding()` marks the rest expected-to-fail with the
- * finding id (a failure before that is a real failure; an unexpected pass means
- * the product was fixed and the marker goes).
- *
- * Reading an expected-fail: `test.fail` also absorbs a timeout or a throw after the state was reached, so read
- * each expected-fail's error against the rule in its `finding` annotation; an error that is not about that rule
- * (a timeout, a selector that slipped) is a real failure. (`expect.soft` under test.fail would absorb the same.)
+ * Every check runs as a normal test: earlier revisions could mark a rule the
+ * pinned frame was known to break expected-to-fail, and UNI-1872 removed the
+ * last marker. UXF ids in comments keep the checklist history.
  *
  * Run with OFFICE_UX_FLOOR_E2E=1 (server with AI_PROVIDER=fake for S7/S9).
+ * S9 also needs AI_CONVERSATION_KEY on that server: without it there is no transcript store, so the first
+ * UniWork AI turn answers 503 ai_disabled (ConversationStorePG.Create refuses, uniworkStoreErr maps it) and the
+ * frame shows an error line instead of an answer. Give each run its own key (`openssl rand -base64 32`), never a
+ * committed one.
  */
 test.describe.configure({ timeout: 240_000 });
 test.skip(process.env.OFFICE_UX_FLOOR_E2E !== "1", "Set OFFICE_UX_FLOOR_E2E=1 to run the G7-09 UX floor checks.");
@@ -446,8 +445,14 @@ test.describe("UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own bef
         const sendBtn = frame.locator(".ai-send-btn:not(.ai-stop-btn)").first();
         await expect(sendBtn, "S9: Send is enabled after the disclosure acknowledgement").not.toHaveAttribute("aria-disabled", "true");
         await sendBtn.click();
-        await frame.locator(".ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions, .ai-chat .ai-msg-error").first().waitFor({ state: "visible", timeout: 90_000 });
-        await audit(frame, ".ai-chat", "S9 result/error", mode);
+        // S9: the turn reached its end, then the error line is checked explicitly. The pinned frame's action toolbar
+        // also appears on a failed turn (its `showToolbar` accepts `entry.error`), so the toolbar alone does not prove
+        // an answer; the assertion below is what does. `.ai-msg-error` is exactly what a frame whose same-origin AI
+        // POST never reached the API shows (split-origin, before the app proxied the frame AI routes).
+        await frame.locator(".ai-chat .ai-msg-toolbar").first().waitFor({ state: "visible", timeout: 90_000 });
+        const errorLine = await frame.locator(".ai-chat .ai-msg-error").first().isVisible().catch(() => false);
+        expect(errorLine, "S9: the UniWork AI turn rendered an error line, not an answer — the frame's AI POST must reach the API (on a split-origin setup the app rewrites /api/v1/office-frame/documents/{id}/ai/... to NEXT_PUBLIC_API_URL)").toBe(false);
+        await audit(frame, ".ai-chat", "S9 result", mode);
         await shot(frame, `s9-result-${mode}-${locale}`);
       });
     }

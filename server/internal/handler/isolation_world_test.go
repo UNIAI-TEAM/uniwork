@@ -193,8 +193,13 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	// back to 2 minutes. No DocumentEditLockSweeper runs here, as no
 	// dispatcher does.
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
+	docs.SetAccessRequestSources(d.Tasks, d.Meetings)
 	d.Documents = docs
 	d.Meetings.Docs = docs
+	// The chat document send files its bytes into the same Documents service
+	// (UNI-1966): without it the route answers 501 and the isolation row
+	// proves nothing.
+	d.Chat.SetDocuments(docs)
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
 	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
 	d.McpAuth.SetFlags(mcpTestFlags(true))
@@ -288,6 +293,12 @@ type isoBody struct {
 	json      any
 	multipart *isoMultipart
 	headers   map[string]string
+	// raw is sent as is under a JSON content type, for a body that is not valid
+	// JSON or is too large to build from a value.
+	raw []byte
+	// noBody sends a write with a zero-length body and no Content-Type, the way
+	// the desktop's lease client grants (the default injects "{}" instead).
+	noBody bool
 }
 
 type isoMultipart struct {
@@ -324,6 +335,10 @@ func (w *isoWorld) do(t *testing.T, method, path, token string, body isoBody) (i
 		_, _ = part.Write(body.multipart.content)
 		_ = mw.Close()
 		rd, contentType = &buf, mw.FormDataContentType()
+	case body.noBody:
+		rd = http.NoBody
+	case body.raw != nil:
+		rd, contentType = bytes.NewReader(body.raw), "application/json"
 	case body.json != nil:
 		raw, err := json.Marshal(body.json)
 		if err != nil {
@@ -784,6 +799,10 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	})
 	tn.ids["docUpload"] = isoString(t, out, "upload_id")
 	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
+		filename: strings.ToLower(m) + "-v3.md", contentType: "text/markdown", content: []byte("# " + m + " chat commit body\n"),
+	})
+	tn.ids["chatCommitUpload"] = isoString(t, out, "upload_id")
+	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
 		filename: strings.ToLower(m) + "-copy.md", contentType: "text/markdown", content: []byte("# " + m + " copy body\n"),
 	})
 	tn.ids["copyUpload"] = isoString(t, out, "upload_id")
@@ -1175,5 +1194,33 @@ func (w *isoWorld) buildEditLocks(t *testing.T, tn *isoTenant) {
 		VALUES ($1, $2, $3, $4, $5, $6, 'pending', now() + interval '1 hour')`,
 		tn.ids["docEditRequest"], tn.orgID, tn.ids["lockDocument"], tn.ids["docEditLock"], tn.peerID, tn.userID); err != nil {
 		t.Fatalf("edit request: %v", err)
+	}
+	// DOC-07 (UNI-1631): pending access requests the tenant's PEER and THIRD
+	// sent on a workspace-visible page, so the tenant's owner (who may
+	// administer it) sees them in the list and can approve one and decline the
+	// other, while the peer is refused administering the same document. Two
+	// requesters give the approve and the decline control a row each, so the
+	// write-control pass does not close one with the other. The document is a
+	// fresh one so neither decision disturbs a page a later case reads.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{"title": m + " Access-request page", "kind": "page", "visibility": "workspace"})
+	tn.ids["accessRequestDocument"] = isoID(t, out, "document")
+	for _, r := range []struct {
+		key        string
+		requester  string
+		level      string
+		message    string
+		sourceKind any
+		sourceID   any
+	}{
+		{"accessRequest", tn.peerID, "view", m + " access request message", "task", tn.ids["task"]},
+		{"accessRequestDecline", tn.thirdID, "edit", m + " decline access request message", nil, nil},
+	} {
+		tn.ids[r.key] = util.NewID()
+		if _, err := w.pool.Exec(ctx, `INSERT INTO document_access_requests
+			(id, organization_id, workspace_id, document_id, created_by, created_by_kind, requested_level, message, source_kind, source_id, status, expires_at)
+			VALUES ($1, $2, $3, $4, $5, 'human', $6, $7, $8, $9, 'pending', now() + interval '30 days')`,
+			tn.ids[r.key], tn.orgID, tn.wsID, tn.ids["accessRequestDocument"], r.requester, r.level, r.message, r.sourceKind, r.sourceID); err != nil {
+			t.Fatalf("access request: %v", err)
+		}
 	}
 }

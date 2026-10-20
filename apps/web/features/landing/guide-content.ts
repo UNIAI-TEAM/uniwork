@@ -1,9 +1,10 @@
 import type { SupportedLocale } from "@uniwork/core/i18n/types";
 import { officeFormatsTable, type GuideTable } from "./guide-product-facts";
+import { privacyContent } from "./privacy-content";
 
 type Section = { title: string; paragraphs: string[]; steps?: string[]; table?: GuideTable; illustration?: { alt: string; caption: string }; example?: { label: string; title: string; description: string } };
 export type GuideContent = { introduction: string; sections: Section[]; related: string[] };
-/** Product facts and instructions; legal commitments are supplied separately. */
+/** Product facts and instructions; the privacy policy, a legal commitment, lives in privacy-content.ts. */
 const content: Record<string, Record<SupportedLocale, GuideContent>> = {
   "start-with-tasks": {
     vi: { introduction: "Để bắt đầu quản lý công việc trong UniWork, mở workspace của nhóm, tạo việc với kết quả mong muốn, chọn người phụ trách rồi theo dõi trạng thái trong danh sách hoặc bảng công việc.", sections: [
@@ -82,6 +83,7 @@ const content: Record<string, Record<SupportedLocale, GuideContent>> = {
 };
 
 export function guideContent(key: string, locale: SupportedLocale): GuideContent {
+  if (key === "privacy") return privacyContent(locale);
   const result = content[key]?.[locale];
   if (!result) throw new Error(`Unknown guide: ${key}`);
   return result;

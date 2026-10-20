@@ -145,8 +145,8 @@ describe("home layout (Main.dc)", () => {
     );
     expect(screen.getByRole("button", { name: t("documents.home.create.upload.button") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) })).toBeInTheDocument();
-    // The root-create hint stays until MYFOLDER-01.
-    expect(screen.getByText(t("documents.home.quick_create.hint_root"))).toBeInTheDocument();
+    // No My Folder root-create hint line under Tạo nhanh (user 2026-10-19).
+    expect(screen.queryByText(/Thư mục của tôi \(chỉ bạn thấy\)/)).toBeNull();
 
     // The greeting, the create card grid, the scope tabs and the old chips are gone.
     expect(screen.queryByRole("tablist")).toBeNull();
@@ -245,7 +245,15 @@ describe("home layout (Main.dc)", () => {
     });
     renderView();
     const section = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
-    fireEvent.click(await within(section).findByRole("button", { name: t("documents.home.row.menu", { title: "Sai đẹp chiêu" }) }));
+    const trigger = await within(section).findByRole("button", { name: t("documents.home.row.menu", { title: "Sai đẹp chiêu" }) });
+    // The ⋯ sits inside the card's right edge, not in the gap between cards:
+    // pinned over the card (absolute in a relative item) with room reserved on the card.
+    const card = within(section).getByRole("button", { name: /^Sai đẹp chiêu/ });
+    expect(trigger.parentElement).toBe(card.parentElement);
+    expect(card.parentElement).toHaveClass("relative");
+    expect(trigger).toHaveClass("absolute", "right-2");
+    expect(card).toHaveClass("pr-12");
+    fireEvent.click(trigger);
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.star") }));
     await waitFor(() =>
       expect(
@@ -275,16 +283,24 @@ describe("folder layout (Folder.dc)", () => {
 
     const crumb = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     expect(within(crumb).getByRole("button", { name: t("documents.home.sidebar.home") })).toBeInTheDocument();
+    // One row (UNI-1977): the folder name is the breadcrumb leaf, once; the
+    // rename pencil and the folder menu sit right beside it, and the actions
+    // share the header row container.
     const heading = await screen.findByRole("heading", { level: 1, name: "Dự án CCB" });
+    expect(crumb).toContainElement(heading);
     const menuButton = screen.getByRole("button", { name: t("documents.home.folder.menu") });
+    expect(crumb).toContainElement(menuButton);
+    expect(crumb).toContainElement(screen.getByRole("button", { name: t("documents.home.folders.rename") }));
     expect(within(heading).queryByRole("button")).toBeNull();
-    expect(heading.parentElement).toContainElement(menuButton);
+    const row = crumb.parentElement?.parentElement;
+    expect(within(row as HTMLElement).getAllByText("Dự án CCB")).toHaveLength(1);
+    expect(row).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
+    expect(row).toContainElement(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toHaveAttribute(
       "placeholder",
       t("documents.home.search.placeholder_folder"),
     );
-    expect(screen.getByText(t("documents.home.folder.info_banner", { folder: "Dự án CCB" }))).toBeInTheDocument();
-    expect(screen.queryByText(t("documents.home.quick_create.hint_root"))).toBeNull();
+    expect(screen.queryByText(/Dự án CCB”/)).toBeNull();
 
     // No Tạo nhanh strip, no scope tabs, no chip group, no filters inside a folder.
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
@@ -292,6 +308,56 @@ describe("folder layout (Folder.dc)", () => {
     expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
     expect(screen.queryByRole("combobox", { name: new RegExp(t("documents.home.filters.editor")) })).toBeNull();
     expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
+  });
+
+  it("gives up space in order on the header row: ancestors and home crumb first, the folder name last (UNI-1977 fix)", async () => {
+    route({
+      ...folderRoutes(),
+      detail: (id) =>
+        id === "fo1"
+          ? folderDetail({ breadcrumbs: [{ id: "fa", title: "Khách hàng" }, { id: "fo1", title: "Dự án CCB" }] })
+          : null,
+    });
+    renderView(`/acme/doi/documents?folder=fo1`);
+    const heading = await screen.findByRole("heading", { level: 1, name: "Dự án CCB" });
+    const crumb = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
+    const home = within(crumb).getByRole("button", { name: t("documents.home.sidebar.home") });
+    const ancestor = within(crumb).getByRole("button", { name: "Khách hàng" });
+
+    // Flex shrink is weighted by factor x size: the home crumb and the ancestors carry a far
+    // higher factor than the leaf, and each keeps a minimum width so it never slides under
+    // its neighbour (jsdom has no layout: pin the classes, the e2e pins the pixels).
+    // The minimums are small on purpose (UNI-1994): once the ancestors sit at them the leaf starts
+    // to ellipsize, so they give up all but a chevron and an ellipsis before it does.
+    expect(home).toHaveClass("min-w-6", "shrink-[1000000]", "truncate");
+    expect(ancestor.parentElement).toHaveClass("min-w-7", "shrink-[1000000]");
+    // On a coarse pointer the button is 44px wide: its span holds the chevron (14px) and the gap
+    // (4px) beside it (62px), or the button overflows and overlaps the next crumb. The home crumb
+    // is the button itself, so its own minimum already carries the touch target.
+    expect(ancestor.parentElement).toHaveClass("pointer-coarse:min-w-15.5");
+    expect(home).toHaveClass("pointer-coarse:min-w-11");
+    expect(ancestor).toHaveClass("min-w-0", "truncate");
+    // The leaf keeps the default factor (1) and the crumbs carry a million (UNI-1994): at 1000 the
+    // leaf still lost a sub-pixel next to them, so a 156px name ellipsized by 0.1px. A factor near zero
+    // on the leaf fixes that but overflows the row for a long name (the factors of what is left sum
+    // below 1, so flex hands out only that fraction of the deficit). min-w-0 and truncate keep a
+    // really long name cut.
+    expect(heading.parentElement).toHaveClass("min-w-0");
+    expect(heading.parentElement).not.toHaveClass("shrink-[1000000]", "shrink-[0.001]", "shrink-0");
+    expect(heading).toHaveClass("min-w-10", "truncate");
+
+    // The row is a size container (the sidebars decide the width, not the viewport): the
+    // breadcrumb and the actions share row one, the search box moves under them until the
+    // row is wide enough to hold it beside the actions.
+    const box = crumb.parentElement as HTMLElement;
+    const row = box.parentElement as HTMLElement;
+    expect(row).toHaveClass("@container", "flex-wrap");
+    expect(row).not.toHaveClass("flex-nowrap", "lg:flex-nowrap");
+    const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
+    expect(search).toHaveClass("order-last", "basis-full", "@min-[60rem]:order-none", "@min-[60rem]:w-56");
+    const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
+    expect(row.lastElementChild).toHaveClass("shrink-0");
+    expect(row.lastElementChild).toContainElement(create);
   });
 
   it("lists subfolders as cards under their own section, and documents under Tài liệu", async () => {

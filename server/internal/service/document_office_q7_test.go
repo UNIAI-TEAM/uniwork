@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -311,6 +313,124 @@ func TestDocumentOfficeQ7(t *testing.T) {
 			}
 			if got := env.job(t, row.ID); got.CommittedVersionID.Valid {
 				t.Fatal("a refused accept claimed the job")
+			}
+		})
+
+		// BE-12-301 (G5-13 A95): the seat refusal above is the PRE-FLIGHT one -
+		// the fixture never holds a seat, so CopyDocument refuses before
+		// acceptConversion runs and the in-transaction seat recheck is never
+		// reached. This case holds the seat through the pre-flight and removes
+		// it before the accept, so only the in-transaction recheck can refuse:
+		// no copy is accepted and the completed job stays unspent. The hook
+		// rides on ResolveMany, the one FileService call acceptConversion makes
+		// between the two checks (resolveUpload).
+		t.Run("a seat removed after the pre-flight refuses the accept in the transaction", func(t *testing.T) {
+			src := env.createFile(t, member, "seat-removed.xls", xls)
+			// Edit comes from a user share, so it outlives the seat: the in-tx
+			// document gate still passes and only the seat check can refuse.
+			if _, err := env.f.pool.Exec(ctx,
+				`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
+				src.Document.ID, env.tn.member.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.svc.ShareDocument(ctx, member, src.Document.ID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalUser, PrincipalID: env.tn.outsider.ID, Level: DocumentLevelEdit,
+			}); err != nil {
+				t.Fatalf("share: %v", err)
+			}
+			// The share editor holds a seat for the pre-flight (raw SQL: no API
+			// seats the outsider fixture user).
+			acceptor := human(env.tn.outsider)
+			if _, err := env.f.pool.Exec(ctx,
+				`INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
+				 SELECT id, $2, 'member', organization_id FROM workspaces WHERE id = $1`,
+				env.tn.wsA, env.tn.outsider.ID); err != nil {
+				t.Fatal(err)
+			}
+			eng := convertOnly()
+			jobs := newJobs(eng)
+			row, err := jobs.StartOfficeJobForDocument(ctx, acceptor, src.Document.ID, OfficeJobRequest{
+				Operation: string(office.OperationConvert), TargetFormat: string(office.FormatXLSX), IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "start convert")
+			eng.finishConvert(t, row.ID, converted, q7Result("xls", "xlsx"))
+			hook := &seatRemovingFiles{Service: env.fs, remove: func() {
+				if _, err := env.f.pool.Exec(ctx,
+					`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, env.tn.wsA, env.tn.outsider.ID); err != nil {
+					t.Fatal(err)
+				}
+			}}
+			env.svc.SetFiles(hook)
+			t.Cleanup(func() { env.svc.SetFiles(env.fs) })
+			before := q7DocCount(t, env)
+			_, err = env.svc.CopyDocument(ctx, acceptor, src.Document.ID, CopyDocumentInput{
+				Consent: "copy", JobID: row.ID, IdempotencyKey: util.NewID(),
+			})
+			if !hook.fired {
+				t.Fatal("the seam never ran: the pre-flight no longer precedes the accept's ResolveMany")
+			}
+			if !errors.Is(err, ErrWorkspaceSeatRequired) {
+				t.Fatalf("accept after the seat was removed = %v, want ErrWorkspaceSeatRequired", err)
+			}
+			if ce := wantCode(t, err, "workspace_seat_required"); ce.Status != 403 {
+				t.Fatalf("seat refusal = %+v", ce)
+			}
+			if after := q7DocCount(t, env); after != before {
+				t.Fatal("a refused accept created a document")
+			}
+			if got := env.job(t, row.ID); got.CommittedVersionID.Valid {
+				t.Fatal("a refused accept claimed the job")
+			}
+		})
+
+		// G5-13 A98: the accept is a create in the source's workspace, so it is
+		// a tree write like the same-format copy - the workspace tree lock
+		// precedes the source row lock. A holder on the tree lock blocks the
+		// accept until it commits, which the old envelope (no tree lock) never
+		// did.
+		t.Run("the accept takes the workspace tree lock", func(t *testing.T) {
+			src := env.createFile(t, member, "tree-order.xls", xls)
+			eng := convertOnly()
+			jobs := newJobs(eng)
+			row := startConvert(t, jobs, src.Document.ID)
+			eng.finishConvert(t, row.ID, converted, q7Result("xls", "xlsx"))
+			// Settle the row to completed before the race: the accept only
+			// claims a completed job, and the engine's in-memory finish alone
+			// leaves the row accepted.
+			if done, err := jobs.GetOfficeJob(ctx, member, env.tn.orgID, env.tn.wsA, row.ID); err != nil || done.State != "completed" {
+				t.Fatalf("convert job = %+v, %v", done, err)
+			}
+			watch, err := pgx.ConnectConfig(ctx, env.f.pool.Config().ConnConfig.Copy())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = watch.Close(ctx) }()
+			holder, err := env.f.pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = holder.Rollback(ctx) }()
+			if err := env.f.q.WithTx(holder).LockDocumentTree(ctx, env.tn.wsA); err != nil {
+				t.Fatal(err)
+			}
+			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				_, err := env.svc.CopyDocument(cctx, member, src.Document.ID, CopyDocumentInput{
+					Consent: "copy", JobID: row.ID, IdempotencyKey: util.NewID(),
+				})
+				done <- err
+			}()
+			waitForLockWaitersOn(t, watch, 1)
+			if err := holder.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case err := <-done:
+				mustf(t, err, "accept after the tree lock was released")
+			case <-time.After(30 * time.Second):
+				t.Fatal("the accept did not finish after the tree lock was released")
 			}
 		})
 

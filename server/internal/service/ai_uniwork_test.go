@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
@@ -19,7 +21,7 @@ import (
 // on release; without Redis the shared bounds are dropped and this one still
 // holds. The refusal carries the Retry-After the handler sets.
 func TestAIUniworkConcurrencyBound(t *testing.T) {
-	limiter := newUniworkConcurrency(nil, 1, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second)
+	limiter := newUniworkConcurrency(nil, "ai:uniwork:", 1, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second)
 	ctx := context.Background()
 	release, err := limiter.Acquire(ctx, "01HZZZZZZZZZZZZZZZZZZZZZZZ")
 	if err != nil {
@@ -100,7 +102,7 @@ func TestAIUniworkEveryFrameModuleReachesThePack(t *testing.T) {
 // organization, and another organization is not affected. Only the
 // whole-deployment bound is the one a Redis-less deployment drops.
 func TestAIUniworkOrgBoundWithoutRedis(t *testing.T) {
-	limiter := newUniworkConcurrency(nil, UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second)
+	limiter := newUniworkConcurrency(nil, "ai:uniwork:", UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second)
 	ctx := context.Background()
 	orgA, orgB := "01HZZZZZZZZZZZZZZZZZZZZZZA", "01HZZZZZZZZZZZZZZZZZZZZZZB"
 
@@ -137,6 +139,12 @@ func TestAIUniworkOrgBoundWithoutRedis(t *testing.T) {
 // package's test database (each helper flushes and uses its own).
 const uniworkRedisTestDB = 10
 
+// UniWork AI's lease keys: its limiter takes them under "ai:uniwork:".
+const (
+	uniworkOrgLeasePrefix    = "ai:uniwork:org:"
+	uniworkGlobalLeasePrefix = "ai:uniwork:global"
+)
+
 // uniworkRedis connects to REDIS_TEST_URL, skipping the test when it is
 // unset, on this package's own database.
 func uniworkRedis(t *testing.T) *redis.Client {
@@ -162,7 +170,7 @@ func uniworkRedis(t *testing.T) *redis.Client {
 func TestAIUniworkLeasesExpireIndependently(t *testing.T) {
 	rdb := uniworkRedis(t)
 	ttl := 2 * time.Second
-	limiter := newUniworkConcurrency(rdb, 100, 2, 100, ttl)
+	limiter := newUniworkConcurrency(rdb, "ai:uniwork:", 100, 2, 100, ttl)
 	ctx := context.Background()
 	orgID := util.NewID()
 	orgKey, globalKey := uniworkOrgLeasePrefix+orgID, uniworkGlobalLeasePrefix
@@ -216,7 +224,7 @@ func TestAIUniworkRedisErrorFailsOpen(t *testing.T) {
 	_ = l.Close()
 	rdb := redis.NewClient(&redis.Options{Addr: addr, MaxRetries: 0})
 	defer func() { _ = rdb.Close() }()
-	limiter := newUniworkConcurrency(rdb, 1, 1, 1, UniworkDeadline+10*time.Second)
+	limiter := newUniworkConcurrency(rdb, "ai:uniwork:", 1, 1, 1, UniworkDeadline+10*time.Second)
 	ctx := context.Background()
 	release, err := limiter.Acquire(ctx, "01HZZZZZZZZZZZZZZZZZZZZZZZ")
 	if err != nil {
@@ -228,4 +236,47 @@ func TestAIUniworkRedisErrorFailsOpen(t *testing.T) {
 		t.Fatalf("Acquire past the pod bound with a dead Redis = %v, want ai_uniwork_busy", err)
 	}
 	release()
+}
+
+// FU-G7-12-WRAP (UNI-1985): attemptMessages stores turn.ToolResults in the
+// conversation transcript, which stays the raw client content without the
+// vendor-side <untrusted> wrapper.
+func TestAIUniworkAttemptMessagesKeepRawToolResults(t *testing.T) {
+	transcript := []provider.Message{
+		{Role: "user", Content: "Summarise slide 2."},
+		{Role: "assistant", ToolCalls: []provider.ToolCall{
+			{ID: "call_1", Name: "read_slide", Input: json.RawMessage(`{"slide":2}`)},
+		}},
+	}
+	allow := ai.UniworkModuleAllowlist(OfficeFrameModuleSlides, []ai.UniworkToolSpec{
+		{Type: "function", Function: ai.UniworkToolSpecFunction{
+			Name: "read_slide", Description: "read slide", Parameters: map[string]any{"type": "object"},
+		}},
+	}, false, true)
+	rawContent := `{"slide":2,"bullets":["Target: 120 units"]}`
+	body, err := json.Marshal(map[string]any{
+		"messages": []map[string]string{
+			{"role": "tool", "tool_call_id": "call_1", "content": rawContent},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, err := ai.PlanUniworkTurn(transcript, body, allow)
+	if err != nil {
+		t.Fatalf("PlanUniworkTurn: %v", err)
+	}
+	stored := attemptMessages(turn)
+	if len(stored) != 1 || stored[0].Message.Role != "tool" || stored[0].Message.ToolCallID != "call_1" {
+		t.Fatalf("attemptMessages = %+v, want one tool turn for call_1", stored)
+	}
+	if stored[0].Message.Content != rawContent {
+		t.Errorf("attemptMessages stored %q, want raw %q", stored[0].Message.Content, rawContent)
+	}
+	if p, ok := ai.LookupPrompt(ai.PromptOfficeUniworkAI); ok && p.Version >= 5 {
+		wantVendor := "<untrusted source=\"tool:read_slide\">\n" + rawContent + "\n</untrusted>"
+		if got := turn.History[len(turn.History)-1].Content; got != wantVendor {
+			t.Errorf("vendor History tool content = %q, want %q", got, wantVendor)
+		}
+	}
 }

@@ -55,6 +55,8 @@ func TestDocumentWorkersCommitIntentSweepTick(t *testing.T) {
 		const customTick = 15 * time.Millisecond
 		svc := NewDocumentService(nil, nil, nil, nil)
 		svc.SetCommitIntentPolicy(CommitIntentPolicy{SweepTick: customTick})
+		// Move the idempotency-key loop off the shared 10m default: this assertion is about the commit-intent loop.
+		svc.SetIdempotencyKeyPolicy(IdempotencyKeyPolicy{SweepTick: time.Hour})
 		w := svc.NewDocumentWorkers()
 		if w.IntentTick != customTick {
 			t.Fatalf("NewDocumentWorkers().IntentTick = %v, want %v", w.IntentTick, customTick)
@@ -99,6 +101,86 @@ func TestDocumentWorkersCommitIntentSweepTick(t *testing.T) {
 		}
 		if slices.Contains(ticks, commitIntentSweepTick) {
 			t.Fatalf("observed ticks %v still used default %v instead of override %v", ticks, commitIntentSweepTick, customTick)
+		}
+	})
+}
+
+func TestDocumentWorkersIdempotencyKeySweepTick(t *testing.T) {
+	t.Run("unset policy keeps idempotencyKeySweepTick default", func(t *testing.T) {
+		svc := NewDocumentService(nil, nil, nil, nil)
+		w := svc.NewDocumentWorkers()
+		if w.IdempotencyKeyTick != 0 {
+			t.Fatalf("IdempotencyKeyTick = %v, want 0 when policy SweepTick is unset", w.IdempotencyKeyTick)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var mu sync.Mutex
+		var ticks []time.Duration
+		w.after = func(d time.Duration) <-chan time.Time {
+			mu.Lock()
+			ticks = append(ticks, d)
+			if slices.Contains(ticks, idempotencyKeySweepTick) {
+				cancel()
+			}
+			mu.Unlock()
+			return make(chan time.Time)
+		}
+		w.Run(ctx)
+		if !slices.Contains(ticks, idempotencyKeySweepTick) {
+			t.Fatalf("observed ticks %v, want default %v (%v)", ticks, idempotencyKeySweepTick, 10*time.Minute)
+		}
+	})
+
+	t.Run("configured policy SweepTick threads into NewDocumentWorkers and Run", func(t *testing.T) {
+		const customTick = 15 * time.Millisecond
+		svc := NewDocumentService(nil, nil, nil, nil)
+		svc.SetIdempotencyKeyPolicy(IdempotencyKeyPolicy{SweepTick: customTick})
+		// Move the commit-intent loop off the shared 10m default: this assertion is about the idempotency-key loop.
+		svc.SetCommitIntentPolicy(CommitIntentPolicy{SweepTick: time.Hour})
+		w := svc.NewDocumentWorkers()
+		if w.IdempotencyKeyTick != customTick {
+			t.Fatalf("NewDocumentWorkers().IdempotencyKeyTick = %v, want %v", w.IdempotencyKeyTick, customTick)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		var mu sync.Mutex
+		var ticks []time.Duration
+		idempPasses := 0
+		w.swept = func(kind string, err error) {
+			if kind != "idempotency_key" {
+				return
+			}
+			if err != nil {
+				t.Errorf("idempotency_key sweep error: %v", err)
+			}
+			mu.Lock()
+			idempPasses++
+			if idempPasses >= 3 {
+				cancel()
+			}
+			mu.Unlock()
+		}
+		w.after = func(d time.Duration) <-chan time.Time {
+			mu.Lock()
+			ticks = append(ticks, d)
+			mu.Unlock()
+			if d == customTick {
+				ch := make(chan time.Time, 1)
+				time.AfterFunc(customTick, func() { ch <- time.Now() })
+				return ch
+			}
+			return make(chan time.Time)
+		}
+		w.Run(ctx)
+		if idempPasses < 3 {
+			t.Fatalf("idempotency_key passes = %d, want at least 3 on %v tick", idempPasses, customTick)
+		}
+		if !slices.Contains(ticks, customTick) {
+			t.Fatalf("observed ticks %v, want %v", ticks, customTick)
+		}
+		if slices.Contains(ticks, idempotencyKeySweepTick) {
+			t.Fatalf("observed ticks %v still used default %v instead of override %v", ticks, idempotencyKeySweepTick, customTick)
 		}
 	})
 }

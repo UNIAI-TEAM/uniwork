@@ -47,27 +47,29 @@ export interface DocumentShareScopeBadgeProps {
    * nest interactive controls); the label text then reads with its parent.
    */
   focusable?: boolean;
+  /**
+   * A caller-owned id for the composition text (SW-V4): when the badge is not
+   * focusable, the row's name button points `aria-describedby` at the same
+   * hidden span, so the scope composition reaches the focused control.
+   */
+  descriptionId?: string;
   className?: string;
 }
 
-export function DocumentShareScopeBadge({
-  shareScope,
-  workspaceName,
-  workspaceId,
-  compact = false,
-  focusable = true,
-  className,
-}: DocumentShareScopeBadgeProps) {
-  const { t } = useTranslation();
-  const currentWorkspace = useOptionalWorkspace()?.workspace;
-  // A document from another workspace (search, shared with me) must not borrow
-  // the viewer's current workspace name: without a known name the tooltip says "Workspace".
-  const contextName = !workspaceId || workspaceId === currentWorkspace?.id ? currentWorkspace?.name : undefined;
-  const resolvedWorkspaceName = (workspaceName ?? contextName ?? "").trim();
-  const descriptionId = useId();
-  const [open, setOpen] = useState(false);
+type T = (key: string, options?: Record<string, unknown>) => string;
 
-  const scope = shareScope ?? null;
+/**
+ * Pure view model for a share scope: kind, label and the full composition
+ * text ("1 workspace khác · 2 người · Liên kết công khai"). The badge renders
+ * it as label + aria-describedby; the library row reuses it for the ⋯-menu
+ * label and the name button's accessible description (SW-V4).
+ * `resolvedWorkspaceName` is already resolved (prop or current-workspace name).
+ */
+export function shareScopeView(
+  scope: DocumentShareScope | null | undefined,
+  t: T,
+  resolvedWorkspaceName: string,
+): { kind: ShareScopeBadgeKind; label: string; tooltipText: string } | null {
   if (!scope) return null;
 
   const hasUsers = scope.users > 0;
@@ -78,38 +80,30 @@ export function DocumentShareScopeBadge({
 
   let kind: ShareScopeBadgeKind;
   let label: string;
-  let Icon: LucideIcon;
 
   if (activeCount === 0 && scope.public_link) {
     // Private means no person, no group and no live link: a live link alone is
     // not private, and its own state is what the badge shows.
     kind = "link";
     label = t("documents.scope.public_link");
-    Icon = Link2;
   } else if (activeCount === 0) {
     kind = "private";
     label = t("documents.scope.private");
-    Icon = Lock;
   } else if (activeCount >= 2) {
     kind = "multiple";
     label = t("documents.scope.multiple");
-    Icon = Share2;
   } else if (hasUsers) {
     kind = "people";
     label = t("documents.scope.people", { count: scope.users });
-    Icon = Users;
   } else if (hasHome) {
     kind = "workspace";
     label = t("documents.scope.workspace");
-    Icon = House;
   } else if (hasOtherWorkspaces) {
     kind = "workspaces";
     label = t("documents.scope.workspaces", { count: scope.workspaces });
-    Icon = House;
   } else {
     kind = "organization";
     label = t("documents.scope.organization");
-    Icon = Building2;
   }
 
   const tooltipParts: string[] = [];
@@ -135,8 +129,44 @@ export function DocumentShareScopeBadge({
   if (tooltipParts.length === 0) {
     tooltipParts.push(t("documents.scope.private"));
   }
-  const tooltipText = tooltipParts.join(" · ");
+  return { kind, label, tooltipText: tooltipParts.join(" · ") };
+}
+
+export function DocumentShareScopeBadge({
+  shareScope,
+  workspaceName,
+  workspaceId,
+  compact = false,
+  focusable = true,
+  descriptionId: descriptionIdProp,
+  className,
+}: DocumentShareScopeBadgeProps) {
+  const { t } = useTranslation();
+  const currentWorkspace = useOptionalWorkspace()?.workspace;
+  // A document from another workspace (search, shared with me) must not borrow
+  // the viewer's current workspace name: without a known name the tooltip says "Workspace".
+  const contextName = !workspaceId || workspaceId === currentWorkspace?.id ? currentWorkspace?.name : undefined;
+  const resolvedWorkspaceName = (workspaceName ?? contextName ?? "").trim();
+  const generatedId = useId();
+  const descriptionId = descriptionIdProp ?? generatedId;
+  const [open, setOpen] = useState(false);
+
+  const view = shareScopeView(shareScope, t, resolvedWorkspaceName);
+  if (!view) return null;
+  const { kind, label, tooltipText } = view;
   const iconSize = compact ? "size-3" : "size-3.5";
+  const Icon: LucideIcon =
+    kind === "link"
+      ? Link2
+      : kind === "private"
+        ? Lock
+        : kind === "multiple"
+          ? Share2
+          : kind === "people"
+            ? Users
+            : kind === "organization"
+              ? Building2
+              : House;
 
   return (
     <>
@@ -167,7 +197,7 @@ export function DocumentShareScopeBadge({
             )}
           />
           <span className="truncate">{label}</span>
-          {scope.public_link && kind !== "link" ? (
+          {shareScope?.public_link && kind !== "link" ? (
             <Link2
               aria-hidden
               data-scope-icon="public-link"

@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { registerSessionProvider } from "@uniwork/core/auth";
 import { useChatUnreadBadge } from "@uniwork/core/chat";
+import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notification-store";
 import { getDesktopBridge } from "@uniwork/core/platform";
 import { configureRuntime, runtimeConfig } from "@uniwork/core/runtime-config";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
@@ -60,9 +61,11 @@ export function DesktopHost(): null {
 export function UniChatBadge(): null {
   const { workspace } = useWorkspace();
   const count = useChatUnreadBadge(workspace.id);
+  // Cài đặt › Thông báo can take the count off the icon on this device.
+  const show = useChatDeviceNotificationStore((state) => state.badge);
   useEffect(() => {
-    getDesktopBridge()?.setBadgeCount(count);
-  }, [count]);
+    getDesktopBridge()?.setBadgeCount(show ? count : 0);
+  }, [count, show]);
   // Separate from the count effect so a change never flashes 0 between two IPC calls.
   useEffect(() => () => getDesktopBridge()?.setBadgeCount(0), []);
   return null;

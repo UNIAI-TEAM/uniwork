@@ -104,7 +104,7 @@ export function ChatPageConversationToolbar({
           <ChatRoomFace name={headerTitle} tint={identityTint(activeGroup.id)} imageUrl={activeGroup.avatar_url} size="header" />
         }
         title={headerTitle}
-        subtitle={`${t("chat.scope.group_line")} · ${chatMembersLine(t, activeGroup.member_user_ids.length + 1, shownOnline)}`}
+        subtitle={chatMembersLine(t, activeGroup.member_user_ids.length + 1, shownOnline)}
         panelAriaLabel={t("chat.info_panel.title_group")}
         onSearch={onSearch}
       />
@@ -151,16 +151,10 @@ export function ChatPageConversationToolbar({
           />
         }
         title={label}
+        // Telegram's status line: whether they are here now. Presence carries no
+        // last-seen time, so away reads as what the room is.
         subtitle={
-          <>
-            {t("chat.dm_direct_message")}
-            {online > 0 ? (
-              <>
-                {" · "}
-                <span className="text-success">{t("chat.presence_online")}</span>
-              </>
-            ) : null}
-          </>
+          online > 0 ? <span className="text-primary">{t("chat.presence_online")}</span> : t("chat.dm_direct_message")
         }
         panelAriaLabel={t("chat.info_panel.title_dm")}
       />
