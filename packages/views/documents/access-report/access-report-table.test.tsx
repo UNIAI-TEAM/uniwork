@@ -236,8 +236,43 @@ describe("AccessReportTable", () => {
     // with its own box for the wide table inside it.
     const pinned = grants.closest("[data-grants-pin]");
     expect(pinned).not.toBeNull();
-    expect(pinned).toHaveClass("sticky", "left-0");
+    expect(pinned).toHaveClass("sticky", "left-3");
     expect(grants.parentElement).toHaveClass("overflow-x-auto");
+  });
+
+  it("sizes the open grants to the scroll box, not the viewport, so the sidebar does not count", () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const pinned = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" }).closest("[data-grants-pin]")!;
+    // cqw resolves against the nearest size container: the overflow box that scrolls.
+    expect(pinned.className).not.toContain("vw");
+    expect(pinned.className).toContain("100cqw");
+    const box = screen.getByRole("table", { name: at("title") }).parentElement!;
+    expect(box).toHaveClass("overflow-x-auto", "[container-type:inline-size]");
+    expect(box.contains(pinned)).toBe(true);
+  });
+
+  it("gives the scope pill and the expand chevron the room they need", () => {
+    renderTable();
+    const heads = screen.getAllByRole("columnheader");
+    // "Toàn tổ chức · Chỉnh sửa" stays inside its cell at the table's width floor.
+    expect(heads[1]).toHaveClass("w-[16%]");
+    expect(heads[2]).toHaveClass("w-[18%]");
+    // The 44px coarse-pointer chevron fits: 64px column, 16px padding, 48px of room.
+    const expand = heads.at(-1)!;
+    expect(expand).toHaveClass("w-16", "px-2");
+    const chevron = within(docRow("Đề xuất ngân sách Q4.docx")).getAllByRole("cell").at(-1)!;
+    expect(chevron).toHaveClass("px-2");
+  });
+
+  it("shows the whole document name above the open grants, whatever the row cut short", () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
+    const heading = within(grants.closest("tr")!).getByText("Đề xuất ngân sách Q4.docx");
+    expect(heading).toHaveClass("break-words");
+    expect(heading).not.toHaveClass("truncate");
+    expect(heading).toHaveAttribute("title", "Đề xuất ngân sách Q4.docx");
   });
 
   it("shows the path and owner, the general scope, who has access, the warnings and the last access change", () => {

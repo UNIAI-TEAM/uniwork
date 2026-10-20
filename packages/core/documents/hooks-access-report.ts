@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { hashKey, useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
 import {
   getDocumentAccessReport,
@@ -30,9 +30,9 @@ const ACCESS_REPORT_PAGE_SIZE = 50;
 class AccessReportCursorRejected extends Error {
   constructor(
     readonly queryKey: QueryKey,
-    readonly cursor: string,
+    cause: ApiError,
   ) {
-    super("document_access_report_cursor_rejected");
+    super("document_access_report_cursor_rejected", { cause });
   }
 }
 
@@ -43,6 +43,9 @@ export function useDocumentAccessReport(
   opts?: { enabled?: boolean },
 ) {
   const queryClient = useQueryClient();
+  // Query keys this mount has already started over: the first refusal under a
+  // key resets it, a later one is the server's own error and stays.
+  const restarted = useRef<Set<string>>(new Set());
   const query = useInfiniteQuery({
     queryKey: documentKeys.accessReport(wsId, folderId, params),
     queryFn: async ({ pageParam, signal, queryKey }) => {
@@ -51,8 +54,8 @@ export function useDocumentAccessReport(
         { ...params, folderId, cursor: pageParam || undefined, limit: ACCESS_REPORT_PAGE_SIZE },
         signal,
       ).catch((err: unknown) => {
-        if (pageParam && err instanceof ApiError && err.status === 400) {
-          throw new AccessReportCursorRejected(queryKey, pageParam);
+        if (pageParam && err instanceof ApiError && err.status === 400 && !restarted.current.has(hashKey(queryKey))) {
+          throw new AccessReportCursorRejected(queryKey, err);
         }
         throw err;
       });
@@ -75,13 +78,13 @@ export function useDocumentAccessReport(
   });
 
   // A refused cursor drops the pages and reads page 1 again, which mints a
-  // fresh cursor. Once per cursor: a server that refuses the cursor it just
-  // minted leaves the error on screen instead of looping.
+  // fresh cursor. Once per query key, however the cursors change: a server
+  // that keeps refusing what it just minted leaves its own error on screen
+  // instead of looping.
   const { error } = query;
-  const restarted = useRef<string | null>(null);
   useEffect(() => {
-    if (!(error instanceof AccessReportCursorRejected) || restarted.current === error.cursor) return;
-    restarted.current = error.cursor;
+    if (!(error instanceof AccessReportCursorRejected)) return;
+    restarted.current.add(hashKey(error.queryKey));
     void queryClient.resetQueries({ queryKey: error.queryKey, exact: true });
   }, [error, queryClient]);
 

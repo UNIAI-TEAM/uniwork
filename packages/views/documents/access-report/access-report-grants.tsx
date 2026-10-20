@@ -114,6 +114,10 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
 
   return (
     <div className="flex flex-col gap-3">
+      {/* The row above may have cut the name short: here it is whole. */}
+      <p title={title} className="break-words font-medium text-foreground">
+        {title}
+      </p>
       {/* Wide table, own box: on a phone it scrolls here, starting at the first column. */}
       <div className="overflow-x-auto">
       <table aria-label={title} className="w-full min-w-[36rem] border-collapse text-body">

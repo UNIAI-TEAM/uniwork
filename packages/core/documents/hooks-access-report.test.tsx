@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../api/http";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import {
@@ -126,7 +127,7 @@ describe("useDocumentAccessReport (UNI-1643)", () => {
     expect(result.current.data?.pages).toHaveLength(1);
   });
 
-  it("starts over once per cursor: the same cursor refused again stays an error", async () => {
+  it("starts over once per query key: a second refusal surfaces the server's own error and stops", async () => {
     vi.mocked(fetch).mockImplementation(async (input) =>
       new URL(String(input)).searchParams.get("cursor") === "bad"
         ? json({ error: { code: "invalid_request", message: "cursor không hợp lệ" } }, 400)
@@ -143,8 +144,40 @@ describe("useDocumentAccessReport (UNI-1643)", () => {
       await result.current.fetchNextPage();
     });
     await waitFor(() => expect(result.current.isFetchNextPageError).toBe(true));
+    // The caller sees the server's refusal (status, message), not an internal wrapper.
+    expect(result.current.error).toBeInstanceOf(ApiError);
+    expect((result.current.error as ApiError).status).toBe(400);
+    // Nothing starts another read afterwards.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
     const cursors = vi.mocked(fetch).mock.calls.map(([u]) => new URL(String(u)).searchParams.get("cursor") ?? "");
     expect(cursors).toEqual(["", "bad", "", "bad"]);
+  });
+
+  it("starts over once per query key even when every re-read mints a new refused cursor", async () => {
+    let minted = 0;
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      new URL(String(input)).searchParams.has("cursor")
+        ? json({ error: { code: "invalid_request", message: "cursor không hợp lệ" } }, 400)
+        : json(page("d1", `c${++minted}`)),
+    );
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentAccessReport("w1", undefined, {}), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages[0]?.next_cursor).toBe("c2"));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.isFetchNextPageError).toBe(true));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(4);
+    expect(result.current.error).toBeInstanceOf(ApiError);
   });
 
   it("a 400 on the first page is an error, not a restart", async () => {

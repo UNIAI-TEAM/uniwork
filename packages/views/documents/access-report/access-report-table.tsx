@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useId, useState } from "react";
+import { Fragment, useId, useRef, useState } from "react";
 import { Building2, ChevronDown, Link2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { deriveReportFacts, type ReportFacts } from "@uniwork/core/documents/access-report-facts";
@@ -13,7 +13,12 @@ import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
 import { formatWhen } from "../document-format";
 import { AccessReportGrants, grantName } from "./access-report-grants";
 import { flagLabel, generalScopeLabel, whoSummary } from "./access-report-labels";
-import { AccessReportSortHeader, type ReportSortKey, type ReportSortOrder } from "./access-report-sort-header";
+import {
+  AccessReportSortHeader,
+  type PendingSortFocus,
+  type ReportSortKey,
+  type ReportSortOrder,
+} from "./access-report-sort-header";
 
 const NONE = "—";
 /** Avatars drawn before the rest fold into the "who" line. */
@@ -66,19 +71,21 @@ export function AccessReportTable({ wsId, documents, sort, order, onSortChange, 
       if (!next.delete(id)) next.add(id);
       return next;
     });
-  const sortProps = { sort, order, onSortChange };
+  const pendingFocus = useRef<PendingSortFocus | null>(null);
+  const sortProps = { sort, order, onSortChange, pendingFocus };
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
+    // A size container: the open grants size themselves to this box (cqw), not to the viewport.
+    <div className="overflow-x-auto rounded-lg border border-border bg-card [container-type:inline-size]">
       {/* Fixed layout: a long name gives way to the ellipsis instead of widening the table. */}
       <table aria-label={t("documents.accessReport.title")} className="w-full min-w-[60rem] table-fixed border-collapse text-body">
         <thead className="bg-muted/40">
           <tr className="border-b border-border">
             <AccessReportSortHeader column="title" label={t("documents.accessReport.col_document")} className="w-[30%]" {...sortProps} />
-            <th scope="col" className={cn(TH, "w-[14%]")}>{t("documents.accessReport.col_general_scope")}</th>
-            <th scope="col" className={cn(TH, "w-[20%]")}>{t("documents.accessReport.col_people")}</th>
+            <th scope="col" className={cn(TH, "w-[16%]")}>{t("documents.accessReport.col_general_scope")}</th>
+            <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_people")}</th>
             <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_warnings")}</th>
             <AccessReportSortHeader column="changed" label={t("documents.accessReport.col_changed")} className="w-[14%]" {...sortProps} />
-            <th scope="col" className={cn(TH, "w-12")}>
+            <th scope="col" className={cn(TH, "w-16 px-2")}>
               <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
             </th>
           </tr>
@@ -182,7 +189,7 @@ function DocumentRow({
           )}
         </td>
         <td className={cn(TD, "whitespace-nowrap text-muted-foreground")}>{changed || NONE}</td>
-        <td className={cn(TD, "text-right")}>
+        <td className={cn(TD, "px-2 text-right")}>
           <button
             type="button"
             aria-expanded={expanded}
@@ -199,9 +206,13 @@ function DocumentRow({
       {expanded ? (
         <tr id={grantsId} className="border-b border-border bg-muted/20">
           <td colSpan={6} className="px-3 pt-1 pb-4 md:pl-14">
-            {/* Pinned to the left and never wider than the screen, so a box scrolled
-                to the right still opens on the grants' first column. */}
-            <div data-grants-pin className="sticky left-0 w-[min(100%,calc(100vw-3.5rem))] md:left-14 md:w-[min(100%,calc(100vw-6.25rem))]">
+            {/* Pinned to the left and never wider than the scroll box (cqw: the box,
+                not the viewport, so the sidebar does not count), so a box scrolled to
+                the right still opens on the grants' first column. */}
+            <div
+              data-grants-pin
+              className="sticky left-3 w-[min(100%,calc(100cqw_-_1.5rem))] md:left-14 md:w-[min(100%,calc(100cqw_-_4.25rem))]"
+            >
               <AccessReportGrants wsId={wsId} entry={entry} title={title} documentHref={documentHref} />
             </div>
           </td>
