@@ -314,4 +314,30 @@ describe("home root empty states", () => {
     expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
     expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
   });
+
+  // UNI-1994 nit 6 (round 3, C): Edited by / Updated are filters too, so a root
+  // with a folder card and 0 results says "no results", never "no documents".
+  it.each([
+    ["Edited by", "documents.home.filters.editor", "Dũng", "updated_by"],
+    ["Updated", "documents.home.filters.updated", "documents.home.filters.updated_today", "updated_from"],
+  ])("shows the no-results state, not an empty copy, when the %s filter matches nothing", async (_name, comboKey, optionKey, param) => {
+    route({
+      ...withFolder,
+      members: () => [{ workspace_id: WS, user_id: "u2", role: "member", email: "dung@example.com", display_name: "Dũng" }],
+      list: (path) => (queryOf(path).get(param) ? [] : [file("d1", "Kế hoạch Q4")]),
+    });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+
+    fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t(comboKey)}`) }));
+    const option = within(await screen.findByRole("listbox")).getByText(optionKey.startsWith("documents.") ? t(optionKey) : optionKey);
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+
+    expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.no_matches_filters_description"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.library.clear_filters") })).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+    expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+  });
 });

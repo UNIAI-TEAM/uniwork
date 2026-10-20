@@ -266,16 +266,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const homeView = view.kind === "home";
   const homeFilters = homeView && !folderId && (library.editor !== "any" || library.updated !== "any");
   const accessFiltered = library.access !== "all";
-  const filteredBy = chip !== "all" || accessFiltered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
+  // "filtered" answers "is a filter on" (editor/updated live on the home filter
+  // bar, chip/access everywhere the list toolbar shows): it gates the folder's
+  // subfolders-only suppression (TV-4), the root's empty copy and the
+  // no-results state, so all three read the same flag.
+  const filtered = homeFilters || chip !== "all" || accessFiltered;
+  const filteredBy = filtered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
   const groups = groupRows(tableRows, homeView ? "none" : groupBy, library.folderIndex, myFolderLabel);
   const subfolders = subfoldersOf(library.tree, folderId);
-  // "filtered" still answers "is a filter on" (editor/updated live on the
-  // home filter bar, chip/access everywhere the list toolbar shows): it gates
-  // the folder's subfolders-only suppression (TV-4).
-  const filtered = homeFilters || chip !== "all" || accessFiltered;
   // The root's folders come from the tree query: until it answers, an empty root
   // list cannot tell "no folders" from "folders not here yet".
   const rootTreePending = homeView && !folderId && !filtered && library.treeLoading && tableRows.length === 0;
@@ -345,6 +346,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       filteredBy={filteredBy}
       accessFiltered={accessFiltered}
       typeFiltered={chip !== "all"}
+      homeFiltered={homeFilters}
       cardsShown={canCreate && homeView}
       hasMore={state.hasMore}
       loadingMore={state.loadingMore}
