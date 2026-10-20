@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+612fa7623fb60b7f3155105351b7dac303ad342a
+612fa7623 refactor(server): decouple idempotency_keys sweep loop and close r1 review gaps
+dc26913fd test(server): cover idempotency_keys retention sweep, batching, and worker wiring
+db819396e feat(server): sweep expired idempotency_keys on a 10m retention loop

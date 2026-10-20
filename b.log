@@ -1,0 +1,10 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./cmd/server ./internal/config -race -count=1 -timeout 30m -v > /tmp/cmd.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/cmd.log | tail -20; grep -E "^--- (PASS|FAIL): (TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters|TestLoadIdempotencyKey)" /tmp/cmd.log; echo; echo "TEST_CMD_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/cmd/server	1.077s
+ok  	github.com/unicomhub/uniwork/server/internal/config	1.061s
+--- PASS: TestNewDocumentServiceWiresIntentPolicyFlagsAndCounters (0.00s)
+--- PASS: TestLoadIdempotencyKeyRetention (0.00s)
+--- PASS: TestLoadIdempotencyKeySweepTick (0.00s)
+
+TEST_CMD_EXIT=0
