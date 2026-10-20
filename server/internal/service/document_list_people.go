@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -129,4 +130,52 @@ func markListOwners(actor Actor, items []DocumentListItem) {
 	for i := range items {
 		items[i].IsOwner = isACLOwner(&items[i].Document, actor)
 	}
+}
+
+// attachListEditors fills UpdatedByUser on one page of list rows: one people
+// query for the page, avatar URLs presigned once per distinct editor. Only a
+// human last editor who is a member of the rows' organization is named.
+func (s *DocumentService) attachListEditors(ctx context.Context, items []DocumentListItem) error {
+	docs := make([]*db.Document, len(items))
+	for i := range items {
+		docs[i] = &items[i].Document
+	}
+	people, err := s.editorPeople(ctx, docs)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if p, ok := people[items[i].Document.ID]; ok {
+			items[i].UpdatedByUser = &p
+		}
+	}
+	return nil
+}
+
+// editorPeople maps document id -> its last editor for the documents whose
+// editor is a person of the organization (all rows of one page share it).
+func (s *DocumentService) editorPeople(ctx context.Context, docs []*db.Document) (map[string]DocumentPerson, error) {
+	out := map[string]DocumentPerson{}
+	if len(docs) == 0 {
+		return out, nil
+	}
+	ids := make([]string, 0, len(docs))
+	for _, d := range docs {
+		if d.UpdatedByKind == string(audit.KindHuman) {
+			ids = append(ids, d.UpdatedBy)
+		}
+	}
+	people, err := s.organizationPeople(ctx, docs[0].OrganizationID, ids, true)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range docs {
+		if d.UpdatedByKind != string(audit.KindHuman) {
+			continue
+		}
+		if p, ok := people[d.UpdatedBy]; ok {
+			out[d.ID] = p
+		}
+	}
+	return out, nil
 }

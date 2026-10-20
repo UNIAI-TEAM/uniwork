@@ -38,15 +38,16 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 func documentListInputFor(w http.ResponseWriter, r *http.Request, recent bool) (service.ListDocumentsInput, bool) {
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
-		Query:      strings.TrimSpace(q.Get("q")),
-		Match:      strings.TrimSpace(q.Get("match")),
-		Kind:       strings.TrimSpace(q.Get("kind")),
-		Format:     strings.TrimSpace(q.Get("format")),
-		Access:     strings.TrimSpace(q.Get("access")),
-		UpdatedBy:  strings.TrimSpace(q.Get("updated_by")),
-		SharedByMe: strings.TrimSpace(q.Get("shared_by_me")) == "true",
-		Cursor:     strings.TrimSpace(q.Get("cursor")),
-		Activity:   strings.TrimSpace(q.Get("activity")),
+		Query:       strings.TrimSpace(q.Get("q")),
+		Match:       strings.TrimSpace(q.Get("match")),
+		Kind:        strings.TrimSpace(q.Get("kind")),
+		Format:      strings.TrimSpace(q.Get("format")),
+		Access:      strings.TrimSpace(q.Get("access")),
+		UpdatedBy:   strings.TrimSpace(q.Get("updated_by")),
+		SharedByMe:  strings.TrimSpace(q.Get("shared_by_me")) == "true",
+		Cursor:      strings.TrimSpace(q.Get("cursor")),
+		Activity:    strings.TrimSpace(q.Get("activity")),
+		WithEditors: true,
 	}
 	if q.Has("parent_id") {
 		parent := strings.TrimSpace(q.Get("parent_id"))
@@ -193,9 +194,10 @@ func (h *handlers) listFavoriteDocuments(w http.ResponseWriter, r *http.Request)
 	}
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
-		Kind:   strings.TrimSpace(q.Get("kind")),
-		Format: strings.TrimSpace(q.Get("format")),
-		Cursor: strings.TrimSpace(q.Get("cursor")),
+		Kind:        strings.TrimSpace(q.Get("kind")),
+		Format:      strings.TrimSpace(q.Get("format")),
+		Cursor:      strings.TrimSpace(q.Get("cursor")),
+		WithEditors: true,
 	}
 	sort, ok := documentSortInput(w, q, service.DocumentSortStarred)
 	if !ok {
@@ -467,6 +469,7 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 	dto.EditLock = documentRowEditLockSDO(item.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
 	dto.IsOwner = &item.IsOwner
+	dto.UpdatedByUser = editorSDO(item.UpdatedByUser)
 	if item.FavoritedAt != nil {
 		at := item.FavoritedAt.UTC().Format(time.RFC3339)
 		dto.FavoritedAt = &at
@@ -491,12 +494,26 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 	return dto
 }
 
+// editorSDO renders the last editor of a row; nil keeps the key out of the answer.
+func editorSDO(p *service.DocumentPerson) *sdo.DocumentEditorSDO {
+	if p == nil {
+		return nil
+	}
+	out := &sdo.DocumentEditorSDO{Name: p.Name}
+	if p.AvatarURL != "" {
+		url := p.AvatarURL
+		out.AvatarURL = &url
+	}
+	return out
+}
+
 func toSharedDocumentSummaryDTO(row service.SharedDocument) sdo.DocumentSummaryDTO {
 	access := row.Access
 	dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
 	dto.EditLock = documentRowEditLockSDO(row.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(row.ShareScope)
 	dto.IsOwner = &row.IsOwner
+	dto.UpdatedByUser = editorSDO(row.UpdatedByUser)
 	if row.Shared.By != "" {
 		dto.Shared = &sdo.DocumentSharedSDO{
 			By: row.Shared.By, ByKind: row.Shared.ByKind, ByName: row.Shared.ByName,

@@ -77,6 +77,9 @@ type ListDocumentsInput struct {
 	// favorites narrows the flat list to the caller's own stars in the
 	// workspace (ListFavoriteDocuments sets it; no handler input reaches it).
 	favorites bool
+	// WithEditors resolves updated_by_user on every row (UNI-2045 SV-6); the
+	// HTTP list routes set it, internal callers (MCP, Ask UNI) skip the lookup.
+	WithEditors bool
 	// Activity narrows /documents/recent to what the caller opened or edited
 	// (UNI-2045 SV-1b): "" (all), "opened" or "edited". Other lists ignore it.
 	Activity string
@@ -212,6 +215,9 @@ type DocumentListItem struct {
 	ShareSummary *DocumentShareSummary
 	// IsOwner is whether the caller is the document's ACL owner (UNI-2045 SV-5).
 	IsOwner bool
+	// UpdatedByUser is the last editor when a person of the caller's
+	// organization; nil for an agent, the system or a stranger (SV-6).
+	UpdatedByUser *DocumentPerson
 }
 
 // DocumentShareSummary is how widely a document is shared by its owner: the
@@ -428,6 +434,7 @@ func (s *DocumentService) ListFavoriteDocuments(ctx context.Context, actor Actor
 	}
 	return s.ListDocuments(ctx, actor, workspaceID, ListDocumentsInput{
 		Kind: in.Kind, Format: in.Format, Cursor: in.Cursor, Limit: in.Limit, Sort: in.Sort, favorites: true,
+		WithEditors: in.WithEditors,
 	})
 }
 
@@ -447,6 +454,11 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 		return DocumentListPage{}, err
 	}
 	markListOwners(actor, page.Items)
+	if in.WithEditors {
+		if err := s.attachListEditors(ctx, page.Items); err != nil {
+			return DocumentListPage{}, err
+		}
+	}
 	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
@@ -869,6 +881,11 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 		return DocumentListPage{}, err
 	}
 	markListOwners(actor, page.Items)
+	if in.WithEditors {
+		if err := s.attachListEditors(ctx, page.Items); err != nil {
+			return DocumentListPage{}, err
+		}
+	}
 	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 

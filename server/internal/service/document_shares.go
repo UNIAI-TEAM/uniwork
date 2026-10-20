@@ -799,6 +799,8 @@ type SharedDocument struct {
 	Shared DocumentSharedBy
 	// IsOwner is whether the caller is the document's ACL owner (SV-5).
 	IsOwner bool
+	// UpdatedByUser is the last editor, as DocumentListItem.UpdatedByUser (SV-6).
+	UpdatedByUser *DocumentPerson
 }
 
 // DocumentSharedBy says who shared a document with the caller and when - the
@@ -889,6 +891,9 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 		return SharedWithMePage{}, err
 	}
 	if err := s.attachSharedByNames(ctx, organizationID, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
+	if err := s.attachSharedEditors(ctx, page.Items); err != nil {
 		return SharedWithMePage{}, err
 	}
 	return page, s.attachSharedShareScopes(ctx, Human(userID), organizationID, page.Items)
@@ -1017,6 +1022,24 @@ func (s *DocumentService) attachSharedByNames(ctx context.Context, organizationI
 		if p, ok := people[items[i].Shared.By]; ok {
 			name := p.Name
 			items[i].Shared.ByName = &name
+		}
+	}
+	return nil
+}
+
+// attachSharedEditors names the last editor of each shared row (UNI-2045 SV-6).
+func (s *DocumentService) attachSharedEditors(ctx context.Context, items []SharedDocument) error {
+	docs := make([]*db.Document, len(items))
+	for i := range items {
+		docs[i] = &items[i].Document
+	}
+	people, err := s.editorPeople(ctx, docs)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if p, ok := people[items[i].Document.ID]; ok {
+			items[i].UpdatedByUser = &p
 		}
 	}
 	return nil
