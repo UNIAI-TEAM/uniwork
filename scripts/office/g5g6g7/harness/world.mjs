@@ -214,7 +214,7 @@ function bindWorld(record, { runDir, must, sessionOf, repoRoot }) {
       await loginAll(record, must);
       persist();
     },
-    async upload(userKey, wsKey, fixtureId, { title } = {}) {
+    async upload(userKey, wsKey, fixtureId, { title, visibility = "workspace" } = {}) {
       const owner = user(userKey);
       const orgKey = Object.keys(record.orgs).find((k) => wsKey in record.orgs[k].workspaces);
       if (!orgKey) throw new Error(`no workspace ${wsKey} in the world`);
@@ -223,6 +223,8 @@ function bindWorld(record, { runDir, must, sessionOf, repoRoot }) {
       const form = new FormData();
       form.append("file", new Blob([fixture.bytes]), filename);
       form.append("title", title ?? filename);
+      // Uploads are private by default since 1cd4497d9; the G8-19 rows seed readers who need workspace access.
+      form.append("visibility", visibility);
       const out = (await must(owner, "createFileDocument", { workspaceID: workspace(orgKey, wsKey).id }, undefined, { form })).body;
       const doc = {
         documentId: out.document?.id ?? "",
