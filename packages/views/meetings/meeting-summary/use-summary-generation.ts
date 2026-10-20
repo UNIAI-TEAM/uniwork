@@ -19,11 +19,12 @@ import { hasSummarySource, type SummarySourceTimes } from "./summary-sources";
 export function useSummaryGeneration({
   workspaceId,
   meetingId,
-  canHost,
+  canClerk,
 }: {
   workspaceId?: string;
   meetingId: string;
-  canHost: boolean;
+  /** Host, secretary or workspace admin: whoever runs the meeting's follow-up. */
+  canClerk: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
@@ -60,7 +61,7 @@ export function useSummaryGeneration({
   const summary = summaryQuery.data ?? null;
   const aiOn = caps?.ai_summary === true;
   const capsLoaded = caps !== undefined;
-  const showGenerate = canHost && aiOn;
+  const showGenerate = canClerk && aiOn;
   const generating = generate.isPending;
   /** Why the generate button cannot be pressed now, said on the button itself. */
   const blockedReason = generating

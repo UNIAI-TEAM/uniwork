@@ -4,13 +4,12 @@ import { useTranslation } from "react-i18next";
 import { toastApiError } from "../toast-api-error";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { useAddNote, useRecordings } from "@uniwork/core/meetings";
-import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { MeetingCopilotFooter } from "./meeting-copilot/meeting-copilot-footer";
 import { MeetingCopilotHeader } from "./meeting-copilot/meeting-copilot-header";
-import { MeetingNotesCard, MeetingSummaryAttribution } from "./meeting-copilot/meeting-notes-card";
-import { SummaryActionItems } from "./meeting-summary/summary-action-items";
+import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action-items-section";
+import { MeetingNotesCard } from "./meeting-copilot/meeting-notes-card";
 import {
   SummaryGenerateButton,
   SummaryLiveRegion,
@@ -18,7 +17,6 @@ import {
 } from "./meeting-summary/summary-generate-controls";
 import { summarySourceFacts, summarySourceList } from "./meeting-summary/summary-sources";
 import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
-import type { SummarySelection } from "./meeting-summary/use-summary-task-creation";
 import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
@@ -31,20 +29,21 @@ export function MeetingRoomCopilotTab({
   workspaceId,
   meetingId,
   projectId,
-  canHost,
+  canClerk,
 }: {
   workspaceId?: string;
   meetingId: string;
-  /** The meeting's project: tasks created from the summary start there, as on the detail page. */
+  /** The meeting's project: tasks assigned from the action items start there, as on the detail page. */
   projectId?: string;
-  canHost: boolean;
+  /** Host, secretary or workspace admin. */
+  canClerk: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState<CopilotSection>("insights");
-  // The host's ticks outlive the Actions section, so a look at the transcript
-  // does not cost them; they are tagged with the summary they were made on.
-  const actionSelection = useState<SummarySelection | null>(null);
-  const gen = useSummaryGeneration({ workspaceId, meetingId, canHost });
+  // The clerk's ticks outlive the Actions section, so a look at the
+  // transcript does not cost them.
+  const actionSelection = useState<ReadonlySet<string>>(() => new Set());
+  const gen = useSummaryGeneration({ workspaceId, meetingId, canClerk });
   const { summary, summaryQuery, transcriptQuery, chatQuery, notesQuery } = gen;
   const transcript = transcriptQuery.data;
   const notes = notesQuery.data;
@@ -58,13 +57,10 @@ export function MeetingRoomCopilotTab({
     for (const q of sources) if (q.isError) void q.refetch();
   };
   const { data: recordings } = useRecordings(meetingId);
-  // Only a project that still resolves is offered for new tasks (no FK on the meeting row).
-  const { data: project } = useProject(workspaceId ?? "", projectId ?? "");
   const addNote = useAddNote(meetingId);
   const [note, setNote] = useState("");
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
-  const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
   // The live recording state is the stage header's REC badge; this panel
   // only offers a finished recording to play back.
@@ -236,18 +232,13 @@ export function MeetingRoomCopilotTab({
         {section === "actions" ? (
           <section className="space-y-3">
             <h3 className="text-caption font-medium text-foreground">{t("meetings.actionItems")}</h3>
-            {actionItems.length > 0 && summaryUpdatedAt ? (
-              <MeetingSummaryAttribution model={summary?.model} time={summaryUpdatedAt} sources={summarySources} />
-            ) : null}
-            {summary && actionItems.length > 0 ? (
-              <SummaryActionItems
-                summary={summary}
+            {workspaceId ? (
+              <MeetingActionItemsSection
                 workspaceId={workspaceId}
                 meetingId={meetingId}
-                canHost={canHost}
-                projectId={project?.id}
-                variant="copilot"
-                announce={gen.announce}
+                projectId={projectId}
+                canClerk={canClerk}
+                variant="compact"
                 selection={actionSelection}
               />
             ) : (

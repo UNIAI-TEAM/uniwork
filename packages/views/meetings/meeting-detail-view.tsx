@@ -16,6 +16,7 @@ import {
   useStartMeeting,
 } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
+import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useMeetingScope } from "@uniwork/core/realtime";
 import { ApiError } from "@uniwork/core/api";
@@ -37,6 +38,7 @@ import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
 import { MeetingMotionsSection } from "./meeting-motions-section";
 import { MeetingNotesSection } from "./meeting-notes-section";
 import { MeetingDetailPageSkeleton } from "./meeting-page-skeletons";
+import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action-items-section";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
 import { useMemberIndex } from "./use-member-index";
 import { useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
@@ -70,6 +72,8 @@ export function MeetingDetailView({
   const nowMs = useNow();
   const { data: activity } = useMeetingActivity(meetingId);
   const { canHost, canCancel } = useMeetingPermissions(meeting ?? null, workspaceId);
+  // Host, secretary or workspace admin: the summary and the action items (spec D3).
+  const { isClerk } = useMeetingClerk(meeting ?? null, workspaceId);
   const start = useStartMeeting(workspaceId);
   const end = useEndMeeting(workspaceId);
   const cancel = useCancelMeeting(workspaceId);
@@ -253,7 +257,17 @@ export function MeetingDetailView({
               </div>
               {showSummary ? (
                 <div className="order-3 min-w-0">
-                  <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
+                  <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canClerk={isClerk} />
+                </div>
+              ) : null}
+              {showSummary ? (
+                <div className="order-3 min-w-0">
+                  <MeetingActionItemsSection
+                    workspaceId={workspaceId}
+                    meetingId={meeting.id}
+                    projectId={meeting.project_id}
+                    canClerk={isClerk}
+                  />
                 </div>
               ) : null}
               {/* The roll is working space while the meeting runs, so it gets the wide column. */}

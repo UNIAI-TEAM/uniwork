@@ -5,6 +5,7 @@ import { CalendarDays, CircleAlert, Flag, FolderKanban, ListChecks, Sparkles, Us
 import { useTranslation } from "react-i18next";
 import type { TaskPriority } from "@uniwork/core/types";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
+import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateField } from "../common/date-field";
@@ -20,6 +21,8 @@ export interface AiSummaryTaskDraft {
   assigneeId: string | null;
   priority: TaskPriority;
   dueDate: string | null;
+  /** The task's title when the screen lets it be edited (copy.titleLabel); blank keeps the seed's. */
+  title?: string;
 }
 
 /** One picked action item and the values the dialog opens with. */
@@ -44,6 +47,8 @@ export interface AiSummaryTasksDialogCopy {
   spokenDue?: (due: string) => string;
   submit: string;
   submitting?: string;
+  /** Set to let the person edit each title, labelled with it. */
+  titleLabel?: string;
 }
 
 function FieldBlock({
@@ -114,7 +119,16 @@ function TaskEditorCard({
             </span>
           )}
           <div className="min-w-0 flex-1 space-y-1.5">
-            <p className="text-body font-semibold leading-snug text-foreground">{seed.title}</p>
+            {copy.titleLabel ? (
+              <Input
+                aria-label={copy.titleLabel}
+                className="h-9 font-semibold"
+                value={draft.title ?? seed.title}
+                onChange={(e) => onChange({ title: e.target.value })}
+              />
+            ) : (
+              <p className="text-body font-semibold leading-snug text-foreground">{seed.title}</p>
+            )}
             {note ? (
               <p className="flex items-center gap-1 text-caption text-destructive">
                 <CircleAlert className="size-3.5 shrink-0" aria-hidden />

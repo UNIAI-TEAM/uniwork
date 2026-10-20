@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { formatRelativeTime } from "./meeting-relative-time";
 import { useOlderTranscript, useRecordings } from "@uniwork/core/meetings";
-import { useProject } from "@uniwork/core/tasks";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingSummary } from "@uniwork/core/types/meeting";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -17,7 +16,6 @@ import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
-import { SummaryActionItems } from "./meeting-summary/summary-action-items";
 import {
   SummaryGenerateButton,
   SummaryLiveRegion,
@@ -29,21 +27,22 @@ import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
 const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"]);
 
 /**
- * Transcript, AI summary (host generates; everyone reads), action items →
- * tasks, and recordings. Shown once a meeting has started.
+ * Transcript, AI summary and decisions (a clerk generates; everyone reads),
+ * and recordings. Shown once a meeting has started. The action items it
+ * proposes live in MeetingActionItemsSection.
  */
 export function MeetingSummaryPanel({
   workspaceId,
   meeting,
-  canHost,
+  canClerk,
 }: {
   workspaceId: string;
   meeting: Meeting;
-  canHost: boolean;
+  canClerk: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const meetingId = meeting.id;
-  const gen = useSummaryGeneration({ workspaceId, meetingId, canHost });
+  const gen = useSummaryGeneration({ workspaceId, meetingId, canClerk });
   const { summary, summaryQuery, transcriptQuery } = gen;
   const olderTranscript = useOlderTranscript(meetingId);
   const transcript = transcriptQuery.data;
@@ -57,13 +56,9 @@ export function MeetingSummaryPanel({
   };
   const { data: recordings } = useRecordings(meetingId);
   const [showTranscript, setShowTranscript] = useState(false);
-  // A project deleted after the meeting was linked stays on the meeting row
-  // (no FK); only a project that still resolves is offered for new tasks.
-  const { data: project } = useProject(workspaceId, meeting.project_id || "");
   const [playbackId, setPlaybackId] = useState<string | null>(null);
   const reasonId = useId();
 
-  const actionItems = summary?.action_items ?? [];
   const decisions = summary?.decisions ?? [];
   const transcriptLines = transcript?.length ?? 0;
   const showNeedsSource = gen.showGenerate && !gen.hasSource && !summaryLoading && !summaryFailed;
@@ -97,20 +92,6 @@ export function MeetingSummaryPanel({
             <SummaryAttribution summary={summary} times={gen.sourceTimes} />
             <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
             <MeetingDecisionsBlock voted={gen.voted} aiDecisions={decisions} />
-            {actionItems.length > 0 ? (
-              <div>
-                <h3 className="mb-2 text-overline text-muted-foreground">{t("meetings.actionItems")}</h3>
-                <SummaryActionItems
-                  summary={summary}
-                  workspaceId={workspaceId}
-                  meetingId={meetingId}
-                  canHost={canHost}
-                  projectId={project?.id}
-                  variant="panel"
-                  announce={gen.announce}
-                />
-              </div>
-            ) : null}
           </div>
         ) : summaryLoading ? (
           <MeetingTextSkeleton />

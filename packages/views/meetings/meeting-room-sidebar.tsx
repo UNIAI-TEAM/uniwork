@@ -122,7 +122,7 @@ export function MeetingRoomSidebar({
             meetingId={meetingId}
             workspaceId={guestMode ? undefined : workspaceId}
             projectId={guestMode ? undefined : meeting?.project_id}
-            canHost={canHost === true}
+            canClerk={isClerk}
           />
         ) : (
           <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>

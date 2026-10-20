@@ -9,9 +9,11 @@ const err = (code: string, status: number, fields?: Record<string, unknown>) =>
 
 describe("summaryErrorText", () => {
   it("words each task-batch refusal itself", () => {
-    expect(summaryErrorText(err("summary_superseded", 409), t(), "tasks")).toBe(
-      "Tóm tắt vừa được tạo lại. Chọn lại việc trong bản mới.",
+    expect(summaryErrorText(err("action_item_not_pending", 409), t(), "tasks")).toBe(
+      "Có việc đã được giao hoặc bỏ qua trước đó. Danh sách đã cập nhật, chọn lại các việc còn chờ xử lý.",
     );
+    expect(summaryErrorText(err("action_item_not_found", 404), t(), "tasks")).toMatch(/tạo lại/);
+    expect(summaryErrorText(err("not_meeting_clerk", 403), t(), "generate")).toMatch(/thư ký/);
     expect(summaryErrorText(err("assignee_not_member", 422), t(), "tasks")).toMatch(/Chọn người khác/);
     expect(summaryErrorText(err("not_meeting_host", 403), t(), "tasks")).toMatch(/chủ trì/);
     expect(summaryErrorText(err("not_found", 404), t(), "tasks")).toMatch(/Dự án đã chọn không còn/);
@@ -41,11 +43,13 @@ describe("summaryErrorText", () => {
 
   it("names the items whose title matches an open task", () => {
     const items = [
-      { index: 0, title: "Gửi báo cáo" },
-      { index: 1, title: "Báo khách" },
-      { index: 2, title: "Chốt lịch" },
+      { id: "a0", title: "Gửi báo cáo" },
+      { id: "a1", title: "Báo khách" },
+      { id: "a2", title: "Chốt lịch" },
     ];
-    const text = summaryErrorText(err("active_duplicate_task", 409, { indexes: [0, 2] }), t(), "tasks", { items });
+    const text = summaryErrorText(err("active_duplicate_task", 409, { action_item_ids: ["a0", "a2"] }), t(), "tasks", {
+      items,
+    });
     expect(text).toBe(
       "Đã có việc đang mở trùng tên với: “Gửi báo cáo”, “Chốt lịch”. Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.",
     );

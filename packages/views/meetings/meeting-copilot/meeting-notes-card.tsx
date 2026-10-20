@@ -16,7 +16,7 @@ function summaryLines(text: string): string[] {
 }
 
 /** AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles). */
-export function MeetingSummaryAttribution({
+function MeetingSummaryAttribution({
   model,
   time,
   sources,
