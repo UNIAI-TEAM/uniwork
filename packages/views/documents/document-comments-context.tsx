@@ -37,6 +37,11 @@ interface DocumentCommentsChrome {
   deepLinkId: string;
   /** The tab hint a `?comment=` link carries (`&kind=discussion`), for a post no longer in the list. */
   deepLinkKind: DocumentCommentsTab;
+  /**
+   * The link the lost-version landing has already decided for (UNI-2033). Lives here, not in the pane, so a
+   * pane that closes and opens again, or a return to head with the same `?comment=`, does not bounce twice.
+   */
+  landedLink: RefObject<string | null>;
 }
 
 /**
@@ -70,6 +75,7 @@ export function DocumentCommentsProvider({
   // comments panel (invariant 8), so neither the trigger nor DocumentCommentsPanel render.
   const [framePanel, setFramePanel] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const landedLink = useRef<string | null>(null);
   // Closing from inside the panel must land focus back on the control that
   // opened it (the Sheet path restores it on its own; the inline rail does
   // not). Opening keeps the natural focus on the trigger.
@@ -78,7 +84,7 @@ export function DocumentCommentsProvider({
     if (!next) triggerRef.current?.focus();
   }, []);
   const value = useMemo(
-    () => (framePanel ? null : { wsId, doc, open, setOpen, triggerRef, tab, setTab, deepLinkId, deepLinkKind }),
+    () => (framePanel ? null : { wsId, doc, open, setOpen, triggerRef, tab, setTab, deepLinkId, deepLinkKind, landedLink }),
     [framePanel, wsId, doc, open, setOpen, tab, deepLinkId, deepLinkKind],
   );
   return (

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { ChevronRight, Info, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
-import { versionViewHref } from "@uniwork/core/office/version-view";
+import { lostCommentVersion, namesComment, parseVersionParam, versionViewHref } from "@uniwork/core/office/version-view";
 import { paths } from "@uniwork/core/paths";
 import type { Document, DocumentCommentKind } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
+import { useOptionalNavigation } from "../navigation";
 import { DocumentCommentComposer } from "./document-comment-composer";
 import { DocumentCommentThread, type ThreadContext } from "./document-comment-thread";
 import {
@@ -127,6 +128,7 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
   const { t } = useTranslation();
   const chrome = useDocumentCommentsChrome();
   const workspace = useOptionalWorkspace();
+  const nav = useOptionalNavigation();
   const orgId = doc.organization_id || workspace?.workspace.organization_id || "";
   const panel = useDocumentCommentsPanel(wsId, doc);
   const { query, comments } = panel;
@@ -171,6 +173,18 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
   useEffect(() => {
     if (!deepLinkId || !query.isSuccess || handledLink.current === deepLinkId) return;
     handledLink.current = deepLinkId;
+    // Inbox landing (UNI-2033): the formats without frame comments (pptx, pdf) are revealed here, so this list
+    // decides once per link, like the frame's first `comments.list` that names it. A lost comment on another
+    // version takes the page there; a version view, the open version or a comment that is not lost stays put.
+    const landed = chrome?.landedLink;
+    if (landed && landed.current !== deepLinkId) {
+      landed.current = deepLinkId;
+      const list = { comments };
+      if (nav && format && parseVersionParam(nav.searchParams.get("version")) === null && namesComment(list, deepLinkId)) {
+        const versionNo = lostCommentVersion(list, deepLinkId);
+        if (versionNo !== null && versionNo !== doc.file?.version) nav.replace(versionViewHref(nav.pathname, versionNo, deepLinkId));
+      }
+    }
     const target = findDeepLinkTarget(comments, deepLinkId);
     if (!target) {
       // The link's kind says which tab the post lived in (a format with one tab only has the Discussion).
@@ -184,7 +198,7 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
     if (target.deleted) setRevealMessage(target.kind);
     setFocus({ rootId: target.rootId, target: foreignFocus(paneRef.current) ? "scroll" : "heading" });
     setHighlightId(target.rootId);
-  }, [comments, deepLinkId, deepLinkKind, format, query.isSuccess, setTab]);
+  }, [chrome?.landedLink, comments, deepLinkId, deepLinkKind, doc.file?.version, format, nav, query.isSuccess, setTab]);
   useEffect(() => {
     if (!highlightId) return undefined;
     const timer = window.setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
