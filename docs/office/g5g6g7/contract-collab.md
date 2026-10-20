@@ -533,9 +533,9 @@ mẫu `document:<doc>:<loại>:<comment>` như `document:…:mention:…` hiện
 | 2 | `document_discussion_mentioned` | Bạn được nhắc tên trong thảo luận | {{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”. | You were mentioned in a discussion | {{actor}} mentioned you in a discussion on “{{document}}”. |
 | 3 | `document_comment_replied` | Có phản hồi bình luận mới | {{actor}} đã phản hồi bình luận của bạn trong tài liệu “{{document}}”. | New reply to your comment | {{actor}} replied to your comment in “{{document}}”. |
 | 4 | `document_discussion_replied` | Có phản hồi thảo luận mới | {{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu “{{document}}”. | New reply in a discussion | {{actor}} replied to your discussion post in “{{document}}”. |
-| 5 | `document_comment_resolved` | Bình luận đã được giải quyết | {{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết. | Comment resolved | {{actor}} marked your comment in “{{document}}” as resolved. |
+| 5 | `document_comment_resolved` | Bình luận đã được giải quyết | {{actor}} đã đánh dấu một bình luận trong tài liệu “{{document}}” là đã giải quyết. | Comment resolved | {{actor}} marked a comment in “{{document}}” as resolved. |
 
-Cột vi là nguyên văn UNI-1337 (thay `[Tên người thực hiện]`/`[Tên tài liệu]` bằng placeholder); cột en do hợp đồng này dịch
+Cột vi là nguyên văn UNI-1337 (thay `[Tên người thực hiện]`/`[Tên tài liệu]` bằng placeholder; mẫu 5 đổi "bình luận của bạn" → "một bình luận" theo UNI-2032 để đúng cho cả tác giả comment lẫn chủ tài liệu); cột en do hợp đồng này dịch
 (mẫu 2 sửa theo finding FE-8: "in a discussion on"). Chỗ đặt hai dòng trong `titles.go` (hiện một chuỗi mỗi kind,
 `notification/titles.go:10-46`) là OQ-C8.
 
