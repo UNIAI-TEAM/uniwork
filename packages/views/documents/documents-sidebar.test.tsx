@@ -1,10 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Archive, Clock, Folder, FolderLock, House, Share2, Star, Trash, Users } from "lucide-react";
+import { Archive, Clock, Folder, FolderLock, House, Share2, ShieldCheck, Star, Trash, Users } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import enLocale from "@uniwork/core/i18n/locales/en.json";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
-import { wrap } from "../test/api-mock";
+import { fakeNav, wrap, wrapWithNav } from "../test/api-mock";
 import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
 import { DocumentsSidebar, type DocumentsSidebarProps, type LibraryView } from "./documents-sidebar";
 
@@ -121,6 +123,73 @@ describe("DocumentsSidebar sub-nav", () => {
   });
 });
 
+// UNI-2009 addendum: the workspace access report is a sub-nav entry under Thùng rác,
+// a real link (the report is its own page), not an item in a header overflow.
+describe("DocumentsSidebar access report entry", () => {
+  const REPORT = "/acme/doi/documents/access-report";
+  const reportLink = () => screen.getByRole("link", { name: t("documents.accessReport.title") });
+
+  function renderWithNav(over: Partial<DocumentsSidebarProps> = {}) {
+    const adapter = fakeNav("/acme/doi/documents");
+    render(
+      wrapWithNav(
+        <DocumentsSidebar
+          wsId="ws1"
+          view={{ kind: "home" }}
+          folderId={null}
+          starredCount={null}
+          sourcesAvailable
+          canCreate
+          onView={vi.fn()}
+          onFolder={vi.fn()}
+          onNewFolder={vi.fn()}
+          folderTree={<div data-testid="folder-tree" />}
+          {...over}
+        />,
+        adapter,
+      ),
+    );
+    return adapter;
+  }
+
+  it("draws a link to the workspace report directly under Thùng rác, before the folders", () => {
+    renderWithNav({ accessReportHref: REPORT });
+    const link = reportLink();
+    expect(link).toHaveAttribute("href", REPORT);
+    const trash = screen.getByRole("button", { name: t("documents.home.sidebar.trash") });
+    expect(trash.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(link.compareDocumentPosition(screen.getByText(t("documents.home.sidebar.folders"))) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(trash.nextElementSibling).toBe(link);
+  });
+
+  it("names the entry in both languages", () => {
+    expect(viLocale.documents.accessReport.title).toBe("Báo cáo quyền truy cập");
+    expect(enLocale.documents.accessReport.title).toBe("Access report");
+  });
+
+  it("opens the workspace report through the navigation adapter on a plain click", () => {
+    const adapter = renderWithNav({ accessReportHref: REPORT, view: { kind: "archived" } });
+    fireEvent.click(reportLink());
+    expect(adapter.push).toHaveBeenCalledWith(REPORT);
+  });
+
+  it("is reachable by keyboard and carries the sibling row style with the report glyph", () => {
+    renderWithNav({ accessReportHref: REPORT });
+    const link = reportLink();
+    expect(link).not.toHaveAttribute("tabindex", "-1");
+    expect(link).toHaveClass("min-h-9", "pointer-coarse:min-h-11");
+    expect(link.querySelector('[data-slot="icon-tile"]')).toBeNull();
+    const svg = link.querySelector("svg");
+    expect(svg).toHaveClass("size-4", "text-muted-foreground");
+    expect(svg?.innerHTML).toBe(glyphOf(DOCUMENTS_NAV_ICONS.accessReport));
+  });
+
+  it("draws no entry when the host gives no report path", () => {
+    renderSidebar();
+    expect(screen.queryByRole("link", { name: t("documents.accessReport.title") })).toBeNull();
+  });
+});
+
 /** What a lucide component renders, so a row's glyph can be compared by shape. */
 function glyphOf(Icon: (typeof MODULE_ICONS)[keyof typeof MODULE_ICONS]) {
   return render(<Icon />).container.querySelector("svg")?.innerHTML;
@@ -178,12 +247,13 @@ describe("DOCUMENTS_NAV_ICONS", () => {
     ["archive", Archive],
     ["shelved", Archive],
     ["trash", Trash],
+    ["accessReport", ShieldCheck],
     ["folder", Folder],
   ] as const)("maps %s to its board glyph", (key, Expected) => {
     expect(glyphOf(DOCUMENTS_NAV_ICONS[key])).toBe(glyphOf(Expected));
   });
 
   it("covers every entry of the map", () => {
-    expect(Object.keys(DOCUMENTS_NAV_ICONS)).toHaveLength(10);
+    expect(Object.keys(DOCUMENTS_NAV_ICONS)).toHaveLength(11);
   });
 });
