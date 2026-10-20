@@ -137,7 +137,8 @@ function EvidenceSources({
   if (query.data.length === 0) {
     return <p className="text-caption text-muted-foreground">{t("meetings.evidence.gone")}</p>;
   }
-  const time = new Intl.DateTimeFormat(meetingLocale(i18n.language), { hour: "2-digit", minute: "2-digit" });
+  // The viewer's clock, as every meeting screen reads times (meeting-datetime.ts).
+  const time = new Intl.DateTimeFormat(meetingLocale(i18n.language), { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   return (
     <ul className="max-h-80 space-y-3 overflow-y-auto">
       {query.data.map((src) => {

@@ -41,8 +41,20 @@ type isoReference struct {
 	// requires every id field of every SDI to be covered or exempted.
 	covers []string
 	// mustNotContain lists strings the attack's answer may not hold even
-	// when it is 2xx (a URL, a ticket).
+	// when it is 2xx (a URL, a ticket, or a row id of the referenced tenant
+	// written as an isoQuery placeholder such as "{meetingNote}").
 	mustNotContain []string
+}
+
+// checkMustNotContain fails the case when the attack's answer holds one of
+// its mustNotContain strings, placeholders filled with ref's rows.
+func (c isoReference) checkMustNotContain(t *testing.T, label string, raw []byte, ref *isoTenant) {
+	t.Helper()
+	for _, bad := range c.mustNotContain {
+		if bad = isoQuery(bad, ref); strings.Contains(string(raw), bad) {
+			t.Errorf("%s: answer holds %q: %s", label, bad, isoClip(raw))
+		}
+	}
 }
 
 type isoRef string       // the referenced tenant's row
@@ -308,6 +320,10 @@ var isoReferences = []isoReference{
 		query: "?email={peerEmail}"},
 	{method: "GET", pattern: "/api/v1/workspaces/{workspaceID}/chat/users/lookup", what: "user id of a person in another tenant", allow2xx: true,
 		query: "?user_id={peerID}"},
+	// The evidence route (UNI-2002) reads the cited lines of B's meeting: a
+	// note of A's named in ?refs= is simply absent from the answer.
+	{method: "GET", pattern: "/api/v1/meetings/{meetingID}/evidence", what: "note of another tenant cited as evidence", allow2xx: true,
+		query: "?refs=note:{meetingNote}", mustNotContain: []string{"{meetingNote}"}},
 
 	// Fields the first matrix run left without a case.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/channels", what: "members", body: map[string]any{

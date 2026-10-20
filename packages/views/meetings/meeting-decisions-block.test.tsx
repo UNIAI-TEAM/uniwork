@@ -64,7 +64,7 @@ describe("MeetingDecisionsBlock", () => {
     );
     expect(screen.getByText("Chốt lịch thứ Sáu")).toBeInTheDocument();
     // A decision that cites a line carries its evidence chip.
-    expect(screen.getByRole("button", { name: "Xem căn cứ (1 nguồn)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Căn cứ 1 nguồn" })).toBeInTheDocument();
     expect(screen.queryByText("Đã biểu quyết")).not.toBeInTheDocument();
   });
 

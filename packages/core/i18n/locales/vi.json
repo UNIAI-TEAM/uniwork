@@ -3824,7 +3824,8 @@
     },
     "evidence": {
       "chip": "Căn cứ",
-      "chipLabel": "Xem căn cứ ({{count}} nguồn)",
+      "chipLabel_one": "Căn cứ {{count}} nguồn",
+      "chipLabel_other": "Căn cứ {{count}} nguồn",
       "title": "Căn cứ",
       "loading": "Đang tải căn cứ",
       "error": "Không tải được căn cứ. Thử lại sau.",

@@ -3825,7 +3825,8 @@
     },
     "evidence": {
       "chip": "Evidence",
-      "chipLabel": "View evidence ({{count}} sources)",
+      "chipLabel_one": "Evidence {{count}} source",
+      "chipLabel_other": "Evidence {{count}} sources",
       "title": "Evidence",
       "loading": "Loading evidence",
       "error": "Couldn't load the evidence. Try again later.",

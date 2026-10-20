@@ -73,7 +73,7 @@ describe("MeetingEvidenceChip", () => {
       ),
     );
     expect(requestMock).not.toHaveBeenCalled();
-    await u.click(screen.getByRole("button", { name: "Xem căn cứ (2 nguồn)" }));
+    await u.click(screen.getByRole("button", { name: "Căn cứ 2 nguồn" }));
     expect(await screen.findByText("Chốt thứ Sáu")).toBeInTheDocument();
     expect(screen.getByText("Nhớ gửi bản nháp")).toBeInTheDocument();
     expect(screen.getByText("Lời nói")).toBeInTheDocument();
@@ -90,14 +90,14 @@ describe("MeetingEvidenceChip", () => {
     respond([{ kind: "segment", id: "g1", author: "Lan", text: "Chốt thứ Sáu", at: "2026-10-20T02:01:15Z" }], []);
     const u = userEvent.setup();
     const { unmount } = render(wrap(<MeetingEvidenceChip meetingId="m1" evidence={[{ kind: "segment", id: "g1" }]} />));
-    await u.click(screen.getByRole("button", { name: "Xem căn cứ (1 nguồn)" }));
+    await u.click(screen.getByRole("button", { name: "Căn cứ 1 nguồn" }));
     expect(await screen.findByText("Chốt thứ Sáu")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Mở bản ghi/ })).not.toBeInTheDocument();
     unmount();
 
     respond([]);
     render(wrap(<MeetingEvidenceChip meetingId="m1" evidence={[{ kind: "chat", id: "c1" }]} />));
-    await u.click(screen.getByRole("button", { name: "Xem căn cứ (1 nguồn)" }));
+    await u.click(screen.getByRole("button", { name: "Căn cứ 1 nguồn" }));
     expect(await screen.findByText("Các nguồn này không còn.")).toBeInTheDocument();
   });
 });

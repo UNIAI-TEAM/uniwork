@@ -208,11 +208,7 @@ func TestIsolationMatrix(t *testing.T) {
 			}
 			label := "references " + c.method + " " + c.pattern + " " + c.what
 			raw := w.attack(t, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
-			for _, bad := range c.mustNotContain {
-				if strings.Contains(string(raw), bad) {
-					t.Errorf("%s: answer holds %q: %s", label, bad, isoClip(raw))
-				}
-			}
+			c.checkMustNotContain(t, label, raw, w.alpha)
 		}
 	})
 
@@ -251,7 +247,9 @@ func TestIsolationMatrix(t *testing.T) {
 			if c.allow2xx {
 				refused = func(status int, _ []byte) bool { return status < 500 }
 			}
-			w.attackAs(t, both, "member-of-both references "+c.method+" "+c.pattern+" "+c.what, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
+			label := "member-of-both references " + c.method + " " + c.pattern + " " + c.what
+			raw := w.attackAs(t, both, label, c.method, path+isoQuery(c.query, w.alpha), c.build(w, w.bravo, w.alpha), refused)
+			c.checkMustNotContain(t, label, raw, w.alpha)
 		}
 	})
 
@@ -1025,6 +1023,8 @@ func isoQuery(q string, tn *isoTenant) string {
 		"{orgID}", tn.orgID,
 		// The access report's folder (UNI-1643) rides in ?folder_id=.
 		"{folderID}", tn.ids["folder"],
+		// A meeting note cited as evidence (UNI-2002) rides in ?refs=.
+		"{meetingNote}", tn.ids["meetingNote"],
 		// The calendar window around the fixture's meetings (now + 24h).
 		"{fromDate}", time.Now().AddDate(0, 0, -30).Format("2006-01-02"),
 		"{toDate}", time.Now().AddDate(0, 0, 60).Format("2006-01-02"),

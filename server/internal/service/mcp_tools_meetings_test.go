@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -396,7 +397,7 @@ func TestMcpGetMeetingExcerptIsTheSummaryAlone(t *testing.T) {
 		t.Fatalf("no summary: excerpt %q, description %q (%v)", got.Excerpt, deref(got.Description), err)
 	}
 	summary := db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: `[{"text":"Giữ ngân sách","evidence":[{"kind":"note","id":"01N"}]}]`, ActionItems: "Gửi biên bản",
+		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: `[{"text":"Giữ ngân sách","evidence":[{"kind":"note","id":"01N"}]}]`, ActionItems: `[{"title":"Gửi biên bản","owner":"","due":"","evidence":["S2"]}]`,
 		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, summary); err != nil {
@@ -406,11 +407,21 @@ func TestMcpGetMeetingExcerptIsTheSummaryAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A @5 decision is quoted as its text, the shape excerpts always had (UNI-2002).
-	for _, w := range []string{"Tóm tắt: Đã chốt OKR quý", `Quyết định: ["Giữ ngân sách"]`, "Việc cần làm: Gửi biên bản"} {
+	// A @5 decision and item are quoted as their text and title (UNI-2002).
+	if strings.Contains(got.Excerpt, `"S2"`) || strings.Contains(got.Excerpt, "01N") {
+		t.Errorf("excerpt carries evidence: %.200s", got.Excerpt)
+	}
+	for _, w := range []string{"Tóm tắt: Đã chốt OKR quý", `Quyết định: ["Giữ ngân sách"]`, `Việc cần làm: ["Gửi biên bản"]`} {
 		if !strings.Contains(got.Excerpt, w) {
 			t.Errorf("excerpt does not hold %q: %.200s", w, got.Excerpt)
 		}
+	}
+	// Ask UNI's meeting source quotes the same: its own sources are labelled
+	// [S1], [S2], so a summary's evidence labels must not reach it.
+	srcs, err := x.tools.ask.meetingContext(ctx, ai.ToolContext{ActorID: x.ua.ID, WorkspaceID: x.w.ID}, m.ID)
+	if err != nil || len(srcs) != 1 || strings.Contains(srcs[0].Excerpt, `"S2"`) ||
+		!strings.Contains(srcs[0].Excerpt, `Quyết định: ["Giữ ngân sách"]`) || !strings.Contains(srcs[0].Excerpt, `Việc cần làm: ["Gửi biên bản"]`) {
+		t.Errorf("Ask UNI meeting excerpt = %+v (%v)", srcs, err)
 	}
 	if strings.Contains(got.Excerpt, "ẹẹẹ") || deref(got.Description) != long || got.DescriptionTruncated {
 		t.Errorf("excerpt repeats the description, or the description changed: excerpt %d characters, description %d characters, truncated %v",
@@ -441,7 +452,7 @@ func TestMcpGetMeetingExcludesTranscripts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: `[{"text":"Giữ ngân sách","evidence":[{"kind":"note","id":"01N"}]}]`, ActionItems: "Gửi biên bản",
+		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: `[{"text":"Giữ ngân sách","evidence":[{"kind":"note","id":"01N"}]}]`, ActionItems: `[{"title":"Gửi biên bản","owner":"","due":"","evidence":["S2"]}]`,
 		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
 	}); err != nil {
 		t.Fatal(err)

@@ -122,6 +122,13 @@ func TestDecodeSummaryDecisions(t *testing.T) {
 	if got := summaryDecisionTexts(`[{"text":"Chốt B","evidence":[]},"Chốt A"]`); got != `["Chốt B","Chốt A"]` {
 		t.Errorf("summaryDecisionTexts = %s", got)
 	}
+	// Excerpts quote item titles only: no @5 labels, which would read as Ask UNI's own [S2].
+	if got := summaryActionItemTitles(`[{"title":"Gửi báo cáo","owner":"An","evidence":["S2","N1"]},{"title":" "}]`); got != `["Gửi báo cáo"]` {
+		t.Errorf("summaryActionItemTitles = %s", got)
+	}
+	if got := summaryActionItemTitles(`not json`); got != `[]` {
+		t.Errorf("summaryActionItemTitles(broken) = %s", got)
+	}
 }
 
 // TestMeetingEvidenceSources: a member reads the cited lines in the order
@@ -138,7 +145,37 @@ func TestMeetingEvidenceSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	refs, err := ParseEvidenceRefs("chat:" + ids["chat"] + ",segment:" + ids["segment"] + ",segment:" + foreign.ID + ",note:" + ids["note"])
+	foreignNote, err := s.AddNote(ctx, ua.ID, other.ID, "Ghi chú của họp khác")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignChat, err := s.AppendChatMessage(ctx, ua.ID, "", other.ID, "Tin của họp khác")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Another organization's meeting, with a note and a chat message of its own.
+	orgB, err := NewOrganizationService(s.pool, s.q).Create(ctx, ub.ID, "Org B", "org-bravo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsB, err := s.ws.CreateInOrg(ctx, ub.ID, orgB.ID, "Bravo", "bravo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mB, err := s.CreateInstant(ctx, ub.ID, wsB.Workspace.ID, "Họp của tổ chức khác")
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossNote, err := s.AddNote(ctx, ub.ID, mB.ID, "Ghi chú của tổ chức khác")
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossChat, err := s.AppendChatMessage(ctx, ub.ID, "", mB.ID, "Tin của tổ chức khác")
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs, err := ParseEvidenceRefs("chat:" + ids["chat"] + ",segment:" + ids["segment"] + ",segment:" + foreign.ID +
+		",note:" + foreignNote.ID + ",chat:" + foreignChat.ID + ",note:" + crossNote.ID + ",chat:" + crossChat.ID + ",note:" + ids["note"])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +184,7 @@ func TestMeetingEvidenceSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got) != 3 {
-		t.Fatalf("sources = %+v, want 3 (the other meeting's segment absent)", got)
+		t.Fatalf("sources = %+v, want 3 (the other meeting's and the other organization's lines absent)", got)
 	}
 	if got[0].Kind != EvidenceChat || got[0].Text != "Tôi gửi báo cáo" || got[0].Author != "A" ||
 		got[1].Kind != EvidenceSegment || got[1].ID != ids["segment"] || got[1].Text != "Chốt ship vào thứ Sáu" || !got[1].At.Valid ||

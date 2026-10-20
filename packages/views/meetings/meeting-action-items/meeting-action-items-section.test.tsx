@@ -113,9 +113,9 @@ describe("MeetingActionItemsSection", () => {
     expect(link).toHaveAttribute("href", expect.stringContaining("t9"));
     expect(screen.getByText("Quá hạn")).toHaveClass("text-destructive");
     // AI items carry their evidence chip (UNI-2002); the manual one has none.
-    expect(screen.getByRole("button", { name: "Xem căn cứ (1 nguồn)" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Xem căn cứ (2 nguồn)" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /Xem căn cứ/ })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Căn cứ 1 nguồn" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Căn cứ 2 nguồn" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Căn cứ \d/ })).toHaveLength(2);
 
     expect(screen.queryByText("In tài liệu")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Đã bỏ qua \(1\)/ }));
