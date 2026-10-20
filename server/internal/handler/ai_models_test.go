@@ -90,4 +90,18 @@ func TestOrgAskModelsRoute(t *testing.T) {
 	wantError(t, "member put", res, out, http.StatusForbidden, "forbidden")
 	res, out = doJSON(t, srv, "PUT", path, owner, map[string]any{"models": []string{"gpt"}})
 	wantError(t, "unknown key", res, out, http.StatusBadRequest, "invalid_request")
+	// No models field is not "switch everything off" (ruling P21); an
+	// explicit [] is: only Auto.
+	for name, body := range map[string]map[string]any{"missing": {}, "null": {"models": nil}} {
+		res, out = doJSON(t, srv, "PUT", path, owner, body)
+		wantError(t, name+" models", res, out, http.StatusBadRequest, "invalid_request")
+	}
+	res, out = doJSON(t, srv, "GET", path, owner, nil)
+	if res.StatusCode != http.StatusOK || len(out["models"].([]any)) != 2 {
+		t.Fatalf("a refused put changed the set: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "PUT", path, owner, map[string]any{"models": []string{}})
+	if res.StatusCode != http.StatusOK || len(out["models"].([]any)) != 0 {
+		t.Fatalf("explicit []: %d %v, want only Auto", res.StatusCode, out)
+	}
 }

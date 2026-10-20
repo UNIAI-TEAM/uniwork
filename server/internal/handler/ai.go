@@ -65,6 +65,12 @@ func (h *handlers) setOrgAskModels(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	// A body without models (or null) is a mistake, not "only Auto": that is
+	// an explicit [] (ruling P21).
+	if in.Models == nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "models is required; [] keeps only Auto")
+		return
+	}
 	keys, err := h.AskUNI.SetAskModels(r.Context(), middleware.UserID(r.Context()), orgID, in.Models)
 	if err != nil {
 		h.mapServiceError(w, err)

@@ -79,7 +79,7 @@ func registerAI(r api, h Routes) {
 	})
 	r.Put("/orgs/{org}/ai/ask-models", h.SetOrgAskModels, apiOp{
 		summary:     "Set the Ask UNI models of an organization",
-		description: "Owner/admin tổ chức thay bộ model được chọn; khóa lạ -> 400, thành viên thường -> 403. Không đổi gì thì không ghi audit; có đổi thì ghi organization.ask_models_changed.",
+		description: "Owner/admin tổ chức thay bộ model được chọn rõ; thiếu models, null hoặc khóa lạ -> 400 ([] = chỉ Tự động), thành viên thường -> 403. Tự động (model mặc định của nền tảng) luôn dùng được, không theo công tắc này. Không đổi gì thì không ghi audit; có đổi thì ghi organization.ask_models_changed.",
 		tags:        []string{"ai"},
 		sdi:         sdi.AskModelsSDI{},
 		sdo:         sdo.AskModelsSDO{},

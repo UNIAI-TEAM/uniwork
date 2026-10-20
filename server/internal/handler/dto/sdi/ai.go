@@ -18,7 +18,7 @@ type AskUniSDI struct {
 
 // AskModelsSDI is PUT /api/v1/orgs/{org}/ai/ask-models.
 type AskModelsSDI struct {
-	Models []string `json:"models" description:"Các model Hỏi UNI được dùng trong tổ chức (haiku, sonnet, opus); rỗng = chỉ Tự động. Khóa lạ -> 400" example:"[\"haiku\",\"sonnet\"]"`
+	Models []string `json:"models" description:"Bắt buộc. Các model Hỏi UNI được chọn rõ trong tổ chức (haiku, sonnet, opus); [] = chỉ Tự động. Thiếu trường, null hoặc khóa lạ -> 400. Tự động (model mặc định của nền tảng) luôn dùng được, công tắc này chỉ giới hạn các lựa chọn rõ" example:"[\"haiku\",\"sonnet\"]"`
 }
 
 // ChatCatchUpSDI is POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up (C-13.7).
