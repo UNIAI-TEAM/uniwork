@@ -173,6 +173,9 @@ export function useDocumentVersionUpload({
         reportWriteRefused(documentId, err.fields, lockId);
         idempotencyKey.current = null;
       }
+      // A stale revision: the retry commits on a newer base, a different
+      // payload, so it must not replay this attempt's key.
+      if (err instanceof ApiError && err.code === "document_version_conflict") idempotencyKey.current = null;
       const message =
         describeError?.(err) ??
         documentErrorMessage(err, t, staged ? "documents.file.commit_failed" : "documents.file.upload_failed", {

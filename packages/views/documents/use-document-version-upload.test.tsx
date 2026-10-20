@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
+import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
 import { forgetHeldEditLock, registerHeldEditLock } from "@uniwork/core/documents/edit-lock-registry";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
@@ -172,6 +173,72 @@ describe("useDocumentVersionUpload", () => {
     expect(onFailed).toHaveBeenCalledWith(conflict);
     expect(onCommitted).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("mints a new key for the retry after a 409 on a stale revision", async () => {
+    mocks.commit
+      .mockRejectedValueOnce(new ApiError("conflict", "document_version_conflict", 409))
+      .mockResolvedValueOnce({ version: { id: "v5" } });
+    render(wrap(<Harness />));
+    await pickAndSubmit(small());
+
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+    await waitFor(() => expect(mocks.commit).toHaveBeenCalledTimes(2));
+    expect(mocks.commit.mock.calls[1]![0].idempotencyKey).not.toBe(mocks.commit.mock.calls[0]![0].idempotencyKey);
+  });
+
+  it("mints a new key when the lock this tab holds changes between attempts, and keeps it while it does not", async () => {
+    mocks.upload.mockRejectedValue(new ApiError("down", "internal", 500));
+    registerHeldEditLock("d1", "L1");
+    try {
+      render(wrap(<Harness />));
+      await pickAndSubmit(small());
+      await waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(1));
+
+      // A new hold: the commit body would name another lock id.
+      forgetHeldEditLock("L1");
+      registerHeldEditLock("d1", "L2");
+      fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+      await waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(2));
+      fireEvent.click(screen.getByRole("button", { name: t("documents.upload.submit") }));
+      await waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(3));
+
+      const [first, second, third] = mocks.upload.mock.calls.map((call) => call[0].idempotencyKey);
+      expect(second).not.toBe(first);
+      expect(third).toBe(second);
+    } finally {
+      forgetHeldEditLock("L2");
+    }
+  });
+
+  it("stays quiet when the reader cancels a chunked upload", async () => {
+    mocks.chunkedStart.mockRejectedValue(new ChunkedUploadError("upload_canceled", "canceled"));
+    const onFailed = vi.fn();
+    render(wrap(<Harness onFailed={onFailed} />));
+    await pickAndSubmit(large());
+
+    await waitFor(() => expect(mocks.chunkedStart).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(onFailed).not.toHaveBeenCalled();
+    expect(mocks.commit).not.toHaveBeenCalled();
+  });
+
+  it("does not commit an upload that finishes after the surface unmounted (R2-5)", async () => {
+    let finish: (value: { upload_id: string }) => void = () => {};
+    mocks.upload.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const onFailed = vi.fn();
+    const onCommitted = vi.fn();
+    const view = render(wrap(<Harness onFailed={onFailed} onCommitted={onCommitted} />));
+    await pickAndSubmit(small());
+    await waitFor(() => expect(mocks.upload).toHaveBeenCalled());
+
+    view.unmount();
+    finish({ upload_id: "up-late" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.commit).not.toHaveBeenCalled();
+    expect(onCommitted).not.toHaveBeenCalled();
+    expect(onFailed).not.toHaveBeenCalled();
   });
 
   it("says nothing changed when identical bytes answer the version the document already carries", async () => {
