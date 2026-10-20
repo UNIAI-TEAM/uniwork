@@ -47,4 +47,15 @@ func TestTaskDTOCarriesOrigin(t *testing.T) {
 	if plain.OriginType != nil || plain.OriginID != nil {
 		t.Fatalf("origin = %v/%v, want both nil for a task with no origin", plain.OriginType, plain.OriginID)
 	}
+
+	// Chat and email origins may name another member's private conversation.
+	for _, kind := range []string{"email_thread", "chat_message"} {
+		private := toTaskDTO(db.Task{
+			OriginType: pgtype.Text{String: kind, Valid: true},
+			OriginID:   pgtype.Text{String: "private-1", Valid: true},
+		}, "SAT")
+		if private.OriginType != nil || private.OriginID != nil {
+			t.Fatalf("%s origin = %v/%v, want both nil", kind, private.OriginType, private.OriginID)
+		}
+	}
 }

@@ -77,13 +77,11 @@ func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
 		stage := t.Stage.Int32
 		out.Stage = &stage
 	}
-	if t.OriginType.Valid {
-		s := t.OriginType.String
-		out.OriginType = &s
-	}
-	if t.OriginID.Valid {
-		s := t.OriginID.String
-		out.OriginID = &s
+	// Only a meeting origin leaves the server: a chat message or email thread
+	// id may point at another member's private conversation.
+	if t.OriginType.String == "meeting" && t.OriginID.Valid {
+		typ, id := t.OriginType.String, t.OriginID.String
+		out.OriginType, out.OriginID = &typ, &id
 	}
 	return out
 }
