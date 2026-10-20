@@ -24,6 +24,11 @@ MAX_SPEECH_MS = 600_000
 # long, doubling up to RETRY_MAX_S (spec §4.1: retry with backoff, keep the job).
 RETRY_MIN_S = 1.0
 RETRY_MAX_S = 30.0
+# A diarized (shared-mic) session stays open through pauses this long: vendor
+# speaker labels hold within one session only, and every reopening starts a
+# new set of speakers a clerk has to name. Cost: about 5.6 US cents per extra
+# 5-minute pause per room mic (plan for UNI-2024).
+SHARED_MIC_IDLE_S = 300.0
 
 
 @dataclass(frozen=True)
@@ -88,7 +93,7 @@ class TrackTranscriber:
         self._stt = stt_impl
         self._publish = publish
         self._on_final = on_final
-        self._idle = idle_close_s
+        self._idle_base = idle_close_s
         self._language = language
         self._diarize = diarize
         self._clock = clock
@@ -187,7 +192,8 @@ class TrackTranscriber:
             await self._close("track ended")
 
     def _idle_due(self) -> bool:
-        return not self._speaking and self._clock() - self._last_end >= self._idle
+        idle = max(self._idle_base, SHARED_MIC_IDLE_S) if self._diarize else self._idle_base
+        return not self._speaking and self._clock() - self._last_end >= idle
 
     def _open(self, preroll: list[rtc.AudioFrame]) -> None:
         self.sessions += 1

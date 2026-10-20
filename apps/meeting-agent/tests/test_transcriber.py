@@ -212,3 +212,24 @@ async def test_shared_mic_switched_mid_sentence_keeps_listening():
     assert t.sessions == 2
     assert finals[-1].speaker_label == "uw_participant_p1:AJ_1-TR_a-2:A"
     await t.close()
+
+
+async def test_shared_mic_session_rides_out_pauses_up_to_five_minutes():
+    """Review: a diarized session closes after 300 s of silence, not 30 s, so
+    one pause does not start a new set of speakers to name."""
+    clock = Clock()
+    t, _, _ = make(clock)
+    await t.set_stt(FakeSTT(diarize=True), diarize=True)
+    await speak(t, clock, 1.0)
+    clock.t += 60.0
+    await t.tick()
+    assert t.open  # a plain track would have closed at 30 s
+    clock.t += 240.0
+    await t.tick()
+    assert not t.open
+    await t.set_stt(FakeSTT(), diarize=False)
+    await speak(t, clock, 1.0)
+    clock.t += 31.0
+    await t.tick()
+    assert not t.open  # back to the 30 s rule
+    await t.close()
