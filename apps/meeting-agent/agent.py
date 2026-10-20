@@ -72,6 +72,8 @@ async def entrypoint(ctx: JobContext) -> None:
         await ctx.room.local_participant.send_text(
             c.text,
             topic=CAPTION_TOPIC,
+            # Captions are a sentence long; uncompressed, every web client reads them.
+            compress=False,
             attributes={
                 "uw.participant_identity": c.identity,
                 "uw.segment_id": c.segment_id,
