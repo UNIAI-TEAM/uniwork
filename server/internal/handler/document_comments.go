@@ -32,7 +32,7 @@ import (
 // documentCommentDTO renders one row from a single-comment response. The
 // service returns the row without an author join, so the caller resolves the
 // display name through ActorService first (same shape as task comments).
-func documentCommentDTO(c db.DocumentComment, displayName, avatarURL string, reactions []sdo.CommentReactionDTO) sdo.DocumentCommentDTO {
+func documentCommentDTO(c db.DocumentComment, anchorVerNo *int32, displayName, avatarURL string, reactions []sdo.CommentReactionDTO) sdo.DocumentCommentDTO {
 	if reactions == nil {
 		reactions = []sdo.CommentReactionDTO{}
 	}
@@ -51,6 +51,7 @@ func documentCommentDTO(c db.DocumentComment, displayName, avatarURL string, rea
 	if c.AnchorVersionID.Valid {
 		out.AnchorVer = &c.AnchorVersionID.String
 	}
+	out.AnchorVerNo = anchorVerNo
 	if c.AnchorState.Valid {
 		out.AnchorState = &c.AnchorState.String
 	}
@@ -89,6 +90,11 @@ func documentCommentDTOFromListRow(c db.ListDocumentCommentsRow, reactions []sdo
 	if a, ok := resolved[service.ActorRef{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}]; ok && a.AvatarURL != "" {
 		avatar = a.AvatarURL
 	}
+	var anchorVerNo *int32
+	if c.AnchorVersionNo.Valid {
+		v := c.AnchorVersionNo.Int32
+		anchorVerNo = &v
+	}
 	return documentCommentDTO(db.DocumentComment{
 		ID: c.ID, DocumentID: c.DocumentID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind,
 		Body: c.Body, CommentType: c.CommentType, Revision: c.Revision,
@@ -96,7 +102,7 @@ func documentCommentDTOFromListRow(c db.ListDocumentCommentsRow, reactions []sdo
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 		Anchor: c.Anchor, AnchorVersionID: c.AnchorVersionID, AnchorState: c.AnchorState,
 		DeletedAt: c.DeletedAt, DeletedByID: c.DeletedByID, DeletedByKind: c.DeletedByKind,
-	}, c.DisplayName, avatar, reactions)
+	}, anchorVerNo, c.DisplayName, avatar, reactions)
 }
 
 // commentReactionDTO renders one comment_reactions row for the reaction
@@ -134,7 +140,16 @@ func (h *handlers) respondDocumentCommentWith(w http.ResponseWriter, r *http.Req
 	if a, ok := actors[ref]; ok {
 		displayName, avatarURL = a.DisplayName, a.AvatarURL
 	}
-	out := sdo.DocumentCommentSDO{Comment: documentCommentDTO(c, displayName, avatarURL, nil)}
+	var anchorVerNo *int32
+	if h.Documents != nil {
+		var err error
+		anchorVerNo, err = h.Documents.DocumentCommentAnchorVersionNo(r.Context(), c)
+		if err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+	}
+	out := sdo.DocumentCommentSDO{Comment: documentCommentDTO(c, anchorVerNo, displayName, avatarURL, nil)}
 	for _, m := range noAccess {
 		out.MentionsWithoutAccess = append(out.MentionsWithoutAccess, sdo.MentionWithoutAccessDTO{
 			UserID: m.UserID, DisplayName: m.DisplayName, CanShare: m.CanShare,

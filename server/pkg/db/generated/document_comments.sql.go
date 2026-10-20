@@ -402,12 +402,13 @@ const listDocumentComments = `-- name: ListDocumentComments :many
 SELECT c.id, c.document_id, c.author_id, c.author_kind, c.body, c.created_at,
        c.parent_comment_id, c.comment_type, c.revision, c.updated_at,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-       c.anchor, c.anchor_version_id, c.anchor_state,
+       c.anchor, c.anchor_version_id, v.version AS anchor_version_no, c.anchor_state,
        c.deleted_at, c.deleted_by_id, c.deleted_by_kind,
        COALESCE(u.display_name, a.name, '')::text AS display_name,
        COALESCE(u.avatar_url, a.avatar_url) AS avatar_url,
        u.avatar_file_id
 FROM document_comments c
+LEFT JOIN document_versions v ON v.id = c.anchor_version_id AND v.organization_id = c.organization_id AND v.workspace_id = c.workspace_id AND v.document_id = c.document_id
 LEFT JOIN users u ON c.author_kind = 'human' AND u.id = c.author_id
 LEFT JOIN agents a ON c.author_kind = 'agent' AND a.id = c.author_id
 WHERE c.document_id = $1
@@ -438,6 +439,7 @@ type ListDocumentCommentsRow struct {
 	ResolvedByID    pgtype.Text        `json:"resolved_by_id"`
 	Anchor          []byte             `json:"anchor"`
 	AnchorVersionID pgtype.Text        `json:"anchor_version_id"`
+	AnchorVersionNo pgtype.Int4        `json:"anchor_version_no"`
 	AnchorState     pgtype.Text        `json:"anchor_state"`
 	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
 	DeletedByID     pgtype.Text        `json:"deleted_by_id"`
@@ -476,6 +478,7 @@ func (q *Queries) ListDocumentComments(ctx context.Context, arg ListDocumentComm
 			&i.ResolvedByID,
 			&i.Anchor,
 			&i.AnchorVersionID,
+			&i.AnchorVersionNo,
 			&i.AnchorState,
 			&i.DeletedAt,
 			&i.DeletedByID,
