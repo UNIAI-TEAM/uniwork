@@ -1396,3 +1396,144 @@ func TestGatewayCachesHistoryOnlyForResentCalls(t *testing.T) {
 		}
 	}
 }
+
+// ---- Streaming through the gateway -----------------------------------------
+
+// completeOnly hides Stream: embedding the interface promotes only Provider.
+type completeOnly struct{ provider.Provider }
+
+// partialStreamer returns a fixed partial answer with the context error.
+type partialStreamer struct {
+	completeOnly
+	resp provider.CompletionResponse
+}
+
+func (s partialStreamer) Stream(ctx context.Context, _ provider.CompletionRequest, onDelta func(string)) (provider.CompletionResponse, error) {
+	onDelta(s.resp.Text)
+	<-ctx.Done()
+	return s.resp, ctx.Err()
+}
+
+func priceFake(t *testing.T, q *db.Queries) {
+	t.Helper()
+	if _, err := q.AiInsertRate(context.Background(), db.AiInsertRateParams{ID: util.NewID(), Provider: "fake", Model: "fake", InputMicrosPerMtok: 2_000_000, OutputMicrosPerMtok: 4_000_000, EffectiveAt: pgtype.Timestamptz{Time: time.Now().Add(-time.Hour), Valid: true}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func streamFake() *provider.Fake {
+	return &provider.Fake{StreamChunk: 10, Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: "một hai ba bốn năm sáu bảy tám chín mười", Model: "fake", UsagePresent: true, InputTokens: 200_000, OutputTokens: 100_000}
+	}}
+}
+
+func TestGatewayStreamsDeltasAndPricesLikeComplete(t *testing.T) {
+	ctx := context.Background()
+	quota := &fakeQuota{}
+	g, q := gatewayFixture(t, streamFake(), quota)
+	priceFake(t, q)
+	plain, err := g.Complete(ctx, askReq())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	n := 0
+	req := askReq()
+	req.OnDelta = func(s string) { got += s; n++ }
+	resp, err := g.Complete(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n < 3 || got != resp.Text {
+		t.Fatalf("deltas %d %q vs %q", n, got, resp.Text)
+	}
+	a, _ := q.AiGetUsageEvent(ctx, plain.UsageEventID)
+	b, _ := q.AiGetUsageEvent(ctx, resp.UsageEventID)
+	if b.Status != "succeeded" || a.CostMicros == 0 || a.CostMicros != b.CostMicros {
+		t.Fatalf("%+v %+v", a, b)
+	}
+	if len(quota.recorded) != 2 || quota.recorded[0].Tokens != quota.recorded[1].Tokens {
+		t.Fatalf("%+v", quota.recorded)
+	}
+}
+
+func TestGatewayFallsBackToOneDeltaWithoutStreamer(t *testing.T) {
+	g, _ := gatewayFixture(t, completeOnly{Provider: streamFake()}, &fakeQuota{})
+	var deltas []string
+	req := askReq()
+	req.OnDelta = func(s string) { deltas = append(deltas, s) }
+	resp, err := g.Complete(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deltas) != 1 || deltas[0] != resp.Text {
+		t.Fatalf("%q", deltas)
+	}
+}
+
+func TestGatewayChargesACancelledStream(t *testing.T) {
+	fp := streamFake()
+	fp.StreamDelay = 50 * time.Millisecond
+	quota := &fakeQuota{}
+	g, q := gatewayFixture(t, fp, quota)
+	priceFake(t, q)
+	ctx, cancel := context.WithCancel(context.Background())
+	req := askReq()
+	req.OnDelta = func(string) { cancel() }
+	_, err := g.Complete(ctx, req)
+	var ae *Error
+	if !errors.Is(err, ErrCancelled) || !errors.As(err, &ae) || ae.UsageEventID == "" {
+		t.Fatalf("%v", err)
+	}
+	row, _ := q.AiGetUsageEvent(context.Background(), ae.UsageEventID)
+	if row.Status != "cancelled" || row.ReasonCode.String != "ai_cancelled" || row.CostMicros <= 0 {
+		t.Fatalf("%+v", row)
+	}
+	if len(quota.recorded) != 1 || quota.recorded[0].Tokens <= 0 {
+		t.Fatalf("%+v", quota.recorded)
+	}
+}
+
+func TestGatewayCancelledStreamEstimatesMissingUsage(t *testing.T) {
+	ps := partialStreamer{completeOnly{Provider: &provider.Fake{}}, provider.CompletionResponse{Text: "123456789012345678901234567890", Model: "fake"}}
+	g, q := gatewayFixture(t, ps, &fakeQuota{})
+	priceFake(t, q)
+	ctx, cancel := context.WithCancel(context.Background())
+	req := askReq()
+	req.OnDelta = func(string) { cancel() }
+	_, err := g.Complete(ctx, req)
+	var ae *Error
+	if !errors.As(err, &ae) {
+		t.Fatal(err)
+	}
+	row, _ := q.AiGetUsageEvent(context.Background(), ae.UsageEventID)
+	prompt, _ := LookupPrompt(req.PromptID)
+	system, _ := systemText(req, prompt)
+	msgs, _ := requestMessages(req, prompt)
+	bytes := len(system)
+	for _, m := range msgs {
+		bytes += len(m.Content)
+	}
+	if row.OutputTokens != 10 || int(row.InputTokens) != (bytes+2)/3 {
+		t.Fatalf("in %d out %d want in %d", row.InputTokens, row.OutputTokens, (bytes+2)/3)
+	}
+}
+
+func TestGatewayStreamDeadlineIsPricedToo(t *testing.T) {
+	fp := streamFake()
+	fp.StreamDelay = 100 * time.Millisecond
+	g, q := gatewayFixture(t, fp, &fakeQuota{})
+	g.opts.StreamTimeout = 20 * time.Millisecond
+	priceFake(t, q)
+	req := askReq()
+	req.OnDelta = func(string) {}
+	_, err := g.Complete(context.Background(), req)
+	var ae *Error
+	if !errors.Is(err, ErrProviderTimeout) || !errors.As(err, &ae) {
+		t.Fatalf("%v", err)
+	}
+	row, _ := q.AiGetUsageEvent(context.Background(), ae.UsageEventID)
+	if row.Status != "cancelled" || row.ReasonCode.String != "ai_provider_timeout" || row.CostMicros <= 0 {
+		t.Fatalf("%+v", row)
+	}
+}
