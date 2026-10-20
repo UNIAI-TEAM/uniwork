@@ -41,11 +41,17 @@ func TestMeetingActionItemsCatchUp(t *testing.T) {
 		rowA     = "01ACTCATCHUPAI000000000001" // pending, gets the task of its link
 		rowB     = "01ACTCATCHUPAI000000000002" // dismissed, left alone
 		rowC     = "01ACTCATCHUPAI000000000003" // converted already
+		rowE     = "01ACTCATCHUPAI000000000005" // two same-title rows: the first takes the oldest link
+		rowF     = "01ACTCATCHUPAI000000000006"
+		rowG     = "01ACTCATCHUPAI000000000007" // its item's title ends in a newline
 		taskA    = "01TSKCATCHUPAI000000000001"
 		taskB    = "01TSKCATCHUPAI000000000002"
 		taskC    = "01TSKCATCHUPAI000000000003"
 		taskD    = "01TSKCATCHUPAI000000000004"
 		taskOld  = "01TSKCATCHUPAI000000000005"
+		taskE1   = "01TSKCATCHUPAI000000000006"
+		taskE2   = "01TSKCATCHUPAI000000000007"
+		taskG    = "01TSKCATCHUPAI000000000008"
 		goneTask = "01TSKCATCHUPAI000000000099"
 	)
 
@@ -70,7 +76,7 @@ func TestMeetingActionItemsCatchUp(t *testing.T) {
 	// Stored by the new server: the blank item made no row, so the rows are
 	// numbered 0, 1, 2 while the items sit at 0, 2, 3.
 	exec(`INSERT INTO meeting_summaries (id, organization_id, meeting_id, summary, action_items, created_by, created_at)
-		VALUES ($1, $2, $3, 'mới', '[{"title":"Gửi báo cáo"},{"title":" "},{"title":"Đặt phòng"},{"title":"In tài liệu"},{"title":"Gọi khách","owner":"An","due":"mai"}]', $4, now() - interval '1 hour')`,
+		VALUES ($1, $2, $3, 'mới', '[{"title":"Gửi báo cáo"},{"title":" "},{"title":"Đặt phòng"},{"title":"In tài liệu"},{"title":"Gọi khách","owner":"An","due":"mai"},{"title":"Họp lại"},{"title":"Họp lại"},{"title":"Chốt lịch\n"}]', $4, now() - interval '1 hour')`,
 		latest, org, meeting, user)
 	item := func(id string, position int, title, task string, dismissed bool) {
 		exec(`INSERT INTO meeting_action_items (id, organization_id, workspace_id, meeting_id, source, summary_id, position, title,
@@ -81,20 +87,31 @@ func TestMeetingActionItemsCatchUp(t *testing.T) {
 	item(rowA, 0, "Gửi báo cáo", "", false)
 	item(rowB, 1, "Đặt phòng", "", true)
 	item(rowC, 2, "In tài liệu", taskC, false)
-	for i, task := range []string{taskA, taskB, taskC, taskD, taskOld} {
+	// Rows a backfill made from a summary with a repeated title (the new
+	// server would have dropped the second).
+	item(rowE, 3, "Họp lại", "", false)
+	item(rowF, 4, "Họp lại", "", false)
+	item(rowG, 5, "Chốt lịch", "", false)
+	for i, task := range []string{taskA, taskB, taskC, taskD, taskOld, taskE1, taskE2, taskG} {
 		exec(`INSERT INTO tasks (id, organization_id, workspace_id, number, title, created_by, creator_id, creator_type, last_activity_at)
 			VALUES ($1, $2, $3, $4, 'task', $5, $5, 'member', now())`, task, org, ws, 910000+i, user)
 	}
-	link := func(id, summary string, index int, task string) {
-		exec(`INSERT INTO meeting_summary_task_links (id, organization_id, workspace_id, meeting_id, summary_id, item_index, task_id, created_by, created_by_kind)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'human')`, id, org, ws, meeting, summary, index, task, user)
+	linkAt := func(id, summary string, index int, task, ago string) {
+		exec(`INSERT INTO meeting_summary_task_links (id, organization_id, workspace_id, meeting_id, summary_id, item_index, task_id, created_by, created_by_kind, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'human', now() - $9::interval)`, id, org, ws, meeting, summary, index, task, user, ago)
 	}
+	link := func(id, summary string, index int, task string) { linkAt(id, summary, index, task, "0 minutes") }
 	link("01LNKCATCHUPAI000000000001", latest, 0, taskA)   // onto pending row A
 	link("01LNKCATCHUPAI000000000002", latest, 2, taskB)   // row B is dismissed: a row of its own
 	link("01LNKCATCHUPAI000000000003", latest, 3, taskC)   // already carried by row C
 	link("01LNKCATCHUPAI000000000004", latest, 4, taskD)   // no row: a new one
 	link("01LNKCATCHUPAI000000000005", older, 0, taskOld)  // older summary, no row: a new one
 	link("01LNKCATCHUPAI000000000006", older, 1, goneTask) // task deleted: nothing
+	// Both "Họp lại" links find row E first; the older link (the larger id,
+	// so the order is by time, not id) takes it, the other gets a row.
+	linkAt("01LNKCATCHUPAI000000000007", latest, 5, taskE1, "1 minute")
+	linkAt("01LNKCATCHUPAI000000000008", latest, 6, taskE2, "2 minutes")
+	link("01LNKCATCHUPAI000000000009", latest, 7, taskG) // "Chốt lịch\n" finds row G
 
 	type row struct {
 		id, title, owner, due, task string
@@ -133,6 +150,10 @@ func TestMeetingActionItemsCatchUp(t *testing.T) {
 		"In tài liệu|" + taskC:  {id: rowC, title: "In tài liệu", task: taskC, position: 2},
 		"Gọi khách|" + taskD:    {title: "Gọi khách", owner: "An", due: "mai", task: taskD, position: 4, stamped: true},
 		"Cũ đã giao|" + taskOld: {title: "Cũ đã giao", task: taskOld, position: 0, stamped: true},
+		"Họp lại|" + taskE2:     {id: rowE, title: "Họp lại", task: taskE2, position: 3, stamped: true},
+		"Họp lại|":              {id: rowF, title: "Họp lại", position: 4},
+		"Họp lại|" + taskE1:     {title: "Họp lại", task: taskE1, position: 5, stamped: true},
+		"Chốt lịch|" + taskG:    {id: rowG, title: "Chốt lịch", task: taskG, position: 5, stamped: true},
 	}
 	if len(first) != len(want) {
 		t.Fatalf("rows after catch-up = %+v, want %d rows", first, len(want))
