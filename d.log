@@ -1,0 +1,6 @@
+$ (. scripts/local-env.sh && cd server && go test ./internal/handler/ -run "Office" -count=1 > /tmp/ops2-handler.log 2>&1); rc=$?; echo; echo "GO_HANDLER_OFFICE_EXIT=$rc"; grep -E "^\s*--- FAIL|^(ok|FAIL)\s|panic:|_test.go:" /tmp/ops2-handler.log | tail -20
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+
+GO_HANDLER_OFFICE_EXIT=0
+ok  	github.com/unicomhub/uniwork/server/internal/handler	18.787s

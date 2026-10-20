@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+7c748aaed30788d327fe92a04a89726c06ead4cb
+7c748aaed chore: merge the G5-G7 root d32ad06f9 into SIZE-OPS2 (UNI-1991)
+7f05a08d5 fix(office): hold legacy spool by descriptor across open and release (SIZE-OPS2 r3)
+d32ad06f9 chore: merge UNI-1983 IDEMP-SWEEP (c2050783f) into the G5-G7 root
