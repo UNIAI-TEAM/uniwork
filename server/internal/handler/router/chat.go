@@ -25,6 +25,7 @@ import (
 //	DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/messages
 //	POST /api/v1/workspaces/{workspaceID}/chat/messages
+//	GET  /api/v1/workspaces/{workspaceID}/chat/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages
@@ -279,6 +280,15 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		tags:        []string{"chat"},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/messages/search", h.SearchChatMessages, apiOp{
+		summary: "Search chat messages across my rooms",
+		description: "Tìm tin nhắn văn bản trong mọi phòng người gọi là thành viên, theo một phạm vi: scope=messages " +
+			"(tin riêng và nhóm của tổ chức) hoặc scope=workspace (phòng chung và kênh của workspace). Mới nhất trước; " +
+			"q từ 2 đến 100 ký tự, không phân biệt dấu; không đánh dấu đã đọc.",
+		tags: []string{"chat"},
+		sdo:  sdo.ChatMessageDTO{},
+		auth: true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}", h.ListChatRoomMessagesAround, apiOp{
 		summary:     "List chat messages around message",

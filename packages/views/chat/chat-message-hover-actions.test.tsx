@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
-import { ChatMessageHoverActions } from "./chat-message-hover-actions";
+import { ChatMessageActionsFrame, ChatMessageHoverActions } from "./chat-message-hover-actions";
 import type { ChatMessage } from "./chat-messages";
 
 vi.mock("@uniwork/ui/components/common/emoji-picker", () => ({
@@ -66,7 +66,7 @@ describe("ChatMessageHoverActions", () => {
     expect(document.activeElement).toBe(moved);
   });
 
-  it("leads with six quick reactions that toggle that emoji, mine drawn pressed", async () => {
+  it("keeps the bar small: the quick heart, any emoji, reply and more", async () => {
     const user = userEvent.setup();
     const onToggleReaction = vi.fn();
     const row: ChatMessage = { ...message("m1"), reactions: { "❤️": 2 }, myReactions: ["❤️"] };
@@ -78,17 +78,55 @@ describe("ChatMessageHoverActions", () => {
           onReply={vi.fn()}
           onReact={vi.fn()}
           onToggleReaction={onToggleReaction}
+          onPin={vi.fn()}
+          onThread={vi.fn()}
         />,
       ),
     );
-    for (const emoji of ["👍", "❤️", "😂", "🎉", "😮", "🙏"]) {
-      // One button per emoji: the quick 👍 replaces the old single "Thả 👍" action.
-      expect(screen.getAllByRole("button", { name: `Thả ${emoji}` })).toHaveLength(1);
-    }
+    const bar = screen.getByRole("toolbar");
+    expect(within(bar).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Thả ❤️",
+      "Thêm cảm xúc",
+      "Trả lời",
+      "Thêm",
+    ]);
     const heart = screen.getByRole("button", { name: "Thả ❤️" });
     expect(heart).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Thả 🎉" }));
-    expect(onToggleReaction).toHaveBeenCalledWith(row, "🎉");
+    await user.click(heart);
+    expect(onToggleReaction).toHaveBeenCalledWith(row, "❤️");
+  });
+
+  it("puts everything else in the more menu: the reaction strip first, delete apart", async () => {
+    const user = userEvent.setup();
+    const onToggleReaction = vi.fn();
+    const onEdit = vi.fn();
+    const row = message("m1");
+    render(
+      wrap(
+        <ChatMessageHoverActions
+          message={row}
+          isOwn
+          onReply={vi.fn()}
+          onReact={vi.fn()}
+          onToggleReaction={onToggleReaction}
+          onThread={vi.fn()}
+          onEdit={onEdit}
+          onPin={vi.fn()}
+          onCopy={vi.fn()}
+          onDelete={vi.fn()}
+        />,
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Thêm" }));
+    const menu = await screen.findByRole("menu");
+    for (const emoji of ["👍", "❤️", "😂", "🎉", "😮", "🙏"]) {
+      expect(within(menu).getByRole("menuitem", { name: `Thả ${emoji}` })).toBeInTheDocument();
+    }
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual(
+      expect.arrayContaining(["Trả lời", "Trả lời theo chủ đề", "Sửa", "Sao chép", "Ghim", "Xóa"]),
+    );
+    await user.click(within(menu).getByRole("menuitem", { name: "Sửa" }));
+    expect(onEdit).toHaveBeenCalledWith(row);
   });
 
   it("opens the emoji picker from Thêm cảm xúc; a pick toggles that emoji and closes it", async () => {
@@ -142,15 +180,48 @@ describe("ChatMessageHoverActions", () => {
     expect(classes).not.toContain("group-focus-within/message:pointer-events-auto");
     expect(classes).toContain("group-has-[:focus-visible]/message:pointer-events-auto");
   });
+});
 
-  it("opens on a long press (forceOpen) with pointer events on", () => {
-    render(
-      wrap(
-        <ChatMessageHoverActions message={message("m1")} isOwn onReply={vi.fn()} onReact={vi.fn()} forceOpen />,
-      ),
+describe("ChatMessageActionsFrame", () => {
+  function Frame({ onToggleReaction = vi.fn(), pending = false }: { onToggleReaction?: () => void; pending?: boolean }) {
+    return (
+      <ChatMessageActionsFrame
+        message={message("m1")}
+        isOwn={false}
+        pending={pending}
+        onReply={vi.fn()}
+        onReact={vi.fn()}
+        onToggleReaction={onToggleReaction}
+        onCopy={vi.fn()}
+      >
+        <p>Báo cáo doanh số tuần đã lên</p>
+      </ChatMessageActionsFrame>
     );
-    const classes = screen.getByRole("toolbar").parentElement!.className.split(/\s+/);
-    expect(classes).toContain("pointer-events-auto");
-    expect(classes).toContain("opacity-100");
+  }
+
+  it("opens the message's menu on a right click, reactions first", async () => {
+    const user = userEvent.setup();
+    const onToggleReaction = vi.fn();
+    render(wrap(<Frame onToggleReaction={onToggleReaction} />));
+    fireEvent.contextMenu(screen.getByText("Báo cáo doanh số tuần đã lên"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Sao chép" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Thả 🎉" }));
+    expect(onToggleReaction).toHaveBeenCalledWith(expect.objectContaining({ id: "m1" }), "🎉");
+  });
+
+  it("opens the bar's emoji picker from the menu's Thêm cảm xúc", async () => {
+    const user = userEvent.setup();
+    render(wrap(<Frame />));
+    fireEvent.contextMenu(screen.getByText("Báo cáo doanh số tuần đã lên"));
+    await user.click(await screen.findByRole("menuitem", { name: "Thêm cảm xúc" }));
+    expect(await screen.findByRole("button", { name: "Pick 🎉" })).toBeInTheDocument();
+  });
+
+  it("leaves a message not on the server yet without actions", () => {
+    render(wrap(<Frame pending />));
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByText("Báo cáo doanh số tuần đã lên"));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 });

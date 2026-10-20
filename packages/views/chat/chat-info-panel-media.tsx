@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Mic } from "lucide-react";
+import { ChevronRight, File, Image as ImageIcon, Link2, Mic, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { useChatRoomSharedSummary } from "@uniwork/core/chat";
@@ -17,6 +17,7 @@ import { formatVoiceCallDuration } from "./voice-call-duration";
 
 type MediaTab = "photo" | "file" | "link" | "voice";
 const TABS: readonly MediaTab[] = ["photo", "file", "link", "voice"];
+const TAB_ICONS: Record<MediaTab, LucideIcon> = { photo: ImageIcon, file: File, link: Link2, voice: Mic };
 const NO_MESSAGES: ChatMessageRecord[] = [];
 /** Photos shown before the last tile turns into "+N". */
 const PHOTO_PREVIEW = 6;
@@ -24,8 +25,9 @@ const PHOTO_PREVIEW = 6;
 const byNewest = (left: { at: string }, right: { at: string }) => Date.parse(right.at) - Date.parse(left.at);
 
 /**
- * What the room has shared — photos, files, links, voice messages — as
- * scrollable pill tabs over a 3-column grid (photos) or a list. The counts and
+ * What the room has shared — photos, files, links, voice messages — as one
+ * row per kind with its count, the chosen kind's 3-column grid (photos) or
+ * list under them. The counts and
  * the first photos come from the room's summary; the history is paged only
  * once a list is asked for (another tab, or "+N"). A photo or a voice message
  * jumps to where it was sent.
@@ -82,21 +84,27 @@ export function ChatInfoMedia({
 
   return (
     <ChatInfoSection className="pt-3">
-      <div role="group" aria-label={t("chat.info_panel.media_aria")} className="-mx-1.5 mb-3 flex gap-1 overflow-x-auto">
-        {TABS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={tab === key}
-            className={cn(
-              "h-8 shrink-0 cursor-pointer rounded-full px-3 text-label font-semibold tabular-nums transition-colors duration-(--duration-fast)",
-              tab === key ? "bg-brand-subtle text-brand-subtle-foreground" : "text-muted-foreground hover:bg-surface-hover",
-            )}
-            onClick={() => setTab(key)}
-          >
-            {t(`chat.info_panel.tab_${key}`, { count: counts[key] })}
-          </button>
-        ))}
+      {/* Telegram's shared-media rows: one line per kind with its count, never cut short as tabs were. */}
+      <div role="group" aria-label={t("chat.info_panel.media_aria")} className="-mx-2 mb-3 flex flex-col">
+        {TABS.map((key) => {
+          const Icon = TAB_ICONS[key];
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={tab === key}
+              className={cn(
+                "flex h-11 w-full cursor-pointer items-center gap-3.5 rounded-lg px-2 text-left text-body tabular-nums transition-colors duration-(--duration-fast)",
+                tab === key ? "bg-brand-subtle font-semibold text-brand-subtle-foreground" : "text-foreground hover:bg-surface-hover",
+              )}
+              onClick={() => setTab(key)}
+            >
+              <Icon aria-hidden className={cn("size-5 shrink-0", tab === key ? "text-brand" : "text-muted-foreground")} />
+              <span className="min-w-0 flex-1 truncate">{t(`chat.info_panel.tab_${key}`, { count: counts[key] })}</span>
+              <ChevronRight aria-hidden className={cn("size-4 shrink-0 text-faint-foreground", tab === key && "rotate-90")} />
+            </button>
+          );
+        })}
       </div>
       <div>
         {lists.some((query) => query.isPending) ? (

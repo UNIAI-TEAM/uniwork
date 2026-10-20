@@ -29,7 +29,15 @@
       "unichat_login_button": "Đăng nhập",
       "unichat_login_waiting": "Hoàn tất đăng nhập trong trình duyệt vừa mở.",
       "unichat_login_reopen": "Mở lại trình duyệt",
-      "unichat_login_failed": "Không mở được trình duyệt để đăng nhập. Thử lại."
+      "unichat_login_failed": "Không mở được trình duyệt để đăng nhập. Thử lại.",
+      "unichat_login_feature_chats": "Tin riêng, nhóm và kênh của mọi workspace ở một chỗ",
+      "unichat_login_feature_calls": "Gọi thoại, gọi video và chia sẻ màn hình",
+      "unichat_login_feature_uni": "UNI tóm tắt tin chưa đọc và cuộc gọi cho bạn",
+      "unichat_login_step_opened": "Trình duyệt đã mở trang đăng nhập UniWork",
+      "unichat_login_step_allow": "Bấm “Cho phép ứng dụng desktop” trên trang đó",
+      "unichat_login_step_return": "Quay lại đây, UniChat tự mở cuộc trò chuyện",
+      "unichat_login_cancel": "Hủy",
+      "unichat_login_version": "UniChat {{version}}"
     },
     "logout": "Đăng xuất"
   },
@@ -749,6 +757,11 @@
     "sidebar_list_menu_aria": "Tùy chọn trò chuyện trong {{name}}",
     "sidebar_photo_preview": "Ảnh",
     "sidebar_seen_aria": "Đã xem",
+    "sidebar_draft_label": "Nháp:",
+    "sidebar_search_messages_title": "Tin nhắn",
+    "sidebar_search_messages_loading": "Đang tìm trong tin nhắn…",
+    "sidebar_search_messages_failed": "Chưa tìm được trong tin nhắn. Thử lại sau.",
+    "sidebar_search_messages_empty": "Không có tin nhắn nào khớp.",
     "unread_count_chip": "{{count}} tin chưa đọc",
     "catch_up_quick": "Tóm tắt nhanh",
     "action_react_more": "Thêm cảm xúc",

@@ -475,6 +475,7 @@ type Routes struct {
 	ListChatRoomMessages             http.HandlerFunc
 	GetChatRoomMessage               http.HandlerFunc
 	SearchChatRoomMessages           http.HandlerFunc
+	SearchChatMessages               http.HandlerFunc
 	ListChatRoomMessagesAround       http.HandlerFunc
 	SendChatRoomMessage              http.HandlerFunc
 	SendChatVoiceMessage             http.HandlerFunc

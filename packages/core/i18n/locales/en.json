@@ -336,7 +336,15 @@
       "unichat_login_button": "Sign in",
       "unichat_login_waiting": "Finish signing in with the browser that just opened.",
       "unichat_login_reopen": "Open browser again",
-      "unichat_login_failed": "Could not open the browser to sign in. Try again."
+      "unichat_login_failed": "Could not open the browser to sign in. Try again.",
+      "unichat_login_feature_chats": "Direct messages, groups and every workspace's channels in one place",
+      "unichat_login_feature_calls": "Voice and video calls, and screen sharing",
+      "unichat_login_feature_uni": "UNI sums up your unread messages and calls",
+      "unichat_login_step_opened": "The browser opened the UniWork sign-in page",
+      "unichat_login_step_allow": "Choose “Allow desktop app” there",
+      "unichat_login_step_return": "Come back here: UniChat opens your conversations",
+      "unichat_login_cancel": "Cancel",
+      "unichat_login_version": "UniChat {{version}}"
     },
     "connect": {
       "eyebrow": "Connect an AI assistant",
@@ -686,6 +694,22 @@
       "avatarUploadFailed": "Could not upload the photo. Try again.",
       "emailHint": "The address you sign in with.",
       "displayNameRequired": "Display name can't be empty."
+    },
+    "unichat": {
+      "nav_aria": "Settings sections",
+      "about": "About UniChat",
+      "about_description": "The version running on this computer.",
+      "app_name": "UniChat",
+      "version": "Version {{version}}",
+      "web_build": "Running in the browser",
+      "updates": "UniChat tells you when a new version is out.",
+      "notifications_description": "Which messages reach you, through what, and how this computer tells you.",
+      "device_sound": "Sound for new messages",
+      "device_sound_hint": "Play the system alert with each notification.",
+      "device_preview": "Show message text in notifications",
+      "device_preview_hint": "Turn off to show only who sent it.",
+      "device_badge": "Unread count on the app icon",
+      "device_badge_hint": "On the Dock (macOS) or the taskbar."
     },
     "preferences": {
       "timezone": "Time zone",
@@ -1318,7 +1342,10 @@
         "title": "Fixed shortcuts",
         "description": "These keys cannot be changed, so they always work.",
         "toggle_sidebar": "Show or hide the sidebar",
-        "close_dialog": "Close dialog or menu"
+        "close_dialog": "Close dialog or menu",
+        "chat_send": "Send the message",
+        "chat_new_line": "New line in the message box",
+        "chat_escape": "Close a menu, cancel a reply or an edit"
       },
       "actions": {
         "ai_ask_uni": {
@@ -1384,6 +1411,10 @@
         "go_settings": {
           "label": "Go to Settings",
           "description": "Open settings."
+        },
+        "chat_search": {
+          "label": "Find a conversation",
+          "description": "Put the caret in the search box at the top of the chat list."
         }
       }
     },
@@ -4470,6 +4501,11 @@
     "sidebar_list_menu_aria": "Chat options in {{name}}",
     "sidebar_photo_preview": "Photo",
     "sidebar_seen_aria": "Seen",
+    "sidebar_draft_label": "Draft:",
+    "sidebar_search_messages_title": "Messages",
+    "sidebar_search_messages_loading": "Searching messages…",
+    "sidebar_search_messages_failed": "Couldn't search messages. Try again later.",
+    "sidebar_search_messages_empty": "No messages match.",
     "unread_count_chip": "{{count}} unread",
     "catch_up_quick": "Quick summary",
     "action_react_more": "Add reaction",

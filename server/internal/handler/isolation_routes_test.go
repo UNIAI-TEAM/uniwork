@@ -559,6 +559,7 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/comments/{commentID}/sub-task-preview":                               {control: []int{http.StatusUnprocessableEntity}},
 	"GET /api/v1/workspaces/{workspaceID}/calendar/events":                            {query: "?from={fromDate}&to={toDate}"},
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search":        {query: "?q=message"},
+	"GET /api/v1/workspaces/{workspaceID}/chat/messages/search":                       {query: "?q=message&scope=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/recording/active": {query: "?call_id={callID}"},
 	"GET /api/v1/workspaces/{workspaceID}/chat/users/lookup":                          {query: "?email={peerEmail}"},
 	// The organization rides in the query; the installer profile is configured in the world, so the owner is served.

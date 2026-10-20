@@ -32,7 +32,6 @@ import { ChatForwardContext } from "./chat-forward-context";
 import { ChatPeerReadAtContext } from "./chat-message-parts";
 import { CHAT_WALL } from "./chat-wall";
 import { toastChatError } from "./chat-error-message";
-import { ChatMessageActionsLayerProvider } from "./chat-message-actions-layer";
 import { VirtualChatMessageList, updateStickToBottomFromScroll, useReaderScrollAt } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { NativeChatLiveRegion } from "./native-chat-live-region";
@@ -43,6 +42,7 @@ import {
   type NativeChatMessageContext,
 } from "./native-chat-message-item";
 import { buildMainTimelineMessages, buildThreadViewMessages, countNewSince } from "./native-chat-message-timeline";
+import { ChatIntroCompactContext } from "./chat-conversation-intro";
 import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 import { useNativeChatMessageActions } from "./use-native-chat-message-actions";
 import { useAnchorWindowLoad, useChatHighlightFlash, useOwnSendFollowsLatest, useTypingKeepsPinned } from "./use-chat-anchor-follow";
@@ -446,7 +446,8 @@ export function NativeChatMessagePanel({
     ) : canLoadOlder ? (
       <ChatLoadOlderButton onClick={() => void loadOlder()} />
     ) : !hasMore && !threadRoot && !anchorMessages && intro ? (
-      intro
+      // Above messages the intro is a one-line chip; an empty room keeps the card (the `empty` slot).
+      <ChatIntroCompactContext.Provider value>{intro}</ChatIntroCompactContext.Provider>
     ) : null;
 
   return (
@@ -493,7 +494,6 @@ export function NativeChatMessagePanel({
               <ChatMessageLinksProvider value={linksValue}>
                 <ChatPeerReadAtContext.Provider value={receiptReadAt}>
                   <ChatForwardContext.Provider value={actions.onForward ?? null}>
-                    <ChatMessageActionsLayerProvider>
                     <VirtualChatMessageList
                       key={roomId}
                       messages={messages}
@@ -512,7 +512,6 @@ export function NativeChatMessagePanel({
                       }
                       renderMessage={renderMessage}
                     />
-                    </ChatMessageActionsLayerProvider>
                   </ChatForwardContext.Provider>
                 </ChatPeerReadAtContext.Provider>
               </ChatMessageLinksProvider>

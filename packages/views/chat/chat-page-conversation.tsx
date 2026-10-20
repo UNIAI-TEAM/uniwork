@@ -15,6 +15,7 @@ import {
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPinnedMessagesBar } from "./chat-pinned-messages-bar";
 import { senderLabelFor } from "./native-chat-message-mapping";
+import { ChatActiveCallBar } from "./chat-active-call-bar";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
 import type { useChatCatchUpUi } from "./use-chat-catch-up-ui";
 import { useChatInlineEdit } from "./use-chat-inline-edit";
@@ -87,6 +88,7 @@ export function ChatPageConversation({
 
   return (
     <>
+      <ChatActiveCallBar />
       <ChatPageConversationToolbar
         target={target}
         headerTitle={headerTitle}
