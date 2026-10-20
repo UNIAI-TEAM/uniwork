@@ -246,6 +246,16 @@ describe("AccessReportView - tabs", () => {
     expect(await screen.findByText(at("skipped_line", { count: 14 }))).toBeInTheDocument();
   });
 
+  it("By person: the two lines sit apart by a gap, with no dot between them", async () => {
+    serve();
+    renderView(`${BASE_URL}?view=person`);
+    const principals = await screen.findByText(at("principals_line", { principals: 2, count: 11 }));
+    const line = principals.parentElement!;
+    expect(await within(line).findByText(at("skipped_line", { count: 14 }))).toBeInTheDocument();
+    expect(Array.from(line.querySelectorAll("span")).some((span) => span.textContent === "·")).toBe(false);
+    expect(line.className).toContain("gap-x-3");
+  });
+
   it("By person: the type and level in the URL are sent with the principals", async () => {
     serve();
     renderView(`${BASE_URL}?view=person&kind=member&level=manage`);
@@ -358,6 +368,37 @@ describe("AccessReportView - pages", () => {
     fireEvent.click(screen.getByRole("button", { name: at("prev") }));
     expect(await screen.findByText("Hợp đồng ABC")).toBeInTheDocument();
     expect(calls(REPORT_PATH)).toHaveLength(asked);
+  });
+
+  it("shows a document once when a later page repeats it, and counts from the rows that remain", async () => {
+    serve({
+      report: (url) =>
+        url.searchParams.get("cursor") === "cur1"
+          ? page({ documents: [docEntry("d2", "Phụ lục B"), docEntry("d3", "Phụ lục C")], next_cursor: "cur2" })
+          : page({ documents: [docEntry("d1", "Hợp đồng ABC"), docEntry("d2", "Phụ lục B")], next_cursor: "cur1" }),
+    });
+    renderView();
+    await screen.findByText("Hợp đồng ABC");
+    fireEvent.click(screen.getByRole("button", { name: at("next") }));
+    expect(await screen.findByText("Phụ lục C")).toBeInTheDocument();
+    expect(screen.queryByText("Phụ lục B")).toBeNull();
+    expect(screen.getByText(at("count_range", { from: 3, to: 3, total: 5 }))).toBeInTheDocument();
+  });
+
+  it("reads on past a page that held only documents already shown", async () => {
+    serve({
+      report: (url) => {
+        const cursor = url.searchParams.get("cursor");
+        if (cursor === "cur1") return page({ documents: [docEntry("d2", "Phụ lục B")], next_cursor: "cur2" });
+        if (cursor === "cur2") return page({ documents: [docEntry("d3", "Phụ lục C")], next_cursor: null });
+        return page({ documents: [docEntry("d1", "Hợp đồng ABC"), docEntry("d2", "Phụ lục B")], next_cursor: "cur1" });
+      },
+    });
+    renderView();
+    await screen.findByText("Hợp đồng ABC");
+    fireEvent.click(screen.getByRole("button", { name: at("next") }));
+    expect(await screen.findByText("Phụ lục C")).toBeInTheDocument();
+    expect(screen.queryByText("Phụ lục B")).toBeNull();
   });
 
   it("Next is off on the last page", async () => {

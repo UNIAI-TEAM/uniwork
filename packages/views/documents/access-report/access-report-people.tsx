@@ -217,6 +217,8 @@ function PersonRow({ wsId, principal: p, open, onToggle, folderId, levels, docum
   const label = open ? t("documents.accessReport.collapse", { name }) : t("documents.accessReport.expand_person", { name });
   const parts = SPLIT_ORDER.filter((level) => p.levels[level] > 0);
   const total = parts.reduce((sum, level) => sum + p.levels[level], 0);
+  const legend = parts.length > 0 ? parts.map((level) => `${p.levels[level]} ${accessLevelLabel(t, level)}`).join(" · ") : "—";
+  const mainSource = accessSourceLabel(t, MAIN_SOURCE[p.main_source] ?? { source: "" });
 
   return (
     <Fragment>
@@ -234,6 +236,8 @@ function PersonRow({ wsId, principal: p, open, onToggle, folderId, levels, docum
             <span className="flex min-w-0 flex-col">
               <span title={name} className="truncate font-medium">{name}</span>
               <span className="truncate text-caption text-muted-foreground">{kindLine(t, p)}</span>
+              {/* The split bar and the main source columns leave the row below sm: their words ride under the name. */}
+              <span data-caption className="truncate text-caption text-muted-foreground sm:hidden">{`${legend} · ${mainSource}`}</span>
             </span>
           </button>
         </td>
@@ -248,11 +252,11 @@ function PersonRow({ wsId, principal: p, open, onToggle, folderId, levels, docum
               </div>
             ) : null}
             <span className="text-caption text-muted-foreground">
-              {parts.length > 0 ? parts.map((level) => `${p.levels[level]} ${accessLevelLabel(t, level)}`).join(" · ") : "—"}
+              {legend}
             </span>
           </div>
         </td>
-        <td className={cn(TD, NARROW_HIDDEN, "text-muted-foreground")}>{accessSourceLabel(t, MAIN_SOURCE[p.main_source] ?? { source: "" })}</td>
+        <td className={cn(TD, NARROW_HIDDEN, "text-muted-foreground")}>{mainSource}</td>
         <td className={cn(TD, "text-right")}>
           {/* A bigger target for the pointer; the name button is the one keyboard and screen-reader stop. */}
           <button

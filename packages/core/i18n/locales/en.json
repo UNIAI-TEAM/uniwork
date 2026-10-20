@@ -10293,7 +10293,7 @@
       "revoke_label": "Revoke {{name}}'s access",
       "revoke_done": "Revoked {{name}}'s access",
       "revoke_title_link": "Turn off the public link?",
-      "revoke_label_link": "Turn off the public link",
+      "revoke_label_link": "Revoke: turn off the public link",
       "revoke_done_link": "The public link is off",
       "revoke_failed": "Couldn't revoke. Nothing changed.",
       "manage_sharing": "Manage sharing",

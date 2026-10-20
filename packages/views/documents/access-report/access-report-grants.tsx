@@ -31,6 +31,15 @@ import { accessLevelLabel, accessSourceLabel, grantKindNote, principalTypeLabel,
 
 const NONE = "—";
 
+// Below sm the column headers are gone, so each value carries its own small caption.
+function Caption({ children }: { children: string }) {
+  return (
+    <span data-caption className="mr-1 font-medium after:content-[':'] sm:hidden">
+      {children}
+    </span>
+  );
+}
+
 const TH = "px-3 py-2 text-left text-caption font-medium whitespace-nowrap text-muted-foreground";
 const TD = "px-3 py-2 align-middle";
 // Below sm a grant is a wrapping block, not a table row: name on its own line, then the
@@ -170,9 +179,16 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
                     )}
                   </span>
                 </td>
-                <td className={cn(TD, TD_STACKED, "text-muted-foreground max-sm:order-2 max-sm:text-caption")}>{accessSourceLabel(t, row)}</td>
-                <td className={cn(TD, TD_STACKED, "text-muted-foreground max-sm:order-2 max-sm:text-caption")}>{row.granted_by_name || NONE}</td>
+                <td className={cn(TD, TD_STACKED, "text-muted-foreground max-sm:order-2 max-sm:text-caption")}>
+                  <Caption>{t("documents.accessReport.col_source")}</Caption>
+                  {accessSourceLabel(t, row)}
+                </td>
+                <td className={cn(TD, TD_STACKED, "text-muted-foreground max-sm:order-2 max-sm:text-caption")}>
+                  <Caption>{t("documents.accessReport.col_granted_by")}</Caption>
+                  {row.granted_by_name || NONE}
+                </td>
                 <td className={cn(TD, TD_STACKED, "whitespace-nowrap text-muted-foreground max-sm:order-2 max-sm:text-caption")}>
+                  <Caption>{t("documents.accessReport.col_granted_at")}</Caption>
                   {row.granted_at ? formatWhen(row.granted_at, i18n.language) || NONE : NONE}
                 </td>
                 <td className={cn(TD, TD_STACKED, "text-right max-sm:order-1 max-sm:ml-auto")}>

@@ -10283,7 +10283,7 @@
       "revoke_label": "Thu hồi quyền của {{name}}",
       "revoke_done": "Đã thu hồi quyền của {{name}}",
       "revoke_title_link": "Tắt link công khai?",
-      "revoke_label_link": "Tắt link công khai",
+      "revoke_label_link": "Thu hồi: tắt link công khai",
       "revoke_done_link": "Đã tắt link công khai",
       "revoke_failed": "Không thu hồi được. Chưa có gì thay đổi.",
       "manage_sharing": "Quản lý chia sẻ",

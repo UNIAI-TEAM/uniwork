@@ -303,6 +303,18 @@ describe("AccessReportPeople - open row", () => {
     expect(within(third).getByText(at("source_chat"))).toBeInTheDocument();
   });
 
+  it("below sm a caption line under the name carries the split legend and the main source", async () => {
+    serve();
+    renderPeople();
+    await screen.findByRole("table", { name: at("tab_people") });
+    const hung = personRow("Hưng Nguyễn Duy");
+    const caption = hung.querySelector("button span[data-caption]")!;
+    expect(caption).not.toBeNull();
+    expect(caption.textContent).toBe(
+      `2 ${at("level_manage")} · 1 ${at("level_edit")} · 1 ${at("level_view")} · ${at("source_direct")}`,
+    );
+  });
+
   it("drops the split bar and the main source below sm, and sizes an open row to the scroll box", async () => {
     serve();
     renderPeople();

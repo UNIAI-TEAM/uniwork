@@ -379,6 +379,26 @@ describe("AccessReportTable", () => {
     expect(within(grants).getByRole("button", { name: at("revoke_label_link") })).toBeInTheDocument();
   });
 
+  it("every Revoke button's accessible name contains its visible label (WCAG 2.5.3)", () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
+    const buttons = within(grants).getAllByRole("button", { name: new RegExp(at("revoke")) });
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      expect(button.textContent).toBe(at("revoke"));
+      expect(button.getAttribute("aria-label")).toContain(at("revoke"));
+    }
+  });
+
+  it("below sm each grant's source, granted-by and date carry their column caption", () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const shareLine = screen.getByText("Trần Bình").closest("tr")!;
+    const captions = Array.from(shareLine.querySelectorAll("td span[data-caption]")).map((c) => c.textContent);
+    expect(captions).toEqual([at("col_source"), at("col_granted_by"), at("col_granted_at")]);
+  });
+
   it("revokes after a confirmation, through the share route, and says so", async () => {
     requestMock.mockResolvedValue(undefined);
     renderTable();

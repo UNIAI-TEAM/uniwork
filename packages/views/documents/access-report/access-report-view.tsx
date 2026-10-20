@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ChevronLeft, ChevronRight, CircleAlert, FileSearch, FolderX, Info, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -79,7 +79,16 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
 
   // Previous / Next walk the pages already read; a page that came back empty
   // (the server read documents the reader does not manage) is not one of them.
-  const shown = pages.map((p) => p.documents).filter((docs) => docs.length > 0);
+  // After an access change mid-walk the server can send a document again on a later page: the first copy stays.
+  const seen = new Set<string>();
+  const pageDocuments = pages.map((p) =>
+    p.documents.filter((entry) => {
+      if (seen.has(entry.document.id)) return false;
+      seen.add(entry.document.id);
+      return true;
+    }),
+  );
+  const shown = pageDocuments.filter((docs) => docs.length > 0);
   const pagerKey = JSON.stringify([folderId, filters, sort, order]);
   const [pager, setPager] = useState({ key: pagerKey, index: 0, advancing: false });
   if (pager.key !== pagerKey) setPager({ key: pagerKey, index: 0, advancing: false });
@@ -90,7 +99,7 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
 
   const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = report;
   let trailingEmpty = 0;
-  while (trailingEmpty < pages.length && pages[pages.length - 1 - trailingEmpty]!.documents.length === 0) trailingEmpty++;
+  while (trailingEmpty < pages.length && pageDocuments[pages.length - 1 - trailingEmpty]!.length === 0) trailingEmpty++;
   // Nothing shown yet: read on until something is. Asked for the next page:
   // read on through a bounded run of empty pages.
   const readOn = !report.isPlaceholderData && (shown.length === 0 || (advancing && index + 1 >= shown.length && trailingEmpty < MAX_EMPTY_PAGES));
@@ -292,13 +301,10 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
                   <TabsTrigger value="people">{t("documents.accessReport.tab_people")}</TabsTrigger>
                 </TabsList>
                 {lines.length > 0 ? (
-                  <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pb-2 text-caption text-muted-foreground">
+                  <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pb-2 text-caption text-muted-foreground">
                     <Info aria-hidden className="size-3.5 shrink-0" />
-                    {lines.map((line, index) => (
-                      <Fragment key={line}>
-                        {index > 0 ? <span aria-hidden>·</span> : null}
-                        <span>{line}</span>
-                      </Fragment>
+                    {lines.map((line) => (
+                      <span key={line}>{line}</span>
                     ))}
                   </p>
                 ) : null}
