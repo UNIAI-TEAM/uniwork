@@ -4,6 +4,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { ChevronRight, Info, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
+import { versionViewHref } from "@uniwork/core/office/version-view";
+import { paths } from "@uniwork/core/paths";
 import type { Document, DocumentCommentKind } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Sheet, SheetContent } from "@uniwork/ui/components/ui/sheet";
@@ -25,6 +27,7 @@ import {
   findDeepLinkTarget,
   listSignature,
   threadsOf,
+  versionViewTarget,
   type DocumentThread,
 } from "./document-comments-model";
 import { useDocumentCommentsPanel, type PanelStatus } from "./use-document-comments-panel";
@@ -207,6 +210,13 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
     canWrite: panel.canWrite,
     canModerate: panel.canModerate,
     blockedReasonId: panel.blocked ? statusId : undefined,
+    // A lost comment's version, read-only (UNI-2033); needs the slugs the page URL is built from.
+    versionView: (root) => {
+      const versionNo = versionViewTarget(root, doc);
+      if (versionNo === null || !workspace) return null;
+      const page = paths.workspace(workspace.workspace.organization_slug, workspace.workspace.slug).document(doc.id);
+      return { versionNo, href: versionViewHref(page, versionNo, root.id) };
+    },
     deletedKey,
     actions: {
       ...panel.actions,

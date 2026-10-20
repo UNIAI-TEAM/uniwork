@@ -7,7 +7,7 @@ import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import { DocsProtocolError, PROTOCOL_NS, PROTOCOL_VERSION, type Envelope } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
-import type { DocsFrameSessionOptions } from "./docs-frame-session-model";
+import type { DocsFrameSessionOptions, OfficeFrameFileRef } from "./docs-frame-session-model";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 
 // G5-03w, host side: doc.remoteVersion, the api.open revision (OQ-P3), aiRun per frame, and the
@@ -70,7 +70,7 @@ interface Server {
   feed: unknown;
 }
 
-function setup(fileRef: { kind: "document" | "source"; id: string } = { kind: "document", id: "doc-1" }) {
+function setup(fileRef: OfficeFrameFileRef = { kind: "document", id: "doc-1" }) {
   const server: Server = { head: { revision: "9", versionId: "v1" }, versions: ["v1"], feed: null };
   requestMock.mockImplementation((path: string) => {
     if (path === MINT_PATH) return Promise.resolve(minted);
@@ -707,5 +707,20 @@ describe("useDocsFrameSession: doc.blocked reaches the frame at once (G5-03w)", 
     expect(requestMock.mock.calls.filter(([path]) => path === DOC_PATH)).toHaveLength(1);
     expect(docFrame.events("doc.blocked")).toEqual([]);
   });
-});
 
+  it("a version view (UNI-2033) never reads the head or posts doc.blocked, whatever the flag says", async () => {
+    for (const syncFeed of [false, true]) {
+      flag.syncFeed = syncFeed;
+      const versionFrame = setup({ kind: "document", id: "doc-1", version: 2 });
+      await versionFrame.boot();
+      requestMock.mockClear();
+      await act(async () => { ws.reconnect(); ws.emit("document.version_created", { document_id: "doc-1", version_id: "v9", workspace_id: "ws-1" }); });
+      await flush();
+      expect(requestMock.mock.calls.filter(([path]) => path !== "/api/v1/config")).toEqual([]);
+      expect(versionFrame.events("doc.remoteVersion")).toEqual([]);
+      expect(versionFrame.events("doc.blocked")).toEqual([]);
+      versionFrame.hook.unmount();
+      ws.handlers.clear(); ws.reconnects.clear(); document.body.innerHTML = "";
+    }
+  });
+});

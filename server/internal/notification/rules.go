@@ -649,9 +649,13 @@ func documentCommentMentionRule(ctx context.Context, e env, ev outbox.Row, p map
 	return out, nil
 }
 
-// ruleDocumentCommentResolved tells the author of a resolved Comment (the
-// provisional OQ-C7 reading of the UNI-1337 table): only kind=comment
-// resolves notify, a Discussion stays silent.
+// ruleDocumentCommentResolved tells the comment's author (while still able to
+// read) and the document's owners at that moment (human ACL owner while still
+// an effective member, plus every live user share at manage; USER OQ-C7
+// decided 2026-10-20, UNI-2032) when a Comment is resolved: only kind=comment
+// resolves notify, a Discussion stays silent, the actor never hears their own
+// resolve, and an author who is also an owner receives one notice. There is no
+// workspace-admin fallback here.
 func ruleDocumentCommentResolved(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 	if e.docs == nil {
 		return nil, nil
@@ -666,27 +670,59 @@ func ruleDocumentCommentResolved(ctx context.Context, e env, ev outbox.Row, p ma
 	if comment.DeletedAt.Valid || !comment.ResolvedAt.Valid || comment.CommentType != "comment" {
 		return nil, nil
 	}
-	uid := comment.AuthorID
-	if comment.AuthorKind != string(audit.KindHuman) || isActorOfEvent(ev, uid) {
+	seen := map[string]bool{}
+	var recipients []string
+	add := func(uid string) {
+		if uid == "" || seen[uid] || isActorOfEvent(ev, uid) {
+			return
+		}
+		seen[uid] = true
+		recipients = append(recipients, uid)
+	}
+	if comment.AuthorKind == string(audit.KindHuman) && !isActorOfEvent(ev, comment.AuthorID) {
+		readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, []string{comment.AuthorID})
+		if err != nil {
+			return nil, err
+		}
+		for _, uid := range readers {
+			add(uid)
+		}
+	}
+	if e.docAdmins != nil {
+		candidates, err := documentManagerCandidates(ctx, e, doc)
+		if err != nil {
+			return nil, err
+		}
+		if len(candidates) > 0 {
+			admins, err := e.docAdmins.FilterDocumentAdministrators(ctx, doc.ID, candidates)
+			if err != nil {
+				return nil, err
+			}
+			for _, uid := range admins {
+				add(uid)
+			}
+		}
+	}
+	if len(recipients) == 0 {
 		return nil, nil
 	}
-	readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, []string{uid})
-	if err != nil {
-		return nil, err
+	params := map[string]string{
+		"actor": actorName(ctx, e.q, ev), "document": doc.Title,
+		"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
 	}
-	if len(readers) == 0 {
-		return nil, nil
+	groupKey := "document:" + doc.ID + ":resolved:" + comment.ID
+	actorKind := actorKindOf(ev)
+	out := make([]Draft, 0, len(recipients))
+	for _, uid := range recipients {
+		out = append(out, Draft{
+			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: KindDocumentCommentResolved, GroupKey: groupKey,
+			ResourceType: "document", ResourceID: doc.ID,
+			ActorKind: actorKind, ActorID: ev.ActorID.String,
+			Params: params,
+		})
 	}
-	return []Draft{{
-		UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-		Kind: KindDocumentCommentResolved, GroupKey: "document:" + doc.ID + ":resolved:" + comment.ID,
-		ResourceType: "document", ResourceID: doc.ID,
-		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
-		Params: map[string]string{
-			"actor": actorName(ctx, e.q, ev), "document": doc.Title,
-			"snippet": snippet(comment.Body), "comment_id": comment.ID, "kind": comment.CommentType,
-		},
-	}}, nil
+	return out, nil
 }
 
 // ruleDocumentBreakGlassGranted tells the document's ACL owner that an admin

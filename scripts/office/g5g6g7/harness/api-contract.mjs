@@ -21,7 +21,7 @@ export const API_CALLS = {
   // `{org}` of this one route is the organization ID, not its slug
   // (handler/organization.go createOrgWorkspace -> WorkspaceService.CreateInOrg(orgID)).
   createWorkspace: { method: "POST", path: "/orgs/{org}/workspaces", params: { org: "id" }, sdi: "CreateWorkspaceSDI", body: ["name", "slug"] },
-  createFileDocument: { method: "POST", path: "/workspaces/{workspaceID}/documents/files", params: { workspaceID: "id" }, form: ["file", "title"] },
+  createFileDocument: { method: "POST", path: "/workspaces/{workspaceID}/documents/files", params: { workspaceID: "id" }, form: ["title", "visibility", "file"] },
   mintLaunch: {
     method: "POST",
     path: "/documents/{documentID}/office/sessions",
