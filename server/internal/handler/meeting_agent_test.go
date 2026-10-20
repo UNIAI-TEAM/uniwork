@@ -72,6 +72,11 @@ func TestMeetingAgentTokenGuardsTheRoutes(t *testing.T) {
 	if res.StatusCode != http.StatusOK || out["accepted"] != float64(1) {
 		t.Fatalf("segments: %d %v", res.StatusCode, out)
 	}
+	// The test server has no AI and no scribe flag: nothing to extract with.
+	res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+a.meetingID+"/agent/extract", ok, nil)
+	if res.StatusCode != http.StatusOK || out["created"] != float64(0) || out["skipped"] != "unavailable" {
+		t.Fatalf("extract: %d %v", res.StatusCode, out)
+	}
 
 	forged := meetings.SignAgentToken([]byte("not the server key"), meetings.AgentClaims{
 		MeetingID: a.meetingID, OrganizationID: a.orgID, RunID: a.runID, ExpiresAt: now.Add(time.Hour),
@@ -112,6 +117,7 @@ func TestMeetingAgentTokenStaysInItsMeeting(t *testing.T) {
 		{"POST", "segments", map[string]any{"segments": []map[string]any{{
 			"segment_id": "x", "text": "t", "spoken_at": time.Now().Format(time.RFC3339), "ended_at": time.Now().Format(time.RFC3339),
 		}}}},
+		{"POST", "extract", nil},
 		{"POST", "finished", map[string]any{"stt_session_ms": 1}},
 	} {
 		if res, out := doJSON(t, srv, c.method, base+c.path, tokA, c.body); res.StatusCode != http.StatusNotFound {

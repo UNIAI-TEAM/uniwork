@@ -117,3 +117,28 @@ INSERT INTO meeting_transcript_segments (
 )
 ON CONFLICT (meeting_id, client_segment_id) WHERE client_segment_id IS NOT NULL DO NOTHING
 RETURNING *;
+
+-- name: MeetingExtractCursor :one
+-- tenant: parent meeting_id
+-- The last segment the live-items extraction read (UNI-2025, §4.4), across
+-- the meeting's runs: a new run (D18) carries on where the last one stopped.
+SELECT COALESCE(max(extract_cursor_segment_id), '')::text AS cursor
+FROM meeting_scribe_runs WHERE meeting_id = $1;
+
+-- name: ListSegmentsAfterExtractCursor :many
+-- tenant: parent meeting_id
+-- Segments the extraction has not read, in id order: ULIDs from util.NewID
+-- grow with insertion, so a segment never lands behind the cursor.
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id') AND id > sqlc.arg('cursor')::text
+ORDER BY id
+LIMIT sqlc.arg('row_limit');
+
+-- name: AdvanceScribeExtractCursor :execrows
+-- tenant: by-id
+-- Guarded by the extract count the caller read: of two extractions that read
+-- the same segments only one stores its items.
+UPDATE meeting_scribe_runs SET
+  extract_cursor_segment_id = GREATEST(extract_cursor_segment_id, sqlc.arg('cursor')::text),
+  extracts = extracts + 1, last_extract_at = now(), updated_at = now()
+WHERE id = sqlc.arg('id') AND extracts = sqlc.arg('extracts')::int;

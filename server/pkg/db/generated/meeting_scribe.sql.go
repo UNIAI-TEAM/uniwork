@@ -73,6 +73,30 @@ func (q *Queries) AddScribeRunSpeech(ctx context.Context, arg AddScribeRunSpeech
 	return i, err
 }
 
+const advanceScribeExtractCursor = `-- name: AdvanceScribeExtractCursor :execrows
+UPDATE meeting_scribe_runs SET
+  extract_cursor_segment_id = GREATEST(extract_cursor_segment_id, $1::text),
+  extracts = extracts + 1, last_extract_at = now(), updated_at = now()
+WHERE id = $2 AND extracts = $3::int
+`
+
+type AdvanceScribeExtractCursorParams struct {
+	Cursor   string `json:"cursor"`
+	ID       string `json:"id"`
+	Extracts int32  `json:"extracts"`
+}
+
+// tenant: by-id
+// Guarded by the extract count the caller read: of two extractions that read
+// the same segments only one stores its items.
+func (q *Queries) AdvanceScribeExtractCursor(ctx context.Context, arg AdvanceScribeExtractCursorParams) (int64, error) {
+	result, err := q.db.Exec(ctx, advanceScribeExtractCursor, arg.Cursor, arg.ID, arg.Extracts)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const failScribeRunDispatch = `-- name: FailScribeRunDispatch :one
 UPDATE meeting_scribe_runs SET
   failures = failures + 1,
@@ -399,6 +423,58 @@ func (q *Queries) ListScribeSweepMeetings(ctx context.Context, arg ListScribeSwe
 	return items, nil
 }
 
+const listSegmentsAfterExtractCursor = `-- name: ListSegmentsAfterExtractCursor :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
+WHERE meeting_id = $1 AND id > $2::text
+ORDER BY id
+LIMIT $3
+`
+
+type ListSegmentsAfterExtractCursorParams struct {
+	MeetingID string `json:"meeting_id"`
+	Cursor    string `json:"cursor"`
+	RowLimit  int32  `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// Segments the extraction has not read, in id order: ULIDs from util.NewID
+// grow with insertion, so a segment never lands behind the cursor.
+func (q *Queries) ListSegmentsAfterExtractCursor(ctx context.Context, arg ListSegmentsAfterExtractCursorParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listSegmentsAfterExtractCursor, arg.MeetingID, arg.Cursor, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markScribeRunMetered = `-- name: MarkScribeRunMetered :execrows
 UPDATE meeting_scribe_runs SET metered_ms = $1::bigint, updated_at = now()
 WHERE id = $2 AND metered_ms = $3::bigint
@@ -419,6 +495,21 @@ func (q *Queries) MarkScribeRunMetered(ctx context.Context, arg MarkScribeRunMet
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const meetingExtractCursor = `-- name: MeetingExtractCursor :one
+SELECT COALESCE(max(extract_cursor_segment_id), '')::text AS cursor
+FROM meeting_scribe_runs WHERE meeting_id = $1
+`
+
+// tenant: parent meeting_id
+// The last segment the live-items extraction read (UNI-2025, §4.4), across
+// the meeting's runs: a new run (D18) carries on where the last one stopped.
+func (q *Queries) MeetingExtractCursor(ctx context.Context, meetingID string) (string, error) {
+	row := q.db.QueryRow(ctx, meetingExtractCursor, meetingID)
+	var cursor string
+	err := row.Scan(&cursor)
+	return cursor, err
 }
 
 const scribeRoomPresence = `-- name: ScribeRoomPresence :one

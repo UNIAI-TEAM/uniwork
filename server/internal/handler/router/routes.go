@@ -401,6 +401,7 @@ type Routes struct {
 	MeetingAgentContext            http.HandlerFunc
 	MeetingAgentSegments           http.HandlerFunc
 	MeetingAgentFinished           http.HandlerFunc
+	MeetingAgentExtract            http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
 	ListChatMessages               http.HandlerFunc

@@ -77,6 +77,15 @@ func (h *handlers) meetingAgentFinished(w http.ResponseWriter, r *http.Request) 
 	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
 }
 
+func (h *handlers) meetingAgentExtract(w http.ResponseWriter, r *http.Request) {
+	res, err := h.Meetings.AgentExtract(r.Context(), middleware.MeetingAgentClaims(r.Context()))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.MeetingAgentExtractSDO{Created: res.Created, Skipped: res.Skipped})
+}
+
 func (h *handlers) setMeetingScribe(w http.ResponseWriter, r *http.Request) {
 	var in sdi.SetMeetingScribeSDI
 	if !decode(w, r, &in, maxJSONBody) {

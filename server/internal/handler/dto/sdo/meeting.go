@@ -388,6 +388,12 @@ type MeetingAgentContextSDO struct {
 	SharedMicIdentities []string `json:"shared_mic_identities" description:"Identity LiveKit của người tham gia đang là micro hội trường: agent tách người nói trên track của họ" example:"[\"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V\"]"`
 }
 
+// MeetingAgentExtractSDO answers POST /agent/extract (scribe spec §4.4).
+type MeetingAgentExtractSDO struct {
+	Created int    `json:"created" description:"Số việc LIVE mới thêm vào Việc sau họp" example:"2"`
+	Skipped string `json:"skipped,omitempty" description:"Lý do không rút việc: unavailable (cờ, gói hoặc AI chưa bật), capped (quá 20 lần mỗi giờ), ai_quota_exceeded (hết tín dụng AI), concurrent (một lần rút khác đã đọc các đoạn này)" example:"capped"`
+}
+
 // MeetingAgentSegmentsSDO counts a batch: new rows and ones already stored.
 type MeetingAgentSegmentsSDO struct {
 	Accepted   int `json:"accepted" example:"18"`

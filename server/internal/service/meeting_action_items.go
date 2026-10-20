@@ -42,6 +42,7 @@ const (
 const (
 	ActionItemSourceAI     = "AI"
 	ActionItemSourceManual = "MANUAL"
+	ActionItemSourceLive   = "LIVE"
 )
 
 // Action item states. They are derived, never stored: actionItemStatus is the

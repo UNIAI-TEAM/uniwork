@@ -384,6 +384,11 @@ func registerMeetingAgent(r api, h Routes, agentAuth, agentLimit func(http.Handl
 		description: "Token uwma_ của cuộc họp. Tối đa 50 đoạn, mỗi đoạn ≤ 4.000 ký tự; chống trùng theo segment_id; nhận khi IN_PROGRESS hoặc ENDED ≤ 10 phút. speech_ms cộng vào phút ghi lời (meeting.transcription).",
 		tags:        []string{"meeting-agent"}, sdi: sdi.AppendAgentSegmentsSDI{}, sdo: sdo.MeetingAgentSegmentsSDO{}, auth: true,
 	})
+	a.Post("/meetings/{meetingID}/agent/extract", h.MeetingAgentExtract, apiOp{
+		summary:     "Live action items from the newest transcript",
+		description: "Token uwma_ của cuộc họp. Đọc các đoạn sau con trỏ, hỏi AI và thêm việc LIVE vào Việc sau họp (lọc trùng tiêu đề). Thiếu cờ, quyền gói hay tín dụng AI thì không thêm gì và trả skipped.",
+		tags:        []string{"meeting-agent"}, sdo: sdo.MeetingAgentExtractSDO{}, auth: true,
+	})
 	a.Post("/meetings/{meetingID}/agent/finished", h.MeetingAgentFinished, apiOp{
 		summary:     "Scribe agent run finished",
 		description: "Token uwma_ của cuộc họp. Lần chạy chuyển FINISHED và chốt phút ghi lời; gọi lại không tính thêm.",
