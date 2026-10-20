@@ -56,6 +56,14 @@ describe("ChatShareAsDocumentAction", () => {
     const trigger = screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" });
     expect(trigger).toHaveClass("bg-chat-bubble-own-foreground/15", "text-chat-bubble-own-foreground");
     expect(trigger).not.toHaveClass("bg-background");
+    expect(trigger).toHaveClass(
+      "hover:bg-chat-bubble-own-foreground",
+      "hover:text-chat-bubble-own",
+      "aria-expanded:bg-chat-bubble-own-foreground",
+      "aria-expanded:text-chat-bubble-own",
+      "focus-visible:outline-chat-bubble-own-foreground",
+    );
+    expect(trigger).not.toHaveClass("hover:bg-chat-bubble-own-foreground/25", "aria-expanded:bg-chat-bubble-own-foreground/25");
     expect(trigger).toHaveClass("pointer-coarse:min-h-11");
   });
 
@@ -68,6 +76,7 @@ describe("ChatShareAsDocumentAction", () => {
     const trigger = screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" });
     expect(trigger).toHaveClass("bg-muted", "text-foreground");
     expect(trigger).not.toHaveClass("text-chat-bubble-own-foreground");
+    expect(trigger).not.toHaveClass("focus-visible:outline-chat-bubble-own-foreground", "hover:bg-chat-bubble-own-foreground");
   });
 
   it("lists the levels in the composer's order: view, comment, edit (F-05)", async () => {

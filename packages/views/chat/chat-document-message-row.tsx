@@ -44,7 +44,7 @@ import type { ChatMessage } from "./chat-messages";
 /** "Mở bằng UniWork Office" on my brand bubble: the primary fill inverts (white with brand text) so it stays the primary action; the caret is a soft wash. */
 const OWN_BUBBLE_OPEN = {
   primary:
-    "bg-chat-bubble-own-foreground text-chat-bubble-own hover:bg-chat-bubble-own-foreground/90 hover:text-chat-bubble-own",
+    "bg-chat-bubble-own-foreground text-chat-bubble-own hover:bg-chat-bubble-own-foreground/90 hover:text-chat-bubble-own focus-visible:outline-chat-bubble-own-foreground",
   menu: bubbleControlClass(true),
 };
 
@@ -185,9 +185,7 @@ function ChatDocumentMessageRowImpl({
                   desktopOpen={desktopOpen}
                 />
               </div>
-              <div className="px-1">
-                <ChatMessageMeta message={message} isOwn={isOwn} showTime />
-              </div>
+              <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall />
               <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
               <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
               <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
@@ -286,7 +284,11 @@ export function ChatDocumentCard({
             title={title}
             aria-label={`${t("chat.document_open_in_documents")}: ${title}`}
             onClick={openDocument ?? undefined}
-            className={cn("pointer-coarse:min-h-11 block w-full truncate text-left text-body font-medium hover:underline", textClass)}
+            className={cn(
+              "pointer-coarse:min-h-11 block w-full truncate text-left text-body font-medium hover:underline",
+              textClass,
+              isOwn && "focus-visible:outline-chat-bubble-own-foreground",
+            )}
           >
             {title}
           </button>

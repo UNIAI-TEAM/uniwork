@@ -24,10 +24,16 @@ const FILE_KINDS: Record<string, string> = { pdf: "PDF", doc: "Word", docx: "Wor
 /** The ring around the cancel button: r=19 in a 44 box (canvas). */
 const RING_LENGTH = 2 * Math.PI * 19;
 
-/** A soft control on the bubble: a white wash on my brand bubble, the muted fill on theirs. */
+/**
+ * A soft control on the bubble: a white wash on my brand bubble, the muted fill
+ * on theirs. On my bubble hover and an open menu invert to white with brand
+ * text (the Open button's treatment; a heavier wash stays under 4.5:1), and
+ * focus draws the outline in the own-bubble foreground, since the global ring
+ * is the brand colour and vanishes on the brand fill.
+ */
 export function bubbleControlClass(isOwn: boolean): string {
   return isOwn
-    ? "bg-chat-bubble-own-foreground/15 text-chat-bubble-own-foreground hover:bg-chat-bubble-own-foreground/25 hover:text-chat-bubble-own-foreground aria-expanded:bg-chat-bubble-own-foreground/25 aria-expanded:text-chat-bubble-own-foreground"
+    ? "bg-chat-bubble-own-foreground/15 text-chat-bubble-own-foreground hover:bg-chat-bubble-own-foreground hover:text-chat-bubble-own aria-expanded:bg-chat-bubble-own-foreground aria-expanded:text-chat-bubble-own focus-visible:outline-chat-bubble-own-foreground"
     : cn(CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER, "text-foreground");
 }
 

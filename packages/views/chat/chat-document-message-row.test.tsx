@@ -141,17 +141,26 @@ describe("ChatDocumentMessageRow", () => {
     // A bare outline/ghost/default class set resolves to bg-background / bg-primary on the brand bubble.
     const barePaint = ["bg-background", "dark:bg-input/30", "border-input", "bg-primary", "bg-secondary", "text-muted-foreground", "text-foreground"];
     const ownControl = ["bg-chat-bubble-own-foreground/15", "text-chat-bubble-own-foreground"];
+    // Hover / open menu invert to white with brand text (>= 4.5:1); the old /25 wash measured 3.86:1.
+    const ownInverted = [
+      "hover:bg-chat-bubble-own-foreground",
+      "hover:text-chat-bubble-own",
+      "aria-expanded:bg-chat-bubble-own-foreground",
+      "aria-expanded:text-chat-bubble-own",
+      "focus-visible:outline-chat-bubble-own-foreground",
+    ];
 
     it("own bubble: every control wears the own-bubble family, none a bare variant paint", () => {
       renderCard(documentMessage(FULL), { isOwn: true, desktopOpen });
       for (const name of ["Quản lý quyền truy cập", "Tải lên phiên bản mới", "Tùy chọn UniWork Office"]) {
         const control = screen.getByRole("button", { name });
-        expect(control).toHaveClass(...ownControl);
+        expect(control).toHaveClass(...ownControl, ...ownInverted);
+        expect(control).not.toHaveClass("hover:bg-chat-bubble-own-foreground/25", "aria-expanded:bg-chat-bubble-own-foreground/25");
         for (const bare of barePaint) expect(control).not.toHaveClass(bare);
       }
       // The primary Open button inverts: it must not vanish into the brand fill.
       const open = screen.getByRole("button", { name: "Mở bằng UniWork Office" });
-      expect(open).toHaveClass("bg-chat-bubble-own-foreground", "text-chat-bubble-own");
+      expect(open).toHaveClass("bg-chat-bubble-own-foreground", "text-chat-bubble-own", "focus-visible:outline-chat-bubble-own-foreground");
       expect(open).not.toHaveClass("bg-primary");
       expect(open).not.toHaveClass("text-primary-foreground");
     });
@@ -160,12 +169,24 @@ describe("ChatDocumentMessageRow", () => {
       renderCard(documentMessage(FULL), { isOwn: true });
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-chat-bubble-own-foreground");
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).not.toHaveClass("text-foreground");
+      expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("focus-visible:outline-chat-bubble-own-foreground");
       const secondary = screen.getByText(/Phiên bản 3/);
       expect(secondary).toHaveClass("text-chat-bubble-own-meta");
       expect(secondary).not.toHaveClass("text-muted-foreground");
       const badge = screen.getByText("Quản lý");
       expect(badge).toHaveClass(...ownControl);
       expect(badge).not.toHaveClass("bg-secondary");
+    });
+
+    it("own bubble: the time and ticks sit on the wall chip, not in the near-white own-meta tone", () => {
+      renderCard(documentMessage(FULL), { isOwn: true });
+      const time = document.querySelector("time");
+      const meta = time?.parentElement;
+      expect(meta).toHaveClass("bg-chat-chip", "text-chat-chip-foreground", "self-end");
+      expect(meta).not.toHaveClass("text-chat-bubble-own-meta");
+      expect(meta?.querySelector(".text-chat-bubble-own-foreground")).toBeNull();
+      // self-end only aligns the chip under my bubble inside the column's flex container, as the GIF row does.
+      expect(meta?.parentElement).toHaveClass("flex", "flex-col");
     });
 
     it("own bubble: the locked card and the neutral card read on the brand fill", () => {

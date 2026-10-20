@@ -361,6 +361,23 @@ describe("ChatFileMessageRow", () => {
     );
   });
 
+  it("download control on my bubble inverts on hover and keeps a visible focus ring; theirs is untouched (UNI-2010)", () => {
+    const file = { filename: "sprint.pdf", content_type: "application/pdf", size_bytes: 1024 };
+    const { unmount } = renderRow(fileMessage("own-dl", file), { isOwn: true });
+    const own = screen.getByRole("button", { name: "Tải sprint.pdf xuống" });
+    expect(own).toHaveClass(
+      "hover:bg-chat-bubble-own-foreground",
+      "hover:text-chat-bubble-own",
+      "aria-expanded:bg-chat-bubble-own-foreground",
+      "focus-visible:outline-chat-bubble-own-foreground",
+    );
+    expect(own).not.toHaveClass("hover:bg-chat-bubble-own-foreground/25");
+    unmount();
+    renderRow(fileMessage("other-dl", file), { isOwn: false });
+    const other = screen.getByRole("button", { name: "Tải sprint.pdf xuống" });
+    expect(other).not.toHaveClass("hover:bg-chat-bubble-own-foreground", "focus-visible:outline-chat-bubble-own-foreground");
+  });
+
   it("hides the share-as-document action when the flag is absent", () => {
     renderRow(fileMessage("message-plain", { filename: "photo.png", content_type: "image/png", size_bytes: 2048 }));
     expect(screen.queryByRole("button", { name: "Chia sẻ dạng tài liệu" })).not.toBeInTheDocument();
