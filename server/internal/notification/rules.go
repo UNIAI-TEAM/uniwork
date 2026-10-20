@@ -331,12 +331,16 @@ func ruleTaskUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 }
 
 // ruleTaskCreated tells the human assignee of a task created already
-// assigned (UNI-1996); agents are never told. One transaction that hands a
-// person several tasks is one notification, sent by the event of the
-// smallest task id: the audit rows of a transaction share correlation id and
-// occurred_at, which is also the event's created_at, so every event of the
-// batch finds the same group without a column for it.
+// assigned (UNI-1996); agents are never told, nor a person who assigned the
+// task to themselves. One transaction that hands a person several tasks is
+// one notification, sent by the event of the smallest task id. Group, leader
+// and recipient come only from the immutable task.created audit rows of the
+// transaction (xact_id), so a reassignment before delivery changes nothing.
 func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	assignee, ids, err := createdForSameAssignee(ctx, e.q, ev, p["task_id"])
+	if err != nil || assignee == "" || ids[0] != p["task_id"] {
+		return nil, err
+	}
 	task, err := e.q.GetTask(ctx, p["task_id"])
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -344,19 +348,9 @@ func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 	if err != nil {
 		return nil, err
 	}
-	if !task.AssigneeID.Valid || task.AssigneeKind != string(audit.KindHuman) {
-		return nil, nil
-	}
-	assignee := task.AssigneeID.String
-	ids, err := createdWithAssignee(ctx, e.q, ev, assignee)
-	if err != nil {
-		return nil, err
-	}
-	if !slices.Contains(ids, task.ID) {
-		ids = []string{task.ID}
-	}
-	leader := slices.Min(ids)
-	if task.ID != leader {
+	// A task created for its own creator tells nobody, even when the actor
+	// is the system (the onboarding welcome task).
+	if task.CreatedByKind == string(audit.KindHuman) && task.CreatedBy == assignee {
 		return nil, nil
 	}
 	orgID, err := orgOf(ctx, e.q, ev, task.WorkspaceID)
@@ -374,35 +368,42 @@ func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 	if err != nil {
 		return nil, err
 	}
-	return r.drafts(orgID, KindTasksAssigned, "tasks:"+leader+":assigned", resType, resID,
+	return r.drafts(orgID, KindTasksAssigned, "tasks:"+task.ID+":assigned", resType, resID,
 		map[string]string{"actor": actor, "count": strconv.Itoa(len(ids))})
 }
 
-// createdWithAssignee lists the tasks ev's transaction created for assignee
-// as a human, read from their audit rows; nil without a correlation id.
-func createdWithAssignee(ctx context.Context, q *db.Queries, ev outbox.Row, assignee string) ([]string, error) {
+// createdForSameAssignee reads the human assignee taskID was created with and
+// the tasks its transaction created for the same person, smallest id first.
+// assignee is "" when the row names no human assignee (or there is no
+// correlation id to find it by).
+func createdForSameAssignee(ctx context.Context, q *db.Queries, ev outbox.Row, taskID string) (string, []string, error) {
 	if !ev.CorrelationID.Valid {
-		return nil, nil
+		return "", nil, nil
 	}
 	rows, err := q.ListAuditEventsInTransaction(ctx, db.ListAuditEventsInTransactionParams{
-		CorrelationID: ev.CorrelationID.String, Action: audit.ActionTaskCreated, OccurredAt: ev.CreatedAt,
+		CorrelationID: ev.CorrelationID.String, Action: audit.ActionTaskCreated, ResourceID: taskID,
 	})
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	var ids []string
-	for _, row := range rows {
+	assignee := ""
+	byAssignee := map[string][]string{}
+	for _, row := range rows { // ordered by resource_id
 		var changes map[string]audit.Change
 		if err := json.Unmarshal([]byte(row.Changes), &changes); err != nil {
-			return nil, fmt.Errorf("notification: audit changes of %s: %w", row.ID, err)
+			return "", nil, fmt.Errorf("notification: audit changes of %s: %w", row.ID, err)
 		}
 		kind, _ := changeTo(changes, "assignee_kind")
 		id, _ := changeTo(changes, "assignee_id")
-		if kind == string(audit.KindHuman) && id == assignee {
-			ids = append(ids, row.ResourceID)
+		if kind != string(audit.KindHuman) || id == "" {
+			continue
+		}
+		byAssignee[id] = append(byAssignee[id], row.ResourceID)
+		if row.ResourceID == taskID {
+			assignee = id
 		}
 	}
-	return ids, nil
+	return assignee, byAssignee[assignee], nil
 }
 
 // batchResource points a batch at its meeting when every task still there

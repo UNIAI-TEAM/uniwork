@@ -8,6 +8,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -244,6 +245,39 @@ func TestRuleTaskCreatedLeaderDeletedSendsNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.handleCreated(t, tasks)
+	if got := f.inbox(t, f.member.ID); len(got) != 0 {
+		t.Fatalf("member inbox = %+v", got)
+	}
+}
+
+// The group is what the transaction created, read from its audit rows: a
+// leader reassigned before delivery still speaks for the batch, to the
+// person it was created for.
+func TestRuleTaskCreatedGroupsByTheCreatedAssignee(t *testing.T) {
+	f := newFixture(t)
+	member2 := f.addMember(t, "member2@example.com", "Thành Viên Hai")
+	tasks := f.createAs(t, "corr-moved", assignedTo("M1", f.member.ID), assignedTo("M2", f.member.ID))
+	f.assign(t, smallestID(tasks), member2.ID)
+	f.handleCreated(t, tasks)
+	got := f.inbox(t, f.member.ID)
+	if len(got) != 1 || got[0].Kind != KindTasksAssigned || params(t, got[0])["count"] != "2" {
+		t.Fatalf("member inbox = %+v", got)
+	}
+	if got := f.inbox(t, member2.ID); len(got) != 0 {
+		t.Fatalf("member2 inbox = %+v", got)
+	}
+}
+
+// The onboarding welcome task is assigned to the person it is seeded for,
+// with the system as actor; they did not get it from anybody.
+func TestRuleTaskCreatedSkipsTheWelcomeTask(t *testing.T) {
+	f := newFixture(t)
+	onb := service.NewOnboardingService(f.q, f.ws, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	task, created, err := onb.SeedWelcomeTask(f.ctx, f.member.ID, f.wsID)
+	if err != nil || !created {
+		t.Fatalf("seed = %v, created %v", err, created)
+	}
+	f.handleCreated(t, []db.Task{task})
 	if got := f.inbox(t, f.member.ID); len(got) != 0 {
 		t.Fatalf("member inbox = %+v", got)
 	}

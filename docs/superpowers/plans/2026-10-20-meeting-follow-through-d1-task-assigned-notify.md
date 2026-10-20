@@ -6,7 +6,7 @@
 
 **Goal:** Task tạo ra đã có người phụ trách thì người đó nhận thông báo, ở mọi đường tạo task. Một lần tạo giao nhiều task cho cùng một người thì người đó nhận đúng một thông báo.
 
-**Architecture:** Thêm rule `task.created` vào `server/internal/notification/rules.go`. Rule gom các task **tạo trong cùng một transaction** bằng các dòng audit `task.created` có cùng `correlation_id` và cùng `occurred_at`. Hai cột này là `now()` của transaction, trùng `created_at` của dòng outbox. Mỗi nhóm (cùng người phụ trách) chỉ task có id nhỏ nhất phát thông báo. Thêm kind `tasks_assigned` cho nhóm từ hai task trở lên.
+**Architecture:** Thêm rule `task.created` vào `server/internal/notification/rules.go`. Rule gom các task **tạo trong cùng một transaction** bằng các dòng audit `task.created` có cùng `correlation_id` và cùng `xact_id` (cột `xid8` mặc định `pg_current_xact_id()`, migration 9991791830000300). Nhóm, task đại diện và người nhận chỉ đọc từ các dòng audit này (bất biến), không từ người phụ trách hiện tại của task. Mỗi nhóm (cùng người phụ trách) chỉ task có id nhỏ nhất phát thông báo. Thêm kind `tasks_assigned` cho nhóm từ hai task trở lên.
 
 **Tech Stack:** Go (pgx, sqlc), PostgreSQL; TypeScript (zod, React, vitest); i18n JSON.
 
@@ -39,20 +39,24 @@
 - Regenerate: `server/pkg/db/generated/*` (`make sqlc`)
 
 **Interfaces:**
-- Produces: `q.ListAuditEventsInTransaction(ctx, db.ListAuditEventsInTransactionParams{CorrelationID string, Action string, OccurredAt pgtype.Timestamptz}) ([]db.AuditEvent, error)`
+- Produces: `q.ListAuditEventsInTransaction(ctx, db.ListAuditEventsInTransactionParams{CorrelationID string, Action string, ResourceID string}) ([]db.AuditEvent, error)`
 
 - [ ] **Step 1: Thêm query**
 
 ```sql
 -- name: ListAuditEventsInTransaction :many
 -- tenant: system
--- The notification consumer groups what one transaction created (one
--- outbox row each): rows of a transaction share now(), which is also the
--- outbox row's created_at, so correlation id + occurred_at names the
--- transaction without a column for it.
-SELECT * FROM audit_events
-WHERE correlation_id = $1 AND action = $2 AND occurred_at = $3
-ORDER BY resource_id;
+-- The notification consumer groups what one transaction did: the rows of
+-- this action written by the transaction (xact_id) that wrote this
+-- resource's row. One correlation id may span several transactions (an MCP
+-- call), so xact_id is what tells them apart.
+SELECT t.* FROM audit_events t
+WHERE t.correlation_id = sqlc.arg(correlation_id) AND t.action = sqlc.arg(action)
+  AND t.xact_id = (SELECT a.xact_id FROM audit_events a
+                   WHERE a.correlation_id = sqlc.arg(correlation_id) AND a.action = sqlc.arg(action)
+                     AND a.resource_id = sqlc.arg(resource_id)
+                   ORDER BY a.occurred_at LIMIT 1)
+ORDER BY t.resource_id;
 ```
 
 - [ ] **Step 2: `cd server && make sqlc`** (hoặc `make sqlc` ở gốc), rồi `go build ./...`. Kỳ vọng: build sạch.
@@ -116,15 +120,15 @@ Expected: FAIL (`KindTasksAssigned` undefined).
   - SDO: thêm vào chuỗi mô tả.
 
 - [ ] **Step 4: Viết `ruleTaskCreated`** trong `rules.go`.
-  1. `GetTask(p["task_id"])`; không có thì `nil, nil`. Người phụ trách không phải người (`AssigneeKind != human` hoặc `!AssigneeID.Valid`) thì `nil, nil`.
-  2. `ev.CorrelationID` không hợp lệ thì nhóm chỉ gồm task này.
-  3. Ngược lại `ListAuditEventsInTransaction(corr, audit.ActionTaskCreated, ev.CreatedAt)`. Với mỗi dòng, decode `changes` thành `map[string]audit.Change`. Giữ dòng có `assignee_kind.To == "human"` và `assignee_id.To` bằng người phụ trách của task này; tập `ids` là `resource_id` các dòng giữ lại. `ids` không chứa task này (không xảy ra) thì coi nhóm chỉ gồm task này.
-  4. `leader := min(ids)` (so chuỗi ULID). `task.ID != leader` thì `nil, nil`.
-  5. Người nhận: `newRecipients(ctx, e, ev, task.WorkspaceID).add(task.AssigneeID.String)`. Hàm này loại người tạo và người không còn là thành viên.
+  1. `ev.CorrelationID` không hợp lệ thì `nil, nil`. Ngược lại `ListAuditEventsInTransaction(corr, audit.ActionTaskCreated, task_id)`; decode `changes` từng dòng thành `map[string]audit.Change`.
+  2. Người phụ trách lấy từ dòng audit của chính task này: `assignee_kind.To == "human"` và có `assignee_id.To`; không có (vd. task chào mừng onboarding, dòng audit không có `changes`) thì `nil, nil`.
+  3. `ids` = `resource_id` các dòng cùng transaction có cùng người phụ trách người đó (đã xếp theo `resource_id`). `leader := ids[0]`; `task_id != leader` thì `nil, nil`.
+  4. `GetTask(task_id)` chỉ để kiểm còn tồn tại (không có thì `nil, nil`), lấy tiêu đề và kiểm nguồn họp. `CreatedByKind == human` và `CreatedBy == assignee` (tự giao, gồm task chào mừng do system tạo cho chính người đó) thì `nil, nil`.
+  5. Người nhận: `newRecipients(...).add(assignee)` — người phụ trách theo audit, không theo task hiện tại. Hàm này loại actor và người không còn là thành viên.
   6. `len(ids) == 1`: `drafts(orgID, KindTaskAssigned, "task:"+task.ID+":assigned", "task", task.ID, {"actor", "task"})`, cùng params với `ruleTaskUpdated`.
   7. Ngược lại: `drafts(orgID, KindTasksAssigned, "tasks:"+leader+":assigned", resType, resID, {"actor", "count": strconv.Itoa(len(ids))})`. `resType/resID` là `"meeting"`/`origin_id` khi **mọi** task còn đọc được trong `ids` có `origin_type == "meeting"` và cùng `origin_id`; còn lại là `"task"`/`leader`. Đọc bằng `GetTask` từng id, tối đa 50.
 
-  Đăng ký `"task.created": ruleTaskCreated` cạnh `"task.updated"`. Comment một dòng giải thích vì sao gom theo `correlation_id + occurred_at`.
+  Đăng ký `"task.created": ruleTaskCreated` cạnh `"task.updated"`. Comment giải thích vì sao gom theo `correlation_id + xact_id` và chỉ đọc audit.
 
 - [ ] **Step 5: Chạy test**
 

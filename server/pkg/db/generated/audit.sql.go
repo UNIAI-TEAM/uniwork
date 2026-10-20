@@ -515,24 +515,28 @@ func (q *Queries) ListAuditEventsForExport(ctx context.Context, arg ListAuditEve
 }
 
 const listAuditEventsInTransaction = `-- name: ListAuditEventsInTransaction :many
-SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
-WHERE correlation_id = $1 AND action = $2 AND occurred_at = $3
-ORDER BY resource_id
+SELECT t.id, t.organization_id, t.workspace_id, t.actor_kind, t.actor_id, t.action, t.resource_type, t.resource_id, t.changes, t.metadata, t.correlation_id, t.request_id, t.ip_address, t.user_agent, t.occurred_at, t.xact_id FROM audit_events t
+WHERE t.correlation_id = $1 AND t.action = $2
+  AND t.xact_id = (SELECT a.xact_id FROM audit_events a
+                   WHERE a.correlation_id = $1 AND a.action = $2
+                     AND a.resource_id = $3
+                   ORDER BY a.occurred_at LIMIT 1)
+ORDER BY t.resource_id
 `
 
 type ListAuditEventsInTransactionParams struct {
-	CorrelationID string             `json:"correlation_id"`
-	Action        string             `json:"action"`
-	OccurredAt    pgtype.Timestamptz `json:"occurred_at"`
+	CorrelationID string `json:"correlation_id"`
+	Action        string `json:"action"`
+	ResourceID    string `json:"resource_id"`
 }
 
 // tenant: system
-// The notification consumer groups what one transaction created (one
-// outbox row each): rows of a transaction share now(), which is also the
-// outbox row's created_at, so correlation id + occurred_at names the
-// transaction without a column for it.
+// The notification consumer groups what one transaction did: the rows of
+// this action written by the transaction (xact_id) that wrote this
+// resource's row. One correlation id may span several transactions (an MCP
+// call), so xact_id is what tells them apart.
 func (q *Queries) ListAuditEventsInTransaction(ctx context.Context, arg ListAuditEventsInTransactionParams) ([]AuditEvent, error) {
-	rows, err := q.db.Query(ctx, listAuditEventsInTransaction, arg.CorrelationID, arg.Action, arg.OccurredAt)
+	rows, err := q.db.Query(ctx, listAuditEventsInTransaction, arg.CorrelationID, arg.Action, arg.ResourceID)
 	if err != nil {
 		return nil, err
 	}

@@ -136,13 +136,17 @@ LIMIT 1;
 
 -- name: ListAuditEventsInTransaction :many
 -- tenant: system
--- The notification consumer groups what one transaction created (one
--- outbox row each): rows of a transaction share now(), which is also the
--- outbox row's created_at, so correlation id + occurred_at names the
--- transaction without a column for it.
-SELECT * FROM audit_events
-WHERE correlation_id = $1 AND action = $2 AND occurred_at = $3
-ORDER BY resource_id;
+-- The notification consumer groups what one transaction did: the rows of
+-- this action written by the transaction (xact_id) that wrote this
+-- resource's row. One correlation id may span several transactions (an MCP
+-- call), so xact_id is what tells them apart.
+SELECT t.* FROM audit_events t
+WHERE t.correlation_id = sqlc.arg(correlation_id) AND t.action = sqlc.arg(action)
+  AND t.xact_id = (SELECT a.xact_id FROM audit_events a
+                   WHERE a.correlation_id = sqlc.arg(correlation_id) AND a.action = sqlc.arg(action)
+                     AND a.resource_id = sqlc.arg(resource_id)
+                   ORDER BY a.occurred_at LIMIT 1)
+ORDER BY t.resource_id;
 
 -- name: InsertAuditEventsBatch :exec
 -- tenant: system
