@@ -63,8 +63,8 @@ describe("TaskDetailContextLine — meeting origin", () => {
         workspace_id: "w1",
         title: "Họp giao ban",
         description: "",
-        starts_at: "2026-10-15T09:00:00",
-        ends_at: "2026-10-15T10:00:00",
+        starts_at: "2025-10-15T09:00:00",
+        ends_at: "2025-10-15T10:00:00",
         room_name: "r",
         created_by: "u1",
       },
@@ -73,7 +73,7 @@ describe("TaskDetailContextLine — meeting origin", () => {
 
     const link = await screen.findByRole("link", { name: /Từ cuộc họp.*Họp giao ban/ });
     expect(link).toHaveAttribute("href", "/org/team/meetings/m1");
-    expect(link).toHaveTextContent(/15 tháng 10/);
+    expect(link).toHaveTextContent(/15 tháng 10.*2025/);
     expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1");
   });
 

@@ -8,8 +8,8 @@ import { useChildTaskProgress, useTask } from "@uniwork/core/tasks";
 import type { Task } from "@uniwork/core/types";
 import { MODULE_ICONS } from "../../../layout/module-icons";
 import { useWorkspace } from "../../../layout/workspace-context";
-import { formatMeetingDay, meetingDayKey, meetingLocale } from "../../../meetings/meeting-datetime";
 import { AppLink } from "../../../navigation";
+import { formatInstantDate } from "../../../people/person-facts";
 
 const MeetingIcon = MODULE_ICONS.meetings;
 
@@ -28,7 +28,8 @@ function TaskMeetingOrigin({ meetingId }: { meetingId: string }) {
       </span>
     );
   }
-  const date = formatMeetingDay(meetingDayKey(meeting.data.starts_at), meetingLocale(i18n.language));
+  // Always with the year: a meeting from last year must not read as this year.
+  const date = formatInstantDate(meeting.data.starts_at, i18n.language);
   return (
     <AppLink
       href={paths.workspace(workspace.organization_slug, workspace.slug).meeting(meeting.data.id)}
