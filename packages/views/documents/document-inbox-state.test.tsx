@@ -1,8 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
+import { notificationKeys } from "@uniwork/core/notifications";
 import { DocumentSchema } from "@uniwork/core/types/document";
 import type { Notification, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -16,7 +18,7 @@ const { t } = initI18n();
 const user = { id: "u1", display_name: "An" } as User;
 const workspace = { id: "ws1", slug: "doi", organization_id: "o1", organization_slug: "acme" } as Workspace;
 
-function renderPage(search: string, pathname = "/acme/doi/documents/d1") {
+function renderPage(search: string, pathname = "/acme/doi/documents/d1", client?: QueryClient) {
   const nav = fakeNav(pathname);
   nav.searchParams = new URLSearchParams(search);
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
@@ -28,6 +30,7 @@ function renderPage(search: string, pathname = "/acme/doi/documents/d1") {
         </WorkspaceProvider>
       </FeatureFlagsProvider>,
       nav,
+      client,
     ),
   );
 }
@@ -109,6 +112,107 @@ describe("DocumentDetailView opened from the Inbox", () => {
     renderPage("comment=c1");
     expect(await screen.findByText(t("documents.detail.load_error"))).toBeInTheDocument();
     expect(screen.queryByText("Tài liệu không còn tồn tại hoặc đã bị xóa.")).toBeNull();
+  });
+});
+
+// UNI-2019 option B: the server answers 404 for a revoked reader AND a deleted document, so a 404 from
+// a notice asks the Inbox's own first page (fresh, never the cached one) which of the two it was.
+describe("DocumentDetailView 404 from a notice: deleted or revoked", () => {
+  const noticeRow = (over: Partial<Notification>) =>
+    ({
+      id: "n1", kind: "document_commented", workspace_id: "ws1", organization_id: "o1", resource_type: "document",
+      resource_id: "d1", resource_deleted: false, resource_access_lost: false, comment_deleted: false,
+      actor_kind: "human", actor_id: "u2", title_key: "notifications.kind.document_commented",
+      params: { comment_id: "c1" }, count: 1, created_at: "", ...over,
+    }) as Notification;
+  const isNotifications = (path: string) => path.startsWith("/api/v1/me/notifications");
+  const notificationCalls = () => requestMock.mock.calls.filter(([path]) => isNotifications(path as string));
+  const answer = (notifications: () => Promise<unknown>) =>
+    requestMock.mockImplementation((path: string) =>
+      isNotifications(path) ? notifications() : Promise.reject(new ApiError("not_found", "not found", 404)),
+    );
+  const gone = "Tài liệu không còn tồn tại hoặc đã bị xóa.";
+  const noAccess = "Bạn không có quyền truy cập tài liệu này.";
+
+  it("reads a notice whose row says the document was deleted as gone, with no request button", async () => {
+    answer(() => Promise.resolve({ notifications: [noticeRow({ resource_deleted: true })], next_before: "" }));
+    renderPage("comment=c1");
+    const heading = await screen.findByRole("heading", { level: 2, name: gone });
+    expect(heading).toHaveFocus();
+    expect(screen.getByRole("link", { name: "Về Hộp việc" })).toHaveAttribute("href", "/acme/doi/inbox");
+    expect(screen.queryByRole("button", { name: t("documents.access_request.send") })).toBeNull();
+    expect(screen.queryByText(noAccess)).toBeNull();
+  });
+
+  it("prefers the row of the comment the link names", async () => {
+    answer(() =>
+      Promise.resolve({
+        notifications: [
+          noticeRow({ id: "n2", params: { comment_id: "c9" }, resource_access_lost: true }),
+          noticeRow({ id: "n1", params: { comment_id: "c1" }, resource_deleted: true }),
+        ],
+        next_before: "",
+      }),
+    );
+    renderPage("comment=c1");
+    expect(await screen.findByRole("heading", { level: 2, name: gone })).toBeInTheDocument();
+  });
+
+  it("falls back to any row of the document when none names the comment", async () => {
+    answer(() => Promise.resolve({ notifications: [noticeRow({ params: { comment_id: "c9" }, resource_deleted: true })], next_before: "" }));
+    renderPage("comment=c1");
+    expect(await screen.findByRole("heading", { level: 2, name: gone })).toBeInTheDocument();
+  });
+
+  it("keeps the loading state, not the request form, while the Inbox page is fetched", async () => {
+    let resolve!: (v: unknown) => void;
+    answer(() => new Promise((r) => { resolve = r; }));
+    renderPage("comment=c1");
+    await waitFor(() => expect(notificationCalls()).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: t("documents.access_request.send") })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
+    resolve({ notifications: [noticeRow({ resource_access_lost: true })], next_before: "" });
+    expect(await screen.findByRole("heading", { level: 2, name: noAccess })).toBeInTheDocument();
+  });
+
+  it("reads a lost grant as no access, with the request form", async () => {
+    answer(() => Promise.resolve({ notifications: [noticeRow({ resource_access_lost: true })], next_before: "" }));
+    renderPage("comment=c1");
+    expect(await screen.findByRole("heading", { level: 2, name: noAccess })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.access_request.send") })).toBeInTheDocument();
+    expect(screen.queryByText(gone)).toBeNull();
+  });
+
+  it("reads a missing row (another document's notice only) as no access", async () => {
+    answer(() => Promise.resolve({ notifications: [noticeRow({ resource_id: "d2", resource_deleted: true })], next_before: "" }));
+    renderPage("comment=c1");
+    expect(await screen.findByRole("heading", { level: 2, name: noAccess })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.access_request.send") })).toBeInTheDocument();
+  });
+
+  it("reads a failed notifications fetch as no access", async () => {
+    answer(() => Promise.reject(new ApiError("internal", "boom", 500)));
+    renderPage("comment=c1");
+    expect(await screen.findByRole("heading", { level: 2, name: noAccess })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.access_request.send") })).toBeInTheDocument();
+  });
+
+  it("makes no notifications request for a link that names no comment", async () => {
+    answer(() => Promise.resolve({ notifications: [noticeRow({ resource_deleted: true })], next_before: "" }));
+    renderPage("");
+    expect(await screen.findByText(t("documents.access_request.locked_title"))).toBeInTheDocument();
+    expect(notificationCalls()).toHaveLength(0);
+  });
+
+  it("refetches even when the Inbox page is already cached", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(notificationKeys.list("ws1", false), {
+      notifications: [noticeRow({ resource_access_lost: true })],
+      next_before: "",
+    });
+    answer(() => Promise.resolve({ notifications: [noticeRow({ resource_deleted: true })], next_before: "" }));
+    renderPage("comment=c1", "/acme/doi/documents/d1", client);
+    expect(await screen.findByRole("heading", { level: 2, name: gone })).toBeInTheDocument();
   });
 });
 

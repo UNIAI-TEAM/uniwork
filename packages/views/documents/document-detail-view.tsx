@@ -42,6 +42,7 @@ import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { DocumentWorkspace } from "./document-workspace";
 import { ShareDialog } from "./share-dialog";
 import { useAccessRequestsDeepLink } from "./use-access-requests-deeplink";
+import { useNoticeDocumentGone } from "./use-notice-document-gone";
 import { useRequestSourceFromUrl } from "./use-request-source-from-url";
 
 /** setTimeout stores a 32-bit delay; a longer wait re-arms itself. */
@@ -95,7 +96,8 @@ export function DocumentDetailView({
   const nav = useOptionalNavigation();
   // A link that names a comment came from the Inbox (or its push): its refusals are the
   // S15 page messages with the way back to the Inbox (UNI-1389 rows 1-2).
-  const fromInbox = (nav?.searchParams.get("comment") ?? "") !== "";
+  const noticeCommentId = nav?.searchParams.get("comment") ?? "";
+  const fromInbox = noticeCommentId !== "";
   const accessDeepLink = nav?.searchParams.get("access") === "break_glass";
   const requestSource = useRequestSourceFromUrl(documentId);
   const loaded = !!query.data;
@@ -211,6 +213,13 @@ export function DocumentDetailView({
   const canManageAccess = canBreakGlass && !!adminSummary.data;
   // The member 404 card has no Share to open: it only consumes the parameter.
   const memberLocked = !query.data && errorClass === "missing";
+  // UNI-2019: from a notice, the 404 asks the Inbox's own row whether the document was deleted.
+  const notice = useNoticeDocumentGone({
+    wsId,
+    documentId,
+    commentId: noticeCommentId,
+    enabled: enabled && fromInbox && memberLocked,
+  });
 
   // The pure admin's entry for `?access=requests` (access addendum §2.5, N-02):
   // once the summary answered, an unarchived, unowned document opens Share at
@@ -240,7 +249,7 @@ export function DocumentDetailView({
     return <DocumentsGateState gate={gate} retry={retryGate} className="mx-auto w-full max-w-3xl" />;
   }
 
-  if (query.isPending || (folderHref && replace)) {
+  if (query.isPending || (folderHref && replace) || notice.pending) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-3 px-4 pt-12 md:pt-16" aria-busy="true">
         <Skeleton className="mb-8 h-10 w-2/3" />
@@ -385,7 +394,7 @@ export function DocumentDetailView({
   const resolvedDoc = query.data ?? null;
 
   if (!resolvedDoc) {
-    if (fromInbox && errorClass === "gone") {
+    if (fromInbox && (errorClass === "gone" || notice.gone)) {
       return <DocumentInboxState reason="gone" className="mx-auto w-full max-w-3xl" />;
     }
     // DOC-07: a 404 (missing, unshared or another organization's, on purpose
@@ -393,7 +402,8 @@ export function DocumentDetailView({
     // A 404 reached from a notice (F-G819-A07b) is a revoked reader as often as a
     // deleted document, and the person already knows the document exists: the card
     // says "no access" with the way back to the Inbox. The request route answers a
-    // uniform 202 for any id, so offering the form reveals nothing.
+    // uniform 202 for any id, so offering the form reveals nothing. The Inbox row of this
+    // document says when it was deleted instead (`notice.gone`, above): no form then.
     if (errorClass === "missing") {
       return (
         <DocumentLockedCard
