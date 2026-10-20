@@ -597,11 +597,12 @@ func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAc
 }
 
 const listDocumentShareCandidates = `-- name: ListDocumentShareCandidates :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, c.created_at,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, c.created_at, c.granted_by, c.granted_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
-       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
+       sk.ts_key AS sort_at
 FROM (
-  SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
+  SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at, s.granted_by, s.granted_by_kind
   FROM document_shares s
   WHERE s.organization_id = $1
     AND s.revoked_at IS NULL
@@ -629,7 +630,8 @@ CROSS JOIN LATERAL (SELECT
     (CASE WHEN $4::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN $4::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN $4::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
-    (CASE WHEN $4::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+    (CASE WHEN $4::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null,
+    (CASE WHEN $4::text = 'shared' THEN c.created_at ELSE d.updated_at END)::timestamptz AS ts_key
 ) sk
 WHERE d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): a shelved share leaves the shared-with-me list.
@@ -669,6 +671,9 @@ WHERE d.archived_at IS NULL
        WHEN 'updated' THEN CASE WHEN $13::boolean
             THEN (d.updated_at, d.id COLLATE "C") < ($14::timestamptz, $12::text COLLATE "C")
             ELSE (d.updated_at, d.id COLLATE "C") > ($14::timestamptz, $12::text COLLATE "C") END
+       WHEN 'shared' THEN CASE WHEN $13::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < ($14::timestamptz, $12::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > ($14::timestamptz, $12::text COLLATE "C") END
        WHEN 'size' THEN CASE WHEN $13::boolean
             THEN (sk.size_key, d.id COLLATE "C") < ($15::bigint, $12::text COLLATE "C")
             ELSE (sk.size_key, d.id COLLATE "C") > ($15::bigint, $12::text COLLATE "C") END
@@ -693,6 +698,8 @@ ORDER BY
   (CASE WHEN $4::text = 'size' AND $13::boolean THEN sk.size_key END) DESC,
   (CASE WHEN $4::text = 'updated' AND NOT $13::boolean THEN d.updated_at END) ASC,
   (CASE WHEN $4::text = 'updated' AND $13::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN $4::text = 'shared' AND NOT $13::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN $4::text = 'shared' AND $13::boolean THEN sk.ts_key END) DESC,
   (CASE WHEN $4::text IS NOT NULL AND NOT $13::boolean THEN d.id COLLATE "C" END) ASC,
   (CASE WHEN $4::text IS NOT NULL AND $13::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT $18
@@ -722,10 +729,13 @@ type ListDocumentShareCandidatesParams struct {
 type ListDocumentShareCandidatesRow struct {
 	Document       Document           `json:"document"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	GrantedBy      string             `json:"granted_by"`
+	GrantedByKind  string             `json:"granted_by_kind"`
 	SortName       string             `json:"sort_name"`
 	SortSize       int64              `json:"sort_size"`
 	SortEditor     string             `json:"sort_editor"`
 	SortEditorNull bool               `json:"sort_editor_null"`
+	SortAt         pgtype.Timestamptz `json:"sort_at"`
 }
 
 // "Shared with me" candidates: live shares naming the person, the whole
@@ -823,10 +833,13 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
 			&i.CreatedAt,
+			&i.GrantedBy,
+			&i.GrantedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
 			&i.SortEditorNull,
+			&i.SortAt,
 		); err != nil {
 			return nil, err
 		}

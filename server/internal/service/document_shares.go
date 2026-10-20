@@ -795,6 +795,18 @@ type SharedDocument struct {
 	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
 	// addendum §6.4, §7); nil for agent actors.
 	ShareScope *DocumentShareScope
+	// Shared is the share that grants the caller: who, when (UNI-2045 SV-3).
+	Shared DocumentSharedBy
+}
+
+// DocumentSharedBy says who shared a document with the caller and when - the
+// granter and time of the share the list picked for the row. ByName is nil
+// unless the granter is a human member of the caller's organization.
+type DocumentSharedBy struct {
+	By     string
+	ByKind string
+	ByName *string
+	At     time.Time
 }
 
 // SharedWithMeQuery is one page request of the recipient's shared list.
@@ -874,6 +886,9 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	if err := s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items); err != nil {
 		return SharedWithMePage{}, err
 	}
+	if err := s.attachSharedByNames(ctx, organizationID, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
 	return page, s.attachSharedShareScopes(ctx, Human(userID), organizationID, page.Items)
 }
 
@@ -894,6 +909,9 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 			workspaceIDs = append(workspaceIDs, w.ID)
 		}
 	}
+	if err := in.Sort.CheckRoute(DocumentSortShared); err != nil {
+		return SharedWithMePage{}, err
+	}
 	limit := EffectiveSharedWithMeLimit(in.Limit)
 	filters, err := resolveListFilters(in.Format, in.Access, "", false)
 	if err != nil {
@@ -910,7 +928,7 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 		if !in.Sort.Active() {
 			return r.CreatedAt.Time, r.Document.ID, DocumentSortCursor{}
 		}
-		return r.Document.UpdatedAt.Time, r.Document.ID, NewDocumentSortCursor(in.Sort, r.SortSize, r.SortName, r.SortEditor, r.SortEditorNull)
+		return r.SortAt.Time, r.Document.ID, NewDocumentSortCursor(in.Sort, r.SortSize, r.SortName, r.SortEditor, r.SortEditorNull)
 	}
 	out := make([]SharedDocument, 0, limit)
 	for {
@@ -957,7 +975,9 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 				// does not list it.
 				continue
 			}
-			out = append(out, SharedDocument{Document: r.Document, Access: acc})
+			out = append(out, SharedDocument{Document: r.Document, Access: acc, Shared: DocumentSharedBy{
+				By: r.GrantedBy, ByKind: r.GrantedByKind, At: r.CreatedAt.Time.UTC(),
+			}})
 			if len(out) == limit {
 				// The keyset points just past the row that filled the page;
 				// candidates after it (denied or not) are re-read by the next
@@ -973,4 +993,29 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 		afterAt, afterID, afterSort = nextAfter(rows[len(rows)-1])
 	}
 	return SharedWithMePage{Items: out}, nil
+}
+
+// attachSharedByNames names the granter of each row's share, once per page: only
+// a human member of the caller's organization has a name (UNI-2045 SV-3).
+func (s *DocumentService) attachSharedByNames(ctx context.Context, organizationID string, items []SharedDocument) error {
+	ids := make([]string, 0, len(items))
+	for _, it := range items {
+		if it.Shared.ByKind == string(audit.KindHuman) {
+			ids = append(ids, it.Shared.By)
+		}
+	}
+	people, err := s.organizationPeople(ctx, organizationID, ids, false)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if items[i].Shared.ByKind != string(audit.KindHuman) {
+			continue
+		}
+		if p, ok := people[items[i].Shared.By]; ok {
+			name := p.Name
+			items[i].Shared.ByName = &name
+		}
+	}
+	return nil
 }

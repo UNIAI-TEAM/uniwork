@@ -239,7 +239,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		Format: strings.TrimSpace(r.URL.Query().Get("format")),
 		Access: strings.TrimSpace(r.URL.Query().Get("access")),
 	}
-	sort, ok := documentSortInput(w, r.URL.Query(), "")
+	sort, ok := documentSortInput(w, r.URL.Query(), service.DocumentSortShared)
 	if !ok {
 		return
 	}
@@ -487,6 +487,12 @@ func toSharedDocumentSummaryDTO(row service.SharedDocument) sdo.DocumentSummaryD
 	dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
 	dto.EditLock = documentRowEditLockSDO(row.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(row.ShareScope)
+	if row.Shared.By != "" {
+		dto.Shared = &sdo.DocumentSharedSDO{
+			By: row.Shared.By, ByKind: row.Shared.ByKind, ByName: row.Shared.ByName,
+			At: row.Shared.At.UTC().Format(time.RFC3339),
+		}
+	}
 	return dto
 }
 

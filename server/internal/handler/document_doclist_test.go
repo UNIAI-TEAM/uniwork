@@ -520,3 +520,123 @@ func dlOneShareID(t *testing.T, w *docsWorld, docID, userID string) string {
 	}
 	return id
 }
+
+// dlShare inserts one live share row with a chosen granter and time.
+func dlShare(t *testing.T, w *docsWorld, docID, principalType, principalID, grantedBy, grantedKind string, at time.Time) string {
+	t.Helper()
+	id := newTestID()
+	dlExec(t, `INSERT INTO document_shares (id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'view', $7, $8, $9)`, id, w.orgID, w.wsID, docID, principalType, principalID, grantedBy, grantedKind, at)
+	return id
+}
+
+func dlName(t *testing.T, userID, name string) {
+	t.Helper()
+	dlExec(t, `UPDATE users SET display_name = $1 WHERE id = $2`, name, userID)
+}
+
+// SV-3: every shared-with-me row says who shared it and when, from the share
+// that grants the caller; the name is shown only for a person of the caller's
+// organization; sort=shared orders by the share time.
+func TestDoclistSharedWithMeSharedBy(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-shared-member@example.com")
+	_, peerID := docsJoinWorkspace(t, w, "dl-shared-peer@example.com")
+	_, strangerID := filesRegister(t, w.srv, "dl-shared-stranger@example.com")
+	dlName(t, w.userID, "Chủ Sở Hữu")
+	dlName(t, peerID, "Bạn Đồng Nghiệp")
+	dlName(t, strangerID, "Người Lạ")
+	base := dlBase(w) + "/shared-with-me"
+	t0 := time.Now().UTC().Add(-20 * time.Hour).Truncate(time.Second)
+	mk := func(title string) string {
+		_, id := docsCreatePageBody(t, w, w.token, map[string]any{"title": title, "visibility": "restricted"})
+		return id
+	}
+	byOwner, byStranger, byAgent, newest := mk("by-owner"), mk("by-stranger"), mk("by-agent"), mk("two-shares")
+	dlShare(t, w, byOwner, "user", memberID, w.userID, "human", t0)
+	dlShare(t, w, byStranger, "user", memberID, strangerID, "human", t0.Add(time.Hour))
+	dlShare(t, w, byAgent, "user", memberID, "agent-"+w.orgID, "agent", t0.Add(2*time.Hour))
+	// two live shares reach the caller: the list uses the newest, and so does shared{}.
+	dlShare(t, w, newest, "user", memberID, w.userID, "human", t0.Add(3*time.Hour))
+	dlShare(t, w, newest, "organization", w.orgID, peerID, "human", t0.Add(4*time.Hour))
+
+	res, out := dlGet(t, w, memberTok, base)
+	if res.StatusCode != 200 {
+		t.Fatalf("shared-with-me: %d %v", res.StatusCode, out)
+	}
+	type shared struct {
+		by, kind, name, at string
+		nameNull           bool
+	}
+	got := map[string]shared{}
+	for _, item := range out["documents"].([]any) {
+		m := item.(map[string]any)
+		sh, ok := m["shared"].(map[string]any)
+		if !ok {
+			t.Fatalf("row %v has no shared{}", m["title"])
+		}
+		entry := shared{by: sh["by"].(string), kind: sh["by_kind"].(string), at: sh["at"].(string)}
+		if n, ok := sh["by_name"].(string); ok {
+			entry.name = n
+		} else if v, present := sh["by_name"]; present && v == nil {
+			entry.nameNull = true
+		} else {
+			t.Errorf("row %v: by_name missing (want a name or an explicit null): %v", m["title"], sh)
+		}
+		got[m["title"].(string)] = entry
+	}
+	want := map[string]shared{
+		"by-owner":    {by: w.userID, kind: "human", name: "Chủ Sở Hữu", at: t0.Format(time.RFC3339)},
+		"by-stranger": {by: strangerID, kind: "human", nameNull: true, at: t0.Add(time.Hour).Format(time.RFC3339)},
+		"by-agent":    {by: "agent-" + w.orgID, kind: "agent", nameNull: true, at: t0.Add(2 * time.Hour).Format(time.RFC3339)},
+		"two-shares":  {by: peerID, kind: "human", name: "Bạn Đồng Nghiệp", at: t0.Add(4 * time.Hour).Format(time.RFC3339)},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("shared{} = %+v\nwant     %+v", got, want)
+	}
+}
+
+// Three pages with shared share times, both directions; the key is the share
+// time and ids break ties in the same direction.
+func TestDoclistSharedWithMeSortByShareTime(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-shared-pages@example.com")
+	base := dlBase(w) + "/shared-with-me"
+	t0 := time.Now().UTC().Add(-30 * time.Hour).Truncate(time.Second)
+	key := map[string]time.Time{}
+	for i := 0; i < 7; i++ {
+		_, id := docsCreatePageBody(t, w, w.token, map[string]any{"title": fmt.Sprintf("s%d", i), "visibility": "restricted"})
+		key[id] = t0.Add(time.Duration(i/3) * time.Hour) // 3 + 3 + 1 share a time
+		dlShare(t, w, id, "user", memberID, w.userID, "human", key[id])
+	}
+	for _, order := range []string{"asc", "desc", ""} {
+		q := "?sort=shared"
+		if order != "" {
+			q += "&order=" + order
+		}
+		pages := dlWalk(t, w, memberTok, base+q, 3)
+		if len(pages) != 3 {
+			t.Errorf("%s: pages = %d, want 3", q, len(pages))
+		}
+		if got, want := dlFlatten(pages), dlSortedIDs(key, order != "asc"); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: order = %v, want %v", q, got, want)
+		}
+	}
+	for _, q := range []string{"?sort=starred", "?sort=activity", "?sort=deleted", "?sort=shelved"} {
+		res, out := dlGet(t, w, memberTok, base+q)
+		wantErr(t, res, out, 400, "invalid_request", "")
+	}
+	res, out := dlGet(t, w, memberTok, base+"?sort=shared&limit=1")
+	cursor, _ := out["next_cursor"].(string)
+	if res.StatusCode != 200 || cursor == "" {
+		t.Fatalf("first page: %d %v", res.StatusCode, out)
+	}
+	for _, q := range []string{"", "&sort=updated", "&sort=shared&order=asc"} {
+		res, out := dlGet(t, w, memberTok, base+"?cursor="+cursor+q)
+		wantErr(t, res, out, 400, "invalid_request", "")
+	}
+	// an unsorted list is still the share-time order of today.
+	if got := dlFlatten(dlWalk(t, w, memberTok, base, 3)); len(got) != 7 {
+		t.Errorf("unsorted shared-with-me = %v, want 7 rows", got)
+	}
+}
