@@ -36,8 +36,8 @@ var chatAttachmentShareBeforeLock func()
 //  3. L1 replay: if already converted to kind='document', return 200 with the
 //     same message + document (whatever client_msg_id or share_level)
 //  4. kind='file' (404 otherwise), type on L8's subset and saveable (422
-//     source_not_saveable otherwise), recipients within the batch cap (422
-//     share_batch_too_large otherwise)
+//     source_not_saveable otherwise); a room of any size converts (UNI-2012
+//     S1c removed the recipient cap)
 //  5. open the attachment bytes via OpenChatFileMessage and upload a copy as a
 //     new document_file object
 //  6. one transaction: lock the message row (replay if another call converted
@@ -104,9 +104,6 @@ func (s *ChatService) ShareAttachmentAsDocument(
 	recipients, err := s.documentGrantRecipients(ctx, userID, room)
 	if err != nil {
 		return ChatMessageRow{}, err
-	}
-	if len(recipients) > maxDocumentShareBatch {
-		return ChatMessageRow{}, shareBatchTooLargeError()
 	}
 
 	_, rd, err := s.OpenChatFileMessage(ctx, userID, workspaceID, room.ID, messageID, false)

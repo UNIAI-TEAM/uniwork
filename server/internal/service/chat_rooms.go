@@ -70,9 +70,9 @@ type ChatRoomSummary struct {
 	// AvatarURL is a group's uploaded avatar, signed; "" shows its members.
 	AvatarURL string
 	// CanSendDocument is set on the room DETAIL read only (UNI-1966 L5): the
-	// caller may send a document here and the grantable audience is within one
-	// share batch. The room list never computes it - that would be a member
-	// read per list row.
+	// caller may send a document here. Since UNI-2012 S1c removed the
+	// recipient cap it is send permission alone (chatDocumentCanSend); the
+	// field stays for deployed clients. The room list never computes it.
 	CanSendDocument bool
 }
 
@@ -789,7 +789,7 @@ func (s *ChatService) GetRoomSummary(ctx context.Context, userID, workspaceID, r
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	summary.CanSendDocument = s.chatDocumentShareBatchCap(ctx, userID, room)
+	summary.CanSendDocument = s.chatDocumentCanSend(ctx, userID, room)
 	return summary, nil
 }
 

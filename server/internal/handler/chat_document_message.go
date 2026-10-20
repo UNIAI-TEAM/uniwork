@@ -70,7 +70,7 @@ func (h *handlers) sendChatDocumentMessage(w http.ResponseWriter, r *http.Reques
 // getChatRoomDetail is GET .../chat/rooms/{roomID} (UNI-1966 L5): the one room
 // a caller is looking at, so the composer learns can_send_document before it
 // offers the picker. The room list never carries the flag: computing it per
-// list row would be a member and share read per room.
+// list row would be a send-permission read per room.
 func (h *handlers) getChatRoomDetail(w http.ResponseWriter, r *http.Request) {
 	room, err := h.Chat.GetRoomSummary(r.Context(), middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"))

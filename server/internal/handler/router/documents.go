@@ -647,9 +647,9 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Post("/documents/{documentID}/shares/batch", h.CreateDocumentShareBatch, apiOp{
 		summary: "Share a document with a batch of users",
-		description: "Cấp view/edit/manage cho 1–50 người dùng cùng tổ chức trong một transaction (all-or-nothing); trùng lặp được gộp và giữ thứ tự xuất hiện đầu. " +
+		description: "Cấp view/edit/manage cho một hoặc nhiều người dùng cùng tổ chức trong một transaction (all-or-nothing), không giới hạn số người; trùng lặp được gộp và giữ thứ tự xuất hiện đầu. " +
 			"Danh sách rỗng, có phần tử rỗng hoặc level sai -> 400 invalid_request; không đọc được -> 404; dưới manage -> 403; tài liệu thuộc Work Product -> 409 document_owned_by_work_product; " +
-			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids); thư mục -> 422 folder_not_shareable.",
+			"có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids); thư mục -> 422 folder_not_shareable.",
 		tags:   []string{"documents"},
 		sdi:    sdi.ShareDocumentBatchSDI{},
 		sdo:    sdo.DocumentShareBatchSDO{},

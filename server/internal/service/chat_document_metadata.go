@@ -214,24 +214,16 @@ func (s *ChatService) chatDocumentRecipientCount(ctx context.Context, doc db.Doc
 	return int(n), nil
 }
 
-// chatDocumentShareBatchCap answers whether the caller may share a document
-// into room at all (L5): sending needs the room's send permission and a
-// grantable audience within maxDocumentShareBatch. The audience is the
-// current human room members, the sender excluded, that pass the tenant gate
-// - the same set the send grants, so a room that would overflow the batch
-// cap refuses the picker instead of failing the send.
-func (s *ChatService) chatDocumentShareBatchCap(ctx context.Context, userID string, room db.ChatRoom) bool {
+// chatDocumentCanSend answers can_send_document (L5): the caller may share a
+// document into room - the Documents service is wired and the caller holds
+// the room's send permission. It used to also require a grantable audience
+// within the 50-user batch cap; UNI-2012 S1c removed the cap, so the flag is
+// now send permission alone and costs no member walk.
+func (s *ChatService) chatDocumentCanSend(ctx context.Context, userID string, room db.ChatRoom) bool {
 	if s.docs == nil || s.files == nil {
 		return false
 	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
-		return false
-	}
-	recipients, err := s.documentGrantRecipients(ctx, userID, room)
-	if err != nil {
-		return false
-	}
-	return len(recipients) <= maxDocumentShareBatch
+	return s.requireCanSendInRoom(ctx, userID, room.ID, room) == nil
 }
 
 // documentGrantRecipients is who the send grants to (§3.4): the room's
@@ -239,50 +231,45 @@ func (s *ChatService) chatDocumentShareBatchCap(ctx context.Context, userID stri
 // gate refuses (a deactivated member or a suspended organization is skipped,
 // never failed). Agents are not members of a chat room's user list, so they
 // are not recipients; a room with no other human member grants nothing and
-// the send still writes the message for the sender. The walk stops as soon as
-// the list holds one more than maxDocumentShareBatch: callers only compare the
-// length to the cap (and grant when it is within it), so a large room does not
-// cost one membership gate per member.
+// the send still writes the message for the sender. Every member is gated in
+// one query per tier (UNI-2012 S1c: a room of any size), the admission
+// RequireMember would decide for each: an active member of the room's
+// organization (R3: the share writer does not validate principals itself),
+// and for workspace/channel rooms of the room's workspace too.
 func (s *ChatService) documentGrantRecipients(ctx context.Context, senderID string, room db.ChatRoom) ([]string, error) {
 	members, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(members))
+	others := make([]string, 0, len(members))
 	for _, memberID := range members {
-		if memberID == senderID {
-			continue
-		}
-		if err := s.requireDocumentGrantRecipient(ctx, room, memberID); err != nil {
-			if isGateRefusal(err) {
-				continue
-			}
-			return nil, err
-		}
-		out = append(out, memberID)
-		if len(out) > maxDocumentShareBatch {
-			break
+		if memberID != senderID {
+			others = append(others, memberID)
 		}
 	}
-	return out, nil
-}
-
-// requireDocumentGrantRecipient gates one room member for a chat document
-// grant (UNI-2012 R3): every recipient must be an active member of the room's
-// organization because applyDocumentShareWithBatch does not validate
-// principals itself, and workspace/channel rooms additionally require
-// membership in the room's workspace.
-func (s *ChatService) requireDocumentGrantRecipient(ctx context.Context, room db.ChatRoom, memberID string) error {
-	if _, err := s.ws.orgs.RequireMember(ctx, room.OrganizationID, memberID); err != nil {
-		return err
+	if len(others) == 0 {
+		return []string{}, nil
 	}
+	inOrg, err := s.ws.orgs.AdmittedMemberIDsQ(ctx, s.q, room.OrganizationID, others)
+	if err != nil {
+		return nil, err
+	}
+	var inWorkspace map[string]bool
 	switch room.Kind {
 	case chatRoomKindWorkspace, chatRoomKindChannel:
-		_, err := s.ws.RequireMember(ctx, roomAnchorWorkspaceID(room), memberID)
-		return err
-	default:
-		return nil
+		inWorkspace, err = s.ws.AdmittedMemberIDsQ(ctx, s.q, roomAnchorWorkspaceID(room), others)
+		if err != nil {
+			return nil, err
+		}
 	}
+	out := make([]string, 0, len(others))
+	for _, memberID := range others {
+		if !inOrg[memberID] || (inWorkspace != nil && !inWorkspace[memberID]) {
+			continue
+		}
+		out = append(out, memberID)
+	}
+	return out, nil
 }
 
 // chatDocumentMIMEType reports whether a verified content type may be shared

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -69,9 +70,25 @@ func TestDocumentShareBatch(t *testing.T) {
 	// 400 empty list; >50 distinct principals succeed now that the batch cap is gone (UNI-2012 S1c).
 	res, out = doJSON(t, w.srv, "POST", path, w.token, map[string]any{"principal_ids": []string{}, "level": "view"})
 	wantErr(t, res, out, 400, "invalid_request", "")
+	// The 55 recipients are seeded as organization members directly: the
+	// invitation route would stop at the test plan's member quota first.
 	many := make([]string, 55)
+	emails := make([]string, len(many))
 	for i := range many {
-		_, many[i] = docsJoinWorkspace(t, w, fmt.Sprintf("docs-batch-many-%02d@example.com", i))
+		many[i] = util.NewID()
+		emails[i] = fmt.Sprintf("docs-batch-many-%02d@example.com", i)
+	}
+	if _, err := w.pool.Exec(context.Background(), `
+		INSERT INTO users (id, email, display_name, password_hash, email_verified_at)
+		SELECT unnest($1::text[]), unnest($2::text[]), 'Batch member', 'x', now()
+	`, many, emails); err != nil {
+		t.Fatalf("seed users: %v", err)
+	}
+	if _, err := w.pool.Exec(context.Background(), `
+		INSERT INTO organization_members (organization_id, user_id, role)
+		SELECT $1, unnest($2::text[]), 'member'
+	`, w.orgID, many); err != nil {
+		t.Fatalf("seed org members: %v", err)
 	}
 	res, out = doJSON(t, w.srv, "POST", path, w.token, map[string]any{"principal_ids": many, "level": "view"})
 	if res.StatusCode != 201 {

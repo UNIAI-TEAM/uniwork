@@ -34,6 +34,9 @@ type docsWorld struct {
 	orgID    string
 	wsID     string
 	outsider string
+	// pool seeds rows no route can create fast enough (UNI-2012 S1c: a
+	// batch share past the plan's member quota).
+	pool *pgxpool.Pool
 }
 
 // docsPNG is a valid 1x1 PNG: the document layer decodes the image header,
@@ -81,7 +84,7 @@ func newDocsWorld(t *testing.T) *docsWorld {
 		testFlagOverrides.Invalidate()
 	}
 
-	w := &docsWorld{srv: srv}
+	w := &docsWorld{srv: srv, pool: pool}
 	w.token, w.userID = filesRegister(t, srv, "docs-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Docs Org", "slug": "docs-org"})
 	if res.StatusCode != 201 {
