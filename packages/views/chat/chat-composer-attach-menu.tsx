@@ -95,11 +95,10 @@ function filterAttachMenuItems(
   items: ComposerAttachMenuItem[],
   { showCreatePoll, showAttachDocument }: { showCreatePoll: boolean; showAttachDocument: boolean },
 ): ComposerAttachMenuItem[] {
-  return items.filter(
-    (item) =>
-      !("id" in item) ||
-      (item.id !== "create_poll" || showCreatePoll) && (item.id !== "attach_document" || showAttachDocument),
-  );
+  return items.filter((item) => {
+    if (!("id" in item)) return true;
+    return (item.id !== "create_poll" || showCreatePoll) && (item.id !== "attach_document" || showAttachDocument);
+  });
 }
 
 export function ComposerAttachMenu({

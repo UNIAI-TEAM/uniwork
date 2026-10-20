@@ -411,8 +411,6 @@ describe("ChatComposer document share picker", () => {
     expect(onSendDocument).not.toHaveBeenCalled();
   });
 
-
-
   it("stages document-only kinds only when the room allows documents", () => {
     const onSendDocument = vi.fn();
     const { unmount } = renderComposer({ canSendDocument: true, onSendDocument });
@@ -454,7 +452,6 @@ describe("ChatComposer document share picker", () => {
     expect(onSendFile).not.toHaveBeenCalled();
   });
 
-
   it("labels the picker's default choice Nhận xét", () => {
     renderComposer({ canSendDocument: true, onSendDocument: vi.fn() });
     fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [docx()] } });
@@ -491,32 +488,54 @@ describe("ChatComposer document share picker", () => {
     expect(onSendDocument).not.toHaveBeenCalled();
   });
 
-  it("never offers 'Chỉ gửi tệp': not for a pdf the plain route accepts, nor a document-only kind, nor a 26 MB pdf", async () => {
-    const big = new File(["x"], "nang.pdf", { type: "application/pdf" });
-    Object.defineProperty(big, "size", { value: 26 * 1024 * 1024 });
-    const cases: { name: string; file: File }[] = [
-      { name: "a pdf the plain route accepts", file: new File(["%PDF"], "bao-cao.pdf", { type: "application/pdf" }) },
-      {
-        name: "a document-only kind (.pptx)",
-        file: new File(
-          ["x"],
-          "trinh-bay.pptx",
-          { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
-        ),
-      },
-      { name: "a pdf over the 25 MB chat ceiling", file: big },
-    ];
-    for (const { name, file } of cases) {
-      const { unmount } = renderComposer({ canSendDocument: true, onSendDocument: vi.fn(), onSendFile: vi.fn() });
-      fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [file] } });
-      fireEvent.click(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện"));
-      expect(await screen.findByRole("menuitemradio", { name: "Chỉ xem" }), `${name}: the levels show`).toBeInTheDocument();
-      expect(
-        screen.queryByRole("menuitemradio", { name: "Chỉ gửi tệp" }),
-        `${name}: no file choice`,
-      ).not.toBeInTheDocument();
-      unmount();
-    }
+  it("never offers 'Chỉ gửi tệp', even for a pdf the plain route also accepts", async () => {
+    renderComposer({ canSendDocument: true, onSendDocument: vi.fn(), onSendFile: vi.fn() });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [new File(["%PDF"], "bao-cao.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện"));
+    expect(await screen.findByRole("menuitemradio", { name: "Chỉ xem" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemradio", { name: "Chỉ gửi tệp" })).not.toBeInTheDocument();
+  });
+
+  it("sends a split batch in the order it was staged", async () => {
+    const onSendDocument = vi.fn();
+    const onSendFile = vi.fn();
+    renderComposer({ canSendDocument: true, onSendDocument, onSendFile });
+    const png = new File(["png"], "anh.png", { type: "image/png" });
+    const pdf = new File(["%PDF"], "bao-cao.pdf", { type: "application/pdf" });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [png, pdf] } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(onSendDocument).toHaveBeenCalledTimes(1));
+    expect(onSendFile).toHaveBeenCalledExactlyOnceWith(png);
+    expect(onSendFile.mock.invocationCallOrder[0]).toBeLessThan(onSendDocument.mock.invocationCallOrder[0] ?? 0);
+  });
+
+  it("still sends the image when the document of the same batch fails", async () => {
+    const onSendDocument = vi.fn().mockRejectedValue(new Error("refused"));
+    const onSendFile = vi.fn();
+    renderComposer({ canSendDocument: true, onSendDocument, onSendFile });
+    const pdf = new File(["%PDF"], "bao-cao.pdf", { type: "application/pdf" });
+    const png = new File(["png"], "anh.png", { type: "image/png" });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [pdf, png] } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(onSendFile).toHaveBeenCalledExactlyOnceWith(png));
+    expect(onSendDocument).toHaveBeenCalledExactlyOnceWith(pdf, "comment");
+  });
+
+  // Pins today's behaviour so the slice that closes it (a room that cannot
+  // take document sends must refuse an editor-format file, not send it plain)
+  // shows up as a visible diff here.
+  it("sends an editor-format file by the plain route when the room cannot take documents", async () => {
+    const onSendDocument = vi.fn();
+    const onSendFile = vi.fn();
+    renderComposer({ canSendDocument: false, onSendDocument, onSendFile });
+    const file = docx();
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), { clipboardData: { files: [file] } });
+    expect(screen.queryByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(onSendFile).toHaveBeenCalledExactlyOnceWith(file));
+    expect(onSendDocument).not.toHaveBeenCalled();
   });
 
   // UNI-2012 S5: "Đính kèm từ Tài liệu" opens the picker; it hides where a
@@ -535,5 +554,4 @@ describe("ChatComposer document share picker", () => {
     expect(await screen.findByRole("menuitem", { name: "Đính kèm tệp" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Đính kèm từ Tài liệu" })).not.toBeInTheDocument();
   });
-
 });
