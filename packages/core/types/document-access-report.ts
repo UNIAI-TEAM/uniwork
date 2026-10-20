@@ -6,17 +6,40 @@ import { z } from "zod";
 // still parses and the screen labels it "Other". Kept apart from
 // `document.ts`, which is already at the line cap.
 
-/** An array that drops the entries that do not parse instead of failing the page. */
+/**
+ * An array that drops the entries that do not parse instead of failing the
+ * page. A key that is present as `null` is a Go nil slice: empty, not garbage.
+ */
 function lenientArray<S extends z.ZodType>(item: S) {
   return z
     .array(z.unknown())
-    .transform((entries) => entries.flatMap((entry) => {
+    .nullable()
+    .transform((entries) => (entries ?? []).flatMap((entry) => {
       const parsed = item.safeParse(entry);
       return parsed.success ? [parsed.data as z.output<S>] : [];
     }));
 }
 
+/** A nil slice (`null`) or an absent key is an empty list. */
+function nilAsEmpty<S extends z.ZodType>(item: S) {
+  return z.array(item).nullable().optional().transform((v) => v ?? []);
+}
+
 const NullableString = z.string().nullable().optional().transform((v) => v ?? null);
+
+/**
+ * The server answers a field it has not filled with its Go zero value, so an
+ * empty string reads as missing: the screen falls back to what it derives.
+ */
+const OptionalText = z.string().nullable().optional().transform((v) => v || null);
+
+/** A zero `time.Time` (year 1) or a zero Unix time is "never", not a date. */
+const ZERO_TIME = /^(0001-01-01|1970-01-01T00:00:00)/;
+const OptionalTime = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => (v && !ZERO_TIME.test(v) ? v : null));
 
 const AccessReportScopeSchema = z.object({
   kind: z.string(),
@@ -27,7 +50,7 @@ const AccessReportScopeSchema = z.object({
 
 const AccessReportFilterSchema = z.object({
   person_id: NullableString,
-  level: z.array(z.string()).optional().default([]),
+  level: nilAsEmpty(z.string()),
   visibility: NullableString,
 });
 
@@ -63,8 +86,9 @@ export type AccessReportFlag = "public_link" | "other_workspace" | "organization
 const FLAGS: readonly string[] = ["public_link", "other_workspace", "organization", "direct_manage"];
 
 /**
- * Absent = null, so the screen derives them (`deriveReportFacts`); present but
- * not an array = no flags; an unknown flag is dropped.
+ * Absent, null or an empty list = null (the server's zero value: not answered),
+ * so the screen derives them (`deriveReportFacts`); present but not an array =
+ * no flags; an unknown flag is dropped, and a list of only unknown ones is [].
  */
 const FlagsSchema = z
   .unknown()
@@ -72,6 +96,7 @@ const FlagsSchema = z
   .transform((v): AccessReportFlag[] | null => {
     if (v === undefined || v === null) return null;
     if (!Array.isArray(v)) return [];
+    if (v.length === 0) return null;
     return v.filter((f): f is AccessReportFlag => typeof f === "string" && FLAGS.includes(f));
   });
 
@@ -97,10 +122,7 @@ const AccessReportDocumentInfoSchema = z.object({
   title: z.string().optional().default(""),
   kind: z.string().optional().default(""),
   visibility: z.string().optional().default(""),
-  path: z
-    .array(z.object({ id: z.string(), title: z.string().optional().default("") }))
-    .optional()
-    .default([]),
+  path: nilAsEmpty(z.object({ id: z.string(), title: z.string().optional().default("") })),
   acl_owner: AccessReportOwnerSchema.nullable().optional().transform((v) => v ?? null),
   /** Only with a person filter: that person's level on the document. */
   person_level: z.string().nullable().optional(),
@@ -109,11 +131,11 @@ const AccessReportDocumentInfoSchema = z.object({
   general_scope: GeneralScopeSchema,
   flags: FlagsSchema,
   /** Latest access change; the content's `updated_at` when the server omits it. */
-  access_changed_at: z.string().nullable().optional(),
+  access_changed_at: OptionalTime,
   /** The viewer's own level and admin scope, to open the share dialog. */
-  my_level: NullableString,
+  my_level: OptionalText,
   admin_scope: z.boolean().optional().default(false),
-}).transform((d) => ({ ...d, access_changed_at: d.access_changed_at || d.updated_at }));
+}).transform((d) => ({ ...d, access_changed_at: d.access_changed_at ?? d.updated_at }));
 
 const AccessReportRowSchema = z.object({
   source: z.string(),
@@ -130,9 +152,9 @@ const AccessReportRowSchema = z.object({
   granted_at: NullableString,
   share_id: NullableString,
   /** `direct` | `chat` on a share row; absent until the server sends it (read as direct). */
-  origin: NullableString,
+  origin: OptionalText,
   /** A public link's expiry; null = never. */
-  expires_at: NullableString,
+  expires_at: OptionalTime,
   revoke_target: RevokeTargetSchema,
 });
 

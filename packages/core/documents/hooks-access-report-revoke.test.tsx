@@ -42,7 +42,7 @@ describe("useRevokeReportGrant (UNI-2039)", () => {
     ["link", "/api/v1/documents/d1/links/g1"],
     ["break_glass", "/api/v1/documents/d1/break-glass/g1"],
   ] as const)("calls the existing %s revoke route", async (kind, path) => {
-    vi.mocked(fetch).mockResolvedValueOnce(kind === "break_glass" ? json({ status: "revoked" }) : noContent());
+    vi.mocked(fetch).mockResolvedValueOnce(kind === "break_glass" ? json({ status: "ok" }) : noContent());
     const { wrapper } = setup();
     const { result } = renderHook(() => useRevokeReportGrant("w1"), { wrapper });
     await act(async () => {
@@ -69,7 +69,7 @@ describe("useRevokeReportGrant (UNI-2039)", () => {
   });
 
   it("also refreshes the access log after ending a break-glass grant", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "revoked" }));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
     const { spy, wrapper } = setup();
     const { result } = renderHook(() => useRevokeReportGrant("w1"), { wrapper });
     await act(async () => {
@@ -77,6 +77,22 @@ describe("useRevokeReportGrant (UNI-2039)", () => {
     });
     expect(calledKeys(spy)).toContainEqual(documentKeys.accessLogs("w1", "d1"));
   });
+
+  it.each([[{ nope: true }], [{ status: "failed" }], [null], ["str"]])(
+    "fails and leaves the report alone when ending a break-glass grant answers 200 with %j",
+    async (body) => {
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      const { spy, wrapper } = setup();
+      const { result } = renderHook(() => useRevokeReportGrant("w1"), { wrapper });
+      await act(async () => {
+        await result.current
+          .mutateAsync({ documentId: "d1", target: { kind: "break_glass", id: "g1" } })
+          .catch(() => undefined);
+      });
+      await waitFor(() => expect(result.current.isError).toBe(true));
+      expect(spy).not.toHaveBeenCalled();
+    },
+  );
 
   it("never touches the report cache before the server answers, and not at all when refused", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "forbidden", message: "no" } }, 403));

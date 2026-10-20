@@ -8,8 +8,9 @@ import { documentKeys } from "./keys";
 
 // Revoke from the access report (UNI-2039). No new route: the report row's
 // `revoke_target` only says which existing revoke route to call. The service
-// gate stays the authority, so a refused call surfaces as an error and the
-// report is left as it was; nothing here is optimistic.
+// gate stays the authority, so a refused call, or a break-glass answer that is
+// not `{status:"ok"}`, surfaces as an error and the report is left as it was;
+// nothing here is optimistic.
 
 export interface RevokeReportGrantInput {
   documentId: string;
@@ -28,7 +29,10 @@ export function useRevokeReportGrant(wsId: string) {
           await revokeDocumentLink(documentId, target.id);
           return;
         case "break_glass":
-          await revokeDocumentBreakGlass(documentId, target.id);
+          // The route answers 200 `{status:"ok"}`; any other body is false.
+          if (!(await revokeDocumentBreakGlass(documentId, target.id))) {
+            throw new Error("access_report_revoke_unconfirmed");
+          }
           return;
         default:
           throw new Error("access_report_revoke_unknown_target");

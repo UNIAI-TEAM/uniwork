@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deriveReportFacts } from "../../documents/access-report-facts";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
@@ -319,11 +320,150 @@ describe("getDocumentAccessReportPrincipals (UNI-2039 S7)", () => {
     });
   });
 
-  it.each([[{ nope: true }], [{ principals: "x" }], [{ principals: null }], [null], [[]], ["str"], [7]])(
+  it.each([[{ nope: true }], [{ principals: "x" }], [null], [[]], ["str"], [7]])(
     "degrades to null on a malformed body %j",
     async (body) => {
       vi.mocked(fetch).mockResolvedValueOnce(json(body));
       await expect(getDocumentAccessReportPrincipals("ws1")).resolves.toBeNull();
     },
   );
+
+  it("reads a Go nil principals slice (null) as an empty list, not an error", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(principals({ principals: null })));
+    const out = await getDocumentAccessReportPrincipals("ws1");
+    expect(out?.principals).toEqual([]);
+  });
+
+  it("caps q at 100 characters, the server's limit", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(principals()));
+    await getDocumentAccessReportPrincipals("ws1", { q: "ệ".repeat(120) });
+    expect(Array.from(lastUrl().searchParams.get("q") ?? "")).toHaveLength(100);
+  });
+});
+
+// The server answers every new field with its Go zero value until it fills
+// them (SDO f1a936827): "" strings, general_scope {kind:"",level:null}, nil
+// flags (null), a zero time, a revoke_target that is null. All of that is
+// "missing", so the screen derives from the rows instead of showing blanks.
+describe("access report page: zero values from the SDO read as missing (UNI-2039)", () => {
+  const zeroDoc = {
+    general_scope: { kind: "", level: null },
+    flags: null,
+    access_changed_at: "",
+    my_level: "",
+    admin_scope: false,
+  };
+  const zeroRow = { revoke_target: null, expires_at: null };
+
+  it("reads a page of zero-valued new fields as a page without them", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page(zeroDoc, zeroRow)));
+    const doc = firstDoc(await getDocumentAccessReport("ws1"));
+    expect(doc.document).toMatchObject({
+      general_scope: null,
+      flags: null,
+      access_changed_at: "2026-10-14T09:00:00Z",
+      my_level: null,
+      admin_scope: false,
+    });
+    expect(doc.rows[0]).toMatchObject({ origin: null, expires_at: null, revoke_target: null });
+  });
+
+  it("derives the facts of a zero-valued page from its rows", async () => {
+    const rows = [
+      row({ source: "owner", principal_type: "user", principal_id: "u1", level: "manage" }),
+      row({ source: "share", principal_type: "workspace", principal_id: "ws9", level: "edit" }),
+    ];
+    const body = page(zeroDoc, zeroRow);
+    body.documents[0]!.rows = rows;
+    body.documents[0]!.document.live_link_count = 1;
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    const doc = firstDoc(await getDocumentAccessReport("ws1"));
+    const facts = deriveReportFacts(doc.document, doc.rows, "ws1");
+    expect(facts.flags).toEqual(["public_link", "other_workspace"]);
+    expect(facts.generalScope).toEqual({ kind: "restricted", level: null });
+    expect(facts.changedAt).toBe("2026-10-14T09:00:00Z");
+  });
+
+  it("reads an empty flags array as not answered, so the flags are derived", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page({ flags: [] })));
+    expect(firstDoc(await getDocumentAccessReport("ws1")).document.flags).toBeNull();
+  });
+
+  it("keeps [] when the server named flags and all of them are unknown", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page({ flags: ["from_the_future"] })));
+    expect(firstDoc(await getDocumentAccessReport("ws1")).document.flags).toEqual([]);
+  });
+
+  it.each([["0001-01-01T00:00:00Z"], ["1970-01-01T00:00:00Z"]])(
+    "uses updated_at when access_changed_at is the zero time %s",
+    async (access_changed_at) => {
+      vi.mocked(fetch).mockResolvedValueOnce(json(page({ access_changed_at })));
+      expect(firstDoc(await getDocumentAccessReport("ws1")).document.access_changed_at).toBe("2026-10-14T09:00:00Z");
+    },
+  );
+
+  it.each([[""], ["0001-01-01T00:00:00Z"]])("reads expires_at %j as no expiry", async (expires_at) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page({}, { expires_at })));
+    expect(firstDoc(await getDocumentAccessReport("ws1")).rows[0]?.expires_at).toBeNull();
+  });
+
+  it("reads an empty origin as absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page({}, { origin: "" })));
+    expect(firstDoc(await getDocumentAccessReport("ws1")).rows[0]?.origin).toBeNull();
+  });
+
+  it("reads a zero-valued revoke_target {kind:'',id:''} as null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page({}, { revoke_target: { kind: "", id: "" } })));
+    expect(firstDoc(await getDocumentAccessReport("ws1")).rows[0]?.revoke_target).toBeNull();
+  });
+
+  it("keeps my_level none: it is an answer, not a zero value", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page({ my_level: "none" })));
+    expect(firstDoc(await getDocumentAccessReport("ws1")).document.my_level).toBe("none");
+  });
+});
+
+// Go marshals a nil slice as null; a null here must not drop the document or
+// fail the page (the SDO does not promise non-nil slices).
+describe("access report page: Go nil slices (UNI-2039)", () => {
+  it("keeps a document whose rows is null, with no rows", async () => {
+    const body = page();
+    (body.documents[0] as { rows: unknown }).rows = null;
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    const doc = firstDoc(await getDocumentAccessReport("ws1"));
+    expect(doc.document.id).toBe("d1");
+    expect(doc.rows).toEqual([]);
+  });
+
+  it("keeps a document whose path is null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page({ path: null })));
+    expect(firstDoc(await getDocumentAccessReport("ws1")).document.path).toEqual([]);
+  });
+
+  it("reads filter.level null as no level filter", async () => {
+    const body = page();
+    (body.filter as { level: unknown }).level = null;
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    expect((await getDocumentAccessReport("ws1"))?.filter.level).toEqual([]);
+  });
+
+  it("reads documents null as an empty page", async () => {
+    const body = { ...page(), documents: null };
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    expect((await getDocumentAccessReport("ws1"))?.documents).toEqual([]);
+  });
+});
+
+describe("access report: q is capped at the server's 100 characters (UNI-2039 S5)", () => {
+  const long = "ệ".repeat(120);
+
+  it.each([
+    ["the page", () => getDocumentAccessReport("ws1", { q: long }), () => json(page())],
+    ["the summary", () => getDocumentAccessReportSummary("ws1", { q: long }), () => json(summary())],
+    ["the export", () => exportDocumentAccessReport("ws1", { q: long }, "csv"), () => new Response("x")],
+  ])("on %s", async (_name, call, body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(body());
+    await call();
+    expect(Array.from(lastUrl().searchParams.get("q") ?? "")).toHaveLength(100);
+  });
 });

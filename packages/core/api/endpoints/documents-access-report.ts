@@ -22,12 +22,19 @@ import { parseWithFallback } from "../schema";
 
 const enc = encodeURIComponent;
 
+// The server rejects a `q` longer than this many characters (runes).
+const MAX_QUERY_CHARS = 100;
+
+function searchText(q: string | undefined): string {
+  return Array.from(q?.trim() ?? "").slice(0, MAX_QUERY_CHARS).join("").trim();
+}
+
 function filterParams(p: URLSearchParams, query: AccessReportFilters & { folderId?: string }): void {
   if (query.folderId) p.set("folder_id", query.folderId);
   if (query.personId) p.set("person_id", query.personId);
   if (query.levels && query.levels.length > 0) p.set("level", query.levels.join(","));
   if (query.visibility) p.set("visibility", query.visibility);
-  const q = query.q?.trim();
+  const q = searchText(query.q);
   if (q) p.set("q", q);
   if (query.principal) p.set("principal", query.principal);
   if (query.scope) p.set("scope", query.scope);
@@ -101,7 +108,7 @@ export async function getDocumentAccessReportPrincipals(
 ): Promise<AccessReportPrincipals | null> {
   const p = new URLSearchParams();
   if (query.folderId) p.set("folder_id", query.folderId);
-  const q = query.q?.trim();
+  const q = searchText(query.q);
   if (q) p.set("q", q);
   if (query.kind) p.set("kind", query.kind);
   if (query.levels && query.levels.length > 0) p.set("level", query.levels.join(","));
