@@ -62,16 +62,12 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   const folderKeyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
 
-  const create = async (type: CreateType, parentId: string | null, options?: CreateShareOptions) => {
-    const shareFields = options?.shareWithWorkspace
-      ? ({ visibility: "workspace" } as const)
-      : {};
+  const create = async (type: CreateType, parentId: string | null) => {
     try {
       if (type === "page") {
         const doc = await createPage.mutateAsync({
           title: t("documents.page.new_page"),
           ...(parentId ? { parent_id: parentId } : { destination: "my_folder" as const }),
-          ...shareFields,
         });
         onOpen(doc.id);
         return;
@@ -80,7 +76,6 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
         format: type satisfies BlankDocumentFormat,
         title: t(`documents.home.default_names.${type}`),
         ...(parentId ? { parent_id: parentId } : { destination: "my_folder" as const }),
-        ...shareFields,
         idempotencyKey: createSafeId(),
       });
       onOpen(doc.id);

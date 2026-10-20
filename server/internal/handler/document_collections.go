@@ -3,7 +3,9 @@ package handler
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +61,11 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		}
 		in.Shelved = v
 	}
+	sort, ok := documentSortInput(w, q, in.Archived, in.Shelved)
+	if !ok {
+		return in, false
+	}
+	in.Sort = sort
 	for _, f := range []struct {
 		name string
 		dst  *time.Time
@@ -83,6 +90,27 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		in.Limit = n
 	}
 	return in, true
+}
+
+// documentSortInput parses ?sort= and ?order= once for every documents list
+// that takes them (UNI-2038 S3): a missing sort keeps the list's own order, an
+// unknown value, order without sort and a sort on the trash or the archive
+// shelf (which keep their own order) are 400.
+func documentSortInput(w http.ResponseWriter, q url.Values, archived, shelved bool) (service.DocumentSort, bool) {
+	sort, err := service.ParseDocumentSort(strings.TrimSpace(q.Get("sort")), strings.TrimSpace(q.Get("order")))
+	if err == nil && sort.Active() && (archived || shelved) {
+		err = service.Invalid("sort không dùng được cùng archived hoặc shelved")
+	}
+	if err != nil {
+		var ve service.ValidationError
+		msg := "invalid sort"
+		if errors.As(err, &ve) {
+			msg = ve.Msg
+		}
+		respondError(w, http.StatusBadRequest, "invalid_request", msg)
+		return service.DocumentSort{}, false
+	}
+	return sort, true
 }
 
 // listDocuments is GET /workspaces/{workspaceID}/documents: the flat list,
@@ -146,13 +174,22 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		Format: strings.TrimSpace(r.URL.Query().Get("format")),
 		Access: strings.TrimSpace(r.URL.Query().Get("access")),
 	}
+	sort, ok := documentSortInput(w, r.URL.Query(), false, false)
+	if !ok {
+		return
+	}
+	in.Sort = sort
 	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
-		at, id, ok := decodeSharedWithMeCursor(raw)
+		c, ok := decodeSharedWithMeCursor(raw)
 		if !ok {
 			respondError(w, http.StatusBadRequest, "invalid_request", "cursor không hợp lệ")
 			return
 		}
-		in.AfterCreatedAt, in.AfterID = at, id
+		if err := c.CheckAgainst(sort); err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		in.AfterCreatedAt, in.AfterID, in.AfterSort = c.At, c.ID, c.DocumentSortCursor
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -172,7 +209,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		out.Documents = append(out.Documents, toSharedDocumentSummaryDTO(row))
 	}
 	if page.NextID != "" {
-		cursor := encodeSharedWithMeCursor(page.NextCreatedAt, page.NextID)
+		cursor := encodeSharedWithMeCursor(page.NextCreatedAt, page.NextID, page.NextSort)
 		out.NextCursor = &cursor
 	}
 	respondJSON(w, http.StatusOK, out)
@@ -552,24 +589,32 @@ func decodeDocumentAccessLogCursor(s string) (time.Time, string, bool) {
 // sharedWithMeCursor pins the (created_at, id) keyset of the last candidate
 // the shared-with-me walk read; the service resumes strictly after that pair.
 // Opaque to the client.
+//
+// A sorted page (UNI-2038 S3) also carries the sort it was minted for and the
+// key of its last row, and At is then that row's updated key; the cursor is
+// refused under any other sort.
 type sharedWithMeCursor struct {
 	At time.Time `json:"t"`
 	ID string    `json:"id"`
+	service.DocumentSortCursor
 }
 
-func encodeSharedWithMeCursor(at time.Time, id string) string {
-	raw, _ := json.Marshal(sharedWithMeCursor{At: at.UTC(), ID: id})
+func encodeSharedWithMeCursor(at time.Time, id string, sort service.DocumentSortCursor) string {
+	raw, _ := json.Marshal(sharedWithMeCursor{At: at.UTC(), ID: id, DocumentSortCursor: sort})
 	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
-func decodeSharedWithMeCursor(s string) (time.Time, string, bool) {
+func decodeSharedWithMeCursor(s string) (sharedWithMeCursor, bool) {
 	raw, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
-		return time.Time{}, "", false
+		return sharedWithMeCursor{}, false
 	}
 	var c sharedWithMeCursor
-	if err := json.Unmarshal(raw, &c); err != nil || c.At.IsZero() || c.ID == "" {
-		return time.Time{}, "", false
+	if err := json.Unmarshal(raw, &c); err != nil || c.At.IsZero() || c.ID == "" || strings.ContainsRune(c.ID, 0) {
+		return sharedWithMeCursor{}, false
 	}
-	return c.At, c.ID, true
+	if c.Sorted() && !c.ValidShape(true) {
+		return sharedWithMeCursor{}, false
+	}
+	return c, true
 }

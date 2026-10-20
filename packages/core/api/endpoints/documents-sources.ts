@@ -6,6 +6,7 @@ import {
   type DocumentSourceType,
 } from "../../documents/sources-schema";
 import { request, requestBlob } from "../http";
+import type { DocumentSortColumn, DocumentSortOrder } from "./documents-collections";
 import { parseWithFallback } from "../schema";
 import type { DocumentRequestOpts } from "./documents";
 
@@ -20,6 +21,9 @@ export interface ListDocumentSourcesOpts {
   source?: DocumentSourceKind;
   type?: DocumentSourceType;
   q?: string;
+  /** The column the table sorts by (UNI-2038); left out keeps newest first. */
+  sort?: DocumentSortColumn;
+  order?: DocumentSortOrder;
   cursor?: string;
   limit?: number;
 }
@@ -37,6 +41,8 @@ function sourcesQuery(opts?: ListDocumentSourcesOpts): string {
   if (opts.source) p.set("source", opts.source);
   if (opts.type) p.set("type", opts.type);
   if (opts.q) p.set("q", opts.q);
+  if (opts.sort) p.set("sort", opts.sort);
+  if (opts.order) p.set("order", opts.order);
   if (opts.cursor) p.set("cursor", opts.cursor);
   if (opts.limit !== undefined) p.set("limit", String(opts.limit));
   const s = p.toString();
