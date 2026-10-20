@@ -1,0 +1,10 @@
+﻿# UNI-1994 DOC-NITS 2026-10-20: feature-UNI-1994-doc-nits @64bd41676 (3 FE commits + 1 follow-up) on root 8cb13a296
+pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo "INSTALL_EXIT=$rc"
+git status --short | grep -v "^??" | head; git diff --quiet HEAD; rc=$?; echo; echo "TREE_CLEAN_EXIT=$rc"; git rev-parse HEAD; git log --oneline -5
+pnpm --filter @uniwork/views exec vitest run documents 2>&1 | tail -8; rc=${PIPESTATUS[0]}; echo "VIEWS_DOCS_EXIT=$rc"
+pnpm --filter @uniwork/views exec vitest run layout inbox notifications 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "VIEWS_OTHER_EXIT=$rc"
+pnpm --filter @uniwork/core exec vitest run i18n paths 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "CORE_EXIT=$rc"
+pnpm --filter @uniwork/views exec tsc --noEmit -p . > /tmp/tc1994.log 2>&1; rc=$?; tail -5 /tmp/tc1994.log; echo "VIEWS_TC_EXIT=$rc"
+pnpm --filter @uniwork/views exec eslint --max-warnings 0 documents > /tmp/lint1994.log 2>&1; rc=$?; tail -8 /tmp/lint1994.log; echo "VIEWS_LINT_EXIT=$rc"
+node --test scripts/*.test.mjs 2>&1 | grep -E "^# (pass|fail)"; rc=${PIPESTATUS[0]}; echo "SCRIPTS_EXIT=$rc"
+pnpm knip > /tmp/knip1994.log 2>&1; rc=$?; tail -10 /tmp/knip1994.log; echo "KNIP_EXIT=$rc"
