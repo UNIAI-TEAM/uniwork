@@ -1,5 +1,5 @@
 """The agent's only way into UniWork: /api/v1/meetings/{id}/agent/* with the
-per-meeting uwma_ token from the job metadata (spec §7.1, ADR 0036)."""
+per-meeting uwma_ token from the job metadata (spec §7.1, ADR 0037)."""
 
 from __future__ import annotations
 

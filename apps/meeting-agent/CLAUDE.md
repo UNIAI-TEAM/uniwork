@@ -4,7 +4,7 @@ Thư ký AI của Meetings (UNI-2023, S1): một worker LiveKit Agents bằng Py
 job mỗi cuộc họp, chỉ vào phòng khi server gọi (`CreateDispatch` với
 `agent_name=uniwork-scribe`). Spec: `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md`;
 số liệu S0: `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-s0-results.md`;
-plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0036.
+plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0037.
 
 ## Luật
 

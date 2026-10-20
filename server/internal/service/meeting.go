@@ -78,7 +78,7 @@ type MeetingRuntime struct {
 	OutboxBatch        int32
 	WebhookBatch       int32
 	WebhookConcurrency int
-	// The scribe agent (ADR 0036): dispatch it at all, under which
+	// The scribe agent (ADR 0037): dispatch it at all, under which
 	// agent_name. SummaryMaxRunes is the summary's transcript budget.
 	ScribeEnabled   bool
 	ScribeAgentName string

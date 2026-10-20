@@ -438,7 +438,7 @@ describe("ADR 0011 — apps/chat-mobile", () => {
   });
 });
 
-describe("ADR 0036 — apps/meeting-agent", () => {
+describe("ADR 0037 — apps/meeting-agent", () => {
   // The scribe agent is the one place outside server/internal/ai/provider that
   // holds a model vendor's key, and only for STT. Every LLM call is a request
   // to the server, which goes through ai.Gateway; an LLM SDK in the agent's
@@ -449,7 +449,7 @@ describe("ADR 0036 — apps/meeting-agent", () => {
   test("the agent's requirements name no LLM SDK", () => {
     const reqs = read(`${app}/requirements.txt`);
     assert.match(reqs, /^livekit-agents==/m, "livekit-agents must be pinned");
-    assert.doesNotMatch(reqs, LLM_SDKS, `${app}/requirements.txt names an LLM SDK (ADR 0036)`);
+    assert.doesNotMatch(reqs, LLM_SDKS, `${app}/requirements.txt names an LLM SDK (ADR 0037)`);
   });
 
   test("no agent module imports an LLM SDK", () => {
@@ -470,7 +470,7 @@ describe("ADR 0036 — apps/meeting-agent", () => {
     const files = walk(app);
     assert.ok(files.length > 0, `${app} has no Python modules`);
     const offenders = files.filter((f) => IMPORT.test(read(f)));
-    assert.deepEqual(offenders, [], `LLM SDK imported in ${offenders.join(", ")} (ADR 0036)`);
+    assert.deepEqual(offenders, [], `LLM SDK imported in ${offenders.join(", ")} (ADR 0037)`);
   });
 
   test("the agent carries its CLAUDE.md and verifies in its own workflow", () => {

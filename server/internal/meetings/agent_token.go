@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// AgentTokenPrefix marks the per-meeting token of the scribe agent (ADR 0036).
+// AgentTokenPrefix marks the per-meeting token of the scribe agent (ADR 0037).
 const AgentTokenPrefix = "uwma_"
 
 // agentTokenDomain separates these signatures from the guest cookie, which

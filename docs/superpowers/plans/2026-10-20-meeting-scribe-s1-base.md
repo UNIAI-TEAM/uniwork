@@ -17,7 +17,7 @@ Web Speech khi không có agent.
 
 ## Lớp và việc (mỗi lớp một commit)
 
-1. **ADR + docs.** ADR 0036 (agent gọi STT trực tiếp, LLM qua `ai.Gateway`, agent không ghi
+1. **ADR + docs.** ADR 0037 (agent gọi STT trực tiếp, LLM qua `ai.Gateway`, agent không ghi
    bảng nghiệp vụ); dòng luật trong `CLAUDE.md` mục Audit and Events; guard trong
    `scripts/governance.test.mjs`: `apps/meeting-agent/requirements.txt` không có SDK LLM.
 2. **Migration + query.** `meeting_scribe_runs` (+ index `(meeting_id, created_at)`,
