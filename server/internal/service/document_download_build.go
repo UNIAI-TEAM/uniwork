@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
@@ -278,9 +279,19 @@ func (c *DocumentDownloadConsumer) writeZip(ctx context.Context, w io.Writer, ac
 }
 
 const (
-	zipEntryBaseMax = 150
+	// Bytes, not runes: ext4 and most unzippers stop at 255 bytes, and a
+	// Vietnamese title costs up to three bytes a rune.
+	zipEntryBaseMax = 200
 	zipEntryExtMax  = 16
 )
+
+// windowsReservedStems are device names Windows refuses as a file name with
+// any extension.
+var windowsReservedStems = map[string]struct{}{
+	"con": {}, "prn": {}, "aux": {}, "nul": {},
+	"com1": {}, "com2": {}, "com3": {}, "com4": {}, "com5": {}, "com6": {}, "com7": {}, "com8": {}, "com9": {},
+	"lpt1": {}, "lpt2": {}, "lpt3": {}, "lpt4": {}, "lpt5": {}, "lpt6": {}, "lpt7": {}, "lpt8": {}, "lpt9": {},
+}
 
 // zipEntryName is the document title plus the file's extension, with
 // separators, control characters and ".." taken out. A title that already
@@ -288,7 +299,7 @@ const (
 func zipEntryName(title, filename string) string {
 	ext := sanitizeZipPart(path.Ext(strings.ReplaceAll(filename, "\\", "/")))
 	ext = strings.ReplaceAll(ext, " ", "")
-	if utf8.RuneCountInString(ext) > zipEntryExtMax {
+	if len(ext) > zipEntryExtMax {
 		ext = ""
 	}
 	if ext == "." {
@@ -298,20 +309,37 @@ func zipEntryName(title, filename string) string {
 	if ext != "" && len(base) >= len(ext) && strings.EqualFold(base[len(base)-len(ext):], ext) {
 		base = base[:len(base)-len(ext)]
 	}
+	base = cutBytesOnRune(strings.Trim(strings.TrimSpace(base), "."), zipEntryBaseMax)
 	base = strings.Trim(strings.TrimSpace(base), ".")
 	if base == "" {
 		base = "document"
 	}
-	if utf8.RuneCountInString(base) > zipEntryBaseMax {
-		base = string([]rune(base)[:zipEntryBaseMax])
+	stem, _, _ := strings.Cut(base, ".")
+	if _, reserved := windowsReservedStems[strings.ToLower(strings.TrimSpace(stem))]; reserved {
+		base = "_" + base
 	}
 	return base + ext
 }
 
+// cutBytesOnRune shortens s to at most n bytes without splitting a rune.
+func cutBytesOnRune(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
+}
+
+// sanitizeZipPart replaces what an archive tool or file system treats as
+// structure and drops what only disguises a name (zero-width and bidi
+// controls, which can make "a<RLO>txt.exe" read as another file).
 func sanitizeZipPart(s string) string {
 	var b strings.Builder
 	for _, r := range s {
 		switch {
+		case r >= 0x200b && r <= 0x200f, r >= 0x202a && r <= 0x202e, r >= 0x2066 && r <= 0x2069:
 		case r < 0x20 || r == 0x7f || r == utf8.RuneError:
 			b.WriteRune('_')
 		case strings.ContainsRune(`/\:*?"<>|`, r):
@@ -328,14 +356,15 @@ func sanitizeZipPart(s string) string {
 }
 
 // uniqueZipEntryName suffixes a repeat " (2)", " (3)" before the extension.
-// Names compare case-insensitively: a case-folding file system would merge
-// two entries that differ only in case.
+// Names compare case-insensitively and in NFC: a case-folding or normalising
+// file system (APFS, NTFS extractors) would merge two entries that differ only
+// in case or in composed vs decomposed accents.
 func uniqueZipEntryName(name string, used map[string]struct{}) string {
 	ext := path.Ext(name)
 	stem := strings.TrimSuffix(name, ext)
 	candidate := name
 	for n := 2; ; n++ {
-		key := strings.ToLower(candidate)
+		key := norm.NFC.String(strings.ToLower(candidate))
 		if _, taken := used[key]; !taken {
 			used[key] = struct{}{}
 			return candidate
