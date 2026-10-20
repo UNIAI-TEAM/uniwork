@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -331,11 +330,11 @@ func ruleTaskUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 }
 
 // ruleTaskCreated tells the human assignee of a task created already
-// assigned (UNI-1996); agents are never told, nor a person who assigned the
-// task to themselves. One transaction that hands a person several tasks is
-// one notification, sent by the event of the smallest task id. Group, leader
-// and recipient come only from the immutable task.created audit rows of the
-// transaction (xact_id), so a reassignment before delivery changes nothing.
+// assigned (UNI-1996); agents are never told. One transaction that hands a
+// person several tasks is one notification, sent by the event of the
+// smallest task id. Group, leader and recipient come only from the immutable
+// task.created audit rows of the transaction (xact_id), so a reassignment
+// before delivery changes nothing.
 func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 	assignee, ids, err := createdForSameAssignee(ctx, e.q, ev, p["task_id"])
 	if err != nil || assignee == "" || ids[0] != p["task_id"] {
@@ -347,11 +346,6 @@ func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 	}
 	if err != nil {
 		return nil, err
-	}
-	// A task created for its own creator tells nobody, even when the actor
-	// is the system (the onboarding welcome task).
-	if task.CreatedByKind == string(audit.KindHuman) && task.CreatedBy == assignee {
-		return nil, nil
 	}
 	orgID, err := orgOf(ctx, e.q, ev, task.WorkspaceID)
 	if err != nil {
@@ -378,7 +372,7 @@ func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 // correlation id to find it by).
 func createdForSameAssignee(ctx context.Context, q *db.Queries, ev outbox.Row, taskID string) (string, []string, error) {
 	if !ev.CorrelationID.Valid {
-		return "", nil, nil
+		return "", nil, nil // unreachable: audit.Recorder.Record mints one per command
 	}
 	rows, err := q.ListAuditEventsInTransaction(ctx, db.ListAuditEventsInTransactionParams{
 		CorrelationID: ev.CorrelationID.String, Action: audit.ActionTaskCreated, ResourceID: taskID,
@@ -407,7 +401,8 @@ func createdForSameAssignee(ctx context.Context, q *db.Queries, ev outbox.Row, t
 }
 
 // batchResource points a batch at its meeting when every task still there
-// came out of the same one, and at the leader task otherwise.
+// came out of the same one, and at the leader task (ids[0]; ids are ordered
+// by resource_id) otherwise.
 func batchResource(ctx context.Context, q *db.Queries, ids []string) (string, string, error) {
 	meetingID := ""
 	// shortcut: only the first 50 tasks are read; a larger batch from one meeting is not expected.
@@ -420,12 +415,12 @@ func batchResource(ctx context.Context, q *db.Queries, ids []string) (string, st
 			return "", "", err
 		}
 		if t.OriginType.String != "meeting" || !t.OriginID.Valid || (meetingID != "" && t.OriginID.String != meetingID) {
-			return "task", slices.Min(ids), nil
+			return "task", ids[0], nil
 		}
 		meetingID = t.OriginID.String
 	}
 	if meetingID == "" {
-		return "task", slices.Min(ids), nil
+		return "task", ids[0], nil
 	}
 	return "meeting", meetingID, nil
 }

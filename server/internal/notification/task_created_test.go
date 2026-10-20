@@ -223,11 +223,19 @@ func TestRuleTaskCreatedPointsAMeetingBatchAtTheMeeting(t *testing.T) {
 	if len(got) != 1 || got[0].Kind != KindTasksAssigned || got[0].ResourceType != "meeting" || got[0].ResourceID != m.ID {
 		t.Fatalf("member inbox = %+v", got)
 	}
+	// The push link lands where the action items are, as the inbox does.
+	url, err := ResourceURL(f.ctx, f.q, "https://app.test", got[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "https://app.test/notif-org/notif-ws/meetings/" + m.ID + "?section=summary"; url != want {
+		t.Fatalf("url = %q, want %q", url, want)
+	}
 }
 
-// Without a request correlation id every task is its own command, so each
-// is told on its own.
-func TestRuleTaskCreatedWithoutCorrelationIsOnePerTask(t *testing.T) {
+// Without a request correlation id Record mints one per command, so each
+// task is its own group and is told on its own.
+func TestRuleTaskCreatedOneCommandPerCorrelationIsOnePerTask(t *testing.T) {
 	f := newFixture(t)
 	f.handleCreated(t, f.createAs(t, "", assignedTo("X", f.member.ID), assignedTo("Y", f.member.ID)))
 	got := f.inbox(t, f.member.ID)
@@ -279,6 +287,26 @@ func TestRuleTaskCreatedSkipsTheWelcomeTask(t *testing.T) {
 	}
 	f.handleCreated(t, []db.Task{task})
 	if got := f.inbox(t, f.member.ID); len(got) != 0 {
+		t.Fatalf("member inbox = %+v", got)
+	}
+}
+
+// Created assigned, then moved away and back: the created and the updated
+// notices share the group key, so the person still has one unread row.
+func TestRuleTaskCreatedSharesTheAssignedGroupWithUpdates(t *testing.T) {
+	f := newFixture(t)
+	member2 := f.addMember(t, "member2@example.com", "Thành Viên Hai")
+	task, err := f.tasks.Create(f.ctx, f.ownerActor(), f.wsID, assignedTo("Đi rồi về", f.member.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleCreated(t, []db.Task{task})
+	f.assign(t, task.ID, member2.ID)
+	f.handleLast(t, "task.updated")
+	f.assign(t, task.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	got := f.inbox(t, f.member.ID)
+	if len(got) != 1 || got[0].GroupKey != "task:"+task.ID+":assigned" || got[0].ReadAt.Valid || got[0].Count != 2 {
 		t.Fatalf("member inbox = %+v", got)
 	}
 }

@@ -123,12 +123,12 @@ Expected: FAIL (`KindTasksAssigned` undefined).
   1. `ev.CorrelationID` không hợp lệ thì `nil, nil`. Ngược lại `ListAuditEventsInTransaction(corr, audit.ActionTaskCreated, task_id)`; decode `changes` từng dòng thành `map[string]audit.Change`.
   2. Người phụ trách lấy từ dòng audit của chính task này: `assignee_kind.To == "human"` và có `assignee_id.To`; không có (vd. task chào mừng onboarding, dòng audit không có `changes`) thì `nil, nil`.
   3. `ids` = `resource_id` các dòng cùng transaction có cùng người phụ trách người đó (đã xếp theo `resource_id`). `leader := ids[0]`; `task_id != leader` thì `nil, nil`.
-  4. `GetTask(task_id)` chỉ để kiểm còn tồn tại (không có thì `nil, nil`), lấy tiêu đề và kiểm nguồn họp. `CreatedByKind == human` và `CreatedBy == assignee` (tự giao, gồm task chào mừng do system tạo cho chính người đó) thì `nil, nil`.
+  4. `GetTask(task_id)` chỉ để kiểm còn tồn tại (không có thì `nil, nil`), lấy tiêu đề và kiểm nguồn họp. Tự giao đã bị `newRecipients` loại (người tạo là actor); task chào mừng dừng ở bước 2.
   5. Người nhận: `newRecipients(...).add(assignee)` — người phụ trách theo audit, không theo task hiện tại. Hàm này loại actor và người không còn là thành viên.
   6. `len(ids) == 1`: `drafts(orgID, KindTaskAssigned, "task:"+task.ID+":assigned", "task", task.ID, {"actor", "task"})`, cùng params với `ruleTaskUpdated`.
   7. Ngược lại: `drafts(orgID, KindTasksAssigned, "tasks:"+leader+":assigned", resType, resID, {"actor", "count": strconv.Itoa(len(ids))})`. `resType/resID` là `"meeting"`/`origin_id` khi **mọi** task còn đọc được trong `ids` có `origin_type == "meeting"` và cùng `origin_id`; còn lại là `"task"`/`leader`. Đọc bằng `GetTask` từng id, tối đa 50.
 
-  Đăng ký `"task.created": ruleTaskCreated` cạnh `"task.updated"`. Comment giải thích vì sao gom theo `correlation_id + xact_id` và chỉ đọc audit.
+  Đăng ký `"task.created": ruleTaskCreated` cạnh `"task.updated"`. Comment giải thích vì sao gom theo `correlation_id + xact_id` và chỉ đọc audit. `tasks_assigned` trỏ tới cuộc họp mở `?section=summary` (client `resource-href.ts` và `ResourceURL` của push), nơi chứa việc cần làm cho tới UNI-1998.
 
 - [ ] **Step 5: Chạy test**
 

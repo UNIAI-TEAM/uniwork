@@ -227,8 +227,10 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	case "task":
 		return base + "/tasks/" + n.ResourceID, nil
 	case "meeting":
-		if n.Kind == KindMeetingSummaryReminder {
-			// Lands on the summary panel (use-meeting-section-deep-link.ts).
+		// Lands on the summary panel (use-meeting-section-deep-link.ts); a
+		// meeting's batch of assigned tasks too, its action items live there
+		// until UNI-1998 gives them a section.
+		if n.Kind == KindMeetingSummaryReminder || n.Kind == KindTasksAssigned {
 			return base + "/meetings/" + n.ResourceID + "?section=summary", nil
 		}
 		return base + "/meetings/" + n.ResourceID, nil
