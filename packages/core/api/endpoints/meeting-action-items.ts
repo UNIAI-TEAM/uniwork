@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
+import { EvidenceListSchema } from "../../types/meeting";
 
 const enc = encodeURIComponent;
 
@@ -35,6 +36,8 @@ const ActionItemSchema = z.object({
   dismissed_at: z.string().nullish(),
   /** Converted items only: the live task. */
   task: ActionItemTaskSchema.nullish(),
+  /** What an AI item rests on; empty for the others. */
+  evidence: EvidenceListSchema,
   summary_id: z.string().nullish(),
   created_at: z.string().nullish(),
 });

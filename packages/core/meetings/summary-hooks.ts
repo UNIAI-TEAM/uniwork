@@ -2,6 +2,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
 import * as api from "../api/endpoints/meeting-summary";
+import { getMeetingEvidence } from "../api/endpoints/meeting-evidence";
+import type { MeetingEvidenceRef } from "../types/meeting";
 import { meetingKeys } from "./hooks";
 
 /**
@@ -32,5 +34,15 @@ export function useCreateMeetingSummary(meetingId: string) {
       void qc.invalidateQueries({ queryKey: meetingKeys.actionItems(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
     },
+  });
+}
+
+/** The lines a decision or an action item cites, read when the reader opens them. */
+export function useMeetingEvidence(meetingId: string, refs: readonly MeetingEvidenceRef[], enabled: boolean) {
+  return useQuery({
+    queryKey: meetingKeys.evidence(meetingId, refs.map((r) => `${r.kind}:${r.id}`).join(",")),
+    queryFn: () => getMeetingEvidence(meetingId, refs),
+    enabled: enabled && !!meetingId && refs.length > 0,
+    retry: summaryQueryRetry,
   });
 }

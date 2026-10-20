@@ -155,10 +155,41 @@ export const ChatMessageSchema = z.object({
 });
 export type MeetingChatMessage = z.infer<typeof ChatMessageSchema>;
 
-/** Decisions kept one by one: a non-string entry is dropped, not the summary. */
-const SummaryDecisionsSchema = z
-  .array(z.unknown())
-  .transform((raw) => raw.filter((d): d is string => typeof d === "string"));
+const EvidenceRefSchema = z.object({
+  /** segment, note or chat; a switch over it carries a default for a kind a newer server adds. */
+  kind: z.string(),
+  id: z.string(),
+});
+/** One input line a decision or an action item rests on (meeting_summary@5). */
+export type MeetingEvidenceRef = z.infer<typeof EvidenceRefSchema>;
+
+/** References kept one by one: a malformed one is dropped, a missing list is none. */
+export const EvidenceListSchema = z
+  .unknown()
+  .optional()
+  .transform((raw): MeetingEvidenceRef[] =>
+    Array.isArray(raw)
+      ? raw.flatMap((r) => {
+          const parsed = EvidenceRefSchema.safeParse(r);
+          return parsed.success ? [parsed.data] : [];
+        })
+      : [],
+  );
+
+/** A decision; summaries stored before @5 hold bare strings, which read as decisions with no evidence. */
+const DecisionSchema = z.union([
+  z.string().transform((text) => ({ text, evidence: [] as MeetingEvidenceRef[] })),
+  z.object({ text: z.string(), evidence: EvidenceListSchema }),
+]);
+export type MeetingSummaryDecision = z.infer<typeof DecisionSchema>;
+
+/** Decisions kept one by one: a malformed entry is dropped, not the summary. */
+const SummaryDecisionsSchema = z.array(z.unknown()).transform((raw) =>
+  raw.flatMap((d) => {
+    const parsed = DecisionSchema.safeParse(d);
+    return parsed.success ? [parsed.data] : [];
+  }),
+);
 
 export const MeetingSummarySchema = z.object({
   id: z.string(),

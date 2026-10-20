@@ -34,6 +34,7 @@ const pendingAI = {
   suggested_assignee_id: "u-mai",
   suggested_due_date: "2026-09-25",
   status: "PENDING",
+  evidence: [{ kind: "segment", id: "g1" }],
 };
 const pendingManual = { id: "a1", source: "MANUAL", title: "Đặt phòng", status: "PENDING" };
 const converted = {
@@ -42,6 +43,10 @@ const converted = {
   title: "Báo khách",
   status: "CONVERTED",
   task: { id: "t9", title: "Báo khách hàng", status: "todo", done: false, overdue: true, assignee_id: "u-mai", due_date: "2026-09-20" },
+  evidence: [
+    { kind: "note", id: "n1" },
+    { kind: "chat", id: "c1" },
+  ],
 };
 const dismissed = { id: "a3", source: "AI", title: "In tài liệu", status: "DISMISSED", dismiss_reason: "Đã có bản in" };
 const list = {
@@ -107,6 +112,10 @@ describe("MeetingActionItemsSection", () => {
     const link = screen.getByRole("link", { name: "Mở việc “Báo khách hàng”" });
     expect(link).toHaveAttribute("href", expect.stringContaining("t9"));
     expect(screen.getByText("Quá hạn")).toHaveClass("text-destructive");
+    // AI items carry their evidence chip (UNI-2002); the manual one has none.
+    expect(screen.getByRole("button", { name: "Xem căn cứ (1 nguồn)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Xem căn cứ (2 nguồn)" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Xem căn cứ/ })).toHaveLength(2);
 
     expect(screen.queryByText("In tài liệu")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Đã bỏ qua \(1\)/ }));

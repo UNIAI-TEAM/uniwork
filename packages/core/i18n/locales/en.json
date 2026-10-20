@@ -3823,6 +3823,19 @@
       "assignedStatus_one": "Assigned {{count}} task.",
       "assignedStatus_other": "Assigned {{count}} tasks."
     },
+    "evidence": {
+      "chip": "Evidence",
+      "chipLabel": "View evidence ({{count}} sources)",
+      "title": "Evidence",
+      "loading": "Loading evidence",
+      "error": "Couldn't load the evidence. Try again later.",
+      "gone": "These sources no longer exist.",
+      "kind_segment": "Spoken",
+      "kind_note": "Note",
+      "kind_chat": "Message",
+      "kind_other": "Source",
+      "openRecording": "Open recording at {{time}}"
+    },
     "carriedOver": {
       "title": "Carried over from earlier meetings",
       "description_one": "{{count}} open task assigned in ended meetings of the same project.",

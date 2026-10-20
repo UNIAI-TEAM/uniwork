@@ -66,6 +66,14 @@ describe("meeting action item endpoints", () => {
     expect(got.counts).toEqual(counts);
   });
 
+  it("getMeetingActionItems keeps the well-formed evidence of an item and reads a missing one as none", async () => {
+    const items = [{ ...pending, evidence: [{ kind: "note", id: "n1" }, { id: 4 }] }, { ...converted, evidence: null }];
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items, counts }));
+    const got = await getMeetingActionItems("m1");
+    expect(got.items[0]?.evidence).toEqual([{ kind: "note", id: "n1" }]);
+    expect(got.items[1]?.evidence).toEqual([]);
+  });
+
   it("getMeetingActionItems drops a malformed item, zeroes bad counts, and degrades to empty", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [{ id: 7 }, pending], counts: { pending: "x" } }));
     const got = await getMeetingActionItems("m1");

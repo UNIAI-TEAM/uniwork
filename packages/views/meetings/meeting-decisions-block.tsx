@@ -1,20 +1,23 @@
 "use client";
 import { CircleCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { MeetingMotion } from "@uniwork/core/types/meeting";
+import type { MeetingMotion, MeetingSummaryDecision } from "@uniwork/core/types/meeting";
+import { MeetingEvidenceChip } from "./meeting-evidence-chip";
 import { ToneBadge } from "./meeting-status-badge";
 
 /**
  * "Decisions": what the meeting voted on comes first, from the recorded
- * results (never from the AI), then the decisions the AI summary picked out.
- * Null when there is neither.
+ * results (never from the AI), then the decisions the AI summary picked out,
+ * each with its evidence chip. Null when there is neither.
  */
 export function MeetingDecisionsBlock({
+  meetingId,
   voted,
   aiDecisions,
 }: {
+  meetingId: string;
   voted: readonly MeetingMotion[];
-  aiDecisions: readonly string[];
+  aiDecisions: readonly MeetingSummaryDecision[];
 }) {
   const { t } = useTranslation();
   if (voted.length === 0 && aiDecisions.length === 0) return null;
@@ -55,7 +58,10 @@ export function MeetingDecisionsBlock({
           {aiDecisions.map((d, i) => (
             <li key={i} className="flex items-start gap-2 text-body text-foreground">
               <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
-              <span className="min-w-0">{d}</span>
+              <div className="min-w-0 space-y-0.5">
+                <p>{d.text}</p>
+                <MeetingEvidenceChip meetingId={meetingId} evidence={d.evidence} />
+              </div>
             </li>
           ))}
         </ul>

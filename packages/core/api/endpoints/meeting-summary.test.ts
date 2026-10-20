@@ -46,7 +46,22 @@ describe("meeting summary endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, decisions: ["D", 7], model: null } }));
     const got = await getMeetingSummary("m1");
     expect(got?.summary).toBe("S");
-    expect(got?.decisions).toEqual(["D"]);
+    expect(got?.decisions).toEqual([{ text: "D", evidence: [] }]);
+  });
+
+  it("getMeetingSummary reads decisions with evidence and keeps the well-formed references", async () => {
+    const decisions = [
+      { text: "Chốt A", evidence: [{ kind: "segment", id: "g1" }, { kind: 3 }, "x"] },
+      { text: "Chốt B" },
+      { text: "Chốt C", evidence: "nope" },
+      { evidence: [] },
+    ];
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, decisions } }));
+    expect((await getMeetingSummary("m1"))?.decisions).toEqual([
+      { text: "Chốt A", evidence: [{ kind: "segment", id: "g1" }] },
+      { text: "Chốt B", evidence: [] },
+      { text: "Chốt C", evidence: [] },
+    ]);
   });
 
   it("createMeetingSummary sends the locale and degrades to null on drift", async () => {

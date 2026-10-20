@@ -10,6 +10,7 @@ import {
 const item = (over: Partial<MeetingActionItem> & { id: string }): MeetingActionItem => ({
   title: `Việc ${over.id}`,
   status: "PENDING",
+  evidence: [],
   ...over,
 });
 

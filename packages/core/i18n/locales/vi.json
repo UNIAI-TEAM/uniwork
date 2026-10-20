@@ -3822,6 +3822,19 @@
       "assignedStatus_one": "Đã giao {{count}} việc.",
       "assignedStatus_other": "Đã giao {{count}} việc."
     },
+    "evidence": {
+      "chip": "Căn cứ",
+      "chipLabel": "Xem căn cứ ({{count}} nguồn)",
+      "title": "Căn cứ",
+      "loading": "Đang tải căn cứ",
+      "error": "Không tải được căn cứ. Thử lại sau.",
+      "gone": "Các nguồn này không còn.",
+      "kind_segment": "Lời nói",
+      "kind_note": "Ghi chú",
+      "kind_chat": "Tin nhắn",
+      "kind_other": "Nguồn",
+      "openRecording": "Mở bản ghi tại {{time}}"
+    },
     "carriedOver": {
       "title": "Việc còn tồn từ các cuộc họp trước",
       "description_one": "{{count}} việc chưa xong, giao ở các cuộc họp đã kết thúc của cùng dự án.",

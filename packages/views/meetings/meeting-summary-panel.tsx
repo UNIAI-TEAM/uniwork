@@ -91,7 +91,7 @@ export function MeetingSummaryPanel({
           <div className="space-y-4">
             <SummaryAttribution summary={summary} times={gen.sourceTimes} />
             <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
-            <MeetingDecisionsBlock voted={gen.voted} aiDecisions={decisions} />
+            <MeetingDecisionsBlock meetingId={meetingId} voted={gen.voted} aiDecisions={decisions} />
           </div>
         ) : summaryLoading ? (
           <MeetingTextSkeleton />
@@ -102,7 +102,7 @@ export function MeetingSummaryPanel({
             {gen.hasSource ? t("meetings.summaryEmpty") : transcriptEmpty}
           </p>
         )}
-        {summary ? null : <MeetingDecisionsBlock voted={gen.voted} aiDecisions={[]} />}
+        {summary ? null : <MeetingDecisionsBlock meetingId={meetingId} voted={gen.voted} aiDecisions={[]} />}
 
         <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
           <CollapsibleTrigger

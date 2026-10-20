@@ -50,6 +50,7 @@ export const meetingKeys = {
   transcript: (meetingId: string) => ["meeting-transcript", meetingId] as const,
   chat: (meetingId: string) => ["meeting-chat", meetingId] as const,
   summary: (meetingId: string) => ["meeting-summary", meetingId] as const,
+  evidence: (meetingId: string, refs: string) => ["meeting-evidence", meetingId, refs] as const,
   actionItemsRoot: ACTION_ITEMS_ROOT,
   actionItems: (meetingId: string) => [...ACTION_ITEMS_ROOT, meetingId] as const,
   carriedOverRoot: CARRIED_OVER_ROOT,

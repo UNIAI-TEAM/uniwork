@@ -66,6 +66,7 @@ export function PendingRow({
   checked,
   onCheckedChange,
   action,
+  evidence,
 }: {
   item: MeetingActionItem;
   variant: ActionItemsVariant;
@@ -74,6 +75,8 @@ export function PendingRow({
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   action?: ReactNode;
+  /** The item's evidence chip (MeetingEvidenceChip). */
+  evidence?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const said = [item.owner_text, item.due_text].filter((v): v is string => Boolean(v?.trim())).join(" · ");
@@ -109,6 +112,7 @@ export function PendingRow({
               {dueLabel ? t("meetings.summaryAi.dueOn", { date: dueLabel }) : null}
             </p>
           ) : null}
+          {evidence}
         </div>
         {action}
       </div>
@@ -122,12 +126,15 @@ export function ConvertedRow({
   variant,
   taskHref,
   assigneeName,
+  evidence,
 }: {
   /** Only the title and the task are read, so a carried-over task fits too. */
   item: Pick<MeetingActionItem, "title" | "task">;
   variant: ActionItemsVariant;
   taskHref: string | null;
   assigneeName?: string;
+  /** The item's evidence chip (MeetingEvidenceChip). */
+  evidence?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
   const task = item.task;
@@ -163,6 +170,7 @@ export function ConvertedRow({
           {t(`meetings.actionItemsSection.${state}`)}
         </span>
       </p>
+      {evidence ? <div className="pl-5.5">{evidence}</div> : null}
     </RowShell>
   );
 }

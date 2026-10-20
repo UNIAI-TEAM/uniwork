@@ -28,11 +28,14 @@ export function MeetingRecordingDialog({
   onOpenChange,
   meetingId,
   recordingId,
+  startAt,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   meetingId: string;
   recordingId: string;
+  /** Seconds into the recording to start at (an evidence chip's spoken line). */
+  startAt?: number;
 }) {
   const { t } = useTranslation();
   const playbackUrlRef = useRef<string | null>(null);
@@ -128,6 +131,9 @@ export function MeetingRecordingDialog({
             playsInline
             preload="metadata"
             src={playbackUrlRef.current}
+            onLoadedMetadata={(e) => {
+              if (startAt) e.currentTarget.currentTime = startAt;
+            }}
             onError={handleVideoError}
           />
         ) : null}

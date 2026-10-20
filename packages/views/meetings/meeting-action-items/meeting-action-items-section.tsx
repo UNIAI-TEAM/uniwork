@@ -32,6 +32,7 @@ import {
   PendingRow,
   type ActionItemsVariant,
 } from "./action-item-rows";
+import { MeetingEvidenceChip } from "../meeting-evidence-chip";
 import { AddActionItemForm } from "./add-action-item-form";
 import { useActionItemConversion, type ActionItemSelection } from "./use-action-item-conversion";
 
@@ -112,6 +113,7 @@ function ClerkPendingList({
               suggestedName={memberOf(item.suggested_assignee_id)?.display_name}
               checked={flow.picked.has(item.id)}
               onCheckedChange={(on) => flow.toggle(item.id, on)}
+              evidence={<MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
               action={
                 <DismissActionItemButton
                   title={item.title}
@@ -275,7 +277,12 @@ export function MeetingActionItemsSection({
           ) : (
             <ul className={LIST_CLASS[variant]}>
               {pending.map((item) => (
-                <PendingRow key={item.id} item={item} variant={variant} />
+                <PendingRow
+                  key={item.id}
+                  item={item}
+                  variant={variant}
+                  evidence={<MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
+                />
               ))}
             </ul>
           )}
@@ -292,6 +299,7 @@ export function MeetingActionItemsSection({
                 variant={variant}
                 taskHref={item.task && wsPaths ? wsPaths.task(item.task.id) : null}
                 assigneeName={memberOf(item.task?.assignee_id)?.display_name}
+                evidence={<MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
               />
             ))}
           </ul>

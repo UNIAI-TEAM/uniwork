@@ -62,7 +62,8 @@ export function MeetingRoomCopilotTab({
   const [note, setNote] = useState("");
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
-  const decisions = summary?.decisions ?? [];
+  // The room's notes card shows the decisions only; their evidence is on the detail page.
+  const decisions = (summary?.decisions ?? []).map((d) => d.text);
   // The live recording state is the stage header's REC badge; this panel
   // only offers a finished recording to play back.
   const completedRecording = (recordings ?? []).find((r) => r.status === "COMPLETE");
