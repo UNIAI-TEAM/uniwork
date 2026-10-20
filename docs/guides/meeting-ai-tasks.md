@@ -20,7 +20,7 @@ Tài liệu dành cho người dùng workspace UniWork. Kỹ thuật triển kha
    - `AI_TIMEOUT_SECONDS` (mặc định 60) là thời gian tối đa chờ nhà cung cấp trả lời.
    - Không cấu hình nhà cung cấp nào → mọi tính năng AI ẩn; nút tóm tắt không hiện.
 3. **Gói (plan)** — tóm tắt AI cần quyền gói `meeting.ai_summary` của tổ chức. Gói không có quyền này thì nút tóm tắt cũng ẩn (capabilities trả `ai_summary: false`); gọi thẳng API nhận 403 `entitlement_required`. Mỗi lần tóm tắt tính vào hạn mức token AI của tổ chức.
-4. **STT server (tùy chọn)** — đặt `MEETING_STT_AGENT_SECRET` và chạy worker trong [`deploy/meeting-stt-agent/`](../../deploy/meeting-stt-agent/). Khi bật, client ẩn Web Speech để tránh transcript trùng.
+4. **Thư ký AI (tùy chọn)** — đặt `MEETING_SCRIBE_ENABLED=true`, bật cờ `meeting_scribe` cho tổ chức và chạy agent trong [`apps/meeting-agent/`](../../apps/meeting-agent/) (ADR 0037). Khi agent có trong phòng, client đọc phụ đề của agent và tắt Web Speech để tránh transcript trùng.
 5. **Ghi hình (tùy chọn)** — `LIVEKIT_RECORDING_BUCKET` + biến `AWS_*`.
 
 ## Trong phòng họp

@@ -23,6 +23,10 @@ export const MeetingSchema = z.object({
   has_playable_recording: z.boolean().optional(),
   /** Minimum attendance (%); null or absent = none. */
   quorum_percent: z.number().nullish(),
+  /** The AI scribe is on for this meeting (default on; host/admin switch it). */
+  scribe_enabled: z.boolean().optional(),
+  /** Detail only: the latest scribe run, DISPATCHED | ACTIVE | FINISHED | FAILED. */
+  scribe_status: z.string().optional(),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
@@ -63,8 +67,27 @@ export const ParticipantSchema = z.object({
   /** MEMBER votes and counts toward attendance; OBSERVER does neither. */
   standing: z.string().optional(),
   is_secretary: z.boolean().optional(),
+  /** This participant's mic is the room's shared one: the AI scribe tells its speakers apart. */
+  shared_mic: z.boolean().optional(),
 });
 export type MeetingParticipant = z.infer<typeof ParticipantSchema>;
+
+/** A speaker label of a meeting's transcript and whom a clerk assigned it to. */
+export const SpeakerLabelSchema = z.object({
+  id: z.string(),
+  label_key: z.string(),
+  /** The provider's label ("A", "B", …), the last part of label_key. */
+  speaker: z.string().optional(),
+  /** "Speaker n" in this meeting, by first appearance. */
+  number: z.number().optional(),
+  user_id: z.string().optional(),
+  name: z.string().optional(),
+  /** What the transcript shows for it; empty while unassigned. */
+  assigned_name: z.string().optional(),
+  sample: z.string().optional(),
+  first_spoken_at: z.string().optional(),
+});
+export type SpeakerLabel = z.infer<typeof SpeakerLabelSchema>;
 
 export const JoinRequestSchema = z.object({
   id: z.string(),
@@ -141,6 +164,10 @@ export const TranscriptSegmentSchema = z.object({
   speaker_name: z.string().optional(),
   text: z.string(),
   spoken_at: z.string(),
+  /** Set only on a room-microphone line nobody has named: the raw label (":?" = unknown speaker)… */
+  speaker_label: z.string().optional(),
+  /** …and its "Speaker n" number in the meeting (absent when unknown). */
+  room_speaker: z.number().optional(),
 });
 export type MeetingTranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
 
@@ -199,6 +226,8 @@ export const MeetingSummarySchema = z.object({
   model: z.string().nullish(),
   created_by: z.string().nullish(),
   created_at: z.string().nullish(),
+  /** The transcript was longer than the summary's input budget. */
+  partial: z.boolean().optional(),
 });
 export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
 
@@ -216,7 +245,8 @@ export type MeetingRecording = z.infer<typeof RecordingSchema>;
 export const MeetingCapabilitiesSchema = z.object({
   ai_summary: z.boolean().optional(),
   recording: z.boolean().optional(),
-  server_stt: z.boolean().optional(),
+  /** The AI scribe agent serves this workspace's meetings. */
+  scribe: z.boolean().optional(),
 });
 export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;
 

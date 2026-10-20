@@ -1,5 +1,5 @@
 "use client";
-import { memo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import {
   isTrackReference,
   useSpeakingParticipants,
@@ -116,7 +116,9 @@ export const MeetingStageTiles = memo(function MeetingStageTiles({
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const hiddenIdentities = useMeetingViewSessionStore((s) => s.hiddenIdentities);
   const avatarOf = useRoomAvatarOf();
-  const tracks = useTracks(STAGE_SOURCES, { onlySubscribed: true, updateOnlyOn: STAGE_TRACK_EVENTS });
+  const roomTracks = useTracks(STAGE_SOURCES, { onlySubscribed: true, updateOnlyOn: STAGE_TRACK_EVENTS });
+  // The AI scribe has a camera placeholder like anyone else; it gets no tile (D8).
+  const tracks = useMemo(() => roomTracks.filter((tr) => !tr.participant.isAgent), [roomTracks]);
   const filters = {
     layout: viewLayout,
     maxTiles,

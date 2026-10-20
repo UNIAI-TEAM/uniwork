@@ -6,7 +6,7 @@ import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { formatRelativeTime } from "./meeting-relative-time";
 import { useOlderTranscript, useRecordings } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
-import type { MeetingSummary } from "@uniwork/core/types/meeting";
+import type { MeetingSummary, MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
@@ -16,6 +16,7 @@ import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
+import { MeetingSpeakerLabelsButton } from "./meeting-speaker-labels-dialog";
 import {
   SummaryGenerateButton,
   SummaryLiveRegion,
@@ -25,6 +26,13 @@ import { summarySourceFacts, summarySourceList, type SummarySourceTimes } from "
 import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
 
 const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"]);
+
+/** A room-microphone speaker nobody named is worded here, in the reader's language. */
+function transcriptSpeaker(s: MeetingTranscriptSegment, t: ReturnType<typeof useTranslation>["t"]): string {
+  if (s.room_speaker) return t("meetings.scribe.speakerLabel", { n: s.room_speaker });
+  if (s.speaker_label?.endsWith(":?")) return t("meetings.scribe.speakerUnknown");
+  return s.speaker_name || "—";
+}
 
 /**
  * Transcript, AI summary and decisions (a clerk generates; everyone reads),
@@ -105,21 +113,24 @@ export function MeetingSummaryPanel({
         {summary ? null : <MeetingDecisionsBlock meetingId={meetingId} voted={gen.voted} aiDecisions={[]} />}
 
         <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
-          <CollapsibleTrigger
-            render={
-              <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
-                {showTranscript
-                  ? t("meetings.hideTranscript")
-                  : t(olderTranscript.hasOlder ? "meetings.showTranscriptMore" : "meetings.showTranscript", {
-                      count: transcriptLines,
-                    })}
-                <ChevronDown
-                  aria-hidden
-                  className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")}
-                />
-              </Button>
-            }
-          />
+          <div className="flex flex-wrap items-center gap-1">
+            <CollapsibleTrigger
+              render={
+                <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
+                  {showTranscript
+                    ? t("meetings.hideTranscript")
+                    : t(olderTranscript.hasOlder ? "meetings.showTranscriptMore" : "meetings.showTranscript", {
+                        count: transcriptLines,
+                      })}
+                  <ChevronDown
+                    aria-hidden
+                    className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")}
+                  />
+                </Button>
+              }
+            />
+            {canClerk ? <MeetingSpeakerLabelsButton meetingId={meetingId} workspaceId={workspaceId} /> : null}
+          </div>
           <CollapsibleContent>
             <ol className="mt-2 max-h-80 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-surface-hover p-3" data-testid="meeting-transcript">
               {olderTranscript.hasOlder ? (
@@ -133,7 +144,7 @@ export function MeetingSummaryPanel({
               ) : null}
               {(transcript ?? []).map((s) => (
                 <li key={s.id} className="text-body text-foreground">
-                  <span className="mr-1 text-caption font-medium text-muted-foreground">{s.speaker_name || "—"}</span>
+                  <span className="mr-1 text-caption font-medium text-muted-foreground">{transcriptSpeaker(s, t)}</span>
                   {s.text}
                 </li>
               ))}
@@ -230,6 +241,11 @@ function SummaryAttribution({ summary, times }: { summary: MeetingSummary; times
         <p data-testid="ai-summary-stale" className="flex items-center gap-1.5 text-caption text-muted-foreground">
           <RotateCcwClock aria-hidden className="size-3.5 shrink-0" />
           {t("meetings.summaryStale")}
+        </p>
+      ) : null}
+      {summary.partial ? (
+        <p data-testid="ai-summary-partial" className="text-caption text-muted-foreground">
+          {t("meetings.summaryPartial")}
         </p>
       ) : null}
     </div>

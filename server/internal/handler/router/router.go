@@ -103,6 +103,10 @@ func New(d Deps, h Routes) http.Handler {
 		// carrier address would share 300 a minute; it has its own
 		// per-device budget under an address ceiling (refreshLimit).
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
+		// The scribe agent's routes skip it too (isMeetingAgentPath): one agent
+		// pod sends every meeting it serves from one address; they have their
+		// own per-token budget (registerMeetingAgent).
+		global = exceptMeetingAgent(global)
 		r.Use(mw.ExceptPaths(global, "/healthz", "/readyz", "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
@@ -202,6 +206,9 @@ func New(d Deps, h Routes) http.Handler {
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
 		registerBillingWebhooks(v1, h)
+		registerMeetingAgent(v1, h, mw.RequireMeetingAgentToken([]byte(d.Cfg.JWTSecret)), meetingAgentLimit(
+			mw.RateLimitByIdentityBucket(d.Redis, "meeting-agent-ip", 6000, time.Minute, proxies, nil),
+			mw.RateLimitByIdentityBucket(d.Redis, "meeting-agent", 600, time.Minute, proxies, mw.MeetingAgentRateKey)))
 		v1.Group(func(desktop api) {
 			if d.DeviceStatus != nil {
 				desktop.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
@@ -388,4 +395,25 @@ func meetingCaller(guestKey []byte) mw.IdentityFunc {
 		}
 		return ""
 	}
+}
+
+// exceptMeetingAgent lets the scribe agent's routes past the global limiter.
+func exceptMeetingAgent(m func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		limited := m(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isMeetingAgentPath(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			limited.ServeHTTP(w, r)
+		})
+	}
+}
+
+// meetingAgentLimit runs the per-address ceiling first, so a caller rotating
+// well-formed uwma_ strings (the per-token key is read before the token is
+// verified) still meets a bound; 6000 a minute is ten agent pods' worth.
+func meetingAgentLimit(ceiling, perToken func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler { return ceiling(perToken(next)) }
 }

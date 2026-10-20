@@ -108,12 +108,48 @@ type AppendTranscriptSDI struct {
 	SpokenAt time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now" example:"2026-08-29T02:00:00Z"`
 }
 
-// AppendAgentTranscriptSDI is POST /api/v1/meetings/{meetingID}/transcript/agent.
-type AppendAgentTranscriptSDI struct {
-	ParticipantIdentity string    `json:"participant_identity" minLength:"1" description:"LiveKit identity uw_participant_{id}" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V"`
-	SpeakerName         string    `json:"speaker_name" description:"Tên hiển thị; trống = lấy từ participant" example:"Nguyễn Văn An"`
-	Text                string    `json:"text" minLength:"1" example:"Chốt ship vào thứ Sáu."`
-	SpokenAt            time.Time `json:"spoken_at" description:"Thời điểm nói (RFC3339); trống = now"`
+// AgentSegmentSDI is one final segment the scribe agent sends.
+type AgentSegmentSDI struct {
+	SegmentID           string    `json:"segment_id" minLength:"1" maxLength:"128" description:"Khóa chống trùng do agent đặt: <job id>-<track sid>-<số thứ tự>, duy nhất giữa các lần chạy của một cuộc họp; gửi lại cùng giá trị không thêm dòng" example:"AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-12"`
+	ParticipantIdentity string    `json:"participant_identity" maxLength:"128" description:"Identity LiveKit của người nói (uw_participant_{id})" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V"`
+	SpokenAt            time.Time `json:"spoken_at" description:"Lúc bắt đầu nói (RFC 3339, ms)" example:"2026-10-20T02:00:01.250Z"`
+	EndedAt             time.Time `json:"ended_at" description:"Lúc nói xong (RFC 3339, ms)" example:"2026-10-20T02:00:04.900Z"`
+	SpeechMs            int64     `json:"speech_ms" minimum:"0" maximum:"600000" description:"Thời lượng có tiếng theo VAD, tính vào phút ghi lời của gói" example:"3400"`
+	Text                string    `json:"text" minLength:"1" maxLength:"4000" example:"Chốt ship vào thứ Sáu."`
+	Language            string    `json:"language" maxLength:"16" description:"Ngôn ngữ STT nhận ra" example:"vi"`
+	SpeakerLabel        string    `json:"speaker_label,omitempty" maxLength:"120" description:"Chỉ đoạn của micro hội trường: <participant_identity>:<phiên STT>:<nhãn nhà cung cấp>, nhãn ? khi nhà cung cấp không gán được người nói" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V:AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-1:A"`
+}
+
+// AppendAgentSegmentsSDI is POST /api/v1/meetings/{meetingID}/agent/segments.
+type AppendAgentSegmentsSDI struct {
+	Segments []AgentSegmentSDI `json:"segments" minItems:"1" maxItems:"50" description:"Tối đa 50 đoạn final"`
+}
+
+// AgentStartedSDI is POST /api/v1/meetings/{meetingID}/agent/started.
+type AgentStartedSDI struct {
+	ParticipantSID string `json:"participant_sid" maxLength:"64" description:"SID LiveKit của kết nối agent; webhook participant_left của đúng SID này đóng lần chạy" example:"PA_aBcD1234"`
+}
+
+// AgentFinishedSDI is POST /api/v1/meetings/{meetingID}/agent/finished.
+type AgentFinishedSDI struct {
+	SttSessionMs int64 `json:"stt_session_ms" minimum:"0" description:"Tổng thời gian mở phiên STT của lần chạy (nhà cung cấp tính tiền theo nó), để đối chiếu với phút đã tính" example:"95000"`
+}
+
+// SetMeetingScribeSDI is PUT /api/v1/meetings/{meetingID}/scribe.
+type SetMeetingScribeSDI struct {
+	Enabled bool `json:"enabled" description:"false = tắt thư ký AI cho cuộc họp này; true = bật lại (mặc định bật)" example:"false"`
+}
+
+// SetSharedMicSDI is PUT /api/v1/meetings/{meetingID}/participants/{participantID}/shared-mic.
+type SetSharedMicSDI struct {
+	Enabled bool `json:"enabled" description:"true = đặt người này làm micro hội trường (thư ký AI tách người nói trên mic của họ); false = bỏ" example:"true"`
+}
+
+// AssignSpeakerLabelSDI is PUT /api/v1/meetings/{meetingID}/speaker-labels/{speakerLabelID}.
+// One of the two, or neither to clear the assignment.
+type AssignSpeakerLabelSDI struct {
+	UserID *string `json:"user_id,omitempty" description:"Thành viên workspace (người được giao việc) nói nhãn này" example:"01J8X4USER0N1P2Q3R4S5T6U7"`
+	Name   *string `json:"name,omitempty" maxLength:"120" description:"Tên tự do khi người nói không phải thành viên" example:"Chị Lan (khách mời)"`
 }
 
 // SetParticipantPublishSDI locks or unlocks one media source of a participant

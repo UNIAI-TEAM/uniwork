@@ -377,7 +377,7 @@ func (q *Queries) GraphSourceDepartment(ctx context.Context, arg GraphSourceDepa
 }
 
 const graphSourceMeeting = `-- name: GraphSourceMeeting :one
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id FROM meetings WHERE organization_id = $1 AND id = $2
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id FROM meetings WHERE organization_id = $1 AND id = $2
 `
 
 type GraphSourceMeetingParams struct {
@@ -418,6 +418,8 @@ func (q *Queries) GraphSourceMeeting(ctx context.Context, arg GraphSourceMeeting
 		&i.AttendanceFinalizedAt,
 		&i.AttendanceFinalizedBy,
 		&i.OrganizationID,
+		&i.ScribeOffAt,
+		&i.ScribeOffBy,
 		&i.MinutesDocumentID,
 		&i.MinutesFinalizedAt,
 		&i.MinutesFinalizedBy,

@@ -2,6 +2,8 @@ package meetings
 
 import (
 	"context"
+	"slices"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -39,6 +41,15 @@ type FakeProvider struct {
 	GetPermissionsDelay time.Duration
 	// permMu guards the participant fields above for concurrent moderators.
 	permMu sync.Mutex
+	// Scribe dispatches, guarded by scribeMu: the sweep and Start may race.
+	scribeMu          sync.Mutex
+	ScribeDispatches  []DispatchScribeRequest
+	ScribeRemovals    []RemoveScribeRequest
+	ScribeDispatchErr error
+	// LastJoin is the last join credential request (attributes included).
+	LastJoin IssueJoinCredentialRequest
+	// AttributeUpdates records SetParticipantAttributes calls (under permMu).
+	AttributeUpdates []SetParticipantAttributesRequest
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -59,6 +70,7 @@ func (f *FakeProvider) EnsureSession(_ context.Context, req EnsureSessionRequest
 }
 
 func (f *FakeProvider) IssueJoinCredential(_ context.Context, req IssueJoinCredentialRequest) (JoinCredential, error) {
+	f.LastJoin = req
 	if f.JoinErr != nil {
 		return JoinCredential{}, f.JoinErr
 	}
@@ -132,4 +144,52 @@ func (f *FakeProvider) StartRecording(_ context.Context, req StartRecordingReque
 func (f *FakeProvider) StopRecording(context.Context, StopRecordingRequest) error {
 	f.StopRecordCalls++
 	return nil
+}
+
+func (f *FakeProvider) DispatchScribe(_ context.Context, req DispatchScribeRequest) (string, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	if f.ScribeDispatchErr != nil {
+		return "", f.ScribeDispatchErr
+	}
+	f.ScribeDispatches = append(f.ScribeDispatches, req)
+	return "fake-dispatch-" + strconv.Itoa(len(f.ScribeDispatches)), nil
+}
+
+func (f *FakeProvider) RemoveScribe(_ context.Context, req RemoveScribeRequest) error {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	f.ScribeRemovals = append(f.ScribeRemovals, req)
+	return nil
+}
+
+func (f *FakeProvider) SetParticipantAttributes(_ context.Context, req SetParticipantAttributesRequest) error {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	f.AttributeUpdates = append(f.AttributeUpdates, req)
+	return nil
+}
+
+// AttributeCalls returns a copy of the attribute writes the fake saw.
+func (f *FakeProvider) AttributeCalls() []SetParticipantAttributesRequest {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	return slices.Clone(f.AttributeUpdates)
+}
+
+// ScribeCalls reports how many dispatches and removals the fake saw.
+func (f *FakeProvider) ScribeCalls() (dispatches, removals int) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	return len(f.ScribeDispatches), len(f.ScribeRemovals)
+}
+
+// LastScribeDispatch is the latest dispatch request, zero when none.
+func (f *FakeProvider) LastScribeDispatch() DispatchScribeRequest {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	if len(f.ScribeDispatches) == 0 {
+		return DispatchScribeRequest{}
+	}
+	return f.ScribeDispatches[len(f.ScribeDispatches)-1]
 }

@@ -121,6 +121,15 @@ export function participantRole(
   return null;
 }
 
+/**
+ * People only: the AI scribe joins as a LiveKit AGENT participant (spec
+ * 2026-10-20-meeting-scribe-agent-design D8) and is never counted, tiled,
+ * listed or moderated; the room shows it as its own chip instead.
+ */
+export function humanParticipants<T extends { isAgent?: boolean }>(participants: readonly T[]): T[] {
+  return participants.filter((p) => !p.isAgent);
+}
+
 function liveKitIdentityForParticipant(participantId: string): string {
   return PARTICIPANT_IDENTITY_PREFIX + participantId;
 }

@@ -36,6 +36,8 @@ import {
 } from "./meeting-datetime";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
+import { MeetingScribeChip } from "./meeting-scribe-chip";
+import { humanParticipants } from "./meeting-signals";
 
 const URGENT_MS = 5 * 60_000;
 const HEADER_AVATARS = 4;
@@ -108,7 +110,7 @@ const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
  */
 function StageHeaderPeople({ peopleOpen, onOpenPeople }: { peopleOpen: boolean; onOpenPeople?: () => void }) {
   const { t } = useTranslation();
-  const participants = useParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const participants = humanParticipants(useParticipants({ updateOnlyOn: ROSTER_EVENTS }));
   const avatarOf = useRoomAvatarOf();
   // Others first: your own face is the one you least need to find here.
   const othersFirst = [...participants.filter((p) => !p.isLocal), ...participants.filter((p) => p.isLocal)];
@@ -164,6 +166,7 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
   workspaceLabel,
   guestMode,
   recording = false,
+  scribeAvailable = false,
   sidebarOpen,
   onToggleSidebar,
   onOpenSidebar,
@@ -177,6 +180,8 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
   workspaceLabel?: string;
   guestMode?: boolean;
   recording?: boolean;
+  /** The workspace has the AI scribe (meeting capability `scribe`). */
+  scribeAvailable?: boolean;
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   onOpenSidebar?: () => void;
@@ -274,6 +279,8 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 {t("meetings.recording")}
               </span>
             ) : null}
+
+            <MeetingScribeChip meeting={meeting} available={scribeAvailable} canSwitch={showHostActions} />
 
             {meeting?.ends_at ? <RemainingTimeChip endsAt={meeting.ends_at} /> : null}
 

@@ -29,8 +29,8 @@ ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg('row_limit');
 
 -- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: GetLatestMeetingSummary :one

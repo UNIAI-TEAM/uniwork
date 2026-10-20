@@ -78,7 +78,11 @@ type MeetingRuntime struct {
 	OutboxBatch        int32
 	WebhookBatch       int32
 	WebhookConcurrency int
-	STTAgentSecret     string
+	// The scribe agent (ADR 0037): dispatch it at all, under which
+	// agent_name. SummaryMaxRunes is the summary's transcript budget.
+	ScribeEnabled   bool
+	ScribeAgentName string
+	SummaryMaxRunes int
 }
 
 type MeetingService struct {
@@ -105,6 +109,8 @@ type MeetingService struct {
 	// avatars stored as file ids resolve to presigned URLs (UNI-744) and new
 	// recordings go through it (UNI-746); nil keeps both legacy paths.
 	files files.Service
+	// flags evaluates meeting_scribe per organization; nil = off.
+	flags McpFlags
 }
 
 // organizationOf resolves the tenant a meeting belongs to, for the gate.
@@ -411,6 +417,8 @@ var meetingActionFor = map[string]string{
 	"join_request.rejected": "meeting.join_request_rejected",
 	"join_request.canceled": "meeting.join_request_canceled",
 	"invite_link.revoked":   "meeting.invite_link_revoked",
+	"scribe.updated":        audit.ActionMeetingScribeToggled,
+	"speaker_label.updated": audit.ActionMeetingSpeakerLabelAssigned,
 }
 
 // record writes the meeting command's audit row and puts its realtime event on
@@ -433,6 +441,13 @@ func (s *MeetingService) recordResource(ctx context.Context, q *db.Queries, m db
 	if !ok {
 		return
 	}
+	s.recordAction(ctx, q, m, actor, action, topic, payload, changes, resourceType, resourceID)
+}
+
+// recordAction is recordResource for a command whose audit action is not the
+// one its topic usually maps to (a shared-mic switch is its own action but
+// tells clients participant.updated).
+func (s *MeetingService) recordAction(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, action, topic string, payload map[string]string, changes map[string]audit.Change, resourceType, resourceID string) {
 	// The meeting carries its tenant (ADR 0008), so no workspace read runs
 	// inside the caller's transaction - for a ballot, under the motion lock.
 	orgID := m.OrganizationID

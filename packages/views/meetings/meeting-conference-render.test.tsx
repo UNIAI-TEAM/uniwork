@@ -45,6 +45,7 @@ vi.mock("@livekit/components-react", () => {
     RoomAudioRenderer: () => null,
     StartMediaButton: () => null,
     useIsRecording: () => false,
+    useRemoteParticipants: () => [],
     useSpeakingParticipants: () => useSyncExternalStore(lk.speaking.subscribe, lk.speaking.get),
     useTracks: (...args: unknown[]) => {
       lk.tracksCalls.push(args);

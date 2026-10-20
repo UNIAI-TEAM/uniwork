@@ -222,7 +222,8 @@ func main() {
 		ProviderKey: cfg.MeetingProvider, EmptyTimeout: cfg.LiveKitEmptyTimeout,
 		WorkerTick: cfg.MeetingWorkerTick, OutboxBatch: cfg.MeetingOutboxBatch,
 		WebhookBatch: cfg.MeetingWebhookBatch, WebhookConcurrency: int(cfg.MeetingWebhookConcurrency),
-		STTAgentSecret: cfg.MeetingSTTAgentSecret,
+		ScribeEnabled: cfg.MeetingScribeEnabled, ScribeAgentName: cfg.MeetingScribeAgentName,
+		SummaryMaxRunes: cfg.MeetingSummaryMaxRunes,
 	})
 	taskSvc := service.NewTaskService(pool, q, wsSvc, store)
 	meetingSvc.Tasks = taskSvc
@@ -687,6 +688,8 @@ func main() {
 	askUNI.SetEmailHub(emailHubSvc)
 	askUNI.SetDocuments(documentSvc)
 	askUNI.SetFlags(flags)
+	// The meeting_scribe flag decides per organization whether the AI scribe is dispatched (UNI-2023).
+	meetingSvc.SetFlags(flags)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)

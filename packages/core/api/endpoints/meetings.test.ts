@@ -25,6 +25,7 @@ import {
   startRecording,
   stopRecording,
   updateMeeting,
+  setMeetingScribe,
   extendMeeting,
 } from "./meetings";
 
@@ -220,10 +221,22 @@ describe("meetings D08b endpoints", () => {
   });
 
   it("capabilities degrade to {} on drift", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: true, recording: false, server_stt: true }));
-    expect(await getMeetingCapabilities("ws1")).toEqual({ ai_summary: true, recording: false, server_stt: true });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: true, recording: false, scribe: true }));
+    expect(await getMeetingCapabilities("ws1")).toEqual({ ai_summary: true, recording: false, scribe: true });
     vi.mocked(fetch).mockResolvedValueOnce(json({ ai_summary: "yes" }));
     expect(await getMeetingCapabilities("ws1")).toEqual({});
+  });
+
+  it("setMeetingScribe puts enabled and degrades to null on drift", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ meeting: { ...meeting, scribe_enabled: false, scribe_status: "FINISHED" } }))
+      .mockResolvedValueOnce(json({ meeting: { id: 1 } }));
+    expect(await setMeetingScribe("m1", false)).toMatchObject({ id: "m1", scribe_enabled: false, scribe_status: "FINISHED" });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/meetings/m1/scribe");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({ enabled: false });
+    await expect(setMeetingScribe("m1", true)).resolves.toBeNull();
   });
 
   it("setParticipantPublish posts enabled flag", async () => {

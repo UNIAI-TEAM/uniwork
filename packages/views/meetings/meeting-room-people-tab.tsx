@@ -25,8 +25,9 @@ import { MeetingDutyMenuItems, dutyRole } from "./meeting-duty-menu-items";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingMuteAllButton } from "./meeting-moderation";
 import { MeetingParticipantRow } from "./meeting-participant-row";
+import { MeetingSharedMicMenuItem } from "./meeting-shared-mic-menu-item";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
-import { guestIdentities, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
+import { guestIdentities, humanParticipants, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 import { useWindowedList } from "./use-windowed-list";
@@ -89,7 +90,10 @@ export function MeetingRoomPeopleTab({
   guestMode?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const liveParticipants = useLiveKitParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const roomParticipants = useLiveKitParticipants({ updateOnlyOn: ROSTER_EVENTS });
+  const liveParticipants = useMemo(() => humanParticipants(roomParticipants), [roomParticipants]);
+  // The shared-mic entry matters only while the AI scribe listens.
+  const scribeInRoom = roomParticipants.some((p) => p.isAgent);
   const { hands } = useMeetingSignals();
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const avatarOf = useRoomAvatarOf();
@@ -271,15 +275,27 @@ export function MeetingRoomPeopleTab({
                           removable={!meta?.isHost}
                           pinned={pinnedIdentity === participant.identity}
                           menuExtra={
-                            canHost && !guestMode && meetingId && meta ? (
-                              <MeetingDutyMenuItems
-                                meetingId={meetingId}
-                                participant={meta.api}
-                                name={displayName(participant)}
-                                separatorBefore
-                                rollFinalized={rollFinalized}
-                                standingOnly={meta.isHost}
-                              />
+                            !guestMode && meetingId && meta ? (
+                              <>
+                                {canHost ? (
+                                  <MeetingDutyMenuItems
+                                    meetingId={meetingId}
+                                    participant={meta.api}
+                                    name={displayName(participant)}
+                                    separatorBefore
+                                    rollFinalized={rollFinalized}
+                                    standingOnly={meta.isHost}
+                                  />
+                                ) : null}
+                                {isClerk && scribeInRoom ? (
+                                  <MeetingSharedMicMenuItem
+                                    meetingId={meetingId}
+                                    participant={meta.api}
+                                    name={displayName(participant)}
+                                    separatorBefore={!canHost}
+                                  />
+                                ) : null}
+                              </>
                             ) : null
                           }
                         />

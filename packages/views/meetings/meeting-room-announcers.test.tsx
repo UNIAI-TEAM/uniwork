@@ -12,6 +12,7 @@ const lk = vi.hoisted(() => ({ room: null as unknown }));
 vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => lk.room,
   useParticipants: () => [],
+  useRemoteParticipants: () => [],
 }));
 
 class FakeRoom extends EventEmitter {
@@ -63,6 +64,20 @@ describe("ParticipantPresenceAnnouncer", () => {
       vi.advanceTimersByTime(1500);
     });
     expect(live).toHaveTextContent("Minh đã rời phòng");
+  });
+
+  it("never announces the AI scribe joining", () => {
+    render(<ParticipantPresenceAnnouncer />);
+    const room = lk.room as FakeRoom;
+    const live = screen.getByTestId("meeting-presence-announcer");
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+    act(() => {
+      room.emit(RoomEvent.ParticipantConnected, { identity: "uw_agent_scribe", name: "UniWork AI", isAgent: true });
+      vi.advanceTimersByTime(1500);
+    });
+    expect(live).toHaveTextContent("");
   });
 
   it("reads a burst of arrivals as one count", () => {

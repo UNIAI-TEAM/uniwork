@@ -1142,6 +1142,23 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		tn.orgID, tn.ids["meeting"], util.NewID()); err != nil {
 		t.Fatalf("meeting summary run: %v", err)
 	}
+	// A finished scribe run: the agent API has no session caller, so the row
+	// is seeded the way MeetingService.ensureScribe writes it.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_scribe_runs
+		(id, organization_id, workspace_id, meeting_id, status, finished_at, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, 'FINISHED', now(), 'meeting_scribe', 'system')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["meeting"]); err != nil {
+		t.Fatalf("meeting scribe run: %v", err)
+	}
+	// A speaker label of the shared microphone, filed the way
+	// AppendAgentSegments files it (the agent API has no session caller).
+	tn.ids["speakerLabel"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_speaker_labels
+		(id, organization_id, workspace_id, meeting_id, label_key, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, 'meeting_scribe', 'system')`,
+		tn.ids["speakerLabel"], tn.orgID, tn.wsID, tn.ids["meeting"], "uw_participant_"+tn.ids["participant"]+":1:A"); err != nil {
+		t.Fatalf("meeting speaker label: %v", err)
+	}
 	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/action-items/convert", tn.token, map[string]any{
 		"items": []any{map[string]any{"action_item_id": tn.ids["actionItem3"], "assignee_id": tn.peerID}},
 	})

@@ -59,6 +59,7 @@ export const meetingKeys = {
   recordings: (meetingId: string) => ["meeting-recordings", meetingId] as const,
   attendance: (meetingId: string) => ["meeting-attendance", meetingId] as const,
   motions: (meetingId: string) => ["meeting-motions", meetingId] as const,
+  speakerLabels: (meetingId: string) => ["meeting-speaker-labels", meetingId] as const,
 };
 
 export function splitMeetings(
@@ -119,6 +120,17 @@ export function useUpdateMeeting(workspaceId: string, meetingId: string) {
       void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.attendance(meetingId) });
+    },
+  });
+}
+
+/** Switch the AI scribe for one meeting; the detail carries the new state. */
+export function useSetMeetingScribe(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => meetings.setMeetingScribe(meetingId, enabled),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
     },
   });
 }

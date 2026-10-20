@@ -36,6 +36,8 @@ type MeetingDTO struct {
 	ActualEndAt      string `json:"actual_end_at,omitempty"`
 	Version          int32  `json:"version"`
 	QuorumPercent    *int16 `json:"quorum_percent" description:"Tỉ lệ có mặt tối thiểu (%), null = không yêu cầu" example:"60"`
+	ScribeEnabled    bool   `json:"scribe_enabled" description:"Thư ký AI bật cho cuộc họp này (mặc định bật; chủ trì/admin tắt được)"`
+	ScribeStatus     string `json:"scribe_status,omitempty" description:"Trạng thái lần chạy mới nhất của thư ký AI (chỉ có ở GET chi tiết): DISPATCHED | ACTIVE | FINISHED | FAILED" example:"ACTIVE"`
 }
 
 type NoteDTO struct {
@@ -85,6 +87,7 @@ type ParticipantDTO struct {
 	Status              string `json:"status"`
 	Standing            string `json:"standing" description:"MEMBER | OBSERVER" example:"MEMBER"`
 	IsSecretary         bool   `json:"is_secretary"`
+	SharedMic           bool   `json:"shared_mic" description:"Mic của người này là micro hội trường: thư ký AI tách người nói"`
 }
 
 type ParticipantListSDO struct {
@@ -187,9 +190,11 @@ type TranscriptSegmentDTO struct {
 	ID            string `json:"id"`
 	MeetingID     string `json:"meeting_id"`
 	ParticipantID string `json:"participant_id"`
-	SpeakerName   string `json:"speaker_name"`
+	SpeakerName   string `json:"speaker_name" description:"Tên người nói; dòng micro hội trường chưa gán có tên tiếng Việt dựng sẵn, client nên dùng room_speaker"`
 	Text          string `json:"text"`
 	SpokenAt      string `json:"spoken_at" example:"2026-08-29T02:00:00Z"`
+	SpeakerLabel  string `json:"speaker_label,omitempty" description:"Chỉ dòng micro hội trường chưa gán người nói: nhãn thô; kết thúc bằng :? khi không rõ người nói" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V:AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-1:A"`
+	RoomSpeaker   int32  `json:"room_speaker,omitempty" description:"Số thứ tự người nói của micro hội trường trong cuộc họp (Người nói n); 0 khi không rõ" example:"2"`
 }
 
 type TranscriptSegmentSDO struct {
@@ -250,6 +255,7 @@ type MeetingSummaryDTO struct {
 	Model     string                      `json:"model"`
 	CreatedBy string                      `json:"created_by"`
 	CreatedAt string                      `json:"created_at"`
+	Partial   bool                        `json:"partial" description:"Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn ngân sách đầu vào"`
 }
 
 type MeetingSummarySDO struct {
@@ -369,7 +375,23 @@ type MeetingRecordingPlaybackSDO struct {
 type MeetingCapabilitiesSDO struct {
 	AISummary bool `json:"ai_summary"`
 	Recording bool `json:"recording"`
-	ServerSTT bool `json:"server_stt"`
+	Scribe    bool `json:"scribe" description:"Thư ký AI (agent ghi lời) có cho workspace này: server chạy agent, cờ meeting_scribe bật, gói có meeting.transcription"`
+}
+
+// MeetingAgentContextSDO is what the scribe agent turns into STT keyterms.
+type MeetingAgentContextSDO struct {
+	MeetingTitle        string   `json:"meeting_title" example:"Giao ban tuần"`
+	WorkspaceName       string   `json:"workspace_name" example:"Phòng Kế hoạch"`
+	ProjectName         string   `json:"project_name" example:"Dự án Cầu Rồng"`
+	Locale              string   `json:"locale" example:"vi"`
+	ParticipantNames    []string `json:"participant_names" description:"Tên hiển thị của người được mời và người tham gia; không có email" example:"[\"Nguyễn Văn An\"]"`
+	SharedMicIdentities []string `json:"shared_mic_identities" description:"Identity LiveKit của người tham gia đang là micro hội trường: agent tách người nói trên track của họ" example:"[\"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V\"]"`
+}
+
+// MeetingAgentSegmentsSDO counts a batch: new rows and ones already stored.
+type MeetingAgentSegmentsSDO struct {
+	Accepted   int `json:"accepted" example:"18"`
+	Duplicates int `json:"duplicates" example:"2"`
 }
 
 type ParticipantSDO struct {
@@ -427,4 +449,26 @@ type MeetingMinutesDTO struct {
 // MeetingMinutesSDO answers GET and the commands of /api/v1/meetings/{meetingID}/minutes.
 type MeetingMinutesSDO struct {
 	Minutes *MeetingMinutesDTO `json:"minutes" description:"null khi cuộc họp chưa có biên bản, hoặc trang đã bị xoá hay vào thùng rác"`
+}
+
+// SpeakerLabelDTO is one speaker label of a meeting's transcript (shared
+// microphone or uploaded file) and whom a clerk assigned it to.
+type SpeakerLabelDTO struct {
+	ID            string `json:"id" example:"01J8X4SPKL0N1P2Q3R4S5T6U7"`
+	LabelKey      string `json:"label_key" description:"<participant_identity>:<phiên STT>:<nhãn> hoặc upload:<transcription_id>:<nhãn>" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V:AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-1:A"`
+	Speaker       string `json:"speaker" description:"Nhãn của nhà cung cấp (phần cuối label_key); chỉ đúng trong một phiên STT" example:"A"`
+	Number        int32  `json:"number" description:"Số thứ tự trong cuộc họp theo lần xuất hiện đầu: Hội trường · Người nói n" example:"2"`
+	UserID        string `json:"user_id,omitempty" description:"Thành viên được gán" example:"01J8X4USER0N1P2Q3R4S5T6U7"`
+	Name          string `json:"name,omitempty" description:"Tên tự do được gán" example:"Chị Lan"`
+	AssignedName  string `json:"assigned_name,omitempty" description:"Tên transcript hiện cho nhãn: tên hiển thị của thành viên hoặc tên tự do; trống khi chưa gán" example:"Chị Lan"`
+	Sample        string `json:"sample,omitempty" description:"Câu đầu tiên của nhãn, để nhận ra người nói" example:"Chốt ship vào thứ Sáu."`
+	FirstSpokenAt string `json:"first_spoken_at,omitempty" example:"2026-10-20T02:00:01Z"`
+}
+
+type SpeakerLabelListSDO struct {
+	Labels []SpeakerLabelDTO `json:"labels"`
+}
+
+type SpeakerLabelSDO struct {
+	Label SpeakerLabelDTO `json:"label"`
 }

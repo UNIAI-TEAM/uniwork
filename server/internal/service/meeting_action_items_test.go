@@ -25,7 +25,7 @@ func seedSummary(t *testing.T, s *MeetingService, m db.Meeting, createdBy string
 		items = []ai.ActionItem{}
 	}
 	sum, err := s.storeSummary(context.Background(), m, createdBy,
-		ai.MeetingSummary{Summary: "Đã chốt.", Decisions: []ai.Decision{}, ActionItems: items}, ai.Response{Model: "fake"}, newSummaryLabels())
+		ai.MeetingSummary{Summary: "Đã chốt.", Decisions: []ai.Decision{}, ActionItems: items}, ai.Response{Model: "fake"}, newSummaryLabels(), false)
 	if err != nil {
 		t.Fatal(err)
 	}

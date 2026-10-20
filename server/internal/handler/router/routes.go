@@ -393,7 +393,14 @@ type Routes struct {
 	MeetingStatistics              http.HandlerFunc
 	MeetingActivity                http.HandlerFunc
 	AppendTranscript               http.HandlerFunc
-	AppendAgentTranscript          http.HandlerFunc
+	SetMeetingScribe               http.HandlerFunc
+	SetParticipantSharedMic        http.HandlerFunc
+	ListSpeakerLabels              http.HandlerFunc
+	AssignSpeakerLabel             http.HandlerFunc
+	MeetingAgentStarted            http.HandlerFunc
+	MeetingAgentContext            http.HandlerFunc
+	MeetingAgentSegments           http.HandlerFunc
+	MeetingAgentFinished           http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
 	ListChatMessages               http.HandlerFunc

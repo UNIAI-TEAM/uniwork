@@ -330,6 +330,18 @@ const (
 	// skipped_duplicates.
 	ActionMeetingSummaryCreated = "meeting.summary_created"
 
+	// A host or admin switched the AI scribe off or back on for one meeting
+	// (MeetingService.SetScribe, UNI-2023).
+	ActionMeetingScribeToggled = "meeting.scribe_toggled"
+
+	// A clerk marked a participant as the room's shared microphone, or
+	// lifted it (MeetingService.SetSharedMic, UNI-2024).
+	ActionMeetingSharedMicToggled = "meeting.shared_mic_toggled"
+
+	// A clerk assigned a speaker label to a member or a free name, or
+	// cleared it (MeetingService.AssignSpeakerLabel, UNI-2024).
+	ActionMeetingSpeakerLabelAssigned = "meeting.speaker_label_assigned"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

@@ -26,7 +26,7 @@ func toTranscriptDTO(s db.MeetingTranscriptSegment) sdo.TranscriptSegmentDTO {
 func toSummaryDTO(s db.MeetingSummary) sdo.MeetingSummaryDTO {
 	d := sdo.MeetingSummaryDTO{
 		ID: s.ID, MeetingID: s.MeetingID, Summary: s.Summary, Model: s.Model,
-		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt), Decisions: []sdo.MeetingSummaryDecisionDTO{},
+		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial, Decisions: []sdo.MeetingSummaryDecisionDTO{},
 	}
 	for _, dec := range service.DecodeSummaryDecisions(s.Decisions) {
 		d.Decisions = append(d.Decisions, sdo.MeetingSummaryDecisionDTO{Text: dec.Text, Evidence: toEvidenceRefsDTO(dec.Evidence)})
@@ -78,7 +78,7 @@ func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.MeetingCapabilitiesSDO{
-		AISummary: caps.AISummary, Recording: caps.Recording, ServerSTT: caps.ServerSTT,
+		AISummary: caps.AISummary, Recording: caps.Recording, Scribe: caps.Scribe,
 	})
 }
 
@@ -88,27 +88,6 @@ func (h *handlers) appendTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	seg, err := h.Meetings.AppendTranscript(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Text, in.SpokenAt)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondJSON(w, 200, sdo.TranscriptSegmentSDO{Segment: toTranscriptDTO(seg)})
-}
-
-const meetingSTTAgentSecretHeader = "X-Meeting-Agent-Secret"
-
-func (h *handlers) appendAgentTranscript(w http.ResponseWriter, r *http.Request) {
-	secret := strings.TrimSpace(r.Header.Get(meetingSTTAgentSecretHeader))
-	if secret == "" || !h.Meetings.STTAgentEnabled() || secret != h.Cfg.MeetingSTTAgentSecret {
-		respondError(w, http.StatusUnauthorized, "unauthorized", "agent secret không hợp lệ")
-		return
-	}
-	var in sdi.AppendAgentTranscriptSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	seg, err := h.Meetings.AppendTranscriptFromAgent(r.Context(), chi.URLParam(r, "meetingID"),
-		strings.TrimSpace(in.ParticipantIdentity), strings.TrimSpace(in.SpeakerName), in.Text, in.SpokenAt)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -128,9 +107,14 @@ func (h *handlers) listTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.TranscriptSegmentDTO, 0, len(page.Items))
 	for _, s := range page.Items {
-		out = append(out, toTranscriptDTO(s))
+		d := toTranscriptDTO(s)
+		// A room speaker nobody named yet: the client words "Speaker n" itself.
+		if sp := page.Speakers[s.SpeakerLabel]; s.SpeakerLabel != "" && sp.Name == "" {
+			d.SpeakerLabel, d.RoomSpeaker = s.SpeakerLabel, sp.Number
+		}
+		out = append(out, d)
 	}
-	respondJSON(w, 200, sdo.TranscriptListSDO{Segments: out, MeetingFeedCursorsDTO: feedCursorsDTO(page)})
+	respondJSON(w, 200, sdo.TranscriptListSDO{Segments: out, MeetingFeedCursorsDTO: feedCursorsDTO(page.FeedPage)})
 }
 
 func (h *handlers) getMeetingSummary(w http.ResponseWriter, r *http.Request) {

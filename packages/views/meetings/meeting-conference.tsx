@@ -25,6 +25,7 @@ import {
   MeetingLiveCaptions,
 } from "./meeting-captions";
 import { MeetingConnectionNotice } from "./meeting-connection-notice";
+import { MeetingScribeCaptions, useScribeInRoom } from "./meeting-scribe-captions";
 import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingStageFooter } from "./meeting-stage-footer";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
@@ -214,16 +215,21 @@ function ConferenceStage({
     () => (resolvedMeetingId ? <MeetingVotePrompt meetingId={resolvedMeetingId} onOpenTab={openMotions} /> : null),
     [resolvedMeetingId, openMotions],
   );
-  const serverStt = caps?.server_stt === true;
+  // The AI scribe in the room captions everyone; without it each viewer keeps
+  // their own Web Speech captions (spec D12).
+  const scribeInRoom = useScribeInRoom();
   const captions = useMemo(
-    () => (
-      <MeetingLiveCaptions
-        meetingId={resolvedMeetingId}
-        enabled={captionsOn && !!resolvedMeetingId && !serverStt}
-        onError={handleCaptionsError}
-      />
-    ),
-    [resolvedMeetingId, captionsOn, serverStt, handleCaptionsError],
+    () =>
+      scribeInRoom ? (
+        <MeetingScribeCaptions enabled={captionsOn} />
+      ) : (
+        <MeetingLiveCaptions
+          meetingId={resolvedMeetingId}
+          enabled={captionsOn && !!resolvedMeetingId}
+          onError={handleCaptionsError}
+        />
+      ),
+    [resolvedMeetingId, captionsOn, scribeInRoom, handleCaptionsError],
   );
   const recordingEnabled = caps?.recording === true;
   const controlBar = useMemo(
@@ -234,14 +240,14 @@ function ConferenceStage({
         canHost={canHost.allowed}
         recordingEnabled={recordingEnabled}
         recording={recording}
-        captionsAvailable={!serverStt && captionsSupported()}
+        captionsAvailable={scribeInRoom || captionsSupported()}
         captionsOn={captionsOn}
         onToggleCaptions={toggleCaptions}
         onToggleCopilot={toggleCopilot}
         copilotActive={copilotActive}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, serverStt, captionsOn, toggleCaptions, toggleCopilot, copilotActive],
+    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, captionsOn, toggleCaptions, toggleCopilot, copilotActive],
   );
 
   return (
@@ -262,6 +268,7 @@ function ConferenceStage({
               workspaceLabel={workspaceLabel}
               guestMode={guestMode}
               recording={recording}
+              scribeAvailable={caps?.scribe === true}
               sidebarOpen={sidebarPinned}
               onToggleSidebar={compact ? undefined : toggleSidebar}
               onOpenSidebar={compact ? openSidebarSheet : undefined}

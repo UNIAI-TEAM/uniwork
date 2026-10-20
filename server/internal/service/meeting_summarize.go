@@ -28,9 +28,9 @@ const (
 	// counted in characters so a cut never splits a UTF-8 sequence.
 	transcriptSegmentRunes = 4000
 
-	// Notes share summaryTranscriptRunes with the transcript: they take what
-	// they need up to a quarter of it, and each note is clipped first so one
-	// pasted wall of text cannot push every other note out of the window.
+	// Notes come out of the transcript budget: they take what they need up to
+	// a quarter of the smallest one, and each note is clipped first so one pasted wall of
+	// text cannot push every other note out of the window.
 	summaryNotesRunes = summaryTranscriptRunes / 4
 	summaryNoteRunes  = 4000
 
@@ -40,13 +40,12 @@ const (
 	summaryExistingItemRunes = 300
 
 	// summaryRunLease is how long a claimed run keeps other runs of its
-	// meeting out. It is also how long a meeting stays refused after the node
-	// running its summary died.
+	// meeting out at the smallest budget (summaryBudget grows it). It is also
+	// how long a meeting stays refused after the node running its summary
+	// died. A run's own deadline is its lease minus a minute, so a live run
+	// always stores (or fails) and gives its lease back before the lease
+	// expires: a second run never starts while the first can still pay.
 	summaryRunLease = 3 * time.Minute
-	// summaryRunBudget bounds gathering the sources and the model call, so a
-	// live run always stores (or fails) and gives its lease back before the
-	// lease expires: a second run never starts while the first can still pay.
-	summaryRunBudget = summaryRunLease - time.Minute
 	// summaryStoreTimeout bounds storing a summary the model already answered
 	// (and was billed for); the store runs detached from the request.
 	summaryStoreTimeout = 15 * time.Second
@@ -187,10 +186,10 @@ func (s *MeetingService) summaryErrorCount(reason string) {
 // could starve the pool (and it breaks behind a transaction-pooling proxy).
 // The claim and the release are one short statement each and hold nothing in
 // between; a node that dies mid-run leaves a lease that expires on its own.
-func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting) (func(), error) {
+func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, lease time.Duration) (func(), error) {
 	runID := util.NewID()
 	_, err := s.q.ClaimMeetingSummaryRun(ctx, db.ClaimMeetingSummaryRunParams{
-		OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID, LeaseSeconds: summaryRunLease.Seconds(),
+		OrganizationID: m.OrganizationID, MeetingID: m.ID, RunID: runID, LeaseSeconds: lease.Seconds(),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, errSummaryInProgress()
@@ -219,7 +218,7 @@ func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting) (fun
 // live items stay; a new item whose title matches one that stays (or an
 // earlier one of the same answer) is skipped, so a dismissed item does not
 // come back.
-func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID string, res ai.MeetingSummary, resp ai.Response, labels *summaryLabels) (db.MeetingSummary, error) {
+func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID string, res ai.MeetingSummary, resp ai.Response, labels *summaryLabels, partial bool) (db.MeetingSummary, error) {
 	stored := make([]SummaryDecision, len(res.Decisions))
 	dropped := 0
 	for i, d := range res.Decisions {
@@ -248,7 +247,7 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 	row, err := q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Summary: res.Summary,
 		Decisions: string(decisions), ActionItems: string(rawItems), Model: resp.Model, CreatedBy: userID,
-		UsageEventID: strText(resp.UsageEventID),
+		UsageEventID: strText(resp.UsageEventID), Partial: partial,
 	})
 	if err != nil {
 		return db.MeetingSummary{}, err
@@ -300,7 +299,7 @@ func summaryNoteLines(notes []db.ListMeetingNotesRow) ([]ai.NoteLine, int) {
 		}
 		lines = append(lines, ai.NoteLine{Label: n.ID, Text: body})
 	}
-	lines = windowSummaryLines(lines, summaryNotesRunes,
+	lines, _ = windowSummaryLines(lines, summaryNotesRunes,
 		func(l ai.NoteLine) int { return utf8.RuneCountInString(l.Text) + 1 },
 		func(n int) ai.NoteLine { return ai.NoteLine{Text: summaryOmitted(n)} })
 	used := 0

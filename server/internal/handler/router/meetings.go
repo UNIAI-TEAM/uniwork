@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
@@ -167,6 +168,26 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		summary: "List transcript segments (newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
 		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.TranscriptListSDO{}, auth: true,
 	})
+	r.Put("/meetings/{meetingID}/scribe", h.SetMeetingScribe, apiOp{
+		summary:     "Switch the AI scribe off or on for one meeting",
+		description: "Chủ trì hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Mặc định bật; đang họp thì thư ký được gỡ khỏi phòng hoặc gọi vào ngay. Ghi audit meeting.scribe_toggled và phát scribe.updated.",
+		tags:        []string{"meetings"}, sdi: sdi.SetMeetingScribeSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
+	r.Put("/meetings/{meetingID}/participants/{participantID}/shared-mic", h.SetParticipantSharedMic, apiOp{
+		summary:     "Mark or unmark a participant as the room's shared microphone (clerk)",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Server ghi shared_mic_at và đặt attribute LiveKit uw.shared_mic (người tham gia không tự đặt được); thư ký AI tách người nói trên mic đó. Ghi audit meeting.shared_mic_toggled và phát participant.updated.",
+		tags:        []string{"meetings"}, sdi: sdi.SetSharedMicSDI{}, sdo: sdo.ParticipantSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/speaker-labels", h.ListSpeakerLabels, apiOp{
+		summary:     "List the speaker labels of a meeting's transcript, assigned or not",
+		description: "Ai đọc được transcript thì đọc được nhãn. Nhãn chưa gán có assigned_name trống.",
+		tags:        []string{"meetings"}, sdo: sdo.SpeakerLabelListSDO{}, auth: true,
+	})
+	r.Put("/meetings/{meetingID}/speaker-labels/{speakerLabelID}", h.AssignSpeakerLabel, apiOp{
+		summary:     "Assign a speaker label to a member or a free name (clerk)",
+		description: "Một trong user_id hoặc name; không gửi cả hai thì bỏ gán. 422 assignee_not_member khi user_id không phải thành viên workspace. Ghi audit meeting.speaker_label_assigned và phát speaker_label.updated.",
+		tags:        []string{"meetings"}, sdi: sdi.AssignSpeakerLabelSDI{}, sdo: sdo.SpeakerLabelSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/transcript", h.AppendTranscript, apiOp{
 		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
@@ -319,10 +340,6 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "Cast a ballot (member or active guest on the roll)", tags: []string{"meetings"},
 		sdi: sdi.CastBallotSDI{}, sdo: sdo.StatusSDO{},
 	})
-	r.With(joinLimit).Post("/meetings/{meetingID}/transcript/agent", h.AppendAgentTranscript, apiOp{
-		summary: "Append transcript from LiveKit Agents worker (secret header)", tags: []string{"meetings"},
-		sdi: sdi.AppendAgentTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{},
-	})
 	r.Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
 		summary: "List shared recordings (member or active guest)", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{},
 	})
@@ -341,4 +358,45 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "LiveKit webhook (signature required)", tags: []string{"integrations"},
 		sdo: sdo.StatusSDO{},
 	})
+}
+
+// registerMeetingAgent mounts the scribe agent's routes (spec
+// 2026-10-20-meeting-scribe-agent-design §7.1, ADR 0037). agentAuth is
+// RequireMeetingAgentToken: only a uwma_ token for this meeting passes, never
+// a session JWT. agentLimit is the meeting-agent budget (600/min per token
+// under a per-address ceiling); the global limiter skips these paths
+// (isMeetingAgentPath) because one agent pod serves many meetings from one
+// address.
+func registerMeetingAgent(r api, h Routes, agentAuth, agentLimit func(http.Handler) http.Handler) {
+	a := r.With(agentLimit, agentAuth)
+	a.Post("/meetings/{meetingID}/agent/started", h.MeetingAgentStarted, apiOp{
+		summary:     "Scribe agent joined the room",
+		description: "Token uwma_ của cuộc họp. Lần chạy chuyển ACTIVE; lần chạy đã đóng trả 409 (agent nên rời phòng).",
+		tags:        []string{"meeting-agent"}, sdi: sdi.AgentStartedSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	a.Get("/meetings/{meetingID}/agent/context", h.MeetingAgentContext, apiOp{
+		summary:     "Keyterm context for the scribe agent",
+		description: "Token uwma_ của cuộc họp. Tiêu đề, tên workspace và dự án, tên người được mời/tham gia, locale; không có email.",
+		tags:        []string{"meeting-agent"}, sdo: sdo.MeetingAgentContextSDO{}, auth: true,
+	})
+	a.Post("/meetings/{meetingID}/agent/segments", h.MeetingAgentSegments, apiOp{
+		summary:     "Store final transcript segments from the scribe agent",
+		description: "Token uwma_ của cuộc họp. Tối đa 50 đoạn, mỗi đoạn ≤ 4.000 ký tự; chống trùng theo segment_id; nhận khi IN_PROGRESS hoặc ENDED ≤ 10 phút. speech_ms cộng vào phút ghi lời (meeting.transcription).",
+		tags:        []string{"meeting-agent"}, sdi: sdi.AppendAgentSegmentsSDI{}, sdo: sdo.MeetingAgentSegmentsSDO{}, auth: true,
+	})
+	a.Post("/meetings/{meetingID}/agent/finished", h.MeetingAgentFinished, apiOp{
+		summary:     "Scribe agent run finished",
+		description: "Token uwma_ của cuộc họp. Lần chạy chuyển FINISHED và chốt phút ghi lời; gọi lại không tính thêm.",
+		tags:        []string{"meeting-agent"}, sdi: sdi.AgentFinishedSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+}
+
+// isMeetingAgentPath matches /api/v1/meetings/{meetingID}/agent/....
+func isMeetingAgentPath(p string) bool {
+	rest, ok := strings.CutPrefix(p, "/api/v1/meetings/")
+	if !ok {
+		return false
+	}
+	_, tail, ok := strings.Cut(rest, "/")
+	return ok && strings.HasPrefix(tail, "agent/")
 }

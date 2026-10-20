@@ -36,6 +36,7 @@ var catalogue = []Flag{
 	{Key: "rum_sampling", Description: "Cho phép web gửi web-vitals về POST /api/v1/rum", Default: true, Public: true, Owner: "platform", ReviewAt: day(2026, 12, 5)},
 	{Key: "meeting_ai_summary", Description: "Bật tóm tắt cuộc họp bằng AI theo tổ chức (pilot)", Default: false, Public: true, Owner: "meetings", ReviewAt: day(2026, 12, 5)},
 	{Key: "meeting_minutes", Description: "Biên bản cuộc họp là trang UniNote: lập, chốt, bỏ chốt (UNI-2003)", Default: false, Public: true, Owner: "meetings", ReviewAt: day(2027, 1, 18)},
+	{Key: "meeting_scribe", Description: "Thư ký AI vào phòng họp: ghi lời từng người, phụ đề cả phòng (UNI-2023, ADR 0037). Chỉ bật cho tổ chức khi đã có thỏa thuận xử lý dữ liệu với nhà cung cấp STT", Default: false, Public: false, Owner: "meetings", ReviewAt: day(2027, 1, 18)},
 	{Key: "debug_trace_full_sampling", Description: "Lấy mẫu trace 100% cho tổ chức đang điều tra sự cố", Default: false, Public: false, Owner: "platform", ReviewAt: day(2026, 12, 5)},
 	{Key: "chat_work_hub", Description: "Kênh hạng nhất gắn Project, khám phá và tham gia (C-13)", Default: true, Public: true, Owner: "chat", ReviewAt: day(2026, 12, 31)},
 	{Key: "documents", Description: "Tài liệu trong workspace: page, tệp, phiên bản (UNI-679); mặc định bật", Default: true, Public: true, Owner: "documents", ReviewAt: day(2026, 12, 31)},

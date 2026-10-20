@@ -34,7 +34,7 @@ func minutesFixture(t *testing.T) (s *MeetingService, ua, ub, uc db.User, m db.M
 	}
 	if _, err := s.storeSummary(ctx, m, ua.ID, ai.MeetingSummary{
 		Summary: "Nhóm chốt ngân sách.", Decisions: []ai.Decision{{Text: "Chốt ngân sách quý 4"}}, ActionItems: []ai.ActionItem{},
-	}, ai.Response{Model: "fake"}, newSummaryLabels()); err != nil {
+	}, ai.Response{Model: "fake"}, newSummaryLabels(), false); err != nil {
 		t.Fatal(err)
 	}
 	if m, err := s.End(ctx, ua.ID, m.ID); err != nil || m.Status != MeetingEnded {

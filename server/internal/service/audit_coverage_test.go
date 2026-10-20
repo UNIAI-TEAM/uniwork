@@ -1745,6 +1745,54 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2023: the host switches the AI scribe off for one meeting.
+		audit.ActionMeetingScribeToggled: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetScribe(f.ctx, f.owner.ID, m.ID, false); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2024: a clerk marks the room's shared microphone.
+		audit.ActionMeetingSharedMicToggled: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err := f.q.GetActiveUserParticipant(f.ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(f.owner.ID)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetSharedMic(f.ctx, f.owner.ID, m.ID, p.ID, true); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2024: a clerk names a speaker label of the shared microphone.
+		audit.ActionMeetingSpeakerLabelAssigned: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := util.NewID()
+			if _, err := f.q.InsertMeetingSpeakerLabel(f.ctx, db.InsertMeetingSpeakerLabelParams{
+				ID: id, OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
+				LabelKey: "uw_participant_x:1:A", CreatedBy: "meeting_scribe", CreatedByKind: "system",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			name := "Chị Lan"
+			if _, err := s.AssignSpeakerLabel(f.ctx, f.owner.ID, m.ID, id, nil, &name); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1237: the provider refused the mailbox's credential; it needs reconnect.
 		audit.ActionEmailHubAccountAuthFailed: func(t *testing.T, f *auditFixture) {
 			f.build(t)
@@ -2010,6 +2058,9 @@ func auditActions() []string {
 		audit.ActionMeetingMinutesFinalized,
 		audit.ActionMeetingMinutesReopened,
 		audit.ActionMeetingSummaryCreated,
+		audit.ActionMeetingScribeToggled,
+		audit.ActionMeetingSharedMicToggled,
+		audit.ActionMeetingSpeakerLabelAssigned,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
 		audit.ActionOrganizationAskModelsChanged,

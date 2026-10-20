@@ -43,6 +43,9 @@ func mintToken(apiKey, apiSecret string, req IssueJoinCredentialRequest) (string
 		ttl = 2 * time.Minute
 	}
 	at.SetVideoGrant(grant).SetIdentity(req.Identity).SetName(req.DisplayName).SetValidFor(ttl)
+	if len(req.Attributes) > 0 {
+		at.SetAttributes(req.Attributes)
+	}
 	return at.ToJWT()
 }
 
@@ -78,6 +81,8 @@ type LiveKitAdapter struct {
 	roomClient *lksdk.RoomServiceClient
 	egressOnce sync.Once
 	egressCl   *lksdk.EgressClient
+	agentOnce  sync.Once
+	agentCl    *lksdk.AgentDispatchClient
 }
 
 // RecordingS3 is where LiveKit Egress uploads room composite recordings.
@@ -180,6 +185,17 @@ func (a *LiveKitAdapter) UpdateParticipant(ctx context.Context, req UpdateProvid
 	defer cancel()
 	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
 		Room: req.RoomName, Identity: req.Identity, Permission: participantPermission(req.Permissions),
+	})
+	return err
+}
+
+// SetParticipantAttributes sends only attributes: with Permission nil,
+// LiveKit leaves the participant's grants as they are.
+func (a *LiveKitAdapter) SetParticipantAttributes(ctx context.Context, req SetParticipantAttributesRequest) error {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
+		Room: req.RoomName, Identity: req.Identity, Attributes: req.Attributes,
 	})
 	return err
 }
@@ -343,4 +359,43 @@ func (a *LiveKitAdapter) StopRecording(ctx context.Context, req StopRecordingReq
 	defer cancel()
 	_, err := a.egress().StopEgress(ctx, &livekit.StopEgressRequest{EgressId: req.RecordingID})
 	return err
+}
+
+func (a *LiveKitAdapter) agents() *lksdk.AgentDispatchClient {
+	a.agentOnce.Do(func() { a.agentCl = lksdk.NewAgentDispatchServiceClient(a.URL, a.APIKey, a.APISecret) })
+	return a.agentCl
+}
+
+// DispatchScribe sends an explicit dispatch: the agent registers with an
+// agent_name, so LiveKit never sends it into a room nobody asked for (the
+// server is shared with lms-core, spec D3).
+func (a *LiveKitAdapter) DispatchScribe(ctx context.Context, req DispatchScribeRequest) (string, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	d, err := a.agents().CreateDispatch(ctx, &livekit.CreateAgentDispatchRequest{
+		AgentName: req.AgentName, Room: req.RoomName, Metadata: req.Metadata,
+	})
+	if err != nil {
+		return "", fmt.Errorf("livekit dispatch scribe: %w", err)
+	}
+	return d.GetId(), nil
+}
+
+// RemoveScribe deletes the dispatch, then removes the agent from the room:
+// deleting a dispatch does not end a job already running. Either may find
+// nothing left to remove; only a failure of both is reported.
+func (a *LiveKitAdapter) RemoveScribe(ctx context.Context, req RemoveScribeRequest) error {
+	var dispatchErr error
+	if req.DispatchID != "" {
+		dctx, cancel := a.roomCtx(ctx)
+		_, dispatchErr = a.agents().DeleteDispatch(dctx, &livekit.DeleteAgentDispatchRequest{DispatchId: req.DispatchID, Room: req.RoomName})
+		cancel()
+	}
+	rctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	_, removeErr := a.client().RemoveParticipant(rctx, &livekit.RoomParticipantIdentity{Room: req.RoomName, Identity: ScribeIdentity})
+	if dispatchErr != nil && removeErr != nil {
+		return fmt.Errorf("livekit remove scribe: %w", errors.Join(dispatchErr, removeErr))
+	}
+	return nil
 }
