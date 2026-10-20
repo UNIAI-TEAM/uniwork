@@ -102,7 +102,10 @@ RETURNING *;
 
 -- name: AiListMessages :many
 -- tenant: parent conversation_id
-SELECT * FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200;
+-- The latest 200 messages, oldest first: a long conversation keeps its end.
+SELECT * FROM (
+  SELECT * FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at DESC, id DESC LIMIT 200
+) m ORDER BY created_at ASC, id ASC;
 
 -- name: AiListConversationCitations :many
 -- Every citation set a conversation's answers stored, oldest first and with

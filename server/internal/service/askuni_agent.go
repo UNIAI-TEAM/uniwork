@@ -260,7 +260,7 @@ func (s *AskUNIService) agentCallOver(ctx context.Context, orgID string) bool {
 // asker and inside the asked workspace, until it answers or a bound of R10
 // makes the next call the answer round; the answer and its citations are
 // stored like P0's.
-func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question string, in AskInput) (out AskResult, err error) {
+func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question string, in AskInput, emit AskSink) (out AskResult, err error) {
 	res := AskResult{ConversationID: conv.ID, RunID: util.NewID()}
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
 	started := s.now()
@@ -327,6 +327,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		return AskResult{}, err
 	}
 
+	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{RunID: res.RunID, ConversationID: conv.ID}})
+
 	vars := map[string]any{"locale": in.Locale, "today": s.now().Format("2006-01-02"), "focus": focus, "question": question}
 	prompt, _ := ai.LookupPrompt(ai.PromptCopilotAnswerV3)
 	hist := history(rows)
@@ -348,6 +350,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		calls++
 		res.InputTokens += r.InputTokens
 		res.OutputTokens += r.OutputTokens
+		res.Usage.add(r.InputTokens, r.OutputTokens, r.CacheReadTokens, r.CacheWriteTokens)
 		spentInput += r.InputTokens + r.CacheReadTokens + r.CacheWriteTokens
 		if err == nil {
 			billed = r.UsageEventID
@@ -363,8 +366,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		if row, rerr := s.q.AiGetUsageEvent(ctx, e.UsageEventID); rerr == nil && row.OrganizationID == w.OrganizationID {
 			res.InputTokens += int(row.InputTokens)
 			res.OutputTokens += int(row.OutputTokens)
+			res.Usage.add(int(row.InputTokens), int(row.OutputTokens), 0, 0)
 		}
-		return s.finishAgent(ctx, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID)
+		return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID)
 	}
 	// Any other error after a call was billed stores the turn with
 	// agent_failed (ruling P19), on a context that outlives the run's
@@ -388,7 +392,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		slog.Warn("ask uni: agent run failed", "run_id", res.RunID, "organization_id", w.OrganizationID, "err", err)
 		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)
 		defer cancel()
-		return s.finishAgent(sctx, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage)
+		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage)
 	}
 
 	var resp ai.Response
@@ -446,20 +450,21 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			return failed(err)
 		}
 		if agentMalformed(resp) {
-			return s.finishAgent(ctx, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID)
+			return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID)
 		}
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
-	return s.finishAgent(ctx, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID)
+	return s.finishAgent(ctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID)
 }
 
 // finishAgent stores the turn with the last call's usage row.
-func (s *AskUNIService) finishAgent(ctx context.Context, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string) (AskResult, error) {
+func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string) (AskResult, error) {
 	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer, notice, citations, usageEventID)
 	if err != nil {
 		return AskResult{}, err
 	}
 	res.Message, res.Citations = msg, citations
+	emit.emitAnswer(res)
 	return res, nil
 }
 

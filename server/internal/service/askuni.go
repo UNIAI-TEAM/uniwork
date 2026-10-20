@@ -113,6 +113,8 @@ type AskResult struct {
 	// RunID is the agent run's id, the run_id on its usage rows; empty on
 	// the P0 path.
 	RunID string
+	// Usage sums the turn's model calls.
+	Usage AskUsage
 }
 
 const (
@@ -190,9 +192,11 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 	return out, nil
 }
 
-// Ask is one turn: membership → rate limit → conversation → permitted
-// sources → gateway → validated citations → two message rows.
-func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in AskInput) (AskResult, error) {
+// AskStream is one turn: membership → rate limit → conversation → permitted
+// sources → gateway → validated citations → two message rows. Every refusal
+// comes before emit is first called; the events then run, delta, citations,
+// done (R5).
+func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID string, in AskInput, emit AskSink) (AskResult, error) {
 	question := strings.TrimSpace(in.Question)
 	if question == "" {
 		return AskResult{}, Invalid("câu hỏi không được để trống")
@@ -217,7 +221,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	// Behind ask_uni_agent the model looks its sources up itself; P0's
 	// lookup below does not run.
 	if s.agentOn(ctx, ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}) {
-		return s.askAgent(ctx, userID, w, conv, question, in)
+		return s.askAgent(ctx, userID, w, conv, question, in, emit)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
 	if err != nil {
@@ -236,6 +240,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 		}
 	}
 	pack, truncated := ai.BuildContext(sources)
+	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{ConversationID: conv.ID}})
 
 	answer := ai.Answer{Citations: []ai.Citation{}}
 	notice := ai.NoticeNoSources
@@ -275,7 +280,10 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	if err != nil {
 		return AskResult{}, err
 	}
-	return AskResult{ConversationID: conv.ID, Message: msg, Citations: citations, InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens}, nil
+	res := AskResult{ConversationID: conv.ID, Message: msg, Citations: citations, InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens}
+	res.Usage.add(resp.InputTokens, resp.OutputTokens, resp.CacheReadTokens, resp.CacheWriteTokens)
+	emit.emitAnswer(res)
+	return res, nil
 }
 
 func (s *AskUNIService) conversation(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, id string) (db.AiConversation, error) {
