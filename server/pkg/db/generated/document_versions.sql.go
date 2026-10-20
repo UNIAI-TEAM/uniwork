@@ -17,6 +17,7 @@ FROM document_versions
 WHERE organization_id = $1
   AND workspace_id = $2
   AND document_id = $3
+  AND created_by_kind = 'human'
   AND created_by <> $4::text
 `
 
@@ -29,7 +30,9 @@ type CountDocumentOtherCommittersParams struct {
 
 // How many people other than one user committed a version of a document
 // (UNI-2012 S1d): the chat delete dialog warns the sender that deleting an
-// upload-origin message trashes work others did. A count only, no names.
+// upload-origin message trashes work others did. A count only, no names, and
+// of people only: an agent's or the system's version is not someone's work
+// the warning is about (S1-fix-2 N4).
 func (q *Queries) CountDocumentOtherCommitters(ctx context.Context, arg CountDocumentOtherCommittersParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countDocumentOtherCommitters,
 		arg.OrganizationID,

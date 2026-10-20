@@ -316,7 +316,11 @@ func (s *DocumentService) archiveDocument(ctx context.Context, actor Actor, docu
 // releases. rootOnly skips the subtree manage check when the root is the whole
 // live subtree, for a gate that already decided the root alone (a pristine
 // copy, a chat upload deleted by its sender). The lock ops move their
-// counters only after the caller commits.
+// counters only after the caller commits. Every refusal it answers (the
+// bound's folder_too_large, the subtree manage check) comes before the stamp;
+// after it only plain failures abort. archiveChatUploadInTx relies on that to
+// read a refusal as "nothing was trashed": keep any new refusal above the
+// stamp.
 func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, rootOnly bool) ([]string, string, *editLockOps, error) {
 	// One bounded read of the live subtree: a huge folder is refused before
 	// any lock-holding work, and the access check below is one query over

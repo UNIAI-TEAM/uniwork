@@ -147,11 +147,14 @@ WHERE d.organization_id = sqlc.arg(organization_id)
 
 -- How many people other than one user committed a version of a document
 -- (UNI-2012 S1d): the chat delete dialog warns the sender that deleting an
--- upload-origin message trashes work others did. A count only, no names.
+-- upload-origin message trashes work others did. A count only, no names, and
+-- of people only: an agent's or the system's version is not someone's work
+-- the warning is about (S1-fix-2 N4).
 -- name: CountDocumentOtherCommitters :one
 SELECT count(DISTINCT created_by)::bigint
 FROM document_versions
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id)
+  AND created_by_kind = 'human'
   AND created_by <> sqlc.arg(user_id)::text;

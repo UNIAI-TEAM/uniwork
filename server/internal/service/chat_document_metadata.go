@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -162,6 +163,9 @@ func (s *ChatService) resolveChatDocuments(ctx context.Context, room db.ChatRoom
 			count, err := s.chatDocumentOtherEditors(ctx, info.DocumentID, viewerID, others)
 			if err == nil {
 				merged.OtherEditorsCount, merged.HasOtherEditorsCount = count, true
+			} else {
+				// The card still renders; the dialog then shows no count.
+				slog.WarnContext(ctx, "chat: other editors not counted", "error", err, "document_id", info.DocumentID)
 			}
 		}
 		rows[i].Document = &merged
