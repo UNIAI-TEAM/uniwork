@@ -367,6 +367,8 @@ var catalogue = []EventDef{
 	{Topic: "file.thumbnail_requested", Version: 1, Payload: []string{"file_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	// A text message names a link: the slow lane reads its card (ADR 0035).
 	{Topic: "chat.link_preview.requested", Version: 1, Payload: []string{"room_id", "message_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
+	// A multi-document zip download is asked for: the slow lane builds it (UNI-2045). Ids only, no client frame; the web polls the job.
+	{Topic: "document.download_job_requested", Version: 1, Payload: []string{"job_id", "organization_id", "workspace_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Audit itself
 	{Topic: "audit.export_requested", Version: 1, Payload: []string{"export_id", "organization_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},

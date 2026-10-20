@@ -203,3 +203,10 @@ WHERE r.avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 SELECT p.image_file_id AS file_id, p.organization_id
 FROM chat_link_previews p
 WHERE p.image_file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: FileGCDocumentDownloadJobRefTenants :many
+-- tenant: system
+-- document_download_jobs.file_id: the row carries its tenant.
+SELECT j.file_id, j.organization_id
+FROM document_download_jobs j
+WHERE j.file_id = ANY(sqlc.arg('file_ids')::text[]);

@@ -166,6 +166,9 @@ const (
 	// ActionDocumentsAccessReportExported is one access report export
 	// (UNI-1643): ids, the filter and counts, never a name.
 	ActionDocumentsAccessReportExported = "documents.access_report_exported"
+	// ActionDocumentsDownloadJobCreated is one multi-document zip download
+	// requested (UNI-2045 SV-9): the job id and the requested document ids, never a title.
+	ActionDocumentsDownloadJobCreated = "documents.download_job_created"
 
 	// Document comments + favorites (UNI-681): the document half of the
 	// shared comment core. The reaction actions stay document-scoped so

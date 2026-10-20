@@ -390,6 +390,16 @@ func SpecsWithDocumentMaxBytes(documentMaxBytes int64) []PurposeSpec {
 			Scope:   ScopeOrg,
 			Policy:  Policy{MaxBytes: 2 << 20, MIMEAllowlist: imageMIMETypes, ReadMode: ReadPresign},
 		},
+		{
+			// The zip of a multi-document download job (UNI-2045 SV-9): built
+			// by the slow lane from files the requester may download, served
+			// through the proxy for an hour, then released. The cap is the
+			// job's 1 GiB of file bytes plus the zip's own overhead.
+			Purpose: DocumentDownload,
+			Prefix:  "documents/downloads",
+			Scope:   ScopeOrgWorkspace,
+			Policy:  Policy{MaxBytes: 1<<30 + 64<<20, MIMEAllowlist: []string{"application/zip"}, ReadMode: ReadProxy},
+		},
 	}
 }
 
