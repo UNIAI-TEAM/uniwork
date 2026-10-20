@@ -78,6 +78,8 @@ export interface OfficeModuleFrameProps {
   myLevel?: string | null;
   /** The comment a deep link names (`?comment=`): the editor's panel scrolls to it when it has comments. */
   revealCommentId?: string | null;
+  /** False once the Inbox landing on a lost comment's version has happened in this page open (the host outlives this frame's remounts). */
+  landOnLost?: boolean;
   /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
   onFrameCommentsChange?: (framePanel: boolean) => void;
   /** The session failed for good (mint refused, bundle missing, handshake timeout): the host may close the frame's host surface. */
@@ -131,7 +133,7 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, fileRef, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, landOnLost,
   onFrameCommentsChange, onSessionFailure, onBackToCurrent, onCloseRequested, fileSizeBytes, documentDetail, hasLagObserver, lagStorage, className,
 }: OfficeModuleFrameProps) {
   const isSource = fileRef.kind === "source";
@@ -139,7 +141,8 @@ export function OfficeModuleFrame({
   const isVersion = viewVersion !== undefined;
   // One stateless version API per (module, version): the session keys its endpoint on it staying put.
   const versionApi = useMemo(() => (viewVersion === undefined ? null : createVersionFrameApi(module, viewVersion)), [module, viewVersion]);
-  const frameApi = api ?? versionApi ?? defaultFrameApi(module, isSource);
+  // A version view always reads through the version API: a caller's `api` would open the head bytes under a version banner.
+  const frameApi = versionApi ?? api ?? defaultFrameApi(module, isSource);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const { t: tRoot } = useTranslation();
   const headerSlot = useHeaderActionsSlotAvailable();
@@ -163,7 +166,7 @@ export function OfficeModuleFrame({
     iframeRef, frameOrigin, module, documentId: fileRef.id,
     fileSizeBytes, hasLagObserver, lagStorage,
   });
-  const frameComments = useFrameComments({ wsId, frameVersion, documentId: fileRef.id, myLevel, revealCommentId, viewVersion });
+  const frameComments = useFrameComments({ wsId, frameVersion, documentId: fileRef.id, myLevel, revealCommentId, viewVersion, landOnLost, openVersion: documentDetail?.file?.version });
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;

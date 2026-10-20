@@ -22,7 +22,7 @@ const minted = {
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: true, module: "docs",
 };
 
-function mount({ version, open, onBackToCurrent, desktopOpen, revealCommentId }: { version?: number; open?: DocsFrameApi["open"]; onBackToCurrent?: () => void; desktopOpen?: FrameDesktopOpenProps; revealCommentId?: string } = {}) {
+function mount({ version, open, onBackToCurrent, desktopOpen, revealCommentId, api: passedApi }: { version?: number; open?: DocsFrameApi["open"]; onBackToCurrent?: () => void; desktopOpen?: FrameDesktopOpenProps; revealCommentId?: string; api?: DocsFrameApi } = {}) {
   requestMock.mockImplementation((path: string) =>
     path === MINT_PATH ? Promise.resolve(minted) : String(path).startsWith("/api/v1/config") ? Promise.resolve({ flags: {} }) : Promise.reject(new Error(`unexpected ${path}`)));
   const api = { open: open ?? vi.fn(), save: vi.fn() } as unknown as DocsFrameApi;
@@ -32,7 +32,7 @@ function mount({ version, open, onBackToCurrent, desktopOpen, revealCommentId }:
     <QueryClientProvider client={client}>
       <ThemeProvider defaultTheme="light" enableSystem={false}>
         <OfficeModuleFrame
-          module="docs" wsId="ws-1" fileRef={{ kind: "document", id: "doc-1", ...(version ? { version } : {}) }} title="Plan" frameVersion="1.0.0"
+          module="docs" wsId="ws-1" api={passedApi} fileRef={{ kind: "document", id: "doc-1", ...(version ? { version } : {}) }} title="Plan" frameVersion="1.0.0"
           onBackToCurrent={onBackToCurrent} desktopOpen={desktopOpen} revealCommentId={revealCommentId}
         />
       </ThemeProvider>
@@ -86,6 +86,17 @@ describe("OfficeModuleFrame: a version view (UNI-2033)", () => {
     await frame.ready();
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(frame.inits()[0]?.payload).toMatchObject({ profile: "readOnly", capabilities: { save: false, saveAs: false, desktopOpen: false } });
+  });
+
+  it("keeps the version API for a version view even when a caller passes its own api", async () => {
+    const open = vi.fn(async () => { throw new DocsProtocolError({ code: "not_found", message: "version 2 not found" }); });
+    const callerApi = { open: vi.fn(), save: vi.fn() } as unknown as DocsFrameApi;
+    const frame = mount({ version: 2, open, api: callerApi });
+    await frame.ready();
+    await waitFor(() => expect(frame.inits()).toHaveLength(1));
+    frame.request("api.open", { fileId: "doc-1" });
+    await waitFor(() => expect(open).toHaveBeenCalled());
+    expect(callerApi.open).not.toHaveBeenCalled();
   });
 
   it("answers an unknown version with the unavailable notice and the way back, not the generic failure", async () => {
