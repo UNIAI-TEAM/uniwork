@@ -124,7 +124,7 @@ describe("per-job limits", () => {
     const { signGrant } = await import("./grants.ts");
     const { GRANT_KEY } = await import("../test/harness.ts");
     const token = signGrant(job.grant, GRANT_KEY);
-    await submit(h, { token, envelope: job.envelope });
+    await submit(h, { token, envelope: job.envelope, bytes: job.bytes });
     const done = await waitTerminal(h, { grant: job.grant, token });
     expectFaultOutcome(done, "output 1", { state: "failed", code: "upload_bounds", reason: "output_limit" });
   });

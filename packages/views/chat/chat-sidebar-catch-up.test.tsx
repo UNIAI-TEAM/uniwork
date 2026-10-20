@@ -49,9 +49,8 @@ describe("SidebarCatchUpCard", () => {
     expect(onOpen).toHaveBeenCalledWith({ kind: "channel", channel }, "room-c1");
   });
 
-  it("says all is read, with nothing to press", () => {
-    render(<SidebarCatchUpCard catchUp={pick({})} onOpen={vi.fn()} />);
-    expect(screen.getByText("Bạn đã đọc hết. UNI sẽ tóm tắt khi có tin mới.")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  it("leaves the list alone when all is read", () => {
+    const { container } = render(<SidebarCatchUpCard catchUp={pick({})} onOpen={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

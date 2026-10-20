@@ -16,7 +16,7 @@ import (
 )
 
 // The agent API (spec 2026-10-20-meeting-scribe-agent-design §7.1): the
-// scribe agent's only way into the server (ADR 0036). Every call carries the
+// scribe agent's only way into the server (ADR 0037). Every call carries the
 // claims of a verified uwma_ token; the meeting, its organization and the run
 // must all match them, or the answer is 404 like for any id one may not see.
 

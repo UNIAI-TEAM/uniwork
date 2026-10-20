@@ -19,7 +19,7 @@ type CreateDocumentSDI struct {
 	Destination *string          `json:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
 	Icon        *string          `json:"icon" description:"Emoji ≤ 8 ký tự" example:"📄"`
 	Content     *json.RawMessage `json:"content" description:"ProseMirror JSON {type:\"doc\"}; server sanitize trước khi lưu"`
-	Visibility  string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
+	Visibility  string           `json:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa trang cha, ở gốc hoặc trong thư mục = restricted; thư mục với workspace -> 422 folder_not_shareable" example:"restricted"`
 }
 
 // CreateDocumentFileSDI documents POST
@@ -32,7 +32,7 @@ type CreateDocumentSDI struct {
 // stream is consumed part-by-part); a title that trails the file falls back
 // to the sanitized filename.
 type CreateDocumentFileSDI struct {
-	Visibility  *string `formData:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa cha, ở gốc = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
+	Visibility  *string `formData:"visibility" description:"restricted (mặc định ở gốc) hoặc workspace; bỏ trống = kế thừa trang cha, ở gốc hoặc trong thư mục = restricted; giá trị khác -> 400 invalid_request" example:"restricted"`
 	File        []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
 	ParentID    *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Destination *string `formData:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
@@ -48,7 +48,7 @@ type PatchDocumentSDI struct {
 	Title      *string          `json:"title" description:"Tiêu đề mới: 1–500 ký tự cho trang/tệp, 1–255 cho thư mục (đổi tên trùng thư mục còn sống cùng cha → 409 folder_name_taken)" example:"Kế hoạch Q4 (bản nháp)"`
 	Icon       *string          `json:"icon" description:"Emoji mới; chuỗi rỗng để gỡ icon (bỏ qua = giữ nguyên)" example:"📑"`
 	Content    *json.RawMessage `json:"content" description:"ProseMirror JSON mới; server sanitize và rút content_text"`
-	Visibility *string          `json:"visibility" description:"workspace hoặc restricted; đổi visibility cần manage" example:"restricted"`
+	Visibility *string          `json:"visibility" description:"workspace hoặc restricted; đổi visibility cần manage; thư mục với workspace -> 422 folder_not_shareable" example:"restricted"`
 	// EditLockID gates only a PATCH that carries content; a rename or a
 	// visibility change needs no lock (addendum §2, Q5).
 	EditLockID string `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645), chỉ xét khi PATCH có content; bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
@@ -71,6 +71,7 @@ type CommitDocumentVersionSDI struct {
 	UploadID     string `json:"upload_id" description:"upload_id (= file_id FileService) do POST .../uploads hoặc RegisterProviderOutput cấp" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
 	BaseRevision string `json:"base_revision" description:"Revision nền dạng chuỗi thập phân; lệch → document_version_conflict" example:"41"`
 	EditLockID   string `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645); bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
+	ChatRoomID   string `json:"chat_room_id,omitempty" description:"Phòng chat nguồn khi tải phiên bản mới từ thẻ tài liệu trong chat (UNI-1966 §4.4); ghi một dòng document_version nếu người gọi được gửi tin trong phòng và phòng đang có thẻ của tài liệu này" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
 }
 
 // CreateDocumentVersionSDI is POST /api/v1/documents/{documentID}/versions:
@@ -303,6 +304,31 @@ type CreateDocumentLinkSDI struct {
 	ExpiresInDays *int `json:"expires_in_days" description:"Số ngày hiệu lực 1–90; bỏ trống = 7" example:"7"`
 }
 
+// CreateDocumentAccessRequestSDI is POST
+// /api/v1/documents/{documentID}/access-requests (DOC-07 §4.3): a signed-in
+// person asks the document's managers for a level. Every field is optional and
+// every well-formed id answers the same 202, so the body never proves the
+// document exists; a bad value (a level other than view/comment/edit, a
+// message over 500 characters, a lone or malformed source pair) is a 400,
+// because it depends on the body alone. The source pair is flat on purpose:
+// source_kind + source_id, so the isolation reference scanner sees source_id
+// without a nested object.
+type CreateDocumentAccessRequestSDI struct {
+	RequestedLevel *string `json:"requested_level" description:"view (mặc định), comment hoặc edit; giá trị khác (kể cả manage) -> 400 invalid_request" example:"view"`
+	Message        *string `json:"message" description:"Lời nhắn tùy chọn cho người quản lý, ≤ 500 ký tự sau khi cắt khoảng trắng hai đầu" example:"Mình cần xem để chuẩn bị họp thứ Hai"`
+	SourceKind     *string `json:"source_kind" description:"task hoặc meeting; phải đi cùng source_id, thiếu một trong hai -> 400 invalid_request" example:"task"`
+	SourceID       *string `json:"source_id" description:"ULID công việc hoặc cuộc họp chứa liên kết tài liệu; không phải ULID -> 400 invalid_request" example:"01J8X4TASK0N1P2Q3R4S5T6U7"`
+}
+
+// ApproveDocumentAccessRequestSDI is POST
+// /api/v1/documents/{documentID}/access-requests/{requestID}/approve
+// (DOC-07 §4.3): the level to grant the requester. It may be lower or higher
+// than the level asked for, up to edit; manage is a 400 (use the Share
+// dialog). Absent = the requested level.
+type ApproveDocumentAccessRequestSDI struct {
+	Level *string `json:"level" description:"view, comment hoặc edit; mặc định = mức người xin đã chọn; manage -> 400 invalid_request" example:"view"`
+}
+
 // ListDocumentAccessLogsSDI documents GET
 // /api/v1/documents/{documentID}/access-logs (C-01 §5.4, manage only):
 // newest first, actor kinds human/agent/anonymous, optional action filter.
@@ -366,7 +392,7 @@ type CreateUploadSessionSDI struct {
 	SizeBytes  int64                 `json:"size_bytes" description:"Kích thước khai báo của tệp (byte); ≤ 20 MiB -> 422 upload_session_too_small, trên upload_max_bytes -> 413 file_too_large" example:"83886080"`
 	ParentID   *string               `json:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace (chỉ route workspace); bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Title      *string               `json:"title" description:"Tiêu đề tài liệu sẽ tạo (chỉ route workspace); mặc định tên tệp đã làm sạch" example:"Báo cáo quý 4"`
-	Visibility *string               `json:"visibility" description:"restricted hoặc workspace (chỉ route workspace); bỏ trống = kế thừa cha, ở gốc = restricted" example:"restricted"`
+	Visibility *string               `json:"visibility" description:"restricted hoặc workspace (chỉ route workspace); bỏ trống = kế thừa trang cha, ở gốc hoặc trong thư mục = restricted" example:"restricted"`
 	Probe      UploadSessionProbeSDI `json:"probe" description:"Probe đầu tệp và central directory để kiểm định dạng trước khi ký URL phần"`
 }
 

@@ -395,6 +395,10 @@ func main() {
 			Retention: cfg.DocumentCommitIntentRetention,
 			SweepTick: cfg.DocumentCommitIntentSweepTick,
 		},
+		IdempotencyKeyPolicy: service.IdempotencyKeyPolicy{
+			Retention: cfg.IdempotencyKeyRetention,
+			SweepTick: cfg.IdempotencyKeySweepTick,
+		},
 		// The edit lock timing (UNI-1645 §7), validated by config.Load.
 		EditLock: service.DocumentEditLockConfig{
 			TTL:               cfg.DocumentEditLockTTL,
@@ -406,6 +410,11 @@ func main() {
 			RequestMaxPerHour: cfg.DocumentEditRequestMaxPerHour,
 		},
 	})
+	// The chat document send files its bytes into the Documents tree and the
+	// read path resolves each message's document block against it
+	// (UNI-1966), so the chat service holds the one Documents service the
+	// routes use.
+	chatSvc.SetDocuments(documentSvc)
 	// The document maintenance worker (auto-version, purge, compaction -
 	// G1-04b - and the commit intent sweep of G5-07) runs on the same service
 	// the routes use; it is awaited in the shutdown sequence below, so a sweep
@@ -495,9 +504,14 @@ func main() {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
 	}
 	notifConsumer.SetDocumentReaders(documentSvc)
+	notifConsumer.SetDocumentAdministrators(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
 	// A call ring is delivered only while the call still rings for that person.
 	notifConsumer.SetCallRinging(chatSvc)
+	// The optional task/meeting source a document access request may name
+	// (DOC-07): the narrow ports keep the document, task and meeting services
+	// from importing each other. Unwired, a source is dropped silently.
+	documentSvc.SetAccessRequestSources(taskSvc, meetingSvc)
 	var webSender notification.PushSender
 	if cfg.PushEnabled() {
 		webSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
@@ -608,6 +622,9 @@ func main() {
 	// out; it stops with runCancel and is awaited below.
 	officeDone := make(chan struct{})
 	go func() { officeSvc.RunReconciler(runCtx); close(officeDone) }()
+	officeSpoolSweep := officeSvc.NewSpoolSweeper()
+	officeSpoolSweepDone := make(chan struct{})
+	go func() { officeSpoolSweep.Run(runCtx); close(officeSpoolSweepDone) }()
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -709,6 +726,10 @@ func main() {
 	mcpTools := service.NewMcpToolService(q, askUNI, homeSvc, wsSvc, cfg.FrontendOrigin)
 	mcpTools.SetDocuments(documentSvc)
 	mcpTools.SetFlags(flags)
+	askUNI.SetReadTools(mcpTools)
+	if reg != nil {
+		askUNI.SetAgentMetrics(reg.AIAsk)
+	}
 	// The sweep of expired attempts, tokens and abandoned clients stops with
 	// runCancel and is awaited below.
 	mcpCleanupDone := make(chan struct{})
@@ -905,6 +926,11 @@ func main() {
 	case <-officeDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("office: reconciler did not stop in time")
+	}
+	select {
+	case <-officeSpoolSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("office: spool sweep did not stop in time")
 	}
 	select {
 	case <-billingWorkersDone:

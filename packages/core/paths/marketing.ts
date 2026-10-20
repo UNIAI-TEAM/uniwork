@@ -15,7 +15,7 @@ export const MARKETING_ROUTES = [
   { path: "/learn", key: "learn" }, { path: "/why-uniwork", key: "why" },
   { path: "/pricing", key: "pricing" }, { path: "/enterprise", key: "enterprise" }, // plan-literal-ok: public route key, not a plan code
   { path: "/request-demo", key: "demo" }, { path: "/changelog", key: "changelog" },
-  { path: "/about", key: "about" }, { path: "/security", key: "security" },
+  { path: "/about", key: "about" }, { path: "/security", key: "security" }, { path: "/privacy", key: "privacy" },
   ...MARKETING_GUIDE_KEYS.map(key => ({ path: `/learn/${key}`, key })),
 ] as const;
 

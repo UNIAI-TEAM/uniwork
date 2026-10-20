@@ -39,9 +39,9 @@ import {
   buildLocalShareCandidates,
   filterShareCandidates,
   ShareCandidatePicker,
-  SharePrincipalIcon,
   type ShareMembersDirectory,
 } from "./share-candidate-picker";
+import { ShareAddCustomLevels } from "./share-add-custom-levels";
 import { shareErrorMessage } from "./share-dialog-break-glass";
 import { warningSentence } from "./share-preview-sentences";
 
@@ -120,6 +120,21 @@ export function ShareAddSection({
   // `updateAccess.isPending` is false between the dry_run resolving and the
   // real call, so a fast second click would run both again; the ref closes it.
   const inFlight = useRef(false);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const prevPreviewRef = useRef<typeof pendingPreview>(null);
+  // Whether the preview panel unmounted from a Cancel/Accept inside it, so the
+  // close effect can tell a real close from other paths that clear the state.
+  const previewClosedByButtons = useRef(false);
+  // TV2-05 (same R4-02 pattern as the per-row panels): when the panel closes,
+  // focus returns to the Chia sẻ button that opened it, not the dialog root.
+  useEffect(() => {
+    const prev = prevPreviewRef.current;
+    prevPreviewRef.current = pendingPreview;
+    if (!prev || pendingPreview) return;
+    if (!previewClosedByButtons.current) return;
+    previewClosedByButtons.current = false;
+    submitRef.current?.focus();
+  }, [pendingPreview]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -311,6 +326,7 @@ export function ShareAddSection({
       setSelected([]);
       setQuery("");
       setCustomMode(false);
+      previewClosedByButtons.current = true;
       setPendingPreview(null);
     } catch (err) {
       handleMutationError(err, items);
@@ -442,6 +458,7 @@ export function ShareAddSection({
 
         <Button
           type="button"
+          ref={submitRef}
           aria-disabled={shelved || !selected.length || updateAccess.isPending || undefined}
           aria-describedby={shelved ? shelvedNoteId : undefined}
           aria-busy={updateAccess.isPending || undefined}
@@ -470,55 +487,16 @@ export function ShareAddSection({
       ) : null}
 
       {customMode && selected.length > 1 ? (
-        <div className="flex flex-col gap-2 rounded-md border border-border p-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span role="status" className="text-caption font-medium text-muted-foreground">
-              {t("documents.share.custom_levels_summary", { summary: customLevelsSummaryText })}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => { if (shelved) return; if (hasCustomOverrides) setPendingApplyAllLevel(commonLevel); else confirmApplyAll(commonLevel); }}
-            >
-              {t("documents.share.apply_all_button")}
-            </Button>
-          </div>
-          <ul className="divide-y divide-border">
-            {selected.map((item) => {
-              const allowed = allowedLevelsForPrincipal(item.candidate.principal_type, item.candidate.is_home_workspace);
-              const currentLvl = effectiveItemLevel(item);
-              return (
-                <li key={item.key} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-body">
-                  <span className="flex min-w-0 flex-1 basis-40 items-center gap-2">
-                    <SharePrincipalIcon principalType={item.candidate.principal_type} />
-                    <span className="min-w-0 truncate text-foreground" title={item.candidate.name}>{item.candidate.name}</span>
-                  </span>
-                  <span className="w-24 shrink-0 truncate text-caption text-muted-foreground">
-                    {t(`documents.share.principal_${item.candidate.principal_type}`)}
-                  </span>
-                  <div className="w-32 shrink-0">
-                    <Select
-                      value={currentLvl}
-                      disabled={shelved}
-                      items={allowed.map((lvl) => ({ value: lvl, label: levelLabel(lvl) }))}
-                      onValueChange={(v) => { if (!shelved) updateSelected(item.key, { customLevel: v as DocumentAccessLevel }); }}
-                    >
-                      <SelectTrigger className="w-full" aria-label={`${t("documents.share.level_label")} ${item.candidate.name}`}>
-                        <SelectValue className="min-w-0">{levelLabel(currentLvl)}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allowed.map((lvl) => (
-                          <SelectItem key={lvl} value={lvl}>{levelLabel(lvl)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        <ShareAddCustomLevels
+          selected={selected}
+          shelved={shelved}
+          summaryText={customLevelsSummaryText}
+          onApplyAll={() => { if (shelved) return; if (hasCustomOverrides) setPendingApplyAllLevel(commonLevel); else confirmApplyAll(commonLevel); }}
+          allowedLevels={(item) => allowedLevelsForPrincipal(item.candidate.principal_type, item.candidate.is_home_workspace)}
+          effectiveItemLevel={effectiveItemLevel}
+          levelLabel={levelLabel}
+          onChangeLevel={(key, customLevel) => updateSelected(key, { customLevel })}
+        />
       ) : null}
 
       {pendingPreview ? (
@@ -533,10 +511,10 @@ export function ShareAddSection({
             ))}
           </ul>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => void executeCommit(pendingPreview.items)}>
+            <Button type="button" size="sm" disabled={updateAccess.isPending} onClick={() => { void executeCommit(pendingPreview.items); }}>
               {t("documents.share.confirm_accept")}
             </Button>
-            <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => setPendingPreview(null)}>
+            <Button type="button" variant="ghost" size="sm" disabled={updateAccess.isPending} onClick={() => { previewClosedByButtons.current = true; setPendingPreview(null); }}>
               {t("documents.share.confirm_cancel")}
             </Button>
           </div>

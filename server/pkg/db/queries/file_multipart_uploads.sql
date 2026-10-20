@@ -179,3 +179,21 @@ WHERE id IN (
   FOR UPDATE SKIP LOCKED
 )
 RETURNING *;
+
+-- Retention of closed sessions (RETENTION-02, UNI-1921): a completed replay
+-- and a stored failure are answered from the row, so it is kept past the
+-- window before the delete; the CHECK file_multipart_uploads_closed_at_check
+-- guarantees closed_at is set for exactly these four states. SKIP LOCKED lets
+-- replicas split the work; the window floor (UploadSessionTTL +
+-- UploadSessionValidationLeaseTTL) is guarded in service code.
+-- name: SweepFileMultipartUploads :execrows
+-- tenant: system
+DELETE FROM file_multipart_uploads
+WHERE id IN (
+  SELECT u.id FROM file_multipart_uploads u
+  WHERE u.status IN ('completed', 'aborted', 'expired', 'failed')
+    AND u.closed_at < sqlc.arg(cutoff)::timestamptz
+  ORDER BY u.closed_at
+  LIMIT sqlc.arg(batch_limit)
+  FOR UPDATE SKIP LOCKED
+);

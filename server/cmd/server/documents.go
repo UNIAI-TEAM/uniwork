@@ -23,6 +23,8 @@ type documentServiceOptions struct {
 	Metrics       service.DocumentMetrics
 	IntentMetrics service.OfficeIntentMetrics
 	Policy        service.CommitIntentPolicy
+	// IdempotencyKeyPolicy is the IDEMPOTENCY_KEY_* retention and sweep cadence (UNI-1983); a zero field keeps the default.
+	IdempotencyKeyPolicy service.IdempotencyKeyPolicy
 	// EditLock is the DOCUMENT_EDIT_* timing (UNI-1645 §7); a zero field keeps
 	// the addendum default.
 	EditLock service.DocumentEditLockConfig
@@ -46,6 +48,7 @@ func newDocumentService(o documentServiceOptions) *service.DocumentService {
 	svc.SetMetrics(o.Metrics)
 	svc.SetIntentMetrics(o.IntentMetrics)
 	svc.SetCommitIntentPolicy(o.Policy)
+	svc.SetIdempotencyKeyPolicy(o.IdempotencyKeyPolicy)
 	svc.SetFlags(o.Flags)
 	svc.SetEditLockConfig(o.EditLock)
 	return svc

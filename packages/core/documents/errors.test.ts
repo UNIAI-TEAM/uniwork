@@ -40,6 +40,23 @@ describe("classifyDocumentError", () => {
     expect(classifyDocumentError(err)).toEqual({ cls: "permission", code: "workspace_seat_required", fields: undefined });
   });
 
+  it("classifies the three lease/device codes the mirror used to omit (BE-12-402)", () => {
+    // error_class.go classifies offline_lease_revoked as permission and
+    // device_revoked / refresh_reused as session. The mirror must place them
+    // the same way from the code alone, on a status the fallback does not
+    // classify (422), so only the code entry can - the pin that keeps the
+    // mirror true rather than a status coincidence.
+    const cases = [
+      ["offline_lease_revoked", "permission"],
+      ["device_revoked", "session"],
+      ["refresh_reused", "session"],
+    ] as const;
+    for (const [code, cls] of cases) {
+      const err = new ApiError("x", code, 422);
+      expect(classifyDocumentError(err)).toEqual({ cls, code, fields: undefined });
+    }
+  });
+
   it("prefers the server's declared class over the code", () => {
     // The mirror never overrides a stamp: a code whose class the server
     // changed must follow the server, not this table.

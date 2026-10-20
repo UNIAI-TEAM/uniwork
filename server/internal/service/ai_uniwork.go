@@ -174,7 +174,7 @@ func NewAIUniworkService(orgs *OrganizationService, ents *EntitlementService, do
 	flags *featureflag.Service, gw *ai.Gateway, store ai.ConversationStore, rdb *redis.Client) *AIUniworkService {
 	return &AIUniworkService{
 		orgs: orgs, ents: ents, docs: docs, flags: flags, gw: gw, store: store,
-		limiter:  newUniworkConcurrency(rdb, UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second),
+		limiter:  newUniworkConcurrency(rdb, "ai:uniwork:", UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second),
 		now:      time.Now,
 		deadline: UniworkDeadline,
 	}
@@ -416,6 +416,9 @@ func (s *AIUniworkService) documentScope(ctx context.Context, scope UniworkScope
 			return uniworkDocument{}, err
 		}
 		if file == nil {
+			return uniworkDocument{}, ErrNotFound
+		}
+		if isTxtFilename(file.Filename) && !s.docs.txtOpenEnabled(ctx, scope.UserID, doc.WorkspaceID, doc.OrganizationID) {
 			return uniworkDocument{}, ErrNotFound
 		}
 		module, ok := officeFrameModuleOf(file.MimeType, file.Filename)

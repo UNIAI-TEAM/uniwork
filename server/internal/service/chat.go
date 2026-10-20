@@ -35,14 +35,18 @@ func isWorkspaceDefaultRoom(room db.ChatRoom) bool {
 }
 
 type ChatService struct {
-	pool        *pgxpool.Pool
-	q           *db.Queries
-	ws          *WorkspaceService
-	pub         EventPublisher
-	tasks       *TaskService
-	conference  meetings.ConferenceProvider
-	ai          *ai.Gateway
-	files       files.Service
+	pool       *pgxpool.Pool
+	q          *db.Queries
+	ws         *WorkspaceService
+	pub        EventPublisher
+	tasks      *TaskService
+	conference meetings.ConferenceProvider
+	ai         *ai.Gateway
+	files      files.Service
+	// docs is the Documents service the document send and the viewer
+	// resolver use (UNI-1966): the bytes become a Document and the read path
+	// resolves each message's block against it. nil until SetDocuments.
+	docs        *DocumentService
 	TenorAPIKey string
 	// presenceTracker is installed by SetPresenceStore (chat_presence.go).
 	presenceTracker atomic.Pointer[presenceTracker]
@@ -100,9 +104,17 @@ type ChatMessageRow struct {
 	Reminder          *ChatReminderInfo
 	Note              *ChatNoteInfo
 	Post              *ChatPostInfo
-	Priority          string
-	ForwardedFrom     *ChatForwardedFrom
-	EditedAt          *time.Time
+	// Document is the shared-document block on a document or
+	// document_version message (UNI-1966 §5): document_id always, the viewer
+	// fields filled by the batched resolver.
+	Document *DocumentMessageInfo
+	// CanShareAsDocument is the viewer-resolved L6 flag on a live file
+	// message: true only for the sender when the attachment is on the chat
+	// document MIME allowlist and has not been converted yet.
+	CanShareAsDocument bool
+	Priority           string
+	ForwardedFrom      *ChatForwardedFrom
+	EditedAt           *time.Time
 	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
 	// its own queued copy without guessing from body and timestamp.
 	ClientMsgID string
@@ -360,9 +372,17 @@ func (s *ChatService) GetRoomMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	rows := []ChatMessageRow{s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID))}
-	s.attachThreadParticipants(ctx, room, rows)
-	return rows[0], nil
+	return s.viewerChatRow(ctx, room, chatMessageRowFromDBForViewer(msg, u.DisplayName, userID), userID), nil
+}
+
+// viewerChatRow is the single-row answer shape: media URLs signed, thread
+// participants attached and the document block resolved for the viewer, so a
+// mutation answer carries the same row a read of the message would.
+func (s *ChatService) viewerChatRow(ctx context.Context, room db.ChatRoom, row ChatMessageRow, viewerID string) ChatMessageRow {
+	out := []ChatMessageRow{s.signChatMediaRow(ctx, room, row)}
+	s.attachThreadParticipants(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, viewerID)
+	return out[0]
 }
 
 // SendRoomMessage posts a text message to any chat room the caller may access.
@@ -414,6 +434,7 @@ func (s *ChatService) listSignedMessages(
 	}
 	s.signChatMedia(ctx, room, rows)
 	s.attachThreadParticipants(ctx, room, rows)
+	s.resolveChatDocuments(ctx, room, rows, userID)
 	return rows, nil
 }
 
@@ -697,7 +718,7 @@ func (s *ChatService) ToggleChatMessageReaction(
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
-	return s.signChatMediaRow(ctx, room, chatMessageRowFromDBForViewer(updated, u.DisplayName, userID)), nil
+	return s.viewerChatRow(ctx, room, chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), userID), nil
 }
 
 // mutateChatMessageMetadata rewrites a message's metadata under a row lock, so

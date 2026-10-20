@@ -28,6 +28,17 @@ describe("orientation variants", () => {
   });
 });
 
+describe("pointer cursor", () => {
+  it("gives buttons, links and clickable roles the hand inside the base layer, never on disabled controls", () => {
+    const base = styles.slice(styles.indexOf("@layer base {"), styles.indexOf("\n}\n", styles.indexOf("@layer base {")));
+    const rule = /:where\(([^)]*)\):not\(:disabled, \[aria-disabled="true"\]\) \{ cursor: pointer; \}/.exec(base);
+    expect(rule).not.toBeNull();
+    for (const target of ["button", "a[href]", '[role="button"]', '[role="menuitem"]', '[role="treeitem"]', '[role="option"]']) {
+      expect(rule?.[1]).toContain(target);
+    }
+  });
+});
+
 describe("caret-blink", () => {
   it("defines the keyframes the OTP fake caret animates with", () => {
     expect(styles).toMatch(/@keyframes caret-blink/);

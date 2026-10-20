@@ -1,6 +1,6 @@
 # Contract BIGUP-S1 (UNI-1862): phiên tải lên tệp lớn phía server
 
-> **Trạng thái:** in-progress — contract r1 Advisor duyệt 2026-10-17 (size-cap:006): D1–D7 như viết, chia S1-a..S1-d; kiểm tra spool ≤ 20 MiB tách thành SIZE-S2. Lát BIGUP-S1 (UNI-1862) của lane size-cap (UNI-1857).
+> **Trạng thái:** shipped — BIGUP-S1 vào root G5-G7 ở beff88384 (2026-10-17), SIZE-S2 ở 844aab79f; xem addendum §11. Lịch sử: contract r1 Advisor duyệt 2026-10-17 (size-cap:006): D1–D7 như viết, chia S1-a..S1-d; kiểm tra spool ≤ 20 MiB tách thành SIZE-S2. Lát BIGUP-S1 (UNI-1862) của lane size-cap (UNI-1857).
 
 Bổ sung cho addendum `docs/superpowers/specs/2026-10-16-documents-size-cap-addendum.md` §6. Route, shape request/response, mã lỗi và copy vẫn theo §6. Tài liệu này chốt những gì §6 để lại cho contract BIGUP-S1: bảng dữ liệu, cách giữ chỗ quota, GC, giới hạn, lưu trữ multipart, thứ tự kiểm tra và cách chia việc. Đường dẫn code là của root a8b2b3914.
 

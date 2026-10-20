@@ -39,7 +39,7 @@ Product intent and design principles live in `PRODUCT.md`.
   conversion and DOCX→PDF export jobs.
 - `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
 - `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
-- `apps/meeting-agent/` — Python LiveKit worker of the meeting AI scribe (ADR 0036): one job per meeting, STT direct, everything else through `/api/v1/meetings/{id}/agent/*`; rules in `apps/meeting-agent/CLAUDE.md`, verified by `.github/workflows/meeting-agent-verify.yml`, not in `turbo`.
+- `apps/meeting-agent/` — Python LiveKit worker of the meeting AI scribe (ADR 0037): one job per meeting, STT direct, everything else through `/api/v1/meetings/{id}/agent/*`; rules in `apps/meeting-agent/CLAUDE.md`, verified by `.github/workflows/meeting-agent-verify.yml`, not in `turbo`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,
@@ -263,7 +263,15 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   through the same route without being refused, so a broken route cannot
   pass for an isolated one. A route whose path names a tenant row is covered
   the day it is registered; one without fails until `isoRoutes` classifies it
-  with a reason. A request field ending in `_id`/`_ids` fails
+  with a reason. A row marked `uniformAnswer` — today only `POST
+  /documents/{documentID}/access-requests`, whose whole answer is one uniform
+  `202 {"status":"sent"}` that must never reveal whether a document exists —
+  lets the cross-tenant pass accept any non-5xx, but only after it makes both
+  calls itself and holds the foreign-id answer byte-identical to the same call
+  with an id that names no row, still hashes every A row, and fails if a
+  `document_access_requests` row appears in either organization; the anonymous
+  and member-of-both passes keep requiring a real refusal. A request field
+  ending in `_id`/`_ids` fails
   `TestEveryBodyIDFieldHasAReferenceCase` until it has an `isoReferences`
   case or an exemption with a reason. `TestIsolationRealtime` holds the two
   WebSockets, delivery included. `TestIsolationMCP` holds `/mcp` (ADR 0031): a
@@ -352,7 +360,7 @@ Every command that changes business state writes an `audit_events` row and its
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
   `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
   `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
-- The meeting scribe agent (`apps/meeting-agent`, ADR 0036) is the one
+- The meeting scribe agent (`apps/meeting-agent`, ADR 0037) is the one
   exception: it opens its STT vendor connection itself, holds no LLM key, and
   reaches the server only through `/api/v1/meetings/{meetingID}/agent/*` with a
   per-meeting `uwma_` token (`middleware.RequireMeetingAgentToken`); anything

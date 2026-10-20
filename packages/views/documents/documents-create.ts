@@ -21,16 +21,22 @@ export interface CreateShareOptions {
   shareWithWorkspace?: boolean;
 }
 
+type ParentShareSource = {
+  kind?: string | null;
+  visibility?: string | null;
+  share_scope?: { home_workspace?: boolean } | null;
+};
+
 /**
- * True when the parent folder already has a grant for its home workspace
+ * True when the parent PAGE already has a grant for its home workspace
  * (`share_scope.home_workspace === true`, or `visibility === "workspace"` when
  * `share_scope` is absent). Under a shared parent, the create toggle is locked
  * on and the client omits `visibility` so the server inherits from the parent.
+ * A folder is never a shared parent (UNI-1974): the server starts its children
+ * private, so the toggle stays free whatever a legacy folder row still says.
  */
-export function isParentWorkspaceShared(
-  parent?: { visibility?: string | null; share_scope?: { home_workspace?: boolean } | null } | null,
-  fallback?: { visibility?: string | null; share_scope?: { home_workspace?: boolean } | null } | null,
-): boolean {
+export function isParentWorkspaceShared(parent?: ParentShareSource | null, fallback?: ParentShareSource | null): boolean {
+  if ((parent?.kind ?? fallback?.kind) === "folder") return false;
   const shareScope = parent?.share_scope ?? fallback?.share_scope;
   if (shareScope != null) return Boolean(shareScope.home_workspace);
   const visibility = parent?.visibility ?? fallback?.visibility;
@@ -53,7 +59,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   // deployed yet): the card stays visible, disabled with a hint, for the session.
   // A second click while the first create is in flight must not make a second folder.
   const folderBusy = useRef(false);
-  const folderKeyRef = useRef<{ title: string; parentId: string | null; shared: boolean; key: string } | null>(null);
+  const folderKeyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
 
   const create = async (type: CreateType, parentId: string | null, options?: CreateShareOptions) => {
@@ -89,28 +95,17 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   };
 
   /** A new folder takes the given or default name; the caller navigates into it. */
-  const newFolder = async (
-    parentId: string | null,
-    customTitle?: string,
-    options?: CreateShareOptions,
-  ): Promise<string | null> => {
+  const newFolder = async (parentId: string | null, customTitle?: string): Promise<string | null> => {
     if (folderBusy.current) return null;
     folderBusy.current = true;
     const title = (customTitle ?? t("documents.home.folders.default_name")).trim();
-    const shared = Boolean(options?.shareWithWorkspace);
-    if (
-      folderKeyRef.current?.title !== title ||
-      folderKeyRef.current.parentId !== parentId ||
-      folderKeyRef.current.shared !== shared
-    ) {
-      folderKeyRef.current = { title, parentId, shared, key: createSafeId() };
+    if (folderKeyRef.current?.title !== title || folderKeyRef.current.parentId !== parentId) {
+      folderKeyRef.current = { title, parentId, key: createSafeId() };
     }
-    const shareFields = shared ? ({ visibility: "workspace" } as const) : {};
     try {
       const folder = await createFolder.mutateAsync({
         title,
         ...(parentId ? { parentId } : {}),
-        ...shareFields,
         idempotencyKey: folderKeyRef.current.key,
       });
       folderKeyRef.current = null;

@@ -1,6 +1,6 @@
 name: Meeting Agent Verify
 
-# apps/meeting-agent (ADR 0036): the Python LiveKit worker of the AI scribe.
+# apps/meeting-agent (ADR 0037): the Python LiveKit worker of the AI scribe.
 # Ruff and pytest only, beside the main CI workflow: it is not a pnpm/turbo
 # workspace. Tests use the fake STT and never reach a LiveKit room or a vendor.
 

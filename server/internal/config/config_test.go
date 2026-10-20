@@ -454,6 +454,60 @@ func TestLoadDocumentCommitIntentSweepTick(t *testing.T) {
 	}
 }
 
+func TestLoadIdempotencyKeyRetention(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"unset keeps the 168h default", "", 7 * 24 * time.Hour},
+		{"valid duration override", "336h", 14 * 24 * time.Hour},
+		{"invalid falls back to default", "nonsense", 7 * 24 * time.Hour},
+		{"zero falls back to default", "0s", 7 * 24 * time.Hour},
+		{"negative falls back to default", "-5s", 7 * 24 * time.Hour},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("IDEMPOTENCY_KEY_RETENTION", tc.raw)
+			c, err := Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if c.IdempotencyKeyRetention != tc.want {
+				t.Fatalf("IdempotencyKeyRetention = %v, want %v", c.IdempotencyKeyRetention, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadIdempotencyKeySweepTick(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"unset keeps the 10m default", "", 10 * time.Minute},
+		{"valid duration override", "250ms", 250 * time.Millisecond},
+		{"invalid falls back to default", "nonsense", 10 * time.Minute},
+		{"zero falls back to default", "0s", 10 * time.Minute},
+		{"negative falls back to default", "-5s", 10 * time.Minute},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv("IDEMPOTENCY_KEY_SWEEP_TICK", tc.raw)
+			c, err := Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if c.IdempotencyKeySweepTick != tc.want {
+				t.Fatalf("IdempotencyKeySweepTick = %v, want %v", c.IdempotencyKeySweepTick, tc.want)
+			}
+		})
+	}
+}
+
 func TestLoadDocumentMaxBytes(t *testing.T) {
 	t.Run("unset defaults to 200 MiB", func(t *testing.T) {
 		setRequired(t)

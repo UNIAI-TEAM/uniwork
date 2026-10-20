@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import type { Document } from "@uniwork/core/types/document";
 import { requestMock } from "../../test/api-mock";
 import { hasUntitledVersionOneFile, useFirstSaveNaming, type FirstSaveNaming } from "./first-save-naming";
@@ -195,5 +196,175 @@ describe("useFirstSaveNaming: the first-save name dialog (UNI-1847)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await expect(a).resolves.toBe(true);
     await expect(b).resolves.toBe(true);
+  });
+});
+
+const FOREST = {
+  documents: [
+    { id: "folder-mine", parent_id: null, title: "Mine", kind: "folder", system_kind: "my_folder", position: 0, children: [] },
+    {
+      id: "f-contracts", parent_id: null, title: "Hợp đồng", kind: "folder", position: 1,
+      children: [{ id: "f-annex", parent_id: "f-contracts", title: "Phụ lục", kind: "folder", position: 0, children: [] }],
+    },
+    { id: "f-fin", parent_id: null, title: "Tài chính", kind: "folder", position: 2, children: [] },
+  ],
+};
+
+/** Calls of one method+path, in order, with the position they had among every call. */
+function callsTo(method: string, path: string) {
+  const calls = requestMock.mock.calls as [string, MockInit | undefined][];
+  return calls.flatMap(([p, init], index) => ((init?.method ?? "GET") === method && p === path ? [{ index, init }] : []));
+}
+
+/** The documents API of one never-saved blank: detail, rename, tree, and a scripted move. */
+function routeDocuments({ move }: { move: () => Promise<unknown> }) {
+  let current = { ...UNTITLED_DOC } as Document;
+  requestMock.mockImplementation((path: string, init?: MockInit) => {
+    const method = init?.method ?? "GET";
+    if (path === "/api/v1/documents/doc-1" && method === "PATCH") {
+      current = { ...current, title: patchJson([path, init]).title!, revision: String(Number(current.revision) + 1) } as Document;
+      return Promise.resolve({ document: current });
+    }
+    if (path === "/api/v1/documents/doc-1/move" && method === "POST") return move();
+    if (path === "/api/v1/documents/doc-1") return Promise.resolve({ document: current });
+    if (path.startsWith("/api/v1/workspaces/ws-1/documents/tree")) return Promise.resolve(FOREST);
+    return Promise.reject(new Error(`unexpected ${method} ${path}`));
+  });
+  return () => current;
+}
+
+const moved = (parent: string) => () => Promise.resolve({ document: { ...UNTITLED_DOC, parent_id: parent, revision: "6" } });
+
+async function openDialog(hook: { result: { current: FirstSaveNaming } }) {
+  let answer!: Promise<boolean>;
+  await act(async () => { answer = hook.result.current.ask(); });
+  await screen.findByRole("dialog", { name: "Đặt tên tài liệu" });
+  return { answer };
+}
+
+async function pickFolder(name: string) {
+  fireEvent.click(screen.getByRole("button", { name: "Đổi" }));
+  const picker = await screen.findByRole("dialog", { name: "Chọn nơi lưu" });
+  fireEvent.click(within(picker).getByRole("treeitem", { name }));
+  fireEvent.click(within(picker).getByRole("button", { name: "Chọn" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Chọn nơi lưu" })).toBeNull());
+}
+
+describe("useFirstSaveNaming: where the document is saved (UNI-1960)", () => {
+  it("shows the folder the document is in, My Folder by its label, with a Change button", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup();
+    void openDialog(hook);
+    const dialog = await screen.findByRole("dialog", { name: "Đặt tên tài liệu" });
+    expect(dialog).toHaveTextContent("Bạn có thể đổi tên hoặc di chuyển sau.");
+    const location = await within(dialog).findByText("Thư mục của tôi");
+    expect(location.closest("[data-testid='first-save-location']")).toHaveTextContent("Vị trí");
+    expect(within(dialog).getByRole("button", { name: "Đổi" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+  });
+
+  it("shows a subfolder by its path", async () => {
+    routeDocuments({ move: moved("f-annex") });
+    const { hook } = setup({ doc: { ...UNTITLED_DOC, parent_id: "f-annex" } as Document });
+    void openDialog(hook);
+    expect(await screen.findByText("Hợp đồng / Phụ lục")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+  });
+
+  it("Change opens the folder picker and the pick becomes the location", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup();
+    void openDialog(hook);
+    await screen.findByText("Thư mục của tôi");
+    await pickFolder("Tài chính");
+    const location = screen.getByTestId("first-save-location");
+    expect(location).toHaveTextContent("Tài chính");
+    expect(callsTo("POST", "/api/v1/documents/doc-1/move")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+  });
+
+  it("moves the document after the title is saved when another folder was picked", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup();
+    const { answer } = await openDialog(hook);
+    await screen.findByText("Thư mục của tôi");
+    await pickFolder("Tài chính");
+    fireEvent.change(screen.getByLabelText("Tên tài liệu"), { target: { value: "Kế hoạch Q4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await expect(answer).resolves.toBe(true);
+    const patch = callsTo("PATCH", "/api/v1/documents/doc-1");
+    const move = callsTo("POST", "/api/v1/documents/doc-1/move");
+    expect(patch).toHaveLength(1);
+    expect(move).toHaveLength(1);
+    expect(patch[0]!.index).toBeLessThan(move[0]!.index);
+    // The move carries the revision the rename left behind, not the stale one.
+    const body = move[0]!.init?.body;
+    expect(typeof body === "string" ? JSON.parse(body) : body).toMatchObject({ parent_id: "f-fin", revision: "5" });
+  });
+
+  it("keeps the dialog, the name and the picked folder when the move is refused, then retries", async () => {
+    let refuse = true;
+    routeDocuments({
+      move: () => refuse
+        ? Promise.reject(new ApiError("No permission to create in this folder", "forbidden", 403))
+        : moved("f-fin")(),
+    });
+    const { hook } = setup();
+    const { answer } = await openDialog(hook);
+    const settled = vi.fn();
+    void answer.then(settled);
+    await screen.findByText("Thư mục của tôi");
+    await pickFolder("Tài chính");
+    fireEvent.change(screen.getByLabelText("Tên tài liệu"), { target: { value: "Kế hoạch Q4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No permission to create in this folder");
+    expect(screen.getByRole("dialog", { name: "Đặt tên tài liệu" })).toBeTruthy();
+    expect((screen.getByLabelText("Tên tài liệu") as HTMLInputElement).value).toBe("Kế hoạch Q4");
+    expect(screen.getByTestId("first-save-location")).toHaveTextContent("Tài chính");
+    expect(settled).not.toHaveBeenCalled();
+    // The retry moves again without writing the same title twice.
+    refuse = false;
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await expect(answer).resolves.toBe(true);
+    expect(callsTo("PATCH", "/api/v1/documents/doc-1")).toHaveLength(1);
+    expect(callsTo("POST", "/api/v1/documents/doc-1/move")).toHaveLength(2);
+  });
+
+  it("Cancel after a refused move ends the ask without a save", async () => {
+    routeDocuments({ move: () => Promise.reject(new ApiError("refused", "forbidden", 403)) });
+    const { hook } = setup();
+    const { answer } = await openDialog(hook);
+    await screen.findByText("Thư mục của tôi");
+    await pickFolder("Tài chính");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await expect(answer).resolves.toBe(false);
+  });
+
+  it("sends no move when the folder is unchanged", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup();
+    const { answer } = await openDialog(hook);
+    await screen.findByText("Thư mục của tôi");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await expect(answer).resolves.toBe(true);
+    expect(callsTo("PATCH", "/api/v1/documents/doc-1")).toHaveLength(1);
+    expect(callsTo("POST", "/api/v1/documents/doc-1/move")).toHaveLength(0);
+  });
+
+  it("starts from where the document is each time the dialog opens", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup();
+    let { answer } = await openDialog(hook);
+    await screen.findByText("Thư mục của tôi");
+    await pickFolder("Tài chính");
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await expect(answer).resolves.toBe(false);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    ({ answer } = await openDialog(hook));
+    expect(await screen.findByText("Thư mục của tôi")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await expect(answer).resolves.toBe(false);
   });
 });

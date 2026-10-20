@@ -161,7 +161,32 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                        AND sbm.revoked_at IS NULL
                        AND ((sbm.principal_type = 'user')
                             OR (sbm.principal_type = 'workspace')
-                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))))
+                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))
+           -- UNI-1973: show only the topmost shared item. A row whose sharing is
+           -- just the workspace visibility copied from its parent at create time
+           -- (same level, no live share of its own) is hidden when that parent is
+           -- a live non-folder row the caller owns, shared the same way (children of a
+           -- folder always show: folders are not shareable, UNI-1974).
+           AND NOT (d.visibility = 'workspace'
+                    AND NOT EXISTS (
+                         SELECT 1 FROM document_shares ow
+                         WHERE ow.organization_id = d.organization_id
+                           AND ow.workspace_id = d.workspace_id
+                           AND ow.document_id = d.id
+                           AND ow.revoked_at IS NULL)
+                    AND EXISTS (
+                         SELECT 1 FROM documents sp
+                         WHERE sp.organization_id = d.organization_id
+                           AND sp.workspace_id = d.workspace_id
+                           AND sp.id = d.parent_id
+                           AND sp.owner_id IS NULL
+                           AND sp.archived_at IS NULL
+                           AND sp.shelved_at IS NULL
+                           AND sp.system_kind IS NULL
+                           AND sp.kind <> 'folder'
+                           AND sp.acl_owner_id = d.acl_owner_id
+                           AND sp.visibility = 'workspace'
+                           AND sp.workspace_level = d.workspace_level))))
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
            AND (NOT sqlc.arg(see_all)::boolean
@@ -231,7 +256,56 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): a tree level shows live rows only.
   AND d.shelved_at IS NULL
-  AND d.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
+  -- UNI-1974: a folder is a private container, so at the root level (NULL
+  -- parent) a document the caller may read through the home row, as ACL owner
+  -- or through a share is promoted when its parent FOLDER is not in the
+  -- caller's own list: it shows on its own, never inside an owner's folder.
+  -- "Parent listed" repeats the predicate below on the parent row (the
+  -- see_all leg minus the My Folder set: a foreign My Folder is not listed).
+  AND (d.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
+       OR (sqlc.narg(parent_id)::text IS NULL
+           AND d.parent_id IS NOT NULL
+           AND ((sqlc.arg(member_visible) AND d.visibility = 'workspace'
+                 AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+                OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+                OR (sqlc.arg(allow_shares) AND EXISTS (
+                     SELECT 1 FROM document_shares rs
+                     WHERE rs.organization_id = d.organization_id
+                       AND rs.workspace_id = d.workspace_id
+                       AND rs.document_id = d.id
+                       AND rs.revoked_at IS NULL
+                       AND rs.level = ANY(sqlc.arg(share_levels)::text[])
+                       AND ((rs.principal_type = 'user' AND rs.principal_id = sqlc.arg(actor_id))
+                            OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
+                            OR (rs.principal_type = 'workspace'
+                                AND rs.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
+           AND EXISTS (
+                SELECT 1 FROM documents pf
+                WHERE pf.organization_id = d.organization_id
+                  AND pf.workspace_id = d.workspace_id
+                  AND pf.id = d.parent_id
+                  AND pf.kind = 'folder'
+                  -- a personal My Folder never promotes what is shared out of it to the root
+                  AND pf.system_kind IS NULL
+                  AND NOT COALESCE(
+                    (sqlc.arg(see_all)
+                     AND (pf.system_kind IS NULL OR pf.system_kind <> 'my_folder'
+                          OR pf.acl_owner_id = sqlc.arg(actor_id)
+                          OR (pf.visibility = 'workspace' AND pf.workspace_level = ANY(sqlc.arg(share_levels)::text[]))))
+                    OR (sqlc.arg(member_visible) AND pf.visibility = 'workspace'
+                        AND pf.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+                    OR (sqlc.arg(acl_owner) AND pf.acl_owner_id = sqlc.arg(actor_id))
+                    OR (sqlc.arg(allow_shares) AND EXISTS (
+                         SELECT 1 FROM document_shares ps
+                         WHERE ps.organization_id = pf.organization_id
+                           AND ps.workspace_id = pf.workspace_id
+                           AND ps.document_id = pf.id
+                           AND ps.revoked_at IS NULL
+                           AND ((ps.principal_type = 'user' AND ps.principal_id = sqlc.arg(actor_id))
+                                OR (ps.principal_type = 'organization' AND ps.principal_id = pf.organization_id)
+                                OR (ps.principal_type = 'workspace'
+                                    AND ps.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))),
+                    false))))
   AND ((sqlc.arg(see_all)
         AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
         -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
@@ -536,7 +610,31 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                        AND sbm.revoked_at IS NULL
                        AND ((sbm.principal_type = 'user')
                             OR (sbm.principal_type = 'workspace')
-                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))))
+                            OR (sbm.principal_type = 'organization' AND sbm.principal_id = d.organization_id))))
+           -- UNI-1973: show only the topmost shared item. A row whose sharing is
+           -- just the workspace visibility copied from its parent at create time
+           -- (same level, no live share of its own) is hidden when that parent is
+           -- a live non-folder row the caller owns, shared the same way (children of a
+           -- folder always show: folders are not shareable, UNI-1974).
+           AND NOT (d.visibility = 'workspace'
+                    AND NOT EXISTS (
+                         SELECT 1 FROM document_shares ow
+                         WHERE ow.organization_id = d.organization_id
+                           AND ow.workspace_id = d.workspace_id
+                           AND ow.document_id = d.id
+                           AND ow.revoked_at IS NULL)
+                    AND EXISTS (
+                         SELECT 1 FROM documents sp
+                         WHERE sp.organization_id = d.organization_id
+                           AND sp.workspace_id = d.workspace_id
+                           AND sp.id = d.parent_id
+                           AND sp.owner_id IS NULL
+                           AND sp.archived_at IS NULL
+                           AND sp.system_kind IS NULL
+                           AND sp.kind <> 'folder'
+                           AND sp.acl_owner_id = d.acl_owner_id
+                           AND sp.visibility = 'workspace'
+                           AND sp.workspace_level = d.workspace_level))))
   AND (sqlc.narg(query)::text IS NULL
        OR (NOT sqlc.arg(match_title)::boolean
            AND (NOT sqlc.arg(see_all)::boolean
@@ -739,3 +837,13 @@ WHERE d.organization_id = sqlc.arg(organization_id)
        OR (d.updated_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
 ORDER BY d.updated_at DESC, d.id DESC
 LIMIT sqlc.arg(page_limit);
+
+-- UNI-1974: the parents of one page of list rows, read in one query so the
+-- service can tell which of them the caller lists (a parent the caller does
+-- not list is never named in the row: no parent_id leaves the server for it).
+-- name: ListDocumentsByIDs :many
+SELECT d.*
+FROM documents d
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.workspace_id = sqlc.arg(workspace_id)
+  AND d.id = ANY(sqlc.arg(ids)::text[]);
