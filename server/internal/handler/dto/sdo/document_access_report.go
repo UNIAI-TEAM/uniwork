@@ -145,7 +145,7 @@ type DocumentAccessReportPrincipalDTO struct {
 	PrincipalID   *string                           `json:"principal_id" description:"Id principal; null với 'ai có link'" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	PrincipalName *string                           `json:"principal_name" description:"Tên hiển thị (không email); null nếu không còn hoặc là link" example:"Nguyễn An"`
 	Kind          string                            `json:"kind" description:"member, home_workspace, other_workspace, organization hoặc link (chuỗi mở)" example:"member"`
-	MemberCount   *int                              `json:"member_count" description:"Số thành viên của nhóm; null với người và link" example:"12"`
+	MemberCount   *int                              `json:"member_count" description:"Số thành viên của nhóm; null với người và link. Chủ sở hữu và quản trị viên tổ chức là quản trị viên ngầm của mọi workspace nhưng không có dòng thành viên, nên không được tính vào member_count của một workspace" example:"12"`
 	DocumentCount int                               `json:"document_count" description:"Số tài liệu người gọi quản lý mà principal có dòng" example:"7"`
 	Levels        DocumentAccessReportLevelSplitDTO `json:"levels" description:"Số tài liệu theo mức cao nhất của principal trên tài liệu đó"`
 	MainSource    string                            `json:"main_source" description:"owner, workspace, direct, chat, link hoặc break_glass: nguồn xuất hiện nhiều nhất; hòa thì direct > chat > link > workspace > owner (chuỗi mở)" example:"direct"`

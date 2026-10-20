@@ -13,7 +13,7 @@ type DocumentAccessReportSDI struct {
 	Sort       *string `query:"sort" description:"Khóa sắp xếp: changed (mặc định, lần đổi quyền gần nhất) hoặc title. Giá trị lạ -> 400" example:"changed"`
 	Order      *string `query:"order" description:"asc hoặc desc; mặc định desc với changed, asc với title. Giá trị lạ -> 400" example:"desc"`
 	Q          *string `query:"q" description:"Tìm theo tiêu đề tài liệu hoặc tên principal (chỉ principal người gọi thấy trên dòng đó), không phân biệt hoa thường và dấu, tối đa 100 ký tự" example:"hợp đồng"`
-	Principal  *string `query:"principal" description:"<type>:<id> với type user|workspace|organization|link; link không kèm id = ai có link. person_id là bí danh của user:<id>" example:"user:01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Principal  *string `query:"principal" description:"<type>:<id> với type user|workspace|organization|link; link không kèm id = ai có link. person_id là bí danh của user:<id>. user:<id> là bộ lọc theo người: giữ mọi dòng đang đưa quyền cho người đó (kể cả dòng workspace, tổ chức hoặc nhóm chứa họ) và các tài liệu họ có mức quyền qua nhóm; các loại khác (workspace, organization, link) là bộ lọc dòng chặt, chỉ giữ dòng đúng principal đó" example:"user:01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	Scope      *string `query:"scope" description:"Phạm vi chung của tài liệu: restricted, workspace hoặc organization" example:"organization"`
 	Source     *string `query:"source" description:"Nguồn dòng, cách nhau bằng dấu phẩy: owner, workspace, direct, chat, link, break_glass" example:"direct,chat"`
 	Flag       *string `query:"flag" description:"Cờ cảnh báo của tài liệu: public_link, outside_workspace hoặc direct_manage" example:"public_link"`
