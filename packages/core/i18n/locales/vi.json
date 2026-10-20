@@ -4082,7 +4082,6 @@
       "document_version_conflict": "Tài liệu vừa có phiên bản mới. Tải lại rồi thử lại.",
       "document_locked": "{{name}} đang sửa tài liệu này. Thử lại khi họ lưu xong.",
       "document_locked_unnamed": "Tài liệu này đang có người sửa. Thử lại khi họ lưu xong.",
-      "document_locked_by_me": "Bạn đang sửa tài liệu này ở một cửa sổ khác. Lưu ở cửa sổ đó, hoặc mở trang tài liệu để tải lên từ đây.",
       "source_not_saveable": "Không thể chia sẻ tệp này dạng tài liệu: định dạng không được hỗ trợ hoặc dung lượng quá lớn."
     },
     "media_unavailable": "Không tải được {{name}}",
@@ -4362,7 +4361,6 @@
       "edit_on_web": "Chỉnh sửa trên web",
       "open_to_view": "Mở để xem và nhận xét",
       "version_history": "Lịch sử phiên bản",
-      "share": "Chia sẻ",
       "open_document_page": "Mở trang tài liệu"
     },
     "sidebar_typing": "Đang nhập…",

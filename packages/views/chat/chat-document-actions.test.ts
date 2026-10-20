@@ -44,9 +44,9 @@ describe("chatDocumentVersionMessage", () => {
     );
   });
 
-  it("gives the reader's own hold in another window its own sentence (contract D6)", () => {
+  it("gives the reader's own hold in another window the document page's sentence (contract D6)", () => {
     const err = new ApiError("", "document_locked", 423, undefined, { held_by_me: true, holder_name: "An" });
-    expect(chatDocumentVersionMessage(err, t)).toBe("t:chat.errors.document_locked_by_me");
+    expect(chatDocumentVersionMessage(err, t)).toBe("t:documents.upload.document_locked_by_me");
   });
 
   it("renders the 409 copy in vi and en", () => {

@@ -52,8 +52,9 @@ export function chatDocumentVersionMessage(err: unknown, t: TFunction): string |
   if (isDocumentLocked(err)) {
     const fields = errorFields(err);
     // The reader's own hold in another tab or window: the 423 sends no lock id,
-    // so this tab cannot write through it (contract D6).
-    if (fields?.held_by_me === true) return t("chat.errors.document_locked_by_me");
+    // so this tab cannot write through it (contract D6). The document page's
+    // own sentence: a page opened from here holds nothing either.
+    if (fields?.held_by_me === true) return t("documents.upload.document_locked_by_me");
     const name = typeof fields?.holder_name === "string" ? fields.holder_name.trim() : "";
     return name ? t("chat.errors.document_locked", { name }) : t("chat.errors.document_locked_unnamed");
   }

@@ -360,6 +360,20 @@ describe("ChatDocumentMessageRow", () => {
       expect(desktopOpen).not.toHaveBeenCalled();
     });
 
+    it("labels the web entry for reading when the frame cannot open the document (can_open_in_app false)", async () => {
+      renderCard(documentMessage({ ...FULL, viewer_level: "edit", can_open_in_app: false }), LIVE);
+      const labels = menuLabels(await openMenu());
+      expect(labels).toContain("Mở để xem và nhận xét");
+      expect(labels).not.toContain("Chỉnh sửa trên web");
+    });
+
+    it("keeps the edit label when can_open_in_app is absent (old server)", async () => {
+      renderCard(documentMessage({ ...FULL, viewer_level: "edit", can_open_in_app: undefined }), LIVE);
+      const labels = menuLabels(await openMenu());
+      expect(labels).toContain("Chỉnh sửa trên web");
+      expect(labels).not.toContain("Mở để xem và nhận xét");
+    });
+
     it("hides the upload entry without the grant or without a revision", async () => {
       renderCard(documentMessage({ ...DOC, viewer_level: "edit", viewer_can_upload_version: true, revision: undefined }), LIVE);
       expect(menuLabels(await openMenu())).not.toContain("Tải lên phiên bản mới");
@@ -376,11 +390,14 @@ describe("ChatDocumentMessageRow", () => {
       }
     });
 
-    it("hides the Office entry where the app cannot be launched, without minting a session", async () => {
-      const desktopOpen = desktopFactory();
-      renderCard(documentMessage(FULL), { ...LIVE, desktopOpen, officeApp: false });
-      expect(menuLabels(await openMenu())).not.toContain("Chỉnh sửa trong UniWork Office");
-      expect(desktopOpen).not.toHaveBeenCalled();
+    it("in the UniChat shell (no host wiring, D7): no Office entry, and the page entries still go through navigation", async () => {
+      // The shell's navigation policy hands every non-chat path to the
+      // browser (apps/web chat-only-navigation), so the card only pushes.
+      const nav = renderCard(documentMessage(FULL), LIVE);
+      const labels = menuLabels(await openMenu());
+      expect(labels.slice(0, 4)).toEqual(["Chỉnh sửa trên web", "Tải lên phiên bản mới", "Lịch sử phiên bản", "Chia sẻ"]);
+      await userEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Lịch sử phiên bản" }));
+      expect(nav.push).toHaveBeenLastCalledWith("/acme/team/documents/doc1?panel=versions");
     });
 
     it("hides the Office entry when can_open_in_app is absent or false (RFC-03), or with no host wiring", async () => {
@@ -553,7 +570,10 @@ describe("ChatDocumentMessageRow", () => {
       });
       const nav = renderCard(documentMessage(FULL), LIVE);
       await uploadFromMenu();
-      expect(await screen.findByRole("alert")).toHaveTextContent("Bạn đang sửa tài liệu này ở một cửa sổ khác.");
+      // The document page's sentence: a page tab opened from here holds nothing either.
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Bạn đang sửa tài liệu này ở một cửa sổ khác. Lưu hoặc đóng cửa sổ đó rồi thử lại.",
+      );
       fireEvent.click(screen.getByRole("button", { name: "Mở trang tài liệu" }));
       expect(nav.push).toHaveBeenLastCalledWith("/acme/team/documents/doc1");
     });

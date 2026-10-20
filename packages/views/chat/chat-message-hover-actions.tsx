@@ -222,6 +222,9 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
   // rest fold to nothing rather than display:none, so they keep their place in
   // the roving tab order and the accessibility tree; focusing one unfolds them.
   const extra = pickerOpen || menuOpen ? "ml-0.5" : FOLDED;
+  // A document card's actions live only in the menu: its "…" stays unfolded
+  // on hover so a mouse finds them without a right click.
+  const moreExtra = handlers.documentItems ? "ml-0.5" : extra;
 
   return (
     // Hidden until the message is hovered or focused (or one of its popups is
@@ -294,7 +297,7 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
                 type="button"
                 variant="ghost"
                 size="icon-lg"
-                className={cn(BAR_BUTTON, extra)}
+                className={cn(BAR_BUTTON, moreExtra)}
                 aria-label={t("chat.action_more")}
               >
                 <Ellipsis className="size-4.5" aria-hidden />

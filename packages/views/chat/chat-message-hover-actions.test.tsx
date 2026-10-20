@@ -229,13 +229,15 @@ describe("ChatMessageActionsFrame", () => {
 });
 
 describe("the documentItems slot (UNI-2012 S7)", () => {
-  const items = (P: ChatMenuParts) => (
-    <P.Item onClick={vi.fn()}>
+  // The real caller's shape: one keyed node per entry, null for one the reader does not get.
+  const items = (P: ChatMenuParts) => [
+    null,
+    <P.Item key="history" onClick={vi.fn()}>
       <span>Lịch sử phiên bản</span>
-    </P.Item>
-  );
+    </P.Item>,
+  ];
 
-  function Frame(props: { documentItems?: (parts: ChatMenuParts) => ReactNode; onReact?: () => void }) {
+  function Frame(props: { documentItems?: (parts: ChatMenuParts) => ReactNode[]; onReact?: () => void }) {
     return (
       <ChatMessageActionsFrame message={message("m1")} isOwn={false} onReply={vi.fn()} onCopy={vi.fn()} {...props}>
         <p>Báo cáo Q3</p>
@@ -260,11 +262,28 @@ describe("the documentItems slot (UNI-2012 S7)", () => {
   });
 
   it("adds nothing, not even a separator, when the attachment offers nothing", async () => {
-    render(wrap(<Frame onReact={vi.fn()} documentItems={() => null} />));
+    render(wrap(<Frame onReact={vi.fn()} documentItems={() => [null, null, false]} />));
     fireEvent.contextMenu(screen.getByText("Báo cáo Q3"));
     const menu = await screen.findByRole("menu");
     expect(labels(menu)[0]).toBe("Trả lời");
     expect(within(menu).queryAllByRole("separator")).toHaveLength(0);
+  });
+
+  it("keeps the more button unfolded on hover for a row with document entries, and only that button", () => {
+    const more = (documentItems?: (parts: ChatMenuParts) => ReactNode[]) => {
+      const view = render(wrap(<Frame onReact={vi.fn()} documentItems={documentItems} />));
+      const classes = {
+        more: screen.getByRole("button", { name: "Thêm" }).className.split(/\s+/),
+        reply: screen.getByRole("button", { name: "Trả lời" }).className.split(/\s+/),
+      };
+      view.unmount();
+      return classes;
+    };
+    const withDocument = more(items);
+    expect(withDocument.more).not.toContain("size-0");
+    expect(withDocument.reply).toContain("size-0");
+    // A plain message keeps its bar folded past the heart.
+    expect(more(undefined).more).toContain("size-0");
   });
 
   it("keeps the frame's rule: no menu at all without reply and react", () => {

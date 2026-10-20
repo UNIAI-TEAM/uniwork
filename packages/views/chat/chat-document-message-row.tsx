@@ -35,7 +35,6 @@ function ChatDocumentMessageRowImpl({
   nameContext = [],
   replyToMessage,
   desktopOpen,
-  officeApp = true,
   onReply,
   onReact,
   onToggleReaction,
@@ -60,10 +59,8 @@ function ChatDocumentMessageRowImpl({
   showAvatar: boolean;
   nameContext?: ChatNameContextEntry[];
   replyToMessage?: ChatMessage;
-  /** Host wiring for "Chỉnh sửa trong UniWork Office"; absent → that entry hides. */
+  /** Host wiring for "Chỉnh sửa trong UniWork Office"; absent (the UniChat shell, D7) → that entry hides. */
   desktopOpen?: ChatDocumentDesktopOpen;
-  /** False hides "Chỉnh sửa trong UniWork Office" where the app cannot be launched (the chat-only shell, D7). */
-  officeApp?: boolean;
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
   onToggleReaction?: (message: ChatMessage, emoji: string) => void;
@@ -80,7 +77,7 @@ function ChatDocumentMessageRowImpl({
 }) {
   // The document's own actions live in the message menu (UNI-2012 S7); the
   // dialogs they open mount beside the row, outside the menu.
-  const menu = useChatDocumentMenu({ workspaceId, roomId, message, desktopOpen, officeApp });
+  const menu = useChatDocumentMenu({ workspaceId, roomId, message, desktopOpen });
   return (
     <article
       id={`chat-msg-${message.id}`}

@@ -100,9 +100,11 @@ export type ChatMessageActionHandlers = {
   /**
    * What the message's attachment offers (a document card's role menu),
    * written once against the parts so the right-click menu and the "…"
-   * dropdown both carry it; null leaves the group out.
+   * dropdown both carry it. One keyed node per entry, null for an entry the
+   * reader does not get; with no entry left the group (and its separator)
+   * is left out.
    */
-  documentItems?: (parts: ChatMenuParts) => ReactNode;
+  documentItems?: (parts: ChatMenuParts) => ReactNode[];
 };
 
 /**
@@ -141,7 +143,7 @@ export function ChatMessageMenuItems({
   const onForward = useContext(ChatForwardContext);
   const mine = new Set(message.myReactions ?? []);
   const workHub = Boolean(onCreateTask || onLinkTask || onFollowUp);
-  const attachment = documentItems?.(P) ?? null;
+  const attachment = (documentItems?.(P) ?? []).filter((item) => item != null && item !== false);
   return (
     <>
       {onToggleReaction ? (
@@ -168,7 +170,7 @@ export function ChatMessageMenuItems({
           <P.Separator />
         </>
       ) : null}
-      {attachment ? (
+      {attachment.length > 0 ? (
         <>
           {attachment}
           <P.Separator />

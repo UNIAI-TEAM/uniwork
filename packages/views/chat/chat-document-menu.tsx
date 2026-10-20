@@ -30,22 +30,22 @@ type Surface = "share" | "upload" | "office";
  * the block — no per-card document read — and every flag is opt-in: an
  * absent one hides its entry. A reader without access gets no entries (the
  * locked card keeps its request-access button), and so does a card without
- * a block.
+ * a block. Inside the UniChat shell (D7) the host passes no `desktopOpen`,
+ * so the Office entry hides, and the page entries leave the shell for the
+ * browser through the shell's own navigation policy.
  */
 export function useChatDocumentMenu({
   workspaceId,
   roomId,
   message,
   desktopOpen,
-  officeApp = true,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
+  /** The host's "Chỉnh sửa trong UniWork Office" wiring; absent (the UniChat shell, D7) hides the entry. */
   desktopOpen?: ChatDocumentDesktopOpen;
-  /** False hides "Chỉnh sửa trong UniWork Office" (the chat-only shell, D7); the web shows it. */
-  officeApp?: boolean;
-}): { documentItems?: (parts: ChatMenuParts) => ReactNode; surfaces: ReactNode } {
+}): { documentItems?: (parts: ChatMenuParts) => ReactNode[]; surfaces: ReactNode } {
   const { t } = useTranslation();
   const workspace = useOptionalWorkspace()?.workspace;
   const navigation = useNavigation();
@@ -59,52 +59,54 @@ export function useChatDocumentMenu({
   const openPage = ws ? go(ws.document(doc.document_id)) : null;
   const openHistory = ws ? go(ws.documentVersions(doc.document_id)) : null;
   const canEdit = doc.viewer_level === "edit" || doc.viewer_level === "manage";
+  // The web editor opens only what the frame can load: an explicit false
+  // (version 0, archived, module off) leaves an editor the read-and-comment
+  // page; absent keeps the level's label.
+  const editOnWeb = canEdit && doc.can_open_in_app !== false;
   const canUpload = doc.viewer_can_upload_version === true && Boolean(doc.revision);
   const canShare = doc.viewer_can_manage === true;
   // The server alone decides openability (module + version + not archived):
   // an absent `can_open_in_app` is drift, not consent, and mints no session (RFC-03).
   const desktop =
-    officeApp && canEdit && desktopOpen && workspace && doc.viewer_has_access === true && doc.can_open_in_app === true
+    canEdit && desktopOpen && workspace && doc.viewer_has_access === true && doc.can_open_in_app === true
       ? desktopOpen({ id: doc.document_id, organization_id: workspace.organization_id, current_version: doc.version_number ?? 0 })
       : undefined;
 
   if (!openPage && !canUpload && !canShare && !desktop) return { surfaces: null };
 
   const icon = "size-4.5";
-  const documentItems = (P: ChatMenuParts) => (
-    <>
-      {desktop ? (
-        <P.Item onClick={() => ask("office")}>
-          <MonitorUp className={icon} aria-hidden />
-          {t("chat.document_menu.edit_in_office")}
-        </P.Item>
-      ) : null}
-      {openPage ? (
-        <P.Item onClick={openPage}>
-          {canEdit ? <SquarePen className={icon} aria-hidden /> : <ExternalLink className={icon} aria-hidden />}
-          {canEdit ? t("chat.document_menu.edit_on_web") : t("chat.document_menu.open_to_view")}
-        </P.Item>
-      ) : null}
-      {canUpload ? (
-        <P.Item onClick={() => ask("upload")}>
-          <Upload className={icon} aria-hidden />
-          {t("documents.actions.upload_version")}
-        </P.Item>
-      ) : null}
-      {openHistory ? (
-        <P.Item onClick={openHistory}>
-          <RotateCcwClock className={icon} aria-hidden />
-          {t("chat.document_menu.version_history")}
-        </P.Item>
-      ) : null}
-      {canShare ? (
-        <P.Item onClick={() => ask("share")}>
-          <Share2 className={icon} aria-hidden />
-          {t("chat.document_menu.share")}
-        </P.Item>
-      ) : null}
-    </>
-  );
+  const documentItems = (P: ChatMenuParts) => [
+    desktop ? (
+      <P.Item key="office" onClick={() => ask("office")}>
+        <MonitorUp className={icon} aria-hidden />
+        {t("chat.document_menu.edit_in_office")}
+      </P.Item>
+    ) : null,
+    openPage ? (
+      <P.Item key="page" onClick={openPage}>
+        {editOnWeb ? <SquarePen className={icon} aria-hidden /> : <ExternalLink className={icon} aria-hidden />}
+        {editOnWeb ? t("chat.document_menu.edit_on_web") : t("chat.document_menu.open_to_view")}
+      </P.Item>
+    ) : null,
+    canUpload ? (
+      <P.Item key="upload" onClick={() => ask("upload")}>
+        <Upload className={icon} aria-hidden />
+        {t("documents.actions.upload_version")}
+      </P.Item>
+    ) : null,
+    openHistory ? (
+      <P.Item key="history" onClick={openHistory}>
+        <RotateCcwClock className={icon} aria-hidden />
+        {t("chat.document_menu.version_history")}
+      </P.Item>
+    ) : null,
+    canShare ? (
+      <P.Item key="share" onClick={() => ask("share")}>
+        <Share2 className={icon} aria-hidden />
+        {t("documents.actions.share")}
+      </P.Item>
+    ) : null,
+  ];
 
   const surfaces = (
     <>

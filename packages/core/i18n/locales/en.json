@@ -4083,7 +4083,6 @@
       "document_version_conflict": "The document just got a new version. Reload and try again.",
       "document_locked": "{{name}} is editing this document. Try again once they save.",
       "document_locked_unnamed": "Someone is editing this document. Try again once they save.",
-      "document_locked_by_me": "You are editing this document in another window. Save there, or open the document page to upload from here.",
       "source_not_saveable": "This file cannot be shared as a document: its format is not supported or it is too large."
     },
     "media_unavailable": "Couldn't load {{name}}",
@@ -4363,7 +4362,6 @@
       "edit_on_web": "Edit on web",
       "open_to_view": "Open to view and comment",
       "version_history": "Version history",
-      "share": "Share",
       "open_document_page": "Open the document page"
     },
     "sidebar_typing": "Typing…",
