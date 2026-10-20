@@ -953,13 +953,13 @@ func TestDocumentCommentAnchorsPutItemCap(t *testing.T) {
 	}
 }
 
-// TestDocumentCommentAnchorVersionNo pins UNI-2033 T1 at the service and sqlc
+// TestDocumentCommentAnchorsVersionNo pins UNI-2033 T1 at the service and sqlc
 // layer: ListDocumentComments joins document_versions on the 4-column tenant +
 // document key to populate AnchorVersionNo, DocumentCommentAnchorVersionNo
 // resolves single-comment rows with the same 4-column scoping, a deleted or
 // foreign-document version resolves to null, and the list_token is unchanged
 // when the version row disappears.
-func TestDocumentCommentAnchorVersionNo(t *testing.T) {
+func TestDocumentCommentAnchorsVersionNo(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "anchor-ver-no")
 	d, versions := f.anchorDoc(t, tn, "xlsx", 3)
@@ -1008,6 +1008,21 @@ func TestDocumentCommentAnchorVersionNo(t *testing.T) {
 	foreignCopy.AnchorVersionID.String = versions2[1].ID
 	if no, err := f.svc.DocumentCommentAnchorVersionNo(f.ctx, foreignCopy); err != nil || no != nil {
 		t.Fatalf("foreign document version no = %v, %v, want nil", no, err)
+	}
+	if _, err := f.pool.Exec(f.ctx, "UPDATE document_comments SET anchor_version_id = $1 WHERE id = $2", versions2[1].ID, c1.ID); err != nil {
+		t.Fatal(err)
+	}
+	listForeign, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range listForeign.Rows {
+		if r.ID == c1.ID && r.AnchorVersionNo.Valid {
+			t.Fatalf("list c1 with foreign document version_id AnchorVersionNo = %+v, want invalid/null", r.AnchorVersionNo)
+		}
+	}
+	if _, err := f.pool.Exec(f.ctx, "UPDATE document_comments SET anchor_version_id = $1 WHERE id = $2", versions[0].ID, c1.ID); err != nil {
+		t.Fatal(err)
 	}
 
 	// Delete version 1's row by SQL: c1's version number becomes null, and the

@@ -6,12 +6,38 @@ package handler
 // (contract-collab sections 2.2, 2.6, 4.3).
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+type faultVersionLookupDB struct {
+	db.DBTX
+	err error
+}
+
+type faultVersionRow struct{ err error }
+
+func (r faultVersionRow) Scan(...any) error { return r.err }
+
+func (f faultVersionLookupDB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if f.err != nil && strings.Contains(sql, "FROM document_versions") {
+		return faultVersionRow{err: f.err}
+	}
+	return f.DBTX.QueryRow(ctx, sql, args...)
+}
 
 const (
 	anchorXLSXMime    = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -295,12 +321,12 @@ func TestDocumentCommentAnchorsHTTPPptxBlank(t *testing.T) {
 	}
 }
 
-// TestDocumentCommentAnchorVersionNoHTTP pins UNI-2033 T1 over the real HTTP
+// TestDocumentCommentAnchorsVersionNoHTTP pins UNI-2033 T1 over the real HTTP
 // surface: list and single-comment answers carry anchor_version_no equal to
 // the stored anchor_version_id's ordinal, null when unanchored or when the
 // version row is gone, and the list_token does not change when the derived
 // ordinal changes.
-func TestDocumentCommentAnchorVersionNoHTTP(t *testing.T) {
+func TestDocumentCommentAnchorsVersionNoHTTP(t *testing.T) {
 	w := newDocumentCollabWorld(t)
 	docID, versions := w.anchorFileDoc(t, "Anchor version no", anchorXLSXMime, 3)
 
@@ -384,6 +410,13 @@ func TestDocumentCommentAnchorVersionNoHTTP(t *testing.T) {
 		t.Fatalf("PUT anchors v3 lost: %d %v", res.StatusCode, out)
 	}
 
+	// Single-comment mutation after rebind to version 2 carries 2 before version 2 is deleted.
+	res, out = doJSON(t, w.srv, "PATCH", w.commentsPath(docID)+"/"+c1ID, w.member, map[string]any{"body": "neo v2 sửa"})
+	if res.StatusCode != 200 {
+		t.Fatalf("patch c1 after v2 rebind: %d %v", res.StatusCode, out)
+	}
+	wantVerNo(t, "patch c1 after v2 rebind", out["comment"].(map[string]any), float64(2))
+
 	// List carries 2 for c1, 3 for c3, and null for the unanchored discussion.
 	res, out = doJSON(t, w.srv, "GET", w.commentsPath(docID), w.member, nil)
 	if res.StatusCode != 200 {
@@ -429,4 +462,30 @@ func TestDocumentCommentAnchorVersionNoHTTP(t *testing.T) {
 		t.Fatalf("resolve c1 after version gone: %d %v", res.StatusCode, out)
 	}
 	wantVerNo(t, "resolve c1 after version gone", out["comment"].(map[string]any), nil)
+
+	// Post-commit version lookup failure degrades to anchor_version_no = null
+	// with a Warn log instead of turning a committed mutation into HTTP 500.
+	c3Row, err := w.docs.GetDocumentComment(context.Background(), service.Human(w.memberID), c3ID)
+	if err != nil {
+		t.Fatalf("load c3 row: %v", err)
+	}
+	var logBuf bytes.Buffer
+	faultH := &handlers{Deps: Deps{
+		Documents: service.NewDocumentService(w.pool, db.New(faultVersionLookupDB{DBTX: w.pool, err: errors.New("injected version lookup failure")}), nil, nil),
+		Actors:    service.NewActorService(w.q),
+		Log:       slog.New(slog.NewTextHandler(&logBuf, nil)),
+	}}
+	rec := httptest.NewRecorder()
+	faultH.respondDocumentComment(rec, httptest.NewRequest("POST", w.commentsPath(docID)+"/"+c3ID+"/resolve", nil), http.StatusOK, c3Row)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("fault-injected post-commit lookup status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var faultOut map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &faultOut); err != nil {
+		t.Fatalf("decode fault-injected response: %v", err)
+	}
+	wantVerNo(t, "fault-injected post-commit lookup", faultOut["comment"].(map[string]any), nil)
+	if gotLog := logBuf.String(); !strings.Contains(gotLog, "comment_id="+c3ID) || !strings.Contains(gotLog, "injected version lookup failure") {
+		t.Fatalf("expected Warn log with comment_id=%s and error, got %q", c3ID, gotLog)
+	}
 }
