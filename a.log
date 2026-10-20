@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+9aca0dc812ec50963aa13bc3e8392a1ea9691c1c
+479a478cd8a0e3d912fb9ff76e849b17d192159d
+9aca0dc81 fix(chat): keep the access request button when a request was sent earlier (UNI-1966)
+bb42b1723 fix(chat): let a mouse reach the actions bar at every width without covering the card title (UNI-1966)
+50d9e0b44 fix(chat): refresh the locked chat card after a decision and on remount (UNI-1966)
+d1feb0ada fix(chat): announce the access request outcome and keep focus (UNI-1966)
+d2ddbfabc fix(i18n): give the vi share count both plural forms (UNI-1966)
+d5236a3cb fix(chat): give document cards their width beside the actions rail (UNI-1966)
+4477043d7 fix(chat): plural share count and one level order (UNI-1966)
+1a7cd6e2d fix(chat): give the document and locked cards room for their text (UNI-1966)
+7f2d74f0e fix(chat): keep the document card title tappable on phones (UNI-1966)
+464e99f1a test(chat): pin the document block across reaction and pin answers (UNI-1966)
