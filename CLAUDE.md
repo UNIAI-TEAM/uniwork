@@ -351,6 +351,13 @@ Every command that changes business state writes an `audit_events` row and its
   cannot reach a business table. `TestProviderSDKOnlyInAIProvider` and
   `TestAIPackageOnlyCallsAiQueries` in `server/internal/arch_test.go` hold it;
   `TestAskUniToolsAreReadOnly` keeps Ask UNI's tool registry free of writes.
+- The meeting scribe agent (`apps/meeting-agent`, ADR 0036) is the one
+  exception: it opens its STT vendor connection itself, holds no LLM key, and
+  reaches the server only through `/api/v1/meetings/{meetingID}/agent/*` with a
+  per-meeting `uwma_` token (`middleware.RequireMeetingAgentToken`); anything
+  that needs a model is a request the server answers through `ai.Gateway`.
+  `scripts/governance.test.mjs` fails if the agent's requirements name an LLM
+  SDK; `TestMeetingAgentToken*` in `server/internal/handler` holds the token.
 - The signed-in desktop app uses the keys the person saved on UniWork only
   through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
   key, and its calls record the `office.byok_desktop` capability while web and

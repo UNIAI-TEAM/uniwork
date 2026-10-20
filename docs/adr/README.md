@@ -47,6 +47,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0033](0033-tool-ghi-qua-mcp-chay-truc-tiep-bang-actor-human.md) | Tool ghi qua MCP chạy trực tiếp bằng actor human của người đã đồng ý, không qua `action_proposals`; cần scope `write`, công tắc ghi của tổ chức, không có tool xóa, mọi tool ghi có hoàn tác, `revision` cho mọi lệnh sửa, audit ghi `via`; thay §3 của 0031 |
 | [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) | Desktop đã đăng nhập dùng khóa cá nhân đã lưu trên UniWork qua proxy BYOK của 0029: khóa không bao giờ rời server, dùng lại route proxy và cổng của web, khóa trên máy thắng theo từng nhà cung cấp, dòng sử dụng ghi `office.byok_desktop`; khóa dùng chung do quản trị tổ chức đặt là hướng mở rộng; bổ sung cho 0028/0029 |
 | [0035](0035-xem-truoc-lien-ket-server-tai-trang-va-anh.md) | Xem trước liên kết trong chat: server tải trang và ảnh lúc tin được gửi (lane chậm, qua bộ tải chặn SSRF `internal/linkpreview`: http/https cổng 80/443, mọi IP phải công khai, quay số IP đã kiểm, kiểm lại mỗi redirect, 5 s, HTML 1 MiB, ảnh 2 MiB), ảnh lưu trong kho UniWork, dùng chung một lần mỗi URL mỗi tổ chức; máy người xem không gọi trang ngoài |
+| [0036](0036-agent-hop-goi-stt-truc-tiep-llm-qua-gateway.md) | Agent thư ký AI (`apps/meeting-agent`) gọi nhà cung cấp STT trực tiếp; mọi lời gọi LLM vẫn qua `ai.Gateway`; agent chỉ gọi `/meetings/{id}/agent/*` bằng token `uwma_` theo cuộc họp, không ghi bảng nghiệp vụ |
 
 ## Bản nháp
 
