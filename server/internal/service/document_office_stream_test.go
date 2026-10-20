@@ -4,13 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -31,7 +35,6 @@ type countedBody struct {
 	io.ReadCloser
 	n        *atomic.Int64
 	closes   *atomic.Int64
-	closed   atomic.Bool
 	readHook func([]byte) (int, error)
 }
 
@@ -45,9 +48,7 @@ func (b *countedBody) Read(p []byte) (int, error) {
 }
 
 func (b *countedBody) Close() error {
-	if b.closed.CompareAndSwap(false, true) {
-		b.closes.Add(1)
-	}
+	b.closes.Add(1)
 	return b.ReadCloser.Close()
 }
 
@@ -386,5 +387,163 @@ func TestOfficeSubmitLegacySpoolPanicDeletesTheSpool(t *testing.T) {
 	entries, _ := os.ReadDir(spool)
 	if cf.opens.Load() != 1 || cf.closes.Load() != 1 || len(entries) != 0 {
 		t.Fatalf("after panic: baseOpens=%d baseCloses=%d spoolFiles=%d (%v)", cf.opens.Load(), cf.closes.Load(), len(entries), entries)
+	}
+}
+
+type heldBodyFiles struct {
+	*countingFiles
+	spoolDir     string
+	spooledFiles atomic.Int64
+	ctxErr       atomic.Value
+}
+
+type heldBody struct {
+	io.ReadCloser
+	ctx    context.Context
+	parent *heldBodyFiles
+	wrote  bool
+}
+
+func (b *heldBody) Read(p []byte) (int, error) {
+	if !b.wrote {
+		b.wrote = true
+		return copy(p, "partial legacy bytes\n"), nil
+	}
+	entries, _ := os.ReadDir(b.parent.spoolDir)
+	var spools int64
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), officeSpoolPrefix) {
+			spools++
+		}
+	}
+	b.parent.spooledFiles.Store(spools)
+	select {
+	case <-b.ctx.Done():
+		b.parent.ctxErr.Store(b.ctx.Err())
+		return 0, b.ctx.Err()
+	case <-time.After(500 * time.Millisecond):
+		return 0, errors.New("held reader context was not cancelled by copy budget")
+	}
+}
+
+func (h *heldBodyFiles) Open(ctx context.Context, in files.OpenInput) (files.Reader, error) {
+	r, err := h.countingFiles.Open(ctx, in)
+	if err != nil {
+		return r, err
+	}
+	r.Body = &heldBody{ReadCloser: r.Body, ctx: ctx, parent: h}
+	return r, nil
+}
+
+func TestOfficeSubmitLegacySpoolCopyBudgetAbortsStalledReaderAndDeletesTheSpool(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, strings.Repeat("legacy base\n", 1024))
+	if _, err := f.pool.Exec(ctx, `UPDATE document_versions SET checksum_sha256 = NULL WHERE id = $1`, f.ver); err != nil {
+		t.Fatal(err)
+	}
+	spool := t.TempDir()
+	t.Setenv("TMPDIR", spool)
+	cf := &countingFiles{bridgeFiles: f.files}
+	hf := &heldBodyFiles{countingFiles: cf, spoolDir: spool}
+	svc := NewDocumentOfficeService(DocumentOfficeOptions{
+		Pool: f.pool, Queries: f.q, Files: hf, Engine: newScriptedEngine(), Documents: f.docs,
+		MaxDeadline: 2 * time.Minute, ReconcileInterval: 100 * time.Millisecond, Clock: f.clock,
+		spoolCopyBudget: 25 * time.Millisecond,
+	})
+
+	_, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-spool-budget"))
+	if err == nil {
+		t.Fatal("expected stalled legacy spool copy to fail on copy budget expiry")
+	}
+	gotCtxErr, _ := hf.ctxErr.Load().(error)
+	if !errors.Is(gotCtxErr, context.DeadlineExceeded) {
+		t.Fatalf("held reader ctxErr = %v, want context.DeadlineExceeded", gotCtxErr)
+	}
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Status != http.StatusServiceUnavailable || ce.Code != files.CodeStorageUnavailable || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("StartOfficeJob err = %T %v, want 503 storage_unavailable CodedError wrapping context.DeadlineExceeded", err, err)
+	}
+	if got := hf.spooledFiles.Load(); got != 1 {
+		t.Fatalf("spooled files while copy was blocked = %d, want 1", got)
+	}
+	if entries, _ := os.ReadDir(spool); len(entries) != 0 {
+		t.Fatalf("spool file left behind after copy budget expiry: %v", entries)
+	}
+	if cf.opens.Load() != 1 || cf.closes.Load() != 1 {
+		t.Fatalf("after copy budget expiry: baseOpens=%d baseCloses=%d, want 1 and 1", cf.opens.Load(), cf.closes.Load())
+	}
+	if n := f.officeJobCount(t, f.doc); n != 0 {
+		t.Fatalf("office_jobs = %d, want 0", n)
+	}
+}
+
+func TestOfficeSubmitLegacySpoolHeldByDescriptorSurvivesPathRemoval(t *testing.T) {
+	ctx := context.Background()
+	content := strings.Repeat("legacy descriptor survives sweep unlink\n", 1024)
+	f := newOfficeFixture(t, content)
+	spool := t.TempDir()
+	t.Setenv("TMPDIR", spool)
+	cf := &countingFiles{bridgeFiles: f.files}
+	svc := f.streamService(newScriptedEngine(), cf)
+
+	v, err := f.q.GetOfficeJobBaseVersion(ctx, db.GetOfficeJobBaseVersionParams{
+		ID: f.ver, OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: f.doc,
+	})
+	if err != nil {
+		t.Fatalf("GetOfficeJobBaseVersion: %v", err)
+	}
+	in, err := svc.readBase(ctx, files.Scope{OrganizationID: f.org, WorkspaceID: f.ws}, files.FileID(v.FileID.String), pgtype.Text{})
+	if err != nil {
+		t.Fatalf("readBase: %v", err)
+	}
+	want := sha256Hex([]byte(content))
+	if in.checksum != want || in.length != int64(len(content)) {
+		t.Fatalf("readBase digest = (%s, %d), want (%s, %d)", in.checksum, in.length, want, len(content))
+	}
+	if cf.opens.Load() != 1 || cf.closes.Load() != 1 {
+		t.Fatalf("after readBase: baseOpens=%d baseCloses=%d, want 1 and 1", cf.opens.Load(), cf.closes.Load())
+	}
+
+	entries, err := os.ReadDir(spool)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) != 1 || !strings.HasPrefix(entries[0].Name(), officeSpoolPrefix) {
+		t.Fatalf("spool entries = %v, want 1 %s* file", entries, officeSpoolPrefix)
+	}
+	spoolPath := filepath.Join(spool, entries[0].Name())
+	if err := os.Remove(spoolPath); err != nil {
+		t.Fatalf("Remove(%s): %v", spoolPath, err)
+	}
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		rc, err := in.open()
+		if err != nil {
+			t.Fatalf("open attempt %d after os.Remove: %v", attempt, err)
+		}
+		got, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("ReadAll attempt %d: %v", attempt, err)
+		}
+		if err := rc.Close(); err != nil {
+			t.Fatalf("Close attempt %d: %v", attempt, err)
+		}
+		if !bytes.Equal(got, []byte(content)) {
+			t.Fatalf("attempt %d read %d bytes, want %d bytes byte-exact", attempt, len(got), len(content))
+		}
+	}
+
+	in.release()
+	in.release()
+
+	if entries, _ := os.ReadDir(spool); len(entries) != 0 {
+		t.Fatalf("spool files after release: %v, want 0", entries)
+	}
+	if rc, err := in.open(); err == nil {
+		_, readErr := rc.Read(make([]byte, 1))
+		_ = rc.Close()
+		if !errors.Is(readErr, os.ErrClosed) {
+			t.Fatalf("read after release err = %v, want os.ErrClosed", readErr)
+		}
 	}
 }

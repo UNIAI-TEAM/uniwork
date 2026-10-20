@@ -106,6 +106,15 @@ func (f evalAgentFlags) IsEnabled(ctx context.Context, key string, def bool) boo
 	return f.base.IsEnabled(ctx, key, def)
 }
 
+// evalLeavePage is the body of the seed's "Quy trình xin nghỉ phép".
+const evalLeavePage = `{"type":"doc","content":[
+	{"type":"paragraph","content":[{"type":"text","text":"Các bước xin nghỉ phép:"}]},
+	{"type":"orderedList","content":[
+		{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Nhắn trưởng nhóm sớm, tối thiểu ba ngày làm, để sắp người thay."}]}]},
+		{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Gửi yêu cầu nghỉ phép trên UniWork, ghi ngày nghỉ và lý do."}]}]},
+		{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Trưởng nhóm phản hồi trong ngày; nghỉ từ ba ngày trở lên cần phòng Nhân sự đồng ý."}]}]},
+		{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Giao lại các mục còn dở cho người thay và bật trả lời tự động."}]}]}]}]}`
+
 // seedAskEval builds the workspace every case asks about. The asker is a plain
 // member (an owner would read restricted documents); the owner writes the rest.
 func seedAskEval(t *testing.T) *evalWorld {
@@ -187,7 +196,10 @@ func seedAskEval(t *testing.T) *evalWorld {
 		t.Fatal(err)
 	}
 
-	if _, err := docs.CreatePage(ctx, Human(owner.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép", Visibility: documentVisibilityWorkspace}); err != nil {
+	// The leave steps document-leave and free-writing are graded on. No word of
+	// the body is a term of another case's question ("trước", "nhận", "đơn",
+	// "thu", any digit), so P0 does not cite the page beside their hits.
+	if _, err := docs.CreatePage(ctx, Human(owner.ID), w.ID, CreatePageInput{Title: "Quy trình xin nghỉ phép", Visibility: documentVisibilityWorkspace, Content: json.RawMessage(evalLeavePage)}); err != nil {
 		t.Fatal(err)
 	}
 	secret, err := docs.CreatePage(ctx, Human(owner.ID), w.ID, CreatePageInput{Title: "Lương thưởng 2026"})

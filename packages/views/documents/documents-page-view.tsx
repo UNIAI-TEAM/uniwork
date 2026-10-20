@@ -266,21 +266,28 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const homeView = view.kind === "home";
   const homeFilters = homeView && !folderId && (library.editor !== "any" || library.updated !== "any");
   const accessFiltered = library.access !== "all";
-  const filteredBy = chip !== "all" || accessFiltered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
+  // "filtered" answers "is a filter on" (editor/updated live on the home filter
+  // bar, chip/access everywhere the list toolbar shows): it gates the folder's
+  // subfolders-only suppression (TV-4), the root's empty copy and the
+  // no-results state, so all three read the same flag.
+  const filtered = homeFilters || chip !== "all" || accessFiltered;
+  const filteredBy = filtered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
   const groups = groupRows(tableRows, homeView ? "none" : groupBy, library.folderIndex, myFolderLabel);
   const subfolders = subfoldersOf(library.tree, folderId);
-  // "filtered" still answers "is a filter on" (editor/updated live on the
-  // home filter bar, chip/access everywhere the list toolbar shows): it gates
-  // the folder's subfolders-only suppression (TV-4).
-  const filtered = homeFilters || chip !== "all" || accessFiltered;
-  const listLoading = state.loading || (Boolean(folderId) && folder.isPending);
+  // The root's folders come from the tree query: until it answers, an empty root
+  // list cannot tell "no folders" from "folders not here yet".
+  const rootTreePending = homeView && !folderId && !filtered && library.treeLoading && tableRows.length === 0;
+  const listLoading = state.loading || (Boolean(folderId) && folder.isPending) || rootTreePending;
+  // UNI-1994: folders on screen but no loose root document is not an empty workspace.
+  const outsideFolders = !folderId && !filtered && subfolders.length > 0;
+  const rootEmpty = outsideFolders ? "outside_folders_" : "";
   const emptyCopy = homeView
     ? {
-        title: folderId ? t("documents.home.empty.folder_title") : t("documents.home.empty.title"),
-        description: canCreate ? t("documents.home.empty.description") : t("documents.home.empty.view_only"),
+        title: folderId ? t("documents.home.empty.folder_title") : t(`documents.home.empty.${rootEmpty}title`),
+        description: canCreate ? t(`documents.home.empty.${rootEmpty}description`) : t("documents.home.empty.view_only"),
         actions:
           folderId && canCreate ? (
             <Button type="button" variant="outline" size="sm" onClick={() => rowDialogs.onCreateFolder()}>
@@ -339,6 +346,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       filteredBy={filteredBy}
       accessFiltered={accessFiltered}
       typeFiltered={chip !== "all"}
+      homeFiltered={homeFilters}
       cardsShown={canCreate && homeView}
       hasMore={state.hasMore}
       loadingMore={state.loadingMore}

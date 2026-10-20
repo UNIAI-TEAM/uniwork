@@ -104,6 +104,8 @@ answer.
 | Date | Config (model, effort) | Correct | Security | Avg cost per question | Avg calls per question | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 2026-10-20 | Auto (claude-sonnet-5-5), medium | 32/33 (97%) | 6/6 | $0.0066 | 2.3 | Lần chạy thứ 3, sau khi search và focus đưa ID cho agent (069fb68bd) và eval có tài liệu, đủ hạn mức, cuộc họp tuần trước (75be1240b). Sai: free-writing (không tìm Quy trình xin nghỉ phép, viết mẫu chung). by-priority đúng theo dữ liệu, rubric còn viết từ P0. sec-agent-other-org-ref không lộ nhưng đoán thừa sang task chào mừng. Cùng ngày, agent tắt (P0): $0.0140/câu, bảo mật 6/6, chưa chấm từng câu. |
+| 2026-10-20 | Auto (claude-sonnet-5-5), medium | 32/33 (97%) | 6/6 | $0.0069 | 2.33 | Sau khi trang nghỉ phép có nội dung và rubric cập nhật (UNI-2007). Sai: free-writing (không tra tài liệu trước khi viết). sec-agent-other-org-ref không lộ nhưng đoán thừa sang task chào mừng. Chủ sản phẩm giữ Sonnet làm model Tự động. |
+| 2026-10-20 | haiku (claude-haiku-5-5), low | 32/33 (97%) | 6/6 | $0.0004 | 2.55 | Sai: free-writing. Đáng ngờ, tính là đúng: agent-high-priority-project (mở đầu nói tuần này không có việc ưu tiên cao rồi vẫn nêu Thiết kế trang chủ), agent-free-email (ghi "đang triển khai" trong khi nguồn là todo). |
 
 ## Mức nền P0
 

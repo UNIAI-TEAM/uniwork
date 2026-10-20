@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
@@ -234,4 +236,47 @@ func TestAIUniworkRedisErrorFailsOpen(t *testing.T) {
 		t.Fatalf("Acquire past the pod bound with a dead Redis = %v, want ai_uniwork_busy", err)
 	}
 	release()
+}
+
+// FU-G7-12-WRAP (UNI-1985): attemptMessages stores turn.ToolResults in the
+// conversation transcript, which stays the raw client content without the
+// vendor-side <untrusted> wrapper.
+func TestAIUniworkAttemptMessagesKeepRawToolResults(t *testing.T) {
+	transcript := []provider.Message{
+		{Role: "user", Content: "Summarise slide 2."},
+		{Role: "assistant", ToolCalls: []provider.ToolCall{
+			{ID: "call_1", Name: "read_slide", Input: json.RawMessage(`{"slide":2}`)},
+		}},
+	}
+	allow := ai.UniworkModuleAllowlist(OfficeFrameModuleSlides, []ai.UniworkToolSpec{
+		{Type: "function", Function: ai.UniworkToolSpecFunction{
+			Name: "read_slide", Description: "read slide", Parameters: map[string]any{"type": "object"},
+		}},
+	}, false, true)
+	rawContent := `{"slide":2,"bullets":["Target: 120 units"]}`
+	body, err := json.Marshal(map[string]any{
+		"messages": []map[string]string{
+			{"role": "tool", "tool_call_id": "call_1", "content": rawContent},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, err := ai.PlanUniworkTurn(transcript, body, allow)
+	if err != nil {
+		t.Fatalf("PlanUniworkTurn: %v", err)
+	}
+	stored := attemptMessages(turn)
+	if len(stored) != 1 || stored[0].Message.Role != "tool" || stored[0].Message.ToolCallID != "call_1" {
+		t.Fatalf("attemptMessages = %+v, want one tool turn for call_1", stored)
+	}
+	if stored[0].Message.Content != rawContent {
+		t.Errorf("attemptMessages stored %q, want raw %q", stored[0].Message.Content, rawContent)
+	}
+	if p, ok := ai.LookupPrompt(ai.PromptOfficeUniworkAI); ok && p.Version >= 5 {
+		wantVendor := "<untrusted source=\"tool:read_slide\">\n" + rawContent + "\n</untrusted>"
+		if got := turn.History[len(turn.History)-1].Content; got != wantVendor {
+			t.Errorf("vendor History tool content = %q, want %q", got, wantVendor)
+		}
+	}
 }

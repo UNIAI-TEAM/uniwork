@@ -10,6 +10,7 @@ import { PROTOCOL_NS, PROTOCOL_VERSION, checkInitComments, type Envelope, type I
 import type { User } from "@uniwork/core/types";
 import { requestMock } from "../../test/api-mock";
 import { useDocsFrameSession } from "./use-docs-frame-session";
+import { AVATAR_ROUTE_FRAME_VERSIONS } from "./frame-avatar-url";
 import { useFrameComments } from "./use-frame-comments";
 
 // One fake workspace socket for every test: the hook subscribes with onAny. The session's
@@ -49,13 +50,16 @@ const minted = (canEdit = true) => ({
   document_id: "doc-1", workspace_id: "ws-1", organization_id: "org-1", can_edit: canEdit, module: "docs",
 });
 
-interface Props { myLevel?: string | null; revealCommentId?: string | null; documentId?: string }
+interface Props { myLevel?: string | null; revealCommentId?: string | null; documentId?: string; frameVersion?: string }
 
 /** The editor frame on the other side of the wire: records what the host posts, answers `init`, posts requests. */
 function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = false, frameComments = true, ...initial }: Props & { module?: OfficeModule; canEdit?: boolean; readonly?: boolean; frameComments?: boolean } = {}) {
   const api = vi.fn<(path: string, opts?: { method?: string; headers?: Record<string, string> }) => Promise<unknown>>((path, opts) => {
     if (path === MINT_PATH) return Promise.resolve({ ...minted(canEdit), module });
     if (path === OTHER_MINT_PATH) return Promise.resolve({ ...minted(canEdit), module, document_id: "doc-2" });
+    // Any other document (the avatar tests use a ULID one) mints for itself.
+    const mint = /^\/api\/v1\/documents\/([^/]+)\/office\/frame-token$/.exec(String(path));
+    if (mint) return Promise.resolve({ ...minted(canEdit), module, document_id: mint[1] });
     // The session reads its upload ceiling from GET /api/v1/config (useDocumentLimits); answer it
     // like use-docs-frame-session.test.tsx does so the query resolves instead of erroring.
     if (String(path).startsWith("/api/v1/config")) return Promise.resolve({ flags: {} });
@@ -88,7 +92,7 @@ function setup({ module = "docs" as OfficeModule, canEdit = true, readonly = fal
   const panels: boolean[] = [];
   const hook = renderHook((props: Props) => {
     const documentId = props.documentId ?? "doc-1";
-    const comments = useFrameComments({ wsId: "ws-1", ...props, documentId });
+    const comments = useFrameComments({ wsId: "ws-1", frameVersion: "", ...props, documentId });
     panels.push(comments.framePanel);
     const session = useDocsFrameSession({
       iframeRef, frameOrigin: window.location.origin, module, wsId: "ws-1", fileRef: { kind: "document", id: documentId },
@@ -569,5 +573,105 @@ describe("useFrameComments: a frame without comments makes no request", () => {
     await publish(wsFrame("document.comment_added", { document_id: "doc-1", workspace_id: "ws-1" }));
     expect(frame.commentsRequests()).toEqual([]);
     expect(frame.received.filter((m) => m.type === "comments.changed" || m.type === "comments.reveal")).toEqual([]);
+  });
+});
+
+// UNI-1986: the picture of a person reaches the frame as the same-origin avatar route, or as "".
+describe("useFrameComments: frame avatars (UNI-1986)", () => {
+  const DOC = "01M4KH88167D722JAC9EAPKN33";
+  const USER = "01J8X4K2M0N1P2Q3R4S5T6V7W8";
+  const AGENT = "01J8X4AGE0N1P2Q3R4S5T6V7W8";
+  const ROUTE = `/api/v1/office-frame/documents/${DOC}/avatars/${USER}`;
+  const PICTURE = "https://storage.example.test/avatars/an.png?X-Amz-Signature=abc";
+  const AVATAR_BUILD = "0.1.0-avatars";
+  const OLD_BUILD = "0.1.0-b1cbd5d";
+  const wire = (over: Record<string, unknown> = {}) => ({
+    ...WIRE, id: "c1", document_id: DOC, author_id: USER, author_kind: "human", display_name: "An", avatar_url: PICTURE,
+    reactions: [], ...over,
+  });
+  const mention = { user_id: USER, display_name: "An", avatar_url: PICTURE, state: "ok" };
+
+  // The pins know no avatar build yet (frame-avatar-url.ts); stand one in for the tests that need it.
+  const knownBuilds = AVATAR_ROUTE_FRAME_VERSIONS as string[];
+  beforeEach(() => { knownBuilds.push(AVATAR_BUILD); });
+  afterEach(() => { knownBuilds.length = 0; });
+
+  const open = async (props: Props = {}) => {
+    const frame = setup({ myLevel: "edit", documentId: DOC, frameVersion: AVATAR_BUILD, ...props });
+    await frame.boot();
+    return frame;
+  };
+  const payloadOf = async (frame: Awaited<ReturnType<typeof open>>, type: string, payload: unknown) =>
+    (await frame.answerOf(await frame.request(type, payload))).payload as Record<string, any>;
+
+  it("comments.list: a human author and a mention get the route, an agent and a picture-less author get \"\"", async () => {
+    const frame = await open();
+    const comments = [wire(), wire({ id: "c2", author_kind: "agent", author_id: AGENT }), wire({ id: "c3", avatar_url: "" })];
+    frame.api.mockResolvedValue({ comments, mentions: [mention, { user_id: USER, state: "unavailable" }], list_token: "lt1:aa", unchanged: false });
+    const out = await payloadOf(frame, "comments.list", {});
+    expect(out.comments.map((c: { avatar_url: string }) => c.avatar_url)).toEqual([ROUTE, "", ""]);
+    expect(out.mentions[0]).toEqual({ ...mention, avatar_url: ROUTE });
+    expect(out.mentions[1]).toEqual({ user_id: USER, state: "unavailable" });
+    // No other field of a comment moves.
+    expect({ ...out.comments[0], avatar_url: PICTURE }).toEqual(comments[0]);
+    expect(out.list_token).toBe("lt1:aa");
+  });
+
+  it("comments.list `unchanged` stays the token alone", async () => {
+    const frame = await open();
+    frame.api.mockResolvedValue({ comments: [], mentions: [], list_token: "lt1:aa", unchanged: true });
+    expect(await payloadOf(frame, "comments.list", { since_token: "lt1:aa" })).toEqual({ comments: [], mentions: [], list_token: "lt1:aa", unchanged: true });
+  });
+
+  it.each([
+    ["comments.create", { kind: "discussion", body: "x" }],
+    ["comments.update", { comment_id: "c1", body: "x" }],
+    ["comments.resolve", { comment_id: "c1" }],
+    ["comments.reopen", { comment_id: "c1" }],
+  ] as const)("%s answers the comment with the route and every other key as the server sent it", async (type, payload) => {
+    const frame = await open();
+    const answer = { comment: wire({ body: "x", resolved_at: null, mentions_without_access: [{ user_id: "u2", can_share: true }] }) };
+    frame.api.mockResolvedValue(answer);
+    const out = await payloadOf(frame, type, payload);
+    expect(out.comment.avatar_url).toBe(ROUTE);
+    expect(out).toEqual({ ...answer, comment: { ...answer.comment, avatar_url: ROUTE } });
+  });
+
+  it("mentions.search candidates get the route (a person with a picture) or \"\"; can_view and email stay", async () => {
+    const frame = await open();
+    const candidates = [
+      { user_id: USER, display_name: "An", avatar_url: PICTURE, can_view: false, email: "an@example.test" },
+      { user_id: "01J8X4K2M0BBBBBBBBBBBBBBBB", display_name: "Bình", avatar_url: "" },
+      { user_id: "01J8X4K2M0CCCCCCCCCCCCCCCC", display_name: "Cường" },
+    ];
+    frame.api.mockResolvedValue({ candidates });
+    const out = await payloadOf(frame, "mentions.search", { q: "", include: "no_access" });
+    expect(out.candidates).toEqual([{ ...candidates[0], avatar_url: ROUTE }, candidates[1], candidates[2]]);
+  });
+
+  it("revisions, anchors and delete answers are not touched", async () => {
+    const frame = await open();
+    const revisions = { revisions: [{ id: "r1", revision: 1, body: "x", created_by_id: USER, created_by_kind: "human", created_at: "t", avatar_url: PICTURE }] };
+    frame.api.mockResolvedValue(revisions);
+    expect(await payloadOf(frame, "comments.revisions", { comment_id: "c1" })).toEqual(revisions);
+  });
+
+  it("a frame build that does not know the route gets \"\" everywhere and no absolute URL", async () => {
+    const frame = await open({ frameVersion: OLD_BUILD });
+    frame.api.mockResolvedValue({ comments: [wire()], mentions: [mention], list_token: "lt1:aa", unchanged: false });
+    const listed = await payloadOf(frame, "comments.list", {});
+    expect(listed.comments[0].avatar_url).toBe("");
+    expect(listed.mentions[0].avatar_url).toBe("");
+    frame.api.mockResolvedValue({ comment: wire() });
+    expect((await payloadOf(frame, "comments.create", { kind: "discussion", body: "x" })).comment.avatar_url).toBe("");
+    frame.api.mockResolvedValue({ candidates: [{ user_id: USER, display_name: "An", avatar_url: PICTURE }] });
+    expect((await payloadOf(frame, "mentions.search", { q: "" })).candidates[0].avatar_url).toBe("");
+    expect(JSON.stringify(frame.received.filter((m) => m.kind === "response"))).not.toContain("https://storage.example.test");
+  });
+
+  it("a page with no pinned frame version (not installed) sends \"\"", async () => {
+    const frame = await open({ frameVersion: "" });
+    frame.api.mockResolvedValue({ comment: wire() });
+    expect((await payloadOf(frame, "comments.create", { kind: "discussion", body: "x" })).comment.avatar_url).toBe("");
   });
 });

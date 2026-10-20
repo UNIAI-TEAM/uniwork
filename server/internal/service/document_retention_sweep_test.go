@@ -442,24 +442,35 @@ func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 	job := f.retentionOfficeJob(t, tn, "completed", old)
 	multipart := f.retentionMultipartRow(t, tn, "completed", old)
 	grant := f.retentionBreakGlassGrant(t, tn, util.NewID(), old, time.Time{})
+	seedIdemp := func(createdAt time.Time) string {
+		id := util.NewID()
+		insertRow(t, f.ctx, f.pool, "idempotency_keys", map[string]any{
+			"id": id, "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"scope": "tasks.create", "key": util.NewID(), "actor_id": tn.member.ID,
+			"response_status": 201, "response_body": []byte(`{}`), "created_at": createdAt,
+		})
+		return id
+	}
+	expiredIdemp := seedIdemp(old)
+	freshIdemp := seedIdemp(fixed.Add(-time.Hour))
 
 	metrics := &countingDocMetrics{}
 	f.svc.SetMetrics(metrics)
 
 	w := f.svc.NewDocumentWorkers()
 	// The loops run their first pass immediately, then wait on a channel that
-	// never fires. The four loops call w.swept concurrently, so mu guards the
+	// never fires. The five loops call w.swept concurrently, so mu guards the
 	// map they share (the same pattern as document_workers_test.go).
 	ctx, cancel := context.WithCancel(f.ctx)
 	defer cancel()
 	var mu sync.Mutex
 	seen := map[string]bool{}
 	// Cancel only once every first pass has reported: the retention sweeps
-	// ride the purge and commit_intent ticks, but cancelling on those two
-	// alone can interrupt the auto-version or compaction pass that started
-	// with them, and their cancellation error would be reported as a failure
-	// of a loop this test does not mean to stop.
-	firstPasses := []string{"auto_version", "purge", "compact", "commit_intent"}
+	// ride the purge, commit_intent and idempotency_key ticks, and cancelling
+	// early can interrupt the auto-version or compaction pass that started
+	// with them, reporting its cancellation error as a failure of a loop this
+	// test does not mean to stop.
+	firstPasses := []string{"auto_version", "purge", "compact", "commit_intent", "idempotency_key"}
 	w.swept = func(kind string, err error) {
 		if err != nil {
 			t.Errorf("%s sweep: %v", kind, err)
@@ -483,14 +494,18 @@ func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 		{"office_jobs", job},
 		{"file_multipart_uploads", multipart},
 		{"document_break_glass_grants", grant},
+		{"idempotency_keys", expiredIdemp},
 	} {
 		if retentionRowExists(t, f, id.table, id.id) {
 			t.Fatalf("%s row %s survived one worker pass", id.table, id.id)
 		}
 	}
+	if !retentionRowExists(t, f, "idempotency_keys", freshIdemp) {
+		t.Fatalf("fresh idempotency_keys row %s was swept", freshIdemp)
+	}
 	// Run has joined every loop, so the recorded sweeps are stable.
 	sweeps := metrics.sweepLabels()
-	for _, want := range []string{"office_job/ok", "multipart_row/ok", "break_glass/ok"} {
+	for _, want := range []string{"office_job/ok", "multipart_row/ok", "break_glass/ok", "idempotency_key/ok"} {
 		if !containsString(sweeps, want) {
 			t.Fatalf("worker sweeps %v, want %s", sweeps, want)
 		}
