@@ -479,6 +479,11 @@ func pathParamSDI(path string) any {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			AssetID    string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "documentID,userID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu của token khung" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			UserID     string `path:"userID" description:"ULID thành viên cùng tổ chức với tài liệu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "documentID,linkedDocumentID":
 		return struct {
 			DocumentID       string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`

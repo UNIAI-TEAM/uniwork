@@ -577,3 +577,56 @@ func (h *handlers) getOfficeFrameLinked(w http.ResponseWriter, r *http.Request) 
 		Checksum:    f.Reader.File.ChecksumSHA256,
 	}, service.DocumentByteRange{}, false)
 }
+
+// getOfficeFrameAvatar is GET|HEAD
+// /office-frame/documents/{documentID}/avatars/{userID}: streams the file-backed
+// avatar of an active member of the document's organization to the frame
+// (UNI-1986). Every missing, foreign, deactivated or invalid case answers the
+// same 404 body through mapServiceError.
+func (h *handlers) getOfficeFrameAvatar(w http.ResponseWriter, r *http.Request) {
+	claims := officeFrameClaims(r)
+	userID := chi.URLParam(r, "userID")
+	rd, err := h.OfficeFrame.OpenAvatar(r.Context(), claims, userID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	defer rd.Close()
+	etag := `"` + string(rd.File.ID) + `"`
+	header := w.Header()
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+	header.Set("Cache-Control", "private, max-age=300")
+	header.Set("ETag", etag)
+	header.Set("Vary", "Authorization")
+	if ifNoneMatch(r.Header.Get("If-None-Match"), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	header.Set("Content-Type", rd.File.ContentType)
+	header.Set("Content-Disposition", `inline; filename="avatar"`)
+	header.Set("Content-Length", strconv.FormatInt(rd.File.SizeBytes, 10))
+	w.WriteHeader(http.StatusOK)
+	if r.Method == http.MethodHead {
+		return
+	}
+	if _, err := io.Copy(w, rd.Body); err != nil && r.Context().Err() == nil && h.Log != nil {
+		h.Log.Warn("office frame avatar stream", "document_id", claims.DocumentID, "user_id", userID, "err", err)
+	}
+}
+
+func ifNoneMatch(raw, etag string) bool {
+	if raw == "" || etag == "" {
+		return false
+	}
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "*" {
+			return true
+		}
+		if strings.TrimPrefix(part, "W/") == etag {
+			return true
+		}
+	}
+	return false
+}
