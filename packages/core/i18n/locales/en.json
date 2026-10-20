@@ -9584,7 +9584,7 @@
         "yesterday": "Yesterday"
       },
       "access": {
-        "restricted": "Restricted",
+        "restricted": "Private",
         "workspace": "Workspace",
         "shared": "Shared",
         "owner": "Owner",

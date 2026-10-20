@@ -47,7 +47,7 @@ export function DocNameCell({
 
 const ACCESS_ICON = { restricted: Lock, workspace: Users, shared: Share2 } as const;
 
-/** The scope pill (Hạn chế / Workspace / Được chia sẻ) and, under it, "Chủ sở hữu" or "Bạn: Xem|Bình luận|Sửa|Quản lý". */
+/** The scope pill (Riêng tư / Workspace / Được chia sẻ) and, under it, "Chủ sở hữu" or "Bạn: Xem|Bình luận|Sửa|Quản lý". */
 export function DocAccessCell({
   visibility,
   shareScope,

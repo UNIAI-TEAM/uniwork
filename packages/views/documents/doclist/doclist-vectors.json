@@ -6,8 +6,8 @@
         "my_level": "view",
         "pill": "restricted",
         "pill_text": {
-          "en": "Restricted",
-          "vi": "Hạn chế"
+          "en": "Private",
+          "vi": "Riêng tư"
         },
         "share_scope": {
           "home_workspace": false,
@@ -27,8 +27,8 @@
         "my_level": "comment",
         "pill": "restricted",
         "pill_text": {
-          "en": "Restricted",
-          "vi": "Hạn chế"
+          "en": "Private",
+          "vi": "Riêng tư"
         },
         "share_scope": {
           "home_workspace": false,
@@ -48,8 +48,8 @@
         "my_level": "edit",
         "pill": "restricted",
         "pill_text": {
-          "en": "Restricted",
-          "vi": "Hạn chế"
+          "en": "Private",
+          "vi": "Riêng tư"
         },
         "share_scope": {
           "home_workspace": false,
@@ -69,8 +69,8 @@
         "my_level": "manage",
         "pill": "restricted",
         "pill_text": {
-          "en": "Restricted",
-          "vi": "Hạn chế"
+          "en": "Private",
+          "vi": "Riêng tư"
         },
         "share_scope": {
           "home_workspace": false,
@@ -196,8 +196,8 @@
         "my_level": "manage",
         "pill": "restricted",
         "pill_text": {
-          "en": "Restricted",
-          "vi": "Hạn chế"
+          "en": "Private",
+          "vi": "Riêng tư"
         },
         "share_scope": {
           "home_workspace": false,
@@ -240,8 +240,8 @@
         "my_level": "edit",
         "pill": "restricted",
         "pill_text": {
-          "en": "Restricted",
-          "vi": "Hạn chế"
+          "en": "Private",
+          "vi": "Riêng tư"
         },
         "share_scope": {
           "home_workspace": false,
@@ -261,8 +261,8 @@
         "my_level": null,
         "pill": "restricted",
         "pill_text": {
-          "en": "Restricted",
-          "vi": "Hạn chế"
+          "en": "Private",
+          "vi": "Riêng tư"
         },
         "share_scope": null,
         "sub": null,
@@ -286,8 +286,8 @@
         "my_level": null,
         "pill": "restricted",
         "pill_text": {
-          "en": "Restricted",
-          "vi": "Hạn chế"
+          "en": "Private",
+          "vi": "Riêng tư"
         },
         "share_scope": null,
         "sub": {

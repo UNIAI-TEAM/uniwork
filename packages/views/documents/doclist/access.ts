@@ -8,8 +8,8 @@ export type DocAccessKind = "restricted" | "workspace" | "shared";
 /**
  * The pill: Workspace when the document is visible to its workspace; else
  * Được chia sẻ when anyone beyond the owner can reach it (people, other
- * workspaces, the organization, a live link); else Hạn chế. A missing
- * `share_scope` is never guessed: a restricted row without one reads Hạn chế.
+ * workspaces, the organization, a live link); else Riêng tư. A missing
+ * `share_scope` is never guessed: a restricted row without one reads Riêng tư.
  */
 export function docAccessKind(visibility: string | null | undefined, shareScope: DocumentShareScope | null | undefined): DocAccessKind {
   if (visibility === "workspace") return "workspace";

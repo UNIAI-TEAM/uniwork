@@ -9579,7 +9579,7 @@
         "yesterday": "Hôm qua"
       },
       "access": {
-        "restricted": "Hạn chế",
+        "restricted": "Riêng tư",
         "workspace": "Workspace",
         "shared": "Được chia sẻ",
         "owner": "Chủ sở hữu",

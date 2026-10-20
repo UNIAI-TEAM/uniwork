@@ -53,9 +53,9 @@ describe("DocNameCell", () => {
 });
 
 describe("DocAccessCell", () => {
-  it("shows Hạn chế with the viewer's level as 'Bạn: Sửa'", () => {
+  it("shows Riêng tư with the viewer's level as 'Bạn: Sửa'", () => {
     render(<DocAccessCell visibility="restricted" shareScope={scopeOf()} myLevel="edit" />);
-    expect(screen.getByText("Hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Riêng tư")).toBeInTheDocument();
     expect(screen.getByText("Bạn: Sửa")).toBeInTheDocument();
   });
 
@@ -89,7 +89,7 @@ describe("DocAccessCell", () => {
 
   it("degrades without a level or a scope instead of throwing", () => {
     render(<DocAccessCell visibility="restricted" shareScope={null} myLevel={null} />);
-    expect(screen.getByText("Hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Riêng tư")).toBeInTheDocument();
     expect(screen.queryByText(/Bạn:/)).not.toBeInTheDocument();
   });
 
