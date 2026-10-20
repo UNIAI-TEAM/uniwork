@@ -37,10 +37,22 @@ export function rowAppOperation(level: RowLevel): "view" | "edit" {
  * reader opens the dialog, a manager manages and anyone else sees their own
  * level. Owned (work-product) documents inherit access from their task or
  * meeting, a trashed row is the trash view's, My Folder is personal and a
- * folder is never shared (UNI-1974).
+ * folder is never shared (UNI-1974). A row with an empty `organization_id` is
+ * a starred favorite whose document no loaded list or detail has answered
+ * (favoriteRow): its owner and level are unknown, so it offers nothing.
  */
 export function canShareRow(
-  doc: { kind: string; owner_kind?: string | null; archived_at?: string | null; system_kind?: string | null } | null | undefined,
+  doc:
+    | { kind: string; organization_id?: string; owner_kind?: string | null; archived_at?: string | null; system_kind?: string | null }
+    | null
+    | undefined,
 ): boolean {
-  return !!doc && doc.kind !== "folder" && !doc.owner_kind && !doc.archived_at && doc.system_kind !== "my_folder";
+  return (
+    !!doc &&
+    doc.organization_id !== "" &&
+    doc.kind !== "folder" &&
+    !doc.owner_kind &&
+    !doc.archived_at &&
+    doc.system_kind !== "my_folder"
+  );
 }

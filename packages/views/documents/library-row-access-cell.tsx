@@ -36,6 +36,8 @@ export function LibraryRowAccessCell({
 }) {
   const { t } = useTranslation();
   const scopeDescId = useId();
+  const commandId = useId();
+  const contentId = useId();
   const scopeInfo = scope ? shareScopeView(scope, t, workspaceName) : null;
   const content = (
     <>
@@ -60,18 +62,25 @@ export function LibraryRowAccessCell({
     <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "access"))}>
       {onShare && doc ? (
         // The badge is not focusable here (it would nest a control inside the
-        // button); its composition reaches the button as the description.
+        // button); its composition reaches the button as the description. The
+        // name is the command plus the visible text (WCAG 2.5.3 label in name),
+        // so the scope and the level are announced and speakable.
         <button
           type="button"
           onClick={(event) => {
             event.stopPropagation();
             onShare(doc);
           }}
-          aria-label={t(manage ? "documents.home.access.manage_for" : "documents.home.access.view_for", { title })}
+          aria-labelledby={`${commandId} ${contentId}`}
           aria-describedby={scopeInfo && scopeInfo.tooltipText !== scopeInfo.label ? scopeDescId : undefined}
           className="-mx-1.5 -my-1 block w-[calc(100%+0.75rem)] min-w-0 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-accent pointer-coarse:min-h-11"
         >
-          {content}
+          <span id={commandId} className="sr-only">
+            {t(manage ? "documents.home.access.manage_for" : "documents.home.access.view_for", { title })}
+          </span>
+          <span id={contentId} className="block">
+            {content}
+          </span>
         </button>
       ) : (
         content

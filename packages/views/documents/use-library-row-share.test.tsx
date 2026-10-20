@@ -12,7 +12,8 @@ import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 
 // UNI-2009: the Share dialog behind a list row. One ShareDialog is mounted by
 // useLibraryRowDialogs and every list host (home, folder, Recent, Starred,
-// Shared with me, Shared by me, Lưu trữ) reaches it through the same handlers.
+// Shared with me, Shared by me) reaches it through the same handlers. The Lưu
+// trữ (shelved) list renders its own ShelvedRowView and is not a host.
 
 const { t } = initI18n();
 
@@ -49,7 +50,7 @@ function row(over: Partial<DocumentSummaryRow> = {}): DocumentSummaryRow {
 const workspace = { id: WS, slug: WS, organization_id: "org1", organization_slug: "acme", name: "Team" } as unknown as Workspace;
 const user = { id: "u1", email: "an@example.com", display_name: "An" } as unknown as User;
 
-function route(list: DocumentSummaryRow[]) {
+function route(list: DocumentSummaryRow[], favorites: DocumentSummaryRow[] = list) {
   requestMock.mockImplementation((path: string) => {
     if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
     if (path.startsWith(`${LIST_BASE}/sources`)) return Promise.resolve({ items: [], next_cursor: null });
@@ -60,7 +61,7 @@ function route(list: DocumentSummaryRow[]) {
       return Promise.resolve({ document: row({ id: "fo1", kind: "folder", title: "Dự án CCB", revision: "3", breadcrumbs: [] } as Partial<DocumentSummaryRow>) });
     }
     if (path.startsWith("/api/v1/orgs/") && path.includes("favorites")) {
-      return Promise.resolve({ favorites: list.map((d) => ({ document_id: d.id, workspace_id: WS, title: d.title, kind: d.kind })) });
+      return Promise.resolve({ favorites: favorites.map((d) => ({ document_id: d.id, workspace_id: WS, title: d.title, kind: d.kind })) });
     }
     if (path.startsWith("/api/v1/orgs/")) return Promise.resolve({ members: [], workspaces: [] });
     if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: list, next_cursor: null });
@@ -173,7 +174,7 @@ describe("every list host wires the Access cell and the row menu to the dialog",
     });
 
     // The Access cell is a button: it opens the dialog and the row stays shut.
-    fireEvent.click(within(tr).getByRole("button", { name: t("documents.home.access.manage_for", { title: "Kế hoạch Q4.docx" }) }));
+    fireEvent.click(within(tr).getByRole("button", { name: (name) => name.startsWith(t("documents.home.access.manage_for", { title: "Kế hoạch Q4.docx" })) }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: t("documents.share.title_named", { title: "Kế hoạch Q4.docx" }) })).toBeInTheDocument();
     expect(onOpen).not.toHaveBeenCalled();
@@ -184,5 +185,60 @@ describe("every list host wires the Access cell and the row menu to the dialog",
     fireEvent.click(within(tr).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4.docx" }) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.actions.share") }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+// The Starred view builds its rows from the favorites plus a loaded copy of the
+// same document (favoriteRow); the Share gate must read that copy's owner, not
+// a default, so a starred work-product document offers what its own list does.
+describe("the Starred view keeps the Share gate of the document's own row", () => {
+  async function renderStarred(list: DocumentSummaryRow[], favorites: DocumentSummaryRow[]) {
+    route(list, favorites);
+    const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <FeatureFlagsProvider service={service}>
+            <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+          </FeatureFlagsProvider>
+        </WorkspaceProvider>,
+        fakeNav("/acme/ws1/documents?view=starred"),
+      ),
+    );
+    return waitFor(() => {
+      const found = document.querySelector('[data-library-row="d1"]');
+      expect(found).not.toBeNull();
+      return found as HTMLElement;
+    });
+  }
+
+  const title = "Kế hoạch Q4.docx";
+  const accessButtons = (tr: HTMLElement) =>
+    within(tr).queryAllByRole("button", { name: new RegExp(`${t("documents.home.access.manage_for", { title })}|${t("documents.home.access.view_for", { title })}`) });
+
+  async function shareItem(tr: HTMLElement) {
+    fireEvent.click(within(tr).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+    const menu = await screen.findByRole("menu");
+    return within(menu).queryByRole("menuitem", { name: t("documents.actions.share") });
+  }
+
+  it("offers neither Share nor the Access button on a starred owned (work-product) document", async () => {
+    const owned = row({ owner_kind: "task", owner_id: "t1" });
+    const tr = await renderStarred([owned], [owned]);
+    expect(accessButtons(tr)).toHaveLength(0);
+    expect(await shareItem(tr)).toBeNull();
+  });
+
+  it("offers neither on a starred document whose copy has not loaded", async () => {
+    const tr = await renderStarred([], [row()]);
+    expect(accessButtons(tr)).toHaveLength(0);
+    expect(await shareItem(tr)).toBeNull();
+  });
+
+  it("names Manage access for a starred document the viewer administers through admin_scope", async () => {
+    const admin = row({ my_level: undefined, admin_scope: true });
+    const tr = await renderStarred([admin], [admin]);
+    expect(within(tr).getByRole("button", { name: new RegExp(t("documents.home.access.manage_for", { title })) })).toBeInTheDocument();
+    expect(await shareItem(tr)).not.toBeNull();
   });
 });

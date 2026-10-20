@@ -195,11 +195,12 @@ export function useUpdateDocument(wsId: string, documentId: string) {
       // UNI-1851 F2: the share dialog's workspace/restricted switch rides this
       // hook; a visibility flip adds or drops the row in the caller's Shared
       // by me list, so refresh its root without waiting for
-      // document.workspace_access_changed.
-      void qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) });
-      // UNI-2009: the flip also moves the Access cell of the row in every list.
-      // A title or icon patch leaves the scope alone, so it refetches nothing.
+      // document.workspace_access_changed. UNI-2009: the flip also moves the
+      // Access cell of the row in every list, and that refresh includes Shared
+      // by me. A title or icon patch leaves the scope alone, so only Shared by
+      // me (which shows the title) refetches.
       if (input.patch.visibility !== undefined) void invalidateDocumentLists(qc, wsId);
+      else void qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) });
       return doc;
     },
   });

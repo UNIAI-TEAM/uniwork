@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
@@ -188,6 +188,8 @@ describe("share changes refresh every list a library row comes from (UNI-2009)",
       await result.current.mutateAsync({ patch: { title: "Mới", revision: "1" } });
     });
     expect(qc.getQueryState(LIST_KEYS["home root"])?.isInvalidated).toBe(false);
+    // The title still shows in Shared by me, and only there.
+    expect(qc.getQueryState(LIST_KEYS["shared by me"])?.isInvalidated).toBe(true);
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ visibility: "restricted", revision: "3" }) }));
     await act(async () => {
@@ -204,5 +206,29 @@ describe("share changes refresh every list a library row comes from (UNI-2009)",
       await result.current.mutateAsync({ requestId: "r1", level: "edit" });
     });
     expectEveryListInvalidated(qc);
+  });
+
+  it("settles before an open list has refetched, so the dialog's buttons never wait for a list", async () => {
+    const { qc, wrapper } = setup();
+    // An open list whose refetch never answers: awaiting it would hang the mutation.
+    const unanswered = new Promise<never>(() => undefined);
+    const observer = new QueryObserver(qc, { queryKey: LIST_KEYS["home root"], queryFn: () => unanswered, staleTime: Infinity });
+    const unsubscribe = observer.subscribe(() => undefined);
+    const settled = async (run: () => Promise<unknown>) =>
+      Promise.race([run().then(() => "settled"), new Promise((resolve) => setTimeout(() => resolve("waiting"), 300))]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ share: share() }));
+    const grant = renderHook(() => useShareDocument("w1", "d1", "w1"), { wrapper });
+    await act(async () => {
+      expect(await settled(() => grant.result.current.mutateAsync({ principal_type: "user", principal_id: "u2", level: "view" }))).toBe("settled");
+    });
+    expect(qc.getQueryState(LIST_KEYS["home root"])?.fetchStatus).toBe("fetching");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ id: "r1", status: "approved", share_id: "s1" }));
+    const approve = renderHook(() => useApproveDocumentAccessRequest("w1", "d1"), { wrapper });
+    await act(async () => {
+      expect(await settled(() => approve.result.current.mutateAsync({ requestId: "r1", level: "edit" }))).toBe("settled");
+    });
+    unsubscribe();
   });
 });

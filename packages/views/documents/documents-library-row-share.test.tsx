@@ -161,8 +161,10 @@ describe("the Access cell as a button", () => {
   it("names 'Manage access for {title}' for a manager and opens Share without opening the row", () => {
     const row = doc();
     renderRow(documentRow(row));
-    const button = within(accessCell()).getByRole("button", { name: t("documents.home.access.manage_for", { title: row.title }) });
-    expect(button).toHaveAccessibleName("Quản lý quyền truy cập của Kế hoạch Q4.docx");
+    const button = within(accessCell()).getByRole("button", { name: (name) => name.startsWith(t("documents.home.access.manage_for", { title: row.title })) });
+    // WCAG 2.5.3 label in name: the name leads with the command and carries
+    // the visible scope and level text, so a voice user can say what they see.
+    expect(button).toHaveAccessibleName("Quản lý quyền truy cập của Kế hoạch Q4.docx Workspace Bạn: Quản lý");
     // The scope badge and the viewer's level still read inside it.
     expect(within(button).getByText("Workspace")).toBeTruthy();
     expect(within(button).getByText("Bạn: Quản lý")).toBeTruthy();
@@ -178,8 +180,8 @@ describe("the Access cell as a button", () => {
   it("names 'View access for {title}' for anyone who cannot manage", () => {
     const row = doc({ my_level: "edit", via: "share" });
     renderRow(documentRow(row));
-    const button = within(accessCell()).getByRole("button", { name: t("documents.home.access.view_for", { title: row.title }) });
-    expect(button).toHaveAccessibleName("Xem quyền truy cập của Kế hoạch Q4.docx");
+    const button = within(accessCell()).getByRole("button", { name: (name) => name.startsWith(t("documents.home.access.view_for", { title: row.title })) });
+    expect(button).toHaveAccessibleName("Xem quyền truy cập của Kế hoạch Q4.docx Workspace Bạn: Chỉnh sửa");
     fireEvent.click(button);
     expect(handlers.onShare).toHaveBeenCalledWith(row);
   });
