@@ -408,15 +408,27 @@ func (q *Queries) ListDocumentsByIDs(ctx context.Context, arg ListDocumentsByIDs
 }
 
 const listDocumentsByParentPage = `-- name: ListDocumentsByParentPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
-WHERE d.organization_id = $1
-  AND d.workspace_id = $2
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND $1::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    COALESCE(CASE WHEN $1::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN $1::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN $1::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN $1::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+) sk
+WHERE d.organization_id = $2
+  AND d.workspace_id = $3
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): a tree level shows live rows only.
@@ -427,23 +439,23 @@ WHERE d.organization_id = $1
   -- caller's own list: it shows on its own, never inside an owner's folder.
   -- "Parent listed" repeats the predicate below on the parent row (the
   -- see_all leg minus the My Folder set: a foreign My Folder is not listed).
-  AND (d.parent_id IS NOT DISTINCT FROM $3
-       OR ($3::text IS NULL
+  AND (d.parent_id IS NOT DISTINCT FROM $4
+       OR ($4::text IS NULL
            AND d.parent_id IS NOT NULL
-           AND (($4 AND d.visibility = 'workspace'
-                 AND d.workspace_level = ANY($5::text[]))
-                OR ($6 AND d.acl_owner_id = $7)
-                OR ($8 AND EXISTS (
+           AND (($5 AND d.visibility = 'workspace'
+                 AND d.workspace_level = ANY($6::text[]))
+                OR ($7 AND d.acl_owner_id = $8)
+                OR ($9 AND EXISTS (
                      SELECT 1 FROM document_shares rs
                      WHERE rs.organization_id = d.organization_id
                        AND rs.workspace_id = d.workspace_id
                        AND rs.document_id = d.id
                        AND rs.revoked_at IS NULL
-                       AND rs.level = ANY($5::text[])
-                       AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
+                       AND rs.level = ANY($6::text[])
+                       AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
                             OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                             OR (rs.principal_type = 'workspace'
-                                AND rs.principal_id = ANY($9::text[]))))))
+                                AND rs.principal_id = ANY($10::text[]))))))
            AND EXISTS (
                 SELECT 1 FROM documents pf
                 WHERE pf.organization_id = d.organization_id
@@ -453,138 +465,170 @@ WHERE d.organization_id = $1
                   -- a personal My Folder never promotes what is shared out of it to the root
                   AND pf.system_kind IS NULL
                   AND NOT COALESCE(
-                    ($10
+                    ($11
                      AND (pf.system_kind IS NULL OR pf.system_kind <> 'my_folder'
-                          OR pf.acl_owner_id = $7
-                          OR (pf.visibility = 'workspace' AND pf.workspace_level = ANY($5::text[]))))
-                    OR ($4 AND pf.visibility = 'workspace'
-                        AND pf.workspace_level = ANY($5::text[]))
-                    OR ($6 AND pf.acl_owner_id = $7)
-                    OR ($8 AND EXISTS (
+                          OR pf.acl_owner_id = $8
+                          OR (pf.visibility = 'workspace' AND pf.workspace_level = ANY($6::text[]))))
+                    OR ($5 AND pf.visibility = 'workspace'
+                        AND pf.workspace_level = ANY($6::text[]))
+                    OR ($7 AND pf.acl_owner_id = $8)
+                    OR ($9 AND EXISTS (
                          SELECT 1 FROM document_shares ps
                          WHERE ps.organization_id = pf.organization_id
                            AND ps.workspace_id = pf.workspace_id
                            AND ps.document_id = pf.id
                            AND ps.revoked_at IS NULL
-                           AND ((ps.principal_type = 'user' AND ps.principal_id = $7)
+                           AND ((ps.principal_type = 'user' AND ps.principal_id = $8)
                                 OR (ps.principal_type = 'organization' AND ps.principal_id = pf.organization_id)
                                 OR (ps.principal_type = 'workspace'
-                                    AND ps.principal_id = ANY($9::text[]))))),
+                                    AND ps.principal_id = ANY($10::text[]))))),
                     false))))
-  AND (($10
-        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $7)
+  AND (($11
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $8)
         -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
         -- (admin) leg would otherwise add. The row stays when the actor is
         -- its ACL owner, it is workspace-visible at share_levels (what the
         -- member predicate would admit), or it is not in the foreign set; a
         -- live share is the OR below. Removes only what admin scope ADDS.
         -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
-        AND (d.acl_owner_id = $7
-             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($5::text[]))
+        AND (d.acl_owner_id = $8
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
              OR NOT EXISTS (
                   SELECT 1 FROM uw_my_folder_foreign_ids(
-                    $7, $1, $2, $11::int
+                    $8, $2, $3, $12::int
                   ) mfs WHERE mfs.document_id = d.id)))
-       OR ($4 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($5::text[]))
-       OR ($6 AND d.acl_owner_id = $7)
-       OR ($8 AND EXISTS (
+       OR ($5 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($6::text[]))
+       OR ($7 AND d.acl_owner_id = $8)
+       OR ($9 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($5::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $7)
+              AND s.level = ANY($6::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $8)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($9::text[]))))))
-  AND ($12::text IS NULL OR d.kind = $12)
-  AND ($13::text IS NULL OR d.kind <> $13)
-  AND ($14::text IS NULL OR d.updated_by = $14)
-  AND ($15::timestamptz IS NULL OR d.updated_at >= $15)
-  AND ($16::timestamptz IS NULL OR d.updated_at < $16)
-  AND ($17::text IS NULL
+                       AND s.principal_id = ANY($10::text[]))))))
+  AND ($13::text IS NULL OR d.kind = $13)
+  AND ($14::text IS NULL OR d.kind <> $14)
+  AND ($15::text IS NULL OR d.updated_by = $15)
+  AND ($16::timestamptz IS NULL OR d.updated_at >= $16)
+  AND ($17::timestamptz IS NULL OR d.updated_at < $17)
+  AND ($18::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
-           AND (cv.mime_type = $18::text
-                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($19::text[])))
-                    AND length(d.title) > length($17::text) + 1
-                    AND right(lower(d.title), length($17::text) + 1) = '.' || $17::text))))
-  AND ($20::text IS NULL
-       OR ($20::text = 'restricted' AND d.visibility = 'restricted')
-       OR ($20::text <> 'restricted'
-           AND (($10 AND NOT (d.visibility = 'restricted'
-                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)))
-                OR ($6 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
-                OR ($4 AND NOT $21::boolean
+           AND (cv.mime_type = $19::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($20::text[])))
+                    AND length(d.title) > length($18::text) + 1
+                    AND right(lower(d.title), length($18::text) + 1) = '.' || $18::text))))
+  AND ($21::text IS NULL
+       OR ($21::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($21::text <> 'restricted'
+           AND (($11 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)))
+                OR ($7 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
+                OR ($5 AND NOT $22::boolean
                     AND d.visibility = 'workspace'
-                    AND d.workspace_level = ANY($22::text[]))
-                OR ($8 AND EXISTS (
+                    AND d.workspace_level = ANY($23::text[]))
+                OR ($9 AND EXISTS (
                      SELECT 1 FROM document_shares a
                      WHERE a.organization_id = d.organization_id
                        AND a.workspace_id = d.workspace_id
                        AND a.document_id = d.id
                        AND a.revoked_at IS NULL
-                       AND a.level = ANY($22::text[])
-                       AND ((a.principal_type = 'user' AND a.principal_id = $7)
+                       AND a.level = ANY($23::text[])
+                       AND ((a.principal_type = 'user' AND a.principal_id = $8)
                             OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
-                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($9::text[]))))))))
-  AND ($23::text IS NULL
-       OR (NOT $24::boolean
-           AND (NOT $10::boolean
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($10::text[]))))))))
+  AND ($24::text IS NULL
+       OR (NOT $25::boolean
+           AND (NOT $11::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY($9::text[]))))
+                                 AND rs.principal_id = ANY($10::text[]))))
                  OR EXISTS (
                       SELECT 1 FROM document_break_glass_grants g
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $7
+                        AND g.actor_id = $8
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
-           AND d.search_text ILIKE '%' || $23::text || '%' ESCAPE '\')
-       OR (($24::boolean OR NOT (NOT $10::boolean
+           AND d.search_text ILIKE '%' || $24::text || '%' ESCAPE '\')
+       OR (($25::boolean OR NOT (NOT $11::boolean
                  OR d.visibility <> 'restricted'
-                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $7)
+                 OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $8)
                  OR EXISTS (
                       SELECT 1 FROM document_shares rs
                       WHERE rs.organization_id = d.organization_id
                         AND rs.workspace_id = d.workspace_id
                         AND rs.document_id = d.id
                         AND rs.revoked_at IS NULL
-                        AND ((rs.principal_type = 'user' AND rs.principal_id = $7)
+                        AND ((rs.principal_type = 'user' AND rs.principal_id = $8)
                              OR (rs.principal_type = 'organization' AND rs.principal_id = d.organization_id)
                              OR (rs.principal_type = 'workspace'
-                                 AND rs.principal_id = ANY($9::text[]))))
+                                 AND rs.principal_id = ANY($10::text[]))))
                  OR EXISTS (
                       SELECT 1 FROM document_break_glass_grants g
                       WHERE g.organization_id = d.organization_id
                         AND g.workspace_id = d.workspace_id
                         AND g.document_id = d.id
-                        AND g.actor_id = $7
+                        AND g.actor_id = $8
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
-           AND uw_fold_search(d.title) ILIKE '%' || $23::text || '%' ESCAPE '\'))
-  AND ($25::float8 IS NULL
-       OR (d.position, d.id) > ($25, $26::text))
-ORDER BY d.position, d.id
-LIMIT $27
+           AND uw_fold_search(d.title) ILIKE '%' || $24::text || '%' ESCAPE '\'))
+  AND ($26::float8 IS NULL
+       OR (d.position, d.id) > ($26, $27::text))
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND ($28::text IS NULL OR CASE $1::text
+       WHEN 'updated' THEN CASE WHEN $29::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < ($30::timestamptz, $28::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > ($30::timestamptz, $28::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN $29::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < ($31::bigint, $28::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > ($31::bigint, $28::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN $29::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($32::text COLLATE "vi-x-icu", $28::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($32::text COLLATE "vi-x-icu", $28::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > $33::boolean::int
+            OR (sk.editor_null = $33::boolean
+                AND CASE WHEN $29::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($32::text COLLATE "vi-x-icu", $28::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($32::text COLLATE "vi-x-icu", $28::text COLLATE "C") END))
+       ELSE true END)
+ORDER BY
+  (CASE WHEN $1::text IS NULL THEN d.position END),
+  (CASE WHEN $1::text IS NULL THEN d.id END),
+  (CASE WHEN $1::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN $1::text = 'name' AND NOT $29::boolean THEN sk.name_key
+        WHEN $1::text = 'editor' AND NOT $29::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN $1::text = 'name' AND $29::boolean THEN sk.name_key
+        WHEN $1::text = 'editor' AND $29::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN $1::text = 'size' AND NOT $29::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN $1::text = 'size' AND $29::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN $1::text = 'updated' AND NOT $29::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN $1::text = 'updated' AND $29::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN $1::text IS NOT NULL AND NOT $29::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN $1::text IS NOT NULL AND $29::boolean THEN d.id COLLATE "C" END) DESC
+LIMIT $34
 `
 
 type ListDocumentsByParentPageParams struct {
+	SortKey         pgtype.Text        `json:"sort_key"`
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	ParentID        pgtype.Text        `json:"parent_id"`
@@ -611,13 +655,40 @@ type ListDocumentsByParentPageParams struct {
 	MatchTitle      bool               `json:"match_title"`
 	CursorPosition  pgtype.Float8      `json:"cursor_position"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
+	SortCursorID    pgtype.Text        `json:"sort_cursor_id"`
+	SortDesc        bool               `json:"sort_desc"`
+	SortCursorAt    pgtype.Timestamptz `json:"sort_cursor_at"`
+	SortCursorNum   pgtype.Int8        `json:"sort_cursor_num"`
+	SortCursorText  pgtype.Text        `json:"sort_cursor_text"`
+	SortCursorNull  pgtype.Bool        `json:"sort_cursor_null"`
 	PageLimit       int32              `json:"page_limit"`
+}
+
+type ListDocumentsByParentPageRow struct {
+	Document       Document `json:"document"`
+	SortName       string   `json:"sort_name"`
+	SortSize       int64    `json:"sort_size"`
+	SortEditor     string   `json:"sort_editor"`
+	SortEditorNull bool     `json:"sort_editor_null"`
 }
 
 // One level of the tree: children of a parent (NULL parent = roots), cursor
 // is (position, id) ascending.
-func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumentsByParentPageParams) ([]Document, error) {
+// UNI-2038 S3: the sort keys of a row, computed once. The name key is the
+// title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
+// case variants stay together, whatever the database locale is); the size key is the current
+// file version's size (0 for a page or a folder); the editor key is the last
+// editor's display name (same collation), and only a human editor with a name has one - an
+// agent, a removed account or a blank name sets editor_null and sorts last. Each
+// key is computed only under its own sort (the others are constants), so an
+// unsorted list pays nothing for them and the users join runs for sort=editor.
+// UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+// a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+// bound parameter, so the planner folds the unused ones away and a plain
+// (key, id) order remains.
+func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumentsByParentPageParams) ([]ListDocumentsByParentPageRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsByParentPage,
+		arg.SortKey,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.ParentID,
@@ -644,62 +715,72 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.MatchTitle,
 		arg.CursorPosition,
 		arg.CursorID,
+		arg.SortCursorID,
+		arg.SortDesc,
+		arg.SortCursorAt,
+		arg.SortCursorNum,
+		arg.SortCursorText,
+		arg.SortCursorNull,
 		arg.PageLimit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Document{}
+	items := []ListDocumentsByParentPageRow{}
 	for rows.Next() {
-		var i Document
+		var i ListDocumentsByParentPageRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.ParentID,
-			&i.Kind,
-			&i.Title,
-			&i.Icon,
-			&i.Visibility,
-			&i.Content,
-			&i.ContentText,
-			&i.SearchText,
-			&i.ContentBytes,
-			&i.CurrentVersion,
-			&i.FileVersionID,
-			&i.Revision,
-			&i.Position,
-			&i.OwnerKind,
-			&i.OwnerID,
-			&i.AclOwnerID,
-			&i.SourceDocumentID,
-			&i.SourceVersionID,
-			&i.SourceRevision,
-			&i.SourceFormat,
-			&i.SourceEngine,
-			&i.TargetFormat,
-			&i.SourceChecksumSha256,
-			&i.ConversionReason,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.UpdatedBy,
-			&i.UpdatedByKind,
-			&i.ContentSavedAt,
-			&i.LastVersionAt,
-			&i.ArchivedAt,
-			&i.ArchivedBy,
-			&i.PurgeAfter,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ArchiveBatchID,
-			&i.ContentRevision,
-			&i.WorkspaceLevel,
-			&i.SystemKind,
-			&i.ShelvedAt,
-			&i.ShelvedBy,
-			&i.ShelvedByKind,
-			&i.ShelveBatchID,
+			&i.Document.ID,
+			&i.Document.OrganizationID,
+			&i.Document.WorkspaceID,
+			&i.Document.ParentID,
+			&i.Document.Kind,
+			&i.Document.Title,
+			&i.Document.Icon,
+			&i.Document.Visibility,
+			&i.Document.Content,
+			&i.Document.ContentText,
+			&i.Document.SearchText,
+			&i.Document.ContentBytes,
+			&i.Document.CurrentVersion,
+			&i.Document.FileVersionID,
+			&i.Document.Revision,
+			&i.Document.Position,
+			&i.Document.OwnerKind,
+			&i.Document.OwnerID,
+			&i.Document.AclOwnerID,
+			&i.Document.SourceDocumentID,
+			&i.Document.SourceVersionID,
+			&i.Document.SourceRevision,
+			&i.Document.SourceFormat,
+			&i.Document.SourceEngine,
+			&i.Document.TargetFormat,
+			&i.Document.SourceChecksumSha256,
+			&i.Document.ConversionReason,
+			&i.Document.CreatedBy,
+			&i.Document.CreatedByKind,
+			&i.Document.UpdatedBy,
+			&i.Document.UpdatedByKind,
+			&i.Document.ContentSavedAt,
+			&i.Document.LastVersionAt,
+			&i.Document.ArchivedAt,
+			&i.Document.ArchivedBy,
+			&i.Document.PurgeAfter,
+			&i.Document.CreatedAt,
+			&i.Document.UpdatedAt,
+			&i.Document.ArchiveBatchID,
+			&i.Document.ContentRevision,
+			&i.Document.WorkspaceLevel,
+			&i.Document.SystemKind,
+			&i.Document.ShelvedAt,
+			&i.Document.ShelvedBy,
+			&i.Document.ShelvedByKind,
+			&i.Document.ShelveBatchID,
+			&i.SortName,
+			&i.SortSize,
+			&i.SortEditor,
+			&i.SortEditorNull,
 		); err != nil {
 			return nil, err
 		}
@@ -737,15 +818,27 @@ SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())) THEN NULL::text
-                     ELSE left(d.content_text, 160)::text END, '')::text AS snippet
+                     ELSE left(d.content_text, 160)::text END, '')::text AS snippet,
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
-WHERE d.organization_id = $5
-  AND d.workspace_id = $6
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND $5::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    COALESCE(CASE WHEN $5::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN $5::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN $5::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN $5::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+) sk
+WHERE d.organization_id = $6
+  AND d.workspace_id = $7
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): shelved rows leave the flat list and rejoin it
@@ -760,70 +853,70 @@ WHERE d.organization_id = $5
         -- live share is the OR below. Removes only what admin scope ADDS.
         -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
         AND (d.acl_owner_id = $3
-             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($7::text[]))
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($8::text[]))
              OR NOT EXISTS (
                   SELECT 1 FROM uw_my_folder_foreign_ids(
-                    $3, $5, $6, $8::int
+                    $3, $6, $7, $9::int
                   ) mfs WHERE mfs.document_id = d.id)))
-       OR ($9 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($7::text[]))
-       OR ($10 AND d.acl_owner_id = $3)
-       OR ($11 AND EXISTS (
+       OR ($10 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($8::text[]))
+       OR ($11 AND d.acl_owner_id = $3)
+       OR ($12 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($7::text[])
+              AND s.level = ANY($8::text[])
               AND ((s.principal_type = 'user' AND s.principal_id = $3)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($4::text[]))))))
-  AND ($12::text IS NULL OR d.kind = $12)
-  AND ($13::text IS NULL OR d.kind <> $13)
-  AND ($14::text IS NULL OR d.updated_by = $14)
-  AND ($15::timestamptz IS NULL OR d.updated_at >= $15)
-  AND ($16::timestamptz IS NULL OR d.updated_at < $16)
+  AND ($13::text IS NULL OR d.kind = $13)
+  AND ($14::text IS NULL OR d.kind <> $14)
+  AND ($15::text IS NULL OR d.updated_by = $15)
+  AND ($16::timestamptz IS NULL OR d.updated_at >= $16)
+  AND ($17::timestamptz IS NULL OR d.updated_at < $17)
   -- UNI-1868 format filter: the file format of the row's current version. The
   -- MIME an upload verified wins; the title's extension answers only while the
   -- MIME names none of the six formats the library lists. Folders always stay
   -- (they are how one reaches files) and a page never matches.
-  AND ($17::text IS NULL
+  AND ($18::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
-           AND (cv.mime_type = $18::text
-                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($19::text[])))
-                    AND length(d.title) > length($17::text) + 1
-                    AND right(lower(d.title), length($17::text) + 1) = '.' || $17::text))))
+           AND (cv.mime_type = $19::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($20::text[])))
+                    AND length(d.title) > length($18::text) + 1
+                    AND right(lower(d.title), length($18::text) + 1) = '.' || $18::text))))
   -- UNI-1868 access filter: the same ladder the permission block above
   -- resolves, so it agrees with the my_level the row reports - role or ACL
   -- owner manage, the home row's workspace_level, a live share at a level in
   -- access_levels (manage; edit and manage). agent caps the home-row leg: an
   -- agent reads view whatever the row carries. 'restricted' is the row's
   -- visibility, the way the library's access filter has it.
-  AND ($20::text IS NULL
-       OR ($20::text = 'restricted' AND d.visibility = 'restricted')
-       OR ($20::text <> 'restricted'
+  AND ($21::text IS NULL
+       OR ($21::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($21::text <> 'restricted'
            AND (($2 AND NOT (d.visibility = 'restricted'
                                             AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)))
-                OR ($10 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
-                OR ($9 AND NOT $21::boolean
+                OR ($11 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
+                OR ($10 AND NOT $22::boolean
                     AND d.visibility = 'workspace'
-                    AND d.workspace_level = ANY($22::text[]))
-                OR ($11 AND EXISTS (
+                    AND d.workspace_level = ANY($23::text[]))
+                OR ($12 AND EXISTS (
                      SELECT 1 FROM document_shares a
                      WHERE a.organization_id = d.organization_id
                        AND a.workspace_id = d.workspace_id
                        AND a.document_id = d.id
                        AND a.revoked_at IS NULL
-                       AND a.level = ANY($22::text[])
+                       AND a.level = ANY($23::text[])
                        AND ((a.principal_type = 'user' AND a.principal_id = $3)
                             OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
                             OR (a.principal_type = 'workspace' AND a.principal_id = ANY($4::text[]))))))))
   -- System rows (My Folder) are never "shared by me": they refuse shares and visibility changes.
-  AND (NOT $23::boolean OR d.system_kind IS NULL)
-  AND (NOT $23::boolean
-       OR (($2::boolean OR $10::boolean)
+  AND (NOT $24::boolean OR d.system_kind IS NULL)
+  AND (NOT $24::boolean
+       OR (($2::boolean OR $11::boolean)
            AND d.acl_owner_id IS NOT NULL
            AND d.acl_owner_id = $3
            AND (d.visibility = 'workspace'
@@ -862,7 +955,7 @@ WHERE d.organization_id = $5
                            AND sp.visibility = 'workspace'
                            AND sp.workspace_level = d.workspace_level))))
   AND ($1::text IS NULL
-       OR (NOT $24::boolean
+       OR (NOT $25::boolean
            AND (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
@@ -886,7 +979,7 @@ WHERE d.organization_id = $5
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
-       OR (($24::boolean OR NOT (NOT $2::boolean
+       OR (($25::boolean OR NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
                  OR EXISTS (
@@ -909,10 +1002,41 @@ WHERE d.organization_id = $5
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $1::text || '%' ESCAPE '\'))
-  AND ($25::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($25, $26::text))
-ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $27
+  AND ($26::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($26, $27::text))
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND ($28::text IS NULL OR CASE $5::text
+       WHEN 'updated' THEN CASE WHEN $29::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < ($30::timestamptz, $28::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > ($30::timestamptz, $28::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN $29::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < ($31::bigint, $28::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > ($31::bigint, $28::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN $29::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($32::text COLLATE "vi-x-icu", $28::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($32::text COLLATE "vi-x-icu", $28::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > $33::boolean::int
+            OR (sk.editor_null = $33::boolean
+                AND CASE WHEN $29::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($32::text COLLATE "vi-x-icu", $28::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($32::text COLLATE "vi-x-icu", $28::text COLLATE "C") END))
+       ELSE true END)
+ORDER BY
+  (CASE WHEN $5::text IS NULL THEN d.updated_at END) DESC,
+  (CASE WHEN $5::text IS NULL THEN d.id END) DESC,
+  (CASE WHEN $5::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN $5::text = 'name' AND NOT $29::boolean THEN sk.name_key
+        WHEN $5::text = 'editor' AND NOT $29::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN $5::text = 'name' AND $29::boolean THEN sk.name_key
+        WHEN $5::text = 'editor' AND $29::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN $5::text = 'size' AND NOT $29::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN $5::text = 'size' AND $29::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN $5::text = 'updated' AND NOT $29::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN $5::text = 'updated' AND $29::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN $5::text IS NOT NULL AND NOT $29::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN $5::text IS NOT NULL AND $29::boolean THEN d.id COLLATE "C" END) DESC
+LIMIT $34
 `
 
 type ListDocumentsPageParams struct {
@@ -920,6 +1044,7 @@ type ListDocumentsPageParams struct {
 	SeeAll          bool               `json:"see_all"`
 	ActorID         pgtype.Text        `json:"actor_id"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
+	SortKey         pgtype.Text        `json:"sort_key"`
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	ShareLevels     []string           `json:"share_levels"`
@@ -942,6 +1067,12 @@ type ListDocumentsPageParams struct {
 	MatchTitle      bool               `json:"match_title"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
+	SortCursorID    pgtype.Text        `json:"sort_cursor_id"`
+	SortDesc        bool               `json:"sort_desc"`
+	SortCursorAt    pgtype.Timestamptz `json:"sort_cursor_at"`
+	SortCursorNum   pgtype.Int8        `json:"sort_cursor_num"`
+	SortCursorText  pgtype.Text        `json:"sort_cursor_text"`
+	SortCursorNull  pgtype.Bool        `json:"sort_cursor_null"`
 	PageLimit       int32              `json:"page_limit"`
 }
 
@@ -993,6 +1124,10 @@ type ListDocumentsPageRow struct {
 	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
 	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
 	Snippet              string             `json:"snippet"`
+	SortName             string             `json:"sort_name"`
+	SortSize             int64              `json:"sort_size"`
+	SortEditor           string             `json:"sort_editor"`
+	SortEditorNull       bool               `json:"sort_editor_null"`
 }
 
 // Document listing/search (C-01 §5.1, §6.3; G1-04b, UNI-678). The list
@@ -1036,12 +1171,25 @@ type ListDocumentsPageRow struct {
 // the format each row reports. Joined on the document's own tenant pair and
 // the document itself, so a version of another tenant or document can never
 // answer for the row.
+// UNI-2038 S3: the sort keys of a row, computed once. The name key is the
+// title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
+// case variants stay together, whatever the database locale is); the size key is the current
+// file version's size (0 for a page or a folder); the editor key is the last
+// editor's display name (same collation), and only a human editor with a name has one - an
+// agent, a removed account or a blank name sets editor_null and sorts last. Each
+// key is computed only under its own sort (the others are constants), so an
+// unsorted list pays nothing for them and the users join runs for sort=editor.
+// UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+// a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+// bound parameter, so the planner folds the unused ones away and a plain
+// (key, id) order remains.
 func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPageParams) ([]ListDocumentsPageRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentsPage,
 		arg.Query,
 		arg.SeeAll,
 		arg.ActorID,
 		arg.ShareWorkspaces,
+		arg.SortKey,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.ShareLevels,
@@ -1064,6 +1212,12 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.MatchTitle,
 		arg.CursorAt,
 		arg.CursorID,
+		arg.SortCursorID,
+		arg.SortDesc,
+		arg.SortCursorAt,
+		arg.SortCursorNum,
+		arg.SortCursorText,
+		arg.SortCursorNull,
 		arg.PageLimit,
 	)
 	if err != nil {
@@ -1121,6 +1275,10 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
 			&i.Snippet,
+			&i.SortName,
+			&i.SortSize,
+			&i.SortEditor,
+			&i.SortEditorNull,
 		); err != nil {
 			return nil, err
 		}
@@ -1133,86 +1291,130 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 }
 
 const listRecentDocumentsPage = `-- name: ListRecentDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
-WHERE d.organization_id = $1
-  AND d.workspace_id = $2
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND $1::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    COALESCE(CASE WHEN $1::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN $1::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN $1::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN $1::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+) sk
+WHERE d.organization_id = $2
+  AND d.workspace_id = $3
   AND d.owner_id IS NULL
   AND d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): recent is a normal list - shelved rows leave it.
   AND d.shelved_at IS NULL
-  AND (d.updated_by = $3
+  AND (d.updated_by = $4
        OR EXISTS (
             SELECT 1 FROM document_access_logs a
             WHERE a.organization_id = d.organization_id
               AND a.workspace_id = d.workspace_id
               AND a.document_id = d.id
-              AND a.actor_id = $3))
-  AND ($4::text IS NULL
+              AND a.actor_id = $4))
+  AND ($5::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
-           AND (cv.mime_type = $5::text
-                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($6::text[])))
-                    AND length(d.title) > length($4::text) + 1
-                    AND right(lower(d.title), length($4::text) + 1) = '.' || $4::text))))
-  AND ($7::text IS NULL
-       OR ($7::text = 'restricted' AND d.visibility = 'restricted')
-       OR ($7::text <> 'restricted'
-           AND (($8 AND NOT (d.visibility = 'restricted'
-                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)))
-                OR ($9 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
-                OR ($10 AND NOT $11::boolean
+           AND (cv.mime_type = $6::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($7::text[])))
+                    AND length(d.title) > length($5::text) + 1
+                    AND right(lower(d.title), length($5::text) + 1) = '.' || $5::text))))
+  AND ($8::text IS NULL
+       OR ($8::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($8::text <> 'restricted'
+           AND (($9 AND NOT (d.visibility = 'restricted'
+                                            AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)))
+                OR ($10 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $4)
+                OR ($11 AND NOT $12::boolean
                     AND d.visibility = 'workspace'
-                    AND d.workspace_level = ANY($12::text[]))
-                OR ($13 AND EXISTS (
+                    AND d.workspace_level = ANY($13::text[]))
+                OR ($14 AND EXISTS (
                      SELECT 1 FROM document_shares a
                      WHERE a.organization_id = d.organization_id
                        AND a.workspace_id = d.workspace_id
                        AND a.document_id = d.id
                        AND a.revoked_at IS NULL
-                       AND a.level = ANY($12::text[])
-                       AND ((a.principal_type = 'user' AND a.principal_id = $3)
+                       AND a.level = ANY($13::text[])
+                       AND ((a.principal_type = 'user' AND a.principal_id = $4)
                             OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
-                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($14::text[]))))))))
-  AND (($8
-        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $3)
+                            OR (a.principal_type = 'workspace' AND a.principal_id = ANY($15::text[]))))))))
+  AND (($9
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $4)
         -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
         -- (admin) leg would otherwise add. The row stays when the actor is
         -- its ACL owner, it is workspace-visible at share_levels (what the
         -- member predicate would admit), or it is not in the foreign set; a
         -- live share is the OR below. Removes only what admin scope ADDS.
         -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
-        AND (d.acl_owner_id = $3
-             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($15::text[]))
+        AND (d.acl_owner_id = $4
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($16::text[]))
              OR NOT EXISTS (
                   SELECT 1 FROM uw_my_folder_foreign_ids(
-                    $3, $1, $2, $16::int
+                    $4, $2, $3, $17::int
                   ) mfs WHERE mfs.document_id = d.id)))
-       OR ($10 AND d.visibility = 'workspace'
-           AND d.workspace_level = ANY($15::text[]))
-       OR ($9 AND d.acl_owner_id = $3)
-       OR ($13 AND EXISTS (
+       OR ($11 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($16::text[]))
+       OR ($10 AND d.acl_owner_id = $4)
+       OR ($14 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND ((s.principal_type = 'user' AND s.principal_id = $3)
+              AND ((s.principal_type = 'user' AND s.principal_id = $4)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($14::text[]))))))
-  AND ($17::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($17, $18::text))
-ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $19
+                       AND s.principal_id = ANY($15::text[]))))))
+  AND ($18::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($18, $19::text))
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND ($20::text IS NULL OR CASE $1::text
+       WHEN 'updated' THEN CASE WHEN $21::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < ($22::timestamptz, $20::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > ($22::timestamptz, $20::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN $21::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < ($23::bigint, $20::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > ($23::bigint, $20::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN $21::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($24::text COLLATE "vi-x-icu", $20::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($24::text COLLATE "vi-x-icu", $20::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > $25::boolean::int
+            OR (sk.editor_null = $25::boolean
+                AND CASE WHEN $21::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($24::text COLLATE "vi-x-icu", $20::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($24::text COLLATE "vi-x-icu", $20::text COLLATE "C") END))
+       ELSE true END)
+ORDER BY
+  (CASE WHEN $1::text IS NULL THEN d.updated_at END) DESC,
+  (CASE WHEN $1::text IS NULL THEN d.id END) DESC,
+  (CASE WHEN $1::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN $1::text = 'name' AND NOT $21::boolean THEN sk.name_key
+        WHEN $1::text = 'editor' AND NOT $21::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN $1::text = 'name' AND $21::boolean THEN sk.name_key
+        WHEN $1::text = 'editor' AND $21::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN $1::text = 'size' AND NOT $21::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN $1::text = 'size' AND $21::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN $1::text = 'updated' AND NOT $21::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN $1::text = 'updated' AND $21::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN $1::text IS NOT NULL AND NOT $21::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN $1::text IS NOT NULL AND $21::boolean THEN d.id COLLATE "C" END) DESC
+LIMIT $26
 `
 
 type ListRecentDocumentsPageParams struct {
+	SortKey         pgtype.Text        `json:"sort_key"`
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	ActorID         string             `json:"actor_id"`
@@ -1231,13 +1433,40 @@ type ListRecentDocumentsPageParams struct {
 	MaxLevel        int32              `json:"max_level"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
+	SortCursorID    pgtype.Text        `json:"sort_cursor_id"`
+	SortDesc        bool               `json:"sort_desc"`
+	SortCursorAt    pgtype.Timestamptz `json:"sort_cursor_at"`
+	SortCursorNum   pgtype.Int8        `json:"sort_cursor_num"`
+	SortCursorText  pgtype.Text        `json:"sort_cursor_text"`
+	SortCursorNull  pgtype.Bool        `json:"sort_cursor_null"`
 	PageLimit       int32              `json:"page_limit"`
+}
+
+type ListRecentDocumentsPageRow struct {
+	Document       Document `json:"document"`
+	SortName       string   `json:"sort_name"`
+	SortSize       int64    `json:"sort_size"`
+	SortEditor     string   `json:"sort_editor"`
+	SortEditorNull bool     `json:"sort_editor_null"`
 }
 
 // "Recent": documents the actor touched (access log) or last edited
 // (updated_by), permission-filtered, newest first.
-func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDocumentsPageParams) ([]Document, error) {
+// UNI-2038 S3: the sort keys of a row, computed once. The name key is the
+// title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
+// case variants stay together, whatever the database locale is); the size key is the current
+// file version's size (0 for a page or a folder); the editor key is the last
+// editor's display name (same collation), and only a human editor with a name has one - an
+// agent, a removed account or a blank name sets editor_null and sorts last. Each
+// key is computed only under its own sort (the others are constants), so an
+// unsorted list pays nothing for them and the users join runs for sort=editor.
+// UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+// a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+// bound parameter, so the planner folds the unused ones away and a plain
+// (key, id) order remains.
+func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDocumentsPageParams) ([]ListRecentDocumentsPageRow, error) {
 	rows, err := q.db.Query(ctx, listRecentDocumentsPage,
+		arg.SortKey,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.ActorID,
@@ -1256,62 +1485,72 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 		arg.MaxLevel,
 		arg.CursorAt,
 		arg.CursorID,
+		arg.SortCursorID,
+		arg.SortDesc,
+		arg.SortCursorAt,
+		arg.SortCursorNum,
+		arg.SortCursorText,
+		arg.SortCursorNull,
 		arg.PageLimit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Document{}
+	items := []ListRecentDocumentsPageRow{}
 	for rows.Next() {
-		var i Document
+		var i ListRecentDocumentsPageRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.ParentID,
-			&i.Kind,
-			&i.Title,
-			&i.Icon,
-			&i.Visibility,
-			&i.Content,
-			&i.ContentText,
-			&i.SearchText,
-			&i.ContentBytes,
-			&i.CurrentVersion,
-			&i.FileVersionID,
-			&i.Revision,
-			&i.Position,
-			&i.OwnerKind,
-			&i.OwnerID,
-			&i.AclOwnerID,
-			&i.SourceDocumentID,
-			&i.SourceVersionID,
-			&i.SourceRevision,
-			&i.SourceFormat,
-			&i.SourceEngine,
-			&i.TargetFormat,
-			&i.SourceChecksumSha256,
-			&i.ConversionReason,
-			&i.CreatedBy,
-			&i.CreatedByKind,
-			&i.UpdatedBy,
-			&i.UpdatedByKind,
-			&i.ContentSavedAt,
-			&i.LastVersionAt,
-			&i.ArchivedAt,
-			&i.ArchivedBy,
-			&i.PurgeAfter,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ArchiveBatchID,
-			&i.ContentRevision,
-			&i.WorkspaceLevel,
-			&i.SystemKind,
-			&i.ShelvedAt,
-			&i.ShelvedBy,
-			&i.ShelvedByKind,
-			&i.ShelveBatchID,
+			&i.Document.ID,
+			&i.Document.OrganizationID,
+			&i.Document.WorkspaceID,
+			&i.Document.ParentID,
+			&i.Document.Kind,
+			&i.Document.Title,
+			&i.Document.Icon,
+			&i.Document.Visibility,
+			&i.Document.Content,
+			&i.Document.ContentText,
+			&i.Document.SearchText,
+			&i.Document.ContentBytes,
+			&i.Document.CurrentVersion,
+			&i.Document.FileVersionID,
+			&i.Document.Revision,
+			&i.Document.Position,
+			&i.Document.OwnerKind,
+			&i.Document.OwnerID,
+			&i.Document.AclOwnerID,
+			&i.Document.SourceDocumentID,
+			&i.Document.SourceVersionID,
+			&i.Document.SourceRevision,
+			&i.Document.SourceFormat,
+			&i.Document.SourceEngine,
+			&i.Document.TargetFormat,
+			&i.Document.SourceChecksumSha256,
+			&i.Document.ConversionReason,
+			&i.Document.CreatedBy,
+			&i.Document.CreatedByKind,
+			&i.Document.UpdatedBy,
+			&i.Document.UpdatedByKind,
+			&i.Document.ContentSavedAt,
+			&i.Document.LastVersionAt,
+			&i.Document.ArchivedAt,
+			&i.Document.ArchivedBy,
+			&i.Document.PurgeAfter,
+			&i.Document.CreatedAt,
+			&i.Document.UpdatedAt,
+			&i.Document.ArchiveBatchID,
+			&i.Document.ContentRevision,
+			&i.Document.WorkspaceLevel,
+			&i.Document.SystemKind,
+			&i.Document.ShelvedAt,
+			&i.Document.ShelvedBy,
+			&i.Document.ShelvedByKind,
+			&i.Document.ShelveBatchID,
+			&i.SortName,
+			&i.SortSize,
+			&i.SortEditor,
+			&i.SortEditorNull,
 		); err != nil {
 			return nil, err
 		}
