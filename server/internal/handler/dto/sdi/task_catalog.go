@@ -9,6 +9,7 @@ type CreateTaskStatusSDI struct {
 	Description string `json:"description" example:"Chờ QA"`
 	Category    string `json:"category" description:"backlog|todo|in_progress|in_review|done|blocked|cancelled" example:"in_review"`
 	Color       string `json:"color" example:"#22c55e"`
+	Icon        string `json:"icon" description:"Glyph: rỗng = theo category, hoặc backlog|todo|in_progress|in_review|done|blocked|cancelled" example:"in_progress"`
 }
 
 // PatchTaskStatusSDI is PATCH .../task-statuses/{id}.
@@ -16,13 +17,15 @@ type PatchTaskStatusSDI struct {
 	Name        *string  `json:"name" example:"Waiting QA"`
 	Description *string  `json:"description"`
 	Color       *string  `json:"color" example:"#22c55e"`
+	Icon        *string  `json:"icon" description:"Glyph: rỗng = theo category" example:"in_progress"`
+	Category    *string  `json:"category" description:"Chuyển sang category khác; trạng thái xuống cuối category mới" example:"done"`
 	Position    *float64 `json:"position" example:"1"`
 }
 
 // ReorderTaskStatusesSDI is PATCH .../task-statuses/reorder.
 type ReorderTaskStatusesSDI struct {
-	Category string   `json:"category" example:"todo"`
-	IDs      []string `json:"ids" description:"Mọi custom status active trong category, theo thứ tự mới"`
+	Group string   `json:"group" description:"not_started|started|completed|closed" example:"started"`
+	IDs   []string `json:"ids" description:"Mọi trạng thái active trong nhóm (kể cả hệ thống), theo thứ tự mới"`
 }
 
 // CreateTaskLabelSDI is POST .../task-labels.

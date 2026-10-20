@@ -26,6 +26,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/handler"
+	"github.com/unicomhub/uniwork/server/internal/linkpreview"
 	"github.com/unicomhub/uniwork/server/internal/logger"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
@@ -449,6 +450,8 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewFileThumbnailConsumer(fileSvc))
+	// Link previews (ADR 0035): a fetch waits on a third party, so never the realtime lane.
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatLinkPreviewConsumer(chatSvc, linkpreview.New(linkpreview.Options{})))
 	// The UniWork AI transcript follows what it is bound to: a deleted document
 	// or a membership that ended takes its conversations, and no request
 	// answers from a copy of content the person may no longer read (A9).
@@ -498,17 +501,22 @@ func main() {
 	notifConsumer.SetDocumentReaders(documentSvc)
 	notifConsumer.SetDocumentAdministrators(documentSvc)
 	notifConsumer.SetMeetingSummaries(meetingSvc)
+	// A call ring is delivered only while the call still rings for that person.
+	notifConsumer.SetCallRinging(chatSvc)
 	// The optional task/meeting source a document access request may name
 	// (DOC-07): the narrow ports keep the document, task and meeting services
 	// from importing each other. Unwired, a source is dropped silently.
 	documentSvc.SetAccessRequestSources(taskSvc, meetingSvc)
-	var pushSender notification.PushSender
+	var webSender notification.PushSender
 	if cfg.PushEnabled() {
-		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
+		webSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
 		log.Info("web push enabled", "subject", cfg.VAPIDSubject)
 	}
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken}, webSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
-	digest := notification.NewDigestScheduler(q, renderer, mailOutbox)
+	pushConsumer.SetPresence(chatSvc)
+	pushConsumer.SetCallRinging(chatSvc)
+	digest := notification.NewDigestScheduler(q, wsSvc, renderer, mailOutbox)
 	notifSvc := notification.NewService(q, notification.PushConfig{Enabled: cfg.PushEnabled(), PublicKey: cfg.VAPIDPublicKey})
 	// The inbox list marks a document row's resource_access_lost /
 	// resource_deleted through the same DocumentService the routes use
@@ -519,6 +527,7 @@ func main() {
 	// recipient may no longer read is dropped from the mail instead of
 	// shipping the title the inbox withholds.
 	digest.SetDocumentReaders(documentSvc)
+	digest.SetOrgMembers(orgSvc)
 	dispatcher.RegisterLane(outbox.LaneNotify, notifConsumer)
 	// Work Graph (C-11): the marker rides the realtime lane (one upsert per
 	// event); the worker projects dirty nodes. The graph flag is read per
@@ -667,6 +676,8 @@ func main() {
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
+	askUNI.SetDocuments(documentSvc)
+	askUNI.SetFlags(flags)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)

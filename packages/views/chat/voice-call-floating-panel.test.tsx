@@ -2,29 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
-import {
-  VoiceCallControlRow,
-  VoiceCallFloatingPanel,
-  VoiceCallLabeledAction,
-  voiceCallInitialOf,
-} from "./voice-call-floating-panel";
+import { VoiceCallFloatingPanel, VoiceCallLabeledAction } from "./voice-call-floating-panel";
 
 beforeAll(() => {
   initI18n();
-});
-
-describe("voiceCallInitialOf", () => {
-  it("uses the one-letter fallback every chat avatar uses", () => {
-    expect(voiceCallInitialOf("Tran Hoang Long")).toBe("T");
-  });
-
-  it("falls back to first character for single token names", () => {
-    expect(voiceCallInitialOf("alice")).toBe("A");
-  });
-
-  it("returns question mark for empty names", () => {
-    expect(voiceCallInitialOf("   ")).toBe("?");
-  });
 });
 
 describe("VoiceCallFloatingPanel", () => {
@@ -141,15 +122,13 @@ describe("VoiceCallLabeledAction", () => {
     const onClick = vi.fn();
     render(
       wrap(
-        <VoiceCallControlRow>
-          <VoiceCallLabeledAction
-            label="Accept"
-            ariaLabel="Accept call"
-            tone="accept"
-            onClick={onClick}
-            icon={<span aria-hidden>X</span>}
-          />
-        </VoiceCallControlRow>,
+        <VoiceCallLabeledAction
+          label="Accept"
+          ariaLabel="Accept call"
+          tone="accept"
+          onClick={onClick}
+          icon={<span aria-hidden>X</span>}
+        />,
       ),
     );
 

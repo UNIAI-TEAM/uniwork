@@ -10,7 +10,7 @@ beforeAll(() => {
 
 describe("ChatConversationHeader", () => {
   it("renders title, subtitle, and action buttons", () => {
-    const onOpenSettings = vi.fn();
+    const onTogglePanel = vi.fn();
     const onVoiceCall = vi.fn();
     const onVideoCall = vi.fn();
 
@@ -20,10 +20,11 @@ describe("ChatConversationHeader", () => {
           avatar={<span data-testid="avatar">A</span>}
           title="Tran Hoang Long"
           subtitle="Đang hoạt động"
-          settingsAriaLabel="Cài đặt"
+          panelAriaLabel="Thông tin nhóm"
+          panelOpen
           voiceCallAriaLabel="Gọi thoại"
           videoCallAriaLabel="Gọi video"
-          onOpenSettings={onOpenSettings}
+          onTogglePanel={onTogglePanel}
           onVoiceCall={onVoiceCall}
           onVideoCall={onVideoCall}
         />,
@@ -34,10 +35,48 @@ describe("ChatConversationHeader", () => {
     expect(screen.getByText("Đang hoạt động")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Gọi video"));
     fireEvent.click(screen.getByLabelText("Gọi thoại"));
-    fireEvent.click(screen.getByLabelText("Cài đặt"));
+    const panel = screen.getByRole("button", { name: "Thông tin nhóm" });
+    expect(panel).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(panel);
     expect(onVideoCall).toHaveBeenCalledTimes(1);
     expect(onVoiceCall).toHaveBeenCalledTimes(1);
-    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(onTogglePanel).toHaveBeenCalledTimes(1);
+  });
+
+  it("orders the canvas actions search, call, video, panel", () => {
+    render(
+      wrap(
+        <ChatConversationHeader
+          avatar={<span>A</span>}
+          title="Ra mắt UniWork Q4"
+          searchAriaLabel="Tìm"
+          voiceCallAriaLabel="Gọi thoại"
+          videoCallAriaLabel="Gọi video"
+          panelAriaLabel="Thông tin nhóm"
+          panelOpen={false}
+          onSearch={vi.fn()}
+          onVoiceCall={vi.fn()}
+          onVideoCall={vi.fn()}
+          onTogglePanel={vi.fn()}
+        />,
+      ),
+    );
+    const names = screen
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((name) => name !== "Thêm thao tác");
+    expect(names).toEqual(["Tìm", "Gọi thoại", "Gọi video", "Thông tin nhóm"]);
+    expect(screen.getByRole("button", { name: "Thông tin nhóm" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("leads the subtitle with who is typing", () => {
+    render(
+      wrap(
+        <ChatConversationHeader avatar={<span>A</span>} title="Q4" subtitle="12 thành viên" typingLabel="Minh đang nhập…" />,
+      ),
+    );
+    expect(screen.getByText("Minh đang nhập…")).toHaveClass("text-primary");
+    expect(screen.getByText(/12 thành viên/)).toBeInTheDocument();
   });
 
   it("calls onBack when the mobile back control is pressed", () => {

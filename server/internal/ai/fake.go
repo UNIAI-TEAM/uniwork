@@ -8,7 +8,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
-var sourceTag = regexp.MustCompile(`\[(S\d+)\] ([^\n(]+)`)
+var sourceTag = regexp.MustCompile(`<untrusted source="(S\d+)">\n([^\n]+)`)
 
 // FakeReply is the AI_PROVIDER=fake behaviour for development and E2E: a
 // deterministic, well-formed answer for every prompt. For copilot_answer it
@@ -39,11 +39,11 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		text = string(b)
 	case strings.Contains(req.System, "You catch a teammate up"):
 		matches := sourceTag.FindAllStringSubmatch(last, -1)
-		cu := CatchUp{Summary: "Không có tin mới để bắt kịp.", Highlights: []string{}, ActionItems: []CatchUpActionItem{}}
+		cu := CatchUp{Summary: "Không có tin mới để bắt kịp.", Highlights: []CatchUpHighlight{}, ActionItems: []CatchUpActionItem{}}
 		if len(matches) > 0 {
 			cu.Summary = "Có " + itoa(len(matches)) + " tin chưa đọc cần xem."
 			for _, m := range matches {
-				cu.Highlights = append(cu.Highlights, strings.TrimSpace(m[2]))
+				cu.Highlights = append(cu.Highlights, CatchUpHighlight{Text: strings.TrimSpace(m[2]), SourceID: m[1]})
 			}
 		}
 		b, _ := json.Marshal(cu)
@@ -61,7 +61,7 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 	case strings.Contains(req.System, "You summarize a completed voice call"):
 		cu := CatchUp{
 			Summary:     "Cuộc gọi đã kết thúc.",
-			Highlights:  []string{},
+			Highlights:  []CatchUpHighlight{},
 			ActionItems: []CatchUpActionItem{{Title: "Theo dõi việc đã thống nhất", Owner: "", Due: "", SourceID: ""}},
 		}
 		b, _ := json.Marshal(cu)

@@ -27,6 +27,16 @@ export function isPermanentChatSendRefusal(err: unknown): boolean {
   return err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 401 && !isRetriableChatSendError(err);
 }
 
+/**
+ * The request never reached the server (fetch rejects with a TypeError). Only
+ * this kind waits quietly for the next reconnect; any other answer that is not
+ * a permanent refusal leaves the message failed, with "Thử lại", because with
+ * the network up no reconnect will come to retry it.
+ */
+export function isChatSendNetworkError(err: unknown): boolean {
+  return err instanceof TypeError;
+}
+
 /** The server refused for rate, not reachability: say so, never "saved for when online". */
 export function isChatSendRateLimited(err: unknown): boolean {
   return err instanceof ApiError && err.status === 429;

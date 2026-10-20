@@ -28,6 +28,8 @@ export const AiMessageSchema = z.object({
   id: z.string(),
   role: z.string(),
   content: z.string(),
+  // Machine code for an answer with no text (e.g. "no_sources"); the client renders it in the reader's language.
+  notice: z.string().catch(""),
   citations: z.array(AiCitationSchema).optional().default([]),
   created_at: z.string().optional().default(""),
 });
@@ -85,9 +87,17 @@ export const ChatCatchUpActionItemSchema = z.object({
 });
 export type ChatCatchUpActionItem = z.infer<typeof ChatCatchUpActionItemSchema>;
 
+export const ChatCatchUpHighlightSchema = z.object({
+  text: z.string(),
+  source_message_id: z.string().optional().default(""),
+});
+export type ChatCatchUpHighlight = z.infer<typeof ChatCatchUpHighlightSchema>;
+
 export const ChatCatchUpResponseSchema = z.object({
   summary: z.string().optional().default(""),
   highlights: z.array(z.string()).optional().default([]),
+  /** Highlights with their source message; empty from a server that predates it. A malformed list never blanks the brief. */
+  highlight_items: z.array(ChatCatchUpHighlightSchema).optional().default([]).catch([]),
   action_items: z.array(ChatCatchUpActionItemSchema).optional().default([]),
   message_count: z.number().optional().default(0),
   mode: z.string().optional().default("unread"),

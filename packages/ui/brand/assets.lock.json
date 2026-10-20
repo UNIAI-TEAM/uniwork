@@ -11,6 +11,10 @@
     "mark-flat.svg": "62f229eef39c3ee7",
     "mark-mono.svg": "120377f077f3935f",
     "mark.svg": "608373b157f0a237",
+    "unichat-icon-background.svg": "e4782fe897f70c20",
+    "unichat-icon-desktop.svg": "2cb4e549b630aee2",
+    "unichat-icon-foreground.svg": "25a82540e4a75b4f",
+    "unichat-icon.svg": "057824edbbf129c6",
     "wordmark.svg": "0b0ed0acce0c3968"
   },
   "assets": {
@@ -38,6 +42,26 @@
       "source": "app-icon-maskable.svg",
       "size": 512,
       "sha": "098d83f72cb74ecd"
+    },
+    "apps/chat-mobile/assets/icon.png": {
+      "source": "unichat-icon.svg",
+      "size": 1024,
+      "sha": "057824edbbf129c6"
+    },
+    "apps/chat-mobile/assets/adaptive-icon.png": {
+      "source": "unichat-icon-foreground.svg",
+      "size": 1024,
+      "sha": "25a82540e4a75b4f"
+    },
+    "apps/chat-mobile/assets/adaptive-icon-background.png": {
+      "source": "unichat-icon-background.svg",
+      "size": 1024,
+      "sha": "e4782fe897f70c20"
+    },
+    "apps/chat-desktop/resources/icon.png": {
+      "source": "unichat-icon-desktop.svg",
+      "size": 1024,
+      "sha": "2cb4e549b630aee2"
     },
     "apps/web/app/favicon.ico": {
       "source": "mark-compact.svg",

@@ -128,7 +128,13 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 
-	fake := &provider.Fake{Reply: ai.FakeReply}
+	// chat_call_summary@1 answers highlights as plain strings; they are stored
+	// as strings even though catch-up highlights now carry a source.
+	fake := &provider.Fake{Reply: func(req provider.CompletionRequest) provider.CompletionResponse {
+		resp := ai.FakeReply(req)
+		resp.Text = strings.Replace(resp.Text, `"highlights":[]`, `"highlights":["Chốt demo thứ Sáu"]`, 1)
+		return resp
+	}}
 	s.SetAIGateway(ai.NewGateway(q, fake, NewAIQuota(NewEntitlementService(pool, q)), nil, ai.Options{}))
 
 	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
@@ -183,6 +189,9 @@ func TestVoiceCallSummaryPostsMessage(t *testing.T) {
 	}
 	if len(summary.ActionItems) == 0 {
 		t.Fatalf("expected action items: %+v", summary)
+	}
+	if len(summary.Highlights) != 1 || summary.Highlights[0] != "Chốt demo thứ Sáu" {
+		t.Fatalf("highlights: %q", summary.Highlights)
 	}
 
 	logMsg, err := q.GetChatMessageByID(ctx, logID)

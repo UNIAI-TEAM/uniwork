@@ -6,12 +6,13 @@ export const DEFAULT_CHAT_SCOPE_LIMIT = 25;
 export function selectLazyChatScopeRoomIds({
   rooms,
   activeRoomId,
-  maxSubscriptions = DEFAULT_CHAT_SCOPE_LIMIT,
+  maxSubscriptions: maxSubscriptionsIn = DEFAULT_CHAT_SCOPE_LIMIT,
 }: {
   rooms: readonly ChatRoomRecord[];
   activeRoomId: string | null;
   maxSubscriptions?: number;
 }): string[] {
+  const maxSubscriptions = Math.min(Math.max(maxSubscriptionsIn, 1), DEFAULT_CHAT_SCOPE_LIMIT);
   if (maxSubscriptions <= 0) return activeRoomId ? [activeRoomId] : [];
 
   const selected: string[] = [];

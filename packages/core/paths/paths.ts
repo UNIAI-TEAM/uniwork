@@ -11,6 +11,8 @@ export const paths = {
   desktopAuthorize: () => "/auth/desktop/authorize",
   /** Consent page an external AI client (MCP connector) sends the browser to (UNI-1308). */
   connectAuthorize: () => "/auth/connect/authorize",
+  /** The UniChat desktop shell's start page; hands over to /login on the client. */
+  unichatStart: () => "/auth/unichat",
   forgotPassword: () => "/forgot-password",
   resetPassword: (token?: string) =>
     token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",
@@ -58,8 +60,15 @@ export const paths = {
   pricing: () => "/pricing",
   enterprise: () => "/enterprise",
   requestDemo: () => "/request-demo",
-  /** Public page of the UniWork Office desktop app (landing menu "Office"). */
-  office: () => "/office",
+  /**
+   * The ecosystem's apps (landing menu "Apps"): the hub with every download,
+   * and one page per app. /office and /unichat permanently redirect here.
+   */
+  apps: {
+    root: () => "/apps",
+    office: () => "/apps/office",
+    unichat: () => "/apps/unichat",
+  },
   about: () => "/about",
   security: () => "/security",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
@@ -116,6 +125,12 @@ export const paths = {
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
+      /** Chat's direct messages and groups, which belong to the organization (UniChat's Tin nhắn). */
+      chatMessages: () => `${base}/chat?view=messages`,
+      /** Chat's channels of this workspace. */
+      chatChannels: () => `${base}/chat?view=channels`,
+      /** UniChat's own settings (the shell keeps to /chat*), beside the workspace rail. */
+      chatSettings: () => `${base}/chat/settings`,
       /** Opens a room (and optionally scrolls to a message) on the chat page. */
       chatConversation: (roomId: string, messageId?: string) => {
         const params = new URLSearchParams();
@@ -169,7 +184,10 @@ export const GLOBAL_PREFIXES = [
   "/pricing",
   "/enterprise",
   "/request-demo",
+  "/apps",
+  // The pre-/apps URLs: permanent redirects, still global.
   "/office",
+  "/unichat",
   "/vi",
   "/about",
   "/security",

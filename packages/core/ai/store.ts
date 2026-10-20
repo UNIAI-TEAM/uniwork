@@ -12,6 +12,9 @@ interface AiPanelStore {
   open: boolean;
   conversationId: string | null;
   pendingFocus: AskUniPanelFocus | null;
+  workspaceId: string | null;
+  /** A conversation belongs to one workspace: switching workspace forgets the open one. */
+  bindWorkspace: (wsId: string) => void;
   setOpen: (open: boolean) => void;
   toggle: () => void;
   select: (conversationId: string | null) => void;
@@ -23,6 +26,13 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
   open: false,
   conversationId: null,
   pendingFocus: null,
+  workspaceId: null,
+  bindWorkspace: (wsId) =>
+    set((s) =>
+      s.workspaceId === wsId
+        ? s
+        : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null }) },
+    ),
   setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null }) }),
   toggle: () => set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus })),
   select: (conversationId) => set({ conversationId }),

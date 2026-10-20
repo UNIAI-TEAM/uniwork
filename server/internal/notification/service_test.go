@@ -92,15 +92,15 @@ func TestServicePreferencesAndPush(t *testing.T) {
 	}
 	if !svc.PushConfig().Enabled {
 		// Push is off on this service: subscribing is a not_found.
-		if err := svc.SubscribePush(f.ctx, f.member.ID, "https://p/x", "p", "a", "ua"); !errors.Is(err, service.ErrNotFound) {
+		if err := svc.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); !errors.Is(err, service.ErrNotFound) {
 			t.Fatalf("subscribe with push off = %v", err)
 		}
 	}
 	on := NewService(f.q, PushConfig{Enabled: true, PublicKey: "BOr"})
-	if err := on.SubscribePush(f.ctx, f.member.ID, "http://insecure", "p", "a", ""); err == nil {
+	if err := on.SubscribePush(f.ctx, f.member.ID, "", "http://insecure", "p", "a", "", ""); err == nil {
 		t.Fatal("insecure endpoint accepted")
 	}
-	if err := on.SubscribePush(f.ctx, f.member.ID, "https://p/x", "p", "a", "ua"); err != nil {
+	if err := on.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); err != nil {
 		t.Fatal(err)
 	}
 	if subs, _ := f.q.ListActivePushSubscriptions(f.ctx, f.member.ID); len(subs) != 1 {
@@ -216,5 +216,57 @@ func TestDropParamKeysKeepsNonStringValues(t *testing.T) {
 	}
 	if got := dropParamKeys("", "snippet"); got != "" {
 		t.Fatalf("empty params were rewritten: %q", got)
+	}
+}
+
+func TestServiceRegistersExpoTokensWithoutVAPID(t *testing.T) {
+	f := newFixture(t)
+	off := NewService(f.q, PushConfig{})
+	on := NewService(f.q, PushConfig{Enabled: true})
+	if err := off.SubscribePush(f.ctx, f.member.ID, "device-family-1", "ExponentPushToken[abc-123]", "", "", "okhttp", "android"); err != nil {
+		t.Fatal(err)
+	}
+	if err := off.SubscribePush(f.ctx, f.member.ID, "", "ExpoPushToken[def]", "", "", "", "ios"); err != nil {
+		t.Fatal(err)
+	}
+	subs, err := f.q.ListActivePushSubscriptions(f.ctx, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 2 {
+		t.Fatalf("subs = %+v", subs)
+	}
+	agents := map[string]bool{}
+	for _, s := range subs {
+		if s.P256dh != "" || s.Auth != "" {
+			t.Fatalf("expo sub carries keys: %+v", s)
+		}
+		// The session it came from is what a device revoke closes it by.
+		if s.Endpoint == "ExponentPushToken[abc-123]" && s.SessionID.String != "device-family-1" {
+			t.Fatalf("expo sub lost its session: %+v", s)
+		}
+		agents[s.UserAgent.String] = true
+	}
+	if !agents["expo/android"] || !agents["expo/ios"] {
+		t.Fatalf("user agents = %v", agents)
+	}
+	var ve service.ValidationError
+	for _, svc := range []*Service{off, on} {
+		for _, c := range []struct{ ep, platform string }{{"ExponentPushToken[abc]", ""}, {"ExponentPushToken[abc]", "web"}, {"ExponentPushToken[]", "ios"}} {
+			if err := svc.SubscribePush(f.ctx, f.member.ID, "", c.ep, "", "", "", c.platform); !errors.As(err, &ve) {
+				t.Errorf("%q/%q → %v, want ValidationError", c.ep, c.platform, err)
+			}
+		}
+	}
+	for _, ep := range []string{"notatoken", "http://insecure"} {
+		if err := on.SubscribePush(f.ctx, f.member.ID, "", ep, "", "", "", "ios"); !errors.As(err, &ve) {
+			t.Errorf("VAPID on: %q → %v, want ValidationError", ep, err)
+		}
+		if err := off.SubscribePush(f.ctx, f.member.ID, "", ep, "", "", "", "ios"); !errors.Is(err, service.ErrNotFound) {
+			t.Errorf("VAPID off: %q → %v, want not found", ep, err)
+		}
+	}
+	if err := off.SubscribePush(f.ctx, f.member.ID, "", "https://p/x", "p", "a", "ua", ""); !errors.Is(err, service.ErrNotFound) {
+		t.Fatalf("web push with VAPID off = %v, want not found", err)
 	}
 }

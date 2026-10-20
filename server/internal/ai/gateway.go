@@ -216,7 +216,7 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 			_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderTimeout.Code, latency, nil)
 			g.observe(req.Capability, "failed", latency)
 			g.log.Warn("ai: provider timeout", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
-			return Response{}, ErrProviderTimeout.wrap(perr)
+			return Response{}, ErrProviderTimeout.wrapUsage(perr, row.ID)
 		}
 		// A vendor rate limit is a throttle, not an outage (design §6.4/§3.4):
 		// the caller is told to slow down and how long to wait — the vendor's
@@ -229,21 +229,35 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 			g.observe(req.Capability, "failed", latency)
 			g.log.Warn("ai: provider rate limited", "usage_event_id", row.ID, "capability", req.Capability,
 				"retry_after_s", limited.Fields["retry_after"], "latency_ms", latency.Milliseconds())
+			limited.UsageEventID = row.ID
 			return Response{}, limited
+		}
+		// A structured answer cut at max_tokens is bad output, not an outage:
+		// the vendor answered and billed the tokens on resp, so the row is
+		// priced and the call charged exactly like an answered one. Otherwise
+		// a prompt that keeps the model rambling could be retried for free.
+		if errors.Is(perr, provider.ErrTruncated) {
+			if err := g.settle(sctx, row.ID, row.OrganizationID, resp, "failed", ErrOutputInvalid.Code, latency, nil, true); err != nil {
+				g.log.Warn("ai: settle truncated call", "usage_event_id", row.ID, "err", err)
+			}
+			g.charge(sctx, req, row.ID, resp)
+			g.observe(req.Capability, "failed", latency)
+			g.log.Warn("ai: output truncated", "usage_event_id", row.ID, "capability", req.Capability, "output_tokens", resp.OutputTokens)
+			return Response{}, ErrOutputInvalid.wrapUsage(perr, row.ID)
 		}
 		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrProviderError.Code, latency, nil)
 		g.observe(req.Capability, "failed", latency)
 		g.log.Warn("ai: provider error", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds(), "err", perr)
 		if errors.Is(perr, provider.ErrUnsupportedMedia) {
-			return Response{}, ErrMediaUnsupported.wrap(perr)
+			return Response{}, ErrMediaUnsupported.wrapUsage(perr, row.ID)
 		}
-		return Response{}, ErrProviderError.wrap(perr)
+		return Response{}, ErrProviderError.wrapUsage(perr, row.ID)
 	}
 	calls, denied := auditToolCalls(resp.ToolCalls, req.Tools)
 	if denied != "" && !req.FilterToolCalls {
 		_ = g.finish(sctx, row.ID, row.OrganizationID, resp, "failed", ErrToolNotAllowed.Code, latency, calls)
 		g.observe(req.Capability, "failed", latency)
-		return Response{}, ErrToolNotAllowed.wrap(errors.New("tool " + denied))
+		return Response{}, ErrToolNotAllowed.wrapUsage(errors.New("tool "+denied), row.ID)
 	}
 	// UsagePresent is false only when the vendor positively reported no usage
 	// block. A response that carries token counts did report usage, whatever
@@ -279,28 +293,35 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	if err := g.finish(sctx, row.ID, row.OrganizationID, resp, "succeeded", "", latency, calls); err != nil {
 		return Response{}, err
 	}
+	g.charge(sctx, req, row.ID, resp)
+	g.observe(req.Capability, "succeeded", latency)
+	g.log.Info("ai: call", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
+	return g.response(resp, row.ID), nil
+}
+
+// charge counts the tokens a vendor billed against the organization's
+// ai.tokens meter and tells the workspace its usage moved. Failures are
+// logged, never returned: the vendor already answered.
+func (g *Gateway) charge(ctx context.Context, req Request, usageEventID string, resp provider.CompletionResponse) {
 	if g.quota != nil {
-		if err := g.quota.Record(sctx, UsageRecord{
+		if err := g.quota.Record(ctx, UsageRecord{
 			OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID, Actor: req.Actor,
-			Tokens: int64(resp.InputTokens + resp.OutputTokens), UsageEventID: row.ID,
+			Tokens: int64(resp.InputTokens + resp.OutputTokens), UsageEventID: usageEventID,
 			MeterKey: req.MeterKey,
 		}); err != nil {
-			g.log.Warn("ai: quota record", "usage_event_id", row.ID, "err", err)
+			g.log.Warn("ai: quota record", "usage_event_id", usageEventID, "err", err)
 		}
 	}
 	// ai.usage.updated is workspace-scoped; an organization-tier call (media
 	// analysis for Office) has no workspace audience to tell.
 	if g.rec != nil && req.WorkspaceID != "" {
-		if err := g.rec.Emit(sctx, g.q, req.Actor, audit.Event{
+		if err := g.rec.Emit(ctx, g.q, req.Actor, audit.Event{
 			Topic: "ai.usage.updated", OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID,
 			Payload: map[string]string{"organization_id": req.OrganizationID, "workspace_id": req.WorkspaceID},
 		}); err != nil {
-			g.log.Warn("ai: emit usage event", "usage_event_id", row.ID, "err", err)
+			g.log.Warn("ai: emit usage event", "usage_event_id", usageEventID, "err", err)
 		}
 	}
-	g.observe(req.Capability, "succeeded", latency)
-	g.log.Info("ai: call", "usage_event_id", row.ID, "capability", req.Capability, "latency_ms", latency.Milliseconds())
-	return g.response(resp, row.ID), nil
 }
 
 // response is the answered call as the caller reads it: the usage row id it
@@ -434,11 +455,18 @@ func (g *Gateway) insertUsage(ctx context.Context, req Request, model, status, r
 }
 
 func (g *Gateway) finish(ctx context.Context, id, orgID string, resp provider.CompletionResponse, status, reason string, latency time.Duration, calls []toolCallAudit) error {
-	var rateID pgtype.Text
-	var cost int64
 	// A row the vendor sent no usage for is not priced and not observed as a
 	// priced call: the reconciliation pass owns those numbers (A16).
 	priced := status == "succeeded" && reason != UsageUnknownReason
+	return g.settle(ctx, id, orgID, resp, status, reason, latency, calls, priced)
+}
+
+// settle writes the row's outcome. A priced row carries the rate and cost and
+// is sampled by ObserveAIUsage; a failed call is priced only when the vendor
+// billed it in full (a structured answer cut at max_tokens).
+func (g *Gateway) settle(ctx context.Context, id, orgID string, resp provider.CompletionResponse, status, reason string, latency time.Duration, calls []toolCallAudit, priced bool) error {
+	var rateID pgtype.Text
+	var cost int64
 	if priced {
 		rate, err := g.q.AiLatestRate(ctx, db.AiLatestRateParams{
 			Provider: g.p.Name(), Model: resp.Model, EffectiveAt: pgtype.Timestamptz{Time: g.now(), Valid: true},

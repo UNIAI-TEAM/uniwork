@@ -1,17 +1,18 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
-import { Download, Eye, EyeOff, FileText } from "lucide-react";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { Eye } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { ChatAnimatedImage } from "./chat-animated-image";
 import { isChatImageContentType, isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
-import { formatChatFileSize } from "./chat-file-size";
+import { ChatFileCard } from "./chat-file-card";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
 import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
+import { ChatPdfAttachment } from "./chat-pdf-attachment";
+import { useChatFileDownload } from "./use-chat-file-download";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media-url";
 
 type ChatFile = NonNullable<ChatMessage["file"]>;
@@ -23,91 +24,22 @@ type ChatFile = NonNullable<ChatMessage["file"]>;
  */
 const imageAspectByMessage = new Map<string, number>();
 
-/** The file's name, size and a download button: every attachment has one. */
-function FileCard({
-  file,
-  busy,
-  onDownload,
-  trailing,
-}: {
-  file: ChatFile | undefined;
-  busy: boolean;
-  onDownload: () => void;
-  trailing?: ReactNode;
-}) {
-  const { t, i18n } = useTranslation();
-  const name = file?.filename || t("chat.file_untitled");
-  return (
-    <div className="flex items-center gap-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-muted-foreground">
-        <FileText className="size-4" aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-body font-medium text-foreground">{name}</p>
-        <p className="text-caption text-muted-foreground tabular-nums">
-          {formatChatFileSize(file?.size_bytes ?? 0, i18n.language)}
-        </p>
-      </div>
-      {trailing}
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        className="size-9 shrink-0 pointer-coarse:size-11"
-        disabled={busy}
-        aria-label={t("chat.message_list.file_download_named", { name })}
-        onClick={onDownload}
-      >
-        {busy ? (
-          <Spinner />
-        ) : (
-          <Download className="size-4" aria-hidden />
-        )}
-      </Button>
-    </div>
-  );
-}
-
-/**
- * Downloads straight from storage: the signed download URL carries
- * Content-Disposition: attachment with the file's name, so the browser saves
- * it even though the anchor's own download attribute is ignored cross-origin.
- */
-function useDownload(workspaceId: string, roomId: string, message: ChatMessage) {
-  const { t } = useTranslation();
-  const freshUrl = useFreshChatMediaUrl(workspaceId, roomId);
-  const [busy, setBusy] = useState(false);
-  const download = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const url = await freshUrl(
-        message.id,
-        { url: message.file?.download_url, expiresAt: message.file?.url_expires_at },
-        (fresh) => fresh.file?.download_url,
-      );
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = message.file?.filename || "file";
-      anchor.rel = "noopener";
-      anchor.click();
-    } catch (err) {
-      toastChatError(err, t, t("chat.file_download_failed"));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return { busy, download: () => void download() };
-}
+type ChatFileSender = { userId: string; name: string; avatarUrl?: string; ts: number };
 
 function ImageAttachment({
   workspaceId,
   roomId,
   message,
+  sender,
+  busy,
+  onDownload,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
+  sender?: ChatFileSender;
+  busy: boolean;
+  onDownload: () => void;
 }) {
   const { t } = useTranslation();
   const file = message.file;
@@ -165,7 +97,7 @@ function ImageAttachment({
   if (status === "error") {
     return (
       <div className="flex min-h-40 min-w-48 items-center justify-center px-4 py-8">
-        <p className="text-center text-caption text-muted-foreground">{t("chat.file_download_failed")}</p>
+        <p className="text-center text-caption">{t("chat.file_download_failed")}</p>
       </div>
     );
   }
@@ -173,7 +105,7 @@ function ImageAttachment({
     return (
       <div role="status" className="w-56 max-w-full" style={boxStyle}>
         <span className="sr-only">{t("chat.file_loading")}</span>
-        <Skeleton className="size-full rounded-none" />
+        <Skeleton className="size-full rounded-xl" />
       </div>
     );
   }
@@ -186,19 +118,29 @@ function ImageAttachment({
       src={previewSrc}
       loading={previewLoading}
       onOpenChange={closePreview}
+      sender={sender}
+      onDownload={onDownload}
+      downloading={busy}
     />
   );
   if (isGif) {
     // The GIF carries its own play/pause button, so the preview is a button
     // of its own rather than the whole picture.
     return (
-      <div className="relative w-fit max-w-full" style={aspect ? undefined : boxStyle}>
-        <ChatAnimatedImage src={url} alt={name} imgClassName={imgClass} onLoad={rememberAspect} onError={preview.onError} />
+      <div className="relative w-fit max-w-full overflow-hidden rounded-xl" style={aspect ? undefined : boxStyle}>
+        <ChatAnimatedImage
+          src={url}
+          alt={name}
+          imgClassName={imgClass}
+          onLoad={rememberAspect}
+          onError={preview.onError}
+          gifBadge
+        />
         <Button
           type="button"
           size="icon-sm"
           variant="secondary"
-          className="absolute top-1.5 right-1.5 pointer-coarse:size-11"
+          className="absolute top-1.5 right-1.5 rounded-full shadow-menu pointer-coarse:size-11"
           aria-label={openLabel}
           onClick={openPreview}
         >
@@ -212,7 +154,7 @@ function ImageAttachment({
     <>
       <button
         type="button"
-        className="block max-w-full overflow-hidden"
+        className="block max-w-full overflow-hidden rounded-xl"
         style={aspect ? undefined : boxStyle}
         aria-label={openLabel}
         onClick={openPreview}
@@ -231,97 +173,58 @@ function ImageAttachment({
   );
 }
 
-/**
- * A PDF is a file card first. The inline preview downloads the whole
- * document, so it loads only when someone asks to see it.
- */
-function PdfAttachment({
-  workspaceId,
-  roomId,
-  message,
-  busy,
-  onDownload,
-}: {
-  workspaceId: string;
-  roomId: string;
-  message: ChatMessage;
-  busy: boolean;
-  onDownload: () => void;
-}) {
-  const { t } = useTranslation();
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const { src: url, status } = useChatMediaSrc(
-    workspaceId,
-    roomId,
-    message.id,
-    message.file?.url,
-    message.file?.url_expires_at,
-    previewOpen,
-  );
-  return (
-    <div className="space-y-2 p-2">
-      <div className="px-1">
-        <FileCard
-          file={message.file}
-          busy={busy}
-          onDownload={onDownload}
-          trailing={
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-9 shrink-0 pointer-coarse:size-11"
-              aria-expanded={previewOpen}
-              aria-label={previewOpen ? t("chat.message_list.pdf_preview_hide") : t("chat.message_list.pdf_preview_show")}
-              onClick={() => setPreviewOpen((open) => !open)}
-            >
-              {previewOpen ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
-            </Button>
-          }
-        />
-      </div>
-      {!previewOpen ? null : status === "ready" && url ? (
-        <iframe
-          title={t("chat.file_pdf_preview")}
-          src={url}
-          className="h-72 w-full rounded-lg border border-border bg-background"
-        />
-      ) : status === "error" ? (
-        <p className="px-1 pb-1 text-caption text-muted-foreground" role="alert">
-          {t("chat.file_download_failed")}
-        </p>
-      ) : (
-        <div role="status" className="h-72 w-full">
-          <span className="sr-only">{t("chat.file_loading")}</span>
-          <Skeleton className="size-full rounded-lg" />
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** The body of a file message: an image, a PDF card with its preview, or a plain file card. */
 export function ChatFileAttachment({
   workspaceId,
   roomId,
   message,
+  isOwn = false,
+  sender,
+  meta,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
+  /** On my brand bubble the card's controls and secondary text invert. */
+  isOwn?: boolean;
+  /** Who sent the photo, for the viewer's top bar. */
+  sender?: ChatFileSender;
+  /** The message's time, drawn inside a file or PDF card; a photo carries its own. */
+  meta?: ReactNode;
 }) {
   const file = message.file;
-  const { busy, download } = useDownload(workspaceId, roomId, message);
+  const { state, busy, download: downloadMessage, cancel } = useChatFileDownload(workspaceId, roomId, message.id);
+  const download = () => downloadMessage(message);
   const contentType = file ? resolveChatFileContentType(file) : undefined;
   if (isChatImageContentType(contentType, file?.filename)) {
-    return <ImageAttachment workspaceId={workspaceId} roomId={roomId} message={message} />;
+    return (
+      <ImageAttachment
+        workspaceId={workspaceId}
+        roomId={roomId}
+        message={message}
+        sender={sender}
+        busy={busy}
+        onDownload={download}
+      />
+    );
   }
   if (isChatPdfContentType(contentType)) {
     return (
-      <PdfAttachment workspaceId={workspaceId} roomId={roomId} message={message} busy={busy} onDownload={download} />
+      <ChatPdfAttachment
+        workspaceId={workspaceId}
+        roomId={roomId}
+        message={message}
+        isOwn={isOwn}
+        download={state}
+        onDownload={download}
+        onCancel={cancel}
+        meta={meta}
+      />
     );
   }
-  return <FileCard file={file} busy={busy} onDownload={download} />;
+  return (
+    <ChatFileCard file={file} isOwn={isOwn} download={state} onDownload={download} onCancel={cancel} meta={meta} />
+  );
 }
 
 /** Image and PDF attachments sit edge to edge in the bubble; a file card gets padding. */

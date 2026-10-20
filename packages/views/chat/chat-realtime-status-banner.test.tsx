@@ -60,6 +60,18 @@ describe("ChatRealtimeStatusBanner", () => {
     expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
+  it("turns the arrows only while reconnecting, and only when motion is welcome", () => {
+    connection.state = "connecting";
+    const { container, rerender } = render(<ChatRealtimeStatusBanner />);
+    expect(screen.getByText("Đang kết nối lại…").closest("div")?.parentElement).toHaveClass(
+      "[&>svg]:motion-safe:animate-spin",
+    );
+
+    connection.state = "disconnected";
+    rerender(<ChatRealtimeStatusBanner />);
+    expect(container.innerHTML).not.toContain("animate-spin");
+  });
+
   it("counts pending messages with a plural", () => {
     connection.state = "connected";
     render(<ChatRealtimeStatusBanner pendingOutboxCount={1} />);

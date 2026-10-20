@@ -224,3 +224,24 @@ export async function seedCompletedMeetingRecording(meetingId: string, fileUrl: 
     return result.rows[0].id;
   });
 }
+
+/**
+ * Seeds the summary row a finished AI run leaves behind, with the given action
+ * items, so the summary-to-tasks path runs without an AI provider (CI has
+ * none). Fixture setup only: it skips the summary command, the gateway call
+ * and its usage event on purpose. Returns the summary id.
+ */
+export async function seedMeetingSummary(meetingId: string, actionItems: { title: string; owner?: string; due?: string }[]): Promise<string> {
+  const id = e2eUlid();
+  return withClient(async (c) => {
+    const result = await c.query<{ id: string }>(
+      `INSERT INTO meeting_summaries (id, meeting_id, organization_id, summary, decisions, action_items, model, created_by)
+       SELECT $1, m.id, m.organization_id, 'e2e summary', '[]', $3, 'e2e', m.host_user_id
+         FROM meetings m WHERE m.id = $2
+       RETURNING id`,
+      [id, meetingId, JSON.stringify(actionItems)],
+    );
+    if (result.rowCount !== 1) throw new Error(`seedMeetingSummary: no meeting ${meetingId}`);
+    return result.rows[0].id;
+  });
+}

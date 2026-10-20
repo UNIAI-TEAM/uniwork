@@ -13,7 +13,15 @@ export const UNKNOWN_PLATFORM: DesktopPlatformGuess = { platform: null, confiden
  * high-entropy architecture hint (Chromium) proves Apple Silicon; Safari and
  * Firefox answer "uncertain" and the page then shows both Mac variants.
  */
-export async function readBrowserPlatformGuess(): Promise<DesktopPlatformGuess> {
+export function readBrowserPlatformGuess(): Promise<DesktopPlatformGuess> {
+  // One read per user agent: the hub asks from every table row, the menu and the page.
+  if (cached?.userAgent !== navigator.userAgent) cached = { userAgent: navigator.userAgent, guess: readGuess() };
+  return cached.guess;
+}
+
+let cached: { userAgent: string; guess: Promise<DesktopPlatformGuess> } | undefined;
+
+async function readGuess(): Promise<DesktopPlatformGuess> {
   const data = (navigator as Navigator & { userAgentData?: BrowserUserAgentData }).userAgentData;
   let entropy: HighEntropyValues = {};
   try { entropy = await data?.getHighEntropyValues?.(["architecture", "bitness"]) ?? {}; } catch { /* A reduced UA stays an uncertain guess. */ }

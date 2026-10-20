@@ -1,15 +1,18 @@
 "use client";
 
-import { Hash, House, Lock, Users } from "lucide-react";
-import { memo, useCallback, useMemo } from "react";
+import { House, Lock } from "lucide-react";
+import { memo, useCallback, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { selectIsUserOnline, usePresenceStore } from "@uniwork/core/chat/presence-store";
-import { initialOf } from "./chat-initials";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { tintSolidClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
+import { cn } from "@uniwork/ui/lib/utils";
+import { identityTint } from "../people/identity-tint";
+import { initialsOf, roomInitialsOf } from "./chat-initials";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
-import { ChatPresenceAvatar } from "./chat-presence-avatar";
-import { ChatRoomMark } from "./chat-room-mark";
+import { ChatRoomPhoto } from "./chat-room-mark";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import { SidebarNavItem, type SidebarPreviewOptions } from "./chat-sidebar-rows";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
@@ -17,6 +20,24 @@ import type { UnifiedSidebarEntry } from "./chat-sidebar-unified";
 
 /** Labels every row's preview line shares; the sidebar builds this once. */
 export type SidebarRowLabels = Omit<SidebarPreviewOptions, "isGroup" | "nicknamesByUserId" | "currentUserId">;
+
+/* A 48px face, Telegram's list size: people are circles, rooms 12px-rounded
+   squares, both with white initials (or the room's glyph) on the row's own colour. */
+const FACE = "size-12 shrink-0 font-display text-body-lg font-bold";
+
+/** A room's face: its uploaded photo, else its initials or glyph on its colour. */
+function RoomFace({ tint, imageUrl, children }: { tint: Tint; imageUrl?: string; children: ReactNode }) {
+  return (
+    <ChatRoomPhoto src={imageUrl} className="size-12 rounded-xl">
+      <span
+        aria-hidden
+        className={cn(FACE, "flex items-center justify-center rounded-xl [&_svg]:size-5", tintSolidClass[tint])}
+      >
+        {children}
+      </span>
+    </ChatRoomPhoto>
+  );
+}
 
 /**
  * A DM row's avatar subscribes to one boolean — this person's presence —
@@ -32,15 +53,29 @@ function DmPresenceAvatar({
   label: string;
   memberAvatarByUserId: MemberAvatarUrlMap;
 }) {
+  const { t } = useTranslation();
   const online = usePresenceStore((state) => selectIsUserOnline(state, userId));
   return (
-    <ChatPresenceAvatar
-      name={label}
-      initials={initialOf(label)}
-      avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, userId)}
-      size="lg"
-      online={online}
-    />
+    <span className="relative inline-flex shrink-0">
+      <ActorAvatar
+        name={label}
+        initials={initialsOf(label)}
+        avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, userId)}
+        size="fluid"
+        // Initials sit on the person's own colour, as they do across the app.
+        className={cn(FACE, tintSolidClass[identityTint(userId)])}
+      />
+      {online ? (
+        <>
+          {/* The ring is cut from the row's fill (--row-fill), as the canvas draws it. */}
+          <span
+            aria-hidden
+            className="absolute right-0 bottom-0 size-3.5 rounded-full border-[2.5px] border-(--row-fill) bg-success-solid"
+          />
+          <span className="sr-only">{t("chat.presence_online")}</span>
+        </>
+      ) : null}
+    </span>
   );
 }
 
@@ -55,6 +90,20 @@ export function sidebarEntryRoomId(entry: UnifiedSidebarEntry): string | null {
       return entry.group.room_id;
     case "dm":
       return entry.contact.dm_room_id ?? null;
+  }
+}
+
+/** The conversation a sidebar entry opens. */
+export function sidebarEntryTarget(entry: UnifiedSidebarEntry): ChatSidebarTarget {
+  switch (entry.kind) {
+    case "workspace":
+      return { kind: "workspace" };
+    case "channel":
+      return { kind: "channel", channel: entry.channel };
+    case "group":
+      return { kind: "group", group: entry.group };
+    case "dm":
+      return { kind: "dm", contact: entry.contact };
   }
 }
 
@@ -96,6 +145,8 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
   onRowFocus,
   memberAvatarByUserId,
   typingNameByUserId,
+  peerReadAt,
+  draftKey,
 }: {
   entry: UnifiedSidebarEntry;
   active: boolean;
@@ -116,6 +167,9 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
   tabIndex: number;
   onRowFocus: (rowIndex: number) => void;
   typingNameByUserId: Record<string, string>;
+  peerReadAt?: string;
+  /** The composer draft this conversation keeps; the row shows it as "Nháp:". */
+  draftKey?: string;
 }) {
   const { t } = useTranslation();
   const isGroup = entry.kind !== "dm";
@@ -124,21 +178,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     [labels, currentUserId, nicknamesByUserId, isGroup],
   );
   const roomId = sidebarEntryRoomId(entry);
-  const onClick = useCallback(() => {
-    switch (entry.kind) {
-      case "workspace":
-        onTargetChange({ kind: "workspace" });
-        return;
-      case "channel":
-        onTargetChange({ kind: "channel", channel: entry.channel });
-        return;
-      case "group":
-        onTargetChange({ kind: "group", group: entry.group });
-        return;
-      case "dm":
-        onTargetChange({ kind: "dm", contact: entry.contact });
-    }
-  }, [entry, onTargetChange]);
+  const onClick = useCallback(() => onTargetChange(sidebarEntryTarget(entry)), [entry, onTargetChange]);
 
   const shared = {
     active,
@@ -155,13 +195,19 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     pinned,
     notificationsMuted,
     typingNameByUserId,
+    peerReadAt,
+    draftKey,
   };
 
   if (entry.kind === "workspace") {
     return (
       <SidebarNavItem
         {...shared}
-        avatar={<ChatRoomMark icon={House} active={active} />}
+        avatar={
+          <RoomFace tint="blue">
+            <House />
+          </RoomFace>
+        }
         title={workspaceTitle}
         fallbackSubtitle={t("chat.workspace_room_subtitle")}
         contacts={contacts}
@@ -175,8 +221,8 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     return (
       <SidebarNavItem
         {...shared}
-        avatar={<ChatRoomMark icon={privateChannel ? Lock : Hash} active={active} />}
-        title={privateChannel ? channel.name : `#${channel.name}`}
+        avatar={<RoomFace tint={identityTint(channel.id)}>{privateChannel ? <Lock /> : "#"}</RoomFace>}
+        title={privateChannel ? channel.name : `# ${channel.name}`}
       />
     );
   }
@@ -185,7 +231,11 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
     return (
       <SidebarNavItem
         {...shared}
-        avatar={<ChatRoomMark icon={Users} active={active} />}
+        avatar={
+          <RoomFace tint={identityTint(entry.group.id)} imageUrl={entry.group.avatar_url}>
+            {roomInitialsOf(entry.group.name)}
+          </RoomFace>
+        }
         title={entry.group.name}
         contacts={contacts}
       />

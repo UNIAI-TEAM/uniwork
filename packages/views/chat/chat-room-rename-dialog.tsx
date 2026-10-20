@@ -7,6 +7,15 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import {
+  CHAT_DIALOG_BODY_CLASS,
+  CHAT_DIALOG_CLASS,
+  CHAT_DIALOG_COMPACT_CLASS,
+  CHAT_DIALOG_WIDTH,
+  CHAT_FIELD_CLASS,
+  CHAT_LABEL_CLASS,
+} from "./chat-dialog-look";
+import { ChatCharCounter } from "./chat-form-parts";
 import { chatErrorMessage } from "./chat-error-message";
 
 /** Mirrors chatRoomNameMaxRunes on the server (UpdateChatRoomSettings). */
@@ -56,16 +65,22 @@ export function ChatRoomRenameDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_COMPACT_CLASS} ${CHAT_DIALOG_WIDTH.field}`}>
         <FormDialogHeader title={t("chat.room_rename_title")} description={t("chat.room_rename_description")} />
-        <FormDialogBody className="space-y-2">
-          <Label htmlFor="chat-room-rename">{t("chat.room_rename_label")}</Label>
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-1.5 pb-0`}>
+          <div className="flex items-baseline justify-between gap-3">
+            <Label htmlFor="chat-room-rename" className={CHAT_LABEL_CLASS}>
+              {t("chat.room_rename_label")}
+            </Label>
+            <ChatCharCounter id="chat-room-rename-count" length={name.length} max={ROOM_NAME_MAX_LENGTH} always />
+          </div>
           <Input
             id="chat-room-rename"
             value={name}
             maxLength={ROOM_NAME_MAX_LENGTH}
             aria-invalid={error ? true : undefined}
-            aria-describedby={error ? "chat-room-rename-error" : undefined}
+            aria-describedby={error ? "chat-room-rename-count chat-room-rename-error" : "chat-room-rename-count"}
+            className={CHAT_FIELD_CLASS}
             onChange={(event) => {
               setName(event.target.value);
               if (error) setError(null);
@@ -83,6 +98,7 @@ export function ChatRoomRenameDialog({
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => onOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("common.save")}
           submittingLabel={t("chat.room_rename_saving")}
           submitting={updateSettings.isPending}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useAiCapabilities } from "@uniwork/core/ai";
 import { useRoomMediaShortcuts } from "../meetings/meeting-room-shortcuts";
 import { useCallDuration } from "./use-call-duration";
 import { useVoiceCallPanelDrag } from "./use-voice-call-panel-drag";
@@ -18,6 +19,7 @@ import {
   type VoiceCallPanelMode,
 } from "./voice-call-floating-panel";
 import { isMultiPartyVoiceCall, voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
+import { useVoiceCallParticipantsPanel } from "./voice-call-participants-panel";
 import type {
   VoiceCallEndInit,
   VoiceCallKind,
@@ -25,6 +27,7 @@ import type {
 import { VoiceCallRecIndicator } from "./voice-call-recording-controls";
 import {
   useVoiceCallActions,
+  useVoiceCallMedia,
   useVoiceCallStatus,
 } from "./voice-call-room-context";
 import { VoiceCallVideoStage } from "./voice-call-video-stage";
@@ -64,6 +67,11 @@ export function ActiveVoiceCallContent({
   // Recording state belongs to the call, not to the record button: the REC
   // badge and the "someone started recording" notice live in every panel size.
   const recording = useVoiceCallRecording({ workspaceId, roomId, callId });
+  // The server posts an AI summary of every finished call when the workspace has AI on.
+  const aiSummary = Boolean(useAiCapabilities(workspaceId).data?.enabled);
+  const participants = useVoiceCallParticipantsPanel({ isCaller, aiSummary });
+  const { participantTiles } = useVoiceCallMedia();
+  const peerSpeaking = !multiParty && participantTiles.some((tile) => !tile.isLocal && tile.isSpeaking);
   const { live, startedAt } = useVoiceCallSessionLifecycle({
     callKind,
     isCaller,
@@ -131,11 +139,14 @@ export function ActiveVoiceCallContent({
       }
       indicator={recording.recording ? <VoiceCallRecIndicator /> : undefined}
       mode={panelMode}
+      speaking={peerSpeaking}
       onMinimize={onMinimize}
       onMaximize={onMaximize}
       panelRef={panelRef}
       panelStyle={panelStyle}
       dragHandleProps={dragEnabled ? dragHandleProps : undefined}
+      fullscreenAction={participants.toggle}
+      fullscreenAside={participants.panel}
       live={
         <>
           <VoiceCallPresenceAnnouncer />
@@ -161,6 +172,7 @@ export function ActiveVoiceCallContent({
           onLeave={leave}
           onEndForAll={endForAll}
           compact={panelMode === "minimized"}
+          large={panelMode === "fullscreen"}
         />
       }
     >
@@ -169,6 +181,7 @@ export function ActiveVoiceCallContent({
           peerName={peerName}
           callKind={callKind}
           size={panelMode === "fullscreen" ? "fullscreen" : "compact"}
+          aiSummary={aiSummary}
         />
       ) : null}
     </VoiceCallFloatingPanel>

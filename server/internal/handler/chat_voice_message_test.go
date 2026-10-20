@@ -16,6 +16,9 @@ func TestSniffChatVoiceContentType(t *testing.T) {
 		{"webm", []byte{0x1a, 0x45, 0xdf, 0xa3, 0x00}, "audio/webm", true},
 		{"ogg", []byte("OggS\x00"), "audio/ogg", true},
 		{"mp4", []byte{0, 0, 0, 20, 'f', 't', 'y', 'p', 'M', '4', 'A', ' '}, "audio/mp4", true},
+		// UniChat mobile records AAC in MPEG-4 (expo-audio's m4a): iOS writes the
+		// M4A brand above, Android MediaRecorder an isom/mp42 one.
+		{"mp4 from android", []byte{0, 0, 0, 24, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'}, "audio/mp4", true},
 		{"declared audio without magic", []byte("not audio"), "", false},
 	}
 	for _, tt := range tests {

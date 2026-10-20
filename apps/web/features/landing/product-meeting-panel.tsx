@@ -3,14 +3,14 @@
 import { DEMO_MEMBERS } from "./product-demo-data";
 
 import { useId, useState } from "react";
-import { Send, X } from "lucide-react";
+import { Send, Sparkles, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { MeetingPersonAvatar } from "@uniwork/views/meetings/meeting-person";
 import { MeetingUnderlineTabs } from "@uniwork/views/meetings/meeting-underline-tabs";
 import { MeetingCopilotHeader } from "@uniwork/views/meetings/meeting-copilot/meeting-copilot-header";
-import { MeetingCopilotFooter, MeetingCopilotTasksCta } from "@uniwork/views/meetings/meeting-copilot/meeting-copilot-footer";
+import { MeetingCopilotFooter } from "@uniwork/views/meetings/meeting-copilot/meeting-copilot-footer";
 
 export const DEMO_MEETING_PEOPLE = [DEMO_MEMBERS[1]!.name, DEMO_MEMBERS[2]!.name, DEMO_MEMBERS[3]!.name, DEMO_MEMBERS[0]!.name];
 const MEETING_DEMO_TABS = ["copilot", "chat", "participants", "motions", "recordings"] as const;
@@ -41,13 +41,13 @@ export function ProductMeetingPanel({ tab, onTab, onClose, onTask, compact, stat
     <div className="product-meeting-panel-tabs"><MeetingUnderlineTabs tabs={MEETING_DEMO_TABS} value={tab} onChange={onTab} label={label} panelId={value => `${id}-${value}`} />{compact && <Button size="icon" variant="ghost" aria-label={t("common.close")} onClick={onClose}><X aria-hidden /></Button>}</div>
     <div className="product-meeting-panel-content" role="tabpanel" id={`${id}-${tab}`} aria-label={label(tab)}>
       {tab === "copilot" && <>
-        <MeetingCopilotHeader canHost aiOn hasSource hasSummary={summary} generating={false} onGenerate={() => setSummary(true)} />
+        <MeetingCopilotHeader action={<Button type="button" size="sm" variant="brandSubtle" onClick={() => setSummary(true)}><Sparkles aria-hidden />{summary ? t("meetings.regenerateSummary") : t("meetings.generateSummary")}</Button>} />
         <MeetingUnderlineTabs tabs={COPILOT_SECTIONS} value={section} onChange={setSection} label={sectionLabel} />
         <div className="product-meeting-copilot-body">
           {section === "insights" && (summary ? <><h3>{t("meetings.aiSummary")}</h3><p>{t("landing.playback.meetingGoal")}</p><ul>{["brief", "design", "launch"].map(key => <li key={key}>{t(`landing.playback.tasks.${key}`)}</li>)}</ul></> : <p>{t("meetings.summaryEmpty")}</p>)}
           {section === "transcript" && <><small>09:12 · An Nhiên</small><p>{t("landing.reference.meetingChat")}</p><small>09:15 · Khánh Vy</small><p>{t("landing.studio.message2")}</p></>}
           {section === "notes" && <><p>{t("landing.playback.meetingGoal")}</p>{notes.map((value, index) => <p key={index}>{value}</p>)}<form onSubmit={event => { event.preventDefault(); if (note.trim()) { setNotes(current => [...current, note.trim()].slice(-8)); setNote(""); } }}><Input value={note} onChange={event => setNote(event.target.value)} aria-label={t("meetings.notesInputLabel")} placeholder={t("meetings.notesPlaceholder")} maxLength={500} /><Button type="submit" variant="outline" size="icon" aria-label={t("meetings.addNote")} disabled={!note.trim()}><Send aria-hidden /></Button></form></>}
-          {section === "actions" && (summary ? <><p>{t("landing.studio.task_design")}</p><MeetingCopilotTasksCta count={1} disabled={!onTask} onClick={() => onTask?.(t("landing.studio.task_design"))} /></> : <p>{t("meetings.summaryEmpty")}</p>)}
+          {section === "actions" && (summary ? <><p>{t("landing.studio.task_design")}</p><Button type="button" variant="brand" className="mt-3 w-full" disabled={!onTask} onClick={() => onTask?.(t("landing.studio.task_design"))}>{t("meetings.createTasksInUniwork", { count: 1 })}</Button></> : <p>{t("meetings.summaryEmpty")}</p>)}
         </div>
         <MeetingCopilotFooter />
         <small className="product-meeting-sample">{t("landing.lovable.sample")}</small>

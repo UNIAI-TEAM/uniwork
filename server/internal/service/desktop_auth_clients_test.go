@@ -20,6 +20,11 @@ const (
 	devClient      = "uniwork-office-dev"
 	devRedirect    = "uniwork-office-dev://auth/callback"
 	clientVerifier = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+
+	chatDesktopClient = "uniwork-chat-desktop"
+	chatMobileClient  = "uniwork-chat-mobile"
+	chatRedirect      = "uniworkchat://auth/callback"
+	chatDevRedirect   = "uniworkchat-dev://auth/callback"
 )
 
 func twoClientConfig() config.Config {
@@ -28,6 +33,21 @@ func twoClientConfig() config.Config {
 		DesktopAuthClients: []config.DesktopAuthClient{
 			{ID: stableClient, RedirectURIs: []string{stableRedirect}},
 			{ID: devClient, RedirectURIs: []string{devRedirect}},
+		},
+		DesktopAuthDeploymentIDs: []string{"default"}, DesktopAuthCodeTTL: 120 * time.Second,
+		DesktopAuthAttemptTTL: 10 * time.Minute, RefreshTokenTTL: time.Hour,
+	}
+}
+
+// chatClientConfig is the Office client plus the two UniChat clients, which
+// share one pair of redirects with each other but not with Office.
+func chatClientConfig() config.Config {
+	return config.Config{
+		FrontendOrigin: "http://localhost:13380",
+		DesktopAuthClients: []config.DesktopAuthClient{
+			{ID: stableClient, RedirectURIs: []string{stableRedirect}},
+			{ID: chatDesktopClient, RedirectURIs: []string{chatRedirect, chatDevRedirect}},
+			{ID: chatMobileClient, RedirectURIs: []string{chatRedirect, chatDevRedirect}},
 		},
 		DesktopAuthDeploymentIDs: []string{"default"}, DesktopAuthCodeTTL: 120 * time.Second,
 		DesktopAuthAttemptTTL: 10 * time.Minute, RefreshTokenTTL: time.Hour,
@@ -143,5 +163,24 @@ func TestDesktopAuthLegacyPairKeepsItsPerFieldDefaults(t *testing.T) {
 	svc = NewDesktopAuthService(nil, nil, auth.TokenMinter{}, config.Config{DesktopAuthRedirectURIs: []string{stableRedirect}, DesktopAuthDeploymentIDs: []string{"default"}})
 	if !svc.allowed(stableClient, stableRedirect, "default") {
 		t.Fatal("redirect-only legacy config lost the default client")
+	}
+}
+
+func TestDesktopAuthChatClientsShareARedirectButNotWithOffice(t *testing.T) {
+	svc := NewDesktopAuthService(nil, nil, auth.TokenMinter{}, chatClientConfig()) // validateStart reads no database
+	sum := sha256.Sum256([]byte(clientVerifier))
+	start := func(client, redirect string) error {
+		return svc.validateStart(DesktopStartInput{ClientID: client, RedirectURI: redirect, DeploymentID: "default", State: "s", CodeChallengeMethod: "S256", CodeChallenge: base64.RawURLEncoding.EncodeToString(sum[:])})
+	}
+	for _, c := range []struct{ client, redirect string }{{chatDesktopClient, chatRedirect}, {chatDesktopClient, chatDevRedirect}, {chatMobileClient, chatRedirect}, {stableClient, stableRedirect}} {
+		if err := start(c.client, c.redirect); err != nil {
+			t.Errorf("%s on %s: %v", c.client, c.redirect, err)
+		}
+	}
+	for _, c := range []struct{ client, redirect string }{{stableClient, chatRedirect}, {chatDesktopClient, stableRedirect}, {chatMobileClient, "uniworkchat://auth/other"}} {
+		var ve ValidationError
+		if err := start(c.client, c.redirect); !errors.As(err, &ve) {
+			t.Errorf("%s on %s: err = %v, want ValidationError", c.client, c.redirect, err)
+		}
 	}
 }

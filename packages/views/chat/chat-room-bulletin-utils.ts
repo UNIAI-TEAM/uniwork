@@ -72,14 +72,13 @@ export function bulletinMessagePreview(
 export function formatBulletinTime(iso: string, locale: string, now: Date = new Date()): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
-  }
-  return date.toLocaleString(locale, {
+  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  if (date.toDateString() === now.toDateString()) return time;
+  // Date first, then the time (canvas): Vietnamese toLocaleString would put the time first.
+  const day = date.toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
-    hour: "2-digit",
-    minute: "2-digit",
   });
+  return `${day}, ${time}`;
 }

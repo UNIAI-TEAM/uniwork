@@ -11,9 +11,11 @@ import (
 //
 //	GET  /api/v1/workspaces/{workspaceID}/chat/users/lookup
 //	POST /api/v1/chat/voice/token
+//	GET  /api/v1/workspaces/{workspaceID}/chat/call-logs
 //	GET  /api/v1/workspaces/{workspaceID}/chat/room
 //	POST /api/v1/workspaces/{workspaceID}/chat/room
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms
+//	GET  /api/v1/me/chat/unread-summary
 //	POST /api/v1/workspaces/{workspaceID}/chat/dm
 //	POST /api/v1/workspaces/{workspaceID}/chat/groups
 //	POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/leave
@@ -23,6 +25,7 @@ import (
 //	DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/messages
 //	POST /api/v1/workspaces/{workspaceID}/chat/messages
+//	GET  /api/v1/workspaces/{workspaceID}/chat/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages
@@ -121,6 +124,14 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.PendingVoiceInviteSDO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/chat/call-logs", h.ListChatCallLogs, apiOp{
+		summary:     "List chat call logs",
+		description: "Lịch sử cuộc gọi trong các phòng chat của caller ở workspace (DM và nhóm của tổ chức, kênh của workspace), mới nhất trước, phân trang bằng cursor. Chỉ đọc.",
+		tags:        []string{"chat"},
+		sdi:         sdi.ListChatCallLogsSDI{},
+		sdo:         sdo.ChatCallLogListSDO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/room", h.GetWorkspaceChatRoom, apiOp{
 		summary:     "Get workspace chat room",
 		description: "Trạng thái phòng chat workspace.",
@@ -143,6 +154,13 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
+	r.Get("/me/chat/unread-summary", h.ChatUnreadSummary, apiOp{
+		summary:     "Chat unread summary",
+		description: "Chưa đọc chat của người gọi theo từng workspace mở được, cho bộ chuyển workspace: DM và nhóm đếm một lần (direct), kênh theo workspace; phòng tắt thông báo chỉ tính nhắc tên.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatUnreadSummarySDO{},
+		auth:        true,
+	})
 	r.Post("/workspaces/{workspaceID}/chat/dm", h.ResolveDM, apiOp{
 		summary:     "Resolve DM room",
 		description: "Tìm hoặc tạo phòng DM 1:1 trong tổ chức (có thể khác workspace).",
@@ -151,7 +169,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
-	r.Post("/workspaces/{workspaceID}/chat/groups", h.CreateChatGroup, apiOp{
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/groups", h.CreateChatGroup, apiOp{
 		summary:     "Create group chat",
 		description: "Tạo hoặc lấy phòng nhóm chat.",
 		tags:        []string{"chat"},
@@ -210,6 +228,21 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatRoomMemberPermissionsDTO{},
 		auth:        true,
 	})
+	r.With(chatRoomLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar", h.UploadChatRoomAvatar, apiOp{
+		summary:     "Upload group avatar",
+		description: "Đặt ảnh nhóm chat. Tên field multipart là file. PNG, JPEG, GIF hoặc WebP, tối đa 2 MiB. Quyền như đổi tên nhóm: admin phòng, người tạo, hoặc thành viên khi allow_change_profile bật. Chỉ cho nhóm.",
+		tags:        []string{"chat"},
+		sdi:         sdi.UploadChatRoomAvatarSDI{},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
+	r.With(chatRoomLimit).Delete("/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar", h.RemoveChatRoomAvatar, apiOp{
+		summary:     "Remove group avatar",
+		description: "Bỏ ảnh nhóm chat; nhóm hiện lại ảnh các thành viên. Quyền như đổi tên nhóm.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
 	r.With(chatRoomLimit).Patch("/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}", h.PatchChatRoomMember, apiOp{
 		summary:     "Update chat room member",
 		description: "Thăng/giáng admin phòng hoặc cấm/bỏ cấm gửi tin.",
@@ -247,6 +280,15 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		tags:        []string{"chat"},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/messages/search", h.SearchChatMessages, apiOp{
+		summary: "Search chat messages across my rooms",
+		description: "Tìm tin nhắn văn bản trong mọi phòng người gọi là thành viên, theo một phạm vi: scope=messages " +
+			"(tin riêng và nhóm của tổ chức) hoặc scope=workspace (phòng chung và kênh của workspace). Mới nhất trước; " +
+			"q từ 2 đến 100 ký tự, không phân biệt dấu; không đánh dấu đã đọc.",
+		tags: []string{"chat"},
+		sdo:  sdo.ChatMessageDTO{},
+		auth: true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}", h.ListChatRoomMessagesAround, apiOp{
 		summary:     "List chat messages around message",

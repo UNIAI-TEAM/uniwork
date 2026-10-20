@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
@@ -19,7 +20,7 @@ import (
 //	GET  /api/v1/auth/providers
 //	GET  /api/v1/auth/google/start     (credential rate limit)
 //	GET  /api/v1/auth/google/callback  (credential rate limit)
-func registerAuth(v1 api, h Routes, credentialLimit func(http.Handler) http.Handler) {
+func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Handler) http.Handler) {
 	v1.With(credentialLimit).Post("/auth/register", h.Register, apiOp{
 		summary:     "Register",
 		description: "Tạo tài khoản. Ghi cookie refresh HttpOnly trên /api/v1/auth.",
@@ -93,8 +94,8 @@ func registerAuth(v1 api, h Routes, credentialLimit func(http.Handler) http.Hand
 	v1.With(credentialLimit).Post("/auth/desktop/exchange", h.DesktopExchange, apiOp{
 		summary: "Exchange desktop code", description: "Đổi authorization code một lần lấy phiên thiết bị và token xoay vòng.", tags: []string{"auth"}, sdi: sdi.DesktopExchangeSDI{}, sdo: sdo.DesktopSessionSDO{},
 	})
-	v1.With(credentialLimit).Post("/auth/desktop/refresh", h.DesktopRefresh, apiOp{
-		summary: "Refresh desktop session", description: "Xoay refresh token native; phát hiện replay và thu hồi thiết bị.", tags: []string{"auth"}, sdi: sdi.DesktopRefreshSDI{}, sdo: sdo.DesktopSessionSDO{},
+	v1.With(refreshLimit).Post("/auth/desktop/refresh", h.DesktopRefresh, apiOp{
+		summary: "Refresh desktop session", description: "Xoay refresh token native; phát hiện replay và thu hồi thiết bị. Gửi header `X-UniWork-Device` = `device_session_id` để được ngân sách riêng theo thiết bị (60/phút) dưới trần theo IP (600/phút); không header thì theo IP.", tags: []string{"auth"}, sdi: sdi.DesktopRefreshSDI{}, sdo: sdo.DesktopSessionSDO{},
 	})
 }
 
@@ -104,4 +105,21 @@ func registerDesktopAuth(v1 api, h Routes) {
 	v1.Post("/auth/desktop/logout", h.DesktopLogout, apiOp{summary: "Logout desktop session", description: "Thu hồi phiên desktop hoặc session family.", tags: []string{"auth"}, sdi: sdi.DesktopLogoutSDI{}, sdo: sdo.StatusSDO{}, auth: true})
 	v1.Get("/auth/desktop/devices", h.DesktopDevices, apiOp{summary: "List desktop devices", description: "Liệt kê metadata các thiết bị native của tài khoản hiện tại.", tags: []string{"auth"}, sdo: sdo.DesktopDeviceListSDO{}, auth: true})
 	v1.Delete("/auth/desktop/devices/{deviceSessionID}", h.DesktopRevokeDevice, apiOp{summary: "Revoke desktop device", description: "Thu hồi một thiết bị native của chính tài khoản.", tags: []string{"auth"}, sdo: sdo.StatusSDO{}, auth: true})
+}
+
+// desktopDevice keys the native refresh budget by the X-UniWork-Device header
+// (the device_session_id, a ULID). The router does not verify it; the address
+// ceiling (desktop-refresh-ip) stops a caller rotating ids. Anything that is
+// not 26 alphanumerics falls back to the client address.
+func desktopDevice(r *http.Request) string {
+	id := strings.TrimSpace(r.Header.Get("X-UniWork-Device"))
+	if len(id) != 26 {
+		return ""
+	}
+	for _, c := range id {
+		if !('0' <= c && c <= '9' || 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z') {
+			return ""
+		}
+	}
+	return "device:" + id
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,17 +19,39 @@ import (
 // recipient registered. It is its own consumer so a push service outage
 // retries the push, never the creation of the notification.
 type PushConsumer struct {
-	q       *db.Queries
-	sender  PushSender
-	origin  string // FRONTEND_ORIGIN, the root of every deep link
-	metrics Metrics
+	q        *db.Queries
+	sender   PushSender
+	origin   string // FRONTEND_ORIGIN, the root of every deep link
+	metrics  Metrics
+	presence PresenceChecker
+	calls    CallRingChecker
+	now      func() time.Time
 }
+
+// PresenceChecker says when a user last had a chat presence heartbeat
+// (ChatService in production).
+type PresenceChecker interface {
+	LastPresenceBeat(ctx context.Context, userID string) (time.Time, bool, error)
+}
+
+// pushActiveWindow: a recipient who beat this recently is at a keyboard and
+// sees the message in the app, so the chat push is dropped (spec N2 §3.5).
+const pushActiveWindow = 120 * time.Second
 
 // NewPushConsumer wires the consumer; a nil sender means push is off and
 // rows are acknowledged without sending.
 func NewPushConsumer(q *db.Queries, sender PushSender, frontendOrigin string) *PushConsumer {
-	return &PushConsumer{q: q, sender: sender, origin: strings.TrimRight(frontendOrigin, "/")}
+	return &PushConsumer{q: q, sender: sender, origin: strings.TrimRight(frontendOrigin, "/"), now: time.Now}
 }
+
+// SetPresence lets chat pushes skip a recipient who is active right now.
+// Without it, or when it errors, every push goes out.
+func (c *PushConsumer) SetPresence(p PresenceChecker) { c.presence = p }
+
+// SetCallRinging lets a call's push go only while the call still rings: the
+// rule checked it, but the call may have been answered or ended between that
+// check and this lane. Without it, the ring window alone decides.
+func (c *PushConsumer) SetCallRinging(r CallRingChecker) { c.calls = r }
 
 // SetMetrics attaches counters.
 func (c *PushConsumer) SetMetrics(m Metrics) { c.metrics = m }
@@ -59,6 +82,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if n.PushedAt.Valid || n.ReadAt.Valid {
 		return nil // already delivered, or read on another device before the push went out
 	}
+	// A ring the lane reaches after it stopped ringing is not worth a phone
+	// call, and its row is closed so the inbox does not keep "đang gọi".
+	if n.Kind == KindChatCallIncoming && !c.stillRinging(n) {
+		return c.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: n.UserID, GroupKeys: []string{n.GroupKey}})
+	}
 	subs, err := c.q.ListActivePushSubscriptions(ctx, n.UserID)
 	if err != nil {
 		return err
@@ -66,20 +94,71 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if len(subs) == 0 {
 		return c.q.MarkNotificationPushed(ctx, n.ID)
 	}
+	if c.presence != nil && isChatPushKind(n.Kind) {
+		// Same bound as the rate limiter's best-effort Redis call: a stalled
+		// Redis fails open instead of holding the push lane.
+		pctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		t, ok, err := c.presence.LastPresenceBeat(pctx, n.UserID)
+		cancel()
+		if err == nil && ok && c.now().Sub(t) <= pushActiveWindow {
+			if m := c.metrics; m != nil {
+				m.IncPushSuppressed(n.Kind)
+			}
+			return c.q.MarkNotificationPushed(ctx, n.ID)
+		}
+	}
 	user, err := c.q.GetUserByID(ctx, n.UserID)
 	if err != nil {
 		return err
 	}
-	msg, err := c.message(ctx, user.Locale, n)
-	if err != nil {
-		return err
+	var body, link string
+	if isChatPushKind(n.Kind) {
+		// The preview is read at delivery, so a message deleted in the
+		// meantime sends nothing.
+		chatMsg, err := c.q.GetChatMessageByID(ctx, n.ResourceID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return c.q.MarkNotificationPushed(ctx, n.ID)
+		}
+		if err != nil {
+			return err
+		}
+		body = pushBody(user.Locale, chatMsg)
+		// The row is in hand, so the link is built here instead of letting
+		// ResourceURL read it a second time.
+		base, ok, err := workspaceBase(ctx, c.q, c.origin, n)
+		if err != nil {
+			return err
+		}
+		link = c.origin + "/workspaces"
+		if ok {
+			link = chatMessageURL(base, chatMsg.RoomID, chatMsg.ID)
+		}
+	} else {
+		link, err = ResourceURL(ctx, c.q, c.origin, n)
+		if err != nil {
+			return err
+		}
+	}
+	var params map[string]string
+	_ = json.Unmarshal([]byte(n.Params), &params)
+	msg := PushMessage{Title: PushTitle(user.Locale, n.Kind, params), Body: body, URL: link, Tag: n.GroupKey}
+	if n.Kind == KindChatCallIncoming {
+		// The push rings only as long as the call does (spec M3 §2).
+		msg.TTL = int(callRingWindow / time.Second)
 	}
 	var failed error
 	for _, sub := range subs {
+		// A call rings web and desktop in the page (realtime); its push is for
+		// the backgrounded phone only (spec M3 §2), never a browser banner on top.
+		if n.Kind == KindChatCallIncoming && !isExpoPushToken(sub.Endpoint) {
+			continue
+		}
 		err := c.sender.Send(ctx, sub, msg)
 		switch {
 		case err == nil:
 			c.count("sent")
+		case errors.Is(err, ErrPushSkipped):
+			c.count("skipped")
 		case errors.Is(err, ErrSubscriptionGone):
 			c.count("gone")
 			_ = c.q.RevokePushSubscription(ctx, sub.ID)
@@ -94,20 +173,40 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	return c.q.MarkNotificationPushed(ctx, n.ID)
 }
 
+func (c *PushConsumer) stillRinging(n db.Notification) bool {
+	if c.now().Sub(n.CreatedAt.Time) > callRingWindow {
+		return false
+	}
+	var params map[string]string
+	_ = json.Unmarshal([]byte(n.Params), &params)
+	return c.calls == nil || c.calls.VoiceCallRinging(n.ResourceID, params["call_id"], n.UserID)
+}
+
 func (c *PushConsumer) count(result string) {
 	if c.metrics != nil {
 		c.metrics.IncPushSent(result)
 	}
 }
 
-func (c *PushConsumer) message(ctx context.Context, locale string, n db.Notification) (PushMessage, error) {
-	var params map[string]string
-	_ = json.Unmarshal([]byte(n.Params), &params)
-	url, err := ResourceURL(ctx, c.q, c.origin, n)
-	if err != nil {
-		return PushMessage{}, err
+// workspaceBase is origin/{orgSlug}/{wsSlug}; ok is false when the
+// notification has no workspace or its workspace is gone.
+func workspaceBase(ctx context.Context, q *db.Queries, origin string, n db.Notification) (base string, ok bool, err error) {
+	if !n.WorkspaceID.Valid {
+		return "", false, nil
 	}
-	return PushMessage{Title: PushTitle(locale, n.Kind, params), URL: url, Tag: n.GroupKey}, nil
+	ws, err := q.GetWorkspaceWithOrg(ctx, n.WorkspaceID.String)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return origin + "/" + ws.OrganizationSlug + "/" + ws.Slug, true, nil
+}
+
+// chatMessageURL opens a message in its room, scrolled to it.
+func chatMessageURL(base, roomID, msgID string) string {
+	return base + "/chat?room=" + url.QueryEscape(roomID) + "&message=" + url.QueryEscape(msgID)
 }
 
 // ResourceURL is the deep link a notification opens, mirroring
@@ -117,17 +216,13 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	if n.ResourceType == "document" {
 		return documentResourceURL(ctx, q, origin, n)
 	}
-	if !n.WorkspaceID.Valid {
-		return origin + "/workspaces", nil
-	}
-	ws, err := q.GetWorkspaceWithOrg(ctx, n.WorkspaceID.String)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return origin + "/workspaces", nil
-	}
+	base, ok, err := workspaceBase(ctx, q, origin, n)
 	if err != nil {
 		return "", err
 	}
-	base := origin + "/" + ws.OrganizationSlug + "/" + ws.Slug
+	if !ok {
+		return origin + "/workspaces", nil
+	}
 	switch n.ResourceType {
 	case "task":
 		return base + "/tasks/" + n.ResourceID, nil
@@ -140,8 +235,7 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	case "audit_export":
 		return base + "/settings?tab=audit", nil
 	case "chat_message":
-		// A message opens in its room, scrolled to it; a message that is gone
-		// still lands in Chat.
+		// A message that is gone still lands in Chat.
 		msg, err := q.GetChatMessageByID(ctx, n.ResourceID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return base + "/chat", nil
@@ -149,7 +243,16 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 		if err != nil {
 			return "", err
 		}
-		return base + "/chat?room=" + url.QueryEscape(msg.RoomID) + "&message=" + url.QueryEscape(msg.ID), nil
+		return chatMessageURL(base, msg.RoomID, msg.ID), nil
+	case "chat_room":
+		// A ringing call opens its room; ?call= lets the app answer it if it still rings.
+		link := base + "/chat?room=" + url.QueryEscape(n.ResourceID)
+		var params map[string]string
+		_ = json.Unmarshal([]byte(n.Params), &params)
+		if callID := params["call_id"]; callID != "" {
+			link += "&call=" + url.QueryEscape(callID)
+		}
+		return link, nil
 	case "email_account":
 		return base + "/email", nil
 	default:

@@ -289,3 +289,57 @@ func TestUnreadStartsAtJoinForAMemberWhoNeverRead(t *testing.T) {
 		}
 	}
 }
+
+// The room list carries what a list line draws beyond the body: a call log's
+// outcome (a missed call reads red) and a voice note's length ("· 0:42"),
+// from both the dm/group query and the channel query.
+func TestListChatRoomsCarriesCallOutcomeAndVoiceLength(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Goi", MemberUserIDs: []string{ub.ID, chatTestUser(t, q, w, "call-outcome-c@example.com").ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "thoai", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.CreateChatVoiceCallLog(ctx, db.CreateChatVoiceCallLogParams{
+		ID: util.NewID(), RoomID: group.ID, WorkspaceID: group.WorkspaceID, SenderID: ub.ID,
+		Metadata: []byte(`{"outcome":"unanswered","caller_id":"` + ub.ID + `","duration_seconds":0}`), OrganizationID: w.OrganizationID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `INSERT INTO chat_messages (id, room_id, workspace_id, sender_id, kind, body, metadata, organization_id)
+		VALUES ($1, $2, $3, $4, 'voice', '', '{"duration_ms": 42000}', $5)`,
+		util.NewID(), ch.ID, ch.WorkspaceID, ub.ID, w.OrganizationID); err != nil {
+		t.Fatal(err)
+	}
+
+	rooms, err := s.ListChatRooms(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, r := range rooms {
+		switch r.ID {
+		case group.ID:
+			seen++
+			if r.LastMessageKind != "voice_call_log" || r.LastMessageCallOutcome != "unanswered" || r.LastMessageDurationMS != 0 {
+				t.Fatalf("group: %+v", r)
+			}
+		case ch.ID:
+			seen++
+			if r.LastMessageKind != "voice" || r.LastMessageDurationMS != 42000 || r.LastMessageCallOutcome != "" {
+				t.Fatalf("channel: %+v", r)
+			}
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("listed %d of the two rooms", seen)
+	}
+}

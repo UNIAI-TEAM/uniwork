@@ -11,8 +11,11 @@ import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils
 import type { ChatMessage } from "./chat-messages";
 import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
+import type { ChatScope } from "./chat-scope";
 
 export type ChatPageContentProps = {
+  /** Which list the sidebar shows: the organization's DMs and groups, or this workspace's channels. */
+  scope: ChatScope;
   target: ChatSidebarTarget;
   setTarget: React.Dispatch<React.SetStateAction<ChatSidebarTarget>>;
   currentUserId: string;
@@ -52,6 +55,10 @@ export type ChatPageContentProps = {
   onSendMedia: (body: string) => void | Promise<void>;
   onSendVoice: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   onSendFile: (file: File) => Promise<void>;
+  /** Sends the side thread composer's draft (stored under `draftKey`) into the thread. */
+  onSendThreadReply: (draftKey: string, threadRootId: string) => void;
+  /** Sends a sticker or GIF from the side thread composer into the thread. */
+  onSendThreadMedia: (threadRootId: string, body: string) => void;
   /** UNI-1966: present while document sends are wired; the picker also needs canSendDocument. */
   onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => Promise<void>;
   /** The room detail's can_send_document flag; absent/false hides the picker. */
@@ -76,7 +83,7 @@ export type ChatPageContentProps = {
   channelSettingsOpen: boolean;
   onChannelSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   creatingGroup: boolean;
-  onCreateGroup: (members: ChatContact[], name: string) => void;
+  onCreateGroup: (members: ChatContact[], name: string, avatar: File | null) => void;
   invitingMembers: boolean;
   onAddGroupMembers: (members: ChatContact[]) => void;
   leavingConversation: boolean;

@@ -224,6 +224,10 @@ func TestEnsureWorkspaceRoomIsConstantStatements(t *testing.T) {
 	}
 	measure() // creates the room
 	small := measure()
+	const maxEnsureWhenRoomExists = 7 // one fewer than pre-UNI-1713 (GetWorkspaceByID every open)
+	if small > maxEnsureWhenRoomExists {
+		t.Fatalf("EnsureWorkspaceRoom with existing room: %d statements, want <= %d", small, maxEnsureWhenRoomExists)
+	}
 	for i := 0; i < 20; i++ {
 		u := registerVerified(t, q, as, fmt.Sprintf("chat-load-%02d@example.com", i), fmt.Sprintf("L%02d", i))
 		addOrgMember(t, q, w.OrganizationID, u.ID)

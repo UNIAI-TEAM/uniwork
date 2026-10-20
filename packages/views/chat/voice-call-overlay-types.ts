@@ -58,6 +58,8 @@ export type VoiceCallOverlayState =
       peerName: string;
       callKind: VoiceCallKind;
       callerName?: string;
+      /** A group call's caller, for their face on the group's while it rings. */
+      callerId?: string;
     }
   | {
       status: "ringing";

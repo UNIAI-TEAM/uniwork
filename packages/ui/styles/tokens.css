@@ -257,6 +257,25 @@
   --chat-sender-7: oklch(0.48 0.14 25);
   --chat-sender-8: oklch(0.45 0.11 170);
 
+  /* Chat timeline (UNI-1881): a tinted wall with a faint dot grid, white
+     bubbles for others lifted by a hairline shadow, and mine in the brand fill
+     (it follows the accent, so it reads --primary). Own-bubble text is
+     --primary-foreground (6.25 on #0a52e6); its meta is that colour at 85%
+     over the fill (4.94). Chips (day, system lines) float on the wall:
+     chip ink 10.09 on the chip, 8.66 if the chip were the wall itself. */
+  --chat-wall: #e9eef6;
+  --chat-wall-dot: rgb(10 82 230 / 0.09);
+  --chat-bubble-own: var(--primary);
+  --chat-bubble-own-foreground: var(--primary-foreground);
+  --chat-bubble-own-meta: color-mix(in srgb, var(--primary-foreground) 85%, var(--primary));
+  --chat-bubble-other: #ffffff;
+  --chat-bubble-shadow: 0 1px 1px rgb(15 23 42 / 0.08);
+  --chat-chip: rgb(255 255 255 / 0.9);
+  --chat-chip-foreground: #3b4250;
+  /* UniChat's workspace rail (the desktop shell's left column) and its hairline. */
+  --chat-rail: #f4f6f9;
+  --chat-rail-border: #eceef2;
+
   /* ClickUp elevation: borders do the work, shadows stay tiny. feature-card
      for surfaces, hero-card + a 1px hairline for menus, the agent-card
      blue-tinted lift for floating layers. */
@@ -326,6 +345,21 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
+
+  /* UniChat call plane — the floating call card, its pill and the fullscreen
+     call. Navy and dark in BOTH themes like the meeting stage, so the values
+     repeat under .dark. The card washes from --call-plane-raised (top) to
+     --call-plane. --call-muted-foreground on --call-plane: 12.1;
+     --on-solid on --call-accent: 4.86. */
+  --call-plane: #0b1220;
+  --call-plane-raised: #141e35;
+  --call-stage: #151a23;
+  --call-tile: #1e2532;
+  --call-hairline: #2c3546;
+  --call-muted-foreground: #c9d0db;
+  --call-accent: #2f6bf0;
+  --call-speaking: #7aa7ff;
+  --call-ring: #2dd4bf;
 }
 
 .dark {
@@ -479,6 +513,22 @@
   --chat-sender-7: oklch(0.76 0.14 25);
   --chat-sender-8: oklch(0.76 0.11 170);
 
+  /* Chat timeline, dark: a neutral wall a step below the surface, others'
+     bubbles one step above it (foreground 12.88, muted 5.88 on it); mine stay
+     the brand fill with its own ink (6.44 on #5a96ff), meta at 85% (5.2);
+     chip ink 10.2 on the chip. */
+  --chat-wall: #141416;
+  --chat-wall-dot: rgb(255 255 255 / 0.05);
+  --chat-bubble-own: var(--primary);
+  --chat-bubble-own-foreground: var(--primary-foreground);
+  --chat-bubble-own-meta: color-mix(in srgb, var(--primary-foreground) 85%, var(--primary));
+  --chat-bubble-other: #26262a;
+  --chat-bubble-shadow: 0 1px 1px rgb(0 0 0 / 0.3);
+  --chat-chip: rgb(38 38 42 / 0.92);
+  --chat-chip-foreground: #d4d4d8;
+  --chat-rail: #0a0a0b;
+  --chat-rail-border: #232326;
+
   /* Dark tints: the hue mixed into the surface grey, glyph lifted to the
      light-theme signal weight. violet 5.82, blue 6.79, pink 6.47, orange
      7.18, green 8.16, yellow 7.89, teal 7.46 on their fills. */
@@ -531,6 +581,15 @@
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
   --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
+  --call-plane: #0b1220;
+  --call-plane-raised: #141e35;
+  --call-stage: #151a23;
+  --call-tile: #1e2532;
+  --call-hairline: #2c3546;
+  --call-muted-foreground: #c9d0db;
+  --call-accent: #2f6bf0;
+  --call-speaking: #7aa7ff;
+  --call-ring: #2dd4bf;
 }
 
 /* Accent themes. The second theming axis: light/dark picks the palette, the
@@ -686,6 +745,16 @@ html.dark[data-accent] {
   --color-chat-sender-6: var(--chat-sender-6);
   --color-chat-sender-7: var(--chat-sender-7);
   --color-chat-sender-8: var(--chat-sender-8);
+  --color-chat-wall: var(--chat-wall);
+  --color-chat-wall-dot: var(--chat-wall-dot);
+  --color-chat-bubble-own: var(--chat-bubble-own);
+  --color-chat-bubble-own-foreground: var(--chat-bubble-own-foreground);
+  --color-chat-bubble-own-meta: var(--chat-bubble-own-meta);
+  --color-chat-bubble-other: var(--chat-bubble-other);
+  --color-chat-chip: var(--chat-chip);
+  --color-chat-chip-foreground: var(--chat-chip-foreground);
+  --color-chat-rail: var(--chat-rail);
+  --color-chat-rail-border: var(--chat-rail-border);
   --color-tint-violet: var(--tint-violet);
   --color-tint-violet-foreground: var(--tint-violet-foreground);
   --color-tint-blue: var(--tint-blue);
@@ -726,12 +795,22 @@ html.dark[data-accent] {
   --color-meeting-bar-chip-hover: var(--meeting-bar-chip-hover);
   --color-meeting-tile-name-bg: var(--meeting-tile-name-bg);
   --color-meeting-tile-name-foreground: var(--meeting-tile-name-foreground);
+  --color-call-plane: var(--call-plane);
+  --color-call-plane-raised: var(--call-plane-raised);
+  --color-call-stage: var(--call-stage);
+  --color-call-tile: var(--call-tile);
+  --color-call-hairline: var(--call-hairline);
+  --color-call-muted-foreground: var(--call-muted-foreground);
+  --color-call-accent: var(--call-accent);
+  --color-call-speaking: var(--call-speaking);
+  --color-call-ring: var(--call-ring);
   /* Elevation as Tailwind utilities (shadow-surface / shadow-menu /
      shadow-floating) beside the raw slots the primitives already read. */
   --shadow-surface: var(--surface-shadow);
   --shadow-menu: var(--menu-shadow);
   --shadow-floating: var(--floating-shadow);
   --shadow-office-page: var(--office-page-shadow);
+  --shadow-chat-bubble: var(--chat-bubble-shadow);
   /* Radius ramp, explicit per step: compact controls 8, default controls 10,
      cards 12, dialogs
      and popovers 16, panels 20, section media 32. Pill stays rounded-full. */
@@ -779,6 +858,8 @@ html.dark[data-accent] {
   --text-title-sm: calc(16px * var(--font-scale));   --text-title-sm--line-height: calc(22px * var(--font-scale));  --text-title-sm--letter-spacing: -0.015em;
   --text-title: calc(18px * var(--font-scale));      --text-title--line-height: calc(24px * var(--font-scale));     --text-title--letter-spacing: -0.02em;
   --text-title-lg: calc(20px * var(--font-scale));   --text-title-lg--line-height: calc(26px * var(--font-scale));  --text-title-lg--letter-spacing: -0.02em;
+  /* The chat list's workspace name and the canvas' sheet titles: 800 22/28. */
+  --text-title-xl: calc(22px * var(--font-scale));   --text-title-xl--line-height: calc(28px * var(--font-scale));  --text-title-xl--letter-spacing: -0.01em;
   --text-display-sm: calc(24px * var(--font-scale)); --text-display-sm--line-height: calc(30px * var(--font-scale)); --text-display-sm--letter-spacing: -0.025em;
   --text-display: calc(36px * var(--font-scale));    --text-display--line-height: calc(40px * var(--font-scale));   --text-display--letter-spacing: -0.03em;
   /* Hero roles (screen-leading headlines only). ClickUp's 1.1 leading and
@@ -810,7 +891,7 @@ html.dark[data-accent] {
    this block lands after the generated utilities, so the display face won and
    typed text in inputs rendered in the heading family. */
 @layer utilities {
-  :where(.text-title-sm, .text-title, .text-title-lg,
+  :where(.text-title-sm, .text-title, .text-title-lg, .text-title-xl,
   .text-display-sm, .text-display,
   .text-hero-sm, .text-hero, .text-hero-lg):not(.font-sans) {
     font-family: var(--font-display);

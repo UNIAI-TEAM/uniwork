@@ -136,6 +136,50 @@ func (s *OrganizationService) RequireMember(ctx context.Context, orgID, userID s
 	return s.RequireMemberQ(ctx, s.q, orgID, userID)
 }
 
+// RequireMembers checks every user belongs to the organization and is active.
+func (s *OrganizationService) RequireMembers(ctx context.Context, orgID string, userIDs []string) error {
+	ids := normalizeOrgMemberIDs(userIDs)
+	if len(ids) == 0 {
+		return nil
+	}
+	eligible, err := s.q.FilterActiveOrganizationMemberUserIDs(ctx, db.FilterActiveOrganizationMemberUserIDsParams{
+		OrganizationID: orgID, UserIds: ids,
+	})
+	if err != nil {
+		return err
+	}
+	if len(eligible) != len(ids) {
+		return ErrForbidden
+	}
+	seen := make(map[string]struct{}, len(eligible))
+	for _, id := range eligible {
+		seen[id] = struct{}{}
+	}
+	for _, id := range ids {
+		if _, ok := seen[id]; !ok {
+			return ErrForbidden
+		}
+	}
+	return nil
+}
+
+func normalizeOrgMemberIDs(userIDs []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		id = strings.ToUpper(strings.TrimSpace(id))
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
 // RequireMemberQ is RequireMember read through q, for a caller inside a
 // transaction (see WorkspaceService.RequireMemberQ). Same decision, same errors.
 func (s *OrganizationService) RequireMemberQ(ctx context.Context, q *db.Queries, orgID, userID string) (db.OrganizationMember, error) {

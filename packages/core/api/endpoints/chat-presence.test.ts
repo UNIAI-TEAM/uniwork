@@ -17,27 +17,27 @@ describe("beatChatPresence", () => {
 
   it("posts an online beat and returns the online ids", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok", online_user_ids: ["U1", "U2"] }));
-    await expect(beatChatPresence("ws 1")).resolves.toEqual(["U1", "U2"]);
+    await expect(beatChatPresence("ws 1", true)).resolves.toEqual(["U1", "U2"]);
     const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
     expect(String(url)).toBe("http://api.test/api/v1/workspaces/ws%201/chat/presence");
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({ state: "online" });
+    expect(JSON.parse(String(init?.body))).toEqual({ state: "online", visible: true });
   });
 
   it("returns an empty list when nobody else is online", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok", online_user_ids: [] }));
-    await expect(beatChatPresence("ws1")).resolves.toEqual([]);
+    await expect(beatChatPresence("ws1", false)).resolves.toEqual([]);
   });
 
   it("returns null from a server that answers without the list", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
-    await expect(beatChatPresence("ws1")).resolves.toBeNull();
+    await expect(beatChatPresence("ws1", false)).resolves.toBeNull();
   });
 
   it("degrades to null on a malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok", online_user_ids: [1, null] }));
-    await expect(beatChatPresence("ws1")).resolves.toBeNull();
+    await expect(beatChatPresence("ws1", false)).resolves.toBeNull();
     vi.mocked(fetch).mockResolvedValueOnce(json("nope"));
-    await expect(beatChatPresence("ws1")).resolves.toBeNull();
+    await expect(beatChatPresence("ws1", false)).resolves.toBeNull();
   });
 });

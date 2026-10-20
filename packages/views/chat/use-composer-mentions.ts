@@ -129,6 +129,8 @@ export function useComposerMentions({
 
   return {
     open,
+    /** What follows the @, for the list to mark in each name. */
+    query: mention?.query ?? "",
     visibleCandidates,
     activeIndex,
     setSelectedIndex,

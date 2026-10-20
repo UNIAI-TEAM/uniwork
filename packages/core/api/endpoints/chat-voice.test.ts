@@ -92,6 +92,12 @@ describe("chat-voice endpoints", () => {
     await expect(getChatVoiceRecordingPlaybackUrl("ws1", "room1", "rec1")).resolves.toBeNull();
   });
 
+  it("getActiveChatVoiceRecording degrades on malformed response", async () => {
+    const { getActiveChatVoiceRecording } = await import("./chat-voice");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ recording: "x" }));
+    await expect(getActiveChatVoiceRecording("ws1", "room1", "call1")).resolves.toBeNull();
+  });
+
   it("startChatVoiceRecording returns recording or null on drift", async () => {
     const { startChatVoiceRecording, stopChatVoiceRecording } = await import("./chat-voice");
     vi.mocked(fetch).mockResolvedValueOnce(

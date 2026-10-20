@@ -19,7 +19,7 @@ import (
 func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	var cites []service.AskCitation
 	_ = json.Unmarshal([]byte(m.Citations), &cites)
-	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: make([]sdo.AiCitationDTO, 0, len(cites)), CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
+	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: make([]sdo.AiCitationDTO, 0, len(cites)), Notice: m.Notice.String, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
 	for _, c := range cites {
 		out.Citations = append(out.Citations, sdo.AiCitationDTO{SourceID: c.SourceID, Quote: c.Quote, Kind: c.Kind, Title: c.Title, Href: c.Href})
 	}
@@ -85,8 +85,12 @@ func (h *handlers) chatCatchUp(w http.ResponseWriter, r *http.Request) {
 			Title: a.Title, Owner: a.Owner, Due: a.Due, SourceMessageID: a.SourceMessageID,
 		})
 	}
+	highlights := make([]sdo.ChatCatchUpHighlightDTO, 0, len(res.HighlightItems))
+	for _, hl := range res.HighlightItems {
+		highlights = append(highlights, sdo.ChatCatchUpHighlightDTO{Text: hl.Text, SourceMessageID: hl.SourceMessageID})
+	}
 	respondJSON(w, 200, sdo.ChatCatchUpSDO{
-		Summary: res.Summary, Highlights: res.Highlights, ActionItems: items,
+		Summary: res.Summary, Highlights: res.Highlights, HighlightItems: highlights, ActionItems: items,
 		MessageCount: res.MessageCount, Mode: res.Mode, Since: res.Since.UTC().Format(time.RFC3339),
 		Usage: sdo.AiUsageDTO{InputTokens: res.InputTokens, OutputTokens: res.OutputTokens},
 	})

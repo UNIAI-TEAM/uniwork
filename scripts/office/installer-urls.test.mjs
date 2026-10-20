@@ -88,3 +88,45 @@ test("the CLI prints the compact JSON for a directory and exits non-zero on bad 
   assert.deepEqual(Object.keys(JSON.parse(out)), ["win32-x64", "win32-x64-zip", "linux-x64-deb", "linux-x64-appimage"]);
   assert.throws(() => execFileSync(process.execPath, [script, "--channel", "stable", "--base-url", BASE, "--dir", directory], { stdio: "pipe" }), /installer-urls: installer channel must be dev or beta|Command failed/);
 });
+
+// UniChat (UNI-1835) names its files `unichat_<version>[_unsigned]_<os>_<arch>…`:
+// with a prefix the prefix marks the product's files, the version marks the
+// channel (no pre-release = stable) and a signed build drops the label.
+const UNICHAT_BASE = "https://github.com/unicomhub/uniwork/releases/download/chat-desktop-v0.1.0-dev.2";
+const UNICHAT_DEV = [
+  "unichat_0.1.0-dev.2_unsigned_win32_x64-setup.exe",
+  "unichat_0.1.0-dev.2_darwin_arm64.dmg",
+  "unichat_0.1.0-dev.2_darwin_arm64.zip",
+  "unichat_0.1.0-dev.2_darwin_x64.dmg",
+  "unichat_0.1.0-dev.2_unsigned_linux_x64.deb",
+  "unichat_0.1.0-dev.2_unsigned_linux_x64.AppImage",
+  "dev.yml",
+  "SHA256SUMS",
+];
+
+test("a prefix selects the product's files, signed or not, and skips the mac zips", () => {
+  assert.deepEqual(buildInstallerUrls({ channel: "dev", baseUrl: UNICHAT_BASE, files: [...UNICHAT_DEV, ...DEV_FILES], prefix: "unichat" }), {
+    "win32-x64": `${UNICHAT_BASE}/unichat_0.1.0-dev.2_unsigned_win32_x64-setup.exe`,
+    "darwin-arm64": `${UNICHAT_BASE}/unichat_0.1.0-dev.2_darwin_arm64.dmg`,
+    "darwin-x64": `${UNICHAT_BASE}/unichat_0.1.0-dev.2_darwin_x64.dmg`,
+    "linux-x64-deb": `${UNICHAT_BASE}/unichat_0.1.0-dev.2_unsigned_linux_x64.deb`,
+    "linux-x64-appimage": `${UNICHAT_BASE}/unichat_0.1.0-dev.2_unsigned_linux_x64.AppImage`,
+  });
+});
+
+test("with a prefix the channel comes from the version, stable included", () => {
+  assert.equal(installerPlatformOf("unichat_1.2.0_darwin_x64.dmg", "stable", "unichat"), "darwin-x64");
+  assert.equal(installerPlatformOf("unichat_1.2.0_darwin_x64.dmg", "dev", "unichat"), undefined, "stable file, dev channel");
+  assert.equal(installerPlatformOf("unichat_1.2.0-beta.1_darwin_x64.dmg", "stable", "unichat"), undefined, "beta file, stable channel");
+  assert.equal(installerPlatformOf("unichat_0.1.0-dev.2_darwin_x64.dmg", "beta", "unichat"), undefined, "dev file, beta channel");
+  assert.equal(installerPlatformOf("unichat_0.1.0-rc.1_darwin_x64.dmg", "dev", "unichat"), undefined, "unknown pre-release");
+  assert.equal(installerPlatformOf("unichatx_0.1.0-dev.2_darwin_x64.dmg", "dev", "unichat"), undefined, "another prefix");
+  assert.equal(installerPlatformOf("uniwork-office_0.1.0-dev.2_unsigned_darwin_x64.dmg", "dev", "unichat"), undefined, "Office file");
+  assert.throws(() => installerPlatformOf("unichat_1.2.0_darwin_x64.dmg", "nightly", "unichat"), /dev, beta or stable/);
+});
+
+test("the CLI takes --prefix", () => {
+  assert.deepEqual(parseInstallerUrlArguments(["--prefix", "unichat", "--channel", "stable", "--base-url", BASE, "--files", "a"]), { prefix: "unichat", channel: "stable", baseUrl: BASE, files: "a" });
+  const out = execFileSync(process.execPath, [join(here, "installer-urls.mjs"), "--prefix", "unichat", "--channel", "dev", "--base-url", UNICHAT_BASE, "--files", UNICHAT_DEV.join(",")], { encoding: "utf8" });
+  assert.deepEqual(Object.keys(JSON.parse(out)), ["win32-x64", "darwin-arm64", "darwin-x64", "linux-x64-deb", "linux-x64-appimage"]);
+});

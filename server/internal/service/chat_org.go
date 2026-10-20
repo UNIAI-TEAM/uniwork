@@ -29,7 +29,14 @@ func (s *ChatService) workspaceForChat(ctx context.Context, userID, workspaceID 
 // client that the caller is locked out, so for a peer every refusal reads as
 // "not here" (UNI-1659); only infrastructure errors pass through.
 func (s *ChatService) requireOrgPeer(ctx context.Context, orgID, targetUserID string) error {
-	_, err := s.ws.orgs.RequireMember(ctx, orgID, targetUserID)
+	return s.requireOrgPeers(ctx, orgID, []string{targetUserID})
+}
+
+func (s *ChatService) requireOrgPeers(ctx context.Context, orgID string, targetUserIDs []string) error {
+	if len(targetUserIDs) == 0 {
+		return nil
+	}
+	err := s.ws.orgs.RequireMembers(ctx, orgID, targetUserIDs)
 	if errors.Is(err, ErrForbidden) || errors.Is(err, ErrMemberDeactivated) ||
 		errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
 		return ErrNotFound

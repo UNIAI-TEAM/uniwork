@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api/endpoints/ai";
-import type { AskUniInput, ChatCatchUpInput } from "../types/ai";
+import type { AiMessage, AskUniInput, ChatCatchUpInput } from "../types/ai";
 
 export { useAiPanelStore } from "./store";
 
@@ -50,7 +50,17 @@ export function useAskUni(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: AskUniInput) => api.askUni(wsId, body),
-    onSuccess: (res) => {
+    onSuccess: (res, vars) => {
+      // Keep the turn on screen while the refetch below runs.
+      const userEcho: AiMessage = {
+        id: `pending-${res.message.id}`,
+        role: "user",
+        content: vars.question,
+        citations: [],
+        notice: "",
+        created_at: res.message.created_at,
+      };
+      qc.setQueryData<AiMessage[]>(aiKeys.messages(res.conversation_id), (old) => [...(old ?? []), userEcho, res.message]);
       void qc.invalidateQueries({ queryKey: aiKeys.messages(res.conversation_id) });
       void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
       void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });

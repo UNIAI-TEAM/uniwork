@@ -78,7 +78,7 @@ func TestAbandonedVoiceCallSessionsAreReclaimed(t *testing.T) {
 
 	// A new invite sweeps the rest.
 	lastVoiceCallSweep.Store(0)
-	if err := (&ChatService{}).trackVoiceCallInvite(db.ChatRoom{ID: "room-sweep", Kind: chatRoomKindDM}, "new", "U1", "A", false); err != nil {
+	if err := (&ChatService{}).trackVoiceCallInvite(db.ChatRoom{ID: "room-sweep", Kind: chatRoomKindDM}, "new", "U1", "A", false, nil); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { voiceCallSessions.Delete(voiceCallSessionKey("room-sweep", "new")) })

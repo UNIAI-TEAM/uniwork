@@ -20,7 +20,7 @@ export function StatusOptionIcon({
   return (
     <StatusIcon
       status={option.key}
-      category={option.category}
+      category={option.glyph ?? option.category}
       color={option.color}
       className={className}
     />

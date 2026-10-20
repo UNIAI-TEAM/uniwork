@@ -50,7 +50,8 @@ type presenceEntry struct {
 type presenceStore interface {
 	// beat marks the user online until now + presenceTTL; true when they
 	// were not (no entry, or one that lapsed before a sweep removed it).
-	beat(ctx context.Context, workspaceID, userID string, now time.Time) (bool, error)
+	// Only a visible beat (the page is in front of someone) moves lastBeat.
+	beat(ctx context.Context, workspaceID, userID string, now time.Time, visible bool) (bool, error)
 	// leave brings an existing entry's expiry forward to until (never later,
 	// never creating one): presence is per person, so one tab closing must
 	// not end what another tab of theirs keeps alive.
@@ -59,6 +60,10 @@ type presenceStore interface {
 	online(ctx context.Context, workspaceID string, now time.Time) ([]string, error)
 	// expire removes and returns the entries that lapsed by now.
 	expire(ctx context.Context, now time.Time) ([]presenceEntry, error)
+	// lastBeat is the user's latest visible beat in any workspace; false when
+	// they never beat visibly (or, in Redis, not within presenceLastBeatTTL).
+	// A hidden tab keeps beating, so it keeps presence but not this.
+	lastBeat(ctx context.Context, userID string) (time.Time, bool, error)
 }
 
 type presenceTracker struct {
@@ -83,6 +88,13 @@ func (s *ChatService) SetPresenceStore(rdb *redis.Client) {
 	s.presenceTracker.Store(newPresenceTracker(store, s.pub))
 }
 
+// LastPresenceBeat is when the user last beat from a visible page in any
+// workspace; the push consumer skips a chat push to someone who is at a
+// keyboard already. A tab left open in the background does not count.
+func (s *ChatService) LastPresenceBeat(ctx context.Context, userID string) (time.Time, bool, error) {
+	return s.presence().store.lastBeat(ctx, userID)
+}
+
 // presence returns the tracker SetPresenceStore installed, or an in-process
 // one for a service that was never given a store (tests, single replica).
 func (s *ChatService) presence() *presenceTracker {
@@ -96,9 +108,9 @@ func (s *ChatService) presence() *presenceTracker {
 // beat records a heartbeat and returns who is online in the workspace, the
 // caller included. A store error costs the beat its frame and its snapshot
 // (nil), never the request: presence is best-effort.
-func (t *presenceTracker) beat(ctx context.Context, workspaceID, userID string) ([]string, error) {
+func (t *presenceTracker) beat(ctx context.Context, workspaceID, userID string, visible bool) ([]string, error) {
 	now := t.now()
-	cameOnline, err := t.store.beat(ctx, workspaceID, userID, now)
+	cameOnline, err := t.store.beat(ctx, workspaceID, userID, now, visible)
 	if err != nil {
 		slog.WarnContext(ctx, "presence: beat not recorded", "error", err, "workspace_id", workspaceID, "user_id", userID)
 		return nil, nil
@@ -166,19 +178,30 @@ func (t *presenceTracker) publish(ctx context.Context, topic string, e presenceE
 type memoryPresenceStore struct {
 	mu      sync.Mutex
 	entries map[presenceEntry]time.Time // → expires
+	beats   map[string]time.Time        // user → last visible beat, any workspace
 }
 
 func newMemoryPresenceStore() *memoryPresenceStore {
-	return &memoryPresenceStore{entries: map[presenceEntry]time.Time{}}
+	return &memoryPresenceStore{entries: map[presenceEntry]time.Time{}, beats: map[string]time.Time{}}
 }
 
-func (m *memoryPresenceStore) beat(_ context.Context, workspaceID, userID string, now time.Time) (bool, error) {
+func (m *memoryPresenceStore) beat(_ context.Context, workspaceID, userID string, now time.Time, visible bool) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	key := presenceEntry{workspaceID: workspaceID, userID: userID}
 	prev, ok := m.entries[key]
 	m.entries[key] = now.Add(presenceTTL)
+	if visible {
+		m.beats[userID] = now
+	}
 	return !ok || !prev.After(now), nil
+}
+
+func (m *memoryPresenceStore) lastBeat(_ context.Context, userID string) (time.Time, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	t, ok := m.beats[userID]
+	return t, ok, nil
 }
 
 func (m *memoryPresenceStore) leave(_ context.Context, workspaceID, userID string, until time.Time) error {

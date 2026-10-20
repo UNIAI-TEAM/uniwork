@@ -30,6 +30,8 @@ type AskUNIService struct {
 	meetings *MeetingService
 	chat     *ChatService
 	emailHub *EmailHubService
+	docs     *DocumentService
+	flags    McpFlags
 	gw       *ai.Gateway
 	ent      *EntitlementService
 	rdb      *redis.Client
@@ -40,6 +42,13 @@ type AskUNIService struct {
 func (s *AskUNIService) SetEmailHub(hub *EmailHubService) {
 	s.emailHub = hub
 }
+
+// SetDocuments wires document search (optional; set from main after construction).
+func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
+
+// SetFlags wires the feature-flag evaluator; without it the documents flag
+// reads as off (fail closed, as in McpToolService).
+func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
 
 // taskRow is what the source reader renders; it is the sqlc row.
 type taskRow = db.Task
@@ -177,23 +186,30 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 		}
 		return AskResult{}, err
 	}
-	pack, truncated := ai.BuildContext(sources)
-
-	answer := ai.Answer{Answer: ai.NoSourcesAnswer, Citations: []ai.Citation{}}
-	var resp ai.Response
-	if len(pack) > 0 {
-		history, err := s.history(ctx, conv.ID)
-		if err != nil {
+	rows, err := s.q.AiListMessages(ctx, conv.ID)
+	if err != nil {
+		return AskResult{}, err
+	}
+	if !hasOwnSubject(question, w.TaskPrefix, in.Focus, sources) {
+		if sources, err = s.withLastTopic(ctx, rows, userID, w.OrganizationID, workspaceID, question, sources); err != nil {
 			return AskResult{}, err
 		}
+	}
+	pack, truncated := ai.BuildContext(sources)
+
+	answer := ai.Answer{Citations: []ai.Citation{}}
+	notice := ai.NoticeNoSources
+	var resp ai.Response
+	if len(pack) > 0 {
+		notice = ""
 		resp, err = s.gw.Complete(ctx, ai.Request{
 			Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,
 			Capability: ai.CapCopilotAnswer, PromptID: ai.PromptCopilotAnswer,
 			Vars: map[string]any{
-				"question": question, "locale": in.Locale, "today": s.now().Format("2006-01-02"),
+				"question": ai.EscapeUntrusted(question), "locale": in.Locale, "today": s.now().Format("2006-01-02"),
 				"sources": ai.RenderSources(pack),
 			},
-			History: history, Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
+			History: history(rows), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
 		})
 		if err != nil {
 			return AskResult{}, err
@@ -201,6 +217,10 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 		answer, err = ai.ParseAnswer(resp.Text, pack)
 		if err != nil {
 			return AskResult{}, err
+		}
+		answer.Answer = ai.StripUntrustedTags(answer.Answer)
+		if strings.TrimSpace(answer.Answer) == "" {
+			answer.Answer, notice = "", ai.NoticeEmptyAnswer
 		}
 	}
 	citations := make([]AskCitation, 0, len(answer.Citations))
@@ -211,7 +231,7 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 			}
 		}
 	}
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer.Answer, citations, resp.UsageEventID)
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, question, answer.Answer, notice, citations, resp.UsageEventID)
 	if err != nil {
 		return AskResult{}, err
 	}
@@ -237,22 +257,263 @@ func (s *AskUNIService) ownConversation(ctx context.Context, userID, id, workspa
 	return conv, err
 }
 
-func (s *AskUNIService) history(ctx context.Context, convID string) ([]provider.Message, error) {
-	rows, err := s.q.AiListMessages(ctx, convID)
+// hasOwnSubject reports whether the question names something of its own: a
+// focused object, a reference with the workspace's task prefix, a question
+// about overdue work, or a task, meeting or document whose title holds one of
+// its terms. A body match is not enough ("giao cho" is in every welcome task),
+// members and chat lines never are, and a question that points back keeps the
+// last topic even when a title shares a word with it ("bắt đầu" is the
+// welcome task's title) or asks about lateness ("Nó có trễ không?").
+func hasOwnSubject(question, taskPrefix string, focus *ai.Focus, sources []ai.Source) bool {
+	if focus != nil {
+		return true
+	}
+	for _, m := range taskIdentifierRe.FindAllStringSubmatch(question, 5) {
+		if strings.EqualFold(m[1], taskPrefix) { // "Q1-2027" or "COVID-19" names no task
+			return true
+		}
+	}
+	if pointsBack(question) {
+		return false
+	}
+	if asksOverdue(question) {
+		return true
+	}
+	ts := searchTerms(question)
+	for _, src := range sources {
+		if namesIt(src, ts) {
+			return true
+		}
+	}
+	return false
+}
+
+// namesIt reports whether a task, meeting or document source's title holds one
+// of the question's terms.
+func namesIt(src ai.Source, ts []string) bool {
+	return src.Kind != "members" && src.Kind != "chat" && score(src.Title, ts) > 0
+}
+
+// pointsBack reports whether the question refers to what was said before:
+// "cái đó", "nó", "anh ấy", "that". Phrases match as typed, not folded: "ít"
+// folds to "it", "thật" to "that", and "việc do Lan làm" is not "việc đó", so
+// only the unaccented spelling of each phrase counts.
+func pointsBack(q string) bool {
+	ws := words(q)
+	for _, w := range ws {
+		switch w {
+		case "đó", "đấy", "ấy", "nó":
+			return true
+		}
+	}
+	hay := " " + strings.Join(ws, " ") + " "
+	for _, p := range []string{"cai do", "viec do", "task do", "nguoi do", "cai nay", "viec nay", "cai kia", "that", "it"} {
+		if strings.Contains(hay, " "+p+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+// previousQuestion is the raw text of the conversation's last question, not
+// the wrapped history copy. When it points back, the nearest earlier question
+// that does not (the one that named the topic) comes before it, so a drill-down
+// keeps its topic at any length; "" for a new conversation.
+func previousQuestion(rows []db.AiMessage) string {
+	last, topic := "", ""
+	for i := len(rows) - 1; i >= 0; i-- {
+		if rows[i].Role != "user" {
+			continue
+		}
+		if last == "" {
+			last = rows[i].Content
+		}
+		topic = rows[i].Content
+		if !pointsBack(topic) {
+			break
+		}
+	}
+	if topic == last {
+		return last
+	}
+	return topic + " " + last
+}
+
+// maxCarried caps the cited objects a follow-up carries: a model cites a few,
+// the fake provider cites its whole pack.
+const maxCarried = 5
+
+// citedPaths is the href segment before the id, per kind a turn can carry.
+var citedPaths = map[string]string{"task": "/tasks/", "meeting": "/meetings/", "document": "/documents/"}
+
+// withLastTopic adds what the last turn was about to the current sources, so a
+// follow-up like "who owns that?" or a bare "Ai nhận?" keeps its topic. That
+// is the objects the last answers cited (see citedTopic), read again as the
+// asker; when there are none, the tasks, meetings and documents found for
+// "<previous question> <question>" stand in. The topic comes after the sources the question names
+// by title and before its body hits, which a bare "Ai nhận?" can find twenty
+// of: BuildContext keeps the first ai.MaxSources. Focus is not repeated: the
+// first lookup already carries it.
+func (s *AskUNIService) withLastTopic(ctx context.Context, rows []db.AiMessage, userID, orgID, workspaceID, question string, sources []ai.Source) ([]ai.Source, error) {
+	current := map[string]ai.Source{}
+	for _, src := range sources {
+		current[src.Href] = src
+	}
+	topic, err := s.citedTopic(ctx, ai.ToolContext{ActorID: userID, OrganizationID: orgID, WorkspaceID: workspaceID}, rows, current)
+	if prev := previousQuestion(rows); err == nil && len(topic) == 0 && prev != "" {
+		var found []ai.Source
+		found, err = s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: orgID, WorkspaceID: workspaceID, Question: prev + " " + question})
+		for _, src := range found {
+			if citedPaths[src.Kind] != "" { // chat and members are never a turn's subject
+				topic = append(topic, src)
+			}
+		}
+	}
 	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			return nil, ai.ErrContextForbidden
+		}
 		return nil, err
 	}
-	if len(rows) > askHistory {
-		rows = rows[len(rows)-askHistory:]
+	inTopic := map[string]bool{}
+	var carried []ai.Source
+	for _, src := range topic {
+		if !inTopic[src.Href] && len(carried) < maxCarried {
+			inTopic[src.Href] = true
+			carried = append(carried, src)
+		}
 	}
-	out := make([]provider.Message, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, provider.Message{Role: r.Role, Content: r.Content})
+	ts := searchTerms(question)
+	var named, rest []ai.Source
+	for _, src := range sources {
+		switch {
+		case inTopic[src.Href]: // placed with the topic
+		case namesIt(src, ts):
+			named = append(named, src)
+		default:
+			rest = append(rest, src)
+		}
+	}
+	if room := ai.MaxSources - len(carried); len(named) > room {
+		named = named[:room]
+	}
+	return append(append(named, carried...), rest...), nil
+}
+
+// citedTopic reads again, through the asker's own services, the tasks, meetings
+// and documents the latest answer cited, maxCarried at most; one the current
+// lookup already holds is taken from it. An answer that cited none of them is
+// passed over only when its question pointed back, three answers back at most:
+// "Mua quà ai duyệt?" answered from chat is a new topic, "Cái đó ai duyệt?" is
+// not. An object the asker can no longer read is left out; chat and members are
+// never a turn's subject, and an email thread comes back only as focus.
+func (s *AskUNIService) citedTopic(ctx context.Context, tc ai.ToolContext, rows []db.AiMessage, current map[string]ai.Source) ([]ai.Source, error) {
+	var cited []AskCitation
+	for i, answers := len(rows)-1, 0; i >= 0 && answers < 3; i-- {
+		if rows[i].Role != "assistant" {
+			continue
+		}
+		answers++
+		var cs []AskCitation
+		if json.Unmarshal([]byte(rows[i].Citations), &cs) != nil {
+			cs = nil // a row that does not decode cites nothing
+		}
+		for _, c := range cs {
+			if citedPaths[c.Kind] != "" {
+				cited = append(cited, c)
+			}
+		}
+		if len(cited) > 0 || !pointsBack(questionOf(rows, i)) {
+			break
+		}
+	}
+	var out []ai.Source
+	seen := map[string]bool{}
+	for _, c := range cited {
+		if len(out) == maxCarried {
+			break
+		}
+		if seen[c.Href] {
+			continue
+		}
+		seen[c.Href] = true
+		if src, ok := current[c.Href]; ok {
+			out = append(out, src)
+			continue
+		}
+		id, ok := citedID(c)
+		if !ok {
+			continue
+		}
+		var srcs []ai.Source
+		var err error
+		switch c.Kind {
+		case "task":
+			srcs, err = s.taskContext(ctx, tc, id)
+		case "meeting":
+			srcs, err = s.meetingContext(ctx, tc, id)
+		case "document":
+			srcs = s.documentContext(ctx, tc, id)
+		}
+		if isGateRefusal(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, srcs...)
 	}
 	return out, nil
 }
 
-func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answer string, citations []AskCitation, usageEventID string) (db.AiMessage, error) {
+// questionOf is the question the answer at rows[i] replied to.
+func questionOf(rows []db.AiMessage, i int) string {
+	for j := i - 1; j >= 0; j-- {
+		if rows[j].Role == "user" {
+			return rows[j].Content
+		}
+	}
+	return ""
+}
+
+// citedID is the id at the end of a citation's href when the href has the
+// shape its kind is stored with ("…/tasks/<id>"); any other href names nothing.
+func citedID(c AskCitation) (string, bool) {
+	seg := citedPaths[c.Kind]
+	i := strings.LastIndex(c.Href, seg)
+	if seg == "" || i < 0 {
+		return "", false
+	}
+	id := c.Href[i+len(seg):]
+	return id, id != "" && !strings.ContainsAny(id, "/?#")
+}
+
+// history replays the conversation's last turns, wrapped as untrusted.
+func history(rows []db.AiMessage) []provider.Message {
+	// Drop notice replies (no sources, empty answer, or the fixed text older
+	// rows stored) before windowing, so they neither mislead the model nor eat a turn.
+	var kept []db.AiMessage
+	for _, r := range rows {
+		if r.Role == "assistant" && (r.Notice.String != "" || r.Content == ai.NoSourcesAnswer) {
+			continue
+		}
+		kept = append(kept, r)
+	}
+	if len(kept) > askHistory {
+		kept = kept[len(kept)-askHistory:]
+	}
+	out := make([]provider.Message, 0, len(kept))
+	for _, r := range kept {
+		src := "question"
+		if r.Role == "assistant" {
+			src = "prior_answer"
+		}
+		out = append(out, provider.Message{Role: r.Role, Content: ai.WrapUntrusted(src, r.Content)})
+	}
+	return out
+}
+
+func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answer, notice string, citations []AskCitation, usageEventID string) (db.AiMessage, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.AiMessage{}, err
@@ -267,7 +528,7 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID, question, answ
 	cj, _ := json.Marshal(citations)
 	msg, err := q.AiInsertMessage(ctx, db.AiInsertMessageParams{
 		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: answer,
-		Citations: string(cj), UsageEventID: strText(usageEventID),
+		Citations: string(cj), UsageEventID: strText(usageEventID), Notice: strText(notice),
 	})
 	if err != nil {
 		return db.AiMessage{}, err

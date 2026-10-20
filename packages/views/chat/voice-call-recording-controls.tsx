@@ -1,13 +1,12 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Circle, Square } from "lucide-react";
+import { CircleDot, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
-import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import type { VoiceCallRecordingState } from "./use-voice-call-recording";
+import { VoiceCallControl, VoiceCallRecordGlyph } from "./voice-call-control";
 
 /**
  * While anyone records, everyone sees it — in every panel size, as a dot
@@ -18,9 +17,9 @@ export function VoiceCallRecIndicator() {
   return (
     <span
       data-testid="voice-call-rec-indicator"
-      className="inline-flex items-center gap-1 rounded-md bg-destructive-soft px-1.5 py-0.5 text-micro font-semibold text-destructive-soft-foreground"
+      className="inline-flex h-5 items-center gap-1.25 rounded-md bg-destructive-soft px-1.75 text-micro font-semibold text-destructive-soft-foreground"
     >
-      <span className="size-1.5 rounded-full bg-destructive-solid motion-safe:animate-pulse" aria-hidden />
+      <span className="size-1.5 rounded-full bg-destructive motion-safe:animate-pulse" aria-hidden />
       {t("chat.voice_call_record_live")}
     </span>
   );
@@ -35,9 +34,12 @@ export function VoiceCallRecIndicator() {
 export function VoiceCallRecordControl({
   recording: state,
   disabled,
+  large = false,
 }: {
   recording: VoiceCallRecordingState;
   disabled?: boolean;
+  /** Fullscreen: the bigger circle with its name under it, like its neighbours. */
+  large?: boolean;
 }) {
   const { t } = useTranslation();
   const { recording, recordingEnabled, pending, start, stop } = state;
@@ -58,38 +60,21 @@ export function VoiceCallRecordControl({
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-lg"
-              className={cn(
-                "size-11 rounded-xl",
-                recording &&
-                  "border-transparent bg-destructive-solid text-on-solid hover:bg-destructive-solid hover:opacity-90",
-              )}
-              aria-label={label}
-              aria-pressed={recording}
-              aria-disabled={unavailable || pending || undefined}
-              aria-describedby={unavailable ? hintId : undefined}
-              disabled={disabled}
-              onClick={toggle}
-            />
-          }
-        >
-          {recording ? (
-            <Square aria-hidden className="size-3.5 fill-current" />
-          ) : (
-            <Circle
-              aria-hidden
-              className={cn("size-4", recordingEnabled ? "fill-destructive text-destructive" : "text-muted-foreground")}
-            />
-          )}
-        </TooltipTrigger>
-        <TooltipContent>{tooltip}</TooltipContent>
-      </Tooltip>
+      {/* Recording reads as the soft red with a stop square, so it never
+          looks like the solid-red hang-up beside it. */}
+      <VoiceCallControl
+        label={label}
+        tooltip={unavailable ? tooltip : undefined}
+        pressed={recording}
+        tone={recording ? "recording" : unavailable ? "unavailable" : "record"}
+        large={large}
+        ariaDisabled={unavailable || pending}
+        describedBy={unavailable ? hintId : undefined}
+        disabled={disabled}
+        onClick={toggle}
+      >
+        {recording ? <Square aria-hidden className="size-4.5 fill-current" /> : <VoiceCallRecordGlyph hollow={unavailable} />}
+      </VoiceCallControl>
       {unavailable ? (
         <span id={hintId} className="sr-only">
           {tooltip}
@@ -102,6 +87,10 @@ export function VoiceCallRecordControl({
         description={t("chat.voice_call_record_confirm")}
         confirmLabel={t("chat.voice_call_record_confirm_action")}
         destructive={false}
+        icon={CircleDot}
+        tone="destructive"
+        cancelVariant="secondary"
+        className={CHAT_CONFIRM_CLASS}
         pending={pending}
         onConfirm={() => {
           void start().then(() => setConfirmOpen(false));

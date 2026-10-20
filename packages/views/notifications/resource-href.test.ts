@@ -22,6 +22,11 @@ describe("resourceHref", () => {
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/chat");
   });
 
+  it("opens the room of a ringing call", () => {
+    const n = notification({ kind: "chat_call_incoming", resource_type: "chat_room", resource_id: "r1" });
+    expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/chat?room=r1");
+  });
+
   it("opens a meeting's summary panel from the summary reminder", () => {
     const n = notification({ kind: "meeting_summary_reminder", resource_type: "meeting", resource_id: "m1" });
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");

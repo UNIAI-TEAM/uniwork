@@ -1,12 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { ReactElement, ReactNode } from "react";
-import { fetchChatUserById } from "@uniwork/core/chat";
+import { fetchChatUserById } from "@uniwork/core/chat/user-lookup";
 import { requestMock, wrap } from "../test/api-mock";
 import { useNativeGroupMemberProfiles } from "./use-native-group-member-profiles";
 
-vi.mock("@uniwork/core/chat", async (orig) => ({
-  ...(await orig<typeof import("@uniwork/core/chat")>()),
+vi.mock("@uniwork/core/chat/user-lookup", async (orig) => ({
+  ...(await orig<typeof import("@uniwork/core/chat/user-lookup")>()),
   fetchChatUserById: vi.fn(),
 }));
 

@@ -183,9 +183,9 @@ func (q *Queries) AiGetUsageEvent(ctx context.Context, id string) (AiUsageEvent,
 }
 
 const aiInsertMessage = `-- name: AiInsertMessage :one
-INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at
+INSERT INTO ai_messages (id, organization_id, conversation_id, role, content, citations, usage_event_id, notice)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice
 `
 
 type AiInsertMessageParams struct {
@@ -196,6 +196,7 @@ type AiInsertMessageParams struct {
 	Content        string      `json:"content"`
 	Citations      string      `json:"citations"`
 	UsageEventID   pgtype.Text `json:"usage_event_id"`
+	Notice         pgtype.Text `json:"notice"`
 }
 
 func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams) (AiMessage, error) {
@@ -207,6 +208,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		arg.Content,
 		arg.Citations,
 		arg.UsageEventID,
+		arg.Notice,
 	)
 	var i AiMessage
 	err := row.Scan(
@@ -218,6 +220,7 @@ func (q *Queries) AiInsertMessage(ctx context.Context, arg AiInsertMessageParams
 		&i.Citations,
 		&i.UsageEventID,
 		&i.CreatedAt,
+		&i.Notice,
 	)
 	return i, err
 }
@@ -404,7 +407,7 @@ func (q *Queries) AiListConversations(ctx context.Context, arg AiListConversatio
 }
 
 const aiListMessages = `-- name: AiListMessages :many
-SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice FROM ai_messages WHERE conversation_id = $1 ORDER BY created_at ASC, id ASC LIMIT 200
 `
 
 // tenant: parent conversation_id
@@ -426,6 +429,7 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 			&i.Citations,
 			&i.UsageEventID,
 			&i.CreatedAt,
+			&i.Notice,
 		); err != nil {
 			return nil, err
 		}

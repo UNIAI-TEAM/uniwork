@@ -39,6 +39,8 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
     case "task.updated":
     case "task.deleted": {
       push(taskKeys.list(wsId), taskKeys.myTasks(wsId), taskKeys.queryRoot(wsId), taskKeys.tableRoot(wsId));
+      // Attaching or detaching a label lands as task.updated.
+      push(taskKeys.labelLinks(wsId));
       if (payload.task_id) {
         push(taskKeys.detail(payload.task_id), taskKeys.children(payload.task_id));
         if (event.type === "task.updated") push(taskKeys.subscribers(payload.task_id));

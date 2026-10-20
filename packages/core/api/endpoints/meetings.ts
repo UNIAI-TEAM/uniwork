@@ -9,7 +9,6 @@ import {
   MeetingSchema,
   MeetingCapabilitiesSchema,
   MeetingStatisticsSchema,
-  MeetingSummarySchema,
   ParticipantSchema,
   RecordingSchema,
   TranscriptSegmentSchema,
@@ -20,7 +19,6 @@ import {
   type MeetingCapabilities,
   type MeetingChatMessage,
   type MeetingRecording,
-  type MeetingSummary,
   type MeetingTranscriptSegment,
   type MeetingInvitation,
   type MeetingInviteLink,
@@ -29,7 +27,7 @@ import {
   type MeetingParticipant,
   type MeetingStatistics,
 } from "../../types/meeting";
-import { ApiError, request, requestBlob, requestText } from "../http";
+import { request, requestBlob, requestText } from "../http";
 import { setGuestSession } from "../guest-session";
 import { parseWithFallback } from "../schema";
 
@@ -402,12 +400,10 @@ export async function listMeetingActivity(meetingId: string): Promise<MeetingAct
   }).activity;
 }
 
-// ---- D08b: capabilities, transcript, AI summary, recording, calendar ----------
+// ---- D08b: capabilities, transcript, recording, calendar (AI summary: ./meeting-summary) ----------
 
-const SummaryResponse = z.object({ summary: MeetingSummarySchema.nullable() });
 const RecordingsResponse = z.object({ recordings: z.array(RecordingSchema) });
 const RecordingResponse = z.object({ recording: RecordingSchema });
-const TaskIDsResponse = z.object({ task_ids: z.array(z.string()) });
 
 export async function getMeetingCapabilities(workspaceId: string): Promise<MeetingCapabilities> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meeting-capabilities`);
@@ -437,40 +433,6 @@ export async function appendMeetingChat(meetingId: string, message: string): Pro
     body: { message },
   });
   return parseWithFallback(raw, ChatMessageResponse, { message: null }, { endpoint: "appendMeetingChat" }).message;
-}
-
-export async function getMeetingSummary(meetingId: string): Promise<MeetingSummary | null> {
-  try {
-    const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`);
-    return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "getMeetingSummary" }).summary;
-  } catch (err) {
-    // Older servers returned 404 when no summary existed yet.
-    if (err instanceof ApiError && err.status === 404 && err.code === "not_found") {
-      return null;
-    }
-    throw err;
-  }
-}
-
-export async function createMeetingSummary(meetingId: string, locale: string): Promise<MeetingSummary | null> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary`, { method: "POST", body: { locale } });
-  return parseWithFallback(raw, SummaryResponse, { summary: null }, { endpoint: "createMeetingSummary" }).summary;
-}
-
-export interface SummaryTaskItem {
-  title: string;
-  description?: string;
-  assignee_id?: string;
-  project_id?: string;
-  priority?: string;
-  due_date?: string;
-  owner?: string;
-  due_spoken?: string;
-}
-
-export async function createTasksFromSummary(meetingId: string, items: SummaryTaskItem[]): Promise<string[]> {
-  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/summary/tasks`, { method: "POST", body: { items } });
-  return parseWithFallback(raw, TaskIDsResponse, { task_ids: [] }, { endpoint: "createTasksFromSummary" }).task_ids;
 }
 
 export async function listRecordings(meetingId: string): Promise<MeetingRecording[]> {

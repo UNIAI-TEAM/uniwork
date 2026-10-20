@@ -92,6 +92,18 @@ export function useChatRoomMessageLinks(
   return { data, isPending, isError: false, error: null };
 }
 
+export type { ChatRoomLinkedTask } from "../api/endpoints/chat-links";
+
+/** Tasks linked from this room's messages, newest link first (the info panel). */
+export function useChatRoomLinkedTasks(workspaceId: string, roomId: string | null | undefined) {
+  const authReady = useAuthStore((s) => s.status === "authed");
+  return useQuery({
+    queryKey: chatKeys.roomLinkedTasks(workspaceId, roomId ?? ""),
+    queryFn: () => chat.listChatRoomLinkedTasks(workspaceId, roomId ?? ""),
+    enabled: authReady && !!workspaceId && !!roomId,
+  });
+}
+
 export function useCreateTaskFromChatMessage(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({

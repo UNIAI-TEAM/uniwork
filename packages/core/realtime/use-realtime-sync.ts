@@ -110,6 +110,8 @@ function keysFor(
     // lifecycle event can change it.
     if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
       push(homeKeys.summary(wsId));
+      // A linked task's title, status or due date shows in the chat info panel.
+      push(chatKeys.roomLinkedTasksRoot(wsId));
     }
     pushCalendar();
     return keys;
@@ -148,6 +150,7 @@ function keysFor(
       // comes back from the API.
       push(notificationKeys.lists());
       push(notificationKeys.unreadCount());
+      push(chatKeys.unreadSummary());
       push(homeKeys.summary(wsId));
       break;
     }
@@ -184,6 +187,12 @@ function keysFor(
       }
       break;
     }
+    case "chat.room.member_read":
+    case "chat.room.member_delivered": {
+      // Someone's read or delivered cursor moved: only this room's receipts change.
+      if (payload.room_id) push(chatKeys.roomMembers(wsId, payload.room_id));
+      break;
+    }
     case "chat.channel.created":
     case "chat.channel.updated":
     case "chat.channel.archived": {
@@ -197,6 +206,11 @@ function keysFor(
       if (payload.room_id) {
         push(chatKeys.voiceRecordings(wsId, payload.room_id));
       }
+      break;
+    }
+    case "chat.message.preview_ready": {
+      // A message's link card is stored (ADR 0035): the open timeline asks again.
+      if (payload.room_id) push(chatKeys.roomLinkPreviewsRoom(wsId, payload.room_id));
       break;
     }
     case "chat.follow_up.created":
@@ -314,7 +328,10 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
       break;
     }
-    case "summary.created": {
+    // A new summary, or items of the current one that just became tasks
+    // (their task_id, so no host converts them twice).
+    case "summary.created":
+    case "summary.tasks_linked": {
       if (payload.meeting_id) {
         push(meetingKeys.summary(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));

@@ -102,6 +102,22 @@ JOIN users u ON u.id = m.user_id
 WHERE m.workspace_id = $1
 ORDER BY m.created_at;
 
+-- name: FilterActiveWorkspaceMemberUserIDs :many
+-- tenant: by-id
+-- Same admission as GetWorkspaceAccess / RequireMember, in one query for
+-- many user ids (chat reminder delivery on large channels, UNI-1727).
+SELECT input.user_id::text AS user_id
+FROM unnest(sqlc.arg(user_ids)::text[]) AS input(user_id)
+JOIN workspaces w ON w.id = sqlc.arg(workspace_id)::text
+JOIN organizations o ON o.id = w.organization_id
+LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = input.user_id
+LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = input.user_id
+WHERE COALESCE(m.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') <> ''
+  AND o.status = 'active'
+  AND om.deactivated_at IS NULL
+  AND (o.deletion_scheduled_at IS NULL OR om.role = 'owner')
+ORDER BY input.user_id;
+
 -- name: ListAssignableMembers :many
 -- Who can be given a task in the workspace: its members and the
 -- organization's owners and admins (implicit workspace admins), active only.

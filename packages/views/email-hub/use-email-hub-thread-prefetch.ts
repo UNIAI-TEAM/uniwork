@@ -8,16 +8,16 @@ const EMAIL_HUB_LIST_PREFETCH_TOP = 5;
 const EMAIL_HUB_HOVER_PREFETCH_MS = 50;
 
 /**
- * Warms the thread detail cache for the list: the first rows and the
- * neighbours of the open thread as the list changes, and a row the pointer
- * rests on (debounced by a short timer). Returns the hover handler.
+ * Warms thread bodies before they are opened: the first few rows and the
+ * neighbours of the open one up front, a hovered row after a short dwell.
+ * Returns the hover handler for the list.
  */
 export function useEmailHubThreadPrefetch(
   wsId: string,
   accountId: string | null,
   selectedId: string | null,
   rows: readonly { id: string }[],
-): (id: string) => void {
+) {
   const qc = useQueryClient();
   const hoverPrefetchTimers = useRef(new Map<string, number>());
 
@@ -28,6 +28,21 @@ export function useEmailHubThreadPrefetch(
       timers.clear();
     };
   }, []);
+
+  const prefetchThreadHover = useCallback(
+    (id: string) => {
+      if (!accountId || id === selectedId) return;
+      const timers = hoverPrefetchTimers.current;
+      const pending = timers.get(id);
+      if (pending !== undefined) window.clearTimeout(pending);
+      const timer = window.setTimeout(() => {
+        timers.delete(id);
+        prefetchEmailHubThread(qc, wsId, accountId, id);
+      }, EMAIL_HUB_HOVER_PREFETCH_MS);
+      timers.set(id, timer);
+    },
+    [accountId, qc, selectedId, wsId],
+  );
 
   useEffect(() => {
     if (!accountId || rows.length === 0) return;
@@ -46,18 +61,5 @@ export function useEmailHubThreadPrefetch(
     }
   }, [accountId, rows, qc, wsId, selectedId]);
 
-  return useCallback(
-    (id: string) => {
-      if (!accountId || id === selectedId) return;
-      const timers = hoverPrefetchTimers.current;
-      const pending = timers.get(id);
-      if (pending !== undefined) window.clearTimeout(pending);
-      const timer = window.setTimeout(() => {
-        timers.delete(id);
-        prefetchEmailHubThread(qc, wsId, accountId, id);
-      }, EMAIL_HUB_HOVER_PREFETCH_MS);
-      timers.set(id, timer);
-    },
-    [accountId, qc, selectedId, wsId],
-  );
+  return prefetchThreadHover;
 }

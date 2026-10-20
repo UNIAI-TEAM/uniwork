@@ -120,6 +120,26 @@ describe("createChatRealtimePatchScheduler", () => {
     await scheduler.dispose();
   });
 
+  it("refreshes the switcher's unread totals on room activity and on a mention", async () => {
+    const summary = { queryKey: chatKeys.unreadSummary() };
+    const scheduler = createChatRealtimePatchScheduler(qc, "ws1");
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    scheduler.scheduleRoomActivity();
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    expect(invalidate).toHaveBeenCalledWith(summary, { cancelRefetch: false });
+
+    invalidate.mockClear();
+    scheduler.scheduleMention("room1", "u2");
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    expect(invalidate).toHaveBeenCalledWith(summary, { cancelRefetch: false });
+
+    invalidate.mockClear();
+    scheduler.scheduleUpsert("room1", "m1");
+    await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
+    expect(invalidate).not.toHaveBeenCalled();
+    await scheduler.dispose();
+  });
+
   it("runs room activity invalidate after upserts in the same flush", async () => {
     const order: string[] = [];
     vi.mocked(fetchAndPatchChatMessage).mockImplementation(async () => {
@@ -133,7 +153,8 @@ describe("createChatRealtimePatchScheduler", () => {
     scheduler.scheduleUpsert("room1", "m1");
     scheduler.scheduleRoomActivity();
     await vi.advanceTimersByTimeAsync(FLUSH_MAX_MS);
-    expect(order).toEqual(["upsert", "invalidate"]);
+    // The sidebar, then the switcher's totals.
+    expect(order).toEqual(["upsert", "invalidate", "invalidate"]);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") }, { cancelRefetch: false });
     await scheduler.dispose();
   });

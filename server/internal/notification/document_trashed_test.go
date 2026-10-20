@@ -825,8 +825,9 @@ func TestDocumentTrashedStaysInAppOnly(t *testing.T) {
 	f.handleTopic(t, "task.updated")
 
 	out := &fakeOutbox{}
-	s := NewDigestScheduler(f.q, mail.Renderer{AppURL: "http://app.test"}, out)
+	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
 	s.SetDocumentReaders(f.docs)
+	s.SetOrgMembers(service.NewOrganizationService(f.pool, f.q))
 	at := time.Date(2026, 10, 18, 1, 5, 0, 0, time.UTC) // 08:05 Asia/Ho_Chi_Minh.
 	if n, err := s.RunOnce(f.ctx, at); err != nil || n != 1 {
 		t.Fatalf("digest = %d, %v, want one mail", n, err)

@@ -1,55 +1,133 @@
 "use client";
 
-import { useRef, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
-  Bookmark,
-  Copy,
-  Link2,
-  MessageSquareText,
-  Ellipsis,
-  Pencil,
-  Pin,
-  Reply,
-  FaceSlightlySmilingPlus,
-  Trash2,
-} from "lucide-react";
+  createContext,
+  lazy,
+  Suspense,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
+import { Ellipsis, FaceSlightlySmilingPlus, Reply } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@uniwork/ui/components/ui/tooltip";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@uniwork/ui/components/ui/context-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
-import { MODULE_ICONS } from "../layout/module-icons";
+import { emojiPickerStrings } from "./chat-expression-utils";
+import {
+  CHAT_CONTEXT_PARTS,
+  CHAT_DROPDOWN_PARTS,
+  CHAT_MESSAGE_MENU_CLASS,
+  ChatMessageMenuItems,
+  type ChatMessageActionHandlers,
+} from "./chat-message-menu-items";
+import { useActionsBarPlacement } from "./use-actions-bar-placement";
 
-/** Bubble + toolbar row: in-flow on sm+ so hover reaches the bar across the gap. */
+/**
+ * The column a message's bubble and its extras sit in. The actions bar floats
+ * beside it (absolute), so the rail itself only lines the column up with the
+ * sender's side.
+ */
 export function chatMessageActionsRailClass(isOwn: boolean): string {
-  return cn(
-    "flex w-fit max-w-full items-start gap-1 sm:gap-2",
-    isOwn ? "flex-row-reverse self-end" : "flex-row self-start",
+  return cn("flex w-fit max-w-full flex-col", isOwn ? "self-end" : "self-start");
+}
+
+/** The reaction a hover gives in one click, as Telegram's heart. */
+const QUICK_REACTION = "❤️";
+
+/** The bar's 32px round buttons (the primitive grows them to 44px on a coarse pointer). */
+const BAR_BUTTON =
+  "size-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground aria-expanded:bg-brand-subtle aria-expanded:text-brand-subtle-foreground aria-pressed:bg-brand-subtle";
+
+/** A bar button past the heart while only the pointer is near: no size, back to 32px under keyboard focus. */
+const FOLDED =
+  "size-0 overflow-hidden border-0 p-0 opacity-0 pointer-coarse:min-h-0 pointer-coarse:min-w-0 group-has-[:focus-visible]/message:ml-0.5 group-has-[:focus-visible]/message:size-8 group-has-[:focus-visible]/message:opacity-100";
+
+// The composer's emoji set (search, categories, recently used), loaded on first open.
+const EmojiPicker = lazy(() =>
+  import("@uniwork/ui/components/common/emoji-picker").then((module) => ({
+    default: module.EmojiPicker,
+  })),
+);
+
+/**
+ * "Thêm cảm xúc": any emoji beyond the quick ones, from a popover picker. The
+ * bar's button by default; `triggerClassName` dresses it as the round chip
+ * after a message's reactions, whose picker opens under it (canvas).
+ */
+export function MessageReactionPicker({
+  label,
+  align,
+  open,
+  onOpenChange,
+  onPick,
+  side = "top",
+  triggerClassName = BAR_BUTTON,
+  iconClassName = "size-4.5",
+}: {
+  label: string;
+  align: "start" | "end";
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPick: (emoji: string) => void;
+  side?: "top" | "bottom";
+  triggerClassName?: string;
+  iconClassName?: string;
+}) {
+  const { t, i18n } = useTranslation();
+  const strings = useMemo(() => emojiPickerStrings(i18n.language, t), [i18n.language, t]);
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              render={
+                <Button type="button" variant="ghost" size="icon-lg" className={triggerClassName} aria-label={label} />
+              }
+            />
+          }
+        >
+          <FaceSlightlySmilingPlus className={iconClassName} aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        align={align}
+        side={side}
+        aria-label={label}
+        className="w-auto max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl p-0"
+      >
+        <Suspense fallback={<Spinner label={t("common.loading")} className="m-6 self-center" />}>
+          <div className="[&_em-emoji-picker]:!border-0">
+            <EmojiPicker onSelect={onPick} i18n={strings} />
+          </div>
+        </Suspense>
+      </PopoverContent>
+    </Popover>
   );
 }
 
 function MessageActionButton({
   label,
   onClick,
-  disabled,
   pressed,
+  className,
   children,
 }: {
   label: string;
   onClick?: () => void;
-  disabled?: boolean;
   pressed?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -58,12 +136,11 @@ function MessageActionButton({
         render={
           <Button
             type="button"
-            variant={pressed ? "secondary" : "ghost"}
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground aria-pressed:text-foreground"
+            variant="ghost"
+            size="icon-lg"
+            className={cn(BAR_BUTTON, className)}
             aria-label={label}
             aria-pressed={pressed ? true : undefined}
-            disabled={disabled}
             onClick={onClick}
           >
             {children}
@@ -75,45 +152,39 @@ function MessageActionButton({
   );
 }
 
-export function ChatMessageHoverActions({
-  message,
-  isOwn,
-  onReply,
-  onReact,
-  onThread,
-  onEdit,
-  onPin,
-  onCopy,
-  onDelete,
-  onCreateTask,
-  onLinkTask,
-  onFollowUp,
-  canEdit = true,
-  forceOpen = false,
-}: {
+type PickerState = { pickerOpen: boolean; setPickerOpen: (open: boolean) => void };
+
+/** The frame's picker: the right-click menu's "Thêm cảm xúc" opens the bar's picker. */
+const MessagePickerContext = createContext<PickerState | null>(null);
+
+type ActionsProps = ChatMessageActionHandlers & {
   message: ChatMessage;
   isOwn: boolean;
-  onReply?: (message: ChatMessage) => void;
-  onReact?: (message: ChatMessage) => void;
-  onThread?: (message: ChatMessage) => void;
-  onEdit?: (message: ChatMessage) => void;
-  onPin?: (message: ChatMessage) => void;
-  onCopy?: (message: ChatMessage) => void;
-  onDelete?: (message: ChatMessage) => void;
-  onCreateTask?: (message: ChatMessage) => void;
-  onLinkTask?: (message: ChatMessage) => void;
-  onFollowUp?: (message: ChatMessage) => void;
-  /** When false the edit control is left out (someone else's message, a call log). */
+  /** When false the edit item is left out (someone else's message, a call log, a file). */
   canEdit?: boolean;
-  /** Opened by a long press on touch, where there is no hover. */
-  forceOpen?: boolean;
-}) {
+  /** Over the message's own top corner instead of beside it: an album photo has neighbours. */
+  overlay?: boolean;
+};
+
+/**
+ * What hovering a message shows, as Telegram: one round quick-heart beside the
+ * bubble; reply and the rest live in the right-click menu. Keyboard focus (or
+ * an open picker or menu) widens it to the whole bar — any emoji, reply, and
+ * "…" for that same menu — since a keyboard has no right click. It sits beside
+ * the bubble when the timeline is wide and above it when narrow (a side
+ * thread), so it never covers the message above.
+ */
+export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overlay = false, ...handlers }: ActionsProps) {
   const { t } = useTranslation();
   const barRef = useRef<HTMLDivElement>(null);
+  const shared = useContext(MessagePickerContext);
+  const [ownPickerOpen, setOwnPickerOpen] = useState(false);
+  const pickerOpen = shared ? shared.pickerOpen : ownPickerOpen;
+  const setPickerOpen = shared ? shared.setPickerOpen : setOwnPickerOpen;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { onReply, onReact, onToggleReaction } = handlers;
   const canInteract = Boolean(onReply && onReact);
-  const canDelete = isOwn && Boolean(onDelete);
-  const pinLabel = message.pinned ? t("chat.action_unpin") : t("chat.action_pin");
-  const workHubActions = Boolean(onCreateTask || onLinkTask || onFollowUp);
+  useActionsBarPlacement(barRef, canInteract);
 
   if (!canInteract) return null;
 
@@ -146,12 +217,18 @@ export function ChatMessageHoverActions({
     bar.dataset.roving = "on";
   };
 
+  const mine = new Set(message.myReactions ?? []);
+  // Past the heart, the bar waits for the keyboard or for its own popup. The
+  // rest fold to nothing rather than display:none, so they keep their place in
+  // the roving tab order and the accessibility tree; focusing one unfolds them.
+  const extra = pickerOpen || menuOpen ? "ml-0.5" : FOLDED;
+
   return (
-    // Desktop: sits in the actions rail beside the bubble (in flow) so moving
-    // the pointer into the bar keeps group/message hovered. Mobile: above the
-    // message's top edge (absolute, so the bubble keeps its full width) — the
-    // bar is a child of the hover group, so reaching it keeps it shown.
-    // Hidden until hover/focus; buttons stay in the tab order (roving tabindex).
+    // Hidden until the message is hovered or focused (or one of its popups is
+    // open). Wide timeline (--bar-mode: side): beside the bubble, with an
+    // invisible ::before bridging the gap so the pointer can reach it. Narrow:
+    // above the bubble, or inside its top edge when there is no room
+    // (use-actions-bar-placement).
     <div
       ref={barRef}
       role="toolbar"
@@ -160,93 +237,125 @@ export function ChatMessageHoverActions({
       onKeyDown={onKeyDown}
       onFocusCapture={onFocusCapture}
       className={cn(
-        "pointer-events-none z-10 flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-surface-raised p-0.5 opacity-0 shadow-[var(--menu-shadow)]",
-        forceOpen && "pointer-events-auto opacity-100",
-        // Hover (a mouse, at every width: Tailwind v4 wraps it in
-        // `@media (hover: hover)`, so a tap never leaves a sticky hover) and
-        // keyboard focus reveal the bar. A tap's focus-within does not: it would
-        // flash the bar over the card the finger just hit (F-01). On a phone the
-        // bar sits above the message's top edge, never over the bubble, so a
-        // mouse at that width can still click the card's title while the bar is
-        // shown; a long press (forceOpen) opens it on touch.
+        "pointer-events-none absolute z-10 flex w-max items-center rounded-full border border-border bg-popover p-0.5 opacity-0 shadow-floating",
+        // Keyboard focus (focus-visible) reveals the bar; a tap's focus-within does
+        // not: it would flash the bar over the card the finger just hit (UNI-1966 F-01).
         "transition-opacity duration-(--duration-fast) group-has-[:focus-visible]/message:pointer-events-auto group-has-[:focus-visible]/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
-        "max-sm:absolute max-sm:bottom-full",
-        isOwn ? "max-sm:right-0" : "max-sm:left-0",
-        "sm:relative sm:top-auto sm:mt-0.5",
+        (pickerOpen || menuOpen) && "pointer-events-auto opacity-100",
+        overlay
+          ? cn("[--bar-mode:side] top-1.5", isOwn ? "right-1.5" : "left-1.5")
+          : cn(
+              // Wide: beside the bubble's last line, on the free side.
+              "[--bar-mode:side] bottom-0 before:absolute before:inset-y-0 before:w-2.5 before:content-['']",
+              isOwn ? "right-full mr-2 before:left-full" : "left-full ml-2 before:right-full",
+              // Narrow: above the bubble, as before; inside its top edge when there is no room.
+              "@max-2xl/timeline:[--bar-mode:above] @max-2xl/timeline:bottom-full @max-2xl/timeline:mb-1.5 @max-2xl/timeline:mr-0 @max-2xl/timeline:ml-0 @max-2xl/timeline:before:hidden",
+              isOwn ? "@max-2xl/timeline:right-0" : "@max-2xl/timeline:left-0",
+              "data-[place=inside]:bottom-auto data-[place=inside]:mb-0",
+            ),
       )}
     >
       <TooltipProvider delay={300}>
-        <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
-          <FaceSlightlySmilingPlus className="size-4" aria-hidden />
-        </MessageActionButton>
-        <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)}>
-          <Reply className="size-4" aria-hidden />
-        </MessageActionButton>
-        {onThread ? (
+        {onToggleReaction ? (
           <MessageActionButton
-            label={t("chat.action_thread")}
-            onClick={() => onThread(message)}
+            label={t("chat.action_react_emoji", { emoji: QUICK_REACTION })}
+            onClick={() => onToggleReaction(message, QUICK_REACTION)}
+            pressed={mine.has(QUICK_REACTION)}
           >
-            <MessageSquareText className="size-4" aria-hidden />
+            <span aria-hidden className="text-body-lg leading-none">
+              {QUICK_REACTION}
+            </span>
           </MessageActionButton>
         ) : null}
-        {canEdit && onEdit ? (
-          <MessageActionButton label={t("chat.action_edit")} onClick={() => onEdit(message)}>
-            <Pencil className="size-4" aria-hidden />
+        {onToggleReaction ? (
+          <MessageReactionPicker
+            label={t("chat.action_react_more")}
+            align={isOwn ? "end" : "start"}
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            onPick={(emoji) => {
+              onToggleReaction(message, emoji);
+              setPickerOpen(false);
+            }}
+            triggerClassName={cn(BAR_BUTTON, extra)}
+          />
+        ) : (
+          <MessageActionButton label={t("chat.action_react")} onClick={() => onReact?.(message)}>
+            <FaceSlightlySmilingPlus className="size-4.5" aria-hidden />
           </MessageActionButton>
-        ) : null}
-        {onPin ? (
-          <MessageActionButton label={pinLabel} onClick={() => onPin(message)} pressed={message.pinned}>
-            <Pin className="size-4" aria-hidden />
-          </MessageActionButton>
-        ) : null}
-        <DropdownMenu>
+        )}
+        <MessageActionButton label={t("chat.action_reply")} onClick={() => onReply?.(message)} className={extra}>
+          <Reply className="size-4.5" aria-hidden />
+        </MessageActionButton>
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger
             render={
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
+                size="icon-lg"
+                className={cn(BAR_BUTTON, extra)}
                 aria-label={t("chat.action_more")}
               >
-                <Ellipsis className="size-4" aria-hidden />
+                <Ellipsis className="size-4.5" aria-hidden />
               </Button>
             }
           />
-          <DropdownMenuContent align={isOwn ? "end" : "start"}>
-            {workHubActions ? (
-              <>
-                <DropdownMenuItem onClick={() => onFollowUp?.(message)} disabled={!onFollowUp}>
-                  <Bookmark className="size-4" aria-hidden />
-                  {t("chat.follow_up.action")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onCreateTask?.(message)}
-                  disabled={!onCreateTask}
-                >
-                  <MODULE_ICONS.tasks className="size-4" aria-hidden />
-                  {t("chat.link.create_task")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onLinkTask?.(message)} disabled={!onLinkTask}>
-                  <Link2 className="size-4" aria-hidden />
-                  {t("chat.link.link_task")}
-                </DropdownMenuItem>
-              </>
-            ) : null}
-            <DropdownMenuItem onClick={() => onCopy?.(message)} disabled={!onCopy}>
-              <Copy className="size-4" aria-hidden />
-              {t("chat.action_copy")}
-            </DropdownMenuItem>
-            {canDelete ? (
-              <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(message)}>
-                <Trash2 className="size-4" aria-hidden />
-                {t("chat.action_delete")}
-              </DropdownMenuItem>
-            ) : null}
+          <DropdownMenuContent align={isOwn ? "end" : "start"} className={CHAT_MESSAGE_MENU_CLASS}>
+            <ChatMessageMenuItems
+              parts={CHAT_DROPDOWN_PARTS}
+              message={message}
+              isOwn={isOwn}
+              canEdit={canEdit}
+              onMoreReactions={() => setPickerOpen(true)}
+              {...handlers}
+            />
           </DropdownMenuContent>
         </DropdownMenu>
       </TooltipProvider>
     </div>
+  );
+}
+
+/**
+ * A message's bubble column with its actions: a right click (a long press on
+ * touch) opens the full menu at the pointer, and hovering shows the small bar
+ * (ChatMessageHoverActions), drawn here as the column's last child. A message
+ * not on the server yet (`pending`) has nothing to act on: just the column.
+ */
+export function ChatMessageActionsFrame({
+  message,
+  isOwn,
+  canEdit = true,
+  overlay = false,
+  pending = false,
+  className,
+  children,
+  ...handlers
+}: ActionsProps & { pending?: boolean; className?: string; children: ReactNode }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const picker = useMemo(() => ({ pickerOpen, setPickerOpen }), [pickerOpen]);
+  const frame = cn("group/message relative", className);
+  if (pending || !handlers.onReply || !handlers.onReact) return <div className={frame}>{children}</div>;
+  return (
+    <MessagePickerContext.Provider value={picker}>
+      <ContextMenu>
+        {/* The trigger's own select-none would stop copying a message's text. */}
+        <ContextMenuTrigger className={cn(frame, "select-text")}>
+          {children}
+          <ChatMessageHoverActions message={message} isOwn={isOwn} canEdit={canEdit} overlay={overlay} {...handlers} />
+        </ContextMenuTrigger>
+        <ContextMenuContent className={CHAT_MESSAGE_MENU_CLASS}>
+          <ChatMessageMenuItems
+            parts={CHAT_CONTEXT_PARTS}
+            message={message}
+            isOwn={isOwn}
+            canEdit={canEdit}
+            onMoreReactions={() => setPickerOpen(true)}
+            {...handlers}
+          />
+        </ContextMenuContent>
+      </ContextMenu>
+    </MessagePickerContext.Provider>
   );
 }

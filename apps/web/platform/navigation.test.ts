@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerLeaveGuard } from "@uniwork/views/navigation";
+import { resolveChatOnlyPath } from "./chat-only-navigation";
 import { createWebNavigationAdapter } from "./web-navigation-adapter";
 
 const PATH = "/acme/doi/documents/d1";
@@ -78,5 +79,39 @@ describe("web navigation adapter openExternal", () => {
     vi.unstubAllGlobals();
     expect(assign).toHaveBeenCalledWith("https://pay.example/c/1");
     expect(guard).not.toHaveBeenCalled();
+  });
+});
+
+describe("web navigation adapter inside the UniChat shell", () => {
+  const host = () => ({
+    resolve: vi.fn(resolveChatOnlyPath),
+    openExternal: vi.fn(),
+  });
+
+  it("hands a path outside the chat allowlist to the shell as an absolute URL", async () => {
+    const router = fakeRouter();
+    const policy = host();
+    createWebNavigationAdapter(router, PATH, new URLSearchParams(), policy).push("/acme/team/tasks/01H");
+    await flushed();
+    expect(policy.openExternal).toHaveBeenCalledWith("http://localhost:3000/acme/team/tasks/01H");
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("rewrites the tasks landing page to the chat screen", async () => {
+    const router = fakeRouter();
+    createWebNavigationAdapter(router, PATH, new URLSearchParams(), host()).push("/acme/team/tasks");
+    await vi.waitFor(() => expect(router.push).toHaveBeenCalledWith("/acme/team/chat"));
+  });
+
+  it("replaces a global path through the router", async () => {
+    const router = fakeRouter();
+    createWebNavigationAdapter(router, PATH, new URLSearchParams(), host()).replace("/login?next=/x");
+    await vi.waitFor(() => expect(router.replace).toHaveBeenCalledWith("/login?next=/x"));
+  });
+
+  it("openExternal goes through the shell, not the window", () => {
+    const policy = host();
+    createWebNavigationAdapter(fakeRouter(), PATH, new URLSearchParams(), policy).openExternal?.("https://pay.example/c/1");
+    expect(policy.openExternal).toHaveBeenCalledWith("https://pay.example/c/1");
   });
 });

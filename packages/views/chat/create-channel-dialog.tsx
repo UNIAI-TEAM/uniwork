@@ -1,5 +1,6 @@
 "use client";
 
+import { Globe, Hash, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
@@ -24,6 +25,7 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_FIELD_CLASS } from "./chat-dialog-look";
 import { chatErrorMessage } from "./chat-error-message";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
@@ -37,6 +39,21 @@ import { memberToChatContact } from "./workspace-member-picker-utils";
 type Visibility = "public" | "private";
 const NO_PROJECT = "__none__";
 const NAME_MAX = 80;
+const TOPIC_MAX = 280;
+
+/* A field label with the canvas' character count at its right. */
+function CountedLabel({ htmlFor, label, length, max }: { htmlFor: string; label: string; length: number; max: number }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <Label htmlFor={htmlFor} className="text-label font-semibold">
+        {label}
+      </Label>
+      <span aria-hidden className="text-caption text-muted-foreground tabular-nums">
+        {length}/{max}
+      </span>
+    </div>
+  );
+}
 
 export function CreateChannelDialog({
   open,
@@ -66,7 +83,7 @@ export function CreateChannelDialog({
   const [error, setError] = useState<string | null>(null);
 
   const pickerFocus = useMemberPickerFocus();
-  const excludeUserIds = useMemo(
+  const pickedUserIds = useMemo(
     () => new Set(pendingMembers.map((member) => member.user_id)),
     [pendingMembers],
   );
@@ -77,7 +94,6 @@ export function CreateChannelDialog({
     open,
     query: memberQuery,
     searchSubmitted,
-    excludeUserIds,
   });
 
   const resetForm = () => {
@@ -101,13 +117,22 @@ export function CreateChannelDialog({
     setPendingMembers((prev) =>
       prev.some((member) => member.user_id === contact.user_id) ? prev : [...prev, contact],
     );
-    setMemberQuery("");
-    setSearchSubmitted(false);
-    pickerFocus.focusInput();
+    // A search found them: clear it and start the next one from the field.
+    if (memberQuery.trim()) {
+      setMemberQuery("");
+      setSearchSubmitted(false);
+      pickerFocus.focusInput();
+    }
   };
 
   const removeMember = (userId: string) => {
     setPendingMembers((prev) => prev.filter((member) => member.user_id !== userId));
+  };
+
+  /* The list's rows are checkboxes: a picked row stays, ticked, and unticks. */
+  const toggleMember = (contact: ChatContact) => {
+    if (pickedUserIds.has(contact.user_id)) removeMember(contact.user_id);
+    else addMember(contact);
   };
 
   const submitMemberSearch = () => {
@@ -144,14 +169,16 @@ export function CreateChannelDialog({
       });
   };
 
-  const visibilityOptions: { value: Visibility; title: string; hint: string }[] = [
+  const visibilityOptions: { value: Visibility; icon: typeof Globe; title: string; hint: string }[] = [
     {
       value: "public",
+      icon: Globe,
       title: t("chat.channel.visibility_public_title"),
       hint: t("chat.channel.visibility_public_hint"),
     },
     {
       value: "private",
+      icon: Lock,
       title: t("chat.channel.visibility_private_title"),
       hint: t("chat.channel.visibility_private_hint"),
     },
@@ -159,51 +186,54 @@ export function CreateChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="lg">
+      <FormDialogContent size="lg" className={`${CHAT_DIALOG_CLASS} sm:max-w-160`}>
         <FormDialogHeader
           title={t("chat.channel.create_title")}
           description={t("chat.channel.create_description")}
         />
-        <FormDialogBody className="space-y-5">
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
           <div className="space-y-2">
-            <Label htmlFor="channel-name" className="text-label font-medium">
-              {t("chat.channel.name_label")}
-            </Label>
-            <Input
-              id="channel-name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                e.preventDefault();
-                submit();
-              }}
-              placeholder={t("chat.channel.name_placeholder")}
-              autoFocus
-              maxLength={NAME_MAX}
-            />
+            <CountedLabel htmlFor="channel-name" label={t("chat.channel.name_label")} length={name.length} max={NAME_MAX} />
+            <div className="relative">
+              <Hash
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="channel-name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                  e.preventDefault();
+                  submit();
+                }}
+                placeholder={t("chat.channel.name_placeholder")}
+                autoFocus
+                maxLength={NAME_MAX}
+                className={`${CHAT_FIELD_CLASS} pl-10`}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="channel-topic" className="text-label font-medium">
-              {t("chat.channel.topic_label")}
-            </Label>
+            <CountedLabel htmlFor="channel-topic" label={t("chat.channel.topic_label")} length={topic.length} max={TOPIC_MAX} />
             <Textarea
               id="channel-topic"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder={t("chat.channel.topic_placeholder")}
-              className="min-h-16 resize-none"
-              maxLength={280}
+              className={`${CHAT_FIELD_CLASS} h-auto min-h-16 resize-none py-3`}
+              maxLength={TOPIC_MAX}
             />
           </div>
 
           <div className="space-y-2">
-            <p id="channel-visibility-label" className="text-label font-medium text-foreground">
+            <p id="channel-visibility-label" className="text-label font-semibold text-foreground">
               {t("chat.channel.visibility_label")}
             </p>
             <RadioGroup
@@ -212,13 +242,13 @@ export function CreateChannelDialog({
               onValueChange={(value) => {
                 if (value === "public" || value === "private") setVisibility(value);
               }}
-              className="gap-2 sm:grid-cols-2"
+              className="gap-3 sm:grid-cols-2"
             >
               {visibilityOptions.map((option) => (
                 <Label
                   key={option.value}
                   htmlFor={`channel-vis-${option.value}`}
-                  className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-3 py-2.5 font-normal transition-colors hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle"
+                  className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-border p-3.5 font-normal transition-colors hover:bg-surface-hover has-[[data-checked]]:border-primary has-[[data-checked]]:bg-brand-subtle has-[[data-checked]]:ring-1 has-[[data-checked]]:ring-primary"
                 >
                   <RadioGroupItem
                     value={option.value}
@@ -226,8 +256,11 @@ export function CreateChannelDialog({
                     aria-describedby={`channel-vis-${option.value}-hint`}
                     className="mt-0.5"
                   />
-                  <span className="min-w-0 space-y-0.5">
-                    <span className="block text-body font-medium text-foreground">{option.title}</span>
+                  <span className="min-w-0 space-y-1">
+                    <span className="flex items-center gap-1.5 text-body-lg font-semibold text-foreground">
+                      <option.icon aria-hidden className="size-4 shrink-0" />
+                      {option.title}
+                    </span>
                     <span
                       id={`channel-vis-${option.value}-hint`}
                       className="block text-caption text-pretty text-muted-foreground"
@@ -241,7 +274,7 @@ export function CreateChannelDialog({
           </div>
 
           <div className="space-y-2">
-            <Label id="channel-project-label" htmlFor="channel-project" className="text-label font-medium">
+            <Label id="channel-project-label" htmlFor="channel-project" className="text-label font-semibold">
               {t("chat.channel.project_label")}
             </Label>
             <Select
@@ -255,7 +288,7 @@ export function CreateChannelDialog({
               <SelectTrigger
                 id="channel-project"
                 aria-labelledby="channel-project-label channel-project"
-                className="w-full"
+                className="min-h-11 w-full rounded-lg border-border bg-muted px-3.5 md:text-body-lg dark:bg-muted"
               >
                 <SelectValue placeholder={t("chat.channel.project_none")} />
               </SelectTrigger>
@@ -299,7 +332,8 @@ export function CreateChannelDialog({
               loading={isLoading}
               query={memberQuery}
               hasOtherMembers={hasOtherMembers}
-              onPick={addMember}
+              selectedUserIds={pickedUserIds}
+              onPick={toggleMember}
               listRef={pickerFocus.listRef}
             />
           </div>
@@ -312,12 +346,25 @@ export function CreateChannelDialog({
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("chat.channel.create")}
           submittingLabel={t("chat.channel.creating")}
           submitting={createChannel.isPending}
           submitDisabled={!nameValid}
           onSubmit={submit}
-          leading={!nameValid ? t("chat.channel.name_required") : undefined}
+          leading={
+            !nameValid
+              ? t("chat.channel.name_required")
+              : [
+                  `#${trimmedName}`,
+                  visibility === "public"
+                    ? t("chat.channel.visibility_public_title")
+                    : t("chat.channel.visibility_private_title"),
+                  pendingMembers.length > 0 ? t("chat.channel.invite_count", { count: pendingMembers.length }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+          }
         />
       </FormDialogContent>
     </Dialog>

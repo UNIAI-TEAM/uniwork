@@ -52,6 +52,9 @@ native đều sinh nợ.
   nhịp, và không kéo web vào ràng buộc của native.
 - `packages/core` phải giữ ranh giới "pure function không đụng DOM/Next" chặt hơn, vì
   mobile là consumer thứ hai.
+- Thư mục thật là `apps/chat-mobile` (UniChat, UNI-1831), và iOS + Android ship cùng lúc
+  theo spec UniChat §5 (`docs/superpowers/specs/2026-10-16-chat-native-apps-design.md`);
+  tên `apps/mobile` và "iOS trước" ở mục Quyết định là bản gốc, không sửa lại.
 
 ## Test giữ luật (điều kiện để đưa luật vào `CLAUDE.md` § Mobile Rules)
 

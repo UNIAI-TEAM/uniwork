@@ -86,3 +86,20 @@ func TestLoadRejectsMalformedDesktopAuthClients(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadDesktopAuthClientsAcceptsTheChatClientsSharingARedirect(t *testing.T) {
+	setRequired(t)
+	setDesktopAuthEnv(t, "uniwork-office=uniwork-office://auth/callback,uniwork-chat-desktop=uniworkchat://auth/callback|uniworkchat-dev://auth/callback,uniwork-chat-mobile=uniworkchat://auth/callback|uniworkchat-dev://auth/callback", "", "")
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []DesktopAuthClient{
+		{ID: "uniwork-office", RedirectURIs: []string{"uniwork-office://auth/callback"}},
+		{ID: "uniwork-chat-desktop", RedirectURIs: []string{"uniworkchat://auth/callback", "uniworkchat-dev://auth/callback"}},
+		{ID: "uniwork-chat-mobile", RedirectURIs: []string{"uniworkchat://auth/callback", "uniworkchat-dev://auth/callback"}},
+	}
+	if got := c.DesktopClients(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("DesktopClients() = %#v, want %#v", got, want)
+	}
+}

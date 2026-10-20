@@ -1,9 +1,11 @@
 "use client";
 
+import { UserMinus } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useRemoveChatRoomMember, useUpdateChatRoomMember } from "@uniwork/core/chat";
 import { ConfirmDialog } from "../common/form-dialog";
+import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import { toastChatError } from "./chat-error-message";
 
 /** What the remove confirmation says; defaults describe leaving a room. */
@@ -66,6 +68,10 @@ export function useRoomMemberModeration({
         description={pendingRemove?.description ?? t("chat.remove_member_description")}
         confirmLabel={pendingRemove?.confirmLabel ?? t("chat.remove_member_confirm")}
         pending={busyUserId != null}
+        icon={UserMinus}
+        solid
+        cancelVariant="secondary"
+        className={CHAT_CONFIRM_CLASS}
         onConfirm={() => {
           if (!pendingRemove) return;
           const { userId } = pendingRemove;

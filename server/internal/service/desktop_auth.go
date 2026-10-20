@@ -347,7 +347,7 @@ func (s *DesktopAuthService) Exchange(ctx context.Context, clientID, code, verif
 	if _, err := q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
 		ID: util.NewID(), UserID: user.ID, TokenHash: hashToken(refresh),
 		ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true}, SessionID: deviceID,
-		UserAgent: "uniwork-office/" + row.Platform, Ip: "",
+		UserAgent: row.ClientID + "/" + row.Platform, Ip: "",
 	}); err != nil {
 		return DesktopSession{}, err
 	}
@@ -448,7 +448,7 @@ func (s *DesktopAuthService) Refresh(ctx context.Context, deviceID, rawToken, de
 	if err := q.RevokeRefreshToken(ctx, oldDigest); err != nil {
 		return DesktopSession{}, err
 	}
-	if _, err := q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{ID: util.NewID(), UserID: device.UserID, TokenHash: hashToken(refresh), ExpiresAt: device.ExpiresAt, SessionID: device.SessionFamilyID, UserAgent: "uniwork-office/" + device.Platform, Ip: ""}); err != nil {
+	if _, err := q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{ID: util.NewID(), UserID: device.UserID, TokenHash: hashToken(refresh), ExpiresAt: device.ExpiresAt, SessionID: device.SessionFamilyID, UserAgent: device.ClientID + "/" + device.Platform, Ip: ""}); err != nil {
 		return DesktopSession{}, err
 	}
 	access, err := s.minter.MintSession(device.UserID, device.ID)
@@ -523,6 +523,9 @@ func revokeDesktopFamily(ctx context.Context, q *db.Queries, userID, familyID st
 	if err != nil {
 		return 0, 0, 0, err
 	}
+	if err = q.RevokePushSubscriptionsForSession(ctx, db.RevokePushSubscriptionsForSessionParams{UserID: userID, SessionID: pgtype.Text{String: familyID, Valid: true}}); err != nil {
+		return 0, 0, 0, err
+	}
 	leases, err = revokeOfficeLeasesForFamily(ctx, q, userID, familyID)
 	if err != nil {
 		return sessions, tokens, 0, err
@@ -542,6 +545,11 @@ func closeOrphanFamilyTokens(ctx context.Context, q *db.Queries, userID, familyI
 	// the token live.
 	live, err := q.CountLiveDeviceSessionsInFamily(ctx, db.CountLiveDeviceSessionsInFamilyParams{UserID: userID, SessionFamilyID: familyID})
 	if err != nil || live > 0 {
+		return 0, err
+	}
+	// The family's pushes go with its last device: a revoked phone must stop
+	// showing message previews on its lock screen.
+	if err := q.RevokePushSubscriptionsForSession(ctx, db.RevokePushSubscriptionsForSessionParams{UserID: userID, SessionID: pgtype.Text{String: familyID, Valid: true}}); err != nil {
 		return 0, err
 	}
 	return q.RevokeSessionForUser(ctx, db.RevokeSessionForUserParams{UserID: userID, SessionID: familyID})
@@ -692,7 +700,8 @@ func (s *DesktopAuthService) CheckDeviceSession(ctx context.Context, userID, ses
 
 // revokeAllUserSessions closes every device session and refresh token of the
 // user in the caller's transaction: the device rows first (in id order), then
-// refresh_tokens, then the user's offline leases (G5-D1 rows 6-7). That is
+// refresh_tokens, the pushes those devices registered, then the user's
+// offline leases (G5-D1 rows 6-7). That is
 // the order Logout, Refresh and the family revoke take them in, and a lease
 // grant also locks its device row before the lease row, so a user-wide revoke
 // racing a logout or a grant cannot deadlock (40P01). RevokeAll, account
@@ -704,6 +713,9 @@ func revokeAllUserSessions(ctx context.Context, q *db.Queries, userID string) (i
 		return 0, err
 	}
 	if err := q.RevokeAllRefreshTokensForUser(ctx, userID); err != nil {
+		return 0, err
+	}
+	if err := q.RevokeDevicePushSubscriptionsForUser(ctx, userID); err != nil {
 		return 0, err
 	}
 	return revokeOfficeLeasesForUser(ctx, q, userID)

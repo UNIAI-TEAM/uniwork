@@ -29,6 +29,7 @@ beforeAll(() => {
 const brief: ChatCatchUpResponse = {
   summary: "An nhắc hạn F-09.",
   highlights: ["Spec F-09"],
+  highlight_items: [],
   action_items: [
     {
       title: "Gửi bản nháp",
@@ -114,6 +115,7 @@ describe("ChatCatchUpSheet", () => {
           result={{
             summary: "Không có tin mới kể từ lần đọc trước.",
             highlights: [],
+            highlight_items: [],
             action_items: [],
             message_count: 0,
             mode: "unread",
@@ -175,6 +177,59 @@ describe("ChatCatchUpSheet", () => {
     fireEvent.click(jumps[0]!);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onJump).toHaveBeenCalledWith("msg-1");
+  });
+
+  it("jumps to the source message of a highlight that names one", () => {
+    const onOpenChange = vi.fn();
+    const onJump = vi.fn();
+    render(
+      wrap(
+        <ChatCatchUpSheet
+          open
+          onOpenChange={onOpenChange}
+          loading={false}
+          error={null}
+          result={{
+            ...brief,
+            highlights: ["Chốt demo thứ Sáu", "Không rõ nguồn"],
+            highlight_items: [
+              { text: "Chốt demo thứ Sáu", source_message_id: "msg-9" },
+              { text: "Không rõ nguồn", source_message_id: "" },
+            ],
+            action_items: [],
+          }}
+          workspaceId="ws1"
+          onJumpToMessage={onJump}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Không rõ nguồn")).toBeInTheDocument();
+    const jumps = screen.getAllByRole("button", { name: /catch_up_view_source|tin gốc/i });
+    expect(jumps).toHaveLength(1);
+    expect(jumps[0]).toHaveAccessibleDescription("Chốt demo thứ Sáu");
+    fireEvent.click(jumps[0]!);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onJump).toHaveBeenCalledWith("msg-9");
+  });
+
+  it("falls back to plain highlights from a server without highlight_items", () => {
+    render(
+      wrap(
+        <ChatCatchUpSheet
+          open
+          onOpenChange={vi.fn()}
+          loading={false}
+          error={null}
+          result={{ ...brief, action_items: [] }}
+          workspaceId="ws1"
+          onJumpToMessage={vi.fn()}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Spec F-09")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /catch_up_view_source|tin gốc/i })).toBeNull();
   });
 
   it("shows a skeleton with a screen-reader label while loading", () => {

@@ -8,7 +8,7 @@ import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
-import { useChildTaskProgress, useProjects } from "@uniwork/core/tasks";
+import { useChildTaskProgress, useProjects, useTaskLabelLinks, useTaskLabels } from "@uniwork/core/tasks";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -19,7 +19,8 @@ import {
 } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { NewTaskDialog } from "../new-task-dialog";
-import { toMemberOptions } from "../pickers";
+import { toMemberOptions, useStatusCatalog } from "../pickers";
+import { StatusCatalogContext } from "../pickers/status-catalog";
 import { BoardView } from "../modes/board-view";
 import type { BoardCardMeta } from "../modes/board-card";
 import { GanttView } from "../modes/gantt-view";
@@ -98,6 +99,11 @@ function TaskSurfaceContent({
     controller.viewMode === "table" ? workspaceId : "",
   );
   const { data: childProgressData } = useChildTaskProgress(workspaceId);
+  // Cards and rows draw label chips; the table pages its own, gantt draws none.
+  const wantsLabels = controller.viewMode !== "table" && controller.viewMode !== "gantt";
+  const { data: labelLinks } = useTaskLabelLinks(workspaceId, wantsLabels);
+  const { data: labelCatalog } = useTaskLabels(wantsLabels ? workspaceId : "");
+  const statusCatalog = useStatusCatalog(workspaceId);
   const batchMembers = useMemo(
     () =>
       (membersData ?? []).map((m) => ({
@@ -114,6 +120,15 @@ function TaskSurfaceContent({
     const projectNames = new Map(
       (projectsData?.projects ?? []).map((project) => [project.id, project.title]),
     );
+    const labelById = new Map((labelCatalog?.labels ?? []).map((label) => [label.id, label]));
+    const labelsByTask = new Map<string, { id: string; name: string; color: string }[]>();
+    for (const link of labelLinks?.links ?? []) {
+      const label = labelById.get(link.label_id);
+      if (!label) continue;
+      const list = labelsByTask.get(link.task_id) ?? [];
+      list.push({ id: label.id, name: label.name, color: label.color });
+      labelsByTask.set(link.task_id, list);
+    }
     const progressByTask = new Map(
       (childProgressData ?? []).map((progress) => [
         progress.parent_task_id,
@@ -128,10 +143,11 @@ function TaskSurfaceContent({
             ? projectNames.get(task.project_id)
             : undefined,
           childProgress: progressByTask.get(task.id),
+          labels: labelsByTask.get(task.id),
         },
       ]),
     );
-  }, [childProgressData, controller.surfaceTasks, projectsData?.projects]);
+  }, [childProgressData, controller.surfaceTasks, labelCatalog, labelLinks, projectsData?.projects]);
 
   const renderContext = useMemo(
     () => ({ controller }),
@@ -187,116 +203,118 @@ function TaskSurfaceContent({
     );
 
   return (
-    <TaskSurfaceActionsProvider actions={controller.actions}>
-      <TaskSurfaceSelectionProvider selection={controller.selection}>
-        <div className="flex min-h-0 flex-1 flex-col">
-          {header}
-          <AnimatePresence initial={false} mode="wait">
-            <motion.div
-              key={surfaceStageKey}
-              initial={{
-                opacity: 0,
-                x: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle,
-              }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{
-                opacity: 0,
-                x: reduceMotion ? 0 : -UI_MOTION_DISTANCE.subtle,
-              }}
-              transition={{
-                duration: reduceMotion
-                  ? UI_MOTION_DURATION.micro
-                  : UI_MOTION_DURATION.fast,
-                ease: UI_EASE_OUT,
-              }}
-              className="flex min-h-0 flex-1 flex-col overflow-hidden"
-            >
-              {controller.isLoading ? (
-                <TaskSurfaceSkeleton mode={controller.viewMode} />
-              ) : controller.isError ? (
-                <SurfaceError onRetry={controller.retry} />
-              ) : controller.isEmpty ? (
-                renderEmpty ? (
-                  renderEmpty()
-                ) : (
-                  <DefaultEmpty onCreate={() => controller.openCreateTask()} />
-                )
-              ) : (
-                <div className={cn("flex min-h-0 flex-1 flex-col")}>
-                  {controller.viewMode === "list" ? (
-                    <ListView
-                      categories={controller.boardCategories}
-                      tasks={controller.surfaceTasks}
-                      cardMeta={boardCardMeta}
-                      pagination={controller.pagination}
-                      onOpenTask={onOpenTask}
-                    />
-                  ) : controller.viewMode === "board" ? (
-                    <BoardView
-                      categories={controller.boardCategories}
-                      tasks={controller.surfaceTasks}
-                      cardMeta={boardCardMeta}
-                      projects={projectsData?.projects}
-                      columnPaging={controller.boardColumns}
-                      pagination={controller.pagination}
-                      onOpenTask={onOpenTask}
-                    />
-                  ) : controller.viewMode === "table" ? (
-                    <TableView
-                      workspaceId={workspaceId}
-                      filter={controller.tableFilter}
-                      members={tableMembers}
-                      agents={agentsData}
-                      projects={projectsData?.projects}
-                      childProgress={childProgressData}
-                      propertiesDisabled={false}
-                      projectGroupingDisabled={controller.projectGroupingDisabled}
-                      projectGroupingReasonKey={controller.projectGroupingReasonKey}
-                      onOpenTask={onOpenTask}
-                    />
-                  ) : controller.viewMode === "gantt" ? (
-                    <GanttView
-                      tasks={controller.ganttTasks}
-                      pagination={controller.pagination}
-                    />
-                  ) : controller.viewMode === "swimlane" ? (
-                    <SwimLaneView
-                      tasks={controller.surfaceTasks}
-                      pagination={controller.pagination}
-                      categories={controller.boardCategories}
-                      projects={projectsData?.projects}
-                      cardMeta={boardCardMeta}
-                      groupBranches={controller.groupBranches}
-                      projectGroupingDisabled={controller.projectGroupingDisabled}
-                      projectGroupingReasonKey={controller.projectGroupingReasonKey}
-                      parentGroupingDisabled={controller.parentGroupingDisabled}
-                      parentGroupingReasonKey={controller.parentGroupingReasonKey}
-                      onOpenTask={onOpenTask}
-                    />
+    <StatusCatalogContext value={statusCatalog}>
+      <TaskSurfaceActionsProvider actions={controller.actions}>
+        <TaskSurfaceSelectionProvider selection={controller.selection}>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {header}
+            <AnimatePresence initial={false} mode="wait">
+              <motion.div
+                key={surfaceStageKey}
+                initial={{
+                  opacity: 0,
+                  x: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle,
+                }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{
+                  opacity: 0,
+                  x: reduceMotion ? 0 : -UI_MOTION_DISTANCE.subtle,
+                }}
+                transition={{
+                  duration: reduceMotion
+                    ? UI_MOTION_DURATION.micro
+                    : UI_MOTION_DURATION.fast,
+                  ease: UI_EASE_OUT,
+                }}
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              >
+                {controller.isLoading ? (
+                  <TaskSurfaceSkeleton mode={controller.viewMode} />
+                ) : controller.isError ? (
+                  <SurfaceError onRetry={controller.retry} />
+                ) : controller.isEmpty ? (
+                  renderEmpty ? (
+                    renderEmpty()
                   ) : (
-                    <ModePlaceholder />
-                  )}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-          {showBatchToolbar ? (
-            <BatchActionToolbar
+                    <DefaultEmpty onCreate={() => controller.openCreateTask()} />
+                  )
+                ) : (
+                  <div className={cn("flex min-h-0 flex-1 flex-col")}>
+                    {controller.viewMode === "list" ? (
+                      <ListView
+                        categories={controller.boardCategories}
+                        tasks={controller.surfaceTasks}
+                        cardMeta={boardCardMeta}
+                        pagination={controller.pagination}
+                        onOpenTask={onOpenTask}
+                      />
+                    ) : controller.viewMode === "board" ? (
+                      <BoardView
+                        categories={controller.boardCategories}
+                        tasks={controller.surfaceTasks}
+                        cardMeta={boardCardMeta}
+                        projects={projectsData?.projects}
+                        columnPaging={controller.boardColumns}
+                        pagination={controller.pagination}
+                        onOpenTask={onOpenTask}
+                      />
+                    ) : controller.viewMode === "table" ? (
+                      <TableView
+                        workspaceId={workspaceId}
+                        filter={controller.tableFilter}
+                        members={tableMembers}
+                        agents={agentsData}
+                        projects={projectsData?.projects}
+                        childProgress={childProgressData}
+                        propertiesDisabled={false}
+                        projectGroupingDisabled={controller.projectGroupingDisabled}
+                        projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                        onOpenTask={onOpenTask}
+                      />
+                    ) : controller.viewMode === "gantt" ? (
+                      <GanttView
+                        tasks={controller.ganttTasks}
+                        pagination={controller.pagination}
+                      />
+                    ) : controller.viewMode === "swimlane" ? (
+                      <SwimLaneView
+                        tasks={controller.surfaceTasks}
+                        pagination={controller.pagination}
+                        categories={controller.boardCategories}
+                        projects={projectsData?.projects}
+                        cardMeta={boardCardMeta}
+                        groupBranches={controller.groupBranches}
+                        projectGroupingDisabled={controller.projectGroupingDisabled}
+                        projectGroupingReasonKey={controller.projectGroupingReasonKey}
+                        parentGroupingDisabled={controller.parentGroupingDisabled}
+                        parentGroupingReasonKey={controller.parentGroupingReasonKey}
+                        onOpenTask={onOpenTask}
+                      />
+                    ) : (
+                      <ModePlaceholder />
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+            {showBatchToolbar ? (
+              <BatchActionToolbar
+                workspaceId={workspaceId}
+                tasks={controller.surfaceTasks}
+                members={batchMembers}
+              />
+            ) : null}
+            <NewTaskDialog
               workspaceId={workspaceId}
-              tasks={controller.surfaceTasks}
-              members={batchMembers}
+              defaults={controller.createDefaults}
+              open={controller.createOpen}
+              onOpenChange={controller.setCreateOpen}
+              showTrigger={false}
             />
-          ) : null}
-          <NewTaskDialog
-            workspaceId={workspaceId}
-            defaults={controller.createDefaults}
-            open={controller.createOpen}
-            onOpenChange={controller.setCreateOpen}
-            showTrigger={false}
-          />
-        </div>
-      </TaskSurfaceSelectionProvider>
-    </TaskSurfaceActionsProvider>
+          </div>
+        </TaskSurfaceSelectionProvider>
+      </TaskSurfaceActionsProvider>
+    </StatusCatalogContext>
   );
 }
 

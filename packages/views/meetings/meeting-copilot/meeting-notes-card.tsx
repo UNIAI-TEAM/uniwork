@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { PanelCard } from "../../common/panel-card";
 
 function summaryLines(text: string): string[] {
@@ -15,7 +16,16 @@ function summaryLines(text: string): string[] {
 }
 
 /** AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles). */
-export function MeetingSummaryAttribution({ model, time }: { model?: string; time: string }) {
+export function MeetingSummaryAttribution({
+  model,
+  time,
+  sources,
+}: {
+  model?: string | null;
+  time: string;
+  /** What it was made from, already a localized list; null when not known. */
+  sources?: string | null;
+}) {
   const { t } = useTranslation();
   return (
     <p
@@ -27,9 +37,13 @@ export function MeetingSummaryAttribution({ model, time }: { model?: string; tim
         {t("meetings.aiLabel")}
       </Badge>
       <span className="min-w-0">
-        {model
-          ? t("meetings.summaryAttributionModel", { model, time })
-          : t("meetings.summaryAttribution", { time })}
+        {model && sources
+          ? t("meetings.summaryAttributionModelFrom", { model, time, sources })
+          : model
+            ? t("meetings.summaryAttributionModel", { model, time })
+            : sources
+              ? t("meetings.summaryAttributionFrom", { time, sources })
+              : t("meetings.summaryAttribution", { time })}
       </span>
     </p>
   );
@@ -40,6 +54,7 @@ export function MeetingNotesCard({
   decisions,
   summaryUpdatedAt,
   summaryModel,
+  summarySources,
   summarizing,
   emptyHint,
 }: {
@@ -48,7 +63,9 @@ export function MeetingNotesCard({
   /** When the summary was generated, already formatted with date and time. */
   summaryUpdatedAt?: string | null;
   /** The model that wrote it, when the server says. */
-  summaryModel?: string;
+  summaryModel?: string | null;
+  /** What it was made from, already a localized list. */
+  summarySources?: string | null;
   summarizing?: boolean;
   emptyHint: string;
 }) {
@@ -91,11 +108,14 @@ export function MeetingNotesCard({
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-caption font-medium text-foreground">{t("meetings.summaryTab")}</h3>
             {summarizing ? (
-              <span className="text-caption text-muted-foreground">{t("meetings.summarizing")}</span>
+              <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
+                <Spinner className="size-3.5" />
+                {t("meetings.summarizing")}
+              </span>
             ) : null}
           </div>
           {summary && summaryUpdatedAt ? (
-            <MeetingSummaryAttribution model={summaryModel} time={summaryUpdatedAt} />
+            <MeetingSummaryAttribution model={summaryModel} time={summaryUpdatedAt} sources={summarySources} />
           ) : null}
           {lines.length > 0 ? (
             <p className="text-pretty text-body text-muted-foreground">{lines[0]}</p>

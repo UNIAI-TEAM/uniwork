@@ -101,6 +101,15 @@ type Draft struct {
 	OncePerGroup bool
 }
 
+// CallRingChecker says whether a chat call still rings for a user: live, and
+// not answered by them here or on another device. ChatService implements it
+// over its in-memory call sessions, so it answers for this node only: the
+// backend runs one replica (deploy/app/uniwork/values.yaml), the same
+// assumption the call's token mint makes. It is injected through SetCallRinging.
+type CallRingChecker interface {
+	VoiceCallRinging(roomID, callID, userID string) bool
+}
+
 // env is what a rule may touch: read queries, the membership gate and the
 // injected document-read resolver.
 type env struct {
@@ -110,6 +119,7 @@ type env struct {
 	docs      DocumentReadChecker
 	docAdmins DocumentAdministerChecker
 	summaries SummaryChecker
+	calls     CallRingChecker
 }
 
 // rule turns one outbox row into drafts. Rules are pure apart from reads; the
@@ -157,6 +167,7 @@ var rules = map[string]rule{
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
 	"chat.thread.reply_received": chatMessageRule(KindChatThreadReplied),
+	"chat.voice.invite_received": ruleChatVoiceInviteReceived,
 }
 
 // snippetRunes bounds what of a comment body lands in params: enough to
@@ -1307,6 +1318,31 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 	if err != nil {
 		return nil, err
 	}
+	params := map[string]string{"body": snippet(msg.Body)}
+	groupKey := "chat_reminder:" + msg.ID
+	// Workspace channels share one workspace id for every member; batch the
+	// membership gate instead of RequireMember per recipient (UNI-1727).
+	if wsID := room.WorkspaceID.String; wsID != "" && room.Kind != "dm" && room.Kind != "group" {
+		eligible, err := e.q.FilterActiveWorkspaceMemberUserIDs(ctx, db.FilterActiveWorkspaceMemberUserIDsParams{
+			WorkspaceID: wsID, UserIds: members,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out := make([]Draft, 0, len(eligible))
+		for _, uid := range eligible {
+			if ev.ActorKind.String == string(audit.KindHuman) && ev.ActorID.String == uid {
+				continue
+			}
+			out = append(out, Draft{
+				UserID: uid, OrganizationID: msg.OrganizationID, WorkspaceID: wsID,
+				Kind: KindChatReminder, GroupKey: groupKey,
+				ResourceType: "chat_message", ResourceID: msg.ID,
+				ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+			})
+		}
+		return out, nil
+	}
 	var out []Draft
 	for _, uid := range members {
 		wsID, err := chatRecipientWorkspace(ctx, e, room, uid)
@@ -1318,8 +1354,8 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 		}
 		r := newRecipients(ctx, e, ev, wsID)
 		r.add(uid)
-		ds, err := r.drafts(msg.OrganizationID, KindChatReminder, "chat_reminder:"+msg.ID,
-			"chat_message", msg.ID, map[string]string{"body": snippet(msg.Body)})
+		ds, err := r.drafts(msg.OrganizationID, KindChatReminder, groupKey,
+			"chat_message", msg.ID, params)
 		if err != nil {
 			return nil, err
 		}

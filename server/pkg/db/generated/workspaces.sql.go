@@ -172,6 +172,48 @@ func (q *Queries) DeleteWorkspaceMember(ctx context.Context, arg DeleteWorkspace
 	return err
 }
 
+const filterActiveWorkspaceMemberUserIDs = `-- name: FilterActiveWorkspaceMemberUserIDs :many
+SELECT input.user_id::text AS user_id
+FROM unnest($1::text[]) AS input(user_id)
+JOIN workspaces w ON w.id = $2::text
+JOIN organizations o ON o.id = w.organization_id
+LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = input.user_id
+LEFT JOIN organization_members om ON om.organization_id = w.organization_id AND om.user_id = input.user_id
+WHERE COALESCE(m.role, CASE WHEN om.role IN ('owner', 'admin') THEN 'admin' END, '') <> ''
+  AND o.status = 'active'
+  AND om.deactivated_at IS NULL
+  AND (o.deletion_scheduled_at IS NULL OR om.role = 'owner')
+ORDER BY input.user_id
+`
+
+type FilterActiveWorkspaceMemberUserIDsParams struct {
+	UserIds     []string `json:"user_ids"`
+	WorkspaceID string   `json:"workspace_id"`
+}
+
+// tenant: by-id
+// Same admission as GetWorkspaceAccess / RequireMember, in one query for
+// many user ids (chat reminder delivery on large channels, UNI-1727).
+func (q *Queries) FilterActiveWorkspaceMemberUserIDs(ctx context.Context, arg FilterActiveWorkspaceMemberUserIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, filterActiveWorkspaceMemberUserIDs, arg.UserIds, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getInvitationByTokenAnyState = `-- name: GetInvitationByTokenAnyState :one
 SELECT i.id, i.organization_id, i.workspace_id, i.email, i.role, i.org_role,
        i.expires_at, i.accepted_at, i.revoked_at,

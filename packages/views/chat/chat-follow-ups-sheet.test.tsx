@@ -3,7 +3,7 @@ import { getI18n } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { requestMock, wrap } from "../test/api-mock";
-import { ChatFollowUpsSheet, followUpDue } from "./chat-follow-ups-sheet";
+import { ChatFollowUpsSheet, followUpDue, groupFollowUps } from "./chat-follow-ups-sheet";
 
 const user = {
   id: "u1",
@@ -42,6 +42,35 @@ describe("followUpDue", () => {
     expect(followUpDue(new Date(2026, 8, 23, 9, 0).toISOString(), now)?.state).toBe("upcoming");
     expect(followUpDue(null, now)).toBeNull();
     expect(followUpDue("not a date", now)).toBeNull();
+  });
+});
+
+describe("groupFollowUps", () => {
+  const now = new Date(2026, 8, 21, 12, 0);
+  const at = (day: number, hour: number) => new Date(2026, 8, day, hour, 0).toISOString();
+
+  it("puts each item under overdue, today, upcoming or no due date, keeping its order inside", () => {
+    const items = [
+      { id: "later-today", due_at: at(21, 18) },
+      { id: "none" },
+      { id: "past-2", due_at: at(20, 9) },
+      { id: "next-week", due_at: at(28, 9) },
+      { id: "past-1", due_at: at(19, 9) },
+      { id: "broken", due_at: "not a date" },
+      { id: "this-evening", due_at: at(21, 13) },
+    ];
+    const groups = groupFollowUps(items, now);
+    expect(groups.map((group) => [group.key, group.items.map((item) => item.id)])).toEqual([
+      ["overdue", ["past-2", "past-1"]],
+      ["today", ["later-today", "this-evening"]],
+      ["upcoming", ["next-week"]],
+      ["no_due", ["none", "broken"]],
+    ]);
+  });
+
+  it("leaves out the groups nothing falls in", () => {
+    expect(groupFollowUps([{ due_at: null }], now).map((group) => group.key)).toEqual(["no_due"]);
+    expect(groupFollowUps([], now)).toEqual([]);
   });
 });
 
@@ -85,6 +114,8 @@ describe("ChatFollowUpsSheet", () => {
     const pill = document.querySelector("[data-due-state]");
     expect(pill).toHaveAttribute("data-due-state", "overdue");
     expect(pill?.textContent).not.toContain(past.slice(0, 10));
+    // "Quá hạn từ 22/10": day/month with a slash (canvas).
+    expect(pill?.textContent).toMatch(/\d{2}\/\d{2}/);
 
     const deletes = screen.getAllByRole("button", { name: t("chat.follow_up.delete") });
     expect(deletes[0]).toBeDisabled();
@@ -127,6 +158,18 @@ describe("ChatFollowUpsSheet", () => {
     expect(remove).toHaveFocus();
     fireEvent.click(remove);
     await waitFor(() => expect(screen.getByRole("heading", { name: t("chat.follow_up.list_title") })).toHaveFocus());
+  });
+
+  it("draws a header per due group, each heading its own rows", async () => {
+    const past = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    requestMock.mockResolvedValue({ follow_ups: [followUp("a"), followUp("b", { due_at: past })] });
+    render(wrap(sheet()));
+    const overdue = await screen.findByRole("region", { name: t("chat.follow_up.group_overdue") });
+    expect(overdue).toHaveTextContent("Tin b");
+    const noDue = screen.getByRole("region", { name: t("chat.follow_up.group_no_due") });
+    expect(noDue).toHaveTextContent("Tin a");
+    // Overdue is drawn first even though the server sent it second.
+    expect(overdue.compareDocumentPosition(noDue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("says when the list is at the server's limit", async () => {

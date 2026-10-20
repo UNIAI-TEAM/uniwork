@@ -5,6 +5,7 @@ import {
   Bell,
   Bot,
   Building2,
+  CircleDot,
   CreditCard,
   FileText,
   Receipt,
@@ -16,6 +17,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Tag,
   User,
   Users,
   type LucideIcon,
@@ -68,6 +70,8 @@ const NotificationsTab = lazy(() => import("./notifications-tab").then((m) => ({
 const OrganizationTab = lazy(() => import("./organization-tab").then((m) => ({ default: m.OrganizationTab })));
 const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ default: m.PreferencesTab })));
 const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
+const TaskStatusesTab = lazy(() => import("./task-statuses-tab").then((m) => ({ default: m.TaskStatusesTab })));
+const TaskLabelsTab = lazy(() => import("./task-labels-tab").then((m) => ({ default: m.TaskLabelsTab })));
 
 type Gate = "billing" | "audit" | "workspace_admin" | "org_admin" | "org_owner" | "mcp";
 
@@ -121,6 +125,8 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
     tabs: [
       { value: "workspace", label: "workspace", icon: Settings, Panel: WorkspaceTab },
       { value: "members", label: "members", icon: Users, Panel: MembersTab },
+      { value: "task-statuses", label: "taskStatuses", icon: CircleDot, Panel: TaskStatusesTab },
+      { value: "task-labels", label: "taskLabels", icon: Tag, Panel: TaskLabelsTab },
       { value: "integrations", label: "integrations", icon: Plug, Panel: IntegrationsTab },
       { value: "ai", label: "ai", icon: Sparkles, Panel: AiTab, gate: "workspace_admin" },
     ],

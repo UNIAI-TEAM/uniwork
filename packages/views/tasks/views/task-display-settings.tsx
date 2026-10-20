@@ -84,7 +84,6 @@ export function TaskDisplaySettings({
   showProjectGrouping = true,
   projectGroupingDisabled = false,
   projectGroupingReasonKey,
-  labelsDisabled = false,
   compact = false,
 }: {
   showMode?: boolean;
@@ -92,7 +91,6 @@ export function TaskDisplaySettings({
   showProjectGrouping?: boolean;
   projectGroupingDisabled?: boolean;
   projectGroupingReasonKey?: string;
-  labelsDisabled?: boolean;
   compact?: boolean;
 }) {
   const { t } = useTranslation();
@@ -319,13 +317,7 @@ export function TaskDisplaySettings({
               <SettingSwitch
                 key={key}
                 label={t(`tasks.display.card_${key}`)}
-                checked={labelsDisabled && key === "labels" ? false : cardProperties[key]}
-                disabled={labelsDisabled && key === "labels"}
-                disabledReason={
-                  labelsDisabled && key === "labels"
-                    ? t("tasks.display.labels_unavailable")
-                    : undefined
-                }
+                checked={cardProperties[key]}
                 onCheckedChange={() => toggleCardProperty(key)}
                 compact={compact}
               />
@@ -341,30 +333,24 @@ function SettingSwitch({
   label,
   checked,
   onCheckedChange,
-  disabled = false,
-  disabledReason,
   compact = false,
 }: {
   label: string;
   checked: boolean;
   onCheckedChange: () => void;
-  disabled?: boolean;
-  disabledReason?: string;
   compact?: boolean;
 }) {
   return (
     <label
       className={cn(
-        "flex cursor-pointer items-center justify-between gap-3 text-body has-data-disabled:cursor-not-allowed has-data-disabled:opacity-60",
+        "flex cursor-pointer items-center justify-between gap-3 text-body",
         compact && "min-w-0 rounded-md px-1 py-0.5",
       )}
-      title={disabled ? disabledReason : undefined}
     >
       <span>{label}</span>
       <Switch
         size="sm"
         checked={checked}
-        disabled={disabled}
         onCheckedChange={onCheckedChange}
       />
     </label>

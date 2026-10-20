@@ -368,3 +368,63 @@ func TestDeleteTaskDropsItsChatLinks(t *testing.T) {
 		t.Fatalf("sync freed thread to a new task: %v", err)
 	}
 }
+
+func TestListRoomLinkedTasksDistinctNewestFirst(t *testing.T) {
+	s, tasks, _, ua, w, _ := chatWithTasks(t)
+	ctx := context.Background()
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	send := func(body string) string {
+		msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return msg.ID
+	}
+	m1, m2 := send("first"), send("second")
+
+	first, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, m1, CreateTaskFromMessageInput{Title: "first"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	due := "2026-10-23"
+	second, err := tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "second", AssigneeID: &ua.ID, AssigneeKind: "human", DueDate: &due})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{second.ID, first.ID} {
+		if _, err := s.LinkChatMessage(ctx, ua.ID, w.ID, m2, CreateChatMessageLinkInput{TargetType: "task", TargetID: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rows, total, err := s.ListRoomLinkedTasks(ctx, ua.ID, w.ID, room.RoomID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(rows) != 2 || rows[0].ID != first.ID || rows[1].ID != second.ID {
+		t.Fatalf("total=%d rows=%+v, want first (relinked last) then second", total, rows)
+	}
+	if rows[1].AssigneeName != "A" || rows[1].DueDate.Time.Format("2006-01-02") != due {
+		t.Fatalf("second row: %+v", rows[1])
+	}
+
+	rows, total, err = s.ListRoomLinkedTasks(ctx, ua.ID, w.ID, room.RoomID, 1)
+	if err != nil || total != 2 || len(rows) != 1 {
+		t.Fatalf("limit 1: err=%v total=%d len=%d", err, total, len(rows))
+	}
+}
+
+func TestListRoomLinkedTasksRefusesANonMember(t *testing.T) {
+	s, _, _, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.ListRoomLinkedTasks(ctx, ub.ID, w.ID, room.RoomID, 0); !errors.Is(err, ErrForbidden) && !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member: err=%v, want ErrForbidden or ErrNotFound", err)
+	}
+}

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -65,9 +64,7 @@ func (s *MeetingService) AppendTranscript(ctx context.Context, userID, meetingID
 	if text == "" {
 		return db.MeetingTranscriptSegment{}, Invalid("nội dung không được để trống")
 	}
-	if len(text) > 4000 {
-		text = text[:4000]
-	}
+	text = capRunes(text, transcriptSegmentRunes, "")
 	if spokenAt.IsZero() {
 		spokenAt = time.Now().UTC()
 	}
@@ -114,9 +111,7 @@ func (s *MeetingService) AppendTranscriptFromAgent(ctx context.Context, meetingI
 	if text == "" {
 		return db.MeetingTranscriptSegment{}, Invalid("nội dung không được để trống")
 	}
-	if len(text) > 4000 {
-		text = text[:4000]
-	}
+	text = capRunes(text, transcriptSegmentRunes, "")
 	if spokenAt.IsZero() {
 		spokenAt = time.Now().UTC()
 	}
@@ -222,22 +217,29 @@ type MeetingCapabilities struct {
 	AISummary, Recording, ServerSTT bool
 }
 
-// Capabilities answers GET /workspaces/{id}/meeting-capabilities. The flags
-// are process-wide today, but the route names a workspace, so only its
-// members get an answer - like every other workspace route (ADR 0008).
+// Capabilities answers GET /workspaces/{id}/meeting-capabilities. The route
+// names a workspace, so only its members get an answer - like every other
+// workspace route (ADR 0008). AISummary is SummaryAvailable for the
+// workspace's organization: a plan without meeting.ai_summary hides the
+// button instead of offering one that only answers 403 (UNI-1853 M8). The
+// other flags are process-wide.
 func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID string) (MeetingCapabilities, error) {
-	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
+	if err != nil {
 		return MeetingCapabilities{}, err
 	}
 	return MeetingCapabilities{
-		AISummary: s.AIEnabled(), Recording: s.RecordingEnabled(ctx), ServerSTT: s.STTAgentEnabled(),
+		AISummary: s.SummaryAvailable(ctx, mem.OrganizationID), Recording: s.RecordingEnabled(ctx), ServerSTT: s.STTAgentEnabled(),
 	}, nil
 }
 
 // Summarize gathers transcript, notes, chat, the attendance report and the
 // closed votes, asks the gateway (capability meeting_summarization) and
 // stores the result with the usage row that paid for it. Any host/admin may
-// re-run it; the latest row wins.
+// re-run it; the latest row wins. One run per meeting at a time
+// (claimSummaryRun): a second one answers 409 summary_in_progress instead of
+// paying the model twice. Every failure carries a fixed message and a code
+// the client translates (summaryFailure); the cause is logged, ids only.
 func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, locale string) (db.MeetingSummary, error) {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
@@ -247,17 +249,26 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 		return db.MeetingSummary{}, err
 	}
 	if !s.AI.Enabled() {
-		return db.MeetingSummary{}, coded(http.StatusServiceUnavailable, "ai_not_configured", "AI chưa được cấu hình trên server")
+		s.summaryErrorCount(summaryReasonNotConfigured)
+		return db.MeetingSummary{}, errSummaryNotConfigured()
 	}
 	if m.Status != MeetingInProgress && m.Status != MeetingEnded {
 		return db.MeetingSummary{}, errInvalidState()
 	}
+	release, err := s.claimSummaryRun(ctx, m)
+	if err != nil {
+		return db.MeetingSummary{}, err
+	}
+	defer release()
+	// Reading the sources and asking the model end inside the lease.
+	runCtx, cancelRun := context.WithTimeout(ctx, summaryRunBudget)
+	defer cancelRun()
 	var segs []db.MeetingTranscriptSegment
 	var notes []db.ListMeetingNotesRow
 	var chat []db.MeetingChatMessage
 	var rep AttendanceReport
 	var closed []db.MeetingMotion
-	g, gctx := errgroup.WithContext(ctx)
+	g, gctx := errgroup.WithContext(runCtx)
 	g.Go(func() error {
 		var err error
 		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: summaryTranscriptRows})
@@ -291,25 +302,24 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	// Attendance alone is not material (every meeting has a roll); a closed
 	// vote is: it is a decision the minutes must carry.
 	if len(segs) == 0 && len(notes) == 0 && len(chat) == 0 && len(closed) == 0 {
-		return db.MeetingSummary{}, coded(http.StatusConflict, "nothing_to_summarize", "chưa có transcript, ghi chú, chat hay kết quả biểu quyết nào để tóm tắt")
+		return db.MeetingSummary{}, errSummaryNoSource()
 	}
 	orgID, err := s.organizationOf(ctx, m)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
+	// Notes and transcript share one rune budget: notes take what they need
+	// up to summaryNotesRunes and the transcript gets the rest (UNI-1853 L3).
+	noteLines, notesUsed := summaryNoteLines(notes)
 	transcript := make([]ai.TranscriptLine, 0, len(segs))
 	for _, sg := range segs {
 		transcript = append(transcript, ai.TranscriptLine{Speaker: sg.SpeakerName, Text: sg.Text})
 	}
-	transcript = windowSummaryLines(transcript, summaryTranscriptRunes,
+	transcript = windowSummaryLines(transcript, summaryTranscriptRunes-notesUsed,
 		func(l ai.TranscriptLine) int {
 			return utf8.RuneCountInString(l.Speaker) + utf8.RuneCountInString(l.Text) + 3
 		},
 		func(n int) ai.TranscriptLine { return ai.TranscriptLine{Speaker: "…", Text: summaryOmitted(n)} })
-	noteBodies := make([]string, 0, len(notes))
-	for _, n := range notes {
-		noteBodies = append(noteBodies, n.Body)
-	}
 	chatLines := make([]ai.ChatLine, 0, len(chat))
 	for _, c := range chat {
 		chatLines = append(chatLines, ai.ChatLine{Sender: c.SenderName, Text: c.Message})
@@ -317,41 +327,36 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	chatLines = windowSummaryLines(chatLines, summaryChatRunes,
 		func(l ai.ChatLine) int { return utf8.RuneCountInString(l.Sender) + utf8.RuneCountInString(l.Text) + 3 },
 		func(n int) ai.ChatLine { return ai.ChatLine{Sender: "…", Text: summaryOmitted(n)} })
-	resp, err := s.AI.Complete(ctx, ai.Request{
+	resp, err := s.AI.Complete(runCtx, ai.Request{
 		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
 		Vars: map[string]any{
 			"title": m.Title, "agenda": m.Description, "locale": locale,
-			"transcript": transcript, "notes": noteBodies, "chat": chatLines,
+			"transcript": transcript, "notes": noteLines, "chat": chatLines,
 			"attendance": summaryAttendanceFacts(m, rep), "motions": summaryMotionFacts(closed),
 		},
 	})
 	if err != nil {
-		s.count("summary_error")
-		var aiErr *ai.Error
-		if errors.As(err, &aiErr) {
-			return db.MeetingSummary{}, coded(aiErr.Status, aiErr.Code, aiErr.Msg)
-		}
-		return db.MeetingSummary{}, coded(http.StatusBadGateway, "ai_failed", "không tạo được tóm tắt: "+err.Error())
+		return db.MeetingSummary{}, s.summaryFailure(m.ID, "", err)
 	}
+	if strings.TrimSpace(resp.Text) == "" {
+		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonEmpty, err: errSummaryEmptyOutput})
+	}
+	// ParseSummaryJSON also refuses an object with no summary, decisions or
+	// action items, so that answer counts as parse; empty is blank text only.
 	res, err := ai.ParseSummaryJSON(resp.Text)
 	if err != nil {
-		s.count("summary_error")
-		return db.MeetingSummary{}, coded(http.StatusBadGateway, "ai_failed", "không tạo được tóm tắt: "+err.Error())
+		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonParse, err: err})
 	}
-	decisions, _ := json.Marshal(res.Decisions)
-	items, _ := json.Marshal(res.ActionItems)
-	row, err := s.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, Summary: res.Summary,
-		Decisions: string(decisions), ActionItems: string(items), Model: resp.Model, CreatedBy: userID,
-		UsageEventID: strText(resp.UsageEventID),
-	})
+	// The answer is billed: store it even if the request has gone away, the
+	// way the gateway still settles its usage row.
+	storeCtx, cancelStore := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
+	defer cancelStore()
+	row, err := s.storeSummary(storeCtx, m, userID, res, resp)
 	if err != nil {
-		return db.MeetingSummary{}, err
+		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
 	}
 	s.count("summary_ok")
-	_ = s.writeAudit(ctx, s.q, m, "SUMMARY_CREATED", userID, "", row.ID, "{}")
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "summary.created", Payload: map[string]string{"meeting_id": meetingID}})
 	return row, nil
 }
 
@@ -456,74 +461,6 @@ type SummaryTaskItem struct {
 	DueDate     *string
 	Owner       string
 	DueSpoken   string
-}
-
-// CreateTasksFromSummary turns chosen action items into workspace tasks.
-func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, meetingID string, items []SummaryTaskItem) ([]db.Task, error) {
-	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
-	if err != nil {
-		return nil, err
-	}
-	if s.Tasks == nil {
-		return nil, coded(http.StatusServiceUnavailable, "tasks_unavailable", "task service chưa sẵn sàng")
-	}
-	if len(items) == 0 {
-		return nil, Invalid("cần ít nhất một việc")
-	}
-	if len(items) > 50 {
-		return nil, Invalid("tối đa 50 việc mỗi lần")
-	}
-	candidates, err := s.loadAssigneeCandidates(ctx, meetingID, m.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	anchor := meetingDueAnchor(m)
-	meetingOrigin := meetingID
-	out := make([]db.Task, 0, len(items))
-	for _, it := range items {
-		assigneeID := it.AssigneeID
-		if assigneeID == nil && strings.TrimSpace(it.Owner) != "" {
-			assigneeID = candidates.resolve(it.Owner)
-		}
-		dueDate := it.DueDate
-		if dueDate == nil && strings.TrimSpace(it.DueSpoken) != "" {
-			dueDate = parseMeetingDueSpoken(it.DueSpoken, anchor)
-		}
-		desc := strings.TrimSpace(it.Description)
-		var extra []string
-		if strings.TrimSpace(it.Owner) != "" && assigneeID == nil {
-			extra = append(extra, "Người phụ trách (AI): "+strings.TrimSpace(it.Owner))
-		}
-		if strings.TrimSpace(it.DueSpoken) != "" && dueDate == nil {
-			extra = append(extra, "Hạn (AI): "+strings.TrimSpace(it.DueSpoken))
-		}
-		if len(extra) > 0 {
-			block := strings.Join(extra, "\n")
-			if desc == "" {
-				desc = block
-			} else {
-				desc = desc + "\n" + block
-			}
-		}
-		origin := "Từ cuộc họp: " + m.Title
-		if desc == "" {
-			desc = origin
-		} else {
-			desc = desc + "\n\n" + origin
-		}
-		priority := strings.TrimSpace(it.Priority)
-		t, err := s.Tasks.Create(ctx, Human(userID), m.WorkspaceID, CreateTaskInput{
-			Title: it.Title, Description: desc, AssigneeID: assigneeID, DueDate: dueDate, ProjectID: it.ProjectID,
-			Priority: priority, OriginType: "meeting", OriginID: &meetingOrigin,
-		})
-		if err != nil {
-			return out, err
-		}
-		out = append(out, t)
-	}
-	payload, _ := json.Marshal(map[string]int{"count": len(out)})
-	_ = s.writeAudit(ctx, s.q, m, "TASKS_CREATED_FROM_SUMMARY", userID, "", "", string(payload))
-	return out, nil
 }
 
 // ---- Recording ---------------------------------------------------------------
