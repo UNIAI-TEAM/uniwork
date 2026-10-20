@@ -5,12 +5,15 @@
 -- name: InsertDocumentShare :one
 INSERT INTO document_shares (
   id, organization_id, workspace_id, document_id, principal_type,
-  principal_id, level, granted_by, granted_by_kind
+  principal_id, level, granted_by, granted_by_kind,
+  source_kind, source_room_id, source_message_id, prior_manual_level
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
   sqlc.arg(document_id), sqlc.arg(principal_type),
   sqlc.arg(principal_id), sqlc.arg(level), sqlc.arg(granted_by),
-  sqlc.arg(granted_by_kind)
+  sqlc.arg(granted_by_kind),
+  sqlc.narg(source_kind), sqlc.narg(source_room_id),
+  sqlc.narg(source_message_id), sqlc.narg(prior_manual_level)
 )
 RETURNING *;
 
@@ -201,3 +204,77 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id)
   AND revoked_at IS NULL;
+
+-- Live chat-origin shares granted to one user from one chat room in the
+-- organization (UNI-2012 D2a). Manual shares and pre-existing chat shares have
+-- source_kind IS NULL and are never returned here.
+-- name: ListLiveChatDocumentSharesForUserInRoom :many
+SELECT *
+FROM document_shares
+WHERE organization_id = sqlc.arg(organization_id)
+  AND principal_type = 'user'
+  AND principal_id = sqlc.arg(user_id)
+  AND source_kind = 'chat'
+  AND source_room_id = sqlc.arg(room_id)
+  AND revoked_at IS NULL
+ORDER BY created_at, id;
+
+-- Live chat-origin shares granted to one user in the organization whose source
+-- room no longer holds the user as an invited or active member (UNI-2012 D2a).
+-- name: ListLiveChatDocumentSharesForUserLeftRooms :many
+SELECT s.*
+FROM document_shares s
+WHERE s.organization_id = sqlc.arg(organization_id)
+  AND s.principal_type = 'user'
+  AND s.principal_id = sqlc.arg(user_id)
+  AND s.source_kind = 'chat'
+  AND s.revoked_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM chat_room_members m
+    JOIN chat_rooms r ON r.id = m.room_id
+    WHERE m.organization_id = s.organization_id
+      AND m.room_id = s.source_room_id
+      AND m.user_id = s.principal_id
+      AND m.status IN ('invited', 'active')
+      AND r.archived_at IS NULL
+  )
+ORDER BY s.created_at, s.id;
+
+-- Another non-archived chat room in the organization where the user is still
+-- an invited or active member and a live document message names the document
+-- (UNI-2012 D2a).
+-- name: FindActiveChatRoomDocumentMessageForUser :one
+SELECT m.room_id, msg.id AS message_id
+FROM chat_room_members m
+JOIN chat_rooms r
+  ON r.id = m.room_id
+ AND r.organization_id = m.organization_id
+JOIN chat_messages msg
+  ON msg.room_id = m.room_id
+ AND msg.organization_id = m.organization_id
+WHERE m.organization_id = sqlc.arg(organization_id)
+  AND m.user_id = sqlc.arg(user_id)
+  AND m.status IN ('invited', 'active')
+  AND r.archived_at IS NULL
+  AND msg.deleted_at IS NULL
+  AND msg.kind = 'document'
+  AND msg.metadata->>'document_id' = sqlc.arg(document_id)::text
+  AND (sqlc.arg(exclude_room_id)::text = '' OR m.room_id <> sqlc.arg(exclude_room_id)::text)
+ORDER BY msg.created_at ASC, msg.id ASC
+LIMIT 1;
+
+-- Re-points a live chat-origin share to a surviving room and message when the
+-- recipient leaves one room while remaining active in another room that holds
+-- a live card for the same document (UNI-2012 D2a).
+-- name: RepointDocumentShareChatSource :one
+UPDATE document_shares
+SET source_room_id = sqlc.arg(source_room_id),
+    source_message_id = sqlc.narg(source_message_id)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND source_kind = 'chat'
+  AND revoked_at IS NULL
+RETURNING *;
