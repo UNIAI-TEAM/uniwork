@@ -1,0 +1,5 @@
+$ for i in $(seq 1 90); do curl -sf http://localhost:19696/healthz >/dev/null && curl -sf http://localhost:14696 >/dev/null && break; sleep 2; done; curl -sf http://localhost:19696/readyz && echo READY; curl -sf http://localhost:14696 >/dev/null; rc=$?; echo; echo "WEB_UP_EXIT=$rc"
+{"ready":true,"checks":[{"name":"db","ok":true},{"name":"migrations","ok":true,"detail":"9991792407200000_chat_messages_document_kinds"},{"name":"redis","ok":true},{"name":"storage","ok":true}]}
+READY
+
+WEB_UP_EXIT=0

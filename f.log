@@ -1,0 +1,4 @@
+$ cd server && go test -count=1 ./internal/handler/dto/sdo/ ./internal/service/ -run 'Error|Class|Lint|Tenant|Query|AuditCoverage|Arch' 2>&1 | grep -E "^(--- FAIL|ok|FAIL)|_test.go:[0-9]+:" | head -30; go build ./cmd/uniwork-admin; echo "MISC_I7_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.012s
+ok  	github.com/unicomhub/uniwork/server/internal/service	15.204s
+MISC_I7_EXIT=0

@@ -1,0 +1,182 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19696 FRONTEND_ORIGIN=http://localhost:14696 API_PUBLIC_URL=http://localhost:19696 PREVIEW_ORIGIN=http://localhost:14697 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19696 NEXT_PUBLIC_WS_URL=ws://localhost:19696 NEXT_PUBLIC_APP_URL=http://localhost:14696 E2E_BASE_URL=http://localhost:14696 E2E_API_URL=http://localhost:19696 OFFICE_FORK_SHA=$(node -p "require('./apps/web/platform/office-frame/docs.pin.json').gitSha" 2>/dev/null); rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test --workers=1 chat-document-share.spec.ts files-chat.spec.ts documents-share.spec.ts --reporter=list > /tmp/ri7-docs.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/ri7-docs.log | tail -n 40; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 6000 "$f"; }; done; for f in e2e/test-results/*S9-result-line*light-vi*/error-context.md; do [ -f "$f" ] && { echo "===== S9_PANEL_TAIL $f"; tail -c 14000 "$f"; }; done; echo "===== S9_SERVER_AI"; grep -E "/ai/|chat/completions|uniwork|ai_provider|fake" /tmp/ri7-server.log | grep -vE "path=/api/v1/office-frame/documents/[A-Z0-9]+(/content|/uploads|/versions)" | tail -n 80; grep -qE "[0-9]+ (skipped|did not run)" /tmp/ri7-docs.log && echo "skipped: documents has gated or skipped tests"; grep -qE "[0-9]+ passed" /tmp/ri7-docs.log || { echo "no passing test matched documents"; [ $rc -eq 0 ] && rc=1; }; echo; echo "E2E_I7_EXIT=$rc"
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="space-y-2">…</div> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <input type="search" data-slot="input" autocomplete="off" value="chat-owner" id="start-dm-search" aria-describedby="start-dm-search-hint" placeholder="VD: Minh hoặc minh@congty.vn" class="h-8 w-full min-w-0 pointer-coarse:min-h-11 rounded-control border px-2.5 py-1 font-sans text-title-sm tracking-normal transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-body file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-…/> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      317 |     // The owner's display name comes from registerVerified("chat-owner").
+      318 |     await member.getByLabel("Tên hoặc email").fill("chat-owner");
+    > 319 |     await member.getByRole("button", { name: /chat-owner/ }).first().click();
+          |                                                                      ^
+      320 |
+      321 |     const dmComposer = member.getByPlaceholder("Nhập tin nhắn…");
+      322 |     await expect(dmComposer).toBeVisible({ timeout: 20_000 });
+
+    Error Context: test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/error-context.md
+
+    Error Context: test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    files-chat.spec.ts:312:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+  17 passed (5.5m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --workers=1 chat-document-share.spec.ts files-chat.spec.ts documents-share.spec.ts --reporter=list
+===== e2e/test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: files-chat.spec.ts >> chat file and voice messages >> blocking a peer closes the direct messages in both directions
+- Location: files-chat.spec.ts:312:3
+
+# Error details
+
+```
+Test timeout of 240000ms exceeded.
+```
+
+```
+Error: locator.click: Target page, context or browser has been closed
+Call log:
+  - waiting for getByRole('button', { name: /chat-owner/ }).first()
+    - locator resolved to <button tabindex="0" type="button" id="base-ui-_r_46_" aria-expanded="false" aria-haspopup="dialog" data-slot="dialog-trigger" data-base-ui-click-trigger="" aria-label="Xem thông tin của chat-owner" class="inline-flex shrink-0 rounded-full cursor-pointer">…</button>
+  - attempting click action
+    - waiting for element to be visible, enabled and stable
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - <label data-slot="label" for="start-dm-search" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-label font-medium text-foreground">Tên hoặc email</label> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+  - retrying click action
+    - waiting for element to be visible, enabled and stable
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - <div class="space-y-2">…</div> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+  - retrying click action
+    - waiting 20ms
+    - waiting for element to be visible, enabled and stable
+    - element is visible, enabled and stable
+    - scrolling into view if needed
+    - done scrolling
+    - <input type="search" data-slot="input" autocomplete="off" value="chat-owner" id="start-dm-search" aria-describedby="start-dm-search-hint" placeholder="VD: Minh hoặc minh@congty.vn" class="h-8 w-full min-w-0 pointer-coarse:min-h-11 rounded-control border px-2.5 py-1 font-sans text-title-sm tracking-normal transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-body file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-…/> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+  2 × retrying click action
+      - waiting 100ms
+      - waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <label data-slot="label" for="start-dm-search" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-label font-medium text-foreground">Tên hoặc email</label> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+  115 × retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="space-y-2">…</div> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <input type="search" data-slot="input" autocomplete="off" value="chat-owner" id="start-dm-search" aria-describedby="start-dm-search-hint" placeholder="VD: Minh hoặc minh@congty.vn" class="h-8 w-full min-w-0 pointer-coarse:min-h-11 rounded-control border px-2.5 py-1 font-sans text-title-sm tracking-normal transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-body file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-…/> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <label data-slot="label" for="start-dm-search" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-label font-medium text-foreground">Tên hoặc email</label> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <label data-slot="label" for="start-dm-search" class="flex items-center gap-2 select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 text-label font-medium text-foreground">Tên hoặc email</label> from <div id="_r_5n_" data-base-ui-portal="" data-slot="dialog-portal">…</div> subtree intercepts pointer events
+  - retrying click action
+    - waiting 500ms
+    - waiting for element to be visible, enabled and stable
+    - element is visible, ena===== S9_SERVER_AI
+01:15:08.754 INF local storage adapter ready dir=/tmp/uniwork-uploads
+01:15:08.757 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+01:15:08.758 INF ai gateway enabled component=server provider=fake
+01:17:00.400 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE44XA52EJ98JXEKK69Z7D/ai/capabilities status=200 duration=9µs request_id=cursor/TqVJooW07t-000057 correlation_id=861e7ef0f16e209c705300c0d8984e54 trace_id=861e7ef0f16e209c705300c0d8984e54 span_id=4d1c9d7a0222be06
+01:17:00.421 INF http request method=GET path=/api/v1/workspaces/01M5BE44XA52EJ98JXEKK69Z7D/ai/capabilities status=200 duration=15.831ms request_id=cursor/TqVJooW07t-000066 correlation_id=dc863cd1542e7421dec6d6f2f52dcda8 trace_id=dc863cd1542e7421dec6d6f2f52dcda8 span_id=b29d216a0e40f400 organization_id=01M5BE44X0HP4MRHKQ5MFT2ZRY workspace_id=01M5BE44XA52EJ98JXEKK69Z7D actor_id=01M5BE44W8DSXS5NR7M6VYPGGZ actor_kind=human
+01:17:01.712 INF http request method=GET path=/api/v1/workspaces/01M5BE44XA52EJ98JXEKK69Z7D/ai/capabilities status=200 duration=21.263ms request_id=cursor/TqVJooW07t-000099 correlation_id=acaad713875e19215fdf58bdbde0bfc3 trace_id=acaad713875e19215fdf58bdbde0bfc3 span_id=c95b5a574e23e7e9 organization_id=01M5BE44X0HP4MRHKQ5MFT2ZRY workspace_id=01M5BE44XA52EJ98JXEKK69Z7D actor_id=01M5BE44W8DSXS5NR7M6VYPGGZ actor_kind=human
+01:17:02.726 INF http request method=GET path=/api/v1/workspaces/01M5BE44XA52EJ98JXEKK69Z7D/ai/capabilities status=200 duration=12.756ms request_id=cursor/TqVJooW07t-000152 correlation_id=f3d5594b68136d3cac0a2fb41fbe1ee3 trace_id=f3d5594b68136d3cac0a2fb41fbe1ee3 span_id=9762c8aa58ab81b5 organization_id=01M5BE44X0HP4MRHKQ5MFT2ZRY workspace_id=01M5BE44XA52EJ98JXEKK69Z7D actor_id=01M5BE44ZHKJJ8MWDYY6CQ1QF5 actor_kind=human
+01:17:03.265 INF http request method=GET path=/api/v1/workspaces/01M5BE44XA52EJ98JXEKK69Z7D/ai/capabilities status=200 duration=9.7ms request_id=cursor/TqVJooW07t-000170 correlation_id=e8f00748c764727a41c3056a55dac790 trace_id=e8f00748c764727a41c3056a55dac790 span_id=f0bba6e4c5d3d7dc organization_id=01M5BE44X0HP4MRHKQ5MFT2ZRY workspace_id=01M5BE44XA52EJ98JXEKK69Z7D actor_id=01M5BE44ZHKJJ8MWDYY6CQ1QF5 actor_kind=human
+01:17:06.004 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE44XA52EJ98JXEKK69Z7D/ai/capabilities status=200 duration=9µs request_id=cursor/TqVJooW07t-000248 correlation_id=56fd0ebe09c0074505c49efdea563ec1 trace_id=56fd0ebe09c0074505c49efdea563ec1 span_id=612f8721c9e50e09
+01:17:06.021 INF http request method=GET path=/api/v1/workspaces/01M5BE44XA52EJ98JXEKK69Z7D/ai/capabilities status=200 duration=15.571ms request_id=cursor/TqVJooW07t-000250 correlation_id=20f0f40074e898dfc9941650d092daef trace_id=20f0f40074e898dfc9941650d092daef span_id=eecb6b609e6ba357 organization_id=01M5BE44X0HP4MRHKQ5MFT2ZRY workspace_id=01M5BE44XA52EJ98JXEKK69Z7D actor_id=01M5BE44W8DSXS5NR7M6VYPGGZ actor_kind=human
+01:17:06.544 INF http request method=GET path=/api/v1/workspaces/01M5BE44XA52EJ98JXEKK69Z7D/ai/capabilities status=200 duration=13.838ms request_id=cursor/TqVJooW07t-000274 correlation_id=462a21284f1a42807b0e20541661efb5 trace_id=462a21284f1a42807b0e20541661efb5 span_id=1f767c22d97efa05 organization_id=01M5BE44X0HP4MRHKQ5MFT2ZRY workspace_id=01M5BE44XA52EJ98JXEKK69Z7D actor_id=01M5BE44W8DSXS5NR7M6VYPGGZ actor_kind=human
+01:17:09.031 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4DDGSJZ2FYPR3E0A3BM8/ai/capabilities status=200 duration=5µs request_id=cursor/TqVJooW07t-000342 correlation_id=0908ac3adaa9f366202615bd670d70be trace_id=0908ac3adaa9f366202615bd670d70be span_id=7f84b109f5a427e6
+01:17:09.045 INF http request method=GET path=/api/v1/workspaces/01M5BE4DDGSJZ2FYPR3E0A3BM8/ai/capabilities status=200 duration=10.189ms request_id=cursor/TqVJooW07t-000345 correlation_id=1306e328a0f22feed98fc7a61c8daf16 trace_id=1306e328a0f22feed98fc7a61c8daf16 span_id=3f7e04728be6a459 organization_id=01M5BE4DD9JQ6Z1ZTG51ZKGBSJ workspace_id=01M5BE4DDGSJZ2FYPR3E0A3BM8 actor_id=01M5BE4DCV1AKDBQ4A3SNFEHXQ actor_kind=human
+01:17:09.673 INF http request method=GET path=/api/v1/workspaces/01M5BE4DDGSJZ2FYPR3E0A3BM8/ai/capabilities status=200 duration=24.844ms request_id=cursor/TqVJooW07t-000360 correlation_id=480aabf11e9e0de414ec4ba27783fce7 trace_id=480aabf11e9e0de414ec4ba27783fce7 span_id=272ac4448074f6e7 organization_id=01M5BE4DD9JQ6Z1ZTG51ZKGBSJ workspace_id=01M5BE4DDGSJZ2FYPR3E0A3BM8 actor_id=01M5BE4DCV1AKDBQ4A3SNFEHXQ actor_kind=human
+01:17:11.358 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4FNT0VRYBZ57SG9DGRP8/ai/capabilities status=200 duration=2µs request_id=cursor/TqVJooW07t-000435 correlation_id=6bc3611ef0710aa0a118c5566a51e6d5 trace_id=6bc3611ef0710aa0a118c5566a51e6d5 span_id=0a367a58dc19506d
+01:17:11.368 INF http request method=GET path=/api/v1/workspaces/01M5BE4FNT0VRYBZ57SG9DGRP8/ai/capabilities status=200 duration=4.511ms request_id=cursor/TqVJooW07t-000444 correlation_id=82f8cfb866ab2cc30d644d0f1dc3d546 trace_id=82f8cfb866ab2cc30d644d0f1dc3d546 span_id=0b0a4a49c5fd9312 organization_id=01M5BE4FNMQNGJYWBC9690DEH5 workspace_id=01M5BE4FNT0VRYBZ57SG9DGRP8 actor_id=01M5BE4FN530KQ65E2ZD4V5X45 actor_kind=human
+01:17:11.996 INF http request method=GET path=/api/v1/workspaces/01M5BE4FNT0VRYBZ57SG9DGRP8/ai/capabilities status=200 duration=1.686ms request_id=cursor/TqVJooW07t-000461 correlation_id=7419fed7981153accab4ca9e043afac2 trace_id=7419fed7981153accab4ca9e043afac2 span_id=a61fa11161f5316e organization_id=01M5BE4FNMQNGJYWBC9690DEH5 workspace_id=01M5BE4FNT0VRYBZ57SG9DGRP8 actor_id=01M5BE4FN530KQ65E2ZD4V5X45 actor_kind=human
+01:17:15.583 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=7µs request_id=cursor/TqVJooW07t-000655 correlation_id=a37fabfe13dd23a1b1efeccfb6401a04 trace_id=a37fabfe13dd23a1b1efeccfb6401a04 span_id=258c7b0ccf081352
+01:17:15.594 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=9.839ms request_id=cursor/TqVJooW07t-000659 correlation_id=0dcc2879958baf517e2fc17e524f2267 trace_id=0dcc2879958baf517e2fc17e524f2267 span_id=c22b144226faa81a organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:16.654 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=2.882ms request_id=cursor/TqVJooW07t-000693 correlation_id=ba823773b47aeda791c2b55a1e6a295a trace_id=ba823773b47aeda791c2b55a1e6a295a span_id=d056bb4d69fc949f organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:17.392 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=15.063ms request_id=cursor/TqVJooW07t-000732 correlation_id=e72849448d96a2bbb794bc672adc593d trace_id=e72849448d96a2bbb794bc672adc593d span_id=4e8005fbc84b8a65 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:18.821 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=2µs request_id=cursor/TqVJooW07t-000789 correlation_id=f5065d4e96e4d377096724bcba1f525c trace_id=f5065d4e96e4d377096724bcba1f525c span_id=52da17964f3b010e
+01:17:18.835 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=8.876ms request_id=cursor/TqVJooW07t-000796 correlation_id=8b7b4a8b9f1ba35d7df5a9404a11996e trace_id=8b7b4a8b9f1ba35d7df5a9404a11996e span_id=804b25beca26e5ba organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:19.809 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=8.629ms request_id=cursor/TqVJooW07t-000834 correlation_id=c269d7000abe8cc621cd6a5938de4ba0 trace_id=c269d7000abe8cc621cd6a5938de4ba0 span_id=00a66840af62d50f organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:21.823 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=6µs request_id=cursor/TqVJooW07t-000934 correlation_id=202f74833e9eb7f45dab97eea21b08e4 trace_id=202f74833e9eb7f45dab97eea21b08e4 span_id=85f96068def13ac0
+01:17:21.838 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=11.842ms request_id=cursor/TqVJooW07t-000937 correlation_id=6aa635aab168200e1aec4de95c1ac55a trace_id=6aa635aab168200e1aec4de95c1ac55a span_id=b31d5f836edd3911 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:22.432 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=11.508ms request_id=cursor/TqVJooW07t-000957 correlation_id=b034fa8bd172b42c3ef4a356267c61f5 trace_id=b034fa8bd172b42c3ef4a356267c61f5 span_id=4619b93dfdc1066d organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:25.964 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=10µs request_id=cursor/TqVJooW07t-001034 correlation_id=a6a57561a17d6e8a42c877b964fc499b trace_id=a6a57561a17d6e8a42c877b964fc499b span_id=27ae07d7656de41d
+01:17:25.977 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=8.951ms request_id=cursor/TqVJooW07t-001040 correlation_id=9d9f0025bed2542fd4e14385d519ce9a trace_id=9d9f0025bed2542fd4e14385d519ce9a span_id=81142259f689b707 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:26.543 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=5.92ms request_id=cursor/TqVJooW07t-001058 correlation_id=a60c2d773a0129916cad77e6c77ea3d4 trace_id=a60c2d773a0129916cad77e6c77ea3d4 span_id=177de186487ee0f4 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:28.047 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=4.519ms request_id=cursor/TqVJooW07t-001115 correlation_id=7ad1867a6f6e8201ff296de6f9a50e8c trace_id=7ad1867a6f6e8201ff296de6f9a50e8c span_id=7277723a86e77b89 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:29.219 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=6µs request_id=cursor/TqVJooW07t-001165 correlation_id=1168bb36a6e69a510e803a53390e41b4 trace_id=1168bb36a6e69a510e803a53390e41b4 span_id=4ed9bdcb1fdecf28
+01:17:29.237 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=7.078ms request_id=cursor/TqVJooW07t-001169 correlation_id=bdb7a9cc321428569d0eda20e9756b5a trace_id=bdb7a9cc321428569d0eda20e9756b5a span_id=5ff9be291c984ab8 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:29.794 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=24.987ms request_id=cursor/TqVJooW07t-001185 correlation_id=ec78691f518b4ddea76c0a70143342d3 trace_id=ec78691f518b4ddea76c0a70143342d3 span_id=7a7dacb6e42e8599 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:32.476 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=7µs request_id=cursor/TqVJooW07t-001278 correlation_id=fa3e35875921c912d771064b704e7e08 trace_id=fa3e35875921c912d771064b704e7e08 span_id=a8b189b7ed7a2974
+01:17:32.488 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=5.964ms request_id=cursor/TqVJooW07t-001283 correlation_id=cbf7ba5e5803e7062b19340b5fe78270 trace_id=cbf7ba5e5803e7062b19340b5fe78270 span_id=a7a3f0132c55ef26 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:33.091 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=11.339ms request_id=cursor/TqVJooW07t-001301 correlation_id=17e099155de2ca475afbd1b0219ed2b2 trace_id=17e099155de2ca475afbd1b0219ed2b2 span_id=a8ac3ea7d41c153e organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:34.770 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=7µs request_id=cursor/TqVJooW07t-001368 correlation_id=c1092f2077364ab7d386640b8259c6ec trace_id=c1092f2077364ab7d386640b8259c6ec span_id=ac4b18a79e7e9aad
+01:17:34.779 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=6.181ms request_id=cursor/TqVJooW07t-001375 correlation_id=cd26dd608329973af1a879a9fbd820c6 trace_id=cd26dd608329973af1a879a9fbd820c6 span_id=e7aca0406dbe571f organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:35.342 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=9.652ms request_id=cursor/TqVJooW07t-001393 correlation_id=33a6a634d2b6a08a4c1e069c1214c0bf trace_id=33a6a634d2b6a08a4c1e069c1214c0bf span_id=bb57c22a0157910f organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:37.361 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=7µs request_id=cursor/TqVJooW07t-001480 correlation_id=19f029dc14383c86500642e86e937519 trace_id=19f029dc14383c86500642e86e937519 span_id=486fc1c5ce43a2a1
+01:17:37.373 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=8.895ms request_id=cursor/TqVJooW07t-001485 correlation_id=08babb3438a12451807eedb6ed598349 trace_id=08babb3438a12451807eedb6ed598349 span_id=b020b7619b4908ad organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:37.968 INF http request method=GET path=/api/v1/workspaces/01M5BE4JBCS1AKMZ1TRD82S695/ai/capabilities status=200 duration=9.482ms request_id=cursor/TqVJooW07t-001500 correlation_id=9366fa67c33321e8fff0b3d05fd43a4f trace_id=9366fa67c33321e8fff0b3d05fd43a4f span_id=abf38a01c11d4d35 organization_id=01M5BE4JB4NRJNH9T5Y5T1QJ15 workspace_id=01M5BE4JBCS1AKMZ1TRD82S695 actor_id=01M5BE4JAPYXC9JFG2KH7CX3P1 actor_kind=human
+01:17:40.304 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=5µs request_id=cursor/TqVJooW07t-001562 correlation_id=411f34cb835d543cad6bec011109c6d0 trace_id=411f34cb835d543cad6bec011109c6d0 span_id=5d625c3749a25136
+01:17:40.310 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=4.733ms request_id=cursor/TqVJooW07t-001567 correlation_id=61640b5d1800791c19ca131b695f3577 trace_id=61640b5d1800791c19ca131b695f3577 span_id=b5f2fc7ac9560281 organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5C2SJ1F4FFVDWAE9PF6R actor_kind=human
+01:17:42.120 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=4µs request_id=cursor/TqVJooW07t-001644 correlation_id=1fd8c64eb744260aefc0f2fe843b0fe9 trace_id=1fd8c64eb744260aefc0f2fe843b0fe9 span_id=de85a53ee04a2d36
+01:17:42.147 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=5.187ms request_id=cursor/TqVJooW07t-001652 correlation_id=af0069bedcd47c36548180b7aa631937 trace_id=af0069bedcd47c36548180b7aa631937 span_id=93555fb505e2e166 organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5DSRQ1MPC96BGZWX7A10 actor_kind=human
+01:17:42.920 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=15.306ms request_id=cursor/TqVJooW07t-001685 correlation_id=9bafe82dd24453590ab2d17a986e2e0d trace_id=9bafe82dd24453590ab2d17a986e2e0d span_id=a69bc91d6060b204 organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5C2SJ1F4FFVDWAE9PF6R actor_kind=human
+01:17:43.602 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=5.282ms request_id=cursor/TqVJooW07t-001725 correlation_id=5440724bef1d182bc0511b6171451149 trace_id=5440724bef1d182bc0511b6171451149 span_id=f6dab6c0a8456a5c organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5DSRQ1MPC96BGZWX7A10 actor_kind=human
+01:17:44.791 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=4.71ms request_id=cursor/TqVJooW07t-001785 correlation_id=72c0397ca9ea3f07b8412a1638d6dcf7 trace_id=72c0397ca9ea3f07b8412a1638d6dcf7 span_id=5a982c8205ec4cd1 organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5C2SJ1F4FFVDWAE9PF6R actor_kind=human
+01:17:45.414 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=7.953ms request_id=cursor/TqVJooW07t-001821 correlation_id=93a49c6aa6c0ee7a956033d58f63a19c trace_id=93a49c6aa6c0ee7a956033d58f63a19c span_id=5cec278ec4a214ee organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5DSRQ1MPC96BGZWX7A10 actor_kind=human
+01:17:48.169 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=3µs request_id=cursor/TqVJooW07t-001863 correlation_id=f8e52c60c776febeec7d447293aac837 trace_id=f8e52c60c776febeec7d447293aac837 span_id=cdb522c0c25c94d9
+01:17:48.198 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=16.844ms request_id=cursor/TqVJooW07t-001878 correlation_id=4cf96ff3498434df139c0114abaacd62 trace_id=4cf96ff3498434df139c0114abaacd62 span_id=f87b149bb654ba91 organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5C2SJ1F4FFVDWAE9PF6R actor_kind=human
+01:17:50.299 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE5PCB2QKYPEEHP1N77BVC/ai/capabilities status=200 duration=10µs request_id=cursor/TqVJooW07t-001960 correlation_id=dde52f954702ecc794f3016f089399f5 trace_id=dde52f954702ecc794f3016f089399f5 span_id=fc849482646ed040
+01:17:50.304 INF http request method=GET path=/api/v1/workspaces/01M5BE5PCB2QKYPEEHP1N77BVC/ai/capabilities status=200 duration=2.969ms request_id=cursor/TqVJooW07t-001961 correlation_id=df856b494012e23ca7351bbd3a050235 trace_id=df856b494012e23ca7351bbd3a050235 span_id=f17a61c2589d031e organization_id=01M5BE5PA7AHSXXRHDG8DMEEBP workspace_id=01M5BE5PCB2QKYPEEHP1N77BVC actor_id=01M5BE5P0GZ7S5ABBTJ5XWVPSD actor_kind=human
+01:17:51.635 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=9.834ms request_id=cursor/TqVJooW07t-001992 correlation_id=73f6c1f97d84789f85b5d9c34280ffba trace_id=73f6c1f97d84789f85b5d9c34280ffba span_id=c22c7f8156728f5a organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5C2SJ1F4FFVDWAE9PF6R actor_kind=human
+01:17:52.371 INF http request method=OPTIONS path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=5µs request_id=cursor/TqVJooW07t-002029 correlation_id=dfe90fa82eee267b4eea4efbb195b528 trace_id=dfe90fa82eee267b4eea4efbb195b528 span_id=ca73cb1cf1a80cf9
+01:17:52.384 INF http request method=GET path=/api/v1/workspaces/01M5BE5CHSVM1XTCA34FS477AG/ai/capabilities status=200 duration=8.18ms request_id=cursor/TqVJooW07t-002034 correlation_id=f10eb292e6e0244c22859c36a5edd62b trace_id=f10eb292e6e0244c22859c36a5edd62b span_id=5555a43bc3b329c7 organization_id=01M5BE5CFMD8B4P6W7YGCPBHKW workspace_id=01M5BE5CHSVM1XTCA34FS477AG actor_id=01M5BE5DSRQ1MPC96BGZWX7A10 actor_kind=human
+
+E2E_I7_EXIT=1
