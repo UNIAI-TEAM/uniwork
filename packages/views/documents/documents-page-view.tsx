@@ -32,6 +32,7 @@ import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./doc
 import { downloadSourceFile } from "./download-source-file";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
+import { nextSort } from "./library-sort";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
 import { useDocumentFileUpload } from "./use-document-file-upload";
@@ -109,7 +110,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   );
 
   // Only the home root and the list views show a type control.
-  const library = useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip: view.kind === "archived" || folderId ? "all" : chip });
+  const members = useMembers(enabled ? wsId : "");
+  const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
+  const library = useDocumentsLibrary({
+    wsId,
+    orgId,
+    enabled,
+    view,
+    folderId,
+    chip: view.kind === "archived" || folderId ? "all" : chip,
+    editorNames: names,
+  });
   const search = useDocumentsSearch(wsId, enabled);
   const folder = useDocument(wsId, folderId ?? "", {
     enabled: enabled && !!folderId,
@@ -139,7 +150,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   });
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
-  const members = useMembers(enabled ? wsId : "");
 
   const rawFolderDoc = folder.data ?? null;
   const folderInvalid =
@@ -189,7 +199,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "sharedByMe");
 
   const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
-  const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
   const drop = useDropUpload({
     enabled: enabled && canCreate && !folderInvalid,
     maxBytes: limits.upload_max_bytes,
@@ -356,6 +365,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         library.setUpdated("any");
       }}
       handlers={handlers}
+      sort={{ value: library.sort, onSort: (column) => library.setSort(nextSort(library.sort, column)) }}
       sharedByMe={view.kind === "sharedByMe"}
       empty={emptyCopy}
     />
@@ -367,8 +377,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onAccess: library.setAccess,
     groupBy,
     onGroupBy: setGroupBy,
-    sort: library.sort,
-    onSort: library.setSort,
     editor: library.editor,
     onEditor: library.setEditor,
     members: members.data,
@@ -492,7 +500,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             ) : homeView ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 {canCreate ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
-                <LibraryToolbar variant={folderId ? "folder" : "home"} {...toolbar} />
+                {folderId ? null : <LibraryToolbar variant="home" {...toolbar} />}
                 <DocumentsSections
                   folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
                   folders={subfolders}

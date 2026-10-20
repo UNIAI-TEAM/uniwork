@@ -29,21 +29,25 @@ import {
   indexTree,
   matchesAccess,
   matchesChip,
-  mergeNewestFirst,
-  readFolderSort,
-  sortFolderRows,
   sourceRow,
-  writeFolderSort,
   type AccessFilter,
   type FolderInfo,
-  type FolderSort,
   type LibraryRow,
   type TypeChip,
 } from "./library-rows";
+import {
+  mergeSorted,
+  readLibrarySort,
+  sortRows,
+  writeLibrarySort,
+  type EditorNames,
+  type LibrarySort,
+} from "./library-sort";
 import { favoriteRow, knownDocuments } from "./starred-rows";
 import { SHELVED_BY_SYSTEM } from "./documents-shelved-toolbar";
 
 const FOLDER_SORT_ROW_CAP = 1000;
+const NO_EDITOR_NAMES: EditorNames = new Map();
 
 interface InfiniteLike<T> {
   data?: { pages: T[] };
@@ -112,6 +116,8 @@ export interface UseDocumentsLibraryInput {
   view: LibraryView;
   folderId: string | null;
   chip: TypeChip;
+  /** Member display names by user id: the Người sửa column sorts by name, and only the client can look them up. */
+  editorNames?: EditorNames;
 }
 
 /**
@@ -123,8 +129,11 @@ export interface UseDocumentsLibraryInput {
  * modules, newest first; "load more" asks both lists for their next page.
  * When the sources API answers 404/501 (not deployed) the merge is skipped and
  * the "Elsewhere" section is hidden — the page never fails because of it.
+ *
+ * The column sort (UNI-2038) is one `{ column, order }` per viewer. Where the
+ * order comes from is decided in one place, `sortedOnServer` below.
  */
-export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip }: UseDocumentsLibraryInput) {
+export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip, editorNames = NO_EDITOR_NAMES }: UseDocumentsLibraryInput) {
   const home = view.kind === "home";
   const sourceType = SOURCE_TYPES.has(chip) ? (chip as DocumentSourceType) : undefined;
   const sourcesWanted = chip !== "page" && ((home && !folderId) || view.kind === "sources");
@@ -136,17 +145,35 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   // would change the list query key on every render.
   const [updated, setUpdatedState] = useState<{ filter: UpdatedFilter; since: string | null }>({ filter: "any", since: null });
   const setUpdated = useCallback((filter: UpdatedFilter) => setUpdatedState({ filter, since: updatedFilterSince(filter) }), []);
-  const [sort, setSortState] = useState<FolderSort>(() => readFolderSort(userId));
+  const [sort, setSortState] = useState<LibrarySort>(() => readLibrarySort(userId));
   if (userId !== lastUserId) {
     setLastUserId(userId);
-    setSortState(readFolderSort(userId));
+    setSortState(readLibrarySort(userId));
   }
   const setSort = useCallback(
-    (next: FolderSort) => {
+    (next: LibrarySort) => {
       setSortState(next);
-      writeFolderSort(userId, next);
+      writeLibrarySort(userId, next);
     },
     [userId],
+  );
+  // Where the order comes from. The lists that page on the server (home root,
+  // Recent, Shared with me, Shared by me, Elsewhere) send `sort`/`order` and
+  // show the server's pages as they come: the order is part of the query key,
+  // and a page is never re-sorted here (the server's collation is not
+  // Intl.Collator's). The lists that are loaded in full (Starred, an open
+  // folder, auto-paged to FOLDER_SORT_ROW_CAP) are ordered on the client, and
+  // asking the server for nothing keeps a header click from refetching them.
+  // Archived and shelved lists take no sort at all. This is the only place that
+  // differs if the server sort is dropped for "auto-load, then sort on the
+  // client": `sortedOnServer` false, `sortedOnClient` true, and the auto-paging
+  // below extended from the folder to those views.
+  const sortedOnServer =
+    (home && !folderId) || view.kind === "recent" || view.kind === "shared" || view.kind === "sharedByMe" || view.kind === "sources";
+  const sortedOnClient = view.kind === "starred" || (home && Boolean(folderId));
+  const serverSort = useMemo(
+    () => (sortedOnServer ? { sort: sort.column, order: sort.order } : {}),
+    [sortedOnServer, sort.column, sort.order],
   );
 
   // The server-side pair of the type chips (UNI-1868): the file chips become
@@ -182,8 +209,9 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
       ...(serverAccess ? { access: serverAccess } : {}),
       ...(editorParam ? { updatedBy: editorParam } : {}),
       ...(updatedParam ? { updatedFrom: updatedParam } : {}),
+      ...(homeRoot ? serverSort : {}),
     }),
-    [home, folderId, chip, editorParam, updatedParam, serverFormat, serverAccess],
+    [home, folderId, homeRoot, chip, editorParam, updatedParam, serverFormat, serverAccess, serverSort],
   );
   // The starred view reads the workspace root list too (the home root's own
   // cache entry when it was open), so starred rows get dates and editors.
@@ -228,23 +256,27 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     enabled: enabled && view.kind === "recent",
     format: serverFormat,
     access: serverAccess,
+    ...serverSort,
   });
   const sharedQuery = useSharedWithMe(wsId, {
     enabled: enabled && view.kind === "shared",
     format: serverFormat,
     access: serverAccess,
+    ...serverSort,
   });
   const sharedByMeQuery = useSharedByMe(wsId, {
     enabled: enabled && view.kind === "sharedByMe",
     format: serverFormat,
     access: serverAccess,
+    ...serverSort,
   });
   const sourceFilter = useMemo(
     () => ({
       ...(view.kind === "sources" && view.source ? { source: view.source } : {}),
       ...(sourceType ? { type: sourceType } : {}),
+      ...(sourcesWanted ? serverSort : {}),
     }),
-    [view, sourceType],
+    [view, sourceType, sourcesWanted, serverSort],
   );
   // Probe once even when the view does not list sources: the sidebar section
   // shows only after the API has answered.
@@ -327,7 +359,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
         );
         state = {
           ...docs,
-          rows: folderAutoPaging ? [] : sortFolderRows(directRows, sort),
+          rows: folderAutoPaging ? [] : directRows,
           loading: docs.loading || folderAutoPaging,
           hasMore: !folderAutoPaging && docs.hasMore,
         };
@@ -337,7 +369,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
       state = merge
         ? {
             ...docs,
-            rows: mergeNewestFirst(docs.rows, sourceRows, { docs: docs.hasMore, sources: Boolean(sourcesQuery.hasNextPage) }),
+            rows: mergeSorted(docs.rows, sourceRows, { docs: docs.hasMore, sources: Boolean(sourcesQuery.hasNextPage) }, sort, editorNames),
             hasMore: docs.hasMore || Boolean(sourcesQuery.hasNextPage),
             loadingMore: docs.loadingMore || sourcesQuery.isFetchingNextPage,
             loadMore: () => {
@@ -372,7 +404,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const sourceMetaMatches = (row: LibraryRow) =>
     row.type !== "source" ||
     ((!editorParam || row.source.owner?.id === editorParam) && (!updatedAfter || Date.parse(row.source.updated_at ?? "") >= updatedAfter));
-  const rows = state.rows.filter((row) => {
+  const filtered = state.rows.filter((row) => {
     if (shelvedView) {
       if (memberFiltered) {
         if (row.type !== "document") return false;
@@ -385,6 +417,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     const clientSide = view.kind === "starred" || view.kind === "sources" || (mergedHome && row.type === "source");
     return (!clientSide || (matchesChip(row, chip) && matchesAccess(row, access))) && sourceMetaMatches(row);
   });
+  const rows = sortedOnClient ? sortRows(filtered, sort, editorNames) : filtered;
   // The member filter's options: the distinct shelved_by ids the loaded rows
   // carry (member rows first is the toolbar's business), plus the system slot
   // when a row was shelved by nobody (null). Unknown ids stand for former

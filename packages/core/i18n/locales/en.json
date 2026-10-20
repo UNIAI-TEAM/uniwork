@@ -10819,9 +10819,9 @@
       },
       "open_office": "Open UniWork Office",
       "sort": {
-        "label": "Sort by",
-        "name": "Name (A→Z)",
-        "updated": "Updated (newest)"
+        "column": "Sort by {{column}}",
+        "ascending": "ascending",
+        "descending": "descending"
       },
       "folder_invalid": {
         "title": "Can't open this folder",

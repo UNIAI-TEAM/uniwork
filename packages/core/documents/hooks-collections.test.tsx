@@ -423,6 +423,33 @@ describe("documents collection hooks", () => {
     expect(documentFilterKey(filter)).not.toBe(documentFilterKey({ ...filter, order: "asc" }));
   });
 
+  it("keeps the previous rows on screen while the same list loads in another order, but not across a chip change (UNI-2038 S2)", async () => {
+    let release: (() => void) | undefined;
+    vi.mocked(fetch).mockImplementationOnce(() => Promise.resolve(json(listBody([summary("old")]))));
+    vi.mocked(fetch).mockImplementationOnce(
+      () => new Promise((resolve) => (release = () => resolve(json(listBody([summary("new")]))))),
+    );
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(
+      ({ order, format }: { order: "asc" | "desc"; format?: "pdf" }) => useRecentDocuments("w1", { sort: "name", order, format }),
+      { wrapper, initialProps: { order: "asc", format: undefined } as { order: "asc" | "desc"; format?: "pdf" } },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    rerender({ order: "desc" });
+    await waitFor(() => expect(release).toBeDefined());
+    expect(result.current.isPlaceholderData).toBe(true);
+    expect(result.current.data?.pages[0]?.documents[0]?.id).toBe("old");
+    release!();
+    await waitFor(() => expect(result.current.data?.pages[0]?.documents[0]?.id).toBe("new"));
+
+    // Another filter is another list: nothing of the old one lingers.
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise(() => {}));
+    rerender({ order: "desc", format: "pdf" });
+    await waitFor(() => expect(result.current.isPending).toBe(true));
+    expect(result.current.data).toBeUndefined();
+  });
+
   it("useSharedWithMe and useSharedByMe take the same chips", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json(listBody([summary("s1", { my_level: "edit", via: "share" })])))

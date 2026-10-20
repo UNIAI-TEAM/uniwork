@@ -22,8 +22,14 @@ const { t } = initI18n();
 const WS = "ws1";
 const TREE_URL = `/api/v1/workspaces/${WS}/documents/tree`;
 const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
-const FOLDER_SORT_KEY = "uniwork_documents_folder_sort";
-const userFolderSortKey = (userId: string) => `${FOLDER_SORT_KEY}:${userId}`;
+const LEGACY_FOLDER_SORT_KEY = "uniwork_documents_folder_sort";
+const legacyFolderSortKey = (userId: string) => `${LEGACY_FOLDER_SORT_KEY}:${userId}`;
+const SORT_KEY = "uniwork_documents_sort";
+const userSortKey = (userId: string) => `${SORT_KEY}:${userId}`;
+const storedSort = (userId: string) => {
+  const raw = defaultStorage.getItem(userSortKey(userId));
+  return raw ? (JSON.parse(raw) as unknown) : null;
+};
 
 const sessionUser = { id: "u1", email: "an@example.com", display_name: "An", locale: "vi" } as User;
 const workspace: Workspace = {
@@ -88,6 +94,22 @@ function queryOf(path: string) {
   return new URLSearchParams(path.split("?")[1] ?? "");
 }
 
+/** The column header cell, whatever the width rung says (jsdom evaluates no container query). */
+function headerOf(column: "name" | "editor" | "updated" | "size" | "access") {
+  return screen.getByRole("columnheader", { name: new RegExp(`^${escape(t(`documents.home.columns.${column}`))}`) });
+}
+
+/** Clicks a column's sort button (UNI-2038): the header is the only sort control. */
+async function clickSort(column: "name" | "editor" | "updated" | "size") {
+  const label = t("documents.home.columns." + column);
+  fireEvent.click(await screen.findByRole("button", { name: new RegExp(`^${escape(t("documents.home.sort.column", { column: label }))}`) }));
+}
+
+/** The folder view's old "Sắp xếp theo" Select is gone: no combobox carries a sort name. */
+function noSortSelect() {
+  return screen.queryByRole("combobox", { name: /^Sắp xếp|^Sort/ }) === null;
+}
+
 function postCall(method: string) {
   return requestMock.mock.calls.find(
     ([, opts]) => (opts as { method?: string } | undefined)?.method === method,
@@ -97,9 +119,10 @@ function postCall(method: string) {
 beforeEach(() => {
   requestMock.mockReset();
   resetAuthStoreForTests();
-  defaultStorage.removeItem(FOLDER_SORT_KEY);
-  defaultStorage.removeItem(userFolderSortKey("u1"));
-  defaultStorage.removeItem(userFolderSortKey("u2"));
+  for (const user of ["u1", "u2"]) {
+    defaultStorage.removeItem(legacyFolderSortKey(user));
+    defaultStorage.removeItem(userSortKey(user));
+  }
   setSessionUser({
     id: "u1",
     email: "an@example.com",
@@ -1157,12 +1180,6 @@ describe("DocumentsPageView", () => {
         tr.getAttribute("data-library-row"),
       );
 
-    async function selectFolderSort(optionLabel: string) {
-      fireEvent.click(screen.getByRole("combobox", { name: t("documents.home.sort.label") }));
-      const option = within(await screen.findByRole("listbox")).getByText(optionLabel);
-      fireEvent.pointerDown(option);
-      fireEvent.click(option);
-    }
 
     it("keeps subfolders out of the rows, as cards above the table, in both sorts", async () => {
       route({
@@ -1197,12 +1214,12 @@ describe("DocumentsPageView", () => {
       // Newest update first; the folders are cards, never rows.
       expect(rowOrder()).toEqual(["doc-new", "doc-old"]);
 
-      await selectFolderSort(t("documents.home.sort.name"));
+      await clickSort("name");
       await waitFor(() => expect(rowOrder()).toEqual(["doc-old", "doc-new"]));
       expect(within(subfolders).getByRole("button", { name: /^Zebra/ })).toBeInTheDocument();
     });
 
-    it("sorts by Name using Vietnamese collation ('Ă' after 'A')", async () => {
+    it("sorts by Name by lowercase code point, like the server ('Ă' and 'Ân' after 'Bình')", async () => {
       route({
         tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
         detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
@@ -1219,8 +1236,8 @@ describe("DocumentsPageView", () => {
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
       await screen.findByText("Bình");
 
-      await selectFolderSort(t("documents.home.sort.name"));
-      await waitFor(() => expect(rowOrder()).toEqual(["an-plain", "an-breve", "an-circumflex", "binh"]));
+      await clickSort("name");
+      await waitFor(() => expect(rowOrder()).toEqual(["an-plain", "binh", "an-circumflex", "an-breve"]));
     });
 
     it("keeps the chosen sort on the control and in storage after going to root (control unmounts) and opening another folder (V-F1)", async () => {
@@ -1257,25 +1274,22 @@ describe("DocumentsPageView", () => {
       await screen.findByText("Zeta");
       expect(rowOrder()).toEqual(["a-z", "a-a"]);
 
-      await selectFolderSort(t("documents.home.sort.name"));
+      await clickSort("name");
       await waitFor(() => expect(rowOrder()).toEqual(["a-a", "a-z"]));
 
       // Go to root so the sort Select unmounts and the home filters mount, then open another folder.
       const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
       fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.home.sidebar.home") }));
       await screen.findByText("Tài liệu gốc");
-      expect(screen.queryByRole("combobox", { name: t("documents.home.sort.label") })).toBeNull();
       expect(screen.getByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeInTheDocument();
 
       setItemSpy.mockClear();
       fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
       await screen.findByText("Ăn");
-      expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toHaveTextContent(
-        t("documents.home.sort.name"),
-      );
+      expect(headerOf("name")).toHaveAttribute("aria-sort", "ascending");
       expect(rowOrder()).toEqual(["b-an", "b-an-breve"]);
       expect(setItemSpy).not.toHaveBeenCalled();
-      expect(defaultStorage.getItem(userFolderSortKey("u1"))).toBe("name");
+      expect(storedSort("u1")).toEqual({ column: "name", order: "asc" });
       setItemSpy.mockRestore();
     });
 
@@ -1311,10 +1325,10 @@ describe("DocumentsPageView", () => {
       });
       const { unmount } = renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo1` });
       await screen.findByText("Zeta");
-      await selectFolderSort(t("documents.home.sort.name"));
+      await clickSort("name");
       await waitFor(() => expect(rowOrder()).toEqual(["a-a", "a-z"]));
-      expect(defaultStorage.getItem(userFolderSortKey("u1"))).toBe("name");
-      expect(setItemSpy).toHaveBeenCalledWith(userFolderSortKey("u1"), "name");
+      expect(storedSort("u1")).toEqual({ column: "name", order: "asc" });
+      expect(setItemSpy).toHaveBeenCalledWith(userSortKey("u1"), JSON.stringify({ column: "name", order: "asc" }));
 
       fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
       await screen.findByText("Ăn");
@@ -1334,7 +1348,7 @@ describe("DocumentsPageView", () => {
       const second = renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
       await screen.findByText("Ăn");
       expect(rowOrder()).toEqual(["b-an-breve", "b-an"]);
-      expect(defaultStorage.getItem(userFolderSortKey("u2"))).toBeNull();
+      expect(storedSort("u2")).toBeNull();
       second.unmount();
 
       resetAuthStoreForTests();
@@ -1342,7 +1356,7 @@ describe("DocumentsPageView", () => {
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
       await screen.findByText("Ăn");
       expect(rowOrder()).toEqual(["b-an-breve", "b-an"]);
-      await selectFolderSort(t("documents.home.sort.name"));
+      await clickSort("name");
       await waitFor(() => expect(rowOrder()).toEqual(["b-an", "b-an-breve"]));
       expect(setItemSpy).not.toHaveBeenCalled();
       setItemSpy.mockRestore();
@@ -1409,7 +1423,7 @@ describe("DocumentsPageView", () => {
       const subfolders = screen.getByRole("region", { name: sectionName("subfolders") });
       expect(within(subfolders).getByRole("button", { name: /^Thư mục trang 2/ })).toBeInTheDocument();
 
-      await selectFolderSort(t("documents.home.sort.name"));
+      await clickSort("name");
       await waitFor(() => expect(rowOrder()).toEqual(["doc-p1-old", "doc-p2", "doc-p1-new"]));
     });
 
@@ -1486,7 +1500,7 @@ describe("DocumentsPageView", () => {
       expect(urls.some((u) => queryOf(u).get("parent_id") === "fo1")).toBe(true);
     });
 
-    it("keeps root and folder apart per FD-D9: filters and no sort at root, sort and no filters in a folder, never grouped", async () => {
+    it("keeps root and folder apart per FD-D9: filters at root, none in a folder, the sort in the table headers of both, never grouped", async () => {
       route({
         tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
         detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
@@ -1498,16 +1512,19 @@ describe("DocumentsPageView", () => {
       renderView(vi.fn());
       await screen.findByText("Báo giá.docx");
 
-      expect(screen.queryByRole("combobox", { name: t("documents.home.sort.label") })).toBeNull();
+      expect(noSortSelect()).toBe(true);
       expect(screen.getByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeInTheDocument();
       expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
       expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
+      expect(headerOf("updated")).toHaveAttribute("aria-sort", "descending");
       const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((c) => c.textContent);
       // The home table is flat: no "Chưa phân loại" / folder group headings.
       expect(groupHeaders()).toEqual([]);
 
       fireEvent.click(screen.getByRole("treeitem", { name: /Dự án CCB/ }));
-      expect(await screen.findByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
+      await screen.findByRole("columnheader", { name: t("documents.home.columns.access") });
+      expect(noSortSelect()).toBe(true);
+      expect(headerOf("updated")).toHaveAttribute("aria-sort", "descending");
       expect(screen.queryByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeNull();
       expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
       // Same six board columns inside a folder (F-7): Truy cập, never Loại.
@@ -1529,7 +1546,7 @@ describe("DocumentsPageView", () => {
       expect(emptyTitle).toBeInTheDocument();
       const status = emptyTitle.closest("[role='status']") as HTMLElement;
       expect(status).toHaveTextContent(t("documents.home.empty.description"));
-      expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
+      expect(noSortSelect()).toBe(true);
       expect(screen.queryByRole("table")).toBeNull();
 
       const createFolderBtn = within(status).getByRole("button", { name: t("documents.home.folders.create_title") });
@@ -1573,7 +1590,7 @@ describe("DocumentsPageView", () => {
       await screen.findByText("Zeta");
       expect(rowOrder()).toEqual(["d-new", "d-old"]);
 
-      await selectFolderSort(t("documents.home.sort.name"));
+      await clickSort("name");
       await waitFor(() => expect(rowOrder()).toEqual(["d-old", "d-new"]));
 
       getSpy.mockRestore();

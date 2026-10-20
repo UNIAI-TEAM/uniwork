@@ -21,6 +21,7 @@ import {
 import { canManageTrashed, DocumentNotVerifiableError } from "../types/document";
 import { useEnsureMyFolder } from "./hooks";
 import { documentKeys } from "./keys";
+import { keepWhileSorting } from "./keep-while-sorting";
 import { requireVerifiableArchive, requireVerifiableDocument } from "./verify";
 
 export { canManageTrashed, useEnsureMyFolder };
@@ -67,6 +68,7 @@ function documentListFilterKey(filters?: DocumentListFilters & DocumentListSort)
 export function useDocumentList(wsId: string, filter?: ListDocumentsOpts, opts?: { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.list(wsId, documentFilterKey(filter)),
+    placeholderData: keepWhileSorting(documentKeys.list(wsId, documentFilterKey(filter))),
     queryFn: ({ pageParam, signal }) =>
       listDocuments(
         wsId,
@@ -119,6 +121,7 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
 export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.recent(wsId, documentListFilterKey(opts))),
     queryFn: ({ pageParam, signal }) =>
       listRecentDocuments(
         wsId,
@@ -143,6 +146,7 @@ export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & Do
 export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.sharedWithMe(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.sharedWithMe(wsId, documentListFilterKey(opts))),
     queryFn: ({ pageParam, signal }) =>
       listSharedWithMe(
         wsId,
@@ -169,6 +173,7 @@ export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & Docum
 export function useSharedByMe(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.sharedByMe(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.sharedByMe(wsId, documentListFilterKey(opts))),
     queryFn: ({ pageParam, signal }) =>
       listSharedByMe(
         wsId,
