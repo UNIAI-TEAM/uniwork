@@ -1,6 +1,6 @@
 # Thư ký AI S2 (UNI-2024): micro hội trường và gán người nói — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch, chưa triển khai.
+> **Trạng thái:** in-progress — đủ server (migration, route shared-mic và speaker-labels, tên người nói trong transcript và tóm tắt), agent (tách người nói theo attribute), web (mục menu, hộp thoại gán) và hai việc sót của S1 trên nhánh `feature/UNI-2024-…`; chưa chạy thật với AssemblyAI, chờ review và merge.
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §4.3, §6.2
 (`meeting_participants.shared_mic_at/_by`), §6.3, §7.2 (shared-mic, speaker-labels), §9,
