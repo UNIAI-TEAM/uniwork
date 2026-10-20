@@ -120,6 +120,81 @@ describe("ChatDocumentMessageRow", () => {
     expect(article).not.toHaveClass("bg-brand-subtle");
   });
 
+  describe("on the bubble it sits on (UNI-2010)", () => {
+    const FULL = {
+      ...DOC,
+      viewer_level: "manage" as const,
+      recipient_count: 2,
+      viewer_can_manage: true,
+      viewer_can_upload_version: true,
+      can_open_in_app: true,
+    };
+    const desktopOpen = (() => ({
+      deploymentId: "dep-1",
+      channel: "stable",
+      savedVersion: 3,
+      loadInstallers: vi.fn(),
+      loadPlatformHint: vi.fn(),
+      downloadInstaller: vi.fn(),
+      launch: vi.fn(),
+    })) as unknown as ChatDocumentDesktopOpen;
+    // A bare outline/ghost/default class set resolves to bg-background / bg-primary on the brand bubble.
+    const barePaint = ["bg-background", "dark:bg-input/30", "border-input", "bg-primary", "bg-secondary", "text-muted-foreground", "text-foreground"];
+    const ownControl = ["bg-chat-bubble-own-foreground/15", "text-chat-bubble-own-foreground"];
+
+    it("own bubble: every control wears the own-bubble family, none a bare variant paint", () => {
+      renderCard(documentMessage(FULL), { isOwn: true, desktopOpen });
+      for (const name of ["Quản lý quyền truy cập", "Tải lên phiên bản mới", "Tùy chọn UniWork Office"]) {
+        const control = screen.getByRole("button", { name });
+        expect(control).toHaveClass(...ownControl);
+        for (const bare of barePaint) expect(control).not.toHaveClass(bare);
+      }
+      // The primary Open button inverts: it must not vanish into the brand fill.
+      const open = screen.getByRole("button", { name: "Mở bằng UniWork Office" });
+      expect(open).toHaveClass("bg-chat-bubble-own-foreground", "text-chat-bubble-own");
+      expect(open).not.toHaveClass("bg-primary");
+      expect(open).not.toHaveClass("text-primary-foreground");
+    });
+
+    it("own bubble: title, secondary line and level badge stay readable on the brand fill", () => {
+      renderCard(documentMessage(FULL), { isOwn: true });
+      expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-chat-bubble-own-foreground");
+      expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).not.toHaveClass("text-foreground");
+      const secondary = screen.getByText(/Phiên bản 3/);
+      expect(secondary).toHaveClass("text-chat-bubble-own-meta");
+      expect(secondary).not.toHaveClass("text-muted-foreground");
+      const badge = screen.getByText("Quản lý");
+      expect(badge).toHaveClass(...ownControl);
+      expect(badge).not.toHaveClass("bg-secondary");
+    });
+
+    it("own bubble: the locked card and the neutral card read on the brand fill", () => {
+      renderCard(documentMessage({ document_id: "doc1", viewer_has_access: false }), { isOwn: true });
+      const request = screen.getByRole("button", { name: "Yêu cầu quyền truy cập" });
+      expect(request).toHaveClass(...ownControl);
+      for (const bare of barePaint) expect(request).not.toHaveClass(bare);
+      expect(screen.getByText("Không có quyền truy cập")).toHaveClass("text-chat-bubble-own-foreground");
+    });
+
+    it("own bubble: the neutral filename card keeps its text readable", () => {
+      renderCard(documentMessage(undefined), { isOwn: true });
+      expect(screen.getByText("Báo cáo Q3.docx")).toHaveClass("text-chat-bubble-own-foreground");
+    });
+
+    it("other bubble: the card keeps its outline buttons, grey secondary text and brand primary", () => {
+      renderCard(documentMessage(FULL), { isOwn: false, desktopOpen });
+      for (const name of ["Quản lý quyền truy cập", "Tải lên phiên bản mới", "Tùy chọn UniWork Office"]) {
+        const control = screen.getByRole("button", { name });
+        expect(control).toHaveClass("bg-background", "border-input");
+        expect(control).not.toHaveClass("bg-chat-bubble-own-foreground/15");
+      }
+      expect(screen.getByRole("button", { name: "Mở bằng UniWork Office" })).toHaveClass("bg-primary", "text-primary-foreground");
+      expect(screen.getByText(/Phiên bản 3/)).toHaveClass("text-muted-foreground");
+      expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-foreground");
+      expect(screen.getByText("Quản lý")).toHaveClass("bg-secondary");
+    });
+  });
+
   it("renders a neutral filename card when the document block is absent", () => {
     renderCard(documentMessage(undefined));
     expect(screen.getByText("Báo cáo Q3.docx")).toBeInTheDocument();

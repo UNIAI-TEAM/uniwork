@@ -27,7 +27,10 @@ import { DocumentUploadDialog } from "../documents/document-upload-dialog";
 import {
   ChatDocumentRequestAccess,
   chatDocumentVersionError,
+  documentControlProps,
+  documentMutedClass,
 } from "./chat-document-actions";
+import { bubbleControlClass } from "./chat-file-card";
 import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
@@ -37,6 +40,13 @@ import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { senderNameClass } from "./sender-colors";
 import type { ChatMessage } from "./chat-messages";
+
+/** "Mở bằng UniWork Office" on my brand bubble: the primary fill inverts (white with brand text) so it stays the primary action; the caret is a soft wash. */
+const OWN_BUBBLE_OPEN = {
+  primary:
+    "bg-chat-bubble-own-foreground text-chat-bubble-own hover:bg-chat-bubble-own-foreground/90 hover:text-chat-bubble-own",
+  menu: bubbleControlClass(true),
+};
 
 /** The host-bound "Mở bằng UniWork Office" wiring — the document page's own builder. */
 export type ChatDocumentDesktopOpen = (
@@ -171,6 +181,7 @@ function ChatDocumentMessageRowImpl({
                   workspaceId={workspaceId}
                   roomId={roomId}
                   message={message}
+                  isOwn={isOwn}
                   desktopOpen={desktopOpen}
                 />
               </div>
@@ -199,17 +210,21 @@ export function ChatDocumentCard({
   workspaceId,
   roomId,
   message,
+  isOwn,
   desktopOpen,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
+  /** The bubble it sits on: text, badge and controls follow its palette. */
+  isOwn: boolean;
   desktopOpen?: ChatDocumentDesktopOpen;
 }) {
   const { t } = useTranslation();
   const doc = message.document;
   const workspace = useOptionalWorkspace()?.workspace;
   const navigation = useNavigation();
+  const textClass = isOwn ? "text-chat-bubble-own-foreground" : "text-foreground";
   const openDocument = doc
     ? () => {
         if (!workspace) return;
@@ -233,7 +248,7 @@ export function ChatDocumentCard({
   if (!doc) {
     // Neutral card for a missing or drifted block: the filename the body
     // carried, nothing else — no title, no actions.
-    return <NeutralDocumentCard filename={message.body} />;
+    return <NeutralDocumentCard filename={message.body} textClass={textClass} />;
   }
   if (doc.viewer_has_access === false) {
     // The heading wraps (never truncates) and the action sits below it, so the
@@ -245,12 +260,12 @@ export function ChatDocumentCard({
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-muted-foreground">
             <LockKeyhole className="size-4" aria-hidden />
           </span>
-          <p className="min-w-0 flex-1 text-body font-medium text-foreground">
+          <p className={cn("min-w-0 flex-1 text-body font-medium", textClass)}>
             {t("chat.document_no_access")}
           </p>
         </div>
         <div className="min-w-0">
-          <ChatDocumentRequestAccess workspaceId={workspaceId} documentId={doc.document_id} />
+          <ChatDocumentRequestAccess workspaceId={workspaceId} documentId={doc.document_id} isOwn={isOwn} />
         </div>
       </div>
     );
@@ -271,11 +286,11 @@ export function ChatDocumentCard({
             title={title}
             aria-label={`${t("chat.document_open_in_documents")}: ${title}`}
             onClick={openDocument ?? undefined}
-            className="pointer-coarse:min-h-11 block w-full truncate text-left text-body font-medium text-foreground hover:underline"
+            className={cn("pointer-coarse:min-h-11 block w-full truncate text-left text-body font-medium hover:underline", textClass)}
           >
             {title}
           </button>
-          <p className="text-caption text-muted-foreground">
+          <p className={cn("text-caption", documentMutedClass(isOwn))}>
             {doc.version_number !== undefined
               ? t("documents.file.version_row", { no: doc.version_number })
               : null}
@@ -284,11 +299,14 @@ export function ChatDocumentCard({
               : null}
           </p>
         </div>
-        {level ? <Badge variant="secondary" className="shrink-0">{t(`documents.share.level_${level}`)}</Badge> : null}
+        {level ? (
+          <Badge variant="secondary" className={cn("shrink-0", isOwn && bubbleControlClass(true))}>{t(`documents.share.level_${level}`)}
+          </Badge>
+        ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {doc.viewer_can_manage ? (
-          <ChatDocumentManageAccess workspaceId={workspaceId} documentId={doc.document_id} />
+          <ChatDocumentManageAccess workspaceId={workspaceId} documentId={doc.document_id} isOwn={isOwn} />
         ) : null}
         {doc.viewer_can_upload_version && doc.revision ? (
           <ChatDocumentUploadVersion
@@ -296,6 +314,7 @@ export function ChatDocumentCard({
             roomId={roomId}
             documentId={doc.document_id}
             revision={doc.revision}
+            isOwn={isOwn}
           />
         ) : null}
         {desktop ? (
@@ -303,6 +322,7 @@ export function ChatDocumentCard({
             {...desktop}
             documentId={doc.document_id}
             placement="inline"
+            surface={isOwn ? OWN_BUBBLE_OPEN : undefined}
             operation={level === "edit" || level === "manage" ? "edit" : "view"}
           />
         ) : null}
@@ -312,14 +332,14 @@ export function ChatDocumentCard({
 }
 
 /** The bare card for a missing or garbage `document` block: icon + filename. */
-function NeutralDocumentCard({ filename }: { filename: string }) {
+function NeutralDocumentCard({ filename, textClass }: { filename: string; textClass: string }) {
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-3">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-muted-foreground">
         <DocumentTypeIcon format="file" decorative className="size-4" />
       </span>
-      <p className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
+      <p className={cn("min-w-0 flex-1 truncate text-body font-medium", textClass)}>
         {filename || t("chat.file_untitled")}
       </p>
     </div>
@@ -334,11 +354,14 @@ function NeutralDocumentCard({ filename }: { filename: string }) {
 function ChatDocumentManageAccess({
   workspaceId,
   documentId,
+  isOwn,
 }: {
   workspaceId: string;
   documentId: string;
+  isOwn: boolean;
 }) {
   const { t } = useTranslation();
+  const control = documentControlProps(isOwn);
   const [asked, setAsked] = useState(false);
   const [open, setOpen] = useState(false);
   const detail = useDocument(workspaceId, documentId, { enabled: asked });
@@ -355,9 +378,9 @@ function ChatDocumentManageAccess({
     <>
       <Button
         type="button"
-        variant="outline"
+        variant={control.variant}
         size="sm"
-        className="pointer-coarse:min-h-11"
+        className={cn("pointer-coarse:min-h-11", control.className)}
         onClick={() => {
           // A new ask: the flag resets so a fresh failure toasts again and a
           // success opens the dialog (RFC-08).
@@ -386,12 +409,14 @@ function ChatDocumentUploadVersion({
   roomId,
   documentId,
   revision,
+  isOwn,
 }: {
   workspaceId: string;
   roomId: string;
   documentId: string;
   /** The card's `revision`: the base the commit must beat. */
   revision: string;
+  isOwn: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -402,6 +427,7 @@ function ChatDocumentUploadVersion({
   const [error, setError] = useState<string | null>(null);
   const idempotencyKey = useRef<string | null>(null);
   const pending = upload.isPending || commit.isPending;
+  const control = documentControlProps(isOwn);
 
   const stageNewVersion = async (picked: File) => {
     const invalid = documentUploadValidationMessage(picked, limits.upload_max_bytes, t, i18n.language);
@@ -451,9 +477,9 @@ function ChatDocumentUploadVersion({
     <>
       <Button
         type="button"
-        variant="outline"
+        variant={control.variant}
         size="sm"
-        className="pointer-coarse:min-h-11"
+        className={cn("pointer-coarse:min-h-11", control.className)}
         onClick={() => setDialogOpen(true)}
       >
         {t("documents.actions.upload_version")}
