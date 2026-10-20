@@ -509,6 +509,12 @@ func TestAskUniEvalLive(t *testing.T) {
 			answer = run.res.Message.Content
 			if n := run.res.Message.Notice.String; n != "" {
 				answer = "[notice " + n + "]"
+				// A run that failed after spending is stored, not returned as an
+				// error; it is still a failed case and proves nothing on security.
+				if n == ai.NoticeAgentFailed {
+					leaked = true
+					failed = append(failed, c.ID+": "+n)
+				}
 			}
 			for _, ct := range run.res.Citations {
 				sources += ct.SourceID + " " + ct.Title + "; "
