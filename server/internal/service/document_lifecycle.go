@@ -293,65 +293,7 @@ func (s *DocumentService) archiveDocument(ctx context.Context, actor Actor, docu
 			}
 			return DocumentArchiveResult{View: view, BatchID: doc.ArchiveBatchID.String}, nil
 		}
-		// One bounded read of the live subtree: a huge folder is refused before
-		// any lock-holding work, and the access check below is one query over
-		// the same ids. The walk stops after the bound is passed.
-		live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
-			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
-			MaxRows: int32(s.archiveBound()) + 1, MaxLevel: subtreeMaxLevel(),
-		})
-		if err != nil {
-			return DocumentArchiveResult{}, err
-		}
-		if len(live) > s.archiveBound() {
-			return DocumentArchiveResult{}, errFolderTooLarge()
-		}
-		// The walk cannot sort (that would evaluate the whole CTE), so the
-		// command sorts the ids it did read: the refusal order and the log
-		// stay stable however the planner returns them.
-		sort.Strings(live)
-		// Never archive a restricted child the caller cannot manage: refuse the
-		// whole command, never leave the child orphaned live. A pristine copy
-		// is a file with nothing under it; anything else takes the full check.
-		if !pristine || len(live) != 1 || live[0] != doc.ID {
-			if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
-				return DocumentArchiveResult{}, err
-			}
-		}
-		batch := util.NewID()
-		stamped, err := q.ArchiveDocumentBatch(ctx, db.ArchiveDocumentBatchParams{
-			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
-			ArchivedBy: nullText(actor.ID), PurgeAfter: pgtype.Timestamptz{Time: s.now().Add(documentRetentionDays * 24 * time.Hour), Valid: true},
-			ArchiveBatchID: pgtype.Text{String: batch, Valid: true}, Ids: live,
-		})
-		if err != nil {
-			return DocumentArchiveResult{}, err
-		}
-		// One audit row and one outbox row per node, written in one statement
-		// per table: the trail stays per document, the round trips do not.
-		recs := make([]audit.Recorded, 0, len(stamped))
-		for _, id := range stamped {
-			recs = append(recs, audit.Recorded{
-				Entry: audit.Entry{
-					OrganizationID: doc.OrganizationID,
-					WorkspaceID:    doc.WorkspaceID,
-					Actor:          actor,
-					Action:         audit.ActionDocumentArchived,
-					ResourceType:   "document",
-					ResourceID:     id,
-					Metadata:       map[string]any{"archive_batch_id": batch},
-				},
-				Events: []audit.Event{{Topic: "document.archived", Payload: map[string]string{
-					"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
-				}}},
-			})
-		}
-		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
-			return DocumentArchiveResult{}, err
-		}
-		// Archive releases the edit lock of every node it stamped, in this
-		// transaction (UNI-1645 §2, edge 4); the counters move after commit.
-		ops, err := s.releaseEditLocksOnArchive(ctx, q, actor, doc, stamped)
+		stamped, batch, ops, err := s.archiveLockedSubtree(ctx, q, actor, doc, pristine)
 		if err != nil {
 			return DocumentArchiveResult{}, err
 		}
@@ -365,6 +307,80 @@ func (s *DocumentService) archiveDocument(ctx context.Context, actor Actor, docu
 		}
 		return DocumentArchiveResult{View: view, BatchID: batch, Affected: stamped}, nil
 	})
+}
+
+// archiveLockedSubtree is the archive command's write half over a live root
+// the caller has locked (tree lock, then row lock) and whose root gate it has
+// passed: the bounded subtree walk, the manage check on every node, one stamp
+// statement, one audit + document.archived row per node and the edit lock
+// releases. rootOnly skips the subtree manage check when the root is the whole
+// live subtree, for a gate that already decided the root alone (a pristine
+// copy, a chat upload deleted by its sender). The lock ops move their
+// counters only after the caller commits.
+func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, rootOnly bool) ([]string, string, *editLockOps, error) {
+	// One bounded read of the live subtree: a huge folder is refused before
+	// any lock-holding work, and the access check below is one query over
+	// the same ids. The walk stops after the bound is passed.
+	live, err := q.ListLiveDocumentSubtreeIDs(ctx, db.ListLiveDocumentSubtreeIDsParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, RootID: doc.ID,
+		MaxRows: int32(s.archiveBound()) + 1, MaxLevel: subtreeMaxLevel(),
+	})
+	if err != nil {
+		return nil, "", nil, err
+	}
+	if len(live) > s.archiveBound() {
+		return nil, "", nil, errFolderTooLarge()
+	}
+	// The walk cannot sort (that would evaluate the whole CTE), so the
+	// command sorts the ids it did read: the refusal order and the log
+	// stay stable however the planner returns them.
+	sort.Strings(live)
+	// Never archive a restricted child the caller cannot manage: refuse the
+	// whole command, never leave the child orphaned live. A root-only gate
+	// covers a file with nothing under it; anything else takes the full check.
+	if !rootOnly || len(live) != 1 || live[0] != doc.ID {
+		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+			return nil, "", nil, err
+		}
+	}
+	batch := util.NewID()
+	stamped, err := q.ArchiveDocumentBatch(ctx, db.ArchiveDocumentBatchParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		ArchivedBy: nullText(actor.ID), PurgeAfter: pgtype.Timestamptz{Time: s.now().Add(documentRetentionDays * 24 * time.Hour), Valid: true},
+		ArchiveBatchID: pgtype.Text{String: batch, Valid: true}, Ids: live,
+	})
+	if err != nil {
+		return nil, "", nil, err
+	}
+	// One audit row and one outbox row per node, written in one statement
+	// per table: the trail stays per document, the round trips do not.
+	recs := make([]audit.Recorded, 0, len(stamped))
+	for _, id := range stamped {
+		recs = append(recs, audit.Recorded{
+			Entry: audit.Entry{
+				OrganizationID: doc.OrganizationID,
+				WorkspaceID:    doc.WorkspaceID,
+				Actor:          actor,
+				Action:         audit.ActionDocumentArchived,
+				ResourceType:   "document",
+				ResourceID:     id,
+				Metadata:       map[string]any{"archive_batch_id": batch},
+			},
+			Events: []audit.Event{{Topic: "document.archived", Payload: map[string]string{
+				"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
+			}}},
+		})
+	}
+	if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
+		return nil, "", nil, err
+	}
+	// Archive releases the edit lock of every node it stamped, in this
+	// transaction (UNI-1645 §2, edge 4); the counters move after commit.
+	ops, err := s.releaseEditLocksOnArchive(ctx, q, actor, doc, stamped)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return stamped, batch, ops, nil
 }
 
 // documentArchiveImpactTx is the FD-04 test seam: it runs inside the impact
