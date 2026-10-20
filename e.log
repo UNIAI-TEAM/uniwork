@@ -1,0 +1,4 @@
+$ (cd server && go test ./internal/ -run "TestLayering|Arch|Office|Transport" -count=1 > /tmp/ops2-arch.log 2>&1); rc=$?; echo; echo "GO_ARCH_EXIT=$rc"; grep -E "^\s*--- FAIL|^(ok|FAIL)\s" /tmp/ops2-arch.log
+
+GO_ARCH_EXIT=0
+ok  	github.com/unicomhub/uniwork/server/internal	0.240s

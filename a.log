@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+7f05a08d5a3df6c39ecd841e2284f4c2987e913e
+7f05a08d5 fix(office): hold legacy spool by descriptor across open and release (SIZE-OPS2 r3)
+785f71ab9 test(office): cover older-version export Start refusal and replay cleanup (SIZE-OPS2 r2)
+85acdd46a fix(office): bound legacy spool copy lifetime below stale sweep age (SIZE-OPS2 r2)
