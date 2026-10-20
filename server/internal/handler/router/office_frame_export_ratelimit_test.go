@@ -52,3 +52,44 @@ func TestOfficeFrameExportBudgetIsPerUserAcrossDocuments(t *testing.T) {
 	bob.spend(t, h, http.MethodPost, export("doc-a"), budget)
 	bob.wantRefused(t, h, http.MethodPost, export("doc-a"), "the second user's own budget")
 }
+
+// The frame avatar route budgets per token user (120/min) across documents and
+// target user ids (UNI-1986), so walking user or document ids cannot mint a
+// fresh budget and one office NAT does not pool everyone's reads.
+func TestOfficeFrameAvatarBudgetIsPerUserAcrossDocuments(t *testing.T) {
+	t.Setenv("FF_DOCUMENTS", "true")
+	t.Setenv("FF_OFFICE_DOCS_WEB", "true")
+	frameAuth := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			uid, ok := strings.CutPrefix(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), "frame-")
+			if !ok {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(mw.WithUserID(r.Context(), uid)))
+		})
+	}
+	h := New(Deps{
+		Cfg:             config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: limiterTestSecret},
+		Minter:          auth.TokenMinter{Secret: []byte(limiterTestSecret), TTL: time.Hour},
+		Redis:           newRedisTestClient(t),
+		FeatureFlags:    featureflag.NewService(featureflag.NewEnvProvider("FF_")),
+		OfficeFrameAuth: frameAuth,
+	}, stubRoutes())
+	avatar := func(doc, user string) string {
+		return "/api/v1/office-frame/documents/" + doc + "/avatars/" + user
+	}
+	const budget = 120
+
+	alice := caller{ip: "10.20.0.10", bearer: "frame-alice"}
+	for i := range budget {
+		if code := alice.send(h, http.MethodGet, avatar("doc-a", "user-"+string(rune('a'+(i%26))))); code != http.StatusOK {
+			t.Fatalf("avatar %d = %d, want 200", i+1, code)
+		}
+	}
+	alice.wantRefused(t, h, http.MethodGet, avatar("doc-new", "user-new"), "a new document or user id does not reset the frame avatar budget")
+
+	bob := caller{ip: "10.20.0.10", bearer: "frame-bob"}
+	bob.spend(t, h, http.MethodGet, avatar("doc-a", "user-a"), budget)
+	bob.wantRefused(t, h, http.MethodGet, avatar("doc-a", "user-a"), "the second user's own avatar budget")
+}

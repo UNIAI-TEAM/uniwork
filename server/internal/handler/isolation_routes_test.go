@@ -689,6 +689,8 @@ var isoRoutes = map[string]isoSpec{
 	// signature): the control and the signed-URL cases are the frame-linked subtest.
 	"GET /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}":  {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
 	"HEAD /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID}": {skipControl: "the signature is the credential and a capability: the frame-linked subtest holds the owner's read and the refusals", refusedAlso: []int{http.StatusUnauthorized}},
+	"GET /api/v1/office-frame/documents/{documentID}/avatars/{userID}":           {class: isoScoped, reason: "frame token credential: Authorize rechecks view on the token's document and AvatarFileOf requires an active member of that document's organization; control = owner reads a same-org avatar in control and frame-avatar", checkControl: isoFrameAvatarCheck},
+	"HEAD /api/v1/office-frame/documents/{documentID}/avatars/{userID}":          {class: isoScoped, reason: "frame token credential: Authorize rechecks view on the token's document and AvatarFileOf requires an active member of that document's organization; control = owner reads a same-org avatar in frame-avatar"},
 	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
 	// The source frame (UNI-1869): a source token, minted by the owner's
 	// session for a DOCX task attachment, opens the metadata and the bytes.

@@ -192,6 +192,7 @@ func TestIsolationMatrix(t *testing.T) {
 	// the Markdown document's own, either tenant's), session token, other
 	// tenant's signature or bare path does.
 	t.Run("frame-linked", w.frameLinkedChecks)
+	t.Run("frame-avatar", w.frameAvatarChecks)
 
 	// A change-feed cursor is bound to its account, organization and
 	// workspace: replayed by B's owner in B's own workspace it is invalid and
@@ -797,6 +798,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{nodeID}":
 		return tn.get(t, "task")
 	case "{userID}":
+		if under("/office-frame/") {
+			return tn.get(t, "frameAvatarUser")
+		}
 		return tn.peerID
 	case "{commentID}":
 		if strings.HasPrefix(pattern, "/api/v1/documents/") {
