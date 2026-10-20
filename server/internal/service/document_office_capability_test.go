@@ -140,7 +140,10 @@ func TestDocumentOfficeCapabilityForTxtAndPlainText(t *testing.T) {
 	svc := f.service(eng)
 	frame := NewOfficeFrameService(f.docs, "office-frame-test-secret-0123456789abcdef")
 
-	// No flag gates .txt: it resolves like .md the moment it is stored.
+	// No flag gates .txt: it resolves like .md the moment it is stored. A stale
+	// office_txt_open=false (an old override or FF_ env of a deployed host) is
+	// inert: nothing reads that key any more, so .txt still opens.
+	f.docs.SetFlags(staticDocFlags{"office_txt_open": false})
 	f.reseed(t, "ghi-chu.txt", []byte("dong 1\ndong 2\n"))
 
 	// .txt (and .TXT) resolves to FormatMD with no flag, while .csv and .log
@@ -427,6 +430,33 @@ func TestDocumentOfficeBlankTxt(t *testing.T) {
 	eng.mu.Unlock()
 	if submitted != 0 {
 		t.Fatalf("blank txt ran %d engine jobs, want none", submitted)
+	}
+	// Visibility and parent go through the same shared path as the docx blank.
+	shared, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt", Title: "Chia se", Visibility: documentVisibilityWorkspace})
+	if err != nil {
+		t.Fatalf("blank txt workspace: %v", err)
+	}
+	if shared.Document.Visibility != documentVisibilityWorkspace || shared.Document.WorkspaceLevel != string(DocumentLevelView) {
+		t.Fatalf("blank txt workspace = %q/%q, want workspace/view", shared.Document.Visibility, shared.Document.WorkspaceLevel)
+	}
+	folder, err := f.docs.CreatePage(ctx, f.actor, f.ws, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc txt"})
+	if err != nil {
+		t.Fatalf("folder: %v", err)
+	}
+	inFolder, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt", Title: "Trong thu muc", ParentID: folder.Document.ID})
+	if err != nil {
+		t.Fatalf("blank txt in a folder: %v", err)
+	}
+	docxInFolder, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "docx", Title: "Docx trong thu muc", ParentID: folder.Document.ID})
+	if err != nil {
+		t.Fatalf("blank docx in a folder: %v", err)
+	}
+	if inFolder.Document.ParentID.String != folder.Document.ID || !inFolder.Document.ParentID.Valid {
+		t.Fatalf("blank txt parent = %+v, want %s", inFolder.Document.ParentID, folder.Document.ID)
+	}
+	if inFolder.Document.Visibility != docxInFolder.Document.Visibility || inFolder.Document.WorkspaceLevel != docxInFolder.Document.WorkspaceLevel {
+		t.Fatalf("blank txt in a folder = %q/%q, docx = %q/%q", inFolder.Document.Visibility, inFolder.Document.WorkspaceLevel,
+			docxInFolder.Document.Visibility, docxInFolder.Document.WorkspaceLevel)
 	}
 	// No engine deployed: a txt blank needs none.
 	if _, err := f.service(nil).CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt"}); err != nil {
