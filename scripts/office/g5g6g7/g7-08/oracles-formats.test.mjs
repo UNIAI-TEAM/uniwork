@@ -3,6 +3,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { deflateSync } from 'node:zlib';
 import { fmtVi, q1Shares } from '../fixtures-lib/data.mjs';
 import { buildPdf } from '../fixtures-lib/pdf.mjs';
 import { buildHtml, buildMarkdown } from '../fixtures-lib/text.mjs';
@@ -545,6 +546,78 @@ test('oraclePdfRead (F-R1) and oraclePdfEdit (F-E1) PASS faithful cases and FAIL
     oraclePdfEdit({ ...validPdfEdit, beforeLines: ['Dòng khác'], afterLines: ['Dòng khác'] }).reason,
     'pdf_target_text_not_found',
   );
+
+  // w3e: compressed PDF variant (ObjStm Pages + FlateDecode content/CMap + TJ/Tm/Td + fallback font run for -AI)
+  const buildCompressedPdf = ({ pageCount = 1, patchInvoice = false, dropLastLine = false, mutateFirstLine = false } = {}) => {
+    const raw = Buffer.from(pdfFixture.bytes).toString('latin1');
+    const hdr = '2 0\n';
+    const objStm = Buffer.concat([deflateSync(Buffer.from(`${hdr}<< /Count ${pageCount} /Kids [3 0 R] /Type /Pages >>`, 'latin1')), Buffer.from('\n')]);
+    const chunks = [
+      Buffer.from('%PDF-1.7\n%\xe2\xe3\xcf\xd3\n', 'latin1'),
+      Buffer.from(`20 0 obj\n<< /Type /ObjStm /N 1 /First ${hdr.length} /Filter /FlateDecode /Length ${objStm.length} >>\nstream\n`, 'latin1'),
+      objStm,
+      Buffer.from('\nendstream\nendobj\n', 'latin1'),
+    ];
+    for (const m of raw.matchAll(/(\d+)\s+0\s+obj\n([\s\S]*?)\nendobj/g)) {
+      const [id, body] = [Number(m[1]), m[2]];
+      if (id === 2) continue;
+      const [sIdx, eIdx] = [body.indexOf('>>\nstream\n'), body.lastIndexOf('\nendstream')];
+      if (sIdx < 0 || eIdx < 0) {
+        chunks.push(Buffer.from(`${id} 0 obj\n${body}\nendobj\n`, 'latin1'));
+        continue;
+      }
+      const dict = body.slice(2, sIdx).replace(/\/Length\s+\d+/, '').trim();
+      let sBody = body.slice(sIdx + 10, eIdx);
+      if (id === 4) {
+        let idx = 0;
+        sBody = sBody.replace(/BT \/F(\d+) ([\d.]+) Tf 1 0 0 1 ([\d.-]+) ([\d.-]+) Tm <([0-9A-Fa-f]+)> Tj ET/g, (_, f, sz, x, y, hex) => {
+          idx += 1;
+          if (dropLastLine && idx === 35) return '';
+          const h = mutateFirstLine && idx === 1 ? hex.slice(0, -4) : hex;
+          const mid = Math.floor(h.length / 8) * 4;
+          if (patchInvoice && idx === 2) {
+            return `q 1 0 0 1 ${x} ${y} cm BT\n1 0 0 1 0 0 Tm\n/F${f} ${sz} Tf\n0 Tr\n[<${h.slice(0, mid)}> 0 <${h.slice(mid)}>] TJ\nET Q\nq 1 0 0 1 188.138 ${y} cm BT\n0 0 Td\n/FXF3 ${sz} Tf\n<000100020003> Tj\nET Q`;
+          }
+          return `BT\n/F${f} ${sz} Tf\n${x} ${y} Td\n[<${h.slice(0, mid)}> 0 <${h.slice(mid)}>] TJ\nET`;
+        });
+      }
+      const deflated = Buffer.concat([deflateSync(Buffer.from(sBody, 'latin1')), Buffer.from('\n')]);
+      chunks.push(
+        Buffer.from(`${id} 0 obj\n<< ${dict} /Filter /FlateDecode /Length ${deflated.length} >>\nstream\n`, 'latin1'),
+        deflated,
+        Buffer.from('\nendstream\nendobj\n', 'latin1'),
+      );
+    }
+    if (patchInvoice) {
+      const cmap3 = deflateSync(Buffer.from('begincmap\n1 beginbfrange\n<0001> <0003> [<002D> <0041> <0049>]\nendbfrange\nendcmap', 'latin1'));
+      chunks.push(
+        Buffer.from('21 0 obj\n<< /Type /Font /Subtype /Type0 /ToUnicode 22 0 R >>\nendobj\n', 'latin1'),
+        Buffer.from(`22 0 obj\n<< /Filter /FlateDecode /Length ${cmap3.length} >>\nstream\n`, 'latin1'),
+        cmap3,
+        Buffer.from('\nendstream\nendobj\n', 'latin1'),
+        Buffer.from('23 0 obj\n<< /Resources << /Font << /FXF3 21 0 R >> >> >>\nendobj\n', 'latin1'),
+      );
+    }
+    chunks.push(Buffer.from('%%EOF\n', 'latin1'));
+    return Buffer.concat(chunks);
+  };
+
+  const compUnedited = extractPdfTextFromBytes(buildCompressedPdf());
+  assert.equal(compUnedited.pageCount, extracted.pageCount);
+  assert.deepEqual(compUnedited.lines, extracted.lines);
+
+  const baseCompEdit = {
+    hostSupportsPdfTextEdit: true,
+    beforeBytes: pdfFixture.bytes,
+    afterBytes: buildCompressedPdf({ patchInvoice: true }),
+    targetText: 'Số hóa đơn: HD-2026-0001',
+    expectedPatchText: 'Số hóa đơn: HD-2026-0001-AI',
+  };
+  assert.equal(oraclePdfEdit(baseCompEdit).status, VERDICT.PASS);
+  assert.equal(oraclePdfEdit({ ...baseCompEdit, afterBytes: buildCompressedPdf({ patchInvoice: true, pageCount: 2 }) }).reason, 'pdf_page_or_line_count_changed');
+  assert.equal(oraclePdfEdit({ ...baseCompEdit, afterBytes: buildCompressedPdf({ patchInvoice: true, dropLastLine: true }) }).reason, 'pdf_page_or_line_count_changed');
+  assert.equal(oraclePdfEdit({ ...baseCompEdit, afterBytes: buildCompressedPdf({ patchInvoice: false }) }).reason, 'pdf_target_text_unchanged_or_wrong');
+  assert.equal(oraclePdfEdit({ ...baseCompEdit, afterBytes: buildCompressedPdf({ patchInvoice: true, mutateFirstLine: true }) }).reason, 'pdf_extraction_outside_patch_modified');
 });
 
 test('oracleMarkdownRead/Edit (M-R1, M-E1), oracleHtmlRead/Edit (H-R1, H-E1), and oracleHitlWord (D-W1)', () => {

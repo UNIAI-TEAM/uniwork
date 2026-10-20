@@ -3,6 +3,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { deflateSync } from 'node:zlib';
 import { buildDocx } from '../fixtures-lib/docx.mjs';
 import { buildPdf } from '../fixtures-lib/pdf.mjs';
 import { buildPptx } from '../fixtures-lib/pptx.mjs';
@@ -419,4 +420,48 @@ test('oraclePptxRead (P-R1) and oraclePptxEdit (P-E1) PASS faithful cases and FA
   assert.equal(pdfExtracted.pageCount, 1);
   assert.equal(pdfExtracted.hasToUnicode, true);
   assert.ok(pdfExtracted.lines.includes('Số hóa đơn: HD-2026-0001'));
+
+  // w3e: compressed variant (FlateDecode content + CMap + ObjStm for Pages, TJ arrays, separate Tf/Tm/Td lines)
+  const rawPdf = Buffer.from(pdfFixture.bytes).toString('latin1');
+  const objStmHdr = '2 0\n';
+  const objStmData = Buffer.concat([deflateSync(Buffer.from(`${objStmHdr}<< /Count 1 /Kids [3 0 R] /Type /Pages >>`, 'latin1')), Buffer.from('\n')]);
+  const compChunks = [
+    Buffer.from('%PDF-1.7\n%\xe2\xe3\xcf\xd3\n', 'latin1'),
+    Buffer.from(`20 0 obj\n<< /Type /ObjStm /N 1 /First ${objStmHdr.length} /Filter /FlateDecode /Length ${objStmData.length} >>\nstream\n`, 'latin1'),
+    objStmData,
+    Buffer.from('\nendstream\nendobj\n', 'latin1'),
+  ];
+  for (const m of rawPdf.matchAll(/(\d+)\s+0\s+obj\n([\s\S]*?)\nendobj/g)) {
+    const [id, body] = [Number(m[1]), m[2]];
+    if (id === 2) continue;
+    const [sIdx, eIdx] = [body.indexOf('>>\nstream\n'), body.lastIndexOf('\nendstream')];
+    if (sIdx < 0 || eIdx < 0) {
+      compChunks.push(Buffer.from(`${id} 0 obj\n${body}\nendobj\n`, 'latin1'));
+      continue;
+    }
+    const dict = body.slice(2, sIdx).replace(/\/Length\s+\d+/, '').trim();
+    let sBody = body.slice(sIdx + 10, eIdx);
+    if (id === 4) {
+      let lineIdx = 0;
+      sBody = sBody.replace(/BT \/F(\d+) ([\d.]+) Tf 1 0 0 1 ([\d.-]+) ([\d.-]+) Tm <([0-9A-Fa-f]+)> Tj ET/g, (_, f, sz, x, y, hex) => {
+        lineIdx += 1;
+        const mid = Math.floor(hex.length / 8) * 4;
+        return lineIdx % 2 === 0
+          ? `BT\n/F${f} ${sz} Tf\n${x} ${y} Td\n[<${hex.slice(0, mid)}> 0 <${hex.slice(mid)}>] TJ\nET`
+          : `BT\n1 0 0 1 ${x} ${y} Tm\n/F${f} ${sz} Tf\n0 Tr\n<${hex}> Tj\nET`;
+      });
+    }
+    const deflated = Buffer.concat([deflateSync(Buffer.from(sBody, 'latin1')), Buffer.from('\n')]);
+    compChunks.push(
+      Buffer.from(`${id} 0 obj\n<< ${dict} /Filter /FlateDecode /Length ${deflated.length} >>\nstream\n`, 'latin1'),
+      deflated,
+      Buffer.from('\nendstream\nendobj\n', 'latin1'),
+    );
+  }
+  compChunks.push(Buffer.from('%%EOF\n', 'latin1'));
+  const compExtracted = extractPdfTextFromBytes(Buffer.concat(compChunks));
+  assert.ok(compExtracted);
+  assert.equal(compExtracted.pageCount, pdfExtracted.pageCount);
+  assert.equal(compExtracted.hasToUnicode, true);
+  assert.deepEqual(compExtracted.lines, pdfExtracted.lines);
 });

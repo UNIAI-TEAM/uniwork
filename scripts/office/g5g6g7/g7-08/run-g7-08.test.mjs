@@ -172,6 +172,22 @@ describe('G7-08 W2 web-driver pure observation builders and preflight guards', (
     assert.equal(html.args.ops[0].new, 'Dữ liệu mẫu kiểm thử đã xác nhận, bao gồm các đơn hàng ẩn.');
     const pdf = callOf('F-E1', pdfBytes);
     assert.deepEqual(pdf, { name: 'edit_text', args: { page: 1, old_text: 'Số hóa đơn: HD-2026-0001', new_text: 'Số hóa đơn: HD-2026-0001-AI' } });
+    // w3e: X-E1 stub operations carry a non-empty sheetId taken from the turn input (context message or state).
+    const xe1Turn = buildDryRunStubModel(getRowById('X-E1'), xlsxBytes)({
+      state: { step: 0 },
+      body: { messages: [{ role: 'user', content: 'Active sheet: Doanh thu Q1 (id=sheet-q1-active, data extent about 9 rows × 7 columns)' }] },
+    }).toolCalls[0].function;
+    assert.equal(xe1Turn.name, 'propose_operations');
+    const xe1Ops = JSON.parse(xe1Turn.arguments).operations;
+    assert.equal(xe1Ops.length, 6);
+    for (const op of xe1Ops) {
+      assert.equal(op.op, 'set_formula');
+      assert.equal(op.sheetId, 'sheet-q1-active');
+    }
+    const xe1State = JSON.parse(
+      buildDryRunStubModel(getRowById('X-E1'), xlsxBytes)({ state: { step: 0, sheetId: 'sheet-state-1' } }).toolCalls[0].function.arguments,
+    ).operations;
+    assert.ok(xe1State.every((op) => op.sheetId === 'sheet-state-1'));
   });
 
   it('builds scripted dry-run replies and tool calls from fixture truth for all row families', async () => {
