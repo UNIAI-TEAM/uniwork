@@ -192,3 +192,114 @@ func TestDoclistFormatTxt(t *testing.T) {
 	dlArchive(t, w, []string{txt, other})
 	only("trash", w.token, base+"?archived=1&format=txt")
 }
+
+// SV-8: updated_by, updated_from and updated_to narrow recent, shared-with-me,
+// Shared by me, the trash and the shelf the way they narrow the flat list.
+func TestDoclistUpdatedFilters(t *testing.T) {
+	w := newDocsWorld(t)
+	_, ann := docsJoinWorkspace(t, w, "dl-filter-ann@example.com")
+	readerTok, readerID := docsJoinWorkspace(t, w, "dl-filter-reader@example.com")
+	base := dlBase(w)
+	now := time.Now().UTC().Truncate(time.Second)
+	day := func(n int) time.Time { return now.Add(-time.Duration(n) * 24 * time.Hour) }
+	stamp := func(tm time.Time) string { return tm.Format(time.RFC3339) }
+
+	editors := map[string]string{"d1": w.userID, "d2": ann, "d3": ann}
+	updated := map[string]time.Time{"d1": day(3), "d2": day(2), "d3": day(1)}
+	ids := map[string]string{}
+	all := []string{}
+	for _, title := range []string{"d1", "d2", "d3"} {
+		_, id := docsCreatePageBody(t, w, w.token, map[string]any{"title": title, "visibility": "restricted"})
+		ids[title] = id
+		all = append(all, id)
+		dlShare(t, w, id, "user", readerID, w.userID, "human", now.Add(-time.Hour))
+		dlLog(t, w, id, w.userID, "view", now.Add(-time.Hour))
+	}
+	// archiving and shelving touch the row, so the editor and time are
+	// written again whenever a state changes.
+	seed := func() {
+		for title, id := range ids {
+			dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, editors[title], updated[title], id)
+		}
+	}
+	seed()
+
+	check := func(what, token, path string) {
+		t.Helper()
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		for _, c := range []struct {
+			query string
+			want  []string
+		}{
+			{"updated_by=" + ann, []string{"d2", "d3"}},
+			{"updated_by=" + w.userID, []string{"d1"}},
+			{"updated_from=" + stamp(day(2).Add(-time.Hour)), []string{"d2", "d3"}},
+			{"updated_to=" + stamp(day(2).Add(time.Hour)), []string{"d1", "d2"}},
+			{"updated_from=" + stamp(day(2).Add(-time.Hour)) + "&updated_to=" + stamp(day(2).Add(time.Hour)), []string{"d2"}},
+			{"updated_by=" + ann + "&updated_to=" + stamp(day(2).Add(time.Hour)), []string{"d2"}},
+		} {
+			rows := dlRows(t, w, token, path+sep+c.query)
+			got := map[string]bool{}
+			for title := range rows {
+				if _, ok := ids[title]; ok {
+					got[title] = true
+				}
+			}
+			if len(got) != len(c.want) {
+				t.Errorf("%s ?%s: rows = %v, want %v", what, c.query, got, c.want)
+				continue
+			}
+			for _, title := range c.want {
+				if !got[title] {
+					t.Errorf("%s ?%s: rows = %v, want %v", what, c.query, got, c.want)
+				}
+			}
+		}
+		for _, bad := range []string{"updated_from=yesterday", "updated_to=2026-13-40"} {
+			res, out := dlGet(t, w, token, path+sep+bad)
+			wantErr(t, res, out, 400, "invalid_request", "")
+		}
+	}
+	check("recent", w.token, base+"/recent")
+	check("shared-with-me", readerTok, base+"/shared-with-me")
+	check("shared_by_me", w.token, base+"?shared_by_me=true")
+	// On the shelf and in the trash the window is the time the row was
+	// shelved or deleted, as it has always been there (the flat list's is
+	// updated_at); the last editor is the same everywhere.
+	dlShelve(t, w, all, true)
+	seed()
+	for title, id := range ids {
+		dlExec(t, `UPDATE documents SET shelved_at = $1 WHERE id = $2`, updated[title], id)
+	}
+	check("shelf", w.token, base+"?shelved=1")
+	dlShelve(t, w, all, false)
+	dlArchive(t, w, all)
+	seed()
+	for title, id := range ids {
+		dlExec(t, `UPDATE documents SET archived_at = $1 WHERE id = $2`, updated[title], id)
+	}
+	check("trash", w.token, base+"?archived=1")
+}
+
+// An empty page of any list is `[]`, never null, on every route this task
+// touches.
+func TestDoclistEmptyListsAreArrays(t *testing.T) {
+	w := newDocsWorld(t)
+	base := dlBase(w)
+	for _, q := range []string{
+		"/favorites", "/recent", "/shared-with-me", "?archived=1", "?shelved=1", "?shared_by_me=true",
+		"?format=txt", "/favorites?format=txt", "/shared-with-me?format=txt", "/recent?activity=opened",
+	} {
+		res, out := dlGet(t, w, w.token, base+q)
+		if res.StatusCode != 200 {
+			t.Errorf("GET %s: %d %v", q, res.StatusCode, out)
+			continue
+		}
+		if docs, ok := out["documents"].([]any); !ok || len(docs) != 0 {
+			t.Errorf("GET %s: documents = %#v, want an empty array", q, out["documents"])
+		}
+	}
+}

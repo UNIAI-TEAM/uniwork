@@ -78,20 +78,8 @@ func documentListInputFor(w http.ResponseWriter, r *http.Request, recent bool) (
 		return in, false
 	}
 	in.Sort = sort
-	for _, f := range []struct {
-		name string
-		dst  *time.Time
-	}{{"updated_from", &in.UpdatedFrom}, {"updated_to", &in.UpdatedTo}} {
-		raw := strings.TrimSpace(q.Get(f.name))
-		if raw == "" {
-			continue
-		}
-		t, err := time.Parse(time.RFC3339, raw)
-		if err != nil {
-			respondError(w, http.StatusBadRequest, "invalid_request", f.name+" must be an RFC3339 timestamp")
-			return in, false
-		}
-		*f.dst = t
+	if !parseUpdatedWindow(w, q, &in.UpdatedFrom, &in.UpdatedTo) {
+		return in, false
 	}
 	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -108,6 +96,28 @@ func documentListInputFor(w http.ResponseWriter, r *http.Request, recent bool) (
 // trash sorts by deletion time, the shelf by shelving time, shared_by_me by the
 // time of the newest grant (UNI-2045); every other shape takes the four column
 // keys only. The same word on another shape is 400.
+// parseUpdatedWindow reads updated_from / updated_to (RFC3339) into from and to;
+// an absent value leaves its target zero. It answers 400 itself and returns
+// false on a bad timestamp.
+func parseUpdatedWindow(w http.ResponseWriter, q url.Values, from, to *time.Time) bool {
+	for _, f := range []struct {
+		name string
+		dst  *time.Time
+	}{{"updated_from", from}, {"updated_to", to}} {
+		raw := strings.TrimSpace(q.Get(f.name))
+		if raw == "" {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", f.name+" must be an RFC3339 timestamp")
+			return false
+		}
+		*f.dst = t
+	}
+	return true
+}
+
 func listSortRoute(archived, shelved, sharedByMe bool) string {
 	switch {
 	case archived:
@@ -238,8 +248,12 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := service.SharedWithMeQuery{
-		Format: strings.TrimSpace(r.URL.Query().Get("format")),
-		Access: strings.TrimSpace(r.URL.Query().Get("access")),
+		Format:    strings.TrimSpace(r.URL.Query().Get("format")),
+		Access:    strings.TrimSpace(r.URL.Query().Get("access")),
+		UpdatedBy: strings.TrimSpace(r.URL.Query().Get("updated_by")),
+	}
+	if !parseUpdatedWindow(w, r.URL.Query(), &in.UpdatedFrom, &in.UpdatedTo) {
+		return
 	}
 	sort, ok := documentSortInput(w, r.URL.Query(), service.DocumentSortShared)
 	if !ok {

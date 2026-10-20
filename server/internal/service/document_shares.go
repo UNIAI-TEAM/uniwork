@@ -824,6 +824,11 @@ type SharedWithMeQuery struct {
 	// (UNI-1868); an unknown value is 400 invalid_filter.
 	Format string
 	Access string
+	// UpdatedBy, UpdatedFrom and UpdatedTo are the last-editor and updated_at
+	// window of the other lists (UNI-2045 SV-8); zero values are absent.
+	UpdatedBy   string
+	UpdatedFrom time.Time
+	UpdatedTo   time.Time
 	// Sort is the optional column sort (UNI-2038 S3). With it the keyset is the
 	// sort key of the last candidate: AfterSort carries the key and
 	// AfterCreatedAt the updated key; without it the share-time keyset above
@@ -948,6 +953,13 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
 			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
+			UpdatedBy: nullText(in.UpdatedBy),
+		}
+		if !in.UpdatedFrom.IsZero() {
+			params.UpdatedFrom = pgtype.Timestamptz{Time: in.UpdatedFrom, Valid: true}
+		}
+		if !in.UpdatedTo.IsZero() {
+			params.UpdatedTo = pgtype.Timestamptz{Time: in.UpdatedTo, Valid: true}
 		}
 		switch {
 		case in.Sort.Active():

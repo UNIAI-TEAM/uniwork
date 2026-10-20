@@ -227,3 +227,69 @@ func TestDocumentSortParamsInOpenAPI(t *testing.T) {
 		}
 	}
 }
+
+// UNI-2045 SV-1..SV-8: the new route, query parameters and row fields are in
+// the published OpenAPI.
+func TestDoclistParamsInOpenAPI(t *testing.T) {
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	d.Cfg.EnableSwagger = true
+	q := db.New(pool)
+	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
+	docs.SetEntitlements(service.NewEntitlementService(pool, q))
+	docs.SetFiles(filesfake.New(filesfake.Options{}))
+	d.Documents = docs
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	res, err := srv.Client().Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var spec struct {
+		Paths map[string]map[string]struct {
+			Parameters []struct {
+				Name string `json:"name"`
+				In   string `json:"in"`
+			} `json:"parameters"`
+		} `json:"paths"`
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&spec); err != nil {
+		t.Fatal(err)
+	}
+	root := "/api/v1/workspaces/{workspaceID}/documents"
+	for path, want := range map[string][]string{
+		root:                     {"format", "updated_by", "updated_from", "updated_to", "shared_by_me", "archived", "shelved"},
+		root + "/recent":         {"format", "activity", "updated_by", "updated_from", "updated_to"},
+		root + "/shared-with-me": {"format", "updated_by", "updated_from", "updated_to"},
+		root + "/favorites":      {"format", "kind", "cursor", "limit", "sort", "order"},
+	} {
+		have := map[string]bool{}
+		for _, p := range spec.Paths[path]["get"].Parameters {
+			if p.In == "query" {
+				have[p.Name] = true
+			}
+		}
+		if len(spec.Paths[path]["get"].Parameters) == 0 {
+			t.Errorf("GET %s is not published", path)
+		}
+		for _, name := range want {
+			if !have[name] {
+				t.Errorf("GET %s lacks query parameter %s (has %v)", path, name, have)
+			}
+		}
+	}
+	row, ok := spec.Components.Schemas["SdoDocumentSummaryDTO"]
+	if !ok {
+		t.Fatalf("SdoDocumentSummaryDTO is not a published schema")
+	}
+	for _, field := range []string{"is_owner", "updated_by_user", "last_activity", "favorited_at", "shared", "share_summary"} {
+		if _, ok := row.Properties[field]; !ok {
+			t.Errorf("SdoDocumentSummaryDTO lacks %s", field)
+		}
+	}
+}

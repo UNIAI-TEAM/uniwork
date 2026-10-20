@@ -121,6 +121,10 @@ WHERE d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): a shelved share leaves the shared-with-me list.
   AND d.shelved_at IS NULL
   AND d.owner_id IS NULL
+  -- UNI-2045 SV-8: the same last-editor and updated_at window the flat list takes.
+  AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
+  AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
+  AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
   AND (sqlc.narg(format)::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
