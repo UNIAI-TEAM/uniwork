@@ -106,6 +106,32 @@ describe("useFrameComments: Inbox landing on a lost comment (UNI-2033)", () => {
   });
 });
 
+describe("useFrameComments: the landing waits for the list that carries the comment (UNI-2033)", () => {
+  // The docs frame asks for two kinds (the anchored "comment" panel and "discussion"); the first answer of an open
+  // can be a list that does not hold the linked comment, which must not spend the landing.
+  it("skips a first list that does not name the comment, then lands on the one that does", async () => {
+    const frame = setup({ revealCommentId: "c1" });
+    frame.attach();
+    await frame.list([{ id: "d1", kind: "discussion" }]);
+    expect(frame.navigation.replace).not.toHaveBeenCalled();
+    await frame.list([lost()]);
+    expect(frame.navigation.replace).toHaveBeenCalledTimes(1);
+    expect(frame.navigation.replace).toHaveBeenCalledWith(`${PATH}?version=2&comment=c1`);
+    await frame.list([lost()]);
+    expect(frame.navigation.replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips an unchanged first answer too", async () => {
+    const frame = setup({ revealCommentId: "c1" });
+    frame.attach();
+    requestMock.mockResolvedValueOnce({ unchanged: true, list_token: "lt1:aa" });
+    await frame.hook.result.current.binding.api["comments.list"]?.({ since_token: "lt1:aa" }, SIGNAL);
+    expect(frame.navigation.replace).not.toHaveBeenCalled();
+    await frame.list([lost()]);
+    expect(frame.navigation.replace).toHaveBeenCalledWith(`${PATH}?version=2&comment=c1`);
+  });
+});
+
 describe("useFrameComments: comments.viewVersion (UNI-2033)", () => {
   it("pushes the version URL with the comment and answers opened", () => {
     const frame = setup();
