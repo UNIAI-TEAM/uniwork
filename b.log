@@ -1,0 +1,16 @@
+$ (. scripts/local-env.sh && cd server && gofmt -l internal pkg cmd migrations; go vet ./internal/service ./internal/handler/... && go tool staticcheck ./internal/service ./internal/handler/... && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler -race -run "TestOfficeLaunch|TestOffice|TestDocumentComment" -count=1 -timeout 40m -v > /tmp/hdl.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/hdl.log | tail -20; grep -E "^--- (PASS|FAIL): TestOfficeLaunch" /tmp/hdl.log; echo; echo "TEST_HDL_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	74.498s
+--- PASS: TestOfficeLaunchCreateRouteBindsTicketToDocumentAndHidesItFromNonMembers (0.36s)
+--- PASS: TestOfficeLaunchCreateRouteNoneHintDoesNotOfferDeepLink (0.38s)
+--- PASS: TestOfficeLaunchRevokeRouteHidesAnotherAccountsReceipt (0.40s)
+--- PASS: TestOfficeLaunchCreateRouteCarriesOptionalCommentID (0.34s)
+--- PASS: TestOfficeLaunchCommentIDIsDroppedUnlessItBelongsToTheDocument (0.39s)
+--- PASS: TestOfficeLaunchDeletedCommentIDIsDroppedSilently (0.38s)
+--- PASS: TestOfficeLaunchTombstonedCommentIDIsKept (0.40s)
+--- PASS: TestOfficeLaunchNoAccessCallerWithLiveCommentIDIsStillRefused (0.40s)
+--- PASS: TestOfficeLaunchCommentIDMalformedIsRejected (0.37s)
+--- PASS: TestOfficeLaunchURLFollowsTheClientScheme (0.00s)
+
+TEST_HDL_EXIT=0
