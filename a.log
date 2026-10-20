@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+c8d3144fba755aa39c41cf84c2556151946fd34a
+8cb13a29642ec32a84c202baf6845db783fc0533
+c8d3144fb chore(merge): W2 e2e spec fix (4c084ac28) into CDS-FU (UNI-1992)
+89a71702a refactor(email-hub): split the hub view under the line limit (UNI-1992)
+4c084ac28 test(e2e): scope the new-DM picker row to the dialog in the block-peer spec (UNI-1992)
+593944b3e fix(chat): keep the sent-earlier note out of the status while a send is pending (UNI-1992)
+8cb13a296 chore: merge UNI-1966 CHAT-DOC-SHARE (server + web; 9aca0dc81) into the G5-G7 root
+9aca0dc81 fix(chat): keep the access request button when a request was sent earlier (UNI-1966)
+bb42b1723 fix(chat): let a mouse reach the actions bar at every width without covering the card title (UNI-1966)
+d1ac5f5f2 chore: merge UNI-1919 REPIN-4 (pin web-0.1.0-b1cbd5d; 8e80776d2) into the G5-G7 root
+b26e23f93 chore: merge UNI-1988 SIZE-OPS1 (framed engine job transport; abb82ea3a) into the G5-G7 root
+50d9e0b44 fix(chat): refresh the locked chat card after a decision and on remount (UNI-1966)
