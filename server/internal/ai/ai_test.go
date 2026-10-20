@@ -1207,8 +1207,26 @@ func TestGatewayPricesCacheTokens(t *testing.T) {
 	if row.CostMicros != 470 || row.CacheReadTokens != 1000 || row.CacheWriteTokens != 200 || row.InputTokens != 100 {
 		t.Fatalf("%+v", row)
 	}
-	if len(quota.recorded) != 1 || quota.recorded[0].Tokens != 1310 {
+	// Input, output and cache writes count in full, cache reads at a tenth: 100+10+200+1000/10.
+	if len(quota.recorded) != 1 || quota.recorded[0].Tokens != 410 {
 		t.Fatalf("quota %+v", quota.recorded)
+	}
+}
+
+func TestMeteredTokensCountCacheReadsAtATenthRoundedUp(t *testing.T) {
+	for _, c := range []struct {
+		r    provider.CompletionResponse
+		want int64
+	}{
+		{provider.CompletionResponse{}, 0},
+		{provider.CompletionResponse{CacheReadTokens: 1}, 1},
+		{provider.CompletionResponse{CacheReadTokens: 10}, 1},
+		{provider.CompletionResponse{CacheReadTokens: 11}, 2},
+		{provider.CompletionResponse{InputTokens: 3, OutputTokens: 4, CacheWriteTokens: 5, CacheReadTokens: 100}, 22},
+	} {
+		if got := meteredTokens(c.r); got != c.want {
+			t.Errorf("meteredTokens(%+v) = %d, want %d", c.r, got, c.want)
+		}
 	}
 }
 

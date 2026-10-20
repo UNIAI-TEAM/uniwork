@@ -374,6 +374,14 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	return g.response(resp, row.ID), nil
 }
 
+// meteredTokens is what one call spends of the ai.tokens meter: input, output
+// and cache writes in full, cache reads at a tenth, rounded up, as the vendor
+// prices them, so a cached agent turn does not drain the quota ten times
+// faster than it costs.
+func meteredTokens(r provider.CompletionResponse) int64 {
+	return int64(r.InputTokens+r.OutputTokens+r.CacheWriteTokens) + (int64(r.CacheReadTokens)+9)/10
+}
+
 // charge counts the tokens a vendor billed against the organization's
 // ai.tokens meter and tells the workspace its usage moved. Failures are
 // logged, never returned: the vendor already answered.
@@ -381,7 +389,7 @@ func (g *Gateway) charge(ctx context.Context, req Request, usageEventID string, 
 	if g.quota != nil {
 		if err := g.quota.Record(ctx, UsageRecord{
 			OrganizationID: req.OrganizationID, WorkspaceID: req.WorkspaceID, Actor: req.Actor,
-			Tokens: int64(resp.InputTokens + resp.OutputTokens + resp.CacheReadTokens + resp.CacheWriteTokens), UsageEventID: usageEventID,
+			Tokens: meteredTokens(resp), UsageEventID: usageEventID,
 			MeterKey: req.MeterKey,
 		}); err != nil {
 			g.log.Warn("ai: quota record", "usage_event_id", usageEventID, "err", err)

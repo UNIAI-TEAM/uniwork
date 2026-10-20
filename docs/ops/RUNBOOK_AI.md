@@ -49,7 +49,10 @@ ra mạng.
   (chỉ có `usage_event_id`, capability, latency và message của provider — không
   có nội dung). Tắt tính năng tạm thời bằng cách bỏ key và restart: client tự ẩn.
 - **`ai_quota_exceeded` với tổ chức chưa dùng nhiều**: xem `usage_counters` meter
-  `ai.tokens` và `plan_features.quota_limit` (mặc định 500k, migration 099).
+  `ai.tokens` và `plan_features.quota_limit` (mặc định 500k, migration 099; gói
+  Starter 100k). Mỗi lời gọi trừ đủ token input, output và cache ghi; token cache
+  đọc chỉ trừ 10%, làm tròn lên, theo giá nhà cung cấp. Một câu hỏi agent ở
+  Ask UNI tốn ước tính 2–3k token hạn mức (từ eval live P1, 2026-10-20).
 - **`ai_rate_limited` hàng loạt**: Redis lỗi hay chậm quá 100ms không còn gây 429
   — giới hạn 20 lượt/phút/người của Ask UNI fail-open như mọi limiter (ruling
   P22). 429 hàng loạt là người dùng thật vượt giới hạn, tổ chức vượt trần lời
