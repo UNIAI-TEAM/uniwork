@@ -153,7 +153,10 @@ func (s *AskUNIService) resolveAskModel(ctx context.Context, orgID, key, effort 
 		reason = "unpriced" // no id on this provider, off the allowlist or without a rate
 		if id := s.askModelID(askModels[i]); id != "" && s.gw.ModelSelectable(ctx, id) {
 			reason = "disabled"
-			if keys, err := s.orgAskKeys(ctx, orgID); err == nil && slices.Contains(keys, key) {
+			keys, err := s.orgAskKeys(ctx, orgID)
+			if err != nil {
+				reason = "lookup_failed"
+			} else if slices.Contains(keys, key) {
 				return id, eff
 			}
 		}
