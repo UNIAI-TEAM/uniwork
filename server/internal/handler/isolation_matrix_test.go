@@ -1050,21 +1050,31 @@ func (w *isoWorld) referencesTo(t *testing.T, in, of *isoTenant) []string {
 // that names another tenant's id is answered, never refused, and the row keeps
 // the id the person sent: the zip download job (UNI-2045 SV-9) keeps the ids it
 // was asked for and the ones it skipped as not_found - the same answer an
-// unknown id gets, so the echo tells nothing about the other tenant. Every
-// other column of the row is still searched, and no other table is exempt.
+// unknown id gets, so the echo tells nothing about the other tenant. Only the
+// ULID-shaped tokens of these columns are exempt (isoRowText strips them): any
+// other text in them, and every other column of the row, is still searched, and
+// no other table is exempt.
 var isoRowEchoColumns = map[string][]string{
 	"document_download_jobs": {"document_ids", "skipped"},
 }
 
+// isoULIDToken matches a lowercased ULID (Crockford base32, 26 characters).
+const isoULIDToken = `[0-9a-hjkmnp-tv-z]{26}`
+
 // isoRowText is the SQL text the reference search reads for one table's row.
+// The echo columns stay in it with their ULID-shaped tokens removed.
 func isoRowText(table string) string {
-	expr := "x::text"
-	if cols := isoRowEchoColumns[table]; len(cols) > 0 {
-		expr = "(to_jsonb(x)"
-		for _, c := range cols {
-			expr += " - " + isoSQLString(c)
-		}
-		expr += ")::text"
+	cols := isoRowEchoColumns[table]
+	if len(cols) == 0 {
+		return "x::text"
+	}
+	expr := "(to_jsonb(x)"
+	for _, c := range cols {
+		expr += " - " + isoSQLString(c)
+	}
+	expr += ")::text"
+	for _, c := range cols {
+		expr += " || ' ' || regexp_replace(lower(x.\"" + c + "\"::text), " + isoSQLString(isoULIDToken) + ", '', 'g')"
 	}
 	return expr
 }
@@ -1301,5 +1311,26 @@ func (w *isoWorld) sharedByMeChecks(t *testing.T) {
 	_, raw := w.do(t, http.MethodGet, pathFor(w.bravo), w.bravo.token, isoBody{})
 	if leak := w.alpha.leakIn(raw, ""); leak != "" {
 		t.Errorf("GET %s: B's own view carries A's %s: %s", pathFor(w.bravo), leak, isoClip(raw))
+	}
+}
+
+// The echo exemption hides only the ids a caller typed: other text in an echo
+// column (a title or marker of A's written into skipped) still trips the search.
+func TestIsoRowTextStripsOnlyULIDsFromEchoColumns(t *testing.T) {
+	const ulid = "01J8X4DKJ0N1P2Q3R4S5T6V7W8"
+	_, pool := newTestDeps(t, nil, discardOutbox{})
+	row := `SELECT lower(` + isoRowText("document_download_jobs") + `) FROM (SELECT
+		ARRAY['` + ulid + `']::text[] AS document_ids,
+		'[{"document_id":"` + ulid + `","reason":"not_found"},{"document_id":"x","reason":"Quarterly Secret Title"}]'::jsonb AS skipped,
+		'plain' AS status) x`
+	var text string
+	if err := pool.QueryRow(context.Background(), row).Scan(&text); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(text, strings.ToLower(ulid)) {
+		t.Fatalf("echoed id still searched: %s", text)
+	}
+	if !strings.Contains(text, "quarterly secret title") || !strings.Contains(text, "plain") {
+		t.Fatalf("other text no longer searched: %s", text)
 	}
 }
