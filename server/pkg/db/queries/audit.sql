@@ -134,6 +134,16 @@ WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
 ORDER BY occurred_at DESC
 LIMIT 1;
 
+-- name: ListAuditEventsInTransaction :many
+-- tenant: system
+-- The notification consumer groups what one transaction created (one
+-- outbox row each): rows of a transaction share now(), which is also the
+-- outbox row's created_at, so correlation id + occurred_at names the
+-- transaction without a column for it.
+SELECT * FROM audit_events
+WHERE correlation_id = $1 AND action = $2 AND occurred_at = $3
+ORDER BY resource_id;
+
 -- name: InsertAuditEventsBatch :exec
 -- tenant: system
 -- Chỉ package internal/audit được gọi câu này (arch_test.go giữ luật): the

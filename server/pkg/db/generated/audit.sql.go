@@ -514,6 +514,60 @@ func (q *Queries) ListAuditEventsForExport(ctx context.Context, arg ListAuditEve
 	return items, nil
 }
 
+const listAuditEventsInTransaction = `-- name: ListAuditEventsInTransaction :many
+SELECT id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, metadata, correlation_id, request_id, ip_address, user_agent, occurred_at, xact_id FROM audit_events
+WHERE correlation_id = $1 AND action = $2 AND occurred_at = $3
+ORDER BY resource_id
+`
+
+type ListAuditEventsInTransactionParams struct {
+	CorrelationID string             `json:"correlation_id"`
+	Action        string             `json:"action"`
+	OccurredAt    pgtype.Timestamptz `json:"occurred_at"`
+}
+
+// tenant: system
+// The notification consumer groups what one transaction created (one
+// outbox row each): rows of a transaction share now(), which is also the
+// outbox row's created_at, so correlation id + occurred_at names the
+// transaction without a column for it.
+func (q *Queries) ListAuditEventsInTransaction(ctx context.Context, arg ListAuditEventsInTransactionParams) ([]AuditEvent, error) {
+	rows, err := q.db.Query(ctx, listAuditEventsInTransaction, arg.CorrelationID, arg.Action, arg.OccurredAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditEvent{}
+	for rows.Next() {
+		var i AuditEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.Action,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.Changes,
+			&i.Metadata,
+			&i.CorrelationID,
+			&i.RequestID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.OccurredAt,
+			&i.XactID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAuditExports = `-- name: ListAuditExports :many
 SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at, file_id FROM audit_exports
 WHERE organization_id = $1
