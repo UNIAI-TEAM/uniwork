@@ -1,1 +1,1 @@
-﻿STATE: VISUAL_ROUND (fixes 64bd41676 on bro worktree feature-UNI-1994-doc-nits; tester_visual running via ssh bro)
+﻿STATE: MERGE_READY (head fb57d329c; nits 1-6 PASS; packet reports/docs-ui_local/packet-DOC-NITS.md)

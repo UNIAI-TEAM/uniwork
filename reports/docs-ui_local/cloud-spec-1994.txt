@@ -1,4 +1,4 @@
-# UNI-1994 DOC-NITS 2026-10-20: feature-UNI-1994-doc-nits @64bd41676 (3 FE commits + 1 follow-up) on root 8cb13a296
+# UNI-1994 DOC-NITS 2026-10-20: feature-UNI-1994-doc-nits @fb57d329c (6 nits, 7 FE commits) on root 8cb13a296
 pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo "INSTALL_EXIT=$rc"
 git status --short | grep -v "^??" | head; git diff --quiet HEAD; rc=$?; echo; echo "TREE_CLEAN_EXIT=$rc"; git rev-parse HEAD; git log --oneline -5
 pnpm --filter @uniwork/views exec vitest run documents 2>&1 | tail -8; rc=${PIPESTATUS[0]}; echo "VIEWS_DOCS_EXIT=$rc"
