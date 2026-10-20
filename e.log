@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/core exec vitest run i18n paths chat 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "CORE_EXIT=$rc"
+
+ Test Files  72 passed (72)
+      Tests  540 passed (540)
+   Start at  09:30:37
+   Duration  16.21s (transform 2.74s, setup 8.86s, import 7.89s, tests 2.05s, environment 21.42s)
+
+CORE_EXIT=0

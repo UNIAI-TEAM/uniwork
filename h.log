@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/views exec eslint --max-warnings 0 chat > /tmp/lint2010.log 2>&1; rc=$?; tail -8 /tmp/lint2010.log; echo "VIEWS_LINT_EXIT=$rc"
+VIEWS_LINT_EXIT=0

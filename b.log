@@ -1,0 +1,9 @@
+$ git status --short | grep -v "^??" | head; git diff --quiet HEAD; rc=$?; echo; echo "TREE_CLEAN_EXIT=$rc"; git rev-parse HEAD; git log --oneline -5
+
+TREE_CLEAN_EXIT=0
+da9551bc26b0d4d0ed341015d39c25f65475f20b
+da9551bc2 fix(chat): own-bubble hover/focus contrast, document meta chip on the wall
+fcbafa67b fix(chat): readable document card on own bubble
+a848fee56 fix(chat): readable share-as-document action on own bubble, wash highlight on document rows
+c0d4cdf20 docs(deploy): installer comment names beta.5
+fd58b2759 chore: merge UNI-1986 FRAME-AVATARS D half (b0d6b9f91) into the G5-G7 root
