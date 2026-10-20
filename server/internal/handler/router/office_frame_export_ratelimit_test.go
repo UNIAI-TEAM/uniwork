@@ -83,13 +83,29 @@ func TestOfficeFrameAvatarBudgetIsPerUserAcrossDocuments(t *testing.T) {
 
 	alice := caller{ip: "10.20.0.10", bearer: "frame-alice"}
 	for i := range budget {
-		if code := alice.send(h, http.MethodGet, avatar("doc-a", "user-"+string(rune('a'+(i%26))))); code != http.StatusOK {
-			t.Fatalf("avatar %d = %d, want 200", i+1, code)
+		method := http.MethodGet
+		if i%2 == 1 {
+			method = http.MethodHead
+		}
+		doc := "doc-" + string(rune('a'+(i%7)))
+		user := "user-" + string(rune('a'+(i%26)))
+		if code := alice.send(h, method, avatar(doc, user)); code != http.StatusOK {
+			t.Fatalf("avatar %s %d = %d, want 200", method, i+1, code)
 		}
 	}
-	alice.wantRefused(t, h, http.MethodGet, avatar("doc-new", "user-new"), "a new document or user id does not reset the frame avatar budget")
+	alice.wantRefused(t, h, http.MethodGet, avatar("doc-new", "user-new"), "a new document or user id does not reset the frame avatar GET budget")
+	alice.wantRefused(t, h, http.MethodHead, avatar("doc-new-head", "user-new-head"), "HEAD shares the frame avatar budget and is refused once exhausted")
 
 	bob := caller{ip: "10.20.0.10", bearer: "frame-bob"}
-	bob.spend(t, h, http.MethodGet, avatar("doc-a", "user-a"), budget)
-	bob.wantRefused(t, h, http.MethodGet, avatar("doc-a", "user-a"), "the second user's own avatar budget")
+	for i := range budget {
+		method := http.MethodGet
+		if i >= budget/2 {
+			method = http.MethodHead
+		}
+		if code := bob.send(h, method, avatar("doc-b", "user-b")); code != http.StatusOK {
+			t.Fatalf("bob avatar %s %d = %d, want 200", method, i+1, code)
+		}
+	}
+	bob.wantRefused(t, h, http.MethodGet, avatar("doc-b", "user-b"), "the second user's own avatar GET budget")
+	bob.wantRefused(t, h, http.MethodHead, avatar("doc-b", "user-b"), "the second user's own avatar HEAD budget")
 }

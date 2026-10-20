@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -12,22 +14,47 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 type variantSpyFiles struct {
 	files.Service
-	lastVariant files.Variant
-	overrides   map[files.FileID]files.Reader
+	lastVariant  files.Variant
+	overrides    map[files.FileID]files.Reader
+	errOverrides map[files.FileID]error
 }
 
 func (v *variantSpyFiles) Open(ctx context.Context, in files.OpenInput) (files.Reader, error) {
 	v.lastVariant = in.Variant
+	if err, ok := v.errOverrides[in.FileID]; ok {
+		return files.Reader{}, err
+	}
 	if rd, ok := v.overrides[in.FileID]; ok {
 		return rd, nil
 	}
 	return v.Service.Open(ctx, in)
+}
+
+type sniffErrReadCloser struct {
+	prefix []byte
+	err    error
+	closed bool
+}
+
+func (r *sniffErrReadCloser) Read(p []byte) (int, error) {
+	if len(r.prefix) > 0 {
+		n := copy(p, r.prefix)
+		r.prefix = r.prefix[n:]
+		return n, nil
+	}
+	return 0, r.err
+}
+
+func (r *sniffErrReadCloser) Close() error {
+	r.closed = true
+	return nil
 }
 
 func attachTestAvatar(t *testing.T, ctx context.Context, q *db.Queries, fs files.Service, userID string, body []byte) files.FileID {
@@ -65,7 +92,11 @@ func attachTestAvatar(t *testing.T, ctx context.Context, q *db.Queries, fs files
 func TestOfficeFrameOpenAvatar(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	ctx := env.f.ctx
-	spy := &variantSpyFiles{Service: env.fake, overrides: map[files.FileID]files.Reader{}}
+	spy := &variantSpyFiles{
+		Service:      env.fake,
+		overrides:    map[files.FileID]files.Reader{},
+		errOverrides: map[files.FileID]error{},
+	}
 	env.svc.SetFiles(spy)
 	frame := NewOfficeFrameService(env.svc, "office-frame-avatar-test-secret-0123456789")
 	tn := env.tn
@@ -150,5 +181,69 @@ func TestOfficeFrameOpenAvatar(t *testing.T) {
 		if _, err := frame.OpenAvatar(ctx, claims, badID); !errors.Is(err, ErrNotFound) {
 			t.Errorf("non-ULID %q = %v, want ErrNotFound", badID, err)
 		}
+	}
+
+	// Genuine missing object in storage (storage.ErrNotFound wrapped in
+	// files.StorageUnavailable by FileService.Open) -> uniform ErrNotFound.
+	spy.errOverrides[memberFileID] = files.StorageUnavailable(fmt.Errorf("local Open: %w", storage.ErrNotFound))
+	if _, err := frame.OpenAvatar(ctx, claims, tn.outsider.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("missing storage object = %v, want ErrNotFound", err)
+	}
+	delete(spy.errOverrides, memberFileID)
+
+	// Transient storage outage (RBF-01) -> 503 storage_unavailable CodedError,
+	// never ErrNotFound (which the frame would negatively cache for 5 minutes).
+	// Unauthorized or non-servable targets still return ErrNotFound before
+	// reaching FileService.Open.
+	env.fake.SetStorageDown(true)
+	_, err = frame.OpenAvatar(ctx, claims, tn.outsider.ID)
+	if errors.Is(err, ErrNotFound) {
+		t.Errorf("OpenAvatar during storage outage = %v, must not be ErrNotFound", err)
+	}
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Status != http.StatusServiceUnavailable || ce.Code != files.CodeStorageUnavailable {
+		t.Errorf("OpenAvatar during storage outage = %v, want 503 %s CodedError", err, files.CodeStorageUnavailable)
+	}
+	if _, err := frame.OpenAvatar(ctx, claims, tn.deact.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("deactivated member during storage outage = %v, want ErrNotFound", err)
+	}
+	env.fake.SetStorageDown(false)
+
+	// Non-files.Error from Open (DB/context failure) -> propagated so
+	// mapServiceError answers 5xx, never ErrNotFound.
+	errDB := errors.New("db connection reset during Open")
+	spy.errOverrides[memberFileID] = errDB
+	if _, err := frame.OpenAvatar(ctx, claims, tn.outsider.ID); !errors.Is(err, errDB) || errors.Is(err, ErrNotFound) {
+		t.Errorf("OpenAvatar on DB error = %v, want %v (not ErrNotFound)", err, errDB)
+	}
+	delete(spy.errOverrides, memberFileID)
+
+	// Sniff-time non-EOF read error inside the first 512 bytes after a valid
+	// PNG prefix (RBF-06) -> closes the underlying reader and returns 503
+	// storage_unavailable (infrastructure failure, not a cached 404).
+	errSniffRead := errors.New("object stream read failed mid-sniff")
+	sniffBody := &sniffErrReadCloser{
+		prefix: append([]byte(nil), mentionPNG...),
+		err:    errSniffRead,
+	}
+	spy.overrides[memberFileID] = files.Reader{
+		File: files.File{
+			ID:          memberFileID,
+			ContentType: "image/png",
+			SizeBytes:   int64(len(avatarPNG)),
+		},
+		Body: sniffBody,
+	}
+	_, err = frame.OpenAvatar(ctx, claims, tn.outsider.ID)
+	delete(spy.overrides, memberFileID)
+	if !sniffBody.closed {
+		t.Errorf("OpenAvatar did not close the underlying reader on sniff read error")
+	}
+	if errors.Is(err, ErrNotFound) {
+		t.Errorf("OpenAvatar on sniff read error = %v, must not be ErrNotFound", err)
+	}
+	var sniffCE CodedError
+	if !errors.As(err, &sniffCE) || sniffCE.Status != http.StatusServiceUnavailable || sniffCE.Code != files.CodeStorageUnavailable || !errors.Is(err, errSniffRead) {
+		t.Errorf("OpenAvatar on sniff read error = %v, want 503 %s wrapping %v", err, files.CodeStorageUnavailable, errSniffRead)
 	}
 }

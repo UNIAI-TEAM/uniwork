@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,6 +21,29 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+type toggleAvatarObjectStore struct {
+	storage.ObjectStore
+	openErr error
+}
+
+func (s *toggleAvatarObjectStore) Open(ctx context.Context, loc storage.ObjectLocator, opts storage.ReadOptions) (*storage.Object, error) {
+	if s.openErr != nil {
+		return nil, s.openErr
+	}
+	return s.ObjectStore.Open(ctx, loc, opts)
+}
+
+func headerHasToken(h http.Header, key, want string) bool {
+	for _, line := range h.Values(key) {
+		for _, tok := range strings.Split(line, ",") {
+			if strings.EqualFold(strings.TrimSpace(tok), want) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func uploadUserAvatar(t *testing.T, w *officeWorld, userToken, filename string, body []byte) {
 	t.Helper()
 	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/me/avatar", userToken, nil, filename, body, nil)
@@ -31,7 +55,10 @@ func uploadUserAvatar(t *testing.T, w *officeWorld, userToken, filename string, 
 func TestOfficeFrameAvatar(t *testing.T) {
 	uploadDir := t.TempDir()
 	t.Setenv("LOCAL_UPLOAD_DIR", uploadDir)
-	var pool *pgxpool.Pool
+	var (
+		pool        *pgxpool.Pool
+		toggleStore *toggleAvatarObjectStore
+	)
 	w := newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine {
 		return newHandlerStubEngine(t)
 	}, func(d *Deps, p *pgxpool.Pool) {
@@ -43,8 +70,9 @@ func TestOfficeFrameAvatar(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		toggleStore = &toggleAvatarObjectStore{ObjectStore: stores[storage.BackendLocal]}
 		fs, err := service.NewFileService(service.FileServiceOptions{
-			Pool: p, Store: stores[storage.BackendLocal], SpoolDir: t.TempDir(),
+			Pool: p, Store: toggleStore, SpoolDir: t.TempDir(),
 			ReferenceProviders: service.FileReferenceProviders(d.Chat, d.Meetings),
 			Quota:              service.NewEntitlementService(p, q),
 		})
@@ -90,12 +118,20 @@ func TestOfficeFrameAvatar(t *testing.T) {
 		"Content-Security-Policy": "sandbox; default-src 'none'",
 		"Cache-Control":           "private, max-age=300",
 		"ETag":                    wantETag,
-		"Vary":                    "Authorization",
 		"Content-Disposition":     `inline; filename="avatar"`,
 	} {
 		if v := res.Header.Get(header); v != want {
 			t.Errorf("GET header %s = %q, want %q", header, v, want)
 		}
+	}
+	for _, tok := range []string{"Origin", "Authorization"} {
+		if !headerHasToken(res.Header, "Vary", tok) {
+			t.Errorf("GET Vary = %v, missing token %q", res.Header.Values("Vary"), tok)
+		}
+	}
+	if resOrig, _ := doBytes(t, w.srv, http.MethodGet, base+w.outsider, token, "Origin", "http://localhost:3000"); resOrig.StatusCode != http.StatusOK ||
+		!headerHasToken(resOrig.Header, "Vary", "Origin") || !headerHasToken(resOrig.Header, "Vary", "Authorization") {
+		t.Errorf("GET with Origin Vary = %v, want Origin and Authorization", resOrig.Header.Values("Vary"))
 	}
 	if ar := res.Header.Get("Accept-Ranges"); ar != "" {
 		t.Errorf("Accept-Ranges = %q, want empty (no Range support)", ar)
@@ -116,17 +152,20 @@ func TestOfficeFrameAvatar(t *testing.T) {
 		headRes.Header.Get("Content-Length") != strconv.Itoa(len(pngBody)) ||
 		headRes.Header.Get("ETag") != wantETag ||
 		headRes.Header.Get("Cache-Control") != "private, max-age=300" ||
-		headRes.Header.Get("Vary") != "Authorization" {
-		t.Fatalf("HEAD headers = %v", headRes.Header)
+		!headerHasToken(headRes.Header, "Vary", "Origin") ||
+		!headerHasToken(headRes.Header, "Vary", "Authorization") {
+		t.Errorf("HEAD headers = %v", headRes.Header)
 	}
 
 	// 3. 304 on If-None-Match (exact and weak), 200 on non-matching ETag.
 	for _, inm := range []string{wantETag, "W/" + wantETag, `"other", ` + wantETag} {
-		r304, b304 := doBytes(t, w.srv, http.MethodGet, base+w.outsider, token, "If-None-Match", inm)
+		r304, b304 := doBytes(t, w.srv, http.MethodGet, base+w.outsider, token, "If-None-Match", inm, "Origin", "http://localhost:3000")
 		if r304.StatusCode != http.StatusNotModified || len(b304) != 0 {
 			t.Fatalf("GET If-None-Match %s = %d (%d bytes), want 304 empty", inm, r304.StatusCode, len(b304))
 		}
-		if r304.Header.Get("ETag") != wantETag || r304.Header.Get("Vary") != "Authorization" {
+		if r304.Header.Get("ETag") != wantETag ||
+			!headerHasToken(r304.Header, "Vary", "Origin") ||
+			!headerHasToken(r304.Header, "Vary", "Authorization") {
 			t.Errorf("304 headers = %v", r304.Header)
 		}
 	}
@@ -212,8 +251,10 @@ func TestOfficeFrameAvatar(t *testing.T) {
 	}
 	assertUniform404("foreign user avatar_file_id", base+noAvatarUser, token)
 
-	// Deactivated member of the same organization (even with a valid avatar and
-	// matching If-None-Match).
+	// Deactivated member of the same organization: first fetch while active to
+	// capture ITS exact ETag (RBF-02/03), then deactivate and require the
+	// uniform 404 for GET and HEAD even when If-None-Match carries that exact
+	// ETag, its weak form, or * (never 304).
 	deactTok, deactUser := filesRegister(t, w.srv, "deact-avatar@example.com")
 	if err := w.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
 		OrganizationID: w.orgID, UserID: deactUser, Role: "member",
@@ -221,10 +262,22 @@ func TestOfficeFrameAvatar(t *testing.T) {
 		t.Fatal(err)
 	}
 	uploadUserAvatar(t, w, deactTok, "deact.png", docsPNG)
+	deactActiveRes, deactActiveBody := doBytes(t, w.srv, http.MethodGet, base+deactUser, token)
+	if deactActiveRes.StatusCode != http.StatusOK || !bytes.Equal(deactActiveBody, docsPNG) {
+		t.Fatalf("GET active deactUser avatar = %d (%d bytes), want 200", deactActiveRes.StatusCode, len(deactActiveBody))
+	}
+	deactETag := deactActiveRes.Header.Get("ETag")
+	if deactETag == "" || deactETag == wantETag {
+		t.Fatalf("deactUser ETag = %q (outsider ETag = %q), want distinct non-empty ETag", deactETag, wantETag)
+	}
 	if _, err := pool.Exec(ctx, `UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`, w.orgID, deactUser); err != nil {
 		t.Fatal(err)
 	}
-	assertUniform404("deactivated member", base+deactUser, token, "If-None-Match", wantETag)
+	assertUniform404("deactivated member", base+deactUser, token)
+	assertUniform404("deactivated member matching ETag", base+deactUser, token, "If-None-Match", deactETag)
+	assertUniform404("deactivated member weak ETag", base+deactUser, token, "If-None-Match", "W/"+deactETag)
+	assertUniform404("deactivated member wildcard If-None-Match", base+deactUser, token, "If-None-Match", "*")
+	assertUniform404("unknown user wildcard If-None-Match", base+unknownID, token, "If-None-Match", "*")
 
 	// Agent ID of the same organization.
 	agent, err := w.q.CreateAgent(ctx, db.CreateAgentParams{
@@ -271,6 +324,35 @@ func TestOfficeFrameAvatar(t *testing.T) {
 		}
 		assertUniform404("file status "+status, base+w.outsider, token)
 	}
+	if _, err := pool.Exec(ctx, `UPDATE files SET size_bytes = $2, status = 'ready', deleted_at = NULL WHERE id = $1`, fileID.String, len(pngBody)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Genuine missing object in storage (file row ready, object absent on disk)
+	// -> uniform 404 body identical to an unknown user (RBF-01).
+	if err := os.Remove(diskPath); err != nil {
+		t.Fatal(err)
+	}
+	assertUniform404("missing object on disk", base+w.outsider, token)
+	if err := os.WriteFile(diskPath, pngBody, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Transient object-store failure (RBF-01) -> 503 storage_unavailable (never
+	// a negatively cached 404), while unknown/deactivated targets still fail
+	// with the uniform 404 before touching storage.
+	toggleStore.openErr = errors.New("object store unreachable")
+	r503, b503 := doBytes(t, w.srv, http.MethodGet, base+w.outsider, token)
+	if r503.StatusCode != http.StatusServiceUnavailable || !bytes.Contains(b503, []byte(`"storage_unavailable"`)) {
+		t.Errorf("GET during storage outage = %d %s, want 503 storage_unavailable", r503.StatusCode, b503)
+	}
+	h503, hb503 := doBytes(t, w.srv, http.MethodHead, base+w.outsider, token)
+	if h503.StatusCode != http.StatusServiceUnavailable || len(hb503) != 0 {
+		t.Errorf("HEAD during storage outage = %d (%d bytes), want 503 empty", h503.StatusCode, len(hb503))
+	}
+	assertUniform404("unknown user during storage outage", base+unknownID, token)
+	assertUniform404("deactivated member during storage outage", base+deactUser, token, "If-None-Match", deactETag)
+	toggleStore.openErr = nil
 
 	// 5. Credential and document/module checks.
 	// Token for another document -> 404 with the same body.
