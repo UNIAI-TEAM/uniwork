@@ -25,11 +25,11 @@ export function useMeetingActionItems(meetingId: string) {
 }
 
 /** Open tasks from the earlier ended meetings of the same project (spec §6.5); empty without a project. */
-export function useMeetingCarriedOverItems(meetingId: string, enabled = true) {
+export function useMeetingCarriedOverItems(meetingId: string) {
   return useQuery({
     queryKey: meetingKeys.carriedOver(meetingId),
     queryFn: () => api.getMeetingCarriedOverItems(meetingId),
-    enabled: enabled && !!meetingId,
+    enabled: !!meetingId,
     retry: summaryQueryRetry,
   });
 }
