@@ -49,6 +49,58 @@ afterEach(() => {
   localStorage.clear();
 });
 
+// UNI-2019 (RFA-02): a card opened from a notice (`inboxHref`) says "no access" as the heading, leaves out the
+// neutral body and ends in the way back to the Inbox; without it the library button stays.
+describe("DocumentLockedCard variant=member opened from a notice", () => {
+  const INBOX = "/acme/doi/inbox";
+  // Read lazily: the locale switches to the reader's language when the first card renders.
+  const noAccess = () => t("documents.collab.inboxDocNoAccess");
+  const renderFromNotice = (inboxHref?: string | null) =>
+    render(
+      wrapWithNav(
+        <DocumentLockedCard
+          variant="member"
+          wsId={WS}
+          documentId="d1"
+          source={null}
+          onRetryOpen={vi.fn()}
+          onBack={vi.fn()}
+          inboxHref={inboxHref}
+        />,
+      ),
+    );
+
+  it("heads the card with the no-access sentence and links back to the Inbox beside the form", () => {
+    renderFromNotice(INBOX);
+    const heading = screen.getByRole("heading", { level: 2, name: noAccess() });
+    expect(heading).toHaveFocus();
+    expect(screen.queryByText(K("locked_title"))).toBeNull();
+    expect(screen.queryByText(K("locked_body"))).toBeNull();
+    expect(screen.getByRole("link", { name: t("documents.collab.inboxBack") })).toHaveAttribute("href", INBOX);
+    expect(screen.queryByRole("button", { name: t("documents.detail.back_to_library") })).toBeNull();
+    expect(sendButton()).toBeInTheDocument();
+  });
+
+  it("keeps the Inbox link once the request is sent", async () => {
+    requestMock.mockResolvedValue({ status: "sent" });
+    renderFromNotice(INBOX);
+    fireEvent.click(sendButton());
+    expect(await screen.findByRole("status")).toHaveTextContent(K("sent"));
+    expect(screen.getByRole("heading", { level: 2, name: noAccess() })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: t("documents.collab.inboxBack") })).toHaveAttribute("href", INBOX);
+    expect(screen.queryByRole("button", { name: t("documents.detail.back_to_library") })).toBeNull();
+  });
+
+  it.each([[undefined], [null]])("offers the library button and the neutral copy when inboxHref is %s", (inboxHref) => {
+    renderFromNotice(inboxHref);
+    expect(screen.getByRole("heading", { level: 2, name: K("locked_title") })).toBeInTheDocument();
+    expect(screen.getByText(K("locked_body"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.detail.back_to_library") })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: t("documents.collab.inboxBack") })).toBeNull();
+    expect(screen.queryByRole("heading", { name: noAccess() })).toBeNull();
+  });
+});
+
 describe("DocumentLockedCard variant=member", () => {
   it("is a section with a real heading and the neutral copy, and asks for nothing on mount", () => {
     renderMember();
