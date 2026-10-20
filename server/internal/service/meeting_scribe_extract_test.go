@@ -212,3 +212,104 @@ func TestLiveItemsSurviveSummaryRegeneration(t *testing.T) {
 		t.Fatalf("AI items = %d, want only the one the live item does not repeat", n)
 	}
 }
+
+// Fix round 1: a shared-mic line reaches the model under its speaker's
+// assigned name, not the room participant's.
+func TestAgentExtractNamesSharedMicSpeakers(t *testing.T) {
+	s, llm, ua, m, c, _ := liveFixture(t, `{"action_items":[]}`)
+	ctx := context.Background()
+	p, err := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ua.ID)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := meetings.IdentityForParticipant(p.ID)
+	g := agentSeg("TR-room-1", identity, m.ActualStartAt.Time.Add(time.Second), 1000)
+	g.Text, g.SpeakerLabel = "Lan gửi báo giá trước thứ Sáu", identity+":1:A"
+	if _, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{g}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE meeting_speaker_labels SET name = 'Chị Lan' WHERE meeting_id = $1`, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AgentExtract(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	if p := lastPrompt(llm.Last); !strings.Contains(p, "Chị Lan: Lan gửi báo giá") {
+		t.Fatalf("shared-mic line not under its speaker's name:\n%s", p)
+	}
+}
+
+// Fix round 1: a refused answer is billed, so it moves the cursor like an
+// answer that does not parse.
+func TestAgentExtractRefusalMovesTheCursor(t *testing.T) {
+	s, llm, _, m, c, add := liveFixture(t, `{"action_items":[]}`)
+	ctx := context.Background()
+	answering := s.AI
+	s.AI = ai.NewGateway(s.q, &provider.Fake{Err: provider.ErrRefused}, NewAIQuota(s.ent), nil, ai.Options{})
+	add("Một")
+	if res, err := s.AgentExtract(ctx, c); err != nil || res.Created != 0 {
+		t.Fatalf("refused extract = %+v, %v", res, err)
+	}
+	if r := latestRun(t, s, m.ID); r.Extracts != 1 || r.ExtractCursorSegmentID == "" {
+		t.Fatalf("cursor did not move past a refusal: %+v", r)
+	}
+	s.AI = answering
+	add("Hai")
+	if _, err := s.AgentExtract(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	if p := lastPrompt(llm.Last); strings.Contains(p, ": Một") || !strings.Contains(p, ": Hai") {
+		t.Fatalf("next call re-read the refused lines:\n%s", p)
+	}
+}
+
+// Fix round 1: only an ACTIVE run, or one FINISHED within the drain window,
+// extracts; a meeting whose scribe was switched off does not; a plan
+// without meeting.ai_summary is a silent skip.
+func TestAgentExtractGates(t *testing.T) {
+	answer := `{"action_items":[{"title":"Gửi báo giá","owner":"","due":"","evidence":[]}]}`
+	ctx := context.Background()
+
+	t.Run("finished run drains for 10 minutes", func(t *testing.T) {
+		s, llm, _, m, c, add := liveFixture(t, answer)
+		add("Một")
+		if err := s.AgentFinished(ctx, c, 1000); err != nil {
+			t.Fatal(err)
+		}
+		if res, err := s.AgentExtract(ctx, c); err != nil || res.Created != 1 {
+			t.Fatalf("extract right after finish = %+v, %v", res, err)
+		}
+		expire := func() {
+			if _, err := s.pool.Exec(ctx, `UPDATE meeting_scribe_runs SET finished_at = now() - interval '11 minutes' WHERE meeting_id = $1`, m.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		expire()
+		calls := llm.Calls
+		if res, err := s.AgentExtract(ctx, c); err != nil || res.Skipped != LiveItemsSkipClosed || llm.Calls != calls {
+			t.Fatalf("extract on a run finished long ago = %+v, %v", res, err)
+		}
+	})
+
+	t.Run("scribe switched off", func(t *testing.T) {
+		s, llm, _, m, c, add := liveFixture(t, answer)
+		add("Một")
+		if _, err := s.pool.Exec(ctx, `UPDATE meetings SET scribe_off_at = now() WHERE id = $1`, m.ID); err != nil {
+			t.Fatal(err)
+		}
+		if res, err := s.AgentExtract(ctx, c); err != nil || res.Skipped != LiveItemsSkipClosed || llm.Calls != 0 {
+			t.Fatalf("extract with the scribe off = %+v, %v", res, err)
+		}
+	})
+
+	t.Run("plan without meeting.ai_summary", func(t *testing.T) {
+		s, llm, _, m, c, add := liveFixture(t, answer)
+		add("Một")
+		if _, err := s.pool.Exec(ctx, `UPDATE subscriptions SET overrides = '{"meeting.ai_summary": false}'::jsonb WHERE organization_id = $1`, m.OrganizationID); err != nil {
+			t.Fatal(err)
+		}
+		if res, err := s.AgentExtract(ctx, c); err != nil || res.Skipped != LiveItemsSkipFeature || llm.Calls != 0 {
+			t.Fatalf("extract without the plan feature = %+v, %v", res, err)
+		}
+	})
+}

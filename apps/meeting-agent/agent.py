@@ -11,6 +11,7 @@ finals in 2 s batches to /agent/segments; live action items through
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 
 import aiohttp
@@ -198,6 +199,7 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.room.on("participant_attributes_changed", on_attributes)
 
     disconnect: dict[str, str | None] = {"reason": None}
+    extractor: dict[str, asyncio.Task | None] = {"task": None}
 
     def on_disconnected(reason: rtc.DisconnectReason.ValueType) -> None:
         disconnect["reason"] = rtc.DisconnectReason.Name(reason)
@@ -209,6 +211,12 @@ async def entrypoint(ctx: JobContext) -> None:
         for t in list(transcribers.values()):
             await t.close()
         await batcher.drain()
+        # Cancel the tick loop (and a call it has in flight) and await it before
+        # the closing extract, so the two never overlap.
+        if (task := extractor["task"]) is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         await cadence.final()
         session_ms = sum(t.session_ms for t in transcribers.values())
         if not reports_finished(disconnect["reason"]):
@@ -239,8 +247,8 @@ async def entrypoint(ctx: JobContext) -> None:
             await asyncio.sleep(1)
             await cadence.tick()
 
-    extractor = asyncio.create_task(extract_ticks())
-    tasks.add(extractor)
+    extractor["task"] = asyncio.create_task(extract_ticks())
+    tasks.add(extractor["task"])
     ctx.add_participant_entrypoint(on_participant)
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     try:

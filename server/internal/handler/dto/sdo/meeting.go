@@ -391,7 +391,7 @@ type MeetingAgentContextSDO struct {
 // MeetingAgentExtractSDO answers POST /agent/extract (scribe spec §4.4).
 type MeetingAgentExtractSDO struct {
 	Created int    `json:"created" description:"Số việc LIVE mới thêm vào Việc sau họp" example:"2"`
-	Skipped string `json:"skipped,omitempty" description:"Lý do không rút việc: unavailable (cờ, gói hoặc AI chưa bật), capped (quá 20 lần mỗi giờ), ai_quota_exceeded (hết tín dụng AI), concurrent (một lần rút khác đã đọc các đoạn này)" example:"capped"`
+	Skipped string `json:"skipped,omitempty" description:"Lý do không rút việc: unavailable (cờ, gói hoặc AI chưa bật), capped (quá 20 lần mỗi giờ), ai_quota_exceeded (hết tín dụng AI), concurrent (một lần rút khác đã đọc các đoạn này), closed (lần chạy không còn ACTIVE hay đã quá 10 phút xả, hoặc thư ký đã tắt cho cuộc họp)" example:"capped"`
 }
 
 // MeetingAgentSegmentsSDO counts a batch: new rows and ones already stored.

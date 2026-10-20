@@ -36,6 +36,7 @@ const (
 	LiveItemsSkipCapped  = "capped"
 	LiveItemsSkipQuota   = "ai_quota_exceeded"
 	LiveItemsSkipRace    = "concurrent"
+	LiveItemsSkipClosed  = "closed" // the run is not ACTIVE nor draining, or the meeting's scribe is off
 )
 
 // LiveItemsResult answers POST /agent/extract.
@@ -58,7 +59,18 @@ func (s *MeetingService) AgentExtract(ctx context.Context, c meetings.AgentClaim
 	if m.Status != MeetingInProgress && !draining {
 		return LiveItemsResult{}, errInvalidState()
 	}
-	if !s.scribeFlagOn(ctx, m.OrganizationID) || !s.AI.Enabled() || s.ent.Can(ctx, m.OrganizationID, FeatureMeetingAISummary) != nil {
+	// A run the agent no longer holds (switched off, failed, room emptied
+	// long ago) or a meeting whose scribe was switched off takes no more.
+	runDraining := run.Status == ScribeFinished && run.FinishedAt.Valid && time.Since(run.FinishedAt.Time) <= agentDrainWindow
+	if (run.Status != ScribeActive && !runDraining) || m.ScribeOffAt.Valid {
+		s.count("live_items_closed")
+		return LiveItemsResult{Skipped: LiveItemsSkipClosed}, nil
+	}
+	entitled := s.ent.Can(ctx, m.OrganizationID, FeatureMeetingAISummary)
+	if entitled != nil && !errors.Is(entitled, ErrEntitlementRequired) && !errors.Is(entitled, ErrSubscriptionInactive) {
+		return LiveItemsResult{}, entitled
+	}
+	if !s.scribeFlagOn(ctx, m.OrganizationID) || !s.AI.Enabled() || entitled != nil {
 		s.count("live_items_unavailable")
 		return LiveItemsResult{Skipped: LiveItemsSkipFeature}, nil
 	}
@@ -74,6 +86,10 @@ func (s *MeetingService) AgentExtract(ctx context.Context, c meetings.AgentClaim
 		MeetingID: m.ID, Cursor: cursor, RowLimit: liveItemsMaxSegments,
 	})
 	if err != nil || len(segs) == 0 {
+		return LiveItemsResult{}, err
+	}
+	// Shared-mic lines carry their speaker's name, not the room participant's.
+	if _, err := s.nameSpeakers(ctx, m.ID, segs, scribeLocale); err != nil {
 		return LiveItemsResult{}, err
 	}
 	labels := newSummaryLabels()
@@ -106,16 +122,20 @@ func (s *MeetingService) AgentExtract(ctx context.Context, c meetings.AgentClaim
 		s.count("live_items_quota")
 		return LiveItemsResult{Skipped: LiveItemsSkipQuota}, nil
 	}
-	if err != nil {
+	// A billed answer that is refused, cut off or does not parse proposes
+	// nothing; the cursor still moves, so the same lines are not paid for
+	// again (the summary reads them).
+	var proposed []ai.ActionItem
+	if err == nil {
+		proposed, err = ai.ParseLiveItemsJSON(resp.Text)
+	}
+	switch {
+	case errors.Is(err, ai.ErrOutputInvalid) || errors.Is(err, ai.ErrRefused):
+		s.count("live_items_failed")
+		slog.Warn("meeting scribe: live items answer unusable", "meeting_id", m.ID, "usage_event_id", resp.UsageEventID, "err", err)
+	case err != nil:
 		s.count("live_items_failed")
 		return LiveItemsResult{}, err
-	}
-	// A billed answer that does not parse proposes nothing; the cursor still
-	// moves, so the same lines are not paid for again (the summary reads them).
-	proposed, err := ai.ParseLiveItemsJSON(resp.Text)
-	if err != nil {
-		s.count("live_items_failed")
-		slog.Warn("meeting scribe: live items output invalid", "meeting_id", m.ID, "usage_event_id", resp.UsageEventID, "err", err)
 	}
 	created, err := s.storeLiveItems(ctx, m, run, last, proposed, labels)
 	if err != nil {
