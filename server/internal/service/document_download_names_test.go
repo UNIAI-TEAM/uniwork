@@ -1,6 +1,10 @@
 package service
 
 import (
+	"archive/zip"
+	"bytes"
+	"context"
+	"io"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -59,5 +63,33 @@ func TestUniqueZipEntryNameTreatsNormalisationFormsAsOneName(t *testing.T) {
 	got := uniqueZipEntryName(nfd, used)
 	if got == nfd || !strings.Contains(got, " (2)") {
 		t.Fatalf("NFD twin was not renamed: %q", got)
+	}
+}
+
+// UNI-2045 zip r1 F1: the inputs are already compressed (docx, xlsx, jpg, pdf),
+// so the zip stores them; Deflate would spend the 120 s delivery lease on CPU.
+func TestDocumentDownloadJobStoresEntriesUncompressed(t *testing.T) {
+	z := newZipFixture(t)
+	member := human(z.env.tn.member)
+	doc := z.file(t, member, "Stored", "s.txt", []byte(strings.Repeat("compressible ", 200)))
+	job := z.create(t, member, doc)
+	if err := z.run(t, job); err != nil {
+		t.Fatal(err)
+	}
+	dl, err := z.env.svc.OpenDocumentDownloadJob(context.Background(), member, z.env.tn.wsA, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dl.Reader.Close()
+	body, err := io.ReadAll(dl.Reader.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(zr.File) != 1 || zr.File[0].Method != zip.Store {
+		t.Fatalf("zip entries = %+v, want one stored entry", zr.File)
 	}
 }

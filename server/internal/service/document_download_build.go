@@ -44,8 +44,10 @@ func (c *DocumentDownloadConsumer) SetFileService(fs files.Service) { c.files = 
 
 func (*DocumentDownloadConsumer) Name() string { return "document-download" }
 
-// DeliveryTimeout is generous: a zip of 1 GiB streams from storage through
-// the spool. The dispatcher caps it at the claim lease.
+// DeliveryTimeout asks for ten minutes, but the dispatcher caps a delivery at
+// its claim lease (outbox maxDeliveryTimeout, 120 s), and that is the real
+// budget: read up to 1 GiB, spool the zip, upload it. Entries are stored, not
+// deflated (the inputs are already compressed), so the budget is I/O only.
 func (*DocumentDownloadConsumer) DeliveryTimeout() time.Duration { return 10 * time.Minute }
 
 func (*DocumentDownloadConsumer) Topics() []string { return []string{DocumentDownloadTopic} }
@@ -263,7 +265,7 @@ func (c *DocumentDownloadConsumer) writeZip(ctx context.Context, w io.Writer, ac
 			return count, late, err
 		}
 		name := uniqueZipEntryName(zipEntryName(f.Document.Title, f.Reader.File.Filename), used)
-		hdr := &zip.FileHeader{Name: name, Method: zip.Deflate, Modified: f.Version.CreatedAt.Time.UTC()}
+		hdr := &zip.FileHeader{Name: name, Method: zip.Store, Modified: f.Version.CreatedAt.Time.UTC()}
 		ew, err := zw.CreateHeader(hdr)
 		if err == nil {
 			_, err = io.Copy(ew, f.Reader.Body)
