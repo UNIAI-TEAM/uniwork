@@ -536,6 +536,14 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})
+	d.Get("/workspaces/{workspaceID}/documents/favorites", h.ListFavoriteDocuments, apiOp{
+		summary:     "List my favorite documents in a workspace",
+		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ListFavoriteDocumentsSDI{},
+		sdo:         sdo.DocumentListSDO{},
+		auth:        true,
+	})
 	d.Get("/workspaces/{workspaceID}/documents/changes", h.ListDocumentChanges, apiOp{
 		summary:     "List document changes (Office change feed)",
 		description: "Feed đồng bộ Office (G5-01a). Không cursor = mở snapshot nhất quán tại high-water mark; thành viên và giá trị cố định qua mọi trang, chỉ id/kind/revision/version. Cursor opaque có ký, buộc tài khoản, deployment, tổ chức, workspace và protocol; giả hoặc sai phạm vi -> 400 change_cursor_invalid; hết hạn hoặc snapshot đã dọn -> 410 change_cursor_expired (không bao giờ trả trang thiếu). Trang cuối trả cursor feed cho G5-01b. office_sync_feed tắt -> 403 office_capability_off.",

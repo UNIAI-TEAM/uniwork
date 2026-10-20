@@ -74,6 +74,9 @@ type ListDocumentsInput struct {
 	// list's own order and its own cursor. The trash and the shelf take it
 	// with their own screen key (UNI-2045 SV-0).
 	Sort DocumentSort
+	// favorites narrows the flat list to the caller's own stars in the
+	// workspace (ListFavoriteDocuments sets it; no handler input reaches it).
+	favorites bool
 	// Activity narrows /documents/recent to what the caller opened or edited
 	// (UNI-2045 SV-1b): "" (all), "opened" or "edited". Other lists ignore it.
 	Activity string
@@ -98,6 +101,8 @@ type DocumentLastActivity struct {
 // has the grant time; every other shape takes the four column keys only.
 func listScreenSortKey(in ListDocumentsInput) string {
 	switch {
+	case in.favorites:
+		return DocumentSortStarred
 	case in.Archived:
 		return DocumentSortDeleted
 	case in.Shelved:
@@ -201,6 +206,8 @@ type DocumentListItem struct {
 	Path   []DocumentPathItem
 	// LastActivity is the caller's last activity on the row (recent only).
 	LastActivity *DocumentLastActivity
+	// FavoritedAt is when the caller starred the row (favorites only).
+	FavoritedAt *time.Time
 }
 
 // DocumentListPage is one page plus the cursor for the next.
@@ -393,6 +400,25 @@ func escapeLikeQuery(q string) string {
 	return r.Replace(foldForSearch(q))
 }
 
+// ListFavoriteDocuments is GET /workspaces/{ws}/documents/favorites (UNI-2045
+// SV-2): the caller's own stars in the workspace, as the same list rows, newest
+// star first (sort=starred, descending by default) or by an S3 key. It runs the
+// flat list's query and permission predicate with the star joined in, so a row
+// the caller can no longer read (a revoked share, a trashed document) is simply
+// not there, and the page limit counts only rows they can see. Only kind and
+// format narrow it; only a person has stars.
+func (s *DocumentService) ListFavoriteDocuments(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
+	if actor.Kind != audit.KindHuman {
+		return DocumentListPage{}, ErrForbidden
+	}
+	if !in.Sort.Active() {
+		in.Sort = DocumentSort{Key: DocumentSortStarred, Desc: true}
+	}
+	return s.ListDocuments(ctx, actor, workspaceID, ListDocumentsInput{
+		Kind: in.Kind, Format: in.Format, Cursor: in.Cursor, Limit: in.Limit, Sort: in.Sort, favorites: true,
+	})
+}
+
 // ListDocuments pages the workspace document list. The permission filter is
 // inside the query; a page boundary is the (ordering value, id) pair of the
 // last row, so rows created or moved while the client pages change neither
@@ -490,6 +516,10 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	}
 	cursorID := nullText(cursor.ID)
 	agent := actor.Kind == audit.KindAgent
+	var favoritesUser pgtype.Text
+	if in.favorites {
+		favoritesUser = nullText(actor.ID)
+	}
 
 	out := DocumentListPage{Items: []DocumentListItem{}}
 	switch {
@@ -632,7 +662,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			SharedByMe: in.SharedByMe,
 			Query:      query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
-			SortKey: sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
+			FavoritesUser: favoritesUser,
+			SortKey:       sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
 			SortCursorNum: sortArg.num, SortCursorText: sortArg.text, SortCursorNull: sortArg.null,
 		})
 		if err != nil {
@@ -642,13 +673,18 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			if i == limit {
 				last := rows[limit-1]
 				if in.Sort.Active() {
-					out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.ID, last.UpdatedAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
+					out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.ID, last.SortAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
 				} else {
 					out.NextCursor = encodeDocumentCursor(documentCursor{At: &last.UpdatedAt.Time, ID: last.ID})
 				}
 				break
 			}
-			out.Items = append(out.Items, DocumentListItem{Document: listRowDocument(r), Snippet: r.Snippet})
+			item := DocumentListItem{Document: listRowDocument(r), Snippet: r.Snippet}
+			if r.FavoritedAt.Valid {
+				at := r.FavoritedAt.Time.UTC()
+				item.FavoritedAt = &at
+			}
+			out.Items = append(out.Items, item)
 		}
 	}
 	if err := s.attachListAccess(ctx, scope, workspaceID, agent, out.Items); err != nil {

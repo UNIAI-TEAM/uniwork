@@ -619,7 +619,9 @@ type Routes struct {
 	// §5.3, §5.4; UNI-679, G1-05b).
 	ListDocuments       http.HandlerFunc
 	ListRecentDocuments http.HandlerFunc
-	ListDocumentChanges http.HandlerFunc
+	// ListFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites (UNI-2045).
+	ListFavoriteDocuments http.HandlerFunc
+	ListDocumentChanges   http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
 	PutOfficeOfflineLease    http.HandlerFunc
 	DeleteOfficeOfflineLease http.HandlerFunc

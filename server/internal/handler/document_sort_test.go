@@ -202,6 +202,7 @@ func TestDocumentSortParamsInOpenAPI(t *testing.T) {
 	// UNI-2045: the screen keys ride after the four column keys.
 	for p, sortEnum := range map[string][]string{
 		"/api/v1/workspaces/{workspaceID}/documents":                {"updated", "name", "size", "editor", "deleted", "shelved", "shared"},
+		"/api/v1/workspaces/{workspaceID}/documents/favorites":      {"updated", "name", "size", "editor", "starred"},
 		"/api/v1/workspaces/{workspaceID}/documents/recent":         {"updated", "name", "size", "editor", "activity"},
 		"/api/v1/workspaces/{workspaceID}/documents/shared-with-me": {"updated", "name", "size", "editor"},
 		"/api/v1/workspaces/{workspaceID}/documents/sources":        {"updated", "name", "size", "editor"},

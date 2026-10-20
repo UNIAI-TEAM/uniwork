@@ -182,6 +182,42 @@ func (h *handlers) listRecentDocuments(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, documentListSDO(page))
 }
 
+// listFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites:
+// the caller's stars in the workspace as list rows (UNI-2045 SV-2), newest star
+// first. Only kind, format, sort/order, cursor and limit are read; a request
+// without a sort is the starred order.
+func (h *handlers) listFavoriteDocuments(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	q := r.URL.Query()
+	in := service.ListDocumentsInput{
+		Kind:   strings.TrimSpace(q.Get("kind")),
+		Format: strings.TrimSpace(q.Get("format")),
+		Cursor: strings.TrimSpace(q.Get("cursor")),
+	}
+	sort, ok := documentSortInput(w, q, service.DocumentSortStarred)
+	if !ok {
+		return
+	}
+	in.Sort = sort
+	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			respondError(w, http.StatusBadRequest, "invalid_request", "limit must be a non-negative integer")
+			return
+		}
+		in.Limit = n
+	}
+	page, err := h.Documents.ListFavoriteDocuments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), in)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, documentListSDO(page))
+}
+
 // listSharedWithMe is GET /workspaces/{workspaceID}/documents/shared-with-me.
 // The workspace in the URL names the context the caller is in (RequireMember
 // applies); the list itself spans the organization's workspaces, because a
@@ -430,6 +466,10 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 	dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
 	dto.EditLock = documentRowEditLockSDO(item.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
+	if item.FavoritedAt != nil {
+		at := item.FavoritedAt.UTC().Format(time.RFC3339)
+		dto.FavoritedAt = &at
+	}
 	if item.LastActivity != nil {
 		dto.LastActivity = &sdo.DocumentLastActivitySDO{Kind: item.LastActivity.Kind, At: item.LastActivity.At.UTC().Format(time.RFC3339)}
 	}

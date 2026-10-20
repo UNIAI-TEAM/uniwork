@@ -229,6 +229,18 @@ type ListRecentDocumentsSDI struct {
 	Order       *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
 }
 
+// ListFavoriteDocumentsSDI documents GET
+// /api/v1/workspaces/{workspaceID}/documents/favorites (UNI-2045 SV-2): the
+// caller's own stars in the workspace as list rows, paged by keyset.
+type ListFavoriteDocumentsSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu. Gắn với sort/order của trang đã cấp" example:"eyJ0IjoiMjAyNi0xMC0yMFQwODowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyIsInMiOiJzdGFycmVkIiwibyI6ImRlc2MifQ"`
+	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+	Kind   *string `query:"kind" description:"Lọc page, file, folder hoặc document (mọi loại trừ folder)" example:"file"`
+	Format *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md, html hoặc txt; giá trị khác -> 400 invalid_filter; dùng cùng kind=page -> 400 invalid_filter" example:"pdf"`
+	Sort   *string `query:"sort" enum:"updated,name,size,editor,starred" description:"Sắp xếp theo cột: updated, name, size, editor (như danh sách phẳng) hoặc starred (thời điểm gắn sao, favorited_at). Bỏ trống = starred giảm dần. Giá trị khác -> 400 invalid_request; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"starred"`
+	Order  *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort. Bỏ trống: starred, updated và size giảm dần, name và editor tăng dần" example:"desc"`
+}
+
 // ListSharedWithMeSDI documents GET
 // /api/v1/workspaces/{workspaceID}/documents/shared-with-me: the shares the
 // caller receives across the organization, walked by keyset server-side so a

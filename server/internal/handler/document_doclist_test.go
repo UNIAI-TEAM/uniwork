@@ -372,3 +372,151 @@ func TestDoclistRecentActivityPagesWithSharedKeys(t *testing.T) {
 		}
 	}
 }
+
+// dlFavorite stars a document as one person.
+func dlFavorite(t *testing.T, w *docsWorld, token, docID string) {
+	t.Helper()
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/favorite", token, nil); res.StatusCode != 200 {
+		t.Fatalf("favorite %s: %d %v", docID, res.StatusCode, out)
+	}
+}
+
+// SV-2: GET /workspaces/{ws}/documents/favorites lists the caller's own stars
+// in that workspace with favorited_at, newest star first, same cursor paging
+// and S3 sort keys, and only rows the caller can still read.
+func TestDoclistFavorites(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-fav-member@example.com")
+	base := dlBase(w) + "/favorites"
+	t0 := time.Now().UTC().Add(-40 * time.Hour).Truncate(time.Second)
+	ids := dlCreatePages(t, w, w.token, "Zed", "Đào", "alpha", "Beta", "ca", "Eta", "Fox")
+	for _, id := range ids {
+		dlFavorite(t, w, memberTok, id)
+	}
+	// somebody else's star never shows up for the caller.
+	other := dlCreatePages(t, w, w.token, "only-the-owner-starred")
+	dlFavorite(t, w, w.token, other[0])
+	// 3 + 3 + 1 stars share a time.
+	key := map[string]time.Time{}
+	for i, id := range ids {
+		key[id] = t0.Add(time.Duration(i/3) * time.Hour)
+		dlExec(t, `UPDATE document_favorites SET created_at = $1 WHERE document_id = $2 AND user_id = $3`, key[id], id, memberID)
+	}
+	for _, order := range []string{"asc", "desc", ""} {
+		q := "?sort=starred"
+		if order != "" {
+			q += "&order=" + order
+		}
+		pages := dlWalk(t, w, memberTok, base+q, 3)
+		if len(pages) != 3 {
+			t.Errorf("%s: pages = %d, want 3", q, len(pages))
+		}
+		if got, want := dlFlatten(pages), dlSortedIDs(key, order != "asc"); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: order = %v, want %v", q, got, want)
+		}
+	}
+	// no sort at all = starred, newest star first, and its cursor pages on.
+	if got, want := dlFlatten(dlWalk(t, w, memberTok, base, 3)), dlSortedIDs(key, true); !reflect.DeepEqual(got, want) {
+		t.Errorf("default order = %v, want %v", got, want)
+	}
+
+	// the row is a DocumentSummaryDTO plus favorited_at.
+	res, out := dlGet(t, w, memberTok, base+"?sort=starred&limit=1")
+	if res.StatusCode != 200 {
+		t.Fatalf("favorites: %d %v", res.StatusCode, out)
+	}
+	row := out["documents"].([]any)[0].(map[string]any)
+	for _, f := range []string{"id", "title", "kind", "updated_at", "my_level", "size_bytes"} {
+		if _, ok := row[f]; !ok {
+			t.Errorf("favorites row lacks %s: %v", f, row)
+		}
+	}
+	if got, want := row["favorited_at"], key[dlSortedIDs(key, true)[0]].Format(time.RFC3339); got != want {
+		t.Errorf("favorited_at = %v, want %v", got, want)
+	}
+
+	// the S3 keys sort the starred rows too: name is the Vietnamese order.
+	res, out = dlGet(t, w, memberTok, base+"?sort=name")
+	want := []string{"alpha", "Beta", "ca", "Đào", "Eta", "Fox", "Zed"}
+	if got := docTitles(t, out); res.StatusCode != 200 || !reflect.DeepEqual(got, want) {
+		t.Errorf("favorites sort=name = %v (%d), want %v", got, res.StatusCode, want)
+	}
+	// the same filters as the flat list where cheap.
+	res, out = dlGet(t, w, memberTok, base+"?kind=folder")
+	if got := dlIDs(out); res.StatusCode != 200 || len(got) != 0 {
+		t.Errorf("favorites kind=folder = %v (%d), want none", got, res.StatusCode)
+	}
+	res, out = dlGet(t, w, memberTok, base+"?kind=page")
+	if res.StatusCode != 200 || len(dlIDs(out)) != len(ids) {
+		t.Errorf("favorites kind=page = %v (%d), want %d rows", dlIDs(out), res.StatusCode, len(ids))
+	}
+	for _, q := range []string{"?kind=bogus", "?format=bogus", "?kind=page&format=pdf", "?sort=nope", "?order=asc", "?sort=shared", "?sort=activity", "?sort=deleted"} {
+		res, out := dlGet(t, w, memberTok, base+q)
+		if res.StatusCode != 400 {
+			t.Errorf("GET favorites%s = %d %v, want 400", q, res.StatusCode, out)
+		}
+	}
+	// the cursor of a favorites page is bound to its sort and direction.
+	res, out = dlGet(t, w, memberTok, base+"?sort=starred&order=asc&limit=1")
+	cursor, _ := out["next_cursor"].(string)
+	if res.StatusCode != 200 || cursor == "" {
+		t.Fatalf("first page: %d %v", res.StatusCode, out)
+	}
+	for _, q := range []string{"", "&sort=starred", "&sort=name&order=asc"} {
+		res, out := dlGet(t, w, memberTok, base+"?cursor="+cursor+q)
+		wantErr(t, res, out, 400, "invalid_request", "")
+	}
+	// the star key is for this route only.
+	res, out = dlGet(t, w, memberTok, dlBase(w)+"?sort=starred")
+	wantErr(t, res, out, 400, "invalid_request", "")
+
+	// a trashed star and a revoked share drop out; the star row stays.
+	trashed := ids[0]
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+trashed+"/archive", w.token, nil); res.StatusCode != 200 {
+		t.Fatalf("archive: %d %v", res.StatusCode, out)
+	}
+	_, secret := docsCreatePageBody(t, w, w.token, map[string]any{"title": "secret", "visibility": "restricted"})
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+secret+"/shares", w.token, map[string]any{
+		"principal_type": "user", "principal_id": memberID, "level": "view",
+	})
+	if res.StatusCode != 201 && res.StatusCode != 200 {
+		t.Fatalf("share: %d %v", res.StatusCode, out)
+	}
+	dlFavorite(t, w, memberTok, secret)
+	if _, out := dlGet(t, w, memberTok, base+"?sort=name"); !contains(docTitles(t, out), "secret") {
+		t.Errorf("a starred document the caller can read is missing: %v", docTitles(t, out))
+	}
+	shareID := dlOneShareID(t, w, secret, memberID)
+	if res, out := doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+secret+"/shares/"+shareID, w.token, nil); res.StatusCode != 204 && res.StatusCode != 200 {
+		t.Fatalf("revoke: %d %v", res.StatusCode, out)
+	}
+	res, out = dlGet(t, w, memberTok, base+"?sort=name")
+	titles := docTitles(t, out)
+	if res.StatusCode != 200 || contains(titles, "secret") || contains(titles, "Zed") {
+		t.Errorf("revoked/trashed stars still listed: %v (%d)", titles, res.StatusCode)
+	}
+	// an outsider who is not in the workspace cannot read the route.
+	res, out = dlGet(t, w, w.outsider, base)
+	if res.StatusCode != 403 && res.StatusCode != 404 {
+		t.Errorf("outsider favorites = %d %v, want 403/404", res.StatusCode, out)
+	}
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// dlOneShareID finds the live share of a document for one user.
+func dlOneShareID(t *testing.T, w *docsWorld, docID, userID string) string {
+	t.Helper()
+	var id string
+	if err := testPool.QueryRow(context.Background(), `SELECT id FROM document_shares WHERE document_id = $1 AND principal_id = $2 AND revoked_at IS NULL`, docID, userID).Scan(&id); err != nil {
+		t.Fatalf("share lookup: %v", err)
+	}
+	return id
+}
