@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
@@ -47,24 +46,12 @@ beforeEach(() => {
 });
 
 describe("create toggle: options always reach onCreate (F-W2-02)", () => {
-  it("QuickCreateRow hands the options to a wrapped handler whose arity is not 2", () => {
+  it("QuickCreateRow hands an options object (no share) to a wrapped handler whose arity is not 2", () => {
     const spy = vi.fn();
-    // Arity 0: the old `onCreate.length <= 2` check would still pass; a bound
-    // handler (length 1) or a default-param one (length 1) used to lose them.
     const wrapped = (...args: unknown[]) => spy(...args);
-    const bound = (spy as unknown as (...a: unknown[]) => void).bind(null);
-    render(
-      wrap(
-        <>
-          <QuickCreateRow pending={false} unavailable={new Set()} onCreate={wrapped as never} />
-          <CreateMenu pending={false} unavailable={new Set()} onCreate={bound as never} onUpload={vi.fn()} />
-        </>,
-      ),
-    );
-
-    fireEvent.click(screen.getByRole("switch", { name: toggleLabel() }));
+    render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} onCreate={wrapped as never} />));
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.xlsx.chip") }));
-    expect(spy).toHaveBeenLastCalledWith("xlsx", { shareWithWorkspace: true });
+    expect(spy).toHaveBeenLastCalledWith("xlsx", {});
   });
 
   it("CreateMenu hands the options to a bound handler", async () => {
@@ -79,62 +66,7 @@ describe("create toggle: options always reach onCreate (F-W2-02)", () => {
   });
 });
 
-describe("create toggle: QuickCreateRow under a shared parent (F-W2-10)", () => {
-  it("locks the switch on with the inherited hint and sends no share", () => {
-    const onCreate = vi.fn();
-    render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} parentShared onCreate={onCreate} />));
-
-    const toggle = screen.getByRole("switch", { name: toggleLabel() });
-    expect(toggle).toBeChecked();
-    expect(toggle).toHaveAttribute("aria-disabled", "true");
-    const hint = screen.getByText(t("documents.home.create.share_workspace_inherited"));
-    expect(toggle).toHaveAttribute("aria-describedby", hint.id);
-
-    fireEvent.click(toggle);
-    expect(toggle).toBeChecked();
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.page.chip") }));
-    expect(onCreate).toHaveBeenLastCalledWith("page", { shareWithWorkspace: false });
-  });
-});
-
 describe("create toggle hint markup (F-W2-09)", () => {
-  it("QuickCreateRow keeps one polite status line mounted, so the pills do not move or go unannounced", () => {
-    render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} onCreate={vi.fn()} />));
-    const status = screen.getByRole("status");
-    expect(status).toBeEmptyDOMElement();
-
-    fireEvent.click(screen.getByRole("switch", { name: toggleLabel() }));
-    expect(screen.getByRole("status")).toBe(status);
-    expect(status).toHaveTextContent(hintText());
-  });
-
-  it("one shared shareToggle keeps the strip switch and the menu check in sync (TV1-15)", async () => {
-    function Harness() {
-      const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
-      const shareToggle = { shareWithWorkspace, setShareWithWorkspace };
-      return (
-        <>
-          <QuickCreateRow pending={false} unavailable={new Set()} shareToggle={shareToggle} onCreate={vi.fn()} />
-          <CreateMenu pending={false} unavailable={new Set()} shareToggle={shareToggle} onCreate={vi.fn()} onUpload={vi.fn()} />
-        </>
-      );
-    }
-    render(wrap(<Harness />));
-
-    // Turning the strip switch on shows the menu item checked too.
-    fireEvent.click(screen.getByRole("switch", { name: toggleLabel() }));
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    expect(await screen.findByRole("menuitemcheckbox", { name: toggleLabel() })).toHaveAttribute("aria-checked", "true");
-
-    // Unchecking from the menu flips the strip switch back off, even after the
-    // menu closes and reopens — the label never shows two different states.
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: toggleLabel() }));
-    fireEvent.keyDown(document.body, { key: "Escape" });
-    expect(screen.getByRole("switch", { name: toggleLabel() })).not.toBeChecked();
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    expect(await screen.findByRole("menuitemcheckbox", { name: toggleLabel() })).toHaveAttribute("aria-checked", "false");
-  });
-
   it("CreateMenu puts the hint inside the checkbox item, where aria-describedby points, as a status", async () => {
     render(wrap(<CreateMenu pending={false} unavailable={new Set()} onCreate={vi.fn()} onUpload={vi.fn()} />));
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
@@ -242,5 +174,31 @@ describe("create toggle through the library page (F-W2-01, F-W2-03, F-W2-10)", (
     expect(form.get("visibility")).toBe("workspace");
     expect(form.get("parent_id")).toBe("fo-priv");
     expect(form.has("workspace_level")).toBe(false);
+  });
+
+  it("home quick create (UNI-2038 G4): no switch or empty status row, and a chip POSTs without visibility", async () => {
+    const posts: Array<{ path: string; body: unknown }> = [];
+    serve(posts);
+    const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
+    const { container } = render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={sessionUser}>
+          <FeatureFlagsProvider service={service}>
+            <DocumentsPageView wsId={WS} onOpen={vi.fn()} />
+          </FeatureFlagsProvider>
+        </WorkspaceProvider>,
+        fakeNav("/acme/doi/documents"),
+      ),
+    );
+    const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
+    expect(within(strip).queryByRole("switch")).toBeNull();
+    expect(strip.querySelector("p")).toBeNull();
+    expect(container.querySelector("[role='status']:empty")).toBeNull();
+
+    fireEvent.click(within(strip).getByRole("button", { name: t("documents.home.create.docx.chip") }));
+    await waitFor(() => expect(posts.some((p) => p.path === `${LIST_BASE}/files/blank`)).toBe(true));
+    const body = posts.find((p) => p.path === `${LIST_BASE}/files/blank`)!.body as Record<string, unknown>;
+    expect(body).toMatchObject({ format: "docx" });
+    expect(body).not.toHaveProperty("visibility");
   });
 });

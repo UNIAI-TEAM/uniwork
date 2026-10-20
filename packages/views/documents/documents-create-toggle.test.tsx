@@ -51,48 +51,19 @@ beforeEach(() => {
 });
 
 describe("Create workspace share toggle (§4, F-01)", () => {
-  it("QuickCreateRow: defaults off, shows hint when turned on, forwards shareWithWorkspace, and resets after create", () => {
+  it("QuickCreateRow (UNI-2038 G4): no share switch, no hint line, and a chip creates private (no visibility)", () => {
     const onCreate = vi.fn();
-    render(
-      wrap(
-        <QuickCreateRow
-          pending={false}
-          unavailable={new Set()}
-          onCreate={onCreate}
-        />,
-      ),
-    );
+    const { container } = render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} onCreate={onCreate} />));
 
-    const toggle = screen.getByRole("switch", { name: t("documents.home.create.share_workspace_toggle") });
-    expect(toggle).not.toBeChecked();
-    expect(toggle).not.toHaveAttribute("aria-disabled");
-    expect(toggle).not.toHaveAttribute("aria-describedby");
-    expect(
-      screen.queryByText(
-        t("documents.home.create.share_workspace_hint", {
-          level: t("documents.home.create.share_workspace_level_view"),
-        }),
-      ),
-    ).toBeNull();
+    // The choice moved to the first-save dialog: nothing to switch, nothing announcing it, no gap row.
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(container.querySelector("label")).toBeNull();
+    expect(container.querySelector("p")).toBeNull();
 
-    // Create while off -> options are still passed, with shareWithWorkspace false.
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.page.chip") }));
-    expect(onCreate).toHaveBeenLastCalledWith("page", { shareWithWorkspace: false });
-
-    // Turn on -> shows hint linked via aria-describedby.
-    fireEvent.click(toggle);
-    expect(toggle).toBeChecked();
-    const hintText = t("documents.home.create.share_workspace_hint", {
-      level: t("documents.home.create.share_workspace_level_view"),
-    });
-    const hint = screen.getByText(hintText);
-    expect(hint.id).toBeTruthy();
-    expect(toggle).toHaveAttribute("aria-describedby", hint.id);
-
-    // Clicking a pill forwards { shareWithWorkspace: true } and resets toggle to off.
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.docx.chip") }));
-    expect(onCreate).toHaveBeenLastCalledWith("docx", { shareWithWorkspace: true });
-    expect(toggle).not.toBeChecked();
+    expect(onCreate).toHaveBeenLastCalledWith("docx", {});
+    expect(onCreate.mock.calls[0]![1]).not.toHaveProperty("shareWithWorkspace");
   });
 
   it("CreateMenu: defaults off every open, stays open on toggle (menuitemcheckbox), and locks on under a shared parent", async () => {

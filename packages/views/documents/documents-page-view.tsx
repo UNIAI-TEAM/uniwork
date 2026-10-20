@@ -85,9 +85,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const [chip, setChip] = useState<TypeChip>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("folder");
   const [navOpen, setNavOpen] = useState(false);
-  // One state for the strip switch and the "Tạo mới" menu check item (TV1-15):
-  // the two controls always agree because they read and write the same value.
-  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
 
   // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
   const focusId = searchParams.get("focus");
@@ -317,7 +314,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     pending: creator.pending,
     unavailable: creator.unavailable,
     parentShared,
-    shareToggle: { shareWithWorkspace, setShareWithWorkspace },
     onCreate: (type: Parameters<typeof creator.create>[0], options: CreateShareOptions) => void creator.create(type, parentForCreate, options),
     onUpload: fileUpload.openUpload,
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
