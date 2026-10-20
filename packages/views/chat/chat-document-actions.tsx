@@ -115,9 +115,11 @@ export function ChatDocumentRequestAccess({
       },
     );
   };
+  // Not while a send is pending: its own flag write re-renders the card before
+  // `setSent` runs, and the live region would announce "you can send again".
   const note = done
     ? t(`documents.access_request.${done}`)
-    : sentAt !== null
+    : sentAt !== null && !send.isPending
       ? t("documents.access_request.sent_earlier", { time: sentTime(sentAt) })
       : null;
   return (
