@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -3
+f5332efcfd058fde13fc670fa9ad08a73e660177
+0914100bf81ada51262e8c43935ed34122556952
+f5332efcf chore: merge the G5-G7 root (0914100bf) into UNI-2018
+7b4e4e271 test(office): pin tombstoned comment_id on launch and align handler comment
+0914100bf chore: merge UNI-2019 G819-A07b (bfcd0c9fc) into the G5-G7 root

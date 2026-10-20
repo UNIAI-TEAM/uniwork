@@ -1,0 +1,10 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler -race -run "TestIsolation|TestEveryBodyIDField" -count=1 -timeout 60m -v > /tmp/iso.log 2>&1); rc=$?; grep -E "^\s*(--- FAIL|--- SKIP)|^(ok|FAIL)|DATA RACE" /tmp/iso.log | tail -20; grep -E "^--- (PASS|FAIL): (TestIsolationMatrix|TestIsolationRealtime|TestIsolationMCP|TestEveryBodyIDFieldHasAReferenceCase)" /tmp/iso.log; echo; echo "TEST_ISO_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	647.139s
+--- PASS: TestIsolationMatrix (636.81s)
+--- PASS: TestIsolationMCP (4.34s)
+--- PASS: TestIsolationRealtime (4.89s)
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.02s)
+
+TEST_ISO_EXIT=0
