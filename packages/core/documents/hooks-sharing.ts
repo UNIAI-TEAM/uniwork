@@ -18,6 +18,7 @@ import {
   type ShareDocumentBody,
   type UpdateDocumentAccessBody,
 } from "../api/endpoints/documents-sharing";
+import { invalidateDocumentLists } from "./invalidate-lists";
 import { documentKeys } from "./keys";
 import {
   requireVerifiableAccessUpdate,
@@ -68,7 +69,7 @@ export function useDocumentShareCandidates(
 
 /** Unified batch grant/update/revoke with optional dry_run impact preview (SH-W1).
  *  When `dry_run` is true, no queries are invalidated; on a real write,
- *  `shares`, `detail` (including `shareCandidates`), and `listRoot` invalidate. */
+ *  `shares`, `detail` (including `shareCandidates`) and every row list invalidate. */
 export function useUpdateDocumentAccess(wsId: string, documentId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -79,7 +80,7 @@ export function useUpdateDocumentAccess(wsId: string, documentId: string) {
       return Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
-        qc.invalidateQueries({ queryKey: documentKeys.listRoot(wsId) }),
+        invalidateDocumentLists(qc, wsId),
       ]);
     },
   });
@@ -114,9 +115,9 @@ export function useShareDocument(wsId: string, documentId: string, documentWorks
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
         // UNI-1851 F2: the grant lands the document in the caller's Shared by
-        // me list; refresh its root (prefix of every filtered key) without
-        // waiting for the document.shared frame.
-        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
+        // me list; UNI-2009: the row's Access cell moves in every list. Refresh
+        // the roots without waiting for the document.shared frame.
+        invalidateDocumentLists(qc, wsId),
       ]),
   });
 }
@@ -133,7 +134,7 @@ export function useShareDocumentBatch(wsId: string, documentId: string) {
       Promise.all([
         qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
-        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
+        invalidateDocumentLists(qc, wsId),
       ]),
   });
 }
@@ -149,7 +150,7 @@ export function useRevokeDocumentShare(wsId: string, documentId: string) {
         qc.invalidateQueries({ queryKey: documentKeys.detail(wsId, documentId) }),
         // UNI-1851 F2: the revoked grant can drop the document from the
         // caller's Shared by me list before document.share_revoked arrives.
-        qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) }),
+        invalidateDocumentLists(qc, wsId),
       ]),
   });
 }
@@ -160,7 +161,12 @@ export function useCreateDocumentLink(wsId: string, documentId: string) {
   return useMutation({
     mutationFn: async (expiresInDays?: number) =>
       requireVerifiableLink(await createDocumentLink(documentId, expiresInDays)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
+    // A live link is part of the row's share scope (`public_link`).
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
+        invalidateDocumentLists(qc, wsId),
+      ]),
   });
 }
 
@@ -169,7 +175,11 @@ export function useRevokeDocumentLink(wsId: string, documentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (linkId: string) => revokeDocumentLink(documentId, linkId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
+        invalidateDocumentLists(qc, wsId),
+      ]),
   });
 }
 

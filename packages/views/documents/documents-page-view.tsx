@@ -251,6 +251,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
+    // Any reader may open Share from a row (UNI-2009); it is not gated by canCreate like the commands above.
+    onShare: rowDialogs.onShare,
     onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {

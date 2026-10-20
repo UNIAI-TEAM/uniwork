@@ -10696,7 +10696,9 @@
         "edit": "Edit",
         "manage": "Manage",
         "owner": "Owner",
-        "you_prefix": "You: {{level}}"
+        "you_prefix": "You: {{level}}",
+        "manage_for": "Manage access for {{title}}",
+        "view_for": "View access for {{title}}"
       },
       "group_by": {
         "label": "Group by",
