@@ -1,0 +1,5 @@
+# Resolved 2026-10-20 with Python 3.13 (uv). livekit-agents 1.8.8 pins livekit (rtc) 1.1.20.
+livekit-agents==1.8.8
+livekit-plugins-silero==1.8.8
+livekit-plugins-assemblyai==1.8.8
+livekit-api==1.2.2
