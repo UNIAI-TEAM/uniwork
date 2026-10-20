@@ -1,0 +1,53 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19284 FRONTEND_ORIGIN=http://localhost:14204 API_PUBLIC_URL=http://localhost:19284 PREVIEW_ORIGIN=http://localhost:14205 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19284 NEXT_PUBLIC_WS_URL=ws://localhost:19284 NEXT_PUBLIC_APP_URL=http://localhost:14204 E2E_BASE_URL=http://localhost:14204 E2E_API_URL=http://localhost:19284 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1 FF_DOCUMENTS=true DOCUMENT_EDIT_LOCK_TTL=20s DOCUMENT_EDIT_LOCK_HEARTBEAT=5s DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s; pnpm --filter @uniwork/e2e exec playwright test --reporter=list --trace=on files-chat -g 'blocking a peer closes the direct messages in both directions'; rc=$?; echo "E2E_BLOCKPEER_EXIT=$rc"; exit 0
+
+Running 1 test using 1 worker
+
+(node:18236) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[api] 401 POST http://localhost:19284/api/v1/auth/refresh
+[api] 401 POST http://localhost:19284/api/v1/auth/refresh
+[api] 403 POST http://localhost:19284/api/v1/workspaces/01M5DS1Y6EFBJZ9MPMZGQKJCSP/chat/rooms/01M5DS224JZY0PNEND4DVMT7SY/read
+  ✘  1 files-chat.spec.ts:343:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions (23.0s)
+
+
+  1) files-chat.spec.ts:343:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByPlaceholder('Không thể nhắn tin')
+    Expected: visible
+    Timeout: 20000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 20000ms
+      - waiting for getByPlaceholder('Không thể nhắn tin')
+
+
+      377 |     await openMessages(owner);
+      378 |     await owner.getByText("Thành Viên", { exact: true }).first().click();
+    > 379 |     await expect(owner.getByPlaceholder("Không thể nhắn tin")).toBeVisible({ timeout: 20_000 });
+          |                                                                ^
+      380 |     await expect(owner.getByPlaceholder("Không thể nhắn tin")).toBeDisabled();
+      381 |     await expect(owner.getByRole("button", { name: "Gửi", exact: true })).toHaveCount(0);
+      382 |   });
+        at /workspace/e2e/files-chat.spec.ts:379:64
+
+    Error Context: test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/error-context.md
+
+    Error Context: test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    files-chat.spec.ts:343:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --reporter=list --trace=on files-chat -g blocking a peer closes the direct messages in both directions
+E2E_BLOCKPEER_EXIT=1

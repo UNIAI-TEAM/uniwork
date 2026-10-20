@@ -1,0 +1,4 @@
+$ for i in $(seq 1 90); do curl -sf http://localhost:19284/healthz >/dev/null && curl -sf http://localhost:14204 >/dev/null && break; sleep 2; done; curl -sf http://localhost:19284/healthz && curl -sf http://localhost:14204 >/dev/null && curl -sf http://localhost:19284/readyz && echo READY
+{"status":"ok"}
+{"ready":true,"checks":[{"name":"db","ok":true},{"name":"migrations","ok":true,"detail":"9991792512770475_chat_messages_org_document_card_idx"},{"name":"redis","ok":true},{"name":"storage","ok":true}]}
+READY
