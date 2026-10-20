@@ -315,7 +315,7 @@ export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"
  */
 export async function requestDownload(
   path: string,
-  opts: Pick<RequestOpts, "signal"> = {},
+  opts: Pick<RequestOpts, "signal" | "method" | "body"> = {},
 ): Promise<{ blob: Blob; filename: string | null }> {
   let res = await rawFetch(path, opts);
   if (res.status === 401 && getAccessToken()) {

@@ -9946,7 +9946,12 @@
       "access_log": "Nhật ký truy cập",
       "copy": "Tạo bản sao",
       "archive": "Chuyển vào thùng rác",
-      "restore": "Khôi phục"
+      "restore": "Khôi phục",
+      "export_docx": "Xuất DOCX",
+      "export_pdf": "Xuất PDF",
+      "exporting": "Đang xuất trang…",
+      "export_failed": "Không xuất được trang. Thử lại sau.",
+      "export_unavailable": "Máy chủ chưa sẵn sàng xuất định dạng này."
     },
     "versions": {
       "title": "Lịch sử phiên bản",

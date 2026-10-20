@@ -9951,7 +9951,12 @@
       "access_log": "Access log",
       "copy": "Create a copy",
       "archive": "Move to trash",
-      "restore": "Restore"
+      "restore": "Restore",
+      "export_docx": "Export as DOCX",
+      "export_pdf": "Export as PDF",
+      "exporting": "Exporting the page…",
+      "export_failed": "Couldn't export the page. Try again later.",
+      "export_unavailable": "The server can't export this format yet."
     },
     "versions": {
       "title": "Version history",
