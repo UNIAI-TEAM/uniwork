@@ -744,6 +744,12 @@ func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 			t.Errorf("%s: err = %v, want a validation error", c.what, err)
 		}
 	}
+	// the unsorted "time|id" cursor has the same hole (UNI-2038 fx2).
+	unsortedNUL := base64.RawURLEncoding.EncodeToString([]byte(t0.Format(time.RFC3339Nano) + "|" + nul))
+	var ve ValidationError
+	if _, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Cursor: unsortedNUL}); err == nil || !asValidation(err, &ve) {
+		t.Errorf("NUL in the unsorted source id: err = %v, want a validation error", err)
+	}
 	if _, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Cursor: old.NextCursor}); err != nil {
 		t.Errorf("old cursor without sort: %v", err)
 	}

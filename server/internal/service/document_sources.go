@@ -753,7 +753,7 @@ func decodeDocumentSourceCursor(raw string) (time.Time, string, bool) {
 		return time.Time{}, "", false
 	}
 	ts, id, ok := strings.Cut(string(b), "|")
-	if !ok || id == "" {
+	if !ok || id == "" || strings.ContainsRune(id, 0) {
 		return time.Time{}, "", false
 	}
 	at, err := time.Parse(time.RFC3339Nano, ts)
