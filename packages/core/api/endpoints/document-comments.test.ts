@@ -251,6 +251,24 @@ describe("document comment endpoints", () => {
     expect(out.comments[0]?.anchor_state).toBe("stale");
   });
 
+  it("reads anchor_version_no and degrades a malformed one to absent, never the comment (UNI-2033)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          commentBody({ id: "c1", anchor_state: "lost", anchor_version_id: "v2", anchor_version_no: 2 }),
+          commentBody({ id: "c2", anchor_state: "lost", anchor_version_no: null }),
+          commentBody({ id: "c3", anchor_state: "lost", anchor_version_no: "two" }),
+          commentBody({ id: "c4" }),
+        ],
+        unchanged: false,
+      }),
+    );
+    const out = await listDocumentComments("d1");
+    if (!out || out.unchanged) throw new Error("expected a full list");
+    expect(out.comments.map((c) => c.anchor_version_no ?? null)).toEqual([2, null, null, null]);
+    expect(out.comments).toHaveLength(4);
+  });
+
   // ---- lenience + malformed responses -----------------------------------
 
   it("keeps the comment when one reaction row is malformed", async () => {
