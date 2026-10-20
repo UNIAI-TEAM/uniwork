@@ -82,3 +82,38 @@ func (s *DocumentService) organizationPeople(ctx context.Context, organizationID
 func absoluteAvatarURL(u string) bool {
 	return strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://")
 }
+
+// attachShareSummaries fills ShareSummary on one page of Shared by me rows in
+// one query. A row with no live grant (shared by workspace visibility alone)
+// gets zero counts and a nil LatestAt.
+func (s *DocumentService) attachShareSummaries(ctx context.Context, orgID, workspaceID string, items []DocumentListItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]string, len(items))
+	for i := range items {
+		ids[i] = items[i].Document.ID
+	}
+	rows, err := s.q.ListDocumentShareSummaries(ctx, db.ListDocumentShareSummariesParams{
+		OrganizationID: orgID, WorkspaceID: workspaceID, DocumentIds: ids,
+	})
+	if err != nil {
+		return err
+	}
+	byID := make(map[string]db.ListDocumentShareSummariesRow, len(rows))
+	for _, r := range rows {
+		byID[r.DocumentID] = r
+	}
+	for i := range items {
+		sum := &DocumentShareSummary{}
+		if r, ok := byID[items[i].Document.ID]; ok {
+			sum.People, sum.Workspaces, sum.Links = int(r.People), int(r.Workspaces), int(r.Links)
+			if r.LatestAt.Valid {
+				at := r.LatestAt.Time.UTC()
+				sum.LatestAt = &at
+			}
+		}
+		items[i].ShareSummary = sum
+	}
+	return nil
+}

@@ -470,6 +470,14 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 		at := item.FavoritedAt.UTC().Format(time.RFC3339)
 		dto.FavoritedAt = &at
 	}
+	if sum := item.ShareSummary; sum != nil {
+		out := &sdo.DocumentShareSummarySDO{People: sum.People, Workspaces: sum.Workspaces, Links: sum.Links}
+		if sum.LatestAt != nil {
+			at := sum.LatestAt.UTC().Format(time.RFC3339)
+			out.LatestAt = &at
+		}
+		dto.ShareSummary = out
+	}
 	if item.LastActivity != nil {
 		dto.LastActivity = &sdo.DocumentLastActivitySDO{Kind: item.LastActivity.Kind, At: item.LastActivity.At.UTC().Format(time.RFC3339)}
 	}

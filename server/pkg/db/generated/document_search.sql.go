@@ -917,6 +917,26 @@ LEFT JOIN document_favorites fav
  AND fav.workspace_id = d.workspace_id
  AND fav.document_id = d.id
  AND fav.user_id = $5::text
+LEFT JOIN LATERAL (
+  SELECT max(gr.created_at) AS latest_at
+  FROM (
+    SELECT s.created_at FROM document_shares s
+    WHERE $6::text = 'shared'
+      AND s.organization_id = d.organization_id
+      AND s.workspace_id = d.workspace_id
+      AND s.document_id = d.id
+      AND s.revoked_at IS NULL
+      AND s.principal_type IN ('user', 'workspace')
+    UNION ALL
+    SELECT l.created_at FROM document_share_links l
+    WHERE $6::text = 'shared'
+      AND l.organization_id = d.organization_id
+      AND l.workspace_id = d.workspace_id
+      AND l.document_id = d.id
+      AND l.revoked_at IS NULL
+      AND l.expires_at > now()
+  ) gr
+) sh ON true
 LEFT JOIN users eu
   ON eu.id = d.updated_by
  AND d.updated_by_kind = 'human'
@@ -925,8 +945,10 @@ CROSS JOIN LATERAL (SELECT
     (CASE WHEN $6::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN $6::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN $6::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
-    (CASE WHEN $6::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null,
-    (CASE WHEN $6::text = 'starred' THEN fav.created_at ELSE d.updated_at END)::timestamptz AS ts_key
+    (CASE WHEN $6::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL
+         WHEN $6::text = 'shared' THEN sh.latest_at IS NULL ELSE false END)::boolean AS editor_null,
+    (CASE WHEN $6::text = 'starred' THEN fav.created_at
+         WHEN $6::text = 'shared' THEN sh.latest_at ELSE d.updated_at END)::timestamptz AS ts_key
 ) sk
 WHERE d.organization_id = $7
   AND d.workspace_id = $8
@@ -1105,22 +1127,30 @@ WHERE d.organization_id = $7
        WHEN 'starred' THEN CASE WHEN $30::boolean
             THEN (sk.ts_key, d.id COLLATE "C") < ($31::timestamptz, $29::text COLLATE "C")
             ELSE (sk.ts_key, d.id COLLATE "C") > ($31::timestamptz, $29::text COLLATE "C") END
+       WHEN 'shared' THEN (sk.editor_null::int > $32::boolean::int
+            OR (sk.editor_null = $32::boolean
+                AND CASE WHEN sk.editor_null THEN
+                       CASE WHEN $30::boolean THEN d.id COLLATE "C" < $29::text COLLATE "C"
+                            ELSE d.id COLLATE "C" > $29::text COLLATE "C" END
+                     WHEN $30::boolean
+                       THEN (sk.ts_key, d.id COLLATE "C") < ($31::timestamptz, $29::text COLLATE "C")
+                     ELSE (sk.ts_key, d.id COLLATE "C") > ($31::timestamptz, $29::text COLLATE "C") END))
        WHEN 'size' THEN CASE WHEN $30::boolean
-            THEN (sk.size_key, d.id COLLATE "C") < ($32::bigint, $29::text COLLATE "C")
-            ELSE (sk.size_key, d.id COLLATE "C") > ($32::bigint, $29::text COLLATE "C") END
+            THEN (sk.size_key, d.id COLLATE "C") < ($33::bigint, $29::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > ($33::bigint, $29::text COLLATE "C") END
        WHEN 'name' THEN CASE WHEN $30::boolean
-            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($33::text COLLATE "vi-x-icu", $29::text COLLATE "C")
-            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($33::text COLLATE "vi-x-icu", $29::text COLLATE "C") END
-       WHEN 'editor' THEN (sk.editor_null::int > $34::boolean::int
-            OR (sk.editor_null = $34::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($34::text COLLATE "vi-x-icu", $29::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($34::text COLLATE "vi-x-icu", $29::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > $32::boolean::int
+            OR (sk.editor_null = $32::boolean
                 AND CASE WHEN $30::boolean
-            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($33::text COLLATE "vi-x-icu", $29::text COLLATE "C")
-            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($33::text COLLATE "vi-x-icu", $29::text COLLATE "C") END))
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($34::text COLLATE "vi-x-icu", $29::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($34::text COLLATE "vi-x-icu", $29::text COLLATE "C") END))
        ELSE true END)
 ORDER BY
   (CASE WHEN $6::text IS NULL THEN d.updated_at END) DESC,
   (CASE WHEN $6::text IS NULL THEN d.id END) DESC,
-  (CASE WHEN $6::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN $6::text IN ('editor', 'shared') THEN sk.editor_null END) ASC,
   (CASE WHEN $6::text = 'name' AND NOT $30::boolean THEN sk.name_key
         WHEN $6::text = 'editor' AND NOT $30::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
   (CASE WHEN $6::text = 'name' AND $30::boolean THEN sk.name_key
@@ -1129,8 +1159,8 @@ ORDER BY
   (CASE WHEN $6::text = 'size' AND $30::boolean THEN sk.size_key END) DESC,
   (CASE WHEN $6::text = 'updated' AND NOT $30::boolean THEN d.updated_at END) ASC,
   (CASE WHEN $6::text = 'updated' AND $30::boolean THEN d.updated_at END) DESC,
-  (CASE WHEN $6::text = 'starred' AND NOT $30::boolean THEN sk.ts_key END) ASC,
-  (CASE WHEN $6::text = 'starred' AND $30::boolean THEN sk.ts_key END) DESC,
+  (CASE WHEN $6::text IN ('starred', 'shared') AND NOT $30::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN $6::text IN ('starred', 'shared') AND $30::boolean THEN sk.ts_key END) DESC,
   (CASE WHEN $6::text IS NOT NULL AND NOT $30::boolean THEN d.id COLLATE "C" END) ASC,
   (CASE WHEN $6::text IS NOT NULL AND $30::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT $35
@@ -1168,9 +1198,9 @@ type ListDocumentsPageParams struct {
 	SortCursorID    pgtype.Text        `json:"sort_cursor_id"`
 	SortDesc        bool               `json:"sort_desc"`
 	SortCursorAt    pgtype.Timestamptz `json:"sort_cursor_at"`
+	SortCursorNull  pgtype.Bool        `json:"sort_cursor_null"`
 	SortCursorNum   pgtype.Int8        `json:"sort_cursor_num"`
 	SortCursorText  pgtype.Text        `json:"sort_cursor_text"`
-	SortCursorNull  pgtype.Bool        `json:"sort_cursor_null"`
 	PageLimit       int32              `json:"page_limit"`
 }
 
@@ -1283,6 +1313,9 @@ type ListDocumentsPageRow struct {
 // agent, a removed account or a blank name sets editor_null and sorts last. Each
 // key is computed only under its own sort (the others are constants), so an
 // unsorted list pays nothing for them and the users join runs for sort=editor.
+// UNI-2045 SV-4: the newest live grant of the row (a person, a workspace or a
+// link, as ListDocumentShareSummaries counts them), read only under
+// sort=shared; a row with none has a NULL key and sorts last.
 // UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
 // a sort_key orders by (key, id) in one direction. Every term is a CASE on a
 // bound parameter, so the planner folds the unused ones away and a plain
@@ -1320,9 +1353,9 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.SortCursorID,
 		arg.SortDesc,
 		arg.SortCursorAt,
+		arg.SortCursorNull,
 		arg.SortCursorNum,
 		arg.SortCursorText,
-		arg.SortCursorNull,
 		arg.PageLimit,
 	)
 	if err != nil {

@@ -328,3 +328,33 @@ WHERE organization_id = sqlc.arg(organization_id)
   )
 ORDER BY occurred_at DESC, id DESC
 LIMIT sqlc.arg(max_rows);
+
+-- UNI-2045 SV-4: how widely each document of a page is shared, for the Shared
+-- by me list. Only live grants count: a direct user share, a workspace share
+-- and a link that is neither revoked nor expired. An organization-wide share is
+-- the workspace-visibility leg of the list, not a grant to count. latest_at is
+-- the newest created_at among the counted grants.
+-- name: ListDocumentShareSummaries :many
+SELECT g.document_id,
+       count(*) FILTER (WHERE g.kind = 'user')::int AS people,
+       count(*) FILTER (WHERE g.kind = 'workspace')::int AS workspaces,
+       count(*) FILTER (WHERE g.kind = 'link')::int AS links,
+       max(g.created_at)::timestamptz AS latest_at
+FROM (
+  SELECT s.document_id, s.principal_type::text AS kind, s.created_at
+  FROM document_shares s
+  WHERE s.organization_id = sqlc.arg(organization_id)
+    AND s.workspace_id = sqlc.arg(workspace_id)
+    AND s.document_id = ANY(sqlc.arg(document_ids)::text[])
+    AND s.revoked_at IS NULL
+    AND s.principal_type IN ('user', 'workspace')
+  UNION ALL
+  SELECT l.document_id, 'link'::text, l.created_at
+  FROM document_share_links l
+  WHERE l.organization_id = sqlc.arg(organization_id)
+    AND l.workspace_id = sqlc.arg(workspace_id)
+    AND l.document_id = ANY(sqlc.arg(document_ids)::text[])
+    AND l.revoked_at IS NULL
+    AND l.expires_at > now()
+) g
+GROUP BY g.document_id;

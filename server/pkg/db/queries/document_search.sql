@@ -91,6 +91,29 @@ LEFT JOIN document_favorites fav
 -- agent, a removed account or a blank name sets editor_null and sorts last. Each
 -- key is computed only under its own sort (the others are constants), so an
 -- unsorted list pays nothing for them and the users join runs for sort=editor.
+-- UNI-2045 SV-4: the newest live grant of the row (a person, a workspace or a
+-- link, as ListDocumentShareSummaries counts them), read only under
+-- sort=shared; a row with none has a NULL key and sorts last.
+LEFT JOIN LATERAL (
+  SELECT max(gr.created_at) AS latest_at
+  FROM (
+    SELECT s.created_at FROM document_shares s
+    WHERE sqlc.narg(sort_key)::text = 'shared'
+      AND s.organization_id = d.organization_id
+      AND s.workspace_id = d.workspace_id
+      AND s.document_id = d.id
+      AND s.revoked_at IS NULL
+      AND s.principal_type IN ('user', 'workspace')
+    UNION ALL
+    SELECT l.created_at FROM document_share_links l
+    WHERE sqlc.narg(sort_key)::text = 'shared'
+      AND l.organization_id = d.organization_id
+      AND l.workspace_id = d.workspace_id
+      AND l.document_id = d.id
+      AND l.revoked_at IS NULL
+      AND l.expires_at > now()
+  ) gr
+) sh ON true
 LEFT JOIN users eu
   ON eu.id = d.updated_by
  AND d.updated_by_kind = 'human'
@@ -99,8 +122,10 @@ CROSS JOIN LATERAL (SELECT
     (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
-    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null,
-    (CASE WHEN sqlc.narg(sort_key)::text = 'starred' THEN fav.created_at ELSE d.updated_at END)::timestamptz AS ts_key
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL
+         WHEN sqlc.narg(sort_key)::text = 'shared' THEN sh.latest_at IS NULL ELSE false END)::boolean AS editor_null,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'starred' THEN fav.created_at
+         WHEN sqlc.narg(sort_key)::text = 'shared' THEN sh.latest_at ELSE d.updated_at END)::timestamptz AS ts_key
 ) sk
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
@@ -279,6 +304,14 @@ WHERE d.organization_id = sqlc.arg(organization_id)
        WHEN 'starred' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
             THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
             ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'shared' THEN (sk.editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+            OR (sk.editor_null = sqlc.narg(sort_cursor_null)::boolean
+                AND CASE WHEN sk.editor_null THEN
+                       CASE WHEN sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" < sqlc.narg(sort_cursor_id)::text COLLATE "C"
+                            ELSE d.id COLLATE "C" > sqlc.narg(sort_cursor_id)::text COLLATE "C" END
+                     WHEN sqlc.arg(sort_desc)::boolean
+                       THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+                     ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
        WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
             THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
             ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
@@ -298,7 +331,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
 ORDER BY
   (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.updated_at END) DESC,
   (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.id END) DESC,
-  (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IN ('editor', 'shared') THEN sk.editor_null END) ASC,
   (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.name_key
         WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
   (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN sk.name_key
@@ -307,8 +340,8 @@ ORDER BY
   (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
   (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN d.updated_at END) ASC,
   (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN d.updated_at END) DESC,
-  (CASE WHEN sqlc.narg(sort_key)::text = 'starred' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) ASC,
-  (CASE WHEN sqlc.narg(sort_key)::text = 'starred' AND sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IN ('starred', 'shared') AND NOT sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IN ('starred', 'shared') AND sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) DESC,
   (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
   (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT sqlc.arg(page_limit);

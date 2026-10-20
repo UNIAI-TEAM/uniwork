@@ -640,3 +640,146 @@ func TestDoclistSharedWithMeSortByShareTime(t *testing.T) {
 		t.Errorf("unsorted shared-with-me = %v, want 7 rows", got)
 	}
 }
+
+func dlLink(t *testing.T, w *docsWorld, docID string, createdAt, expiresAt time.Time, revoked bool) {
+	t.Helper()
+	var revokedAt any
+	if revoked {
+		revokedAt = createdAt.Add(time.Minute)
+	}
+	dlExec(t, `INSERT INTO document_share_links (id, organization_id, workspace_id, document_id, token_hash, expires_at, created_by, created_by_kind, revoked_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'human', $8, $9)`, newTestID(), w.orgID, w.wsID, docID, newTestID(), expiresAt, w.userID, revokedAt, createdAt)
+}
+
+// dlRevokeShare marks one share row revoked.
+func dlRevokeShare(t *testing.T, id string) {
+	t.Helper()
+	dlExec(t, `UPDATE document_shares SET revoked_at = now() WHERE id = $1`, id)
+}
+
+func dlSummary(t *testing.T, item map[string]any) map[string]any {
+	t.Helper()
+	sum, _ := item["share_summary"].(map[string]any)
+	if sum == nil {
+		t.Fatalf("row %v has no share_summary", item["title"])
+	}
+	return sum
+}
+
+// SV-4: Shared by me rows say how widely each document is shared; only live
+// grants count (a revoked share, a revoked link and an expired link do not),
+// and sort=shared orders by the newest live grant with an ungranted row last.
+func TestDoclistSharedByMeSummary(t *testing.T) {
+	w := newDocsWorld(t)
+	_, p1 := docsJoinWorkspace(t, w, "dl-sbm-p1@example.com")
+	_, p2 := docsJoinWorkspace(t, w, "dl-sbm-p2@example.com")
+	_, p3 := docsJoinWorkspace(t, w, "dl-sbm-p3@example.com")
+	base := dlBase(w) + "?shared_by_me=true"
+	now := time.Now().UTC().Truncate(time.Second)
+	t0 := now.Add(-40 * time.Hour)
+	live := now.Add(24 * time.Hour)
+	mk := func(title, vis string) string {
+		_, id := docsCreatePageBody(t, w, w.token, map[string]any{"title": title, "visibility": vis})
+		return id
+	}
+
+	wide := mk("wide", "restricted")
+	dlShare(t, w, wide, "user", p1, w.userID, "human", t0)
+	dlShare(t, w, wide, "user", p2, w.userID, "human", t0.Add(2*time.Hour))
+	dlShare(t, w, wide, "workspace", w.wsID, w.userID, "human", t0.Add(time.Hour))
+	dlLink(t, w, wide, t0.Add(3*time.Hour), live, false)
+	dlRevokeShare(t, dlShare(t, w, wide, "user", p3, w.userID, "human", t0.Add(9*time.Hour))) // revoked: not counted, not latest
+	dlLink(t, w, wide, t0.Add(10*time.Hour), live, true)                                      // revoked link
+	dlLink(t, w, wide, t0.Add(11*time.Hour), now.Add(-time.Hour), false)                      // expired link
+	// shared by visibility with one live link and no person: it is listed (the
+	// workspace leg) and the link is its only grant.
+	linkOnly := mk("link-only", "workspace")
+	dlLink(t, w, linkOnly, t0.Add(5*time.Hour), live, false)
+	open := mk("open-to-workspace", "workspace") // shared by visibility alone: no grant, no latest_at
+	open2 := mk("open-too", "workspace")
+
+	res, out := dlGet(t, w, w.token, base)
+	if res.StatusCode != 200 {
+		t.Fatalf("GET %s: %d %v", base, res.StatusCode, out)
+	}
+	rows := map[string]map[string]any{}
+	for _, item := range out["documents"].([]any) {
+		m := item.(map[string]any)
+		rows[m["id"].(string)] = m
+	}
+	for _, id := range []string{wide, linkOnly, open} {
+		if rows[id] == nil {
+			t.Fatalf("shared_by_me misses %s: %v", id, dlIDs(out))
+		}
+	}
+	sum := dlSummary(t, rows[wide])
+	if sum["people"] != float64(2) || sum["workspaces"] != float64(1) || sum["links"] != float64(1) {
+		t.Errorf("wide summary = %v, want people 2, workspaces 1, links 1", sum)
+	}
+	if got, want := sum["latest_at"], t0.Add(3*time.Hour).Format(time.RFC3339); got != want {
+		t.Errorf("wide latest_at = %v, want %s (newest live grant)", got, want)
+	}
+	if s := dlSummary(t, rows[linkOnly]); s["people"] != float64(0) || s["links"] != float64(1) || s["latest_at"] != t0.Add(5*time.Hour).Format(time.RFC3339) {
+		t.Errorf("link-only summary = %v", s)
+	}
+	if s := dlSummary(t, rows[open]); s["people"] != float64(0) || s["workspaces"] != float64(0) || s["links"] != float64(0) || s["latest_at"] != nil {
+		t.Errorf("open summary = %v, want zeros and null latest_at", s)
+	}
+	// a plain list carries no summary.
+	if _, out := dlGet(t, w, w.token, dlBase(w)); out["documents"] != nil {
+		for _, item := range out["documents"].([]any) {
+			if _, has := item.(map[string]any)["share_summary"]; has {
+				t.Errorf("plain list row carries share_summary")
+			}
+		}
+	}
+
+	// sort=shared: three pages, both directions, the ungranted row last.
+	for i := 0; i < 5; i++ {
+		id := mk(fmt.Sprintf("n%d", i), "restricted")
+		dlShare(t, w, id, "user", p1, w.userID, "human", t0.Add(time.Duration(20+i/2)*time.Minute)) // ties share a time
+	}
+	keys := map[string]time.Time{wide: t0.Add(3 * time.Hour), linkOnly: t0.Add(5 * time.Hour)}
+	for id, row := range dlAllRows(t, w, base) {
+		if _, ok := keys[id]; ok || id == open || id == open2 {
+			continue
+		}
+		at, _ := time.Parse(time.RFC3339, dlSummary(t, row)["latest_at"].(string))
+		keys[id] = at
+	}
+	for _, order := range []string{"asc", "desc", ""} {
+		q := base + "&sort=shared"
+		if order != "" {
+			q += "&order=" + order
+		}
+		pages := dlWalk(t, w, w.token, q, 3)
+		if len(pages) != 3 {
+			t.Errorf("%s: pages = %d, want 3", q, len(pages))
+		}
+		// ungranted rows come last, by id in the direction of the sort.
+		nulls := []string{open, open2}
+		sort.Strings(nulls)
+		if order != "asc" {
+			nulls = []string{nulls[1], nulls[0]}
+		}
+		want := append(dlSortedIDs(keys, order != "asc"), nulls...)
+		if got := dlFlatten(pages); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: order = %v, want %v", q, got, want)
+		}
+	}
+}
+
+// dlAllRows reads every row of a list as id -> item.
+func dlAllRows(t *testing.T, w *docsWorld, path string) map[string]map[string]any {
+	t.Helper()
+	res, out := dlGet(t, w, w.token, path+"&limit=100")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET %s: %d %v", path, res.StatusCode, out)
+	}
+	rows := map[string]map[string]any{}
+	for _, item := range out["documents"].([]any) {
+		m := item.(map[string]any)
+		rows[m["id"].(string)] = m
+	}
+	return rows
+}

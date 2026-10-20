@@ -208,6 +208,16 @@ type DocumentListItem struct {
 	LastActivity *DocumentLastActivity
 	// FavoritedAt is when the caller starred the row (favorites only).
 	FavoritedAt *time.Time
+	// ShareSummary counts the row's live grants (shared_by_me only).
+	ShareSummary *DocumentShareSummary
+}
+
+// DocumentShareSummary is how widely a document is shared by its owner: the
+// live direct user shares, the live workspace shares, the links neither
+// revoked nor expired, and the newest of those grants (nil when none).
+type DocumentShareSummary struct {
+	People, Workspaces, Links int
+	LatestAt                  *time.Time
 }
 
 // DocumentListPage is one page plus the cursor for the next.
@@ -689,6 +699,11 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	}
 	if err := s.attachListAccess(ctx, scope, workspaceID, agent, out.Items); err != nil {
 		return DocumentListPage{}, err
+	}
+	if in.SharedByMe {
+		if err := s.attachShareSummaries(ctx, scope.organizationID, workspaceID, out.Items); err != nil {
+			return DocumentListPage{}, err
+		}
 	}
 	if query.Valid {
 		if err := s.attachListPaths(ctx, scope, workspaceID, agent, out.Items); err != nil {

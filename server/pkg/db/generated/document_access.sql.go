@@ -851,6 +851,77 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 	return items, nil
 }
 
+const listDocumentShareSummaries = `-- name: ListDocumentShareSummaries :many
+SELECT g.document_id,
+       count(*) FILTER (WHERE g.kind = 'user')::int AS people,
+       count(*) FILTER (WHERE g.kind = 'workspace')::int AS workspaces,
+       count(*) FILTER (WHERE g.kind = 'link')::int AS links,
+       max(g.created_at)::timestamptz AS latest_at
+FROM (
+  SELECT s.document_id, s.principal_type::text AS kind, s.created_at
+  FROM document_shares s
+  WHERE s.organization_id = $1
+    AND s.workspace_id = $2
+    AND s.document_id = ANY($3::text[])
+    AND s.revoked_at IS NULL
+    AND s.principal_type IN ('user', 'workspace')
+  UNION ALL
+  SELECT l.document_id, 'link'::text, l.created_at
+  FROM document_share_links l
+  WHERE l.organization_id = $1
+    AND l.workspace_id = $2
+    AND l.document_id = ANY($3::text[])
+    AND l.revoked_at IS NULL
+    AND l.expires_at > now()
+) g
+GROUP BY g.document_id
+`
+
+type ListDocumentShareSummariesParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DocumentIds    []string `json:"document_ids"`
+}
+
+type ListDocumentShareSummariesRow struct {
+	DocumentID string             `json:"document_id"`
+	People     int32              `json:"people"`
+	Workspaces int32              `json:"workspaces"`
+	Links      int32              `json:"links"`
+	LatestAt   pgtype.Timestamptz `json:"latest_at"`
+}
+
+// UNI-2045 SV-4: how widely each document of a page is shared, for the Shared
+// by me list. Only live grants count: a direct user share, a workspace share
+// and a link that is neither revoked nor expired. An organization-wide share is
+// the workspace-visibility leg of the list, not a grant to count. latest_at is
+// the newest created_at among the counted grants.
+func (q *Queries) ListDocumentShareSummaries(ctx context.Context, arg ListDocumentShareSummariesParams) ([]ListDocumentShareSummariesRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentShareSummaries, arg.OrganizationID, arg.WorkspaceID, arg.DocumentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentShareSummariesRow{}
+	for rows.Next() {
+		var i ListDocumentShareSummariesRow
+		if err := rows.Scan(
+			&i.DocumentID,
+			&i.People,
+			&i.Workspaces,
+			&i.Links,
+			&i.LatestAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentVersionsByIDs = `-- name: ListDocumentVersionsByIDs :many
 SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
 FROM document_versions
