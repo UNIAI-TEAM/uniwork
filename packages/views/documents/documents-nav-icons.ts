@@ -5,6 +5,7 @@ import {
   FolderLock,
   House,
   Share2,
+  ShieldCheck,
   Star,
   Trash,
   Users,
@@ -29,5 +30,6 @@ export const DOCUMENTS_NAV_ICONS = {
   archive: Archive,
   shelved: Archive,
   trash: Trash,
+  accessReport: ShieldCheck,
   folder: Folder,
 } as const satisfies Record<string, LucideIcon>;

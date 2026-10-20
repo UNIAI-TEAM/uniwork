@@ -65,6 +65,12 @@ export function favoriteRow(fav: FavoriteLike, known?: Known): DocumentSummaryRo
     // Starred view, and an owned one keeps "Bạn: Chủ sở hữu" (SV-1).
     via: known?.via,
     archived_at: known?.archived_at,
+    // The Share gate (canShareRow) and the dialog target read the owner, the
+    // admin scope and the shelf marker of the row: a starred work product must
+    // not offer what its own list refuses.
+    owner_kind: known?.owner_kind,
+    admin_scope: known?.admin_scope,
+    shelved_at: known?.shelved_at,
     share_scope: known?.share_scope,
     id: fav.document_id,
     system_kind: known?.system_kind,
