@@ -303,9 +303,8 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	// The run's calls and tools stop at the deadline or on Shutdown, which
 	// cancels the run with errAskShutdown as its cause; the store uses ctx,
 	// so an answer that arrived in time is kept.
-	runCtx, cancelRun := context.WithCancelCause(ctx)
-	defer cancelRun(nil)
-	defer context.AfterFunc(s.life, func() { cancelRun(context.Cause(s.life)) })()
+	runCtx, done := s.runContext(ctx)
+	defer done()
 	runCtx, cancel := context.WithTimeout(runCtx, askAgentDeadline)
 	defer cancel()
 	deadline := started.Add(askAgentDeadline)
@@ -393,28 +392,11 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		rowUsage(ctx, e.UsageEventID)
 		return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID)
 	}
-	// stopNotice names a run cut short (R6, R7): interrupted by Shutdown;
-	// stopped when the asker left (their request cancelled) or, for a model
-	// call, when the gateway cut it midway. A run deadline inside a tool is
-	// not a stop: it fails as before. "" for any other error.
-	stopNotice := func(err error, modelCall bool) string {
-		switch {
-		case errors.Is(context.Cause(runCtx), errAskShutdown):
-			return ai.NoticeInterrupted
-		case errors.Is(ctx.Err(), context.Canceled),
-			modelCall && (ctx.Err() != nil || errors.Is(err, ai.ErrCancelled) || errors.Is(err, ai.ErrProviderTimeout)):
-			return ai.NoticeStopped
-		}
-		return ""
-	}
-	// A stop stores the text the asker saw streamed for the last call, with
-	// what it cites, on a context that outlives the request, and ends with
-	// done (the asker may be gone; the next read shows the turn).
+	// A stop (askStopNotice) stores the text the asker saw streamed for the
+	// last call, with what it cites, on a context that outlives the request,
+	// and ends with done (the asker may be gone; the next read shows the turn).
 	stop := func(notice string, err error) (AskResult, error) {
-		if notice == ai.NoticeStopped && errors.Is(err, ai.ErrProviderTimeout) {
-			outcome = "timeout" // the run's deadline, not the asker
-		}
-		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)
+		sctx, cancel := outliving(ctx)
 		defer cancel()
 		usage := billed
 		var e *ai.Error
@@ -444,7 +426,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			usage = e.UsageEventID
 		}
 		slog.Warn("ask uni: agent run failed", "run_id", res.RunID, "organization_id", w.OrganizationID, "err", err)
-		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)
+		sctx, cancel := outliving(ctx)
 		defer cancel()
 		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage)
 	}
@@ -467,7 +449,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			return refused(err)
 		}
 		if err != nil {
-			if n := stopNotice(err, true); n != "" {
+			if n := askStopNotice(ctx, runCtx, err); n != "" {
 				return stop(n, err)
 			}
 			return failed(err)
@@ -484,7 +466,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		for i, c := range resp.ToolCalls {
 			content, step, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
 			if err != nil {
-				if n := stopNotice(err, false); n != "" {
+				if n := askStopNotice(ctx, runCtx, err); n != "" {
 					return stop(n, err)
 				}
 				return failed(err)
@@ -511,17 +493,21 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			return refused(err)
 		}
 		if err != nil {
-			if n := stopNotice(err, true); n != "" {
+			if n := askStopNotice(ctx, runCtx, err); n != "" {
 				return stop(n, err)
 			}
 			return failed(err)
 		}
-		if agentMalformed(resp) {
-			return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID)
-		}
+	}
+	// The final call answered and was charged: a Stop from here on keeps it
+	// (R6), so the store outlives the request.
+	sctx, cancelStore := outliving(ctx)
+	defer cancelStore()
+	if agentMalformed(resp) {
+		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID)
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
-	return s.finishAgent(ctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID)
+	return s.finishAgent(sctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID)
 }
 
 // finishAgent stores the turn with the last call's usage row. Its text

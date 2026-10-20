@@ -775,18 +775,20 @@ func TestAskAgentFailedStoreIsNotAnswered(t *testing.T) {
 	agentTask(t, s, ua, w, "Banner Tết")
 	m := &agentMetricsFake{}
 	s.SetAgentMetrics(m)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	reqs := scriptAgent(fake, "banner", "Xong [S1]")
-	search := fake.Reply
-	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
-		if len(*reqs) == 1 {
-			cancel() // the answer arrives, then the request is gone before the store
-		}
-		return search(req)
+	// The answer arrives, then the database refuses it: the store fails.
+	// (A cancelled request no longer does: an arrived answer is stored past it.)
+	const unstorable = "Xong, không lưu được [S1]"
+	drop := `ALTER TABLE ai_messages DROP CONSTRAINT IF EXISTS ask_test_store_fails`
+	if _, err := s.pool.Exec(context.Background(), drop); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); err == nil {
-		t.Fatal("the store must fail on a cancelled request")
+	if _, err := s.pool.Exec(context.Background(), `ALTER TABLE ai_messages ADD CONSTRAINT ask_test_store_fails CHECK (content <> '`+unstorable+`')`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = s.pool.Exec(context.Background(), drop) })
+	reqs := scriptAgent(fake, "banner", unstorable)
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); err == nil {
+		t.Fatal("the store must fail")
 	}
 	if len(*reqs) != 2 || !reflect.DeepEqual(m.runs, []string{"agent_failed/1"}) {
 		t.Fatalf("calls %d, runs %v; want the answer received and agent_failed reported", len(*reqs), m.runs)

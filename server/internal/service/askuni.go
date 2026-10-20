@@ -252,7 +252,9 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	var resp ai.Response
 	if len(pack) > 0 {
 		notice = ""
-		resp, err = s.gw.Complete(ctx, ai.Request{
+		callCtx, done := s.runContext(ctx)
+		defer done()
+		resp, err = s.gw.Complete(callCtx, ai.Request{
 			Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: workspaceID,
 			Capability: ai.CapCopilotAnswer, PromptID: ai.PromptCopilotAnswer,
 			Vars: map[string]any{
@@ -261,17 +263,21 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			},
 			History: history(rows), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
 		})
+		stopped := ""
+		if err != nil {
+			stopped = askStopNotice(ctx, callCtx, err)
+		}
 		switch {
-		case err != nil && (errors.Is(err, ai.ErrCancelled) || ctx.Err() != nil):
-			// The asker left mid-call. P0 streams no text, so the turn is
-			// kept empty, stored past the request (R6).
-			notice = ai.NoticeStopped
+		case stopped != "":
+			// The asker left mid-call, or Shutdown cut it. P0 streams no
+			// text, so the turn is kept empty, stored past the request (R6, R7).
+			notice = stopped
 			var e *ai.Error
 			if errors.As(err, &e) {
 				resp.UsageEventID = e.UsageEventID
 			}
 			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)
+			ctx, cancel = outliving(ctx)
 			defer cancel()
 		case err != nil:
 			return AskResult{}, err

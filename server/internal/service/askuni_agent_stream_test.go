@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -196,6 +197,119 @@ func TestAskAgentRetryEmitsARetryStep(t *testing.T) {
 	}
 }
 
+// A deadline is not a stop (fix round 1): with nothing billed it is the
+// timeout error, after a billed call the turn is stored agent_failed, on the
+// streaming path and on the path without a sink alike.
+func TestAskAgentTimeoutIsNotAStop(t *testing.T) {
+	const cut = 200 * time.Millisecond
+	setup := func(t *testing.T) (*AskUNIService, *provider.Fake, db.User, db.Workspace, *agentMetricsFake) {
+		s, fake, ua, w := agentAskFixture(t)
+		s.gw = ai.NewGateway(s.q, fake, NewAIQuota(s.ent), nil, ai.Options{Timeout: cut, StreamTimeout: cut})
+		m := &agentMetricsFake{}
+		s.SetAgentMetrics(m)
+		agentTask(t, s, ua, w, "Banner Tết")
+		scriptAgent(fake, "banner", "Có 2 việc [S1]")
+		return s, fake, ua, w, m
+	}
+	for _, sink := range []bool{true, false} {
+		ask := func(s *AskUNIService, ua db.User, w db.Workspace) (AskResult, []AskEvent, error) {
+			var events []AskEvent
+			var emit AskSink
+			if sink {
+				emit = collectEvents(&events)
+			}
+			res, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}, emit)
+			return res, events, err
+		}
+		name := map[bool]string{true: "streaming", false: "without a sink"}[sink]
+		t.Run(name+", nothing billed", func(t *testing.T) {
+			s, fake, ua, w, m := setup(t)
+			fake.Delay = 5 * time.Second // the first call outlives the gateway's timeout
+			if _, _, err := ask(s, ua, w); !errors.Is(err, ai.ErrProviderTimeout) {
+				t.Fatalf("err %v, want ai_provider_timeout", err)
+			}
+			if !reflect.DeepEqual(m.runs, []string{"timeout/0"}) {
+				t.Fatalf("runs %v", m.runs)
+			}
+		})
+		t.Run(name+", after a billed call", func(t *testing.T) {
+			s, fake, ua, w, m := setup(t)
+			if sink {
+				fake.StreamChunk, fake.StreamDelay = 4, 5*time.Second // the answer is cut after its first delta
+			} else {
+				search := fake.Reply
+				fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+					fake.Delay = 5 * time.Second // every later call outlives the gateway's timeout
+					return search(req)
+				}
+			}
+			res, events, err := ask(s, ua, w)
+			if err != nil {
+				t.Fatalf("err %v, want the turn stored", err)
+			}
+			if res.Message.Notice.String != ai.NoticeAgentFailed || res.Message.Content != "" || !reflect.DeepEqual(m.runs, []string{"timeout/1"}) {
+				t.Fatalf("stored %+v, runs %v", res.Message, m.runs)
+			}
+			if sink && (joinDeltas(events) != "Có 2" || events[len(events)-1].Done.Message.Notice.String != ai.NoticeAgentFailed) {
+				t.Fatalf("events %v, deltas %q", eventNames(events), joinDeltas(events))
+			}
+			usage, err := s.q.AiGetUsageEvent(context.Background(), res.Message.UsageEventID.String)
+			if err != nil || usage.ReasonCode.String != ai.ErrProviderTimeout.Code {
+				t.Fatalf("usage row of the cut call %+v %v", usage, err)
+			}
+		})
+	}
+}
+
+// A Stop that lands once the final call has answered keeps the answer: it is
+// charged and complete, so it is stored past the request (ruling R6).
+func TestAskAgentKeepsAnAnswerThatArrivedAsTheAskerLeft(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	scriptAgent(fake, "banner", "Có 2 việc [S1]")
+	fake.StreamChunk = 4
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var events []AskEvent
+	res, err := s.AskStream(ctx, ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi"}, cancelOnDelta(&events, 4, cancel))
+	if err != nil {
+		t.Fatalf("err %v, want the answer stored", err)
+	}
+	if res.Message.Content != "Có 2 việc [S1]" || res.Message.Notice.String != "" || len(res.Citations) != 1 || messageCount(t, s, res.ConversationID) != 2 {
+		t.Fatalf("stored %+v, citations %+v", res.Message, res.Citations)
+	}
+	if done := events[len(events)-1]; done.Name != "done" || done.Done.Message.ID != res.Message.ID {
+		t.Fatalf("events %v", eventNames(events))
+	}
+}
+
+// Shutdown interrupts a P0 call too (ruling R7): the turn is stored empty
+// with notice interrupted and ends with done.
+func TestAskStreamP0ShutdownStoresAnInterruptedTurn(t *testing.T) {
+	s, fake, ua, _, w := askFixture(t)
+	if _, err := s.tasks.Create(context.Background(), Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09"}); err != nil {
+		t.Fatal(err)
+	}
+	fake.Delay = 5 * time.Second // the call waits for Shutdown, not the clock
+	var events []AskEvent
+	sink := func(e AskEvent) {
+		events = append(events, e)
+		if e.Name == "run" {
+			s.Shutdown()
+		}
+	}
+	res, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "spec F-09", Locale: "vi"}, sink)
+	if err != nil {
+		t.Fatalf("err %v, want the interrupted turn stored", err)
+	}
+	if want := []string{"run", "citations", "done"}; !slices.Equal(eventNames(events), want) {
+		t.Fatalf("events %v, want %v", eventNames(events), want)
+	}
+	if res.Message.Notice.String != ai.NoticeInterrupted || res.Message.Content != "" || messageCount(t, s, res.ConversationID) != 2 {
+		t.Fatalf("stored %+v", res.Message)
+	}
+}
+
 func TestAskStreamP0StopStoresAnEmptyStoppedTurn(t *testing.T) {
 	s, _, ua, _, w := askFixture(t)
 	if _, err := s.tasks.Create(context.Background(), Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09"}); err != nil {
@@ -223,8 +337,9 @@ func TestAskStreamP0StopStoresAnEmptyStoppedTurn(t *testing.T) {
 }
 
 // Untrusted tags are stripped before a delta leaves, even when one spans two
-// deltas (ruling PF1): a "<" not yet closed is held back, and a call whose
-// stripped text stops extending what was sent sends nothing more.
+// deltas: only a tail that may still grow into a tag is held back (ruling
+// PF1b), and a call whose stripped text stops extending what was sent sends
+// nothing more.
 func TestAskStreamDraftStripsTagsAcrossDeltas(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -232,10 +347,12 @@ func TestAskStreamDraftStripsTagsAcrossDeltas(t *testing.T) {
 		want []string
 	}{
 		{"tag across deltas", []string{"ok <untr", "usted source=\"x\">a", "</untrusted> b"}, []string{"ok ", "a", " b"}},
-		{"open bracket held", []string{"a < b", " c"}, []string{"a "}},
-		// A full-width bracket is not held back: once the tag completes, the
-		// stripped text drops what was sent, and the call sends nothing more.
-		{"text that shrinks stops the call", []string{"x ＜untr", "usted y", "\nz"}, []string{"x ＜untr"}},
+		{"a plain bracket streams", []string{"Còn < 3", " ngày"}, []string{"Còn < 3", " ngày"}},
+		{"a bracket waits for its next rune only", []string{"Còn <", " 3 ngày"}, []string{"Còn ", "< 3 ngày"}},
+		{"a partial tag never leaks", []string{"<untru", "sted>x"}, []string{"x"}},
+		{"a full-width partial tag is held", []string{"a ＜untruste"}, []string{"a "}},
+		// Stripping an inner tag rebuilds an outer one over text already sent.
+		{"text that shrinks stops the call", []string{"<<", "untrusted>untrusted> z", "w"}, []string{"<"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var events []AskEvent

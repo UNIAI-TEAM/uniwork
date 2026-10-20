@@ -77,10 +77,9 @@ type askDraft struct {
 func (d *askDraft) reset() { d.raw.Reset(); d.sent, d.stuck = "", false }
 
 // add takes one raw delta and emits what it adds to the call's text once
-// untrusted tags are stripped (ruling PF1). A "<" with no ">" after it may
-// open a tag, so the text from it is held back; once the stripped text stops
-// extending what was sent, the call sends nothing more and done carries the
-// stored answer.
+// untrusted tags are stripped (ruling PF1). A tail that may still grow into a
+// tag is held back (PF1b); once the stripped text stops extending what was
+// sent, the call sends nothing more and done carries the stored answer.
 func (d *askDraft) add(text string) {
 	if d.stuck {
 		return
@@ -89,7 +88,7 @@ func (d *askDraft) add(text string) {
 	// shortcut: re-strips the call's whole text on every delta (quadratic in
 	// deltas); strip only the unsent tail if long answers show up in CPU.
 	r := d.raw.String()
-	if i := strings.LastIndexByte(r, '<'); i >= 0 && !strings.Contains(r[i:], ">") {
+	if i := ai.UntrustedTagTail(r); i >= 0 {
 		r = r[:i]
 	}
 	clean := ai.StripUntrustedTags(r)
@@ -113,10 +112,38 @@ func (d *askDraft) step(ev AskStepEvent) {
 // errAskShutdown is the cause Shutdown cancels the agent runs with.
 var errAskShutdown = errors.New("ask uni: server shutting down")
 
-// Shutdown interrupts every agent run in flight: each stores what it streamed
-// with notice interrupted and ends with done (R7). It is safe to call more
-// than once and with no run in flight.
+// Shutdown interrupts every turn in flight: each stores what it streamed with
+// notice interrupted and ends with done (R7). It is safe to call more than
+// once and with no turn in flight.
 func (s *AskUNIService) Shutdown() { s.shutdown(errAskShutdown) }
+
+// runContext is a turn's context: it ends with the request, and on Shutdown
+// with errAskShutdown as its cause.
+func (s *AskUNIService) runContext(ctx context.Context) (context.Context, func()) {
+	runCtx, cancel := context.WithCancelCause(ctx)
+	stop := context.AfterFunc(s.life, func() { cancel(context.Cause(s.life)) })
+	return runCtx, func() { stop(); cancel(nil) }
+}
+
+// askStopNotice names a turn cut short (R6, R7): interrupted when Shutdown
+// ended runCtx, stopped when the asker left (their request cancelled, or the
+// gateway cut a streamed call with ErrCancelled). A deadline is not a stop:
+// "" for it and for every other error.
+func askStopNotice(ctx, runCtx context.Context, err error) string {
+	switch {
+	case errors.Is(context.Cause(runCtx), errAskShutdown):
+		return ai.NoticeInterrupted
+	case errors.Is(ctx.Err(), context.Canceled), errors.Is(err, ai.ErrCancelled):
+		return ai.NoticeStopped
+	}
+	return ""
+}
+
+// outliving is ctx without its cancel, for askAgentStoreTimeout: a turn is
+// stored even when the asker left or the run's deadline passed.
+func outliving(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)
+}
 
 // Ask is one turn without events.
 func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in AskInput) (AskResult, error) {
