@@ -57,6 +57,45 @@ WHERE id = sqlc.arg(id)
   AND document_id = sqlc.arg(document_id)
   AND revoked_at IS NULL;
 
+-- The multi-row form of InsertDocumentShare for a command that grants one
+-- level to many users of one document at once (UNI-2012 S1c: a chat send to a
+-- large room, a Documents batch share). The service writes it in chunks inside
+-- its one transaction, so a 1,000-person grant is a handful of statements
+-- instead of a round trip per grantee. The tenant pair, document, level,
+-- grantor and chat source are one per call; ids, principals and the
+-- remembered manual level (empty = NULL) arrive as parallel arrays.
+-- name: InsertUserDocumentSharesBatch :many
+-- tenant: parent document_id
+-- The organization/workspace pair written is the authorized document's own.
+INSERT INTO document_shares (
+  id, organization_id, workspace_id, document_id, principal_type,
+  principal_id, level, granted_by, granted_by_kind,
+  source_kind, source_room_id, source_message_id, prior_manual_level
+)
+SELECT r.id, sqlc.arg(organization_id)::text, sqlc.arg(workspace_id)::text,
+  sqlc.arg(document_id)::text, 'user',
+  r.principal_id, sqlc.arg(level)::text, sqlc.arg(granted_by)::text,
+  sqlc.arg(granted_by_kind)::text,
+  sqlc.narg(source_kind)::text, sqlc.narg(source_room_id)::text,
+  sqlc.narg(source_message_id)::text, NULLIF(r.prior_manual_level, '')
+FROM (
+  SELECT unnest(sqlc.arg(ids)::text[]) AS id,
+    unnest(sqlc.arg(principal_ids)::text[]) AS principal_id,
+    unnest(sqlc.arg(prior_manual_levels)::text[]) AS prior_manual_level
+) AS r
+RETURNING *;
+
+-- The multi-row form of RevokeDocumentShare: the live rows a batch grant
+-- replaces at another level, ended in one statement per chunk.
+-- name: RevokeDocumentSharesByIDs :exec
+UPDATE document_shares
+SET revoked_at = now(), revoked_by = sqlc.arg(revoked_by)
+WHERE id = ANY(sqlc.arg(ids)::text[])
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND revoked_at IS NULL;
+
 -- The caller's live emergency view grant on a document (DOC-05; UNI-1628).
 -- name: GetLiveDocumentBreakGlassGrantForActor :one
 SELECT *

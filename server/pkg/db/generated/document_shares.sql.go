@@ -408,6 +408,100 @@ func (q *Queries) InsertDocumentShare(ctx context.Context, arg InsertDocumentSha
 	return i, err
 }
 
+const insertUserDocumentSharesBatch = `-- name: InsertUserDocumentSharesBatch :many
+INSERT INTO document_shares (
+  id, organization_id, workspace_id, document_id, principal_type,
+  principal_id, level, granted_by, granted_by_kind,
+  source_kind, source_room_id, source_message_id, prior_manual_level
+)
+SELECT r.id, $1::text, $2::text,
+  $3::text, 'user',
+  r.principal_id, $4::text, $5::text,
+  $6::text,
+  $7::text, $8::text,
+  $9::text, NULLIF(r.prior_manual_level, '')
+FROM (
+  SELECT unnest($10::text[]) AS id,
+    unnest($11::text[]) AS principal_id,
+    unnest($12::text[]) AS prior_manual_level
+) AS r
+RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
+`
+
+type InsertUserDocumentSharesBatchParams struct {
+	OrganizationID    string      `json:"organization_id"`
+	WorkspaceID       string      `json:"workspace_id"`
+	DocumentID        string      `json:"document_id"`
+	Level             string      `json:"level"`
+	GrantedBy         string      `json:"granted_by"`
+	GrantedByKind     string      `json:"granted_by_kind"`
+	SourceKind        pgtype.Text `json:"source_kind"`
+	SourceRoomID      pgtype.Text `json:"source_room_id"`
+	SourceMessageID   pgtype.Text `json:"source_message_id"`
+	Ids               []string    `json:"ids"`
+	PrincipalIds      []string    `json:"principal_ids"`
+	PriorManualLevels []string    `json:"prior_manual_levels"`
+}
+
+// The multi-row form of InsertDocumentShare for a command that grants one
+// level to many users of one document at once (UNI-2012 S1c: a chat send to a
+// large room, a Documents batch share). The service writes it in chunks inside
+// its one transaction, so a 1,000-person grant is a handful of statements
+// instead of a round trip per grantee. The tenant pair, document, level,
+// grantor and chat source are one per call; ids, principals and the
+// remembered manual level (empty = NULL) arrive as parallel arrays.
+// tenant: parent document_id
+// The organization/workspace pair written is the authorized document's own.
+func (q *Queries) InsertUserDocumentSharesBatch(ctx context.Context, arg InsertUserDocumentSharesBatchParams) ([]DocumentShare, error) {
+	rows, err := q.db.Query(ctx, insertUserDocumentSharesBatch,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.Level,
+		arg.GrantedBy,
+		arg.GrantedByKind,
+		arg.SourceKind,
+		arg.SourceRoomID,
+		arg.SourceMessageID,
+		arg.Ids,
+		arg.PrincipalIds,
+		arg.PriorManualLevels,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentShare{}
+	for rows.Next() {
+		var i DocumentShare
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.PrincipalType,
+			&i.PrincipalID,
+			&i.Level,
+			&i.GrantedBy,
+			&i.GrantedByKind,
+			&i.RevokedAt,
+			&i.RevokedBy,
+			&i.CreatedAt,
+			&i.SourceKind,
+			&i.SourceRoomID,
+			&i.SourceMessageID,
+			&i.PriorManualLevel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentShares = `-- name: ListDocumentShares :many
 SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
 FROM document_shares
@@ -766,6 +860,37 @@ func (q *Queries) RevokeDocumentShare(ctx context.Context, arg RevokeDocumentSha
 	_, err := q.db.Exec(ctx, revokeDocumentShare,
 		arg.RevokedBy,
 		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+	)
+	return err
+}
+
+const revokeDocumentSharesByIDs = `-- name: RevokeDocumentSharesByIDs :exec
+UPDATE document_shares
+SET revoked_at = now(), revoked_by = $1
+WHERE id = ANY($2::text[])
+  AND organization_id = $3
+  AND workspace_id = $4
+  AND document_id = $5
+  AND revoked_at IS NULL
+`
+
+type RevokeDocumentSharesByIDsParams struct {
+	RevokedBy      pgtype.Text `json:"revoked_by"`
+	Ids            []string    `json:"ids"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	DocumentID     string      `json:"document_id"`
+}
+
+// The multi-row form of RevokeDocumentShare: the live rows a batch grant
+// replaces at another level, ended in one statement per chunk.
+func (q *Queries) RevokeDocumentSharesByIDs(ctx context.Context, arg RevokeDocumentSharesByIDsParams) error {
+	_, err := q.db.Exec(ctx, revokeDocumentSharesByIDs,
+		arg.RevokedBy,
+		arg.Ids,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.DocumentID,

@@ -154,6 +154,21 @@ WHERE m.organization_id = sqlc.arg(organization_id)
   AND m.deactivated_at IS NULL
   AND o.status = 'active';
 
+-- name: FilterAdmittedOrganizationMemberUserIDs :many
+-- Same admission as GetOrganizationMember / OrganizationService.RequireMemberQ
+-- (active organization, member not deactivated, and only the owner while a
+-- deletion is scheduled), in one query for many user ids: a chat document
+-- grant to a large room or a Documents batch share gates every recipient
+-- without a round trip each (UNI-2012 S1c).
+SELECT m.user_id::text AS user_id
+FROM organization_members m
+JOIN organizations o ON o.id = m.organization_id
+WHERE m.organization_id = sqlc.arg(organization_id)
+  AND m.user_id = ANY(sqlc.arg(user_ids)::text[])
+  AND m.deactivated_at IS NULL
+  AND o.status = 'active'
+  AND (o.deletion_scheduled_at IS NULL OR m.role = 'owner');
+
 -- name: LockOrganizationMemberForUpdate :one
 SELECT * FROM organization_members
 WHERE organization_id = $1 AND user_id = $2
