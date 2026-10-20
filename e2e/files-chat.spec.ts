@@ -316,7 +316,14 @@ test.describe.serial("chat file and voice messages", () => {
     await member.getByRole("menuitem", { name: "Nhắn tin với người mới" }).click();
     // The owner's display name comes from registerVerified("chat-owner").
     await member.getByLabel("Tên hoặc email").fill("chat-owner");
-    await member.getByRole("button", { name: /chat-owner/ }).first().click();
+    // Scoped to the picker: since the person card (15e833f0d) the owner's earlier
+    // file messages carry an avatar button "Xem thông tin của chat-owner" in the
+    // list behind the dialog, and it comes first in the DOM.
+    await member
+      .getByRole("dialog")
+      .getByRole("button", { name: /chat-owner/ })
+      .first()
+      .click();
 
     const dmComposer = member.getByPlaceholder("Nhập tin nhắn…");
     await expect(dmComposer).toBeVisible({ timeout: 20_000 });
