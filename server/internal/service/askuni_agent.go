@@ -50,6 +50,8 @@ const (
 	// the next call is the answer round.
 	askAgentDeadline     = 120 * time.Second
 	askAgentFinalReserve = 40 * time.Second
+	// askAgentStoreTimeout bounds storing a failed run past its deadline.
+	askAgentStoreTimeout = 5 * time.Second
 	// Runs in flight per pod, per organization and across the deployment,
 	// leased like UniWork AI's turns.
 	askAgentPodMax    = 32
@@ -288,7 +290,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		switch {
 		case p != nil:
 			outcome = ai.NoticeAgentFailed
-		case outcome != "": // a gate refused the run
+		case outcome != "": // a gate refused the run, or failed stored it
 		case err == nil && out.Message.Notice.String != "":
 			outcome = out.Message.Notice.String
 		case err == nil:
@@ -357,6 +359,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
 	}
 	spentInput := 0 // the input budget's count, cached tokens included (P12)
+	billed := ""    // the usage row of the last call that answered
 	call := func() (ai.Response, error) {
 		req.MeterKey = "ask-uni:" + res.RunID + ":" + strconv.Itoa(calls)
 		r, err := s.gw.Complete(runCtx, req)
@@ -364,6 +367,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		res.InputTokens += r.InputTokens
 		res.OutputTokens += r.OutputTokens
 		spentInput += r.InputTokens + r.CacheReadTokens + r.CacheWriteTokens
+		if err == nil {
+			billed = r.UsageEventID
+		}
 		return r, err
 	}
 	// A refusal on any call stores the notice. The gateway hands back no
@@ -377,6 +383,30 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			res.OutputTokens += int(row.OutputTokens)
 		}
 		return s.finishAgent(ctx, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID)
+	}
+	// Any other error after a call was billed stores the turn with
+	// agent_failed (ruling P19), on a context that outlives the run's
+	// deadline, so the asker keeps the question and a trace of the spend.
+	// Before that it is the error, as P0's.
+	failed := func(err error) (AskResult, error) {
+		if billed == "" {
+			return AskResult{}, err
+		}
+		outcome = ai.NoticeAgentFailed
+		if errors.Is(err, ai.ErrProviderTimeout) || errors.Is(err, context.DeadlineExceeded) {
+			outcome = "timeout"
+		} else if errors.Is(err, ai.ErrRateLimited) {
+			outcome = "rate_limited"
+		}
+		usage := billed
+		var e *ai.Error
+		if errors.As(err, &e) && e.UsageEventID != "" {
+			usage = e.UsageEventID
+		}
+		slog.Warn("ask uni: agent run failed", "run_id", res.RunID, "organization_id", w.OrganizationID, "err", err)
+		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)
+		defer cancel()
+		return s.finishAgent(sctx, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage)
 	}
 
 	var resp ai.Response
@@ -398,7 +428,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			return refused(err)
 		}
 		if err != nil {
-			return AskResult{}, err
+			return failed(err)
 		}
 		if len(resp.ToolCalls) == 0 || final {
 			break
@@ -412,7 +442,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		for i, c := range resp.ToolCalls {
 			content, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
 			if err != nil {
-				return AskResult{}, err
+				return failed(err)
 			}
 			room = max(0, room-len(content))
 			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: c.ID, Content: content})
@@ -431,7 +461,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			return refused(err)
 		}
 		if err != nil {
-			return AskResult{}, err
+			return failed(err)
 		}
 		if agentMalformed(resp) {
 			return s.finishAgent(ctx, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID)

@@ -897,3 +897,78 @@ func TestAskAgentToolDeadlineIsTimeout(t *testing.T) {
 		t.Fatalf("err %v, want ai_provider_timeout wrapping the deadline", err)
 	}
 }
+
+// A run that fails after a call was billed stores the turn with
+// agent_failed (ruling P19): the asker keeps the question, the usage rows
+// stay linked, and no error reaches the handler.
+func TestAskAgentFailureAfterSpendingStoresNotice(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	scriptAgent(fake, "banner", "never sent")
+	search := fake.Reply
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		if fake.Calls == 2 { // the vendor fails the call after the search
+			fake.Err = errors.New("vendor 503")
+			return provider.CompletionResponse{}
+		}
+		return search(req)
+	}
+	res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	if err != nil {
+		t.Fatalf("err %v, want the failure stored as a notice", err)
+	}
+	if res.Message.Notice.String != ai.NoticeAgentFailed || res.Message.Content != "" || len(res.Citations) != 0 || !res.Message.UsageEventID.Valid {
+		t.Fatalf("stored %+v", res.Message)
+	}
+	rows, err := s.q.AiListMessages(context.Background(), res.ConversationID)
+	if err != nil || len(rows) != 2 || rows[0].Content != "Banner?" || rows[1].Notice.String != ai.NoticeAgentFailed {
+		t.Fatalf("conversation %+v %v; want the question and the notice", rows, err)
+	}
+	sum, err := s.q.AiSumRunUsage(context.Background(), db.AiSumRunUsageParams{OrganizationID: w.OrganizationID, RunID: res.RunID})
+	if err != nil || sum.Calls != 2 {
+		t.Fatalf("usage rows %d %v, want 2", sum.Calls, err)
+	}
+	if !reflect.DeepEqual(m.runs, []string{"agent_failed/1"}) {
+		t.Fatalf("runs %v", m.runs)
+	}
+
+	// Nothing billed yet: the first call's failure is still the error.
+	fake.Calls, fake.Err = 0, nil
+	fake.Reply = func(provider.CompletionRequest) provider.CompletionResponse {
+		fake.Err = errors.New("vendor 503")
+		return provider.CompletionResponse{}
+	}
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); !errors.Is(err, ai.ErrProviderError) {
+		t.Fatalf("err %v, want ai_provider_error before anything was billed", err)
+	}
+}
+
+// The deadline reached inside a tool after a billed call stores the turn
+// with agent_failed on a context that outlives the run, reported timeout.
+func TestAskAgentDeadlineAfterSpendingStoresNotice(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	deadline := time.Now().Add(2 * time.Second)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	scriptAgent(fake, "banner", "never sent")
+	search := fake.Reply
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		time.Sleep(time.Until(deadline) + 20*time.Millisecond) // the tool after this call runs past the deadline
+		return search(req)
+	}
+	res, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	if err != nil {
+		t.Fatalf("err %v, want the failure stored as a notice", err)
+	}
+	if res.Message.Notice.String != ai.NoticeAgentFailed || fake.Calls != 1 {
+		t.Fatalf("stored %+v after %d calls", res.Message, fake.Calls)
+	}
+	if !reflect.DeepEqual(m.runs, []string{"timeout/1"}) {
+		t.Fatalf("runs %v, want timeout", m.runs)
+	}
+}
