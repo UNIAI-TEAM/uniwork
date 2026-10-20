@@ -18,7 +18,6 @@ import { CollectionPageState } from "../layout/collection-page";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
-import { AccessReportMenu } from "./access-report/access-report-menu";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { isParentWorkspaceShared, useCreateOfType, type CreateShareOptions } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
@@ -310,6 +309,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     sourcesAvailable: library.sourcesAvailable,
     canCreate: !folderId || canCreate,
     newFolderPending: creator.folderPending,
+    accessReportHref: wsPaths.documentsAccessReport(),
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onMyFolder: openMyFolder,
@@ -331,12 +331,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       {t("documents.home.sidebar.open")}
     </Button>
   );
-  const hostActions = (
-    <>
-      {officeHome ? <OfficeHomeLaunch {...officeHome} /> : null}
-      <AccessReportMenu onOpen={() => push(wsPaths.documentsAccessReport())} />
-    </>
-  );
+  const hostActions = officeHome ? <OfficeHomeLaunch {...officeHome} /> : null;
   // Home, folder and Trash carry their own h1 (the boards); the other views
   // and the gate states keep the collection header.
   const collectionHeader = gate !== "on" || !(homeView || view.kind === "archived");
@@ -412,6 +407,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   onRoot={() => goHome({ kind: "home" })}
                   onFolder={(id) => goHome({ kind: "home" }, id)}
                   folderHandlers={handlers}
+                  onAccessReport={(id) => push(wsPaths.documentsAccessReport(id))}
                   search={search}
                   canCreate={canCreate && !folderInvalid}
                   create={createProps}

@@ -10226,8 +10226,7 @@
       "filter_reset": "Bỏ lọc",
       "footnote": "Không gồm tài liệu trong thùng rác, tài liệu thuộc kết quả công việc và từng thành viên của nhóm. Chủ sở hữu và quản trị viên workspace quản lý mọi tài liệu.",
       "empty_export_note": "Tệp không có dòng nào chỉ ghi bộ lọc và thời điểm tạo trong tên tệp.",
-      "menu_folder": "Báo cáo quyền truy cập",
-      "menu_workspace": "Báo cáo quyền truy cập workspace"
+      "menu_folder": "Báo cáo quyền truy cập thư mục"
     },
     "archive": {
       "archive_title": "Chuyển tài liệu vào thùng rác?",

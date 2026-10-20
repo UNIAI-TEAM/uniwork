@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
+import enLocale from "@uniwork/core/i18n/locales/en.json";
+import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
@@ -274,6 +276,32 @@ describe("folder layout (Folder.dc)", () => {
       queryOf(path).get("parent_id") === "fo1"
         ? [summary({ id: "fos", kind: "folder", title: "Bên trong", parent_id: "fo1" }), file("f1", "Báo giá.docx", { parent_id: "fo1" })]
         : [],
+  });
+
+  // UNI-2009 addendum: the folder report lives in the breadcrumb ⋯ menu (the same item as the
+  // tree row menu); the header has no second overflow beside it.
+  it("offers the folder access report in the breadcrumb menu and opens the folder-scoped report", async () => {
+    route(folderRoutes());
+    const adapter = renderView(`/acme/doi/documents?folder=fo1`);
+    await screen.findByText("Báo giá.docx");
+    expect(screen.queryByRole("button", { name: t("documents.actions.menu_label") })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.accessReport.menu_folder") }));
+    expect(adapter.push).toHaveBeenCalledWith("/acme/doi/documents/access-report?folder=fo1");
+  });
+
+  it("keeps the folder report out of the menu for a reader who does not manage the folder", async () => {
+    route({ ...folderRoutes(), detail: (id: string) => (id === "fo1" ? folderDetail({ my_level: "edit", breadcrumbs: [] }) : null) });
+    renderView(`/acme/doi/documents?folder=fo1`);
+    await screen.findByText("Báo giá.docx");
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
+    await screen.findByRole("menuitem", { name: t("documents.home.row.new_subfolder") });
+    expect(screen.queryByRole("menuitem", { name: t("documents.accessReport.menu_folder") })).toBeNull();
+  });
+
+  it("words the folder item apart from the sub-nav entry in both languages", () => {
+    expect(viLocale.documents.accessReport.menu_folder).toBe("Báo cáo quyền truy cập thư mục");
+    expect(enLocale.documents.accessReport.menu_folder).toBe("Folder access report");
   });
 
   it("shows the breadcrumb, the folder name with its menu, in-folder search and the info line", async () => {
