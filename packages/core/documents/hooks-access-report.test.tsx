@@ -3,7 +3,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
-import { useDocumentAccessReport } from "./hooks-access-report";
+import {
+  useDocumentAccessReport,
+  useDocumentAccessReportPrincipals,
+  useDocumentAccessReportSummary,
+} from "./hooks-access-report";
 import { documentKeys } from "./keys";
 
 const json = (body: unknown, status = 200) =>
@@ -90,6 +94,120 @@ describe("useDocumentAccessReport (UNI-1643)", () => {
     const { wrapper } = setup();
     renderHook(() => useDocumentAccessReport("", undefined, {}), { wrapper });
     renderHook(() => useDocumentAccessReport("w1", undefined, {}, { enabled: false }), { wrapper });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("access report keys and hooks (UNI-2039)", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("splits the page key by sort, order and every new filter", () => {
+    const base = documentKeys.accessReport("w1", "f1", {});
+    for (const over of [
+      { sort: "title" as const },
+      { order: "asc" as const },
+      { q: "abc" },
+      { principal: "user:u1" },
+      { scope: "organization" },
+      { sources: ["chat"] },
+      { flag: "public_link" },
+      { nonDefault: true },
+    ]) {
+      expect(documentKeys.accessReport("w1", "f1", over)).not.toEqual(base);
+    }
+    // Source order and a padded q do not split one report across two entries.
+    expect(documentKeys.accessReport("w1", "f1", { sources: ["chat", "direct"], q: " a " })).toEqual(
+      documentKeys.accessReport("w1", "f1", { sources: ["direct", "chat"], q: "a" }),
+    );
+    expect(documentKeys.accessReport("w1", "f1", { nonDefault: false })).toEqual(base);
+  });
+
+  it("hangs every report key off the one access-report root", () => {
+    const root = documentKeys.accessReportRoot("w1");
+    for (const key of [
+      documentKeys.accessReport("w1", "f1", {}),
+      documentKeys.accessReportSummary("w1", "f1", {}),
+      documentKeys.accessReportPrincipals("w1", {}),
+    ]) {
+      expect(key.slice(0, root.length)).toEqual(root);
+    }
+    expect(documentKeys.accessReportRoot("w2")).not.toEqual(root);
+  });
+
+  it("keeps the summary key off the sort, and splits it by filter and folder", () => {
+    const base = documentKeys.accessReportSummary("w1", "f1", { flag: "public_link" });
+    expect(documentKeys.accessReportSummary("w1", "f1", { flag: "direct_manage" })).not.toEqual(base);
+    expect(documentKeys.accessReportSummary("w1", "f2", { flag: "public_link" })).not.toEqual(base);
+    expect(documentKeys.accessReportSummary("w2", "f1", { flag: "public_link" })).not.toEqual(base);
+    expect(documentKeys.accessReportSummary("w1", "f1", { flag: "public_link", sort: "title" } as never)).toEqual(base);
+  });
+
+  it("splits the principals key by q, kind, level, sort and order, not by level order", () => {
+    const base = documentKeys.accessReportPrincipals("w1", { levels: ["edit", "view"] });
+    expect(documentKeys.accessReportPrincipals("w1", { levels: ["view", "edit"] })).toEqual(base);
+    for (const over of [{ q: "a" }, { kind: "member" }, { levels: ["edit"] }, { sort: "name" as const }, { order: "asc" as const }]) {
+      expect(documentKeys.accessReportPrincipals("w1", over)).not.toEqual(base);
+    }
+  });
+
+  it("useDocumentAccessReport sends the sort and filters of its params", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page("d1", null)));
+    const { wrapper } = setup();
+    const { result } = renderHook(
+      () => useDocumentAccessReport("w1", undefined, { sort: "title", order: "asc", flag: "public_link" }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    const sp = new URL(String(vi.mocked(fetch).mock.calls[0]![0])).searchParams;
+    expect(sp.get("sort")).toBe("title");
+    expect(sp.get("order")).toBe("asc");
+    expect(sp.get("flag")).toBe("public_link");
+  });
+
+  it("useDocumentAccessReportSummary returns the totals", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ tiles: { public_link: 3 }, matching_documents: 4, skipped: 1 }));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentAccessReportSummary("w1", "f1", { q: "x" }), { wrapper });
+    await waitFor(() => expect(result.current.data?.tiles.public_link).toBe(3));
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.pathname).toBe("/api/v1/workspaces/w1/documents/access-report/summary");
+    expect(url.searchParams.get("folder_id")).toBe("f1");
+    expect(url.searchParams.get("q")).toBe("x");
+  });
+
+  it("useDocumentAccessReportSummary errors on garbage instead of showing zeros", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentAccessReportSummary("w1", undefined, {}), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("useDocumentAccessReportPrincipals returns the rows and errors on garbage", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ principals: [{ principal_type: "user", principal_id: "u1", document_count: 2 }] }))
+      .mockResolvedValueOnce(json("nope"));
+    const { wrapper } = setup();
+    const ok = renderHook(() => useDocumentAccessReportPrincipals("w1", { sort: "name" }), { wrapper });
+    await waitFor(() => expect(ok.result.current.data?.principals).toHaveLength(1));
+    expect(new URL(String(vi.mocked(fetch).mock.calls[0]![0])).searchParams.get("sort")).toBe("name");
+    const bad = renderHook(() => useDocumentAccessReportPrincipals("w1", { kind: "link" }), { wrapper });
+    await waitFor(() => expect(bad.result.current.isError).toBe(true));
+  });
+
+  it("the summary and principals hooks do not fetch without a workspace or when disabled", () => {
+    const { wrapper } = setup();
+    renderHook(() => useDocumentAccessReportSummary("", undefined, {}), { wrapper });
+    renderHook(() => useDocumentAccessReportPrincipals("w1", {}, { enabled: false }), { wrapper });
     expect(fetch).not.toHaveBeenCalled();
   });
 });
