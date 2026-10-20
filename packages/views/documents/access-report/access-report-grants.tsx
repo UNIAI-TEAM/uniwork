@@ -114,7 +114,9 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
 
   return (
     <div className="flex flex-col gap-3">
-      <table aria-label={title} className="w-full border-collapse text-body">
+      {/* Wide table, own box: on a phone it scrolls here, starting at the first column. */}
+      <div className="overflow-x-auto">
+      <table aria-label={title} className="w-full min-w-[36rem] border-collapse text-body">
         <thead>
           <tr className="border-b border-border">
             <th scope="col" className={TH}>{t("documents.accessReport.col_principal")}</th>
@@ -182,6 +184,7 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
           })}
         </tbody>
       </table>
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => setSharing(true)}>
           <UserPlus aria-hidden className="size-3.5" />

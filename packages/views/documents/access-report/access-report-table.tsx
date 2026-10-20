@@ -69,14 +69,15 @@ export function AccessReportTable({ wsId, documents, sort, order, onSortChange, 
   const sortProps = { sort, order, onSortChange };
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table aria-label={t("documents.accessReport.title")} className="w-full min-w-[60rem] border-collapse text-body">
+      {/* Fixed layout: a long name gives way to the ellipsis instead of widening the table. */}
+      <table aria-label={t("documents.accessReport.title")} className="w-full min-w-[60rem] table-fixed border-collapse text-body">
         <thead className="bg-muted/40">
           <tr className="border-b border-border">
-            <AccessReportSortHeader column="title" label={t("documents.accessReport.col_document")} className="w-[34%]" {...sortProps} />
-            <th scope="col" className={TH}>{t("documents.accessReport.col_general_scope")}</th>
-            <th scope="col" className={TH}>{t("documents.accessReport.col_people")}</th>
-            <th scope="col" className={TH}>{t("documents.accessReport.col_warnings")}</th>
-            <AccessReportSortHeader column="changed" label={t("documents.accessReport.col_changed")} {...sortProps} />
+            <AccessReportSortHeader column="title" label={t("documents.accessReport.col_document")} className="w-[30%]" {...sortProps} />
+            <th scope="col" className={cn(TH, "w-[14%]")}>{t("documents.accessReport.col_general_scope")}</th>
+            <th scope="col" className={cn(TH, "w-[20%]")}>{t("documents.accessReport.col_people")}</th>
+            <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_warnings")}</th>
+            <AccessReportSortHeader column="changed" label={t("documents.accessReport.col_changed")} className="w-[14%]" {...sortProps} />
             <th scope="col" className={cn(TH, "w-12")}>
               <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
             </th>
@@ -133,7 +134,7 @@ function DocumentRow({
   return (
     <Fragment>
       <tr className={cn("border-b border-border hover:bg-muted/40", expanded && "bg-muted/30")}>
-        <td className={TD}>
+        <td className={cn(TD, "overflow-hidden")}>
           <button
             type="button"
             aria-expanded={expanded}
@@ -198,7 +199,11 @@ function DocumentRow({
       {expanded ? (
         <tr id={grantsId} className="border-b border-border bg-muted/20">
           <td colSpan={6} className="px-3 pt-1 pb-4 md:pl-14">
-            <AccessReportGrants wsId={wsId} entry={entry} title={title} documentHref={documentHref} />
+            {/* Pinned to the left and never wider than the screen, so a box scrolled
+                to the right still opens on the grants' first column. */}
+            <div data-grants-pin className="sticky left-0 w-[min(100%,calc(100vw-3.5rem))] md:left-14 md:w-[min(100%,calc(100vw-6.25rem))]">
+              <AccessReportGrants wsId={wsId} entry={entry} title={title} documentHref={documentHref} />
+            </div>
           </td>
         </tr>
       ) : null}

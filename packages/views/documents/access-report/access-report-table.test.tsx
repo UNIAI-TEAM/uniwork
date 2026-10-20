@@ -193,6 +193,53 @@ describe("AccessReportTable", () => {
     expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
   });
 
+  it("fixes the column widths and truncates a long name and path with the full text on hover", () => {
+    const longTitle = `Báo cáo tài chính quý ba ${"rất dài ".repeat(15)}.docx`;
+    renderTable({
+      documents: DocumentAccessReportSchema.parse({
+        scope: { kind: "workspace", workspace_id: WS },
+        documents: [
+          {
+            document: {
+              id: "d9",
+              title: longTitle,
+              kind: "file",
+              path: [{ id: "f1", title: "Kế hoạch" }],
+              acl_owner: { id: "me", name: "Nguyễn An" },
+              my_level: "manage",
+            },
+            rows: [owner],
+          },
+        ],
+      }).documents,
+    });
+    const table = screen.getByRole("table", { name: at("title") });
+    // A fixed layout is what lets the Document column give way instead of growing the table.
+    expect(table).toHaveClass("table-fixed");
+    const name = screen.getByText(longTitle);
+    expect(name).toHaveClass("truncate");
+    expect(name).toHaveAttribute("title", longTitle);
+    const where = at("path_owner", { path: "Kế hoạch", owner: "Nguyễn An" });
+    expect(screen.getByText(where)).toHaveClass("truncate");
+    expect(screen.getByText(where)).toHaveAttribute("title", where);
+    // Every flex ancestor up to the cell may shrink below its content.
+    expect(name.parentElement).toHaveClass("min-w-0");
+    expect(name.closest("button")).toHaveClass("min-w-0");
+    expect(name.closest("td")).toHaveClass("overflow-hidden");
+  });
+
+  it("starts the open grants at the left edge of the scroll box, whatever the box is scrolled to", () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
+    // The grants sit in a block pinned to the left that is never wider than the screen,
+    // with its own box for the wide table inside it.
+    const pinned = grants.closest("[data-grants-pin]");
+    expect(pinned).not.toBeNull();
+    expect(pinned).toHaveClass("sticky", "left-0");
+    expect(grants.parentElement).toHaveClass("overflow-x-auto");
+  });
+
   it("shows the path and owner, the general scope, who has access, the warnings and the last access change", () => {
     renderTable();
     const row = docRow("Đề xuất ngân sách Q4.docx");

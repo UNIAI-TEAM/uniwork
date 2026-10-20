@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { useLayoutEffect, useState } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { AccessReportSortHeader } from "./access-report-sort-header";
@@ -56,5 +58,43 @@ describe("AccessReportSortHeader", () => {
     const onSortChange = renderHeaders("changed", "desc");
     fireEvent.click(button("Thay đổi gần nhất"));
     expect(onSortChange).toHaveBeenLastCalledWith({ sort: "changed", order: "asc" });
+  });
+
+  describe("keyboard focus across a re-sort", () => {
+    // A host that moves focus off the button when the URL changes (the router's
+    // own focus handling), with the headers either kept or mounted anew.
+    function Harness({ remount, steal }: { remount: boolean; steal: boolean }) {
+      const [state, setState] = useState<{ sort: "changed" | "title"; order: "asc" | "desc" }>({ sort: "changed", order: "desc" });
+      useLayoutEffect(() => {
+        if (steal) (document.activeElement as HTMLElement | null)?.blur();
+      }, [state, steal]);
+      return (
+        <table>
+          <thead>
+            <tr key={remount ? `${state.sort}:${state.order}` : "row"}>
+              <AccessReportSortHeader column="title" label="Tài liệu" {...state} onSortChange={setState} />
+              <AccessReportSortHeader column="changed" label="Thay đổi gần nhất" {...state} onSortChange={setState} />
+            </tr>
+          </thead>
+        </table>
+      );
+    }
+
+    it.each([
+      ["stays mounted", false, false],
+      ["is blurred by the host", false, true],
+      ["is mounted anew", true, true],
+    ])("keeps focus on the pressed header when the row %s", async (_name, remount, steal) => {
+      const user = userEvent.setup();
+      render(<Harness remount={remount} steal={steal} />);
+      await user.tab();
+      expect(button("Tài liệu")).toHaveFocus();
+      await user.keyboard("{Enter}");
+      expect(header("Tài liệu")).toHaveAttribute("aria-sort", "ascending");
+      await waitFor(() => expect(button("Tài liệu")).toHaveFocus());
+      await user.keyboard("{Enter}");
+      expect(header("Tài liệu")).toHaveAttribute("aria-sort", "descending");
+      await waitFor(() => expect(button("Tài liệu")).toHaveFocus());
+    });
   });
 });
