@@ -53,7 +53,7 @@ func newHandlerStubEngine(t *testing.T) service.OfficeEngine {
 	}
 	mux.HandleFunc("GET /v1/capability", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"engine_version": version, "contract_version": contract, "protocol_version": protocolNumber,
+			"engine_version": version, "contract_version": contract, "protocol_version": protocolNumber, "job_transport": "framed/1",
 			"format": r.URL.Query().Get("format"),
 			"capabilities": []map[string]any{
 				{"operation": "open", "supported": true, "runtime": "internal_service", "evidence_level": "proven"},
@@ -70,6 +70,10 @@ func newHandlerStubEngine(t *testing.T) service.OfficeEngine {
 			Format    string `json:"format"`
 		}
 		raw, _ := io.ReadAll(r.Body)
+		// The client sends a framed body (SIZE-OPS1): n envelope bytes, then input bytes.
+		if n, err := strconv.Atoi(r.Header.Get("X-Office-Envelope-Length")); err == nil && n >= 0 && n <= len(raw) {
+			raw = raw[:n]
+		}
 		_ = json.Unmarshal(raw, &env)
 		writeJSON(w, http.StatusAccepted, map[string]any{
 			"job_id": env.RequestID, "state": "accepted",

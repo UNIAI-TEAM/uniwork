@@ -132,6 +132,10 @@ type DocumentService struct {
 	entitlements *EntitlementService
 	metrics      DocumentMetrics
 
+	// chat is the ChatService that writes and publishes the optional
+	// document_version line when a version commit names a chat room (UNI-1966
+	// §4.4). Wired by ChatService.SetDocuments; nil falls back to the pool/q.
+	chat *ChatService
 	// ownerLevel resolves the caller's level through the owning work
 	// product. nil means no owner service is wired: owned creates and
 	// owner-delegated levels then fail closed (C-01 §13.8). ownerPurger is

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -44,6 +45,14 @@ type isoReference struct {
 	// mustNotContain lists strings the attack's answer may not hold even
 	// when it is 2xx (a URL, a ticket).
 	mustNotContain []string
+	// multipart, when set, makes the case a multipart request instead of a
+	// JSON one: its fields resolve like body (so a field may name the other
+	// tenant's row), and the file part is fixed. A route whose SDI carries
+	// formData tags only (the chat media sends) has no JSON body to attack.
+	multipart *isoMultipart
+	// multipartFields are the form fields of a multipart case, resolved with
+	// isoResolve before they are sent.
+	multipartFields map[string]any
 	// afterControl runs after the own-rows control in referenceControls.
 	afterControl func(t *testing.T, w *isoWorld)
 	// afterAttack runs after each cross-tenant / member-of-both reference
@@ -85,10 +94,20 @@ func isoResolve(v any, own, ref *isoTenant, salt string) any {
 }
 
 func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
+	salt := c.method + c.pattern + c.what
+	if c.multipart != nil {
+		mp := *c.multipart
+		fields := make(map[string]string, len(c.multipartFields))
+		for k, v := range c.multipartFields {
+			fields[k] = fmt.Sprint(isoResolve(v, own, ref, salt))
+		}
+		mp.fields = fields
+		return isoBody{multipart: &mp, headers: map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(salt)}}
+	}
 	if c.body == nil {
 		return isoBody{}
 	}
-	b := isoBody{json: isoResolve(c.body, own, ref, c.method+c.pattern+c.what)}
+	b := isoBody{json: isoResolve(c.body, own, ref, salt)}
 	if c.idempotent {
 		key, _ := json.Marshal(b.json)
 		b.headers = map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(c.method+c.pattern+string(key))}
@@ -169,6 +188,16 @@ var isoReferences = []isoReference{
 		"title": isoUnique("ref"), "assignee_id": isoRef("peer")}, covers: []string{"CreateTaskFromMessageSDI.assignee_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", what: "reply to", body: map[string]any{
 		"body": "ref", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatMessageSDI.reply_to_message_id"}},
+	// The document send is multipart (formData tags), so its reply target is
+	// attacked through the form: A's message id as reply_to_message_id, with
+	// the other fields valid so the refusal can only be the reply target.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", what: "reply to",
+		multipart: &isoMultipart{filename: "ref.md", contentType: "text/markdown", content: []byte("# ref\n")},
+		multipartFields: map[string]any{
+			"client_msg_id":       "iso-ref-document-send",
+			"share_level":         "comment",
+			"reply_to_message_id": isoRef("message"),
+		}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "conversation", body: map[string]any{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
@@ -260,6 +289,10 @@ var isoReferences = []isoReference{
 		"title": isoUnique("ref"), "parent_id": isoRef("document")}, covers: []string{"SaveSourceFileSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "uploaded file", idempotent: true, body: map[string]any{
 		"upload_id": isoRef("docUpload"), "base_revision": "1"}, covers: []string{"CommitDocumentVersionSDI.upload_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "chat room for version line", idempotent: true, allow2xx: true,
+		noControl: "committing consumes chatCommitUpload and advances fileDocument's revision; the attack itself commits B's upload (200 OK) while naming A's room",
+		body:      map[string]any{"upload_id": isoOwn("chatCommitUpload"), "base_revision": "2", "chat_room_id": isoRef("room")},
+		covers:    []string{"CommitDocumentVersionSDI.chat_room_id"}},
 	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/versions/commit", what: "staged frame upload", idempotent: true, body: map[string]any{
 		"upload_id": isoRef("frameUpload"), "base_revision": isoOwn("frameRevision")}, covers: []string{"CommitOfficeFrameVersionSDI.upload_id"}},
 	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/assets/sign", what: "image of another document", body: map[string]any{
@@ -466,18 +499,19 @@ func isoAccessRequestSourceAfterAttack(t *testing.T, w *isoWorld, label string) 
 const editLockIDExempt = "compared, never stored: the same checkDocumentEditLock gate the PatchDocumentSDI.edit_lock_id case attacks; a control would need its own upload/version and base revision, which the existing commit cases consume; TestEditLockIDFromAnotherTenantIsRefused sends another organization's live tenure id to all four writes"
 
 var isoRefFieldExempt = map[string]string{
-	"FlagOverrideSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
-	"FlagOverrideDeleteSDI.scope_id":        "platform console: an override names any organization or user by design (RequirePlatformRole)",
-	"CalendarSelectionSDI.calendar_ids":     "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
-	"SendChatMessageSDI.client_msg_id":      "the client's idempotency key, not a row",
-	"MintChatVoiceTokenSDI.call_id":         "a client-generated call id, not a row",
-	"VoiceSignalSDI.call_id":                "a client-generated call id, not a row",
-	"AiUniworkMessageSDI.tool_call_id":      "the model's tool call id, matched against the server's own transcript, not a row",
-	"MintChatVoiceTokenSDI.room_id":         "the route names no other row: the cross-tenant pass sends A's room in the body",
-	"ResolveInviteLinkSDI.link_id":          "public route: the link id comes with its secret, and holding both is the grant",
-	"SummarizeEmailHubThreadSDI.account_id": "the mixed pass sends B's workspace with A's thread and A's account in the body",
-	"PatchEmailHubThreadSDI.account_id":     "the mixed pass sends B's workspace with A's thread and A's account in the body",
-	"EmailHubSummaryTasksSDI.account_id":    "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"FlagOverrideSDI.scope_id":                    "platform console: an override names any organization or user by design (RequirePlatformRole)",
+	"FlagOverrideDeleteSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
+	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
+	"SendChatMessageSDI.client_msg_id":            "the client's idempotency key, not a row",
+	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
+	"MintChatVoiceTokenSDI.call_id":               "a client-generated call id, not a row",
+	"VoiceSignalSDI.call_id":                      "a client-generated call id, not a row",
+	"AiUniworkMessageSDI.tool_call_id":            "the model's tool call id, matched against the server's own transcript, not a row",
+	"MintChatVoiceTokenSDI.room_id":               "the route names no other row: the cross-tenant pass sends A's room in the body",
+	"ResolveInviteLinkSDI.link_id":                "public route: the link id comes with its secret, and holding both is the grant",
+	"SummarizeEmailHubThreadSDI.account_id":       "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"PatchEmailHubThreadSDI.account_id":           "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"EmailHubSummaryTasksSDI.account_id":          "the mixed pass sends B's workspace with A's thread and A's account in the body",
 
 	// Office desktop bridge. client_id and deployment_id are the public
 	// desktop client and the deployment profile: values from the server's

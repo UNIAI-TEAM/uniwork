@@ -23,6 +23,9 @@ import {
   sendChatRoomMessage,
   sendChatVoiceMessage,
   sendChatFileMessage,
+  sendChatDocumentMessage,
+  shareChatMessageAsDocument,
+  getChatRoom,
   sendWorkspaceChatMessage,
   signalChatTyping,
   signalChatVoiceAccept,
@@ -441,6 +444,222 @@ describe("chat endpoints", () => {
     });
     const form = vi.mocked(fetch).mock.calls[0]?.[1]?.body as FormData;
     expect(form.get("reply_to_message_id")).toBeNull();
+  });
+  it("sendChatDocumentMessage sends multipart fields with share_level", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "d1",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "plan.docx",
+          created_at: "2026-01-01T10:00:00Z",
+          document: {
+            document_id: "01J8X4DOC",
+            viewer_has_access: true,
+            viewer_level: "comment",
+            viewer_can_manage: true,
+            viewer_can_upload_version: true,
+            title: "plan.docx",
+            format: "docx",
+            version_number: 1,
+            revision: "1",
+            can_open_in_app: true,
+            recipient_count: 3,
+          },
+        },
+      }),
+    );
+    const file = new Blob(["pk"], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    const sent = await sendChatDocumentMessage("ws1", "room1", {
+      file,
+      filename: "plan.docx",
+      share_level: "comment",
+      client_msg_id: "client-doc-1",
+      reply_to_message_id: "reply-1",
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toContain("/chat/rooms/room1/messages/document");
+    const form = init?.body as FormData;
+    expect(form.get("share_level")).toBe("comment");
+    expect(form.get("client_msg_id")).toBe("client-doc-1");
+    expect(form.get("reply_to_message_id")).toBe("reply-1");
+    const part = form.get("file");
+    expect(part).toBeInstanceOf(Blob);
+    expect((part as File).name).toBe("plan.docx");
+    expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
+    expect(sent?.kind).toBe("document");
+    expect(sent?.document).toMatchObject({
+      document_id: "01J8X4DOC",
+      viewer_level: "comment",
+      version_number: 1,
+      revision: "1",
+      recipient_count: 3,
+    });
+  });
+
+  it("sendChatDocumentMessage degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(
+      await sendChatDocumentMessage("ws1", "room1", {
+        file: new Blob(["x"], { type: "application/pdf" }),
+        filename: "a.pdf",
+        share_level: "view",
+        client_msg_id: "client-doc-2",
+      }),
+    ).toBeNull();
+  });
+
+  it("sendChatDocumentMessage omits reply_to and drops a garbage document block", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "d2",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "a.pdf",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: 42, viewer_level: "comment" },
+        },
+      }),
+    );
+    const sent = await sendChatDocumentMessage("ws1", "room1", {
+      file: new Blob(["x"], { type: "application/pdf" }),
+      filename: "a.pdf",
+      share_level: "edit",
+      client_msg_id: "client-doc-3",
+    });
+    const form = vi.mocked(fetch).mock.calls[0]?.[1]?.body as FormData;
+    expect(form.get("reply_to_message_id")).toBeNull();
+    // A block that fails shape (a non-string document_id) falls away whole;
+    // the card renders neutral instead of throwing.
+    expect(sent?.document).toBeUndefined();
+  });
+
+  it("shareChatMessageAsDocument posts the level and returns the converted message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "m1",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "a.pdf",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: "D1", viewer_level: "view" },
+        },
+      }),
+    );
+    const updated = await shareChatMessageAsDocument("ws1", "room1", "m1", {
+      share_level: "view",
+      client_msg_id: "link-1",
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toContain("/chat/rooms/room1/messages/m1/share-as-document");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ share_level: "view", client_msg_id: "link-1" });
+    expect(updated?.kind).toBe("document");
+    expect(updated?.document?.document_id).toBe("D1");
+  });
+
+  it("shareChatMessageAsDocument degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(
+      await shareChatMessageAsDocument("ws1", "room1", "m1", {
+        share_level: "edit",
+        client_msg_id: "link-2",
+      }),
+    ).toBeNull();
+  });
+
+  it("getChatRoom reads the room detail and its can_send_document flag", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        room: {
+          id: "room1",
+          kind: "dm",
+          name: "An",
+          workspace_id: "ws1",
+          member_user_ids: ["u1", "u2"],
+          member_count: 2,
+          can_send_document: true,
+        },
+      }),
+    );
+    const room = await getChatRoom("ws1", "room1");
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("/chat/rooms/room1");
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method ?? "GET").toBe("GET");
+    expect(room?.can_send_document).toBe(true);
+  });
+
+  it("getChatRoom reads can_send_document as absent when missing or drifted", async () => {
+    const roomRow = {
+      id: "room1",
+      kind: "dm",
+      name: "An",
+      workspace_id: "ws1",
+      member_user_ids: [],
+      member_count: 0,
+    };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ room: roomRow }))
+      .mockResolvedValueOnce(json({ room: { ...roomRow, can_send_document: "yes" } }));
+    expect((await getChatRoom("ws1", "room1"))?.can_send_document).toBeUndefined();
+    expect((await getChatRoom("ws1", "room1"))?.can_send_document).toBeUndefined();
+  });
+
+  it("getChatRoom degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(await getChatRoom("ws1", "room1")).toBeNull();
+  });
+
+  it("listChatRoomMessages keeps can_share_as_document and survives a drifted document block", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      created_at: "2026-09-05T00:00:00Z",
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            ...base,
+            id: "f1",
+            kind: "file",
+            body: "a.pdf",
+            can_share_as_document: true,
+            file: { filename: "a.pdf", content_type: "application/pdf" },
+          },
+          { ...base, id: "d1", kind: "document", body: "a.docx", document: "not-an-object" },
+          {
+            ...base,
+            id: "d2",
+            kind: "document",
+            body: "b.docx",
+            document: { document_id: "D2", viewer_level: "owner" },
+          },
+        ],
+      }),
+    );
+    const [file, noAccess, drifted] = await listChatRoomMessages("ws1", "room1");
+    expect(file?.can_share_as_document).toBe(true);
+    expect(noAccess).toBeDefined();
+    expect(noAccess?.can_share_as_document).toBeUndefined();
+    expect(noAccess?.document).toBeUndefined();
+    // An unknown level string narrows to the empty default, never a throw.
+    expect(drifted?.document?.viewer_level).toBe("");
   });
 
   it("listChatRoomMessages carries the signed media URLs, empty when absent", async () => {

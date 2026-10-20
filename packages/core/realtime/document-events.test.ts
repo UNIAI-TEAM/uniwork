@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { chatKeys } from "../chat/chat-keys";
 import { readDocumentAccessRequestSentAt, clearDocumentAccessRequestSent } from "../documents/hooks-access-requests";
 import { documentKeys } from "../documents/keys";
 import { documentFrameKeys } from "./document-events";
@@ -84,7 +85,11 @@ describe("documentFrameKeys - access request frames", () => {
     expect(readDocumentAccessRequestSentAt("d1")).not.toBeNull();
 
     const keys = documentFrameKeys(ws, "document.access_request_decided", { ...frame, request_id: "r1", user_id: "u1" });
-    expect(keys).toEqual([documentKeys.detail(ws, "d1")]);
+    expect(keys).toEqual([
+      documentKeys.detail(ws, "d1"),
+      chatKeys.roomMessagesRoot(ws),
+      chatKeys.threadMessagesRoot(ws),
+    ]);
     expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
   });
 
@@ -93,7 +98,7 @@ describe("documentFrameKeys - access request frames", () => {
     expect(documentFrameKeys(ws, "document.access_requested", { workspace_id: ws })).toEqual([]);
   });
 
-  it("document.access_request_decided from another workspace still refreshes ws1 detail and drops the sent flag", () => {
+  it("document.access_request_decided from another workspace still refreshes ws1 detail, drops the sent flag and leaves the chat timelines alone", () => {
     localStorage.setItem(SENT_FLAG, String(Date.now() + 3600_000));
     expect(readDocumentAccessRequestSentAt("d1")).not.toBeNull();
 

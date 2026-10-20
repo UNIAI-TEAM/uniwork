@@ -6,7 +6,7 @@ import type { ChatMessageRecord, ChatRoomRecord } from "../api/endpoints/chat";
 import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import type { User } from "../types/user";
 import { chatKeys } from "./chat-keys";
-import { useChatRoomMessages, useChatUnreadBadge, useSetChatRoomMuted } from "./chat-hooks-rooms";
+import { useChatRoomMessages, useChatUnreadBadge, useSetChatRoomMuted, useChatRoom } from "./chat-hooks-rooms";
 
 const user: User = {
   id: "u1",
@@ -126,5 +126,37 @@ describe("room mute", () => {
     await act(async () => answer(false));
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(muted()).toBe(false);
+  });
+});
+
+// UNI-1966 (L5): the composer asks the room DETAIL read whether a document
+// send is allowed (the caller may send AND the grantable roster fits the
+// batch cap); the list read never carries the flag.
+describe("useChatRoom", () => {
+  beforeEach(() => setSessionUser(user));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetAuthStoreForTests();
+  });
+
+  it("fetches the room detail with can_send_document", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoom").mockResolvedValue({
+      ...serverRoom("room1", 0, 0),
+      can_send_document: true,
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useChatRoom("ws1", "room1"), { wrapper: wrapper(qc) });
+    await waitFor(() => expect(result.current.data?.can_send_document).toBe(true));
+    expect(get).toHaveBeenCalledWith("ws1", "room1");
+  });
+
+  it("never fetches without a room or a session", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoom").mockResolvedValue(null);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderHook(() => useChatRoom("ws1", ""), { wrapper: wrapper(qc) });
+    resetAuthStoreForTests();
+    renderHook(() => useChatRoom("ws1", "room1"), { wrapper: wrapper(qc) });
+    await Promise.resolve();
+    expect(get).not.toHaveBeenCalled();
   });
 });

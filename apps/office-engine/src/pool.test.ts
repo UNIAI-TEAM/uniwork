@@ -67,7 +67,7 @@ describe("shutdown", () => {
     const end = Date.now() + 10_000;
     while (pid === 0 && Date.now() < end) {
       for (const dir of await jobDirs(h.tempRoot)) {
-        pid = Number(await readFile(join(h.tempRoot, dir, "grandchild.pid"), "utf8").catch(() => "0"));
+        pid = pid || Number(await readFile(join(h.tempRoot, dir, "grandchild.pid"), "utf8").catch(() => "0"));
       }
       await new Promise((r) => setTimeout(r, 50));
     }

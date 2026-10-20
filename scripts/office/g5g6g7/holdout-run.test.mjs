@@ -37,7 +37,8 @@ after(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 // text of these cases states figures its operands do not show, a result of an arithmetic outside the permitted
 // derivations (reference-text issue; the lead takes it to the Advisor and the user; editing a case would change
 // the case hash). A prose figure that only echoes a number of the question is exempt (round i, I-1), and a location ordinal that a
-// read holds ("slide 3", "trang 2") is exempt too (round j, J-1), so those cases left the list. The runner tests below that need a PASSING reference pick a case outside this set. The list is pinned both ways:
+// read holds ("slide 3", "trang 2") is exempt too (round j, J-1), so those cases left the list. HO-XLSX-023 left in oracle
+// round 2: the literals of a formula the reference quotes (O2-F2) and a sheet-row ordinal the read holds (O2-F3) are no figures. The runner tests below that need a PASSING reference pick a case outside this set. The list is pinned both ways:
 // the reference-grading test fails when a case leaves it or joins it, so it cannot go stale.
 const KNOWN_REFERENCE_GAPS = new Set([
   'HO-CROSS-009',
@@ -60,7 +61,6 @@ const KNOWN_REFERENCE_GAPS = new Set([
   'HO-XLSX-016',
   'HO-XLSX-018',
   'HO-XLSX-019',
-  'HO-XLSX-023',
   'HO-XLSX-026',
   'HO-XLSX-027',
   'HO-XLSX-031',

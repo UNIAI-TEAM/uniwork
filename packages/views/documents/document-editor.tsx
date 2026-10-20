@@ -51,6 +51,13 @@ export interface DocumentEditorHandle {
   focus: (position?: "start" | "end") => void;
   /** The live editor HTML, unsaved edits included ("Download my copy", UNI-1645 §9); "" before mount. */
   getHTML: () => string;
+  /**
+   * Scrolls to the first mention node naming `userId` — a notification's
+   * `?mention=1` deep link (UNI-1968) — and flashes it. A reader with no
+   * mention keeps the top of the page: this is a no-op then. Returns whether
+   * a mention was found.
+   */
+  revealMention: (userId: string) => boolean;
 }
 
 export interface DocumentEditorProps {
@@ -128,6 +135,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const pendingUploadsRef = useRef(0);
     const adoptedRevisionRef = useRef(contentRevision);
     const [pendingUploads, setPendingUploads] = useState(0);
+    // Fires `is-mention-reveal` removal once; a second reveal retriggers it.
+    const revealTimerRef = useRef<number | null>(null);
+    const revealedRef = useRef<HTMLElement | null>(null);
 
     onChangeRef.current = onChange;
     onAssetErrorRef.current = onAssetError;
@@ -232,6 +242,12 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           .setMeta("addToHistory", false));
       }
     }, [editor, editable]);
+    useEffect(
+      () => () => {
+        if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
+      },
+      [],
+    );
 
     // Adopt server content only while clean. `contentRevision` is the signal:
     // a refetch that carries the revision the editor already shows is a no-op.
@@ -256,6 +272,37 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         },
         focus: (position) => editor?.commands.focus(position),
         getHTML: () => (editor && !editor.isDestroyed ? editor.getHTML() : ""),
+        revealMention: (userId: string) => {
+          if (!editor || editor.isDestroyed) return false;
+          let pos = -1;
+          // NodeViews can match on any type; only member mentions name a person.
+          editor.state.doc.descendants((node, nodePos) => {
+            if (pos >= 0) return false;
+            if (node.type.name === "mention" && node.attrs.id === userId && node.attrs.type !== "agent") {
+              pos = nodePos;
+              return false;
+            }
+            return true;
+          });
+          if (pos < 0) return false;
+          const target = editor.view.nodeDOM(pos);
+          // The node selection marks the mention. ProseMirror's own
+          // scrollIntoView starts from the DOM selection, which sits outside an
+          // unfocused read-only editor and so never reaches the page scroller;
+          // scroll the node itself, which finds whichever ancestor scrolls.
+          editor.chain().setNodeSelection(pos).run();
+          if (!(target instanceof HTMLElement)) return true;
+          target.scrollIntoView({ block: "center" });
+          // The flash goes on the node view's outer element, the one the editor
+          // selects: its inner `.mention` span paints after the first commit, so
+          // a class put there at reveal time would find nothing to land on.
+          if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
+          revealedRef.current?.classList.remove("is-mention-reveal");
+          target.classList.add("is-mention-reveal");
+          revealedRef.current = target;
+          revealTimerRef.current = window.setTimeout(() => target.classList.remove("is-mention-reveal"), 2000);
+          return true;
+        },
       }),
       [editor],
     );

@@ -1,5 +1,7 @@
 import { canonicalJson, sha256Hex } from "./canonical-json.ts";
-import type { MeasuredInput, Sha256HexFn } from "./envelope.ts";
+import type { DeclaredInput } from "./envelope.ts";
+
+export type Sha256HexFn = (bytes: Uint8Array) => string | Promise<string>;
 
 /**
  * Payload fingerprint: the identity of a job's RESULT-DECIDING inputs
@@ -7,9 +9,10 @@ import type { MeasuredInput, Sha256HexFn } from "./envelope.ts";
  * request_id and every presentation field, so a retry of the same work is
  * provably the same work while a changed payload is provably different.
  *
- * It hashes the INDEPENDENTLY MEASURED digest and length (passed in as
- * `inputs` after validateEnvelope decoded the actual bytes), never the
- * caller's declared values.
+ * It hashes the input tuple validateEnvelope returned (`inputs`), never the
+ * bytes: under job transport framed/1 the bytes ride the framed body, and the engine
+ * refuses a job whose streamed bytes disagree with that tuple, so a job only
+ * ever exists under the digest and length of its real input.
  *
  * deadline_ms is deliberately NOT part of the fingerprint. A deadline belongs
  * to grant/job TTL arithmetic, not to "is this the same work": an honest retry
@@ -21,7 +24,7 @@ export async function payloadFingerprint(
   {
     inputs = null,
     hash = sha256Hex,
-  }: { inputs?: MeasuredInput | null; hash?: Sha256HexFn } = {},
+  }: { inputs?: DeclaredInput | null; hash?: Sha256HexFn } = {},
 ): Promise<string> {
   const payload = (envelope.payload ?? {}) as Record<string, unknown>;
   const decisive = {

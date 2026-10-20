@@ -632,6 +632,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		case strings.HasSuffix(pattern, "/task-sync"):
 			// A group thread cannot sync to a task (H12); a public channel's can.
 			return tn.get(t, "channelMessage")
+		case strings.HasSuffix(pattern, "/share-as-document"):
+			return tn.get(t, "fileMessage")
 		}
 		return tn.get(t, "message")
 	case "{followUpID}":

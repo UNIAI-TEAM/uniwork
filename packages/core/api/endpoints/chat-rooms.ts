@@ -153,6 +153,22 @@ export async function ensureWorkspaceChatRoom(workspaceId: string): Promise<Work
   });
 }
 
+/**
+ * The room detail read (UNI-1966 L5): the one place the server resolves
+ * viewer-scoped room state like `can_send_document`. The room LIST never
+ * carries those fields.
+ */
+export async function getChatRoom(
+  workspaceId: string,
+  roomId: string,
+): Promise<ChatRoomRecord | null> {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}`);
+  const parsed = parseWithFallback(raw, ChatRoomEnvelopeSchema, { room: undefined }, {
+    endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}",
+  });
+  return parsed.room ?? null;
+}
+
 export async function patchChatRoom(
   workspaceId: string,
   roomId: string,

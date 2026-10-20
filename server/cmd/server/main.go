@@ -404,6 +404,11 @@ func main() {
 			RequestMaxPerHour: cfg.DocumentEditRequestMaxPerHour,
 		},
 	})
+	// The chat document send files its bytes into the Documents tree and the
+	// read path resolves each message's document block against it
+	// (UNI-1966), so the chat service holds the one Documents service the
+	// routes use.
+	chatSvc.SetDocuments(documentSvc)
 	// The document maintenance worker (auto-version, purge, compaction -
 	// G1-04b - and the commit intent sweep of G5-07) runs on the same service
 	// the routes use; it is awaited in the shutdown sequence below, so a sweep

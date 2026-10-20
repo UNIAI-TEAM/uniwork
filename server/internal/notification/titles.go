@@ -29,6 +29,7 @@ var titles = map[string]map[string]string{
 		KindEmailHubNewMail:             "Bạn có {{count}} thư chưa đọc · {{mailbox}}",
 		KindDocumentCommented:           "{{actor}} đã bình luận trong “{{document}}”",
 		KindDocumentMentioned:           "{{actor}} đã nhắc đến bạn trong bình luận tại tài liệu “{{document}}”.",
+		KindDocumentBodyMentioned:       "{{actor}} đã nhắc đến bạn trong tài liệu “{{document}}”.",
 		KindDocumentCommentReplied:      "{{actor}} đã phản hồi bình luận của bạn trong tài liệu “{{document}}”.",
 		KindDocumentDiscussionMentioned: "{{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”.",
 		KindDocumentDiscussionReplied:   "{{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu “{{document}}”.",
@@ -63,6 +64,7 @@ var titles = map[string]map[string]string{
 		KindEmailHubNewMail:             "You have {{count}} unread message(s) · {{mailbox}}",
 		KindDocumentCommented:           "{{actor}} commented on “{{document}}”",
 		KindDocumentMentioned:           "{{actor}} mentioned you in a comment on “{{document}}”.",
+		KindDocumentBodyMentioned:       "{{actor}} mentioned you in “{{document}}”.",
 		KindDocumentCommentReplied:      "{{actor}} replied to your comment in “{{document}}”.",
 		KindDocumentDiscussionMentioned: "{{actor}} mentioned you in a discussion on “{{document}}”.",
 		KindDocumentDiscussionReplied:   "{{actor}} replied to your discussion post in “{{document}}”.",
@@ -110,6 +112,7 @@ var documentLevelLabels = map[string]map[string]string{
 var kindTitles = map[string]map[string]string{
 	"vi": {
 		KindDocumentMentioned:           "Bạn được nhắc tên trong bình luận",
+		KindDocumentBodyMentioned:       "Bạn được nhắc đến trong tài liệu",
 		KindDocumentCommentReplied:      "Có phản hồi bình luận mới",
 		KindDocumentDiscussionMentioned: "Bạn được nhắc tên trong thảo luận",
 		KindDocumentDiscussionReplied:   "Có phản hồi thảo luận mới",
@@ -123,6 +126,7 @@ var kindTitles = map[string]map[string]string{
 	},
 	"en": {
 		KindDocumentMentioned:           "You were mentioned in a comment",
+		KindDocumentBodyMentioned:       "You were mentioned in a document",
 		KindDocumentCommentReplied:      "New reply to your comment",
 		KindDocumentDiscussionMentioned: "You were mentioned in a discussion",
 		KindDocumentDiscussionReplied:   "New reply in a discussion",
