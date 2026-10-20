@@ -48,7 +48,7 @@ func (g *Gateway) MeetingTranscribeSubmit(ctx context.Context, call CloudCall, r
 	t := g.cloud.MeetingTranscriber
 	kind := string(call.Actor.Kind)
 	if kind == "" {
-		kind = string(audit.KindSystem)
+		kind = "system"
 	}
 	row, err := g.q.AiInsertUsageEvent(ctx, db.AiInsertUsageEventParams{
 		ID: util.NewID(), OrganizationID: call.OrganizationID, ActorID: call.Actor.ID, ActorKind: kind,
