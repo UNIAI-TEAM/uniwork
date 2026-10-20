@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/office"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // ExportPage (UNI-2004) against the scripted engine and the test database:
@@ -163,6 +165,37 @@ func TestPageExport(t *testing.T) {
 		logs, err := f.docs.ListDocumentAccessLogs(ctx, human(f.tn.owner), pageID, DocumentAccessLogQuery{Action: DocumentAccessExport})
 		if err != nil || len(logs) != 1 || logs[0].ActorID.String != reader.ID {
 			t.Fatalf("access log = %+v, %v", logs, err)
+		}
+	})
+
+	t.Run("an image the DOCX cannot embed is left out of the input, however large", func(t *testing.T) {
+		f := newOfficeFixture(t, "unused\n")
+		page, err := f.docs.CreatePage(ctx, f.actor, f.ws, CreatePageInput{Title: "Ảnh webp", Visibility: documentVisibilityWorkspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A 200 MiB webp would spend the whole input budget (413) if it were
+		// read; its file does not even exist, so reading it would fail too.
+		webp := util.NewID()
+		if _, err := f.q.InsertDocumentAsset(ctx, db.InsertDocumentAssetParams{
+			ID: webp, OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: page.Document.ID, FileID: util.NewID(),
+			MimeType: "image/webp", SizeBytes: 200 << 20, CreatedBy: f.actor.ID, CreatedByKind: string(f.actor.Kind),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		content := fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"image","attrs":{"src":"asset://%s","alt":"webp"}}]}]}`, webp)
+		if _, err := f.docs.UpdateDocument(ctx, f.actor, page.Document.ID, UpdateDocumentInput{Revision: page.Document.Revision, Content: json.RawMessage(content)}); err != nil {
+			t.Fatal(err)
+		}
+		eng := newPageExportEngine(t)
+		out, err := f.service(eng).ExportPage(ctx, f.actor, page.Document.ID, "docx")
+		if err != nil {
+			t.Fatalf("export: %v", err)
+		}
+		_ = readExport(t, out)
+		var in pageExportInputOf
+		if err := json.Unmarshal(eng.inputs[out.Job.ID], &in); err != nil || len(in.Images) != 0 || !bytes.Contains(in.Content, []byte(webp)) {
+			t.Fatalf("input = %+v, %v", in, err)
 		}
 	})
 

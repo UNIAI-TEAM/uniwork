@@ -161,13 +161,14 @@ type OfficeJobInput struct {
 	DocumentModelRef string
 	Edits            []office.EditOp
 	// TargetFormat is a convert or export job's output format; it must be
-	// the one target office.ConvertTargets (or office.ExportTargets) names for
-	// Format. Empty for every other operation.
+	// the target office.ConvertTargets (or one of office.ExportTargets) names
+	// for Format. Empty for every other operation.
 	TargetFormat office.Format
 
-	// exportBound and input are set only by ExportFramePDF (UNI-1013): the
-	// public job route keeps refusing export, and input, when set, replaces
-	// the base version's bytes with the frame's unsaved edit of that base.
+	// exportBound and input are set only by the export routes - ExportFramePDF
+	// (UNI-1013) and ExportPage (UNI-2004): the public job route keeps refusing
+	// export. input, when set, replaces the base version's bytes with the
+	// frame's unsaved edit of that base, or is the whole input of a page job.
 	exportBound bool
 	input       *officeInput
 }
@@ -248,8 +249,8 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 		return db.OfficeJob{}, office.ErrNotConfigured
 	}
 	if in.Operation == office.OperationExport && !in.exportBound {
-		// Export is bound only behind the Docs web frame (ExportFramePDF);
-		// refuse it here before a row or an output intent exists.
+		// Export is bound only behind its own routes (ExportFramePDF,
+		// ExportPage); refuse it here before a row or an output intent exists.
 		return db.OfficeJob{}, officeErr("unsupported_operation", "export_not_bound")
 	}
 	key := strings.TrimSpace(in.IdempotencyKey)

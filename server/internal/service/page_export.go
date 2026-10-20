@@ -29,6 +29,9 @@ import (
 // rather than letting one page hold an engine worker's memory.
 const pageExportMaxInput = 64 << 20
 
+// pageExportImageTypes are the image types a DOCX embeds (page-docx.ts).
+var pageExportImageTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/gif": true}
+
 // pageExportInput is the engine's input for a page (page-docx.ts).
 type pageExportInput struct {
 	Title   string                     `json:"title"`
@@ -108,7 +111,9 @@ func (s *DocumentOfficeService) pageExportBytes(ctx context.Context, doc db.Docu
 		}
 		budget := int64(pageExportMaxInput)
 		for _, a := range assets {
-			if !refs[a.ID] {
+			// The writer embeds png/jpeg/gif only and prints any other image
+			// as its alt text, so its bytes would only spend the budget.
+			if !refs[a.ID] || !pageExportImageTypes[a.MimeType] {
 				continue
 			}
 			if budget -= a.SizeBytes; budget < 0 {
