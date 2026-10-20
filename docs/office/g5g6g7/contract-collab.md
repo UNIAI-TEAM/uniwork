@@ -346,12 +346,14 @@ Markdown/HTML không có neo (G8-D6): `kind=comment` trên định dạng đó �
 | --- | --- | --- |
 | `exact` | Neo ghi trên version là head lúc ghi | Hiện vị trí |
 | `stale` | Neo ghi trên version cũ hơn head (tạo trên `base_version_id` không phải head, hoặc `PUT` từ version không phải head) | Hiện vị trí kèm nhãn chữ khóa `collabAnchorStale`: vi "Vị trí có thể đã thay đổi" (EXPERIENCE-G8:73) |
-| `lost` | Editor báo không tìm thấy | Comment **còn sống**, thread đọc/trả lời được; nhãn neo khóa `collabAnchorLost` (EXPERIENCE-G8:74), **khác** khóa tombstone `collabDeleted`; reveal chỉ mở thread, không mở comment khác |
+| `lost` | Editor báo không tìm thấy | Comment **còn sống**, thread đọc/trả lời được; nhãn neo khóa `collabAnchorLost` (EXPERIENCE-G8:74), **khác** khóa tombstone `collabDeleted`; server giữ neo cũ và `anchor_version_id` cũ (mục 2.6); hành động `collabAnchorViewVersion` "Xem ở phiên bản N" mở **`anchor_version_id`** (N = `anchor_version_no`) chỉ đọc, tại neo; ẩn khi không có số hoặc N là head; reveal chỉ mở thread, không mở comment khác (trừ khi đang xem đúng `anchor_version_id`: định vị như `exact`) |
 
 Chữ của `collabAnchorLost` (finding FE-4): EXPERIENCE-G8:74 hiện dùng cùng chữ với khung tombstone ("Nội dung đã bị xóa",
-`collabDeleted`, :75) dù comment vẫn sống, nên người đọc hiểu nhầm là đã xóa. Hợp đồng giữ hai khóa riêng; chữ đề xuất cho
-`collabAnchorLost`: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented location can no longer be found" — chờ UX ký ở OQ-C11
-(không sửa spine UX ở đây).
+`collabDeleted`, :75) dù comment vẫn sống, nên người đọc hiểu nhầm là đã xóa. Hợp đồng giữ hai khóa riêng. OQ-C11 đã chốt
+(người dùng 2026-10-20, UNI-2033): `collabAnchorLost` vi "Đoạn được bình luận không còn trong bản hiện tại" / en "The commented passage
+is not in the current version"; `collabAnchorViewVersion` vi "Xem ở phiên bản {n}" / en "View in version {n}". Phiên bản N là
+`anchor_version_id` (version cuối cùng editor xác nhận neo), **không** phải `base_version_id` (chỉ là version lúc tạo, không lưu riêng).
+Hợp đồng chi tiết: UNI-2033 ANCHOR-LOST-OLDVER (field `anchor_version_no`, request khung `comments.viewVersion`).
 
 So sánh chỉ theo số `document_versions.version`; luật đầy đủ ở mục 2.6. Neo không phải quyền (bất biến 3).
 
@@ -718,7 +720,7 @@ reports/<lane>/cloud-test-<seq>.md`, contract-p0 §10); `go test` chạy trong `
 | OQ-C8 | Hai dòng (tiêu đề + nội dung) trong `titles.go` đang một chuỗi mỗi kind | `titles.go` + `notifications.kind.*` giữ câu **nội dung** (có actor + tài liệu, kênh push/email cần); tiêu đề ngắn thành khóa mới `notifications.kindTitle.*` cho Inbox/push title | Lead D (G8-05) |
 | OQ-C9 | Plan G8-08 ánh xạ mất mạng → `internal`, trong khi protocol có `network` ("fetch failed / offline") | **Đã chốt r2** (hai reviewer đồng ý, lead giao): mất mạng → `network`, 5xx → `internal` (mục 9); plan G8-08 đã khớp trên root `50fc0f174` | Đóng |
 | OQ-C10 | Đổi tên hiển thị không đổi `list_token` → client dùng `since_token` giữ tên chip cũ tới lần list đầy đủ kế | Chấp nhận v1: tên chip đến từ bảng `mentions` (mục 2.1), làm mới ở mỗi list đầy đủ (web mỗi lần invalidate; desktop khi token đổi) | UX |
-| OQ-C11 | Chữ nhãn neo `lost` (`collabAnchorLost`) trùng chữ khung tombstone "Nội dung đã bị xóa" (EXPERIENCE-G8:74-75) dù comment còn sống | Chữ riêng: vi "Không còn tìm thấy vị trí được bình luận" / en "The commented location can no longer be found"; sửa EXPERIENCE-G8:74 và câu AC G8-A02 của plan ("cha hiện 'Nội dung đã bị xoá'") cùng lúc | UX + Advisor |
+| OQ-C11 | Chữ nhãn neo `lost` (`collabAnchorLost`) trùng chữ khung tombstone "Nội dung đã bị xóa" (EXPERIENCE-G8:74-75) dù comment còn sống | **Đã chốt (người dùng 2026-10-20, UNI-2033):** vi "Đoạn được bình luận không còn trong bản hiện tại" / en "The commented passage is not in the current version", kèm hành động "Xem ở phiên bản N" mở `anchor_version_id` chỉ đọc (mục 4.2); sửa EXPERIENCE-G8:74 và câu AC G8-A02 của plan ("cha hiện 'Nội dung đã bị xoá'") cùng lúc | UX + Advisor |
 | OQ-C12 | Frame biết mức quyền bình luận để ẩn composer mà không phải thử request | Khuyến nghị (quyết định lead, chờ Advisor ký): `InitPayload.commentsLevel?: "view" \| "edit" \| "manage"` = mức quyền tài liệu hiệu lực (mục 10); `view` → không ghi; `edit` → composer + sửa/xóa của mình + resolve/mở lại (G8-D3 tạm); `manage` → thêm sửa/xóa của người khác; host quảng bá `comments` phải gửi trường này (test protocol G8-08). Thiếu trường → hiện composer và thao tác của mình, không bao giờ của người khác; 403 → "Chỉ xem"; server là cổng duy nhất. **Nếu OQ-C12 bị bác khi ký, luật "thiếu trường" này là toàn bộ luật** (không có `commentsLevel`) | Advisor (ký) + Lead F |
 
 Không câu nào ở đây chặn G8-03/04/05/06/08: lane dùng giá trị tạm, ghi "theo draft contract-collab" trong packet.
