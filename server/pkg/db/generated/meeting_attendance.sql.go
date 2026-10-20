@@ -272,7 +272,7 @@ UPDATE meeting_participants SET
   standing = COALESCE($1, standing),
   is_secretary = COALESCE($2, is_secretary)
 WHERE id = $3 AND status = 'ACTIVE'
-RETURNING id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary, organization_id
+RETURNING id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary, organization_id, shared_mic_at, shared_mic_by
 `
 
 type UpdateParticipantDutiesParams struct {
@@ -305,6 +305,8 @@ func (q *Queries) UpdateParticipantDuties(ctx context.Context, arg UpdatePartici
 		&i.Standing,
 		&i.IsSecretary,
 		&i.OrganizationID,
+		&i.SharedMicAt,
+		&i.SharedMicBy,
 	)
 	return i, err
 }

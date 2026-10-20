@@ -1127,6 +1127,15 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		util.NewID(), tn.orgID, tn.wsID, tn.ids["meeting"]); err != nil {
 		t.Fatalf("meeting scribe run: %v", err)
 	}
+	// A speaker label of the shared microphone, filed the way
+	// AppendAgentSegments files it (the agent API has no session caller).
+	tn.ids["speakerLabel"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_speaker_labels
+		(id, organization_id, workspace_id, meeting_id, label_key, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, 'meeting_scribe', 'system')`,
+		tn.ids["speakerLabel"], tn.orgID, tn.wsID, tn.ids["meeting"], "uw_participant_"+tn.ids["participant"]+":1:A"); err != nil {
+		t.Fatalf("meeting speaker label: %v", err)
+	}
 	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/summary/tasks", tn.token, map[string]any{
 		"summary_id": tn.ids["meetingSummary"], "items": []any{map[string]any{"index": 3, "assignee_id": tn.peerID}},
 	})

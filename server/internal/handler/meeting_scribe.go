@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // agentSegmentsBody caps a batch: 50 segments of at most 4,000 characters,
@@ -88,4 +90,57 @@ func (h *handlers) setMeetingScribe(w http.ResponseWriter, r *http.Request) {
 	d := toMeetingDTO(m)
 	d.ScribeStatus = h.Meetings.ScribeStatus(r.Context(), m.ID)
 	respondJSON(w, 200, sdo.MeetingSDO{Meeting: d})
+}
+
+func (h *handlers) setParticipantSharedMic(w http.ResponseWriter, r *http.Request) {
+	var in sdi.SetSharedMicSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	p, err := h.Meetings.SetSharedMic(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "participantID"), in.Enabled)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.ParticipantSDO{Participant: toParticipantDTO(p, false)})
+}
+
+func toSpeakerLabelDTO(l db.ListMeetingSpeakerLabelsRow) sdo.SpeakerLabelDTO {
+	assigned := l.Name
+	if l.UserID.Valid {
+		assigned = l.UserName
+	}
+	return sdo.SpeakerLabelDTO{
+		ID: l.ID, LabelKey: l.LabelKey, Speaker: l.LabelKey[strings.LastIndex(l.LabelKey, ":")+1:],
+		UserID: l.UserID.String, Name: l.Name, AssignedName: assigned, Sample: l.Sample,
+		FirstSpokenAt: rfc3339(l.FirstSpokenAt),
+	}
+}
+
+func (h *handlers) listSpeakerLabels(w http.ResponseWriter, r *http.Request) {
+	ls, err := h.Meetings.SpeakerLabels(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.SpeakerLabelDTO, 0, len(ls))
+	for _, l := range ls {
+		out = append(out, toSpeakerLabelDTO(l))
+	}
+	respondJSON(w, 200, sdo.SpeakerLabelListSDO{Labels: out})
+}
+
+func (h *handlers) assignSpeakerLabel(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AssignSpeakerLabelSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	l, err := h.Meetings.AssignSpeakerLabel(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "speakerLabelID"), in.UserID, in.Name)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.SpeakerLabelSDO{Label: toSpeakerLabelDTO(l)})
 }

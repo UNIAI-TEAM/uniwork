@@ -251,6 +251,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `privacy.deletion_requested` | 1 | `request_id`, `organization_id` | — | - | outbox |
 | `transcript.appended` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `scribe.updated` | 1 | `meeting_id`, `workspace_id` | — | meeting | outbox |
+| `speaker_label.updated` | 1 | `meeting_id`, `workspace_id` | — | meeting | outbox |
 | `user.offline` | 1 | `user_id` | — | workspace | ephemeral |
 | `user.presence` | 1 | `user_id` | — | workspace | ephemeral |
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | — | - | outbox |

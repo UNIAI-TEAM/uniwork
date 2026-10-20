@@ -2,6 +2,7 @@ package meetings
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -45,6 +46,10 @@ type FakeProvider struct {
 	ScribeDispatches  []DispatchScribeRequest
 	ScribeRemovals    []RemoveScribeRequest
 	ScribeDispatchErr error
+	// LastJoin is the last join credential request (attributes included).
+	LastJoin IssueJoinCredentialRequest
+	// AttributeUpdates records SetParticipantAttributes calls (under permMu).
+	AttributeUpdates []SetParticipantAttributesRequest
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -65,6 +70,7 @@ func (f *FakeProvider) EnsureSession(_ context.Context, req EnsureSessionRequest
 }
 
 func (f *FakeProvider) IssueJoinCredential(_ context.Context, req IssueJoinCredentialRequest) (JoinCredential, error) {
+	f.LastJoin = req
 	if f.JoinErr != nil {
 		return JoinCredential{}, f.JoinErr
 	}
@@ -155,6 +161,20 @@ func (f *FakeProvider) RemoveScribe(_ context.Context, req RemoveScribeRequest) 
 	defer f.scribeMu.Unlock()
 	f.ScribeRemovals = append(f.ScribeRemovals, req)
 	return nil
+}
+
+func (f *FakeProvider) SetParticipantAttributes(_ context.Context, req SetParticipantAttributesRequest) error {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	f.AttributeUpdates = append(f.AttributeUpdates, req)
+	return nil
+}
+
+// AttributeCalls returns a copy of the attribute writes the fake saw.
+func (f *FakeProvider) AttributeCalls() []SetParticipantAttributesRequest {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	return slices.Clone(f.AttributeUpdates)
 }
 
 // ScribeCalls reports how many dispatches and removals the fake saw.

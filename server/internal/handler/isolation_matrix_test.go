@@ -591,6 +591,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "meeting")
 	case "{participantID}":
 		return tn.get(t, "participant")
+	case "{speakerLabelID}":
+		return tn.get(t, "speakerLabel")
 	case "{motionID}":
 		return tn.get(t, "motion")
 	case "{invitationID}":

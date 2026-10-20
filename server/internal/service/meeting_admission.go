@@ -72,6 +72,7 @@ func (s *MeetingService) Join(ctx context.Context, in AdmissionContext) (Admissi
 		RoomName: sess.ProviderRoomName, Identity: meetings.IdentityForParticipant(dec.Participant.ID),
 		DisplayName: dec.Participant.DisplayNameSnapshot, TTL: s.rt.TokenTTL,
 		CanSubscribe: perms.CanSubscribe, CanPublish: perms.CanPublish, CanPublishData: perms.CanPublishData,
+		Attributes: sharedMicAttributes(dec.Participant),
 	})
 	if err != nil {
 		return AdmissionDecision{}, coded(http.StatusServiceUnavailable, "provider_unavailable", "không cấp được thông tin vào phòng")

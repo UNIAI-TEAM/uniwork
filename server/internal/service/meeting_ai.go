@@ -101,8 +101,17 @@ var transcriptFeedKeys = feedKeys[db.MeetingTranscriptSegment]{
 	delta: func(s db.MeetingTranscriptSegment) time.Time { return s.CreatedAt.Time },
 }
 
-// Transcript reads one page of the meeting's transcript (see FeedQuery).
+// Transcript reads one page of the meeting's transcript (see FeedQuery),
+// each speaker named as the summary names them (nameSpeakers).
 func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string, q FeedQuery) (FeedPage[db.MeetingTranscriptSegment], error) {
+	page, err := s.transcriptPage(ctx, userID, meetingID, q)
+	if err != nil {
+		return page, err
+	}
+	return page, s.nameSpeakers(ctx, meetingID, page.Items)
+}
+
+func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID string, q FeedQuery) (FeedPage[db.MeetingTranscriptSegment], error) {
 	if err := q.validate(); err != nil {
 		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
@@ -250,6 +259,9 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 		return err
 	})
 	if err := g.Wait(); err != nil {
+		return db.MeetingSummary{}, err
+	}
+	if err := s.nameSpeakers(runCtx, meetingID, segs); err != nil {
 		return db.MeetingSummary{}, err
 	}
 	// Attendance alone is not material (every meeting has a roll); a closed

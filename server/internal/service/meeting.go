@@ -415,6 +415,7 @@ var meetingActionFor = map[string]string{
 	"join_request.canceled": "meeting.join_request_canceled",
 	"invite_link.revoked":   "meeting.invite_link_revoked",
 	"scribe.updated":        audit.ActionMeetingScribeToggled,
+	"speaker_label.updated": audit.ActionMeetingSpeakerLabelAssigned,
 }
 
 // record writes the meeting command's audit row and puts its realtime event on
@@ -437,6 +438,13 @@ func (s *MeetingService) recordResource(ctx context.Context, q *db.Queries, m db
 	if !ok {
 		return
 	}
+	s.recordAction(ctx, q, m, actor, action, topic, payload, changes, resourceType, resourceID)
+}
+
+// recordAction is recordResource for a command whose audit action is not the
+// one its topic usually maps to (a shared-mic switch is its own action but
+// tells clients participant.updated).
+func (s *MeetingService) recordAction(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, action, topic string, payload map[string]string, changes map[string]audit.Change, resourceType, resourceID string) {
 	// The meeting carries its tenant (ADR 0008), so no workspace read runs
 	// inside the caller's transaction - for a ballot, under the motion lock.
 	orgID := m.OrganizationID

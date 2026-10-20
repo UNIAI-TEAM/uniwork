@@ -1697,6 +1697,8 @@ type MeetingParticipant struct {
 	Standing            string             `json:"standing"`
 	IsSecretary         bool               `json:"is_secretary"`
 	OrganizationID      string             `json:"organization_id"`
+	SharedMicAt         pgtype.Timestamptz `json:"shared_mic_at"`
+	SharedMicBy         pgtype.Text        `json:"shared_mic_by"`
 }
 
 type MeetingProviderEvent struct {
@@ -1751,6 +1753,20 @@ type MeetingScribeRun struct {
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
 	AgentParticipantSid    string             `json:"agent_participant_sid"`
+}
+
+type MeetingSpeakerLabel struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MeetingID      string             `json:"meeting_id"`
+	LabelKey       string             `json:"label_key"`
+	UserID         pgtype.Text        `json:"user_id"`
+	Name           string             `json:"name"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type MeetingSummary struct {

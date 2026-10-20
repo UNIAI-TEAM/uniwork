@@ -177,6 +177,8 @@ var isoReferences = []isoReference{
 	{method: "PATCH", pattern: "/api/v1/meetings/{meetingID}", what: "project", body: map[string]any{"project_id": isoRef("project")}, covers: []string{"PatchMeetingSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/invitations", what: "invitee", body: map[string]any{"user_id": isoRef("peer")},
 		noControl: "B's peer is already an attendee", covers: []string{"InviteParticipantSDI.user_id"}},
+	{method: "PUT", pattern: "/api/v1/meetings/{meetingID}/speaker-labels/{speakerLabelID}", what: "speaker", body: map[string]any{"user_id": isoRef("peer")},
+		covers: []string{"AssignSpeakerLabelSDI.user_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/host-transfer", what: "new host", body: map[string]any{"new_host_user_id": isoRef("peer")},
 		noControl: "handing B's meeting to B's peer would take the owner's host role for later cases", covers: []string{"HostTransferSDI.new_host_user_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/join", what: "invite link", body: map[string]any{"invite_link_id": isoRef("inviteLink"), "secret": isoRef("inviteSecret")},

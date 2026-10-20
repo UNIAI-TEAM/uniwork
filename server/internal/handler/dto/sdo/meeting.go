@@ -87,6 +87,7 @@ type ParticipantDTO struct {
 	Status              string `json:"status"`
 	Standing            string `json:"standing" description:"MEMBER | OBSERVER" example:"MEMBER"`
 	IsSecretary         bool   `json:"is_secretary"`
+	SharedMic           bool   `json:"shared_mic" description:"Mic của người này là micro hội trường: thư ký AI tách người nói"`
 }
 
 type ParticipantListSDO struct {
@@ -347,4 +348,25 @@ type AttendanceSDO struct {
 	QuorumPercent *int16               `json:"quorum_percent"`
 	Summary       AttendanceSummaryDTO `json:"summary"`
 	Rows          []AttendanceRowDTO   `json:"rows"`
+}
+
+// SpeakerLabelDTO is one speaker label of a meeting's transcript (shared
+// microphone or uploaded file) and whom a clerk assigned it to.
+type SpeakerLabelDTO struct {
+	ID            string `json:"id" example:"01J8X4SPKL0N1P2Q3R4S5T6U7"`
+	LabelKey      string `json:"label_key" description:"<participant_identity>:<phiên STT>:<nhãn> hoặc upload:<transcription_id>:<nhãn>" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V:AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-1:A"`
+	Speaker       string `json:"speaker" description:"Nhãn của nhà cung cấp (phần cuối label_key)" example:"A"`
+	UserID        string `json:"user_id,omitempty" description:"Thành viên được gán" example:"01J8X4USER0N1P2Q3R4S5T6U7"`
+	Name          string `json:"name,omitempty" description:"Tên tự do được gán" example:"Chị Lan"`
+	AssignedName  string `json:"assigned_name,omitempty" description:"Tên transcript hiện cho nhãn: tên hiển thị của thành viên hoặc tên tự do; trống khi chưa gán" example:"Chị Lan"`
+	Sample        string `json:"sample,omitempty" description:"Câu đầu tiên của nhãn, để nhận ra người nói" example:"Chốt ship vào thứ Sáu."`
+	FirstSpokenAt string `json:"first_spoken_at,omitempty" example:"2026-10-20T02:00:01Z"`
+}
+
+type SpeakerLabelListSDO struct {
+	Labels []SpeakerLabelDTO `json:"labels"`
+}
+
+type SpeakerLabelSDO struct {
+	Label SpeakerLabelDTO `json:"label"`
 }

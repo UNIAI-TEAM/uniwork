@@ -258,6 +258,9 @@ var catalogue = []EventDef{
 	// The AI scribe was switched on/off for a meeting or one of its runs changed
 	// state (UNI-2023); the meeting detail refetches scribe_enabled/scribe_status.
 	{Topic: "scribe.updated", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// A speaker label of the shared microphone appeared or was assigned
+	// (UNI-2024); the labels and the transcript's speaker names refetch.
+	{Topic: "speaker_label.updated", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	// The AI summary is written with its audit row in one transaction and
 	// announced from the outbox (UNI-1853): a host who missed the frame would

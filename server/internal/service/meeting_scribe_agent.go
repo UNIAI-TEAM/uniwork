@@ -118,6 +118,9 @@ func (s *MeetingService) AgentContext(ctx context.Context, c meetings.AgentClaim
 	seen := map[string]bool{}
 	for _, p := range ps {
 		name := strings.TrimSpace(p.DisplayNameSnapshot)
+		if p.Status == ParticipantActive && p.SharedMicAt.Valid {
+			out.SharedMicIdentities = append(out.SharedMicIdentities, meetings.IdentityForParticipant(p.ID))
+		}
 		if name == "" || seen[name] || p.Status != ParticipantActive || len(out.ParticipantNames) >= agentContextNames {
 			continue
 		}
@@ -142,6 +145,8 @@ func validateAgentSegments(segs []AgentSegmentInput) error {
 			return Invalid("text phải có từ 1 đến 4000 ký tự")
 		case len(g.ParticipantIdentity) > agentIdentityMax || len(g.Language) > agentLanguageMax || utf8.RuneCountInString(g.SpeakerLabel) > agentSpeakerLabelMax:
 			return Invalid("participant_identity, language hoặc speaker_label quá dài")
+		case g.SpeakerLabel != "" && !validSpeakerLabel(g.SpeakerLabel, g.ParticipantIdentity):
+			return Invalid("speaker_label phải có dạng <participant_identity>:<phiên>:<nhãn>")
 		case g.SpokenAt.IsZero() || g.EndedAt.Before(g.SpokenAt):
 			return Invalid("spoken_at/ended_at không hợp lệ")
 		case g.SpeechMs < 0 || g.SpeechMs > agentSpeechMaxMs:
@@ -218,6 +223,15 @@ func (s *MeetingService) AppendAgentSegments(ctx context.Context, c meetings.Age
 		}
 		accepted++
 		speech += g.SpeechMs
+	}
+	newLabels, err := s.insertSpeakerLabels(ctx, q, m, segs)
+	if err != nil {
+		return 0, 0, err
+	}
+	if newLabels {
+		if err := s.emitSpeakerLabelsUpdated(ctx, q, m); err != nil {
+			return 0, 0, err
+		}
 	}
 	if accepted > 0 {
 		r, err := q.AddScribeRunSpeech(ctx, db.AddScribeRunSpeechParams{ID: run.ID, SpeechMs: speech, Segments: int32(accepted)})

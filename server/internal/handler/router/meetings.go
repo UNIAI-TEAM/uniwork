@@ -171,6 +171,21 @@ func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Hand
 		description: "Chủ trì hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Mặc định bật; đang họp thì thư ký được gỡ khỏi phòng hoặc gọi vào ngay. Ghi audit meeting.scribe_toggled và phát scribe.updated.",
 		tags:        []string{"meetings"}, sdi: sdi.SetMeetingScribeSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
+	r.Put("/meetings/{meetingID}/participants/{participantID}/shared-mic", h.SetParticipantSharedMic, apiOp{
+		summary:     "Mark or unmark a participant as the room's shared microphone (clerk)",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Server ghi shared_mic_at và đặt attribute LiveKit uw.shared_mic (người tham gia không tự đặt được); thư ký AI tách người nói trên mic đó. Ghi audit meeting.shared_mic_toggled và phát participant.updated.",
+		tags:        []string{"meetings"}, sdi: sdi.SetSharedMicSDI{}, sdo: sdo.ParticipantSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/speaker-labels", h.ListSpeakerLabels, apiOp{
+		summary:     "List the speaker labels of a meeting's transcript, assigned or not",
+		description: "Ai đọc được transcript thì đọc được nhãn. Nhãn chưa gán có assigned_name trống.",
+		tags:        []string{"meetings"}, sdo: sdo.SpeakerLabelListSDO{}, auth: true,
+	})
+	r.Put("/meetings/{meetingID}/speaker-labels/{speakerLabelID}", h.AssignSpeakerLabel, apiOp{
+		summary:     "Assign a speaker label to a member or a free name (clerk)",
+		description: "Một trong user_id hoặc name; không gửi cả hai thì bỏ gán. 422 assignee_not_member khi user_id không phải thành viên workspace. Ghi audit meeting.speaker_label_assigned và phát speaker_label.updated.",
+		tags:        []string{"meetings"}, sdi: sdi.AssignSpeakerLabelSDI{}, sdo: sdo.SpeakerLabelSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/transcript", h.AppendTranscript, apiOp{
 		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,

@@ -43,6 +43,9 @@ func mintToken(apiKey, apiSecret string, req IssueJoinCredentialRequest) (string
 		ttl = 2 * time.Minute
 	}
 	at.SetVideoGrant(grant).SetIdentity(req.Identity).SetName(req.DisplayName).SetValidFor(ttl)
+	if len(req.Attributes) > 0 {
+		at.SetAttributes(req.Attributes)
+	}
 	return at.ToJWT()
 }
 
@@ -182,6 +185,17 @@ func (a *LiveKitAdapter) UpdateParticipant(ctx context.Context, req UpdateProvid
 	defer cancel()
 	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
 		Room: req.RoomName, Identity: req.Identity, Permission: participantPermission(req.Permissions),
+	})
+	return err
+}
+
+// SetParticipantAttributes sends only attributes: with Permission nil,
+// LiveKit leaves the participant's grants as they are.
+func (a *LiveKitAdapter) SetParticipantAttributes(ctx context.Context, req SetParticipantAttributesRequest) error {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
+		Room: req.RoomName, Identity: req.Identity, Attributes: req.Attributes,
 	})
 	return err
 }

@@ -23,11 +23,26 @@ type ConferenceProvider interface {
 	// dispatch id; RemoveScribe cancels that dispatch and removes the agent.
 	DispatchScribe(ctx context.Context, req DispatchScribeRequest) (string, error)
 	RemoveScribe(ctx context.Context, req RemoveScribeRequest) error
+	// SetParticipantAttributes writes server-owned attributes on a
+	// participant in the room (an empty value deletes one) and leaves its
+	// permissions alone.
+	SetParticipantAttributes(ctx context.Context, req SetParticipantAttributesRequest) error
 }
 
 // ScribeIdentity is the LiveKit identity the scribe agent joins with. It is
 // not uw_participant_, so attendance never counts it.
 const ScribeIdentity = "uw_agent_scribe"
+
+// AttrSharedMic marks the participant whose microphone is the room's shared
+// one (spec §4.3): the scribe diarizes that track. Only the server sets it,
+// through SetParticipantAttributes and the join token (D11).
+const AttrSharedMic = "uw.shared_mic"
+
+type SetParticipantAttributesRequest struct {
+	RoomName   string
+	Identity   string
+	Attributes map[string]string
+}
 
 // DispatchScribeRequest carries the job metadata the agent validates
 // (meeting id, token, locale); LiveKit caps it at 512 KiB.
@@ -72,6 +87,9 @@ type IssueJoinCredentialRequest struct {
 	CanSubscribe   bool
 	CanPublish     bool
 	CanPublishData bool
+	// Attributes are set by the server in the token; the token never grants
+	// canUpdateOwnMetadata, so the participant cannot change them.
+	Attributes map[string]string
 }
 
 type JoinCredential struct {
