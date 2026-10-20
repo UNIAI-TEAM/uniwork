@@ -32,7 +32,7 @@ export function FirstSaveShare({
       : null;
   return (
     <div data-testid="first-save-share" className="flex flex-col gap-1.5">
-      <div className="flex min-h-9 items-center justify-between gap-3 pointer-coarse:min-h-11">
+      <label className="flex min-h-9 items-center justify-between gap-3 pointer-coarse:min-h-11">
         <span id={labelId} className="text-body leading-none font-medium">
           {t("documents.detail.first_save.share_toggle")}
         </span>
@@ -46,7 +46,7 @@ export function FirstSaveShare({
           }}
           className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
         />
-      </div>
+      </label>
       {hint ? (
         <p id={hintId} className="text-caption text-muted-foreground">
           {hint}

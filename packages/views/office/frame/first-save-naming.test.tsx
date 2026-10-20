@@ -497,6 +497,22 @@ describe("useFirstSaveNaming: share with the workspace (UNI-2038 G4)", () => {
     expect(patchBodies()[0]).not.toHaveProperty("visibility");
   });
 
+  it("flips the switch from a click on the label text, and not once the document is already shared", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook, switchTo } = setup({ doc: MANAGED });
+    await openDialog(hook);
+    const toggle = await screen.findByRole("switch", { name: "Chia sẻ với workspace" });
+    fireEvent.click(screen.getByText("Chia sẻ với workspace"));
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByText("Chia sẻ với workspace"));
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    act(() => switchTo({ ...MANAGED, visibility: "workspace" } as Document));
+    fireEvent.click(screen.getByText("Chia sẻ với workspace"));
+    expect(screen.getByRole("switch", { name: "Chia sẻ với workspace" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "Chia sẻ với workspace" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+  });
+
   it("has no toggle when the person cannot manage the document", async () => {
     routeDocuments({ move: moved("f-fin") });
     const { hook } = setup({ doc: { ...MANAGED, my_level: "edit" } as Document });
