@@ -179,6 +179,17 @@ func managedFileReferenceSources() []FileReferenceSource {
 			},
 		},
 		{
+			Table: "meeting_transcriptions", Column: "file_id", Provider: MeetingTranscriptionProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCMeetingTranscriptionRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, fileReferenceTenant{FileID: files.FileID(r.FileID), OrganizationID: r.OrganizationID, Known: true})
+				}
+				return out, err
+			},
+		},
+		{
 			Table: "meeting_recordings", Column: "file_id", Provider: MeetingRecordingProvider{}.Name(),
 			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
 				rows, err := q.FileGCMeetingRecordingRefTenants(ctx, ids)

@@ -1822,6 +1822,36 @@ type MeetingTranscriptSegment struct {
 	Language        string             `json:"language"`
 }
 
+type MeetingTranscription struct {
+	ID               string             `json:"id"`
+	OrganizationID   string             `json:"organization_id"`
+	WorkspaceID      string             `json:"workspace_id"`
+	MeetingID        string             `json:"meeting_id"`
+	FileID           string             `json:"file_id"`
+	Filename         string             `json:"filename"`
+	ContentType      string             `json:"content_type"`
+	SizeBytes        int64              `json:"size_bytes"`
+	EstimatedSeconds int32              `json:"estimated_seconds"`
+	StartsAt         pgtype.Timestamptz `json:"starts_at"`
+	Language         string             `json:"language"`
+	Status           string             `json:"status"`
+	Provider         string             `json:"provider"`
+	Model            string             `json:"model"`
+	ProviderJobID    string             `json:"provider_job_id"`
+	Attempts         int32              `json:"attempts"`
+	LeaseUntil       pgtype.Timestamptz `json:"lease_until"`
+	NextAttemptAt    pgtype.Timestamptz `json:"next_attempt_at"`
+	DeadlineAt       pgtype.Timestamptz `json:"deadline_at"`
+	ErrorCode        string             `json:"error_code"`
+	AudioSeconds     pgtype.Int4        `json:"audio_seconds"`
+	UsageEventID     pgtype.Text        `json:"usage_event_id"`
+	CreatedBy        string             `json:"created_by"`
+	CreatedByKind    string             `json:"created_by_kind"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	StartedAt        pgtype.Timestamptz `json:"started_at"`
+	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+}
+
 type Notification struct {
 	ID             string             `json:"id"`
 	UserID         string             `json:"user_id"`

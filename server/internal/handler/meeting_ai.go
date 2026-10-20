@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
@@ -21,7 +22,15 @@ func toTranscriptDTO(s db.MeetingTranscriptSegment) sdo.TranscriptSegmentDTO {
 	return sdo.TranscriptSegmentDTO{
 		ID: s.ID, MeetingID: s.MeetingID, ParticipantID: s.ParticipantID.String,
 		SpeakerName: s.SpeakerName, Text: s.Text, SpokenAt: rfc3339(s.SpokenAt),
+		Source: s.Source, TranscriptionID: s.TranscriptionID.String, StartMs: optInt32(s.StartMs), EndMs: optInt32(s.EndMs),
 	}
+}
+
+func optInt32(v pgtype.Int4) *int32 {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Int32
 }
 
 func toSummaryDTO(v service.MeetingSummaryView) sdo.MeetingSummaryDTO {
@@ -62,7 +71,7 @@ func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.MeetingCapabilitiesSDO{
-		AISummary: caps.AISummary, Recording: caps.Recording, Scribe: caps.Scribe,
+		AISummary: caps.AISummary, Recording: caps.Recording, Scribe: caps.Scribe, Transcription: caps.Transcription,
 	})
 }
 

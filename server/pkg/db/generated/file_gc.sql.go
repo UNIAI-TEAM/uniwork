@@ -699,6 +699,39 @@ func (q *Queries) FileGCMeetingRecordingRefTenants(ctx context.Context, fileIds 
 	return items, nil
 }
 
+const fileGCMeetingTranscriptionRefTenants = `-- name: FileGCMeetingTranscriptionRefTenants :many
+SELECT file_id, organization_id
+FROM meeting_transcriptions
+WHERE file_id = ANY($1::text[])
+`
+
+type FileGCMeetingTranscriptionRefTenantsRow struct {
+	FileID         string `json:"file_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// tenant: system
+// meeting_transcriptions.file_id: an uploaded meeting recording (UNI-2001).
+func (q *Queries) FileGCMeetingTranscriptionRefTenants(ctx context.Context, fileIds []string) ([]FileGCMeetingTranscriptionRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCMeetingTranscriptionRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCMeetingTranscriptionRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCMeetingTranscriptionRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fileGCRunUnlock = `-- name: FileGCRunUnlock :one
 SELECT pg_advisory_unlock($1::bigint) AS unlocked
 `

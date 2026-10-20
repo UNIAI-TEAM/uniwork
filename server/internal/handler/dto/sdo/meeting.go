@@ -195,6 +195,12 @@ type TranscriptSegmentDTO struct {
 	SpokenAt      string `json:"spoken_at" example:"2026-08-29T02:00:00Z"`
 	SpeakerLabel  string `json:"speaker_label,omitempty" description:"Chỉ dòng micro hội trường chưa gán người nói: nhãn thô; kết thúc bằng :? khi không rõ người nói" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V:AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-1:A"`
 	RoomSpeaker   int32  `json:"room_speaker,omitempty" description:"Số thứ tự người nói của micro hội trường trong cuộc họp (Người nói n); 0 khi không rõ" example:"2"`
+	// Parent spec §6.4 (UNI-2001): where the line came from and, for the
+	// scribe and uploads, its place in the audio.
+	Source          string `json:"source" enum:"CAPTION,AGENT,TRANSCRIPTION" description:"CAPTION = phụ đề trình duyệt; AGENT = thư ký AI; TRANSCRIPTION = ghi lời file tải lên" example:"TRANSCRIPTION"`
+	TranscriptionID string `json:"transcription_id,omitempty" description:"Lần ghi lời sinh ra dòng này (source TRANSCRIPTION)" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+	StartMs         *int32 `json:"start_ms,omitempty" description:"Mốc bắt đầu (ms) trong tệp với TRANSCRIPTION, tính từ giờ bắt đầu thực tế với AGENT" example:"61500"`
+	EndMs           *int32 `json:"end_ms,omitempty" description:"Mốc kết thúc (ms), cùng gốc với start_ms" example:"64200"`
 }
 
 type TranscriptSegmentSDO struct {
@@ -294,6 +300,8 @@ type MeetingCapabilitiesSDO struct {
 	AISummary bool `json:"ai_summary"`
 	Recording bool `json:"recording"`
 	Scribe    bool `json:"scribe" description:"Thư ký AI (agent ghi lời) có cho workspace này: server chạy agent, cờ meeting_scribe bật, gói có meeting.transcription"`
+	// Transcription: uploads may be transcribed in batch (UNI-2001).
+	Transcription bool `json:"transcription" description:"Ghi lời file ghi âm tải lên có cho workspace này: có nhà cung cấp, cờ meeting_transcription bật, gói có meeting.transcription"`
 }
 
 // MeetingAgentContextSDO is what the scribe agent turns into STT keyterms.
@@ -372,4 +380,31 @@ type SpeakerLabelListSDO struct {
 
 type SpeakerLabelSDO struct {
 	Label SpeakerLabelDTO `json:"label"`
+}
+
+// MeetingTranscriptionDTO is one transcription of one uploaded recording
+// (UNI-2001, parent spec §5.3).
+type MeetingTranscriptionDTO struct {
+	ID           string `json:"id" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+	MeetingID    string `json:"meeting_id" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+	FileID       string `json:"file_id" example:"01JA09K3N1P2Q3R4S5T6U7V9"`
+	Filename     string `json:"filename" example:"hop-chi-bo.m4a"`
+	SizeBytes    int64  `json:"size_bytes" example:"28800000"`
+	Language     string `json:"language" enum:"vi,en" example:"vi"`
+	Status       string `json:"status" enum:"QUEUED,RUNNING,COMPLETE,FAILED" example:"RUNNING"`
+	ErrorCode    string `json:"error_code,omitempty" enum:"file_unavailable,provider_error,timeout" description:"Lý do của lần thử gần nhất bị lỗi; với FAILED là lý do cuối" example:"provider_error"`
+	Attempts     int32  `json:"attempts" description:"Số lần đã gửi nhà cung cấp (tối đa 3)" example:"1"`
+	StartsAt     string `json:"starts_at" description:"Giờ thật ứng với giây 0 của tệp" example:"2026-10-20T01:30:00Z"`
+	AudioSeconds int32  `json:"audio_seconds,omitempty" description:"Thời lượng đã tính phí, có khi COMPLETE" example:"3600"`
+	CreatedBy    string `json:"created_by" example:"01J8X4USER0N1P2Q3R4S5T6U7"`
+	CreatedAt    string `json:"created_at" example:"2026-10-20T04:00:00Z"`
+	CompletedAt  string `json:"completed_at,omitempty" example:"2026-10-20T04:20:00Z"`
+}
+
+type MeetingTranscriptionSDO struct {
+	Transcription MeetingTranscriptionDTO `json:"transcription"`
+}
+
+type MeetingTranscriptionListSDO struct {
+	Transcriptions []MeetingTranscriptionDTO `json:"transcriptions" description:"Mới nhất trước, tối đa 100"`
 }

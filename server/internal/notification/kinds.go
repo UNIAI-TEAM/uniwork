@@ -19,10 +19,14 @@ const (
 	KindMeetingStarting   = "meeting_starting"
 	// Nudge after a meeting ends with something to summarize (C-11 §9.1 V1).
 	KindMeetingSummaryReminder = "meeting_summary_reminder"
-	KindMemberAdded            = "member_added"
-	KindRoleChanged            = "role_changed"
-	KindAuditExportReady       = "audit_export_ready"
-	KindChatFollowUp           = "chat_follow_up"
+	// An uploaded meeting recording was transcribed, or failed for good
+	// (UNI-2001, parent spec §8.3): sent to the clerk who asked.
+	KindMeetingTranscriptReady  = "meeting_transcript_ready"
+	KindMeetingTranscriptFailed = "meeting_transcript_failed"
+	KindMemberAdded             = "member_added"
+	KindRoleChanged             = "role_changed"
+	KindAuditExportReady        = "audit_export_ready"
+	KindChatFollowUp            = "chat_follow_up"
 	// A chat reminder came due (H16), fired by the server's reminder worker.
 	KindChatReminder    = "chat_reminder"
 	KindEmailHubNewMail = "email_hub_new_mail"
@@ -73,6 +77,7 @@ const (
 var Kinds = []string{
 	KindTaskAssigned, KindTasksAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
 	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
+	KindMeetingTranscriptReady, KindMeetingTranscriptFailed,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,

@@ -23,6 +23,22 @@ func (g *Gateway) MeetingTranscribeAvailable() bool {
 	return g != nil && g.cloud.MeetingTranscriber != nil
 }
 
+// MeetingTranscriberName and MeetingTranscriberModel name the vendor a job
+// goes to, for the caller's own record.
+func (g *Gateway) MeetingTranscriberName() string {
+	if !g.MeetingTranscribeAvailable() {
+		return ""
+	}
+	return g.cloud.MeetingTranscriber.Name()
+}
+
+func (g *Gateway) MeetingTranscriberModel() string {
+	if !g.MeetingTranscribeAvailable() {
+		return ""
+	}
+	return g.cloud.MeetingTranscriber.Model()
+}
+
 // MeetingTranscribeSubmit sends one job and returns the vendor's job id and
 // the usage row that tracks it. A refused submit settles the row as failed.
 func (g *Gateway) MeetingTranscribeSubmit(ctx context.Context, call CloudCall, req provider.FileTranscribeRequest) (jobID, usageEventID string, err error) {

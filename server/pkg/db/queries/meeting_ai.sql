@@ -5,8 +5,15 @@ RETURNING *;
 
 -- name: ListTranscriptSegmentsLatest :many
 -- tenant: parent meeting_id
--- Newest first; callers reverse the page into reading order (G18).
-SELECT * FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at DESC, id DESC LIMIT $2;
+-- Newest first; callers reverse the page into reading order (G18). The
+-- source rule (parent spec §7.3, TranscriptSources) rides on every page:
+-- rich = the scribe's lines plus the given transcriptions, else captions.
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id')
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN source = 'AGENT' OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at DESC, id DESC LIMIT sqlc.arg('row_limit');
 
 -- name: ListTranscriptSegmentsBefore :many
 -- tenant: parent meeting_id
@@ -16,6 +23,9 @@ SELECT * FROM meeting_transcript_segments
 WHERE meeting_id = sqlc.arg('meeting_id')
   AND spoken_at <= sqlc.arg('before_at')::timestamptz
   AND (spoken_at, id) < (sqlc.arg('before_at')::timestamptz, sqlc.arg('before_id')::text)
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN source = 'AGENT' OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
 ORDER BY spoken_at DESC, id DESC
 LIMIT sqlc.arg('row_limit');
 
@@ -25,6 +35,9 @@ LIMIT sqlc.arg('row_limit');
 -- caption client or the STT agent and can land behind rows already read.
 SELECT * FROM meeting_transcript_segments
 WHERE meeting_id = sqlc.arg('meeting_id') AND created_at >= sqlc.arg('since')::timestamptz
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN source = 'AGENT' OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
 ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg('row_limit');
 

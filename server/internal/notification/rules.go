@@ -146,6 +146,9 @@ var rules = map[string]rule{
 	"chat.reminder.due":      ruleChatReminderDue,
 	"email_hub.new_mail":     ruleEmailHubNewMail,
 	"meeting.ended":          ruleMeetingEnded,
+	// UNI-2001: the clerk who uploaded a recording hears how it went.
+	"transcription.completed": ruleTranscription(KindMeetingTranscriptReady),
+	"transcription.failed":    ruleTranscription(KindMeetingTranscriptFailed),
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
@@ -1216,4 +1219,45 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 		ActorKind: string(audit.KindSystem), ActorID: "meeting_summary_reminder",
 		Params: map[string]string{"meeting": m.Title},
 	}}, nil
+}
+
+// ruleTranscription tells the person who queued an uploaded recording that
+// its transcription finished or failed for good (parent spec §8.3). The
+// actor is the worker, so nobody is excluded; a requester who left the
+// workspace hears nothing.
+func ruleTranscription(kind string) rule {
+	return func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+		t, err := e.q.GetMeetingTranscription(ctx, p["transcription_id"])
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		// GetMeetingTranscription is by-id: the row must belong to the event's tenant.
+		if (ev.OrganizationID.Valid && t.OrganizationID != ev.OrganizationID.String) ||
+			(ev.WorkspaceID.Valid && t.WorkspaceID != ev.WorkspaceID.String) || t.CreatedByKind != string(audit.KindHuman) {
+			return nil, nil
+		}
+		m, err := e.q.GetMeeting(ctx, t.MeetingID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if _, err := e.members.RequireMember(ctx, t.WorkspaceID, t.CreatedBy); err != nil {
+			if refused(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return []Draft{{
+			UserID: t.CreatedBy, OrganizationID: t.OrganizationID, WorkspaceID: t.WorkspaceID,
+			Kind: kind, GroupKey: "meeting_transcription:" + t.ID + ":" + kind,
+			ResourceType: "meeting", ResourceID: m.ID,
+			ActorKind: string(audit.KindSystem), ActorID: "meeting_transcription",
+			Params: map[string]string{"meeting": m.Title},
+		}}, nil
+	}
 }

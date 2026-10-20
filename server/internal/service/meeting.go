@@ -108,6 +108,9 @@ type MeetingService struct {
 	files files.Service
 	// flags evaluates meeting_scribe per organization; nil = off.
 	flags McpFlags
+	// uploads opens the large upload sessions a meeting recording rides on
+	// (UNI-2001); nil = no upload.
+	uploads *DocumentService
 }
 
 // organizationOf resolves the tenant a meeting belongs to, for the gate.

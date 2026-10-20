@@ -395,6 +395,10 @@ type Routes struct {
 	SetParticipantSharedMic        http.HandlerFunc
 	ListSpeakerLabels              http.HandlerFunc
 	AssignSpeakerLabel             http.HandlerFunc
+	RecordMeetingHeld              http.HandlerFunc
+	CreateMeetingAudioUpload       http.HandlerFunc
+	RequestMeetingTranscription    http.HandlerFunc
+	ListMeetingTranscriptions      http.HandlerFunc
 	MeetingAgentStarted            http.HandlerFunc
 	MeetingAgentContext            http.HandlerFunc
 	MeetingAgentSegments           http.HandlerFunc

@@ -186,6 +186,30 @@ func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Hand
 		description: "Một trong user_id hoặc name; không gửi cả hai thì bỏ gán. 422 assignee_not_member khi user_id không phải thành viên workspace. Ghi audit meeting.speaker_label_assigned và phát speaker_label.updated.",
 		tags:        []string{"meetings"}, sdi: sdi.AssignSpeakerLabelSDI{}, sdo: sdo.SpeakerLabelSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/held", h.RecordMeetingHeld, apiOp{
+		summary: "Record a meeting held in person without a room",
+		description: "Chủ trì hoặc quản trị workspace. Chỉ từ SCHEDULED (khác -> 409 invalid_meeting_state): ghi giờ thực tế, chuyển ENDED, không mở phòng. " +
+			"ended_at phải sau started_at và không ở tương lai, không thì 422 invalid_held_times. Ghi audit meeting.held_recorded, dòng thời gian MEETING_RECORDED_HELD, phát meeting.ended.",
+		tags: []string{"meetings"}, sdi: sdi.RecordMeetingHeldSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/audio-upload-sessions", h.CreateMeetingAudioUpload, apiOp{
+		summary: "Open an upload session for a meeting recording (clerk)",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace; cuộc họp ENDED; cần quyền gói meeting.transcription (403 entitlement_required) và cờ meeting_transcription cùng nhà cung cấp (503 transcription_unavailable). " +
+			"Header Idempotency-Key bắt buộc. Cùng phiên tải chia mảnh với tài liệu (purpose meeting_audio, tối đa 2 GiB): PUT từng phần lên URL đã ký, rồi GET/complete/DELETE qua /upload-sessions/{sessionID}; complete trả upload_id cho POST .../transcriptions. " +
+			"Tệp không phải âm thanh mp3/m4a/wav/ogg/webm -> 415 unsupported_media_type; video/mp4 không nhận.",
+		tags: []string{"meetings"}, sdi: sdi.CreateMeetingAudioUploadSessionSDI{}, sdo: sdo.UploadSessionSDO{}, status: 201, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/transcriptions", h.RequestMeetingTranscription, apiOp{
+		summary: "Queue an uploaded recording for transcription (clerk)",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace; cuộc họp ENDED. consent phải true (422 recording_consent_required). Nhận tệp đã tải vào cuộc họp; tệp đang có lần ghi lời -> 409 transcription_in_progress. " +
+			"Ước số phút từ dung lượng và kiểm trước với phần còn lại của meeting.transcription (trừ các lần đang chờ): không đủ -> 402 quota_exceeded, không nhận việc. Ghi lời chạy nền; xong hoặc lỗi hẳn thì báo người yêu cầu. Ghi audit meeting.transcription_requested, phát transcription.requested.",
+		tags: []string{"meetings"}, sdi: sdi.RequestTranscriptionSDI{}, sdo: sdo.MeetingTranscriptionSDO{}, status: 201, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/transcriptions", h.ListMeetingTranscriptions, apiOp{
+		summary:     "List a meeting's transcriptions",
+		description: "Ai đọc được transcript thì đọc được: mỗi tệp tải lên một lần ghi lời, mới nhất trước, có trạng thái, thời lượng và lỗi.",
+		tags:        []string{"meetings"}, sdo: sdo.MeetingTranscriptionListSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/transcript", h.AppendTranscript, apiOp{
 		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,

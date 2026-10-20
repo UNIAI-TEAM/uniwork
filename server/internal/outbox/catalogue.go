@@ -261,6 +261,12 @@ var catalogue = []EventDef{
 	// A speaker label of the shared microphone appeared or was assigned
 	// (UNI-2024); the labels and the transcript's speaker names refetch.
 	{Topic: "speaker_label.updated", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// An uploaded recording was queued, transcribed or failed for good
+	// (UNI-2001): the meeting's transcriptions, transcript and speaker
+	// labels refetch; the requester is notified on the last two.
+	{Topic: "transcription.requested", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "transcription.completed", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "transcription.failed", Version: 1, Payload: []string{"meeting_id", "transcription_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	// The AI summary is written with its audit row in one transaction and
 	// announced from the outbox (UNI-1853): a host who missed the frame would

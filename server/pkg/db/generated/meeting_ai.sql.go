@@ -472,15 +472,20 @@ SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at
 WHERE meeting_id = $1
   AND spoken_at <= $2::timestamptz
   AND (spoken_at, id) < ($2::timestamptz, $3::text)
+  AND (CASE WHEN $4::bool
+    THEN source = 'AGENT' OR transcription_id = ANY($5::text[])
+    ELSE source = 'CAPTION' END)
 ORDER BY spoken_at DESC, id DESC
-LIMIT $4
+LIMIT $6
 `
 
 type ListTranscriptSegmentsBeforeParams struct {
-	MeetingID string             `json:"meeting_id"`
-	BeforeAt  pgtype.Timestamptz `json:"before_at"`
-	BeforeID  string             `json:"before_id"`
-	RowLimit  int32              `json:"row_limit"`
+	MeetingID        string             `json:"meeting_id"`
+	BeforeAt         pgtype.Timestamptz `json:"before_at"`
+	BeforeID         string             `json:"before_id"`
+	Rich             bool               `json:"rich"`
+	TranscriptionIds []string           `json:"transcription_ids"`
+	RowLimit         int32              `json:"row_limit"`
 }
 
 // tenant: parent meeting_id
@@ -491,6 +496,8 @@ func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTran
 		arg.MeetingID,
 		arg.BeforeAt,
 		arg.BeforeID,
+		arg.Rich,
+		arg.TranscriptionIds,
 		arg.RowLimit,
 	)
 	if err != nil {
@@ -530,21 +537,32 @@ func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTran
 const listTranscriptSegmentsCreatedSince = `-- name: ListTranscriptSegmentsCreatedSince :many
 SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
 WHERE meeting_id = $1 AND created_at >= $2::timestamptz
+  AND (CASE WHEN $3::bool
+    THEN source = 'AGENT' OR transcription_id = ANY($4::text[])
+    ELSE source = 'CAPTION' END)
 ORDER BY created_at ASC, id ASC
-LIMIT $3
+LIMIT $5
 `
 
 type ListTranscriptSegmentsCreatedSinceParams struct {
-	MeetingID string             `json:"meeting_id"`
-	Since     pgtype.Timestamptz `json:"since"`
-	RowLimit  int32              `json:"row_limit"`
+	MeetingID        string             `json:"meeting_id"`
+	Since            pgtype.Timestamptz `json:"since"`
+	Rich             bool               `json:"rich"`
+	TranscriptionIds []string           `json:"transcription_ids"`
+	RowLimit         int32              `json:"row_limit"`
 }
 
 // tenant: parent meeting_id
 // Delta read keyed on created_at, not spoken_at: spoken_at comes from the
 // caption client or the STT agent and can land behind rows already read.
 func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg ListTranscriptSegmentsCreatedSinceParams) ([]MeetingTranscriptSegment, error) {
-	rows, err := q.db.Query(ctx, listTranscriptSegmentsCreatedSince, arg.MeetingID, arg.Since, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsCreatedSince,
+		arg.MeetingID,
+		arg.Since,
+		arg.Rich,
+		arg.TranscriptionIds,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -580,18 +598,32 @@ func (q *Queries) ListTranscriptSegmentsCreatedSince(ctx context.Context, arg Li
 }
 
 const listTranscriptSegmentsLatest = `-- name: ListTranscriptSegmentsLatest :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments WHERE meeting_id = $1 ORDER BY spoken_at DESC, id DESC LIMIT $2
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
+WHERE meeting_id = $1
+  AND (CASE WHEN $2::bool
+    THEN source = 'AGENT' OR transcription_id = ANY($3::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at DESC, id DESC LIMIT $4
 `
 
 type ListTranscriptSegmentsLatestParams struct {
-	MeetingID string `json:"meeting_id"`
-	Limit     int32  `json:"limit"`
+	MeetingID        string   `json:"meeting_id"`
+	Rich             bool     `json:"rich"`
+	TranscriptionIds []string `json:"transcription_ids"`
+	RowLimit         int32    `json:"row_limit"`
 }
 
 // tenant: parent meeting_id
-// Newest first; callers reverse the page into reading order (G18).
+// Newest first; callers reverse the page into reading order (G18). The
+// source rule (parent spec §7.3, TranscriptSources) rides on every page:
+// rich = the scribe's lines plus the given transcriptions, else captions.
 func (q *Queries) ListTranscriptSegmentsLatest(ctx context.Context, arg ListTranscriptSegmentsLatestParams) ([]MeetingTranscriptSegment, error) {
-	rows, err := q.db.Query(ctx, listTranscriptSegmentsLatest, arg.MeetingID, arg.Limit)
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsLatest,
+		arg.MeetingID,
+		arg.Rich,
+		arg.TranscriptionIds,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

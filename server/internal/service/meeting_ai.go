@@ -121,11 +121,17 @@ func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID s
 		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
 	limit := q.limit()
+	src, err := s.q.TranscriptSources(ctx, meetingID)
+	if err != nil {
+		return FeedPage[db.MeetingTranscriptSegment]{}, err
+	}
+	rich := src.HasAgent || len(src.TranscriptionIds) > 0
 	switch {
 	case q.After != "":
 		at, _, _ := decodeFeedCursor(q.After)
 		rows, err := s.q.ListTranscriptSegmentsCreatedSince(ctx, db.ListTranscriptSegmentsCreatedSinceParams{
 			MeetingID: meetingID, Since: pgtype.Timestamptz{Time: at.Add(-feedDeltaOverlap), Valid: true}, RowLimit: int32(limit + 1),
+			Rich: rich, TranscriptionIds: src.TranscriptionIds,
 		})
 		if err != nil {
 			return FeedPage[db.MeetingTranscriptSegment]{}, err
@@ -135,13 +141,16 @@ func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID s
 		at, id, _ := decodeFeedCursor(q.Before)
 		rows, err := s.q.ListTranscriptSegmentsBefore(ctx, db.ListTranscriptSegmentsBeforeParams{
 			MeetingID: meetingID, BeforeAt: pgtype.Timestamptz{Time: at, Valid: true}, BeforeID: id, RowLimit: int32(limit + 1),
+			Rich: rich, TranscriptionIds: src.TranscriptionIds,
 		})
 		if err != nil {
 			return FeedPage[db.MeetingTranscriptSegment]{}, err
 		}
 		return pageFromNewest(rows, limit, transcriptFeedKeys, false), nil
 	}
-	rows, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: int32(limit + 1)})
+	rows, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{
+		MeetingID: meetingID, RowLimit: int32(limit + 1), Rich: rich, TranscriptionIds: src.TranscriptionIds,
+	})
 	if err != nil {
 		return FeedPage[db.MeetingTranscriptSegment]{}, err
 	}
@@ -176,7 +185,7 @@ func (s *MeetingService) SummaryAvailable(ctx context.Context, orgID string) boo
 
 // MeetingCapabilities is what the meeting screens of one workspace may offer.
 type MeetingCapabilities struct {
-	AISummary, Recording, Scribe bool
+	AISummary, Recording, Scribe, Transcription bool
 }
 
 // Capabilities answers GET /workspaces/{id}/meeting-capabilities. The route
@@ -192,7 +201,7 @@ func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID s
 	}
 	return MeetingCapabilities{
 		AISummary: s.SummaryAvailable(ctx, mem.OrganizationID), Recording: s.RecordingEnabled(ctx),
-		Scribe: s.ScribeAvailable(ctx, mem.OrganizationID),
+		Scribe: s.ScribeAvailable(ctx, mem.OrganizationID), Transcription: s.TranscriptionAvailable(ctx, mem.OrganizationID),
 	}, nil
 }
 
@@ -234,8 +243,14 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	var closed []db.MeetingMotion
 	g, gctx := errgroup.WithContext(runCtx)
 	g.Go(func() error {
-		var err error
-		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: int32(budget.rows)})
+		src, err := s.q.TranscriptSources(gctx, meetingID)
+		if err != nil {
+			return err
+		}
+		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{
+			MeetingID: meetingID, RowLimit: int32(budget.rows),
+			Rich: src.HasAgent || len(src.TranscriptionIds) > 0, TranscriptionIds: src.TranscriptionIds,
+		})
 		slices.Reverse(segs)
 		return err
 	})
