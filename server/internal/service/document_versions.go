@@ -79,66 +79,8 @@ func (s *DocumentService) CreateDocumentVersion(ctx context.Context, actor Actor
 			out, err = replayedVersion(ctx, q, doc, replay.Body)
 			return err
 		}
-		// The row holds jsonb's own spelling of the content; the version
-		// stores (and size_bytes measures) the sanitizer's, like
-		// content_bytes does.
-		raw := doc.Content
-		if len(raw) == 0 {
-			raw = emptyPageContent
-		}
-		content, _, err := document.Sanitize(raw)
+		v, err := s.insertManualPageVersion(ctx, q, actor, doc, label)
 		if err != nil {
-			return documentServiceError(err)
-		}
-		latest, err := q.GetLatestDocumentVersion(ctx, db.GetLatestDocumentVersionParams{
-			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
-		})
-		switch {
-		case err == nil:
-			if latest.Kind == DocumentKindPage && sameJSON(latest.Content, content) {
-				return errDocumentVersionUnchanged()
-			}
-		case errors.Is(err, pgx.ErrNoRows):
-		default:
-			return err
-		}
-		if err := s.consumePageBytes(ctx, q, actor, doc, int64(len(content))); err != nil {
-			return err
-		}
-		v, err := q.InsertDocumentVersion(ctx, db.InsertDocumentVersionParams{
-			ID:             util.NewID(),
-			OrganizationID: doc.OrganizationID,
-			WorkspaceID:    doc.WorkspaceID,
-			DocumentID:     doc.ID,
-			Version:        doc.CurrentVersion + 1,
-			Kind:           DocumentKindPage,
-			Reason:         "manual",
-			Label:          pgtype.Text{String: label, Valid: label != ""},
-			Content:        content,
-			SizeBytes:      int64(len(content)),
-			CreatedBy:      actor.ID,
-			CreatedByKind:  string(actor.Kind),
-		})
-		if err != nil {
-			return err
-		}
-		if _, err := q.MarkDocumentVersioned(ctx, db.MarkDocumentVersionedParams{
-			CurrentVersion: v.Version, ID: doc.ID, OrganizationID: doc.OrganizationID,
-			WorkspaceID: doc.WorkspaceID, ExpectedVersion: doc.CurrentVersion,
-		}); err != nil {
-			return err
-		}
-		if err := auditRecorder.Record(ctx, q, audit.Entry{
-			OrganizationID: doc.OrganizationID,
-			WorkspaceID:    doc.WorkspaceID,
-			Actor:          actor,
-			Action:         audit.ActionDocumentVersionCreated,
-			ResourceType:   "document",
-			ResourceID:     doc.ID,
-			Changes: audit.Diff(nil, map[string]any{
-				"version": v.Version, "version_id": v.ID, "reason": v.Reason, "size_bytes": v.SizeBytes,
-			}),
-		}, versionCreatedEvent(doc, v)); err != nil {
 			return err
 		}
 		if err := storeVersionReplay(commit, http.StatusCreated, v); err != nil {
@@ -148,6 +90,75 @@ func (s *DocumentService) CreateDocumentVersion(ctx context.Context, actor Actor
 		return nil
 	})
 	return out, err
+}
+
+// insertManualPageVersion snapshots a locked page's working copy as a manual
+// version, in the caller's transaction. Nothing changed since the latest
+// version -> document_version_unchanged.
+func (s *DocumentService) insertManualPageVersion(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, label string) (db.DocumentVersion, error) {
+	// The row holds jsonb's own spelling of the content; the version
+	// stores (and size_bytes measures) the sanitizer's, like
+	// content_bytes does.
+	raw := doc.Content
+	if len(raw) == 0 {
+		raw = emptyPageContent
+	}
+	content, _, err := document.Sanitize(raw)
+	if err != nil {
+		return db.DocumentVersion{}, documentServiceError(err)
+	}
+	latest, err := q.GetLatestDocumentVersion(ctx, db.GetLatestDocumentVersionParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	switch {
+	case err == nil:
+		if latest.Kind == DocumentKindPage && sameJSON(latest.Content, content) {
+			return db.DocumentVersion{}, errDocumentVersionUnchanged()
+		}
+	case errors.Is(err, pgx.ErrNoRows):
+	default:
+		return db.DocumentVersion{}, err
+	}
+	if err := s.consumePageBytes(ctx, q, actor, doc, int64(len(content))); err != nil {
+		return db.DocumentVersion{}, err
+	}
+	v, err := q.InsertDocumentVersion(ctx, db.InsertDocumentVersionParams{
+		ID:             util.NewID(),
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		DocumentID:     doc.ID,
+		Version:        doc.CurrentVersion + 1,
+		Kind:           DocumentKindPage,
+		Reason:         "manual",
+		Label:          pgtype.Text{String: label, Valid: label != ""},
+		Content:        content,
+		SizeBytes:      int64(len(content)),
+		CreatedBy:      actor.ID,
+		CreatedByKind:  string(actor.Kind),
+	})
+	if err != nil {
+		return db.DocumentVersion{}, err
+	}
+	if _, err := q.MarkDocumentVersioned(ctx, db.MarkDocumentVersionedParams{
+		CurrentVersion: v.Version, ID: doc.ID, OrganizationID: doc.OrganizationID,
+		WorkspaceID: doc.WorkspaceID, ExpectedVersion: doc.CurrentVersion,
+	}); err != nil {
+		return db.DocumentVersion{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Actor:          actor,
+		Action:         audit.ActionDocumentVersionCreated,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		Changes: audit.Diff(nil, map[string]any{
+			"version": v.Version, "version_id": v.ID, "reason": v.Reason, "size_bytes": v.SizeBytes,
+		}),
+	}, versionCreatedEvent(doc, v)); err != nil {
+		return db.DocumentVersion{}, err
+	}
+	return v, nil
 }
 
 func versionCreatedEvent(doc db.Document, v db.DocumentVersion) audit.Event {

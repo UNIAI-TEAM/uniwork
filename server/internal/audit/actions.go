@@ -296,6 +296,14 @@ const (
 	ActionMeetingActionItemDismissed  = "meeting.action_item_dismissed"
 	ActionMeetingActionItemRestored   = "meeting.action_item_restored"
 
+	// The minutes of a meeting (UNI-2003): a clerk made the minutes page
+	// (MeetingService.CreateMinutes, metadata document_id), finalized it as a
+	// document version (FinalizeMinutes, metadata version_id) or reopened it
+	// (ReopenMinutes; the version stays in the page's history).
+	ActionMeetingMinutesCreated   = "meeting.minutes_created"
+	ActionMeetingMinutesFinalized = "meeting.minutes_finalized"
+	ActionMeetingMinutesReopened  = "meeting.minutes_reopened"
+
 	// A clerk generated the meeting's AI summary (MeetingService.Summarize);
 	// metadata names the summary, the usage row that paid for it, and what
 	// became of the meeting's action items: replaced_pending, kept,

@@ -126,6 +126,9 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `join_request.canceled` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
 | `join_request.created` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
 | `join_request.rejected` | 1 | `meeting_id`, `join_request_id`, `version` | — | meeting | outbox |
+| `minutes.created` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
+| `minutes.finalized` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
+| `minutes.reopened` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
 | `meeting.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.deleted` | 1 | `meeting_id`, `version` | — | workspace | outbox |

@@ -1639,6 +1639,25 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2003: a clerk makes the minutes, finalizes them, reopens them.
+		audit.ActionMeetingMinutesCreated: func(t *testing.T, f *auditFixture) {
+			auditMeetingWithMinutes(t, f)
+		},
+		audit.ActionMeetingMinutesFinalized: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithMinutes(t, f)
+			if _, err := svc.FinalizeMinutes(f.ctx, f.owner.ID, m.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingMinutesReopened: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithMinutes(t, f)
+			if _, err := svc.FinalizeMinutes(f.ctx, f.owner.ID, m.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ReopenMinutes(f.ctx, f.owner.ID, m.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1132: the owner connects a mailbox.
 		audit.ActionEmailHubAccountConnected: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -1934,6 +1953,9 @@ func auditActions() []string {
 		audit.ActionMeetingActionItemCreated,
 		audit.ActionMeetingActionItemDismissed,
 		audit.ActionMeetingActionItemRestored,
+		audit.ActionMeetingMinutesCreated,
+		audit.ActionMeetingMinutesFinalized,
+		audit.ActionMeetingMinutesReopened,
 		audit.ActionMeetingSummaryCreated,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
@@ -2422,5 +2444,19 @@ func auditMeetingWithItems(t *testing.T, f *auditFixture, titles ...string) (*Me
 		items = append(items, ai.ActionItem{Title: title})
 	}
 	seedSummary(t, svc, m, f.owner.ID, items...)
+	return svc, m
+}
+
+// auditMeetingWithMinutes is an ended meeting of the owner's with its minutes made.
+func auditMeetingWithMinutes(t *testing.T, f *auditFixture) (*MeetingService, db.Meeting) {
+	t.Helper()
+	svc, m := auditMeetingWithItems(t, f)
+	svc.Docs = NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+	if _, err := svc.End(f.ctx, f.owner.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateMinutes(f.ctx, f.owner.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
 	return svc, m
 }

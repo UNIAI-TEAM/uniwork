@@ -96,6 +96,9 @@ type MeetingService struct {
 	Tasks *TaskService
 	// Chat receives LiveKit recording webhooks that do not match a meeting egress.
 	Chat *ChatService
+	// Docs makes and versions the minutes page (UNI-2003); nil reports the
+	// minutes as unavailable.
+	Docs *DocumentService
 	// ent is the entitlement gate (F-02); built here so it can never be nil.
 	ent *EntitlementService
 	// files is the shared FileService, optional: with it wired, note-author
