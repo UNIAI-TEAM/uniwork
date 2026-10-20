@@ -284,6 +284,6 @@ test("inside the UniChat shell the card offers no Office entry and opens its pag
   // The document page leaves the shell for the browser; the shell stays on chat.
   await expect
     .poll(() => page.evaluate(() => window.__uniChat.external))
-    .toEqual([expect.stringMatching(new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents/[^/?]+\?panel=versions$`))]);
-  await expect(page).toHaveURL(new RegExp(`${chatPath}\?room=${roomId}`));
+    .toEqual([expect.stringMatching(new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents/[^/?]+\\?panel=versions$`))]);
+  await expect(page).toHaveURL(new RegExp(`${chatPath}\\?room=${roomId}`));
 });
