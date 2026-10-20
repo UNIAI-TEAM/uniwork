@@ -85,7 +85,7 @@ LEFT JOIN users eu
  AND d.updated_by_kind = 'human'
  AND sqlc.narg(sort_key)::text = 'editor'
 CROSS JOIN LATERAL (SELECT
-    COALESCE(CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
@@ -320,7 +320,7 @@ LEFT JOIN users eu
  AND d.updated_by_kind = 'human'
  AND sqlc.narg(sort_key)::text = 'editor'
 CROSS JOIN LATERAL (SELECT
-    COALESCE(CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
@@ -892,7 +892,7 @@ LEFT JOIN users eu
  AND d.updated_by_kind = 'human'
  AND sqlc.narg(sort_key)::text = 'editor'
 CROSS JOIN LATERAL (SELECT
-    COALESCE(CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null

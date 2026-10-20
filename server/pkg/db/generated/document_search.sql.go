@@ -422,7 +422,7 @@ LEFT JOIN users eu
  AND d.updated_by_kind = 'human'
  AND $1::text = 'editor'
 CROSS JOIN LATERAL (SELECT
-    COALESCE(CASE WHEN $1::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN $1::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN $1::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN $1::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
     (CASE WHEN $1::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
@@ -832,7 +832,7 @@ LEFT JOIN users eu
  AND d.updated_by_kind = 'human'
  AND $5::text = 'editor'
 CROSS JOIN LATERAL (SELECT
-    COALESCE(CASE WHEN $5::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN $5::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN $5::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN $5::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
     (CASE WHEN $5::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
@@ -1305,7 +1305,7 @@ LEFT JOIN users eu
  AND d.updated_by_kind = 'human'
  AND $1::text = 'editor'
 CROSS JOIN LATERAL (SELECT
-    COALESCE(CASE WHEN $1::text = 'name' THEN d.title COLLATE "vi-x-icu" END, '')::text AS name_key,
+    (CASE WHEN $1::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN $1::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN $1::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
     (CASE WHEN $1::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
