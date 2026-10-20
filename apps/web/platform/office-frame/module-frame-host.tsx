@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { paths } from "@uniwork/core/paths";
 import type { Document } from "@uniwork/core/types/document";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { launchCommentId } from "@uniwork/core/office";
+import { currentVersionHref, parseVersionParam } from "@uniwork/core/office/version-view";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { useReportFrameComments } from "@uniwork/views/documents";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
@@ -30,14 +32,23 @@ type ModuleHostProps = OfficeEditorHostProps & { module: OfficeModule };
 function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; desktopOpen: FrameDesktopOpenProps }) {
   const { module, document, wsId, readonly, className, frameVersion, desktopOpen } = props;
   const { workspace } = useWorkspace();
-  const { push, searchParams } = useNavigation();
+  const { push, replace, pathname, searchParams } = useNavigation();
+  // `?version=N` opens that stored version read-only (UNI-2033); anything but a positive integer is ignored.
+  const viewVersion = parseVersionParam(searchParams.get("version"));
+  const commentParam = searchParams.get("comment");
+  // The comment the Inbox landing has already been spent on. It lives here, not in the frame: the frame
+  // remounts (`key`) when a version view starts or ends, and a fresh hook would land on the same comment again.
+  const landedOn = useRef<string | null>(null);
+  useEffect(() => { if (viewVersion !== null) landedOn.current = commentParam; }, [viewVersion, commentParam]);
   const reportFrameComments = useReportFrameComments();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
     <OfficeModuleFrame
+      // A booted iframe cannot be initialised twice: entering or leaving a version view mounts a fresh frame.
+      key={viewVersion ?? "current"}
       module={module}
       wsId={wsId}
-      fileRef={{ kind: "document", id: document.id }}
+      fileRef={{ kind: "document", id: document.id, ...(viewVersion !== null ? { version: viewVersion } : {}) }}
       title={document.title}
       frameVersion={frameVersion}
       readonly={readonly}
@@ -48,7 +59,11 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
       // An unnamed blank's first save asks for its name on the page (UNI-1847, SAVE-01).
       documentDetail={document}
       // A comment deep link (?comment=<id>): the editor's panel reveals it when it has comments.
-      revealCommentId={searchParams.get("comment")}
+      revealCommentId={commentParam}
+      // Once per page open and comment: after a version view the same `?comment=` on head stays on head.
+      landOnLost={commentParam !== landedOn.current}
+      // The way back from a version view: the same page without `version`, the comment kept.
+      onBackToCurrent={viewVersion !== null ? () => replace(currentVersionHref(pathname, commentParam)) : undefined}
       // A frame that serves comments is the page's one comments panel: the page hides its own.
       onFrameCommentsChange={reportFrameComments}
       desktopOpen={desktopOpen}
@@ -81,12 +96,13 @@ async function downloadFile(document: Document) {
 export function OfficeModuleHost(props: ModuleHostProps) {
   const { module, document, readonly } = props;
   const { searchParams } = useNavigation();
+  const viewVersion = parseVersionParam(searchParams.get("version"));
   // A `?comment=` link hands its comment to the app too, so "Open in UniWork Office" lands on the thread.
   const desktopOpen = { ...useFrameDesktopOpen(document), commentId: launchCommentId(searchParams.get("comment")) };
   const frameVersion = pinnedFrameVersion(module);
   const actions = {
     desktopAction: desktopOpenAllowed({ open: true, readonly })
-      ? <DesktopOpenAction {...desktopOpen} documentId={document.id} placement="inline" />
+      ? <DesktopOpenAction {...desktopOpen} documentId={document.id} placement="inline" version={viewVersion ?? undefined} />
       : null,
     onDownload: () => downloadFile(document),
   };

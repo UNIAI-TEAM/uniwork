@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { DocumentComment } from "@uniwork/core/types/document";
+import { NavigationProvider } from "../navigation";
+import { fakeNav } from "../test/api-mock";
 import { DocumentCommentThread, type ThreadContext } from "./document-comment-thread";
 import { K } from "./document-comments-keys";
 
@@ -110,5 +112,37 @@ describe("DocumentCommentThread layout and history (UNI-1970)", () => {
       const cardish = el.className.split(" ").filter((c) => /^(border|border-t|bg-card)$|^rounded/.test(c));
       expect(cardish).toEqual([]);
     }
+  });
+});
+
+// UNI-2033: a lost comment says so in words and, when its version is known, links to it.
+describe("DocumentCommentThread: view a lost comment's version (UNI-2033)", () => {
+  const lostRoot = (over: Partial<DocumentComment> = {}) => root({ kind: "comment", type: "comment", anchor_state: "lost", anchor_version_no: 2, anchor_version_id: "v2", ...over });
+  const renderThread = (rootRow: DocumentComment, ctx: ThreadContext) =>
+    render(
+      <NavigationProvider value={fakeNav()}>
+        <DocumentCommentThread thread={{ root: rootRow, replies: [] }} ctx={ctx} onFocusHandled={() => {}} />
+      </NavigationProvider>,
+    );
+  const target = { versionNo: 2, href: "/acme/ops/documents/d1?version=2&comment=c1" };
+
+  it("shows the new lost label and 'Xem ở phiên bản N' as a link to ?version=N&comment=<id>", () => {
+    renderThread(lostRoot(), ctxWithoutDoc({ versionView: () => target }));
+    expect(screen.getByTestId("document-thread-c1")).toHaveTextContent("Đoạn được bình luận không còn trong bản hiện tại");
+    const link = screen.getByRole("link", { name: "Xem ở phiên bản 2" });
+    expect(link).toHaveAttribute("href", "/acme/ops/documents/d1?version=2&comment=c1");
+  });
+
+  it("shows the label without a link when the host gives no target (number unknown, or the head version)", () => {
+    renderThread(lostRoot(), ctxWithoutDoc({ versionView: () => null }));
+    expect(screen.getByTestId("document-thread-c1")).toHaveTextContent("Đoạn được bình luận không còn trong bản hiện tại");
+    expect(screen.queryByRole("link", { name: /Xem ở phiên bản/ })).toBeNull();
+    renderThread(lostRoot({ id: "c2" }), ctxWithoutDoc());
+    expect(screen.queryByRole("link", { name: /Xem ở phiên bản/ })).toBeNull();
+  });
+
+  it("offers it on lost roots only", () => {
+    renderThread(lostRoot({ anchor_state: "stale" }), ctxWithoutDoc({ versionView: () => target }));
+    expect(screen.queryByRole("link", { name: /Xem ở phiên bản/ })).toBeNull();
   });
 });

@@ -34,7 +34,9 @@ export const DocumentCommentSchema = z.object({
   kind: z.string().optional().default("discussion"),
   anchor: DocumentCommentAnchorSchema.nullish().transform((v) => v ?? null),
   anchor_version_id: z.string().nullish(),
-  anchor_version_no: z.number().nullable().optional(),
+  // The ordinal of `anchor_version_id` (UNI-2033): the version the kept anchor was last confirmed on.
+  // Null when no anchor or the version row is gone; a drifted value reads as absent.
+  anchor_version_no: z.number().int().positive().nullish().catch(undefined),
   anchor_state: z.string().nullish(),
   deleted_at: z.string().nullish(),
   deleted_by_id: z.string().nullish(),
