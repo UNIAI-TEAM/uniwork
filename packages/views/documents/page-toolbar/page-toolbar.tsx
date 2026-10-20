@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { Ellipsis } from "lucide-react";
@@ -10,6 +10,7 @@ import { Separator } from "@uniwork/ui/components/ui/separator";
 import { TooltipProvider } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { LinkEditBar } from "../../editor/bubble-menu-controls";
+import { PAGE_LINK_REQUEST_EVENT } from "../../editor/extensions/page-events";
 import { focusOnKeyboardOpen, menuArrowKeys } from "./menu-keys";
 import { PageHelpPopover } from "./page-help-popover";
 import { PageStyleMenu } from "./page-style-menu";
@@ -59,10 +60,15 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
     if (!open) linkClosedAt.current = Date.now();
     setLinkOpen(open);
   }, []);
-  const context: ToolContext = {
-    chooseImage,
-    openLink: () => { if (Date.now() - linkClosedAt.current > 250) setLinkOpen(true); },
-  };
+  const openLink = useCallback(() => { if (Date.now() - linkClosedAt.current > 250) setLinkOpen(true); }, []);
+  const context: ToolContext = { chooseImage, openLink };
+  // Ctrl/Cmd+K inside the editor (Word's insert link) opens the same popover as the button.
+  useEffect(() => {
+    if (editor.isDestroyed) return;
+    const dom = editor.view.dom;
+    dom.addEventListener(PAGE_LINK_REQUEST_EVENT, openLink);
+    return () => dom.removeEventListener(PAGE_LINK_REQUEST_EVENT, openLink);
+  }, [editor, openLink]);
   const run = (tool: ToolbarTool) => {
     setMoreOpen(false);
     tool.run(editor, context);

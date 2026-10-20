@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { configureShortcutPlatform, formatShortcut } from "@uniwork/core/shortcuts";
+import { pageShortcutChords } from "../../editor/extensions/page-shortcuts";
 import { wrap } from "../../test/api-mock";
 import { PageFirstUseHint, PAGE_HINT_STORAGE_KEY } from "./page-first-use-hint";
 import { helpSections, PageHelpPopover } from "./page-help-popover";
@@ -64,13 +66,15 @@ describe("PageFirstUseHint", () => {
 });
 
 describe("PageHelpPopover", () => {
-  it("lists the three groups of shortcuts and the Mac note", () => {
+  afterEach(() => configureShortcutPlatform(null));
+
+  it("lists the groups of shortcuts and the Mac note", () => {
     render(wrap(<PageHelpPopover open onOpenChange={vi.fn()} tabIndex={0} onFocus={vi.fn()} />));
     const dialog = screen.getByRole("dialog", { name: k("help.title") });
     expect(within(dialog).getAllByRole("heading", { level: 3 }).map((node) => node.textContent))
-      .toEqual([k("help.quick"), k("help.line"), k("help.keys")]);
+      .toEqual([k("help.quick"), k("help.line"), k("help.keys"), k("help.blocks")]);
     for (const section of helpSections(t)) {
-      for (const row of section.rows) expect(within(dialog).getByText(row.what)).toBeInTheDocument();
+      for (const row of section.rows) expect(within(dialog).getAllByText(row.what).length).toBeGreaterThan(0);
     }
     for (const typed of ["/", "@", "#", "##", "###", "-", "1.", "[ ]", ">", "```", "---"]) {
       expect(within(dialog).getAllByText(typed).length).toBeGreaterThan(0);
@@ -78,9 +82,24 @@ describe("PageHelpPopover", () => {
     expect(dialog).toHaveTextContent(k("help.note"));
   });
 
-  it("never advertises Ctrl+K, which is the app search", () => {
+  it.each(["windows", "macos"] as const)("%s: lists every key of the page shortcut table, Word's key first", (platform) => {
+    configureShortcutPlatform(platform);
     render(wrap(<PageHelpPopover open onOpenChange={vi.fn()} tabIndex={0} onFocus={vi.fn()} />));
-    expect(screen.getByRole("dialog", { name: k("help.title") }).querySelector('[data-shortcut-key="K"], [aria-label$="+K"]')).toBeNull();
+    const dialog = screen.getByRole("dialog", { name: k("help.title") });
+    const shown = (id: string, platformId: "windows" | "macos") => pageShortcutChords(id as never, platformId).map((chord) => formatShortcut(chord, platformId));
+    const blocks = within(dialog).getByRole("region", { name: k("help.blocks") });
+    const rowKeys = (what: string, scope: HTMLElement = dialog) =>
+      within(within(scope).getByText(what).parentElement!).getAllByRole("img").map((node) => node.getAttribute("aria-label"));
+    expect(rowKeys(k("help.keys_save"))).toEqual(shown("save", platform));
+    expect(rowKeys(k("help.keys_redo"))).toEqual(shown("redo", platform));
+    expect(rowKeys(k("help.keys_link"))).toEqual(shown("link", platform));
+    expect(rowKeys(k("help.keys_strike"))).toEqual(shown("strike", platform));
+    expect(rowKeys(k("help.keys_bullet"), blocks)).toEqual(shown("bulletList", platform));
+    expect(rowKeys(k("help.keys_format"))).toEqual(["bold", "italic", "underline"].map((id) => shown(id, platform)[0]));
+    if (platform === "windows") expect(rowKeys(k("help.keys_clear"))).toEqual(["Ctrl+Space"]);
+    // Control+Space switches the input source on macOS: no clear-formatting key, so no row.
+    else expect(within(dialog).queryByText(k("help.keys_clear"))).not.toBeInTheDocument();
+    expect(shown("link", "windows")).toEqual(["Ctrl+K"]);
   });
 
   it("closes from its own button", () => {

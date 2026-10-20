@@ -4,7 +4,9 @@ import { Plugin } from "@tiptap/pm/state";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { formatShortcut } from "@uniwork/core/shortcuts";
 import { createPageDocumentExtensions } from "../../editor/extensions";
+import { pageShortcutChords } from "../../editor/extensions/page-shortcuts";
 import { wrap } from "../../test/api-mock";
 import { PageToolbar } from "./page-toolbar";
 import { TOOL_GROUPS } from "./page-toolbar-model";
@@ -120,6 +122,33 @@ describe("PageToolbar", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(instance.isActive("link", { href: "https://example.com" })).toBe(true);
     await waitFor(() => expect(button("link")).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("Ctrl+K typed in the editor opens the link popover, like the button", async () => {
+    const instance = mount();
+    renderToolbar(instance);
+    expect(screen.queryByRole("textbox", { name: t("editor.bubble_menu.url_aria_label") })).not.toBeInTheDocument();
+    const event = new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true });
+    expect(instance.view.dom.dispatchEvent(event)).toBe(false);
+    const input = await screen.findByRole("textbox", { name: t("editor.bubble_menu.url_aria_label") });
+    fireEvent.change(input, { target: { value: "example.com" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(instance.isActive("link", { href: "https://example.com" })).toBe(true);
+  });
+
+  it("hints Word's key first on each tool: Ctrl+Y redo, Ctrl+K link, Ctrl+Shift+L bullets, Cmd+Shift+X strike on Mac", () => {
+    const first = (id: string, platform: "windows" | "macos") => {
+      const tool = TOOL_GROUPS.flat().find((candidate) => candidate.id === id)!;
+      return formatShortcut(pageShortcutChords(tool.shortcutId!, platform)[0]!, platform);
+    };
+    expect(first("redo", "windows")).toBe("Ctrl+Y");
+    expect(first("link", "windows")).toBe("Ctrl+K");
+    expect(first("bulletList", "windows")).toBe("Ctrl+Shift+L");
+    expect(first("strikethrough", "windows")).toBe("Ctrl+Shift+S");
+    expect(first("strikethrough", "macos")).toBe("⌘⇧X");
+    for (const tool of TOOL_GROUPS.flat().filter((candidate) => candidate.shortcutId)) {
+      for (const platform of ["windows", "macos"] as const) expect(pageShortcutChords(tool.shortcutId!, platform).length, `${tool.id} ${platform}`).toBeGreaterThan(0);
+    }
   });
 
   it("the style menu names the block under the caret and switches it", async () => {
