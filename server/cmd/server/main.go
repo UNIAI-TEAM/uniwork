@@ -608,6 +608,9 @@ func main() {
 	// out; it stops with runCancel and is awaited below.
 	officeDone := make(chan struct{})
 	go func() { officeSvc.RunReconciler(runCtx); close(officeDone) }()
+	officeSpoolSweep := officeSvc.NewSpoolSweeper()
+	officeSpoolSweepDone := make(chan struct{})
+	go func() { officeSpoolSweep.Run(runCtx); close(officeSpoolSweepDone) }()
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -900,6 +903,11 @@ func main() {
 	case <-officeDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("office: reconciler did not stop in time")
+	}
+	select {
+	case <-officeSpoolSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("office: spool sweep did not stop in time")
 	}
 	select {
 	case <-billingWorkersDone:

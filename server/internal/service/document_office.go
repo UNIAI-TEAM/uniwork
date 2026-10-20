@@ -544,7 +544,7 @@ func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope,
 		return in, nil
 	}
 	defer r.Close()
-	spool, err := os.CreateTemp("", "office-base-*")
+	spool, err := os.CreateTemp("", officeSpoolPrefix+"*")
 	if err != nil {
 		return officeInput{}, err
 	}
