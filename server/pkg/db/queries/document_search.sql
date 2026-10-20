@@ -977,18 +977,52 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                        AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
 ORDER BY d.position, d.id;
 
--- "Recent": documents the actor touched (access log) or last edited
--- (updated_by), permission-filtered, newest first.
+-- "Recent": documents the actor touched - opened (an access-log row of theirs),
+-- edited (updated_by) or commented (a comment of theirs) - permission-filtered.
+-- UNI-2045 SV-1: every row carries the caller's last activity (kind + time, the
+-- latest of the three) and sort=activity orders by it; activity=opened|edited
+-- keeps the rows the caller opened / edited.
 -- name: ListRecentDocumentsPage :many
 SELECT sqlc.embed(d),
        sk.name_key AS sort_name, sk.size_key AS sort_size,
-       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
+       sk.ts_key AS sort_at, act.kind AS activity_kind, act.last_at AS activity_at
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
+-- The caller's own activity on the row: the last access-log row (any action of
+-- a person's own read), their edit (updated_by = them, at updated_at; there is
+-- no per-edit history, versions are snapshots) and their last live comment. The
+-- two aggregates read the caller's own rows once instead of probing every
+-- document (a probe per row cost seconds on a 10k-document workspace).
+LEFT JOIN (
+  SELECT a.document_id, max(a.occurred_at) AS seen_at
+  FROM document_access_logs a
+  WHERE a.organization_id = sqlc.arg(organization_id)
+    AND a.workspace_id = sqlc.arg(workspace_id)
+    AND a.actor_id = sqlc.arg(actor_id)::text
+  GROUP BY a.document_id
+) op ON op.document_id = d.id
+LEFT JOIN (
+  SELECT c.document_id, max(c.created_at) AS said_at
+  FROM document_comments c
+  WHERE c.organization_id = sqlc.arg(organization_id)
+    AND c.workspace_id = sqlc.arg(workspace_id)
+    AND c.author_id = sqlc.arg(actor_id)::text
+    AND c.author_kind = 'human'
+    AND c.deleted_at IS NULL
+  GROUP BY c.document_id
+) cm ON cm.document_id = d.id
+CROSS JOIN LATERAL (SELECT
+    GREATEST(op.seen_at, (CASE WHEN d.updated_by = sqlc.arg(actor_id)::text THEN d.updated_at END), cm.said_at)::timestamptz AS last_at,
+    (CASE WHEN d.updated_by = sqlc.arg(actor_id)::text
+               AND d.updated_at = GREATEST(op.seen_at, d.updated_at, cm.said_at) THEN 'edited'
+          WHEN cm.said_at IS NOT NULL AND cm.said_at = GREATEST(op.seen_at, (CASE WHEN d.updated_by = sqlc.arg(actor_id)::text THEN d.updated_at END), cm.said_at) THEN 'commented'
+          ELSE 'opened' END)::text AS kind
+) act
 -- UNI-2038 S3: the sort keys of a row, computed once. The name key is the
 -- title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
 -- case variants stay together, whatever the database locale is); the size key is the current
@@ -1005,7 +1039,8 @@ CROSS JOIN LATERAL (SELECT
     (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
-    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'activity' THEN act.last_at ELSE d.updated_at END)::timestamptz AS ts_key
 ) sk
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
@@ -1013,13 +1048,13 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): recent is a normal list - shelved rows leave it.
   AND d.shelved_at IS NULL
-  AND (d.updated_by = sqlc.arg(actor_id)
-       OR EXISTS (
-            SELECT 1 FROM document_access_logs a
-            WHERE a.organization_id = d.organization_id
-              AND a.workspace_id = d.workspace_id
-              AND a.document_id = d.id
-              AND a.actor_id = sqlc.arg(actor_id)))
+  AND act.last_at IS NOT NULL
+  AND (sqlc.narg(activity)::text IS NULL
+       OR (sqlc.narg(activity)::text = 'opened' AND op.seen_at IS NOT NULL)
+       OR (sqlc.narg(activity)::text = 'edited' AND d.updated_by = sqlc.arg(actor_id)::text))
+  AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
+  AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
+  AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
   AND (sqlc.narg(format)::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
@@ -1081,6 +1116,9 @@ WHERE d.organization_id = sqlc.arg(organization_id)
        WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
             THEN (d.updated_at, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
             ELSE (d.updated_at, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'activity' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
        WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
             THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
             ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
@@ -1109,6 +1147,8 @@ ORDER BY
   (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
   (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN d.updated_at END) ASC,
   (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'activity' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'activity' AND sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) DESC,
   (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
   (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT sqlc.arg(page_limit);

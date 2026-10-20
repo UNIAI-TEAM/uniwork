@@ -199,13 +199,14 @@ func TestDocumentSortParamsInOpenAPI(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&spec); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{
-		"/api/v1/workspaces/{workspaceID}/documents",
-		"/api/v1/workspaces/{workspaceID}/documents/recent",
-		"/api/v1/workspaces/{workspaceID}/documents/shared-with-me",
-		"/api/v1/workspaces/{workspaceID}/documents/sources",
+	// UNI-2045: the screen keys ride after the four column keys.
+	for p, sortEnum := range map[string][]string{
+		"/api/v1/workspaces/{workspaceID}/documents":                {"updated", "name", "size", "editor", "deleted", "shelved", "shared"},
+		"/api/v1/workspaces/{workspaceID}/documents/recent":         {"updated", "name", "size", "editor", "activity"},
+		"/api/v1/workspaces/{workspaceID}/documents/shared-with-me": {"updated", "name", "size", "editor"},
+		"/api/v1/workspaces/{workspaceID}/documents/sources":        {"updated", "name", "size", "editor"},
 	} {
-		wantEnum := map[string][]string{"sort": {"updated", "name", "size", "editor"}, "order": {"asc", "desc"}}
+		wantEnum := map[string][]string{"sort": sortEnum, "order": {"asc", "desc"}}
 		found := map[string]bool{}
 		for _, param := range spec.Paths[p]["get"].Parameters {
 			enum, ok := wantEnum[param.Name]

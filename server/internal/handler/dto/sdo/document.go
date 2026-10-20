@@ -221,6 +221,44 @@ type DocumentSummaryDTO struct {
 	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
 	// addendum §6.4, §7); absent for agent actors (C-01 §4).
 	ShareScope *DocumentShareScopeSDO `json:"share_scope,omitempty" description:"Tóm tắt phạm vi chia sẻ trên dòng danh sách (Workspace gốc, số người dùng, số workspace khác, toàn tổ chức, liên kết công khai còn sống); vắng mặt với tác nhân agent" example:"{\"home_workspace\":true,\"users\":2,\"workspaces\":1,\"organization\":false,\"public_link\":false}"`
+	// UNI-2045 DOCLIST-UNIFIED: the columns of the unified documents table.
+	// Every field below is additive and optional; a client that does not know
+	// one ignores it.
+	IsOwner       *bool                    `json:"is_owner,omitempty" description:"true = người gọi là chủ ACL của tài liệu (cùng khái niệm acl_owner của báo cáo quyền truy cập); có trên mọi dòng của danh sách tài liệu" example:"true"`
+	UpdatedByUser *DocumentEditorSDO       `json:"updated_by_user,omitempty" description:"Người sửa gần nhất khi là người dùng trong tổ chức của người gọi; vắng mặt khi người sửa là agent/hệ thống hoặc ngoài tổ chức (không lộ tên qua tổ chức khác)"`
+	LastActivity  *DocumentLastActivitySDO `json:"last_activity,omitempty" description:"Chỉ có trên /documents/recent: hoạt động gần nhất của người gọi trên dòng (opened, edited hoặc commented) và thời điểm"`
+	FavoritedAt   *string                  `json:"favorited_at,omitempty" description:"Chỉ có trên /documents/favorites: thời điểm người gọi gắn sao tài liệu (RFC3339)" example:"2026-10-20T08:00:00Z"`
+	Shared        *DocumentSharedSDO       `json:"shared,omitempty" description:"Chỉ có trên /documents/shared-with-me: ai chia sẻ và khi nào, theo chính share cấp quyền cho người gọi"`
+	ShareSummary  *DocumentShareSummarySDO `json:"share_summary,omitempty" description:"Chỉ có khi shared_by_me=true: tóm tắt các grant còn sống của tài liệu (người, workspace, liên kết) và lần chia sẻ mới nhất"`
+}
+
+// DocumentEditorSDO is the last editor of a document row, resolved inside the
+// caller's organization only.
+type DocumentEditorSDO struct {
+	Name      string  `json:"name" description:"Tên hiển thị của người sửa gần nhất" example:"Nguyễn Văn An"`
+	AvatarURL *string `json:"avatar_url,omitempty" description:"URL tuyệt đối tải được không cần header xác thực. Ảnh lưu trong FileService là URL ký sẵn, có thời hạn, sống tối đa 12 giờ kể từ lúc trả danh sách (client tải lại danh sách để lấy URL mới khi hết hạn); ảnh khác là URL tuyệt đối đã lưu của tài khoản; vắng mặt khi chưa có ảnh (client hiện chữ cái đầu)" example:"https://cdn.example.com/avatars/an.png"`
+}
+
+// DocumentLastActivitySDO is the caller's last activity on a recent row.
+type DocumentLastActivitySDO struct {
+	Kind string `json:"kind" description:"opened (đã mở/xem), edited (người gọi là người sửa gần nhất) hoặc commented (người gọi bình luận)" example:"opened"`
+	At   string `json:"at" description:"Thời điểm hoạt động (RFC3339)" example:"2026-10-20T08:00:00Z"`
+}
+
+// DocumentSharedSDO says who shared a document with the caller and when.
+type DocumentSharedSDO struct {
+	By     string  `json:"by" description:"ULID người cấp quyền" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	ByKind string  `json:"by_kind" description:"human, agent hoặc system" example:"human"`
+	ByName *string `json:"by_name" description:"Tên hiển thị người cấp quyền; null khi người cấp không phải người dùng trong tổ chức của người gọi" example:"Trần Thị Bình"`
+	At     string  `json:"at" description:"Thời điểm cấp quyền (created_at của share, RFC3339)" example:"2026-10-19T09:30:00Z"`
+}
+
+// DocumentShareSummarySDO counts the live grants of a shared-by-me row.
+type DocumentShareSummarySDO struct {
+	People     int     `json:"people" description:"Số share trực tiếp còn sống cho người dùng" example:"3"`
+	Workspaces int     `json:"workspaces" description:"Số share còn sống cho workspace" example:"1"`
+	Links      int     `json:"links" description:"Số liên kết công khai chưa thu hồi và chưa hết hạn" example:"1"`
+	LatestAt   *string `json:"latest_at" description:"Thời điểm mới nhất trong các grant đó (RFC3339); null khi không có grant nào (chỉ chia sẻ bằng visibility workspace)" example:"2026-10-19T09:30:00Z"`
 }
 
 // DocumentShareScopeSDO is the share_scope block of DocumentSummaryDTO

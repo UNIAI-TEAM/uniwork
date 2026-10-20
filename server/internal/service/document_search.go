@@ -71,8 +71,26 @@ type ListDocumentsInput struct {
 	Cursor string
 	Limit  int
 	// Sort is the optional column sort (UNI-2038 S3); the zero value keeps the
-	// list's own order and its own cursor. Archived and Shelved refuse it.
+	// list's own order and its own cursor. The trash and the shelf take it
+	// with their own screen key (UNI-2045 SV-0).
 	Sort DocumentSort
+	// Activity narrows /documents/recent to what the caller opened or edited
+	// (UNI-2045 SV-1b): "" (all), "opened" or "edited". Other lists ignore it.
+	Activity string
+}
+
+// The activity filter of /documents/recent and the kinds last_activity reports.
+const (
+	DocumentActivityOpened    = "opened"
+	DocumentActivityEdited    = "edited"
+	DocumentActivityCommented = "commented"
+)
+
+// DocumentLastActivity is the caller's latest activity on a recent row: the
+// kind (opened, edited, commented) and when it happened.
+type DocumentLastActivity struct {
+	Kind string
+	At   time.Time
 }
 
 // listScreenSortKey is the screen key the flat list route takes under this
@@ -181,6 +199,8 @@ type DocumentListItem struct {
 	// zero value means the service did not compute it.
 	Access DocumentAccess
 	Path   []DocumentPathItem
+	// LastActivity is the caller's last activity on the row (recent only).
+	LastActivity *DocumentLastActivity
 }
 
 // DocumentListPage is one page plus the cursor for the next.
@@ -805,6 +825,9 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	if err != nil {
 		return DocumentListPage{}, err
 	}
+	if err := in.Sort.CheckRoute(DocumentSortActivity); err != nil {
+		return DocumentListPage{}, err
+	}
 	cursor, err := decodeDocumentCursor(in.Cursor)
 	if err != nil {
 		return DocumentListPage{}, err
@@ -824,6 +847,18 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, false)
 	if err != nil {
 		return DocumentListPage{}, err
+	}
+	switch in.Activity {
+	case "", DocumentActivityOpened, DocumentActivityEdited:
+	default:
+		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "activity phải là opened hoặc edited")
+	}
+	var from, to pgtype.Timestamptz
+	if !in.UpdatedFrom.IsZero() {
+		from = pgtype.Timestamptz{Time: in.UpdatedFrom, Valid: true}
+	}
+	if !in.UpdatedTo.IsZero() {
+		to = pgtype.Timestamptz{Time: in.UpdatedTo, Valid: true}
 	}
 	limit := in.Limit
 	if limit <= 0 {
@@ -848,6 +883,7 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 		// agent cap.
 		Access: nullText(filters.access), AccessLevels: filters.accessLevels, Agent: false,
 		CursorAt: cursorAt, CursorID: nullText(cursor.ID), PageLimit: int32(limit + 1),
+		Activity: nullText(in.Activity), UpdatedBy: nullText(in.UpdatedBy), UpdatedFrom: from, UpdatedTo: to,
 		SortKey: sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
 		SortCursorNum: sortArg.num, SortCursorText: sortArg.text, SortCursorNull: sortArg.null,
 	})
@@ -859,13 +895,17 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 		if i == limit {
 			last := rows[limit-1]
 			if in.Sort.Active() {
-				out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.Document.ID, last.Document.UpdatedAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
+				out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.Document.ID, last.SortAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
 			} else {
 				out.NextCursor = encodeDocumentCursor(documentCursor{At: &last.Document.UpdatedAt.Time, ID: last.Document.ID})
 			}
 			break
 		}
-		out.Items = append(out.Items, DocumentListItem{Document: r.Document})
+		item := DocumentListItem{Document: r.Document}
+		if r.ActivityAt.Valid {
+			item.LastActivity = &DocumentLastActivity{Kind: r.ActivityKind, At: r.ActivityAt.Time.UTC()}
+		}
+		out.Items = append(out.Items, item)
 	}
 	if err := s.attachListAccess(ctx, scope, workspaceID, false, out.Items); err != nil {
 		return DocumentListPage{}, err

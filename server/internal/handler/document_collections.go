@@ -30,6 +30,12 @@ import (
 // empty = roots) and the flat workspace list (absent); the service owns the
 // filter, permission and cursor semantics.
 func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocumentsInput, bool) {
+	return documentListInputFor(w, r, false)
+}
+
+// documentListInputFor is documentListInput for the flat list (recent false) or
+// for /documents/recent, whose own screen sort key is activity (UNI-2045).
+func documentListInputFor(w http.ResponseWriter, r *http.Request, recent bool) (service.ListDocumentsInput, bool) {
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
 		Query:      strings.TrimSpace(q.Get("q")),
@@ -40,6 +46,7 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		UpdatedBy:  strings.TrimSpace(q.Get("updated_by")),
 		SharedByMe: strings.TrimSpace(q.Get("shared_by_me")) == "true",
 		Cursor:     strings.TrimSpace(q.Get("cursor")),
+		Activity:   strings.TrimSpace(q.Get("activity")),
 	}
 	if q.Has("parent_id") {
 		parent := strings.TrimSpace(q.Get("parent_id"))
@@ -61,7 +68,11 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		}
 		in.Shelved = v
 	}
-	sort, ok := documentSortInput(w, q, listSortRoute(in.Archived, in.Shelved, in.SharedByMe))
+	extra := listSortRoute(in.Archived, in.Shelved, in.SharedByMe)
+	if recent {
+		extra = service.DocumentSortActivity
+	}
+	sort, ok := documentSortInput(w, q, extra)
 	if !ok {
 		return in, false
 	}
@@ -154,7 +165,7 @@ func (h *handlers) listRecentDocuments(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	in, ok := documentListInput(w, r)
+	in, ok := documentListInputFor(w, r, true)
 	if !ok {
 		return
 	}
@@ -419,6 +430,9 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 	dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
 	dto.EditLock = documentRowEditLockSDO(item.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
+	if item.LastActivity != nil {
+		dto.LastActivity = &sdo.DocumentLastActivitySDO{Kind: item.LastActivity.Kind, At: item.LastActivity.At.UTC().Format(time.RFC3339)}
+	}
 	if len(item.Path) > 0 {
 		dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
 		for i, p := range item.Path {
