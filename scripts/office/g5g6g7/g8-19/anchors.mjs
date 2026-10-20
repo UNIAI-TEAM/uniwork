@@ -866,6 +866,9 @@ function countEditorPages(ctrl, kind) {
   }
 }
 
+/** Why the closed-panel record has no desktop page count around the shift edit (pdf only). */
+const PDF_PAGE_COUNT_NOTE = "no page count is exposed by the desktop driver or the app control (control.ts offers goto only; focus() counts windows, not pages); recorded null, no product code added";
+
 /**
  * check:closed-panel-save flow (panel never opened), the cross-host case: the document is open on the
  * desktop with the panel closed when someone comments on it elsewhere. pdf prepares + saves its pages;
@@ -874,12 +877,19 @@ function countEditorPages(ctrl, kind) {
  * before it, Save, and the server is polled (bounded) for the row to reach the new head. The harness
  * never lists this document itself before the Save (that would read as an editor list). Fills `part`.
  */
-async function runClosedPanelSave({ ctx, A, desk, driver, documentId, poll, part, trace, serverLog, logOffset, sleep, now }) {
+async function runClosedPanelSave({ ctx, A, desk, driver, format, documentId, poll, part, trace, serverLog, logOffset, sleep, now }) {
   const scenario = part.scenario;
+  if (format === "pdf") part.pageCount = { before: null, after: null, reason: PDF_PAGE_COUNT_NOTE };
   if (driver.prepare) {
+    const headBeforePrepare = await readHead(A, documentId);
     const prepared = await runEditPlan(desk.ctrl, desk.page, driver.prepare);
     if (prepared.status !== "ok") throw new Error(`prepare edit: ${prepared.reason}`);
     await saveOnDesktop(desk.ctrl, desk.path);
+    // the Save answers before its version is the head: the comment and versionBefore must come after it, or
+    // the settle below would accept the prepare version and the shift Save would never be judged
+    const landed = await poll(() => readHead(A, documentId), (head) => Boolean(head) && head !== headBeforePrepare);
+    if (!landed.ok) return { status: "FAIL", reason: `scenario not established: the prepare Save's version did not land as the head within ${landed.elapsedMs} ms (head still ${headBeforePrepare ?? "unknown"}); the comment was not made` };
+    part.prepareVersionId = landed.value;
   }
   const seen = await pollUntil(() => listed2xx(documentListRequests(serverLog, logOffset, documentId)), (v) => v.length > 0, { boundMs: EDITOR_LIST_BOUND_MS, intervalMs: 500, sleep, now });
   if (!seen.ok) {
@@ -1000,7 +1010,7 @@ export async function runG8A02(ctx, deps = {}) {
       const logOffset = logSize(serverLog);
       rec.closedPanel.scenario.openedAt = now();
       desk = await openOnDesktop({ ctx, world, connectApp, documentId: closedDoc.documentId, format });
-      return runClosedPanelSave({ ctx, A, desk, driver, documentId: closedDoc.documentId, poll, part: rec.closedPanel, trace, serverLog, logOffset, sleep, now });
+      return runClosedPanelSave({ ctx, A, desk, driver, format, documentId: closedDoc.documentId, poll, part: rec.closedPanel, trace, serverLog, logOffset, sleep, now });
     });
     if (s.status === "FAIL" && !rec.closedPanel.saved && rec.closedPanel.edited?.status === undefined) rec.closedPanel = { ran: false, reason: s.reason, scenario: rec.closedPanel.scenario };
 
