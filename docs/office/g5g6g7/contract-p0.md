@@ -1,6 +1,6 @@
 # UniWork Office G5/G6/G7 — Gói hợp đồng P0 (X-01)
 
-> **Trạng thái:** in-progress — người dùng đã ký lô #1 ngày 2026-10-12 (U-15, "duyệt theo gợi ý": mọi khuyến nghị ở đây có hiệu lực); lô #2 (G6-D1) đã ký ngày 2026-10-13 00:35 UTC+7 ("duyệt theo gợi ý": số A1–A16, Q1–Q6; A17 chuyển G6-D2); lô #2b (G5-D1: amendment DOC-005 + threat model lease offline) đã ký ngày 2026-10-13 ("duyệt theo gợi ý": 20 hàng + 17 hàng threat model); còn chờ điền N′ (bản dev đầu tiên có G5-04g) và lệnh harness (g7-qa)
+> **Trạng thái:** shipped, đóng 2026-10-20 — người dùng đã ký lô #1 ngày 2026-10-12 (U-15, "duyệt theo gợi ý": mọi khuyến nghị ở đây có hiệu lực); lô #2 (G6-D1) đã ký ngày 2026-10-13 00:35 UTC+7 ("duyệt theo gợi ý": số A1–A16, Q1–Q6; A17 chuyển G6-D2); lô #2b (G5-D1: amendment DOC-005 + threat model lease offline) đã ký ngày 2026-10-13 ("duyệt theo gợi ý": 20 hàng + 17 hàng threat model); N′ (§6), lệnh harness (§9) và baseline hiện tại (§1) đã điền khi đóng X-01 ngày 2026-10-20
 
 **Issue:** UNI-1338 (X-01), parent UNI-660 (`Refs: UNI-635, UNI-661`), tài liệu UNI-923.
 **Nguồn ràng buộc:** [spec v1.2](../../superpowers/specs/2026-10-02-office-g5-g6-g7-design.md) (duyệt U-13),
@@ -24,12 +24,20 @@ dùng giá trị đề xuất và ghi "theo draft contract-p0" trong packet củ
 
 Bản cài đang phục vụ (`0.11.0-dev.7`) trùng tag mới nhất của fork tại `0d03b185`; bằng chứng G7 vẫn ghi cả hai (spec §9.3).
 
+**Baseline hiện tại (2026-10-20).** Bảng trên là baseline lịch sử 2026-10-12 đã ký, giữ nguyên. Khi đóng X-01 baseline là:
+
+- D `origin/develop` có PR 5 tại `5f3b1fb9b` (PR #365);
+- D root `feature/UNI-923-office-g5-g6-g7` tại `c0d4cdf20`;
+- F `origin/main` tại `d999b8801` = desktop `v1.0.0-beta.5`;
+- pin frame `0.1.0-f01befd`;
+- bản cài kênh beta = `1.0.0-beta.5`.
+
 | # | Điều kiện | Trạng thái | Bằng chứng |
 | --- | --- | --- | --- |
 | C1 | Spec v1.2 được duyệt | **Đạt** | U-13, 2026-10-12 (spec §1.2) |
 | C2 | PR #219 (UNI-1001) vào `develop` | **Đạt** | squash commit `fc171d4a2` "UNI-1001: UniWork Office genoffice pivot … (#219)", tổ tiên của `2e9586c25` |
 | C3 | Gỡ G3/`apps/office-desktop` (GO-B7) | **Đạt** | `apps/office-desktop` không còn ở D; commit cuối chạm `apps/office-desktop/package.json` là `fc171d4a2` (việc gỡ đi trong chính PR #219, không có merge riêng của UNI-1240) |
-| C4 | Mô tả UNI-660/635/661 reconcile với U-08/U-09; sub-issue theo plan §5 | **Một nửa** | 51 sub-issue UNI-1338..1388 đã tạo (plan dòng 8–15); reconcile mô tả ba issue cha là việc UniAI của Advisor, chưa có bằng chứng trong repo |
+| C4 | Mô tả UNI-660/635/661 reconcile với U-08/U-09; sub-issue theo plan §5 | **Bỏ** | 51 sub-issue UNI-1338..1388 đã tạo (plan dòng 8–15). Bỏ việc reconcile mô tả ba issue cha: `progress-ledger.json` và các quyết định đã ký là nguồn sự thật, mô tả issue cha không được reconcile (USER G7-11 R-6, 2026-10-20) |
 | C5 | Handoff packet §10.3 (SHA D/F, pin, bản cài, tag) | **Đạt bằng bảng trên** | mục 1 này; bảng công cụ AI theo module do G6-01 giao |
 
 Chỗ lưu "My AI"/model theo tài khoản (UNI-1240, đầu vào G6 theo spec §1.4): đi cùng PR #219 (`fc171d4a2`); G6-02/G6-03c
@@ -164,9 +172,9 @@ worker dọn đăng ký trong chuỗi shutdown `server/cmd/server/main.go` (plan
 
 ## 6. Bản rollback tối thiểu N′
 
-N′ = bản dev **đầu tiên** của fork chứa guard "store mới hơn" của G5-04g (lane `g5-fork_main`, UNI-1343). Hiện tại guard
-chưa có: `0.11.0-dev.7` (`0d03b185`) chưa có G5-04g. N′ dự kiến là `0.11.0-dev.8` nếu không có tag nào chen; giá trị thật
-Advisor ghi vào đây khi bản đó phát hành. Rollback app xuống dưới N′ **không được hỗ trợ** (bản đó coi binding schema 2
+N′ = bản dev **đầu tiên** của fork chứa guard "store mới hơn" của G5-04g (lane `g5-fork_main`, UNI-1343): **`v0.11.0-dev.8`**,
+fork commit `cb76dde5928f8ea9cf66af938d3f83bd1278f78c` (đã phát hành; thay cho "dự kiến dev.8"). `0.11.0-dev.7` (`0d03b185`) chưa có G5-04g.
+`min_store_level`: nguồn không nói. Rollback app xuống dưới N′ **không được hỗ trợ** (bản đó coi binding schema 2
 là tệp cục bộ thường — plan §8). N′ phải có trên mọi kênh trước khi kênh nào phát hành store schema 2 (support matrix theo
 kênh, G7-07).
 
@@ -300,15 +308,13 @@ A17 (upstream production) chuyển sang G6-D2.
 
 ## 9. Harness G7-01 và đường dự phòng
 
-Lệnh khởi động (lane `g7-qa` điền và chạy một lần trên cloud runner; chạy thật là điều kiện xong của G7-01, không của X-01):
+Lệnh khởi động (G7-01 đã accepted; nguồn: `scripts/office/g5g6g7/harness/README.md:25-34`, chạy trên cloud runner):
 
 ```sh
-# <G7-01 điền> — khung dự kiến trên VM Linux của cloud runner, cổng mới mỗi lần chạy:
-# 1. DB mới + migrate:            (lệnh migrate của repo D, DB riêng cho lần chạy)
-# 2. Server D, AI_PROVIDER=fake:   PORT=<api_port> go run ./server/cmd/server
-# 3. Web D:                        NEXT_PUBLIC_API_URL=http://127.0.0.1:<api_port> pnpm --filter web start -p <web_port>
-# 4. App dev (bản cài kênh dev):   xvfb-run -a <AppImage 0.11.0-dev.N> (server lấy từ link "open" hoặc ô nhập địa chỉ)
-# 5. Runner bằng chứng:            <lệnh evidence runner của G7-01> --ac <id>
+OFFICE_FORK_SHA=<sha> bash scripts/office/g5g6g7/harness/start.sh   # up: server + web + fork app
+node scripts/office/g5g6g7/evidence.mjs run \
+  --req <AC> --fixture <fx> -- <cmd>
+bash scripts/office/g5g6g7/harness/stop.sh                               # down: only this run's PIDs
 ```
 
 Đường dự phòng (plan §8): e2e của fork với stub Documents + e2e web D + lần chạy tay theo kịch bản có ghi hình; mọi hàng phụ
