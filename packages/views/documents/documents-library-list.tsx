@@ -50,6 +50,8 @@ export interface DocumentsLibraryListProps {
   accessFiltered?: boolean;
   /** The type chip is on too: with both on, the empty line names the filters, not one of them. */
   typeFiltered?: boolean;
+  /** The home Edited by / Updated filter is on: the empty line names "the filters", never a file type. */
+  homeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
   /** The Lưu trữ layout (ARCHIVE-01 U-2): the shelved ladder and
@@ -88,6 +90,7 @@ export function DocumentsLibraryList({
   filteredBy = null,
   accessFiltered = false,
   typeFiltered = false,
+  homeFiltered = false,
   cardsShown = false,
   shelved,
   emptyFiltered,
@@ -144,7 +147,7 @@ export function DocumentsLibraryList({
           description={
             emptyFiltered?.description ??
             t(
-              accessFiltered && typeFiltered
+              homeFiltered || (accessFiltered && typeFiltered)
                 ? clientFiltered && hasMore
                   ? "documents.home.no_matches_filters_more_description"
                   : "documents.home.no_matches_filters_description"

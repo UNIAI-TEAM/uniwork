@@ -140,7 +140,7 @@ describe("ChatMessageRow", () => {
     );
 
     fireEvent.click(screen.getByLabelText("Thả 👍"));
-    fireEvent.click(screen.getByRole("button", { name: "Trả lời" }));
+    fireEvent.click(screen.getByLabelText("Trả lời"));
     expect(onReact).toHaveBeenCalledWith(row);
     expect(onReply).toHaveBeenCalledWith(row);
   });

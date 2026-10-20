@@ -52,3 +52,60 @@ func TestOfficeFrameExportBudgetIsPerUserAcrossDocuments(t *testing.T) {
 	bob.spend(t, h, http.MethodPost, export("doc-a"), budget)
 	bob.wantRefused(t, h, http.MethodPost, export("doc-a"), "the second user's own budget")
 }
+
+// The frame avatar route budgets per token user (120/min) across documents and
+// target user ids (UNI-1986), so walking user or document ids cannot mint a
+// fresh budget and one office NAT does not pool everyone's reads.
+func TestOfficeFrameAvatarBudgetIsPerUserAcrossDocuments(t *testing.T) {
+	t.Setenv("FF_DOCUMENTS", "true")
+	t.Setenv("FF_OFFICE_DOCS_WEB", "true")
+	frameAuth := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			uid, ok := strings.CutPrefix(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), "frame-")
+			if !ok {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(mw.WithUserID(r.Context(), uid)))
+		})
+	}
+	h := New(Deps{
+		Cfg:             config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: limiterTestSecret},
+		Minter:          auth.TokenMinter{Secret: []byte(limiterTestSecret), TTL: time.Hour},
+		Redis:           newRedisTestClient(t),
+		FeatureFlags:    featureflag.NewService(featureflag.NewEnvProvider("FF_")),
+		OfficeFrameAuth: frameAuth,
+	}, stubRoutes())
+	avatar := func(doc, user string) string {
+		return "/api/v1/office-frame/documents/" + doc + "/avatars/" + user
+	}
+	const budget = 120
+
+	alice := caller{ip: "10.20.0.10", bearer: "frame-alice"}
+	for i := range budget {
+		method := http.MethodGet
+		if i%2 == 1 {
+			method = http.MethodHead
+		}
+		doc := "doc-" + string(rune('a'+(i%7)))
+		user := "user-" + string(rune('a'+(i%26)))
+		if code := alice.send(h, method, avatar(doc, user)); code != http.StatusOK {
+			t.Fatalf("avatar %s %d = %d, want 200", method, i+1, code)
+		}
+	}
+	alice.wantRefused(t, h, http.MethodGet, avatar("doc-new", "user-new"), "a new document or user id does not reset the frame avatar GET budget")
+	alice.wantRefused(t, h, http.MethodHead, avatar("doc-new-head", "user-new-head"), "HEAD shares the frame avatar budget and is refused once exhausted")
+
+	bob := caller{ip: "10.20.0.10", bearer: "frame-bob"}
+	for i := range budget {
+		method := http.MethodGet
+		if i >= budget/2 {
+			method = http.MethodHead
+		}
+		if code := bob.send(h, method, avatar("doc-b", "user-b")); code != http.StatusOK {
+			t.Fatalf("bob avatar %s %d = %d, want 200", method, i+1, code)
+		}
+	}
+	bob.wantRefused(t, h, http.MethodGet, avatar("doc-b", "user-b"), "the second user's own avatar GET budget")
+	bob.wantRefused(t, h, http.MethodHead, avatar("doc-b", "user-b"), "the second user's own avatar HEAD budget")
+}

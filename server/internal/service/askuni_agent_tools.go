@@ -139,7 +139,7 @@ func agentArgs(raw json.RawMessage, v any) error {
 // prompt-cache prefix (TestAskAgentToolBytesAreStable).
 func (s *AskUNIService) agentTools() []agentTool {
 	return []agentTool{
-		readTool("search", "Keyword search over the workspace's tasks, meetings, chat rooms the user belongs to and documents, best matches first. Use it when the question names a topic rather than an exact object.",
+		readTool("search", "Keyword search over the workspace's tasks, meetings, chat rooms the user belongs to and documents, best matches first. Use it when the question names a topic rather than an exact object. Documents hold the team's own procedures, policies and templates. Search here first before writing an email, a request or a template, then open the best match with get_document.",
 			map[string]agentProp{"query": strArg("Keywords to look for, as the user would write them; \"\" lists the latest items.")}, s.agentSearch),
 		readTool("list_tasks", "Tasks of the workspace matching every filter given, grouped by status. Overdue means due before today and not done or cancelled.",
 			map[string]agentProp{

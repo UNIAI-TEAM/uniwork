@@ -234,7 +234,7 @@ describe('G6-08 synthetic dev set & guard', () => {
     assert.equal(summary.outsideAllowlistTotal, 0);
   });
 
-  it('verifies office_uniwork_ai@2, @3 and @4 goldens obey the tool allowlist and contain no dev-set case answers', async () => {
+  it('verifies office_uniwork_ai@2, @3, @4 and @5 goldens obey the tool allowlist and contain no dev-set case answers', async () => {
     const { PACK_MODULES, TOOLS_DOC, auditCommon, auditSection, parseMechanicalTable } =
       await import('./instruction-pack-tools.mjs');
     const toolsDoc = fs.readFileSync(path.join(repoRoot, TOOLS_DOC), 'utf8');
@@ -265,7 +265,7 @@ describe('G6-08 synthetic dev set & guard', () => {
       '150 nhân viên',
       'ba buổi tập huấn',
     ];
-    for (const version of [2, 3, 4]) {
+    for (const version of [2, 3, 4, 5]) {
       const vFile = (sec) => `server/internal/ai/testdata/office_uniwork_ai_v${version}_${sec}.golden`;
       const commonText = fs.readFileSync(path.join(repoRoot, vFile('common')), 'utf8');
       const findings = [...auditCommon({ file: vFile('common'), text: commonText, byModule })];

@@ -19,8 +19,9 @@ import (
 )
 
 // The office pack (G6-14, UNI-1369; tuned in G6-08, UNI-1373; hardened in
-// FU-G7-12-PACK3, UNI-1875; no-echo draft FU-G7-12-PACK4, UNI-1981) ships as
-// versioned registry entries office_uniwork_ai@1 to office_uniwork_ai@4 with six
+// FU-G7-12-PACK3, UNI-1875; no-echo draft FU-G7-12-PACK4, UNI-1981; untrusted
+// tool-result wrap draft FU-G7-12-WRAP, UNI-1985) ships as versioned registry
+// entries office_uniwork_ai@1 to office_uniwork_ai@5 with six
 // assembled System variants. These tests pin their text three ways: golden
 // files (wording), the draft's token estimator (the G6-D1 A2 caps) and a
 // per-version sha256 pin (a wording change cannot ride a regenerated golden
@@ -50,8 +51,8 @@ func officePack(t *testing.T) Prompt {
 	if !ok {
 		t.Fatalf("%s is not registered", PromptOfficeUniworkAI)
 	}
-	if p.ID != "office_uniwork_ai" || p.Version != 4 {
-		t.Fatalf("registry entry is %s, want office_uniwork_ai@4", p.Key())
+	if p.ID != "office_uniwork_ai" || p.Version != 5 {
+		t.Fatalf("registry entry is %s, want office_uniwork_ai@5", p.Key())
 	}
 	return p
 }
@@ -67,7 +68,7 @@ func officeGoldenVersion(t *testing.T, version int, name string) string {
 
 func officeGolden(t *testing.T, name string) string {
 	t.Helper()
-	return officeGoldenVersion(t, 4, name)
+	return officeGoldenVersion(t, 5, name)
 }
 
 // firstDiff names the first differing byte so a wording drift points at the
@@ -131,8 +132,8 @@ func TestOfficePackGoldens(t *testing.T) {
 		})
 	}
 
-	// @1, @2 and @3 stay registered and match their goldens untouched.
-	for _, version := range []int{1, 2, 3} {
+	// @1, @2, @3 and @4 stay registered and match their goldens untouched.
+	for _, version := range []int{1, 2, 3, 4} {
 		key := fmt.Sprintf("office_uniwork_ai@%d", version)
 		pv, ok := LookupPrompt(key)
 		if !ok {
@@ -246,6 +247,68 @@ func TestOfficePackV4Rules(t *testing.T) {
 	}
 }
 
+// TestOfficePackV5 checks that office_uniwork_ai@5 (FU-G7-12-WRAP, UNI-1985)
+// is registered with the exact system text and module sections of @4, its own
+// v5 goldens, pin and token-cap entry, while the frozen goldens of @1..@4 stay
+// untouched. The @5 bump versions the wire shape where the façade wraps tool
+// results in <untrusted> tags on the way to the vendor.
+func TestOfficePackV5(t *testing.T) {
+	p5, ok := LookupPrompt("office_uniwork_ai@5")
+	if !ok {
+		t.Fatal("office_uniwork_ai@5 is not registered")
+	}
+	if p5.ID != "office_uniwork_ai" || p5.Version != 5 {
+		t.Fatalf("registry entry is %s, want office_uniwork_ai@5", p5.Key())
+	}
+	p4, ok := LookupPrompt("office_uniwork_ai@4")
+	if !ok {
+		t.Fatal("office_uniwork_ai@4 is not registered")
+	}
+	if p5.System != p4.System {
+		t.Errorf("office_uniwork_ai@5 common differs from @4: %s", firstDiff(p4.System, p5.System))
+	}
+	if cv := officeGoldenVersion(t, 5, "common"); cv != p5.System {
+		t.Errorf("v5 common golden drift: %s", firstDiff(cv, p5.System))
+	}
+	for _, m := range officeModuleSections {
+		if p5.Sections[m.section] != p4.Sections[m.section] {
+			t.Errorf("office_uniwork_ai@5 %s section differs from @4: %s", m.section, firstDiff(p4.Sections[m.section], p5.Sections[m.section]))
+		}
+		if sv := officeGoldenVersion(t, 5, m.section); sv != p5.Sections[m.section] {
+			t.Errorf("v5 %s golden drift: %s", m.section, firstDiff(sv, p5.Sections[m.section]))
+		}
+		got5, err := officeAssemble(p5, m.module)
+		if err != nil {
+			t.Fatalf("v5 %s: %v", m.module, err)
+		}
+		got4, err := officeAssemble(p4, m.module)
+		if err != nil {
+			t.Fatalf("v4 %s: %v", m.module, err)
+		}
+		if got5 != got4 {
+			t.Errorf("v5 %s assembled differs from v4: %s", m.module, firstDiff(got4, got5))
+		}
+	}
+	if _, pinned := officePackPins["office_uniwork_ai@5"]; !pinned {
+		t.Error("office_uniwork_ai@5 has no entry in officePackPins")
+	}
+	for _, version := range []int{1, 2, 3, 4} {
+		key := fmt.Sprintf("office_uniwork_ai@%d", version)
+		pv, ok := LookupPrompt(key)
+		if !ok {
+			t.Fatalf("%s is not registered", key)
+		}
+		if cv := officeGoldenVersion(t, version, "common"); cv != pv.System {
+			t.Errorf("frozen v%d common golden drift: %s", version, firstDiff(cv, pv.System))
+		}
+		for _, m := range officeModuleSections {
+			if sv := officeGoldenVersion(t, version, m.section); sv != pv.Sections[m.section] {
+				t.Errorf("frozen v%d %s golden drift: %s", version, m.section, firstDiff(sv, pv.Sections[m.section]))
+			}
+		}
+	}
+}
+
 // TestOfficeSystemPromptUnknownModule: the module key is the contract; an
 // unroutable name is an error, never a silently defaulted section.
 func TestOfficeSystemPromptUnknownModule(t *testing.T) {
@@ -340,6 +403,13 @@ func TestOfficePackTokenCaps(t *testing.T) {
 			},
 			worst: 1989,
 		},
+		{
+			key: "office_uniwork_ai@5",
+			wantEst: map[string]int{
+				"common": 800, "sheets": 1189, "docs": 595, "slides": 267, "pdf": 252, "markdown": 224, "html": 164,
+			},
+			worst: 1989,
+		},
 	}
 	for _, v := range versions {
 		v := v
@@ -389,6 +459,7 @@ var officePackPins = map[string]string{
 	"office_uniwork_ai@2": "1e47cf912b53dfb5c481f34bce6c27cc0c7e2e310f1ba22088083c8b0a3e5a82",
 	"office_uniwork_ai@3": "77b6054056439605542050baacb959c91e7586dbdf78303e8fd4ff9277a217f2",
 	"office_uniwork_ai@4": "639e8d2757f396224ae768b0b142828795b0728a68a40b97bf2749bbf1a68c0b",
+	"office_uniwork_ai@5": "639e8d2757f396224ae768b0b142828795b0728a68a40b97bf2749bbf1a68c0b",
 }
 
 // officePackDigest is sha256 over the released text of one pack version in

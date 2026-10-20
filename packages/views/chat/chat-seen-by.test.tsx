@@ -47,20 +47,24 @@ function renderMenu(row: ChatMessage, isOwn: boolean, withSeenBy = true) {
   return render(wrap(<ChatSeenByProvider value={withSeenBy ? { members, nameContext } : null}>{bar}</ChatSeenByProvider>));
 }
 
-// The flat context menu is always in the DOM; right-click or focus only reveals it.
+async function openMore() {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Thêm" }));
+  await screen.findByRole("menu");
+  return user;
+}
 
-describe("seen-by in the context menu", () => {
+describe("seen-by in the ⋯ menu", () => {
   it("counts the others who read my message, and lists them by name", async () => {
     renderMenu(message(), true);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Thêm" }));
-    const row = await screen.findByRole("menuitem", { name: "2 người đã xem" });
+    const user = await openMore();
+    const row = screen.getByRole("menuitem", { name: "2 người đã xem" });
     await user.click(row);
-    expect(await screen.findByText("Thu Hà")).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: /Thu Hà/ })).toBeInTheDocument();
     // A nickname from the room's name context wins over the roster's name.
-    expect(screen.getByText("Lan (biệt danh)")).toBeInTheDocument();
-    expect(screen.queryByText("Võ Minh")).not.toBeInTheDocument();
-    expect(screen.queryByText("Khoa")).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Lan \(biệt danh\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Võ Minh/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Khoa/ })).not.toBeInTheDocument();
   });
 
   it("is absent where seen-by is off (a DM, the default channel), on others' messages and in threads", async () => {
@@ -70,6 +74,7 @@ describe("seen-by in the context menu", () => {
       [message({ threadRootId: "root" }), true, true],
     ] as const) {
       const { unmount } = renderMenu(row, isOwn, withSeenBy);
+      await openMore();
       expect(screen.queryByRole("menuitem", { name: /người đã xem/ })).not.toBeInTheDocument();
       unmount();
     }
@@ -77,6 +82,7 @@ describe("seen-by in the context menu", () => {
 
   it("is absent while nobody has read it yet", async () => {
     renderMenu(message({ ts: Date.parse("2026-10-18T11:00:00Z") }), true);
+    await openMore();
     expect(screen.queryByRole("menuitem", { name: /người đã xem/ })).not.toBeInTheDocument();
   });
 });

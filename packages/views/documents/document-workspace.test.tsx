@@ -166,6 +166,29 @@ describe("DocumentWorkspace note page UI", () => {
   });
 });
 
+describe("DocumentWorkspace read-only level label (UNI-1994)", () => {
+  it("names the comment level, not view only, for a recipient of a comment share", async () => {
+    renderWorkspace({ my_level: "comment" });
+    await findEditor();
+    expect(screen.getByText(t("documents.save.readonly_comment"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.save.readonly"))).toBeNull();
+    expect(screen.getByText(t("documents.detail.readonly_comment_description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.detail.readonly_description"))).toBeNull();
+  });
+
+  it("keeps view only for a view recipient and shows none for an editor", async () => {
+    const view = renderWorkspace({ my_level: "view" });
+    await findEditor();
+    expect(screen.getByText(t("documents.save.readonly"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.save.readonly_comment"))).toBeNull();
+    view.unmount();
+    renderWorkspace({ my_level: "edit" });
+    await findEditor();
+    expect(screen.queryByText(t("documents.save.readonly"))).toBeNull();
+    expect(screen.queryByText(t("documents.save.readonly_comment"))).toBeNull();
+  });
+});
+
 describe("DocumentWorkspace preference toast (GOA9-r4-08)", () => {
   it("does not toast Saved for a theme change on a view-only page", async () => {
     const success = vi.spyOn(toast, "success").mockImplementation(() => "t");
