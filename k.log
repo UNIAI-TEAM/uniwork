@@ -1,0 +1,4 @@
+$ node --test scripts/*.test.mjs 2>&1 | grep -E "^# (pass|fail)"; rc=${PIPESTATUS[0]}; echo "SCRIPTS_EXIT=$rc"
+# pass 128
+# fail 0
+SCRIPTS_EXIT=0

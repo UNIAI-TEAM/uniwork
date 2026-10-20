@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/core exec vitest run documents i18n paths api 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "CORE_EXIT=$rc"
+
+ Test Files  120 passed (120)
+      Tests  1817 passed (1817)
+   Start at  20:00:51
+   Duration  26.36s (transform 2.87s, setup 12.65s, import 9.78s, tests 13.36s, environment 31.20s)
+
+CORE_EXIT=0

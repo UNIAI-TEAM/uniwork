@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/core exec tsc --noEmit -p . > /tmp/tc2039c.log 2>&1; rc=$?; tail -5 /tmp/tc2039c.log; echo "CORE_TC_EXIT=$rc"
+CORE_TC_EXIT=0
