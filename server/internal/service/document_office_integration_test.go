@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -303,7 +304,8 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		// a wrong contract, a wrong protocol type, a wrong protocol value and an
 		// untrusted engine build are each refused with zero jobs, while the
 		// accepted control (a real job) lives in the format rows above. These
-		// probes post raw JSON because the Go client cannot even represent a
+		// probes post a raw framed job body (envelope only, input_length 0)
+		// because the Go client cannot even represent a
 		// string protocol_version - the claim under test is that the REAL
 		// engine refuses wire drift, not that Go can send it. Go's own
 		// pre-mutation contract gate (office.Negotiate) is covered by
@@ -326,7 +328,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 				"operation": office.OperationSerialize, "format": office.FormatMD,
 				"idempotency_key": jobID, "client_engine_version": office.TrustedEngineVersion, "grant_id": grantID,
 				"payload": map[string]any{
-					"input_bytes": "", "input_checksum": sha(nil), "input_length": 0, "document_model_ref": "drift",
+					"input_checksum": sha(nil), "input_length": 0, "document_model_ref": "drift",
 				},
 			}
 			if mutate != nil {
@@ -347,7 +349,8 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 			}
 			req.Header.Set("Authorization", "Bearer "+officeEnv("OFFICE_ENGINE_TEST_SERVICE_TOKEN", officeDevToken))
 			req.Header.Set("X-Office-Grant", grant)
-			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Content-Type", office.JobContentType)
+			req.Header.Set(office.EnvelopeLengthHeader, strconv.Itoa(len(body)))
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatal(err)
@@ -379,7 +382,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		}{
 			{"contract version outside the pin", func(m map[string]any) { m["contract_version"] = "uniwork-office-engine-contract/999" }, http.StatusBadRequest, "", "contract_violation"},
 			{"protocol version sent as a string", func(m map[string]any) { m["protocol_version"] = "1" }, http.StatusBadRequest, "", "contract_violation"},
-			{"protocol version outside the pin", func(m map[string]any) { m["protocol_version"] = 2 }, http.StatusBadRequest, "", "contract_violation"},
+			{"protocol version outside the pin", func(m map[string]any) { m["protocol_version"] = office.ProtocolVersion + 1 }, http.StatusBadRequest, "", "contract_violation"},
 			{"untrusted engine build", func(m map[string]any) { m["client_engine_version"] = "untrusted@0" }, http.StatusConflict, "engine_incompatible", ""},
 		} {
 			t.Run(c.name, func(t *testing.T) {

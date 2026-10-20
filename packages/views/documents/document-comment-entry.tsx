@@ -17,10 +17,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { copyText } from "@uniwork/ui/lib/clipboard";
-import { cn } from "@uniwork/ui/lib/utils";
 import { AgentBadge } from "../agents/agent-badge";
 import { CommentActorAvatar } from "../comments/comment-actor-avatar";
 import { DocumentCommentBody, type MentionNames } from "./document-comment-body";
+import { commentBodyToDisplay, commentDisplayToBody, mentionPeopleInBody } from "./document-comment-mention-draft";
 import { PostSendMentionNotice } from "./document-comment-mention-notice";
 import { DocumentCommentHistory } from "./document-comment-history";
 import { K } from "./document-comments-keys";
@@ -49,16 +49,18 @@ function DeletedFrame({ id, headingRef }: { id: string; headingRef?: Ref<HTMLPar
 
 function EditBox({ initial, onSave, onClose }: { initial: string; onSave: (body: string) => Promise<boolean>; onClose: () => void }) {
   const { t } = useTranslation();
-  const [value, setValue] = useState(initial);
+  // The textarea shows "@Name"; people mentioned in `initial` go back to their tokens on save.
+  const [value, setValue] = useState(() => commentBodyToDisplay(initial));
   const [saving, setSaving] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const changed = value !== initial;
+  const body = commentDisplayToBody(value, mentionPeopleInBody(initial));
+  const changed = body !== initial;
   const save = async () => {
     if (saving || value.trim() === "") return;
     if (!changed) return onClose();
     setSaving(true);
     try {
-      if (await onSave(value)) onClose();
+      if (await onSave(body)) onClose();
     } finally {
       setSaving(false);
     }
@@ -123,6 +125,7 @@ export function DocumentCommentEntry({
   headingRef,
   meta,
   mentionsWithoutAccess,
+  reply = false,
   children,
 }: {
   wsId: string;
@@ -145,6 +148,8 @@ export function DocumentCommentEntry({
   meta?: ReactNode;
   /** Post-send mentions without access returned by create/update (G8-18). */
   mentionsWithoutAccess?: readonly DocumentCommentMentionWithoutAccess[];
+  /** A reply: smaller avatar and no card padding, it sits under the root's left rule. */
+  reply?: boolean;
   /** The root's action row (reply, resolve). */
   children?: ReactNode;
 }) {
@@ -178,9 +183,15 @@ export function DocumentCommentEntry({
   const noticeItems = mentionsWithoutAccess ?? comment.mentions_without_access;
 
   return (
-    <div data-testid={`document-comment-${comment.id}`} className="px-3 py-2.5">
+    <div data-testid={`document-comment-${comment.id}`} className={reply ? "py-1" : "px-3 py-2.5"}>
       <div className="flex items-start gap-2">
-        <CommentActorAvatar name={authorName} avatarUrl={comment.author?.avatar_url ?? comment.avatar_url} kind={comment.author_kind} />
+        <CommentActorAvatar
+          name={authorName}
+          avatarUrl={comment.author?.avatar_url || comment.avatar_url || undefined}
+          kind={comment.author_kind}
+          size={reply ? "md" : "lg"}
+          className="shrink-0"
+        />
         <div className="min-w-0 flex-1">
           <Heading
             ref={headingRef}
@@ -190,6 +201,17 @@ export function DocumentCommentEntry({
             <span id={nameId} className="min-w-0 truncate font-medium text-foreground">{authorName}</span>
             {comment.author_kind === "agent" ? <AgentBadge /> : null}
             {time ? <time dateTime={comment.created_at}>{time}</time> : null}
+            {edited && !editing ? (
+              <button
+                type="button"
+                aria-expanded={historyOpen}
+                title={t(K.collabEdited, { time: formatCollabTime(comment.updated_at, locale) })}
+                onClick={(event) => toggleHistory(event.currentTarget)}
+                className="inline-flex min-h-6 items-center rounded text-micro text-muted-foreground underline-offset-2 hover:underline pointer-coarse:min-h-11"
+              >
+                {t(K.collabEditedMark)}
+              </button>
+            ) : null}
           </Heading>
           {meta}
         </div>
@@ -217,11 +239,13 @@ export function DocumentCommentEntry({
               <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden />{t(K.collabDelete)}</DropdownMenuItem>
             ) : null}
             <DropdownMenuItem onClick={() => void copyText(comment.body)}><Copy aria-hidden />{t(K.collabCopyText)}</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toggleHistory(null)}><RotateCcwClock aria-hidden />{t(K.collabHistory)}</DropdownMenuItem>
+            {edited ? (
+              <DropdownMenuItem onClick={() => toggleHistory(null)}><RotateCcwClock aria-hidden />{t(K.collabHistory)}</DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="pl-8">
+      <div className={reply ? "pl-8" : "pl-10"}>
         {editing ? (
           <EditBox initial={comment.body} onSave={onEdit} onClose={() => setEditing(false)} />
         ) : (
@@ -238,17 +262,7 @@ export function DocumentCommentEntry({
             testId={`document-comment-post-send-notice-${comment.id}`}
           />
         ) : null}
-        {edited && !editing ? (
-          <button
-            type="button"
-            aria-expanded={historyOpen}
-            onClick={(event) => toggleHistory(event.currentTarget)}
-            className={cn("mt-1 inline-flex min-h-6 items-center rounded text-micro text-muted-foreground underline-offset-2 hover:underline pointer-coarse:min-h-11")}
-          >
-            {t(K.collabEdited, { time: formatCollabTime(comment.updated_at, locale) })}
-          </button>
-        ) : null}
-        {historyOpen ? (
+        {edited && historyOpen ? (
           <DocumentCommentHistory
             wsId={wsId}
             documentId={documentId}

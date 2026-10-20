@@ -245,6 +245,27 @@ func (s *PeopleService) Get(ctx context.Context, actorID, orgID, userID string) 
 	return personFromGetRow(row, actorID, m.Role), out, nil
 }
 
+// AvatarFileOf returns the FileService avatar id of an active member of orgID
+// for a caller the service tier has already authorized in orgID (UNI-1986).
+// Anyone outside the organization, a deactivated member, or a member without a
+// file-backed avatar (none, or a legacy/foreign avatar_url) answers ErrNotFound.
+func (s *PeopleService) AvatarFileOf(ctx context.Context, orgID, userID string) (files.FileID, error) {
+	if s == nil || s.q == nil || orgID == "" || userID == "" {
+		return "", ErrNotFound
+	}
+	row, err := s.q.GetPerson(ctx, db.GetPersonParams{OrganizationID: orgID, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if row.DeactivatedAt.Valid || !row.AvatarFileID.Valid || row.AvatarFileID.String == "" {
+		return "", ErrNotFound
+	}
+	return files.FileID(row.AvatarFileID.String), nil
+}
+
 // UpdateProfile edits one profile. A person owns the facts about themselves;
 // the company owns department, manager, employee code and start date, so those
 // need an owner or admin (spec F-03 §2 decision 8).

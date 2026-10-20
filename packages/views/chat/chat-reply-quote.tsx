@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, ImageIcon, Reply, X } from "lucide-react";
+import { CircleX, FileText, ImageIcon, Reply } from "lucide-react";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -93,7 +93,7 @@ export function ChatReplyQuote({
               <span className="truncate text-label font-semibold text-brand">
                 {t("chat.replying_to_name", { name: senderLabel })}
               </span>
-              <span className="truncate text-label text-muted-foreground">{label}</span>
+              <span className="truncate text-label text-foreground">{label}</span>
             </>
           ) : (
             <span className="truncate text-label text-muted-foreground">
@@ -169,13 +169,26 @@ export function ChatReplyQuote({
 }
 
 /**
- * The strip at the top of the composer pill while replying or editing: a
- * brand bar on a soft fill, what it is about, and the way out (canvas).
+ * The row above the composer while replying or editing, as Telegram: no fill,
+ * the mark in the attach button's column, a thin brand line by who and what,
+ * and the circled way out in the send/mic column.
  */
-export const COMPOSER_QUOTE_BAR_CLASS =
-  "mt-1 flex items-center gap-2.5 rounded-[18px] border-l-3 border-brand bg-muted py-1.5 pr-1 pl-3";
+export const COMPOSER_QUOTE_BAR_CLASS = "flex items-center gap-1 pb-1.5";
+/**
+ * The row opens by growing from no height, so the timeline above eases up
+ * instead of jumping (Telegram). Put the bar in a `COMPOSER_QUOTE_CLIP_CLASS`
+ * box inside it: that box clips the growth, and its 4px bleed keeps the close
+ * button's focus ring (2px outline, 2px offset) whole.
+ */
+export const COMPOSER_QUOTE_REVEAL_CLASS =
+  "grid grid-rows-[1fr] motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-(--duration-standard) motion-safe:ease-(--ease-out-quart) starting:grid-rows-[0fr] starting:opacity-0";
+export const COMPOSER_QUOTE_CLIP_CLASS = "-m-1 min-h-0 overflow-hidden p-1";
+export const COMPOSER_QUOTE_MARK_CLASS = "flex size-10 shrink-0 items-center justify-center text-brand [&_svg]:size-5.5";
+export const COMPOSER_QUOTE_BODY_CLASS = "flex min-w-0 flex-1 items-center border-l-2 border-brand pl-2.5";
+export const COMPOSER_QUOTE_CLOSE_CLASS =
+  "size-10 shrink-0 rounded-full text-muted-foreground hover:text-foreground [&_svg]:size-6 [&_svg]:stroke-[1.5]";
 
-/** Inside the composer pill while replying: who is quoted, what they said, and the way out. */
+/** Above the field while replying: who is quoted, what they said, and the way out. */
 export function ChatReplyComposerBar({
   message,
   senderLabel,
@@ -188,20 +201,22 @@ export function ChatReplyComposerBar({
   const { t } = useTranslation();
   return (
     <div className={COMPOSER_QUOTE_BAR_CLASS}>
-      <Reply aria-hidden className="size-4.5 shrink-0 text-brand" />
-      <span className="min-w-0 flex-1">
+      <span className={COMPOSER_QUOTE_MARK_CLASS}>
+        <Reply aria-hidden />
+      </span>
+      <span className={COMPOSER_QUOTE_BODY_CLASS}>
         <ChatReplyQuote message={message} senderLabel={senderLabel} compact />
       </span>
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="size-10 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+        className={COMPOSER_QUOTE_CLOSE_CLASS}
         aria-label={t("chat.cancel_reply")}
         title={t("chat.cancel_reply")}
         onClick={onCancel}
       >
-        <X className="size-4.5" aria-hidden />
+        <CircleX aria-hidden />
       </Button>
     </div>
   );

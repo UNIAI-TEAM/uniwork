@@ -40,10 +40,10 @@ import (
 //     batches; a lookup of a swept key answers 410 commit_intent_unknown,
 //     never not_committed.
 //
-// The idempotency ledger (idempotency_keys) is untouched: it still replays a
-// committed key for as long as it keeps the row (it has no retention of its
-// own), so a retry after the intent was swept replays instead of committing
-// twice.
+// The idempotency ledger (idempotency_keys) is untouched by intent lookup and
+// sweep: it replays a committed key while its row is retained
+// (IDEMPOTENCY_KEY_RETENTION, 7 days by default), so a retry within the
+// retention window replays instead of committing twice.
 
 // Dev values of the intent windows (contract-p0 §7; G5-D2 fixes the
 // production numbers). DOCUMENT_COMMIT_INTENT_CLAIM_TTL and
@@ -217,6 +217,22 @@ func (s *DocumentService) syncWriteEnabled(ctx context.Context, actor Actor, org
 	}
 	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: actor.ID, OrganizationID: organizationID})
 	return s.flags.IsEnabled(ctx, officeSyncWriteFlag, def)
+}
+
+const officeTxtOpenFlag = "office_txt_open"
+
+// txtOpenEnabled reads office_txt_open for the actor in the workspace and
+// organization, with the registry default (false) when no evaluator is wired.
+func (s *DocumentService) txtOpenEnabled(ctx context.Context, userID, workspaceID, organizationID string) bool {
+	def := false
+	if f, ok := featureflags.Lookup(officeTxtOpenFlag); ok {
+		def = f.Default
+	}
+	if s == nil || s.flags == nil {
+		return def
+	}
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, WorkspaceID: workspaceID, OrganizationID: organizationID})
+	return s.flags.IsEnabled(ctx, officeTxtOpenFlag, def)
 }
 
 // commitIntentClaim is the attempt that holds an intent.

@@ -48,18 +48,31 @@ export function toolsToCall(caseDoc, offered) {
 /**
  * Arguments for a call of the reference model: a write carries the reference edit, so the edit is provable from them. Every
  * value the reference answer reports (cell, formula, heading, table cell) is written at its anchor, a percent probe as a
- * format beside the cell's address, and the reference text stands for the new text of an edit that names no value.
+ * format beside the cell's address, a `config_op` item becomes the product operation it names (review-g712-16 A2), and the
+ * reference text stands for the new text of an edit that names no value.
  */
 export function argumentsFor(caseDoc, name) {
   const isWrite = opsOfTool(modulesOfCase(caseDoc), name)?.some((op) => WRITE_OPERATIONS.has(op));
   if (!isWrite) return '{}';
   const edits = [];
+  const operations = [];
   for (const { kind, anchor, value } of caseDoc.referenceAnswer.structural) {
+    if (kind === 'config_op') {
+      const bar = String(value).indexOf('|');
+      const sheetId = String(value).slice(0, bar);
+      const settings = Object.fromEntries(String(value).slice(bar + 1).split(',').map((part) => {
+        const eq = part.indexOf('=');
+        const raw = part.slice(eq + 1);
+        return [part.slice(0, eq).trim(), /^-?\d+$/.test(raw) ? Number(raw) : raw];
+      }));
+      operations.push({ op: anchor, sheetId, ...settings });
+      continue;
+    }
     if (!['cell', 'formula', 'heading', 'table_cell'].includes(kind) || String(value).trim() === '') continue;
     const probe = /^(.+)#numberFormat$/.exec(anchor);
     edits.push(probe ? { anchor: probe[1], format: value } : { anchor, value });
   }
-  return JSON.stringify({ note: 'reference edit', text: caseDoc.referenceAnswer.text, edits });
+  return JSON.stringify({ note: 'reference edit', text: caseDoc.referenceAnswer.text, edits, operations });
 }
 
 /** The reference model as a façade handler: (request, state) -> { content, toolCalls, status? }. */

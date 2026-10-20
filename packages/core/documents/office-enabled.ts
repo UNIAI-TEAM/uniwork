@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getPublicConfig } from "../api/endpoints/config";
 import { useFlag } from "../feature-flags";
-import { OFFICE_DOCS_WEB_FLAG, OFFICE_ENGINE_FLAG, officeFlagsAllow, officeFormatFlagKey } from "../office/format-flags";
+import { OFFICE_DOCS_WEB_FLAG, OFFICE_ENGINE_FLAG, OFFICE_TXT_OPEN_FLAG, officeFlagsAllow, officeFormatFlagKey } from "../office/format-flags";
 
 const officeConfigKeys = {
   all: ["office-public-config"] as const,
@@ -81,5 +81,24 @@ export function useOfficeWebFlagEnabled(flag: string, organizationId: string | u
   const scoped = useOrganizationOfficeConfig(organizationId);
   if (!organizationId) return global ? "on" : "off";
   if (scoped.data) return scoped.data.flags[flag] !== false ? "on" : "off";
+  return scoped.isError ? "unknown" : "loading";
+}
+
+/**
+ * Whether a .txt opens in the genoffice Markdown frame in plain mode
+ * (`office_txt_open`, UNI-1813). The opposite default from the module flags:
+ * the server default is off, so an absent key in the organization's answer
+ * reads `off`. The state shape matches `useOfficeEnabled` so a caller can
+ * tell a pending read (`loading`, never yet "off") from a settled one: only a
+ * settled `on` opens, and only a settled `off` may be described as "turned
+ * off". `on` never comes from the host's global default: the capability is on
+ * only where the document's organization turned it on (a document with no
+ * organization reads the global flag, off by default).
+ */
+export function useOfficeTxtOpenEnabled(organizationId: string | undefined): OfficeEnabledState {
+  const global = useFlag(OFFICE_TXT_OPEN_FLAG, false);
+  const scoped = useOrganizationOfficeConfig(organizationId);
+  if (!organizationId) return global ? "on" : "off";
+  if (scoped.data) return scoped.data.flags[OFFICE_TXT_OPEN_FLAG] === true ? "on" : "off";
   return scoped.isError ? "unknown" : "loading";
 }

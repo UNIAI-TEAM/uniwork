@@ -8,22 +8,26 @@ import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import type { UnifiedSidebarEntry } from "./chat-sidebar-unified";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
+import { chatComposerDraftKey } from "./chat-composer-draft-key";
 import {
   ChatSidebarUnifiedRow,
   isSidebarEntryActive,
   sidebarEntryRoomId,
+  sidebarEntryTarget,
   type SidebarRowLabels,
 } from "./chat-sidebar-unified-row";
 
 /** Past this many rows only the visible slice is mounted. */
 const SIDEBAR_VIRTUALIZE_AFTER = 100;
-/** A row: the canvas' 70px (a 50px face with 9px above and below, rows touching). */
-const ROW_ESTIMATE_PX = 70;
+/** A row: 64px (a 48px face with 8px above and below, rows touching). */
+const ROW_ESTIMATE_PX = 64;
 
 const ROW_SELECTOR = "[data-chat-sidebar-row]";
 const NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
 
 type RowData = {
+  /** The page's workspace: composer drafts are keyed by it. */
+  workspaceId: string;
   entries: UnifiedSidebarEntry[];
   target: ChatSidebarTarget;
   onTargetChange: (target: ChatSidebarTarget) => void;
@@ -44,6 +48,8 @@ type RowData = {
   peerReadAtByRoomId: Record<string, string>;
   /** A heading under the first row (a workspace's "Channels" under its own room); a long, virtual list goes without. */
   sectionAfterFirst?: ReactNode;
+  /** Under the last row, in the same scroll: a search's matching messages. */
+  footer?: ReactNode;
 };
 
 /**
@@ -133,6 +139,7 @@ export function ChatSidebarList(props: RowData) {
         memberAvatarByUserId={props.memberAvatarByUserId}
         typingNameByUserId={props.typingNameByUserId}
         peerReadAt={roomId ? props.peerReadAtByRoomId[roomId] : undefined}
+        draftKey={chatComposerDraftKey(props.workspaceId, sidebarEntryTarget(entry))}
       />
     );
   };
@@ -152,6 +159,7 @@ export function ChatSidebarList(props: RowData) {
             {index === 0 && props.sectionAfterFirst ? <li>{props.sectionAfterFirst}</li> : null}
           </Fragment>
         ))}
+        {props.footer ? <li>{props.footer}</li> : null}
       </ul>
     );
   }
@@ -184,6 +192,7 @@ export function ChatSidebarList(props: RowData) {
           );
         })}
       </ul>
+      {props.footer}
     </div>
   );
 }

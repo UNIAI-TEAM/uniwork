@@ -8,6 +8,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
+import "../test/lazy-document-editor";
 import { PreferenceToastProvider, usePreferenceSavedToast } from "../layout/preference-toast";
 import { DocumentWorkspace } from "./document-workspace";
 
@@ -162,6 +163,29 @@ describe("DocumentWorkspace note page UI", () => {
     expect(screen.queryByRole("button", { name: t("documents.page_ui.change_icon") })).toBeNull();
     expect(screen.getAllByText(t("documents.save.readonly"))).toHaveLength(1);
     expect(screen.queryByText(t("documents.detail.readonly_title"))).toBeNull();
+  });
+});
+
+describe("DocumentWorkspace read-only level label (UNI-1994)", () => {
+  it("names the comment level, not view only, for a recipient of a comment share", async () => {
+    renderWorkspace({ my_level: "comment" });
+    await findEditor();
+    expect(screen.getByText(t("documents.save.readonly_comment"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.save.readonly"))).toBeNull();
+    expect(screen.getByText(t("documents.detail.readonly_comment_description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.detail.readonly_description"))).toBeNull();
+  });
+
+  it("keeps view only for a view recipient and shows none for an editor", async () => {
+    const view = renderWorkspace({ my_level: "view" });
+    await findEditor();
+    expect(screen.getByText(t("documents.save.readonly"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.save.readonly_comment"))).toBeNull();
+    view.unmount();
+    renderWorkspace({ my_level: "edit" });
+    await findEditor();
+    expect(screen.queryByText(t("documents.save.readonly"))).toBeNull();
+    expect(screen.queryByText(t("documents.save.readonly_comment"))).toBeNull();
   });
 });
 

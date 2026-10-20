@@ -400,6 +400,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
      *  matches in what is loaded" client-side). */
     clientFiltered,
     tree: nodes,
+    /** True while the first tree answer is on its way (a disabled tree is not loading). */
+    treeLoading: tree.isLoading,
     folderIndex,
     /** The loaded document rows by id: a folder card takes its editor, date and level from its own row. */
     docById: new Map(state.rows.flatMap((row) => (row.type === "document" ? [[row.doc.id, row.doc]] : []))),

@@ -63,7 +63,10 @@ export function pickQuickCatchUp({
   return { total, rooms, top: top ? { roomId: top.roomId, target: top.target, title: top.title } : null };
 }
 
-/** The first thing in the list: how much is unread, and a tap to UNI's brief of the busiest room. */
+/**
+ * A slim row at the top of the list: how much is unread, and a tap to UNI's
+ * brief of the busiest room. Nothing unread, no row: the list starts at once.
+ */
 export function SidebarCatchUpCard({
   catchUp,
   onOpen,
@@ -73,33 +76,25 @@ export function SidebarCatchUpCard({
 }) {
   const { t } = useTranslation();
   const { top } = catchUp;
-  const content = (
-    <>
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-control bg-primary text-primary-foreground">
-        <Sparkle aria-hidden className="size-4.5" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-display text-body leading-4.5 font-bold text-foreground">{t("chat.sidebar_catch_up_title")}</span>
-        <span className="text-label leading-4.25 text-muted-foreground">
-          {top
-            ? t("chat.sidebar_catch_up_body", { count: catchUp.total, rooms: catchUp.rooms })
-            : t("chat.sidebar_catch_up_none")}
-        </span>
-        {/* The card opens the busiest room; the canvas draws no line for it, so only a screen reader hears where. */}
-        {top ? <span className="sr-only">{t("chat.sidebar_catch_up_target", { name: top.title })}</span> : null}
-      </span>
-    </>
-  );
-  const box = "mb-1.5 flex w-full shrink-0 items-center gap-3 rounded-[14px] border border-brand/25 bg-brand-subtle px-3.5 py-3 text-left";
-  if (!top) return <div className={box}>{content}</div>;
+  if (!top) return null;
   return (
     <button
       type="button"
-      className={`${box} transition-colors duration-(--duration-fast) hover:bg-brand/15`}
+      className="mb-1 flex w-full shrink-0 items-center gap-2.5 rounded-xl bg-brand-subtle/70 px-2.5 py-2 text-left transition-colors duration-(--duration-fast) hover:bg-brand-subtle"
       onClick={() => onOpen(top.target, top.roomId)}
     >
-      {content}
-      <ChevronRight aria-hidden className="size-4.5 shrink-0 text-faint-foreground" />
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-primary text-primary-foreground">
+        <Sparkle aria-hidden className="size-4" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-label font-semibold text-foreground">{t("chat.sidebar_catch_up_title")}</span>
+        <span className="truncate text-caption text-muted-foreground">
+          {t("chat.sidebar_catch_up_body", { count: catchUp.total, rooms: catchUp.rooms })}
+        </span>
+        {/* The row opens the busiest room; only a screen reader hears which. */}
+        <span className="sr-only">{t("chat.sidebar_catch_up_target", { name: top.title })}</span>
+      </span>
+      <ChevronRight aria-hidden className="size-4 shrink-0 text-faint-foreground" />
     </button>
   );
 }
