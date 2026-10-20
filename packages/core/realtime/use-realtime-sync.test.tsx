@@ -1282,6 +1282,16 @@ describe("useRealtimeSync › meeting summary", () => {
     },
   );
 
+  it.each(["minutes.created", "minutes.finalized", "minutes.reopened"])("refreshes the meeting's minutes on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { meeting_id: "m1", document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-minutes", "m1"])]));
+  });
+
   it.each(["task.updated", "task.deleted"])("refreshes every open action item list on %s", (type) => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

@@ -353,6 +353,14 @@ function keysFor(
         if (type === "action_item.converted") push(meetingKeys.activity(payload.meeting_id));
       }
       break;
+    case "minutes.created":
+    case "minutes.finalized":
+    case "minutes.reopened":
+      if (payload.meeting_id) {
+        push(meetingKeys.minutes(payload.meeting_id));
+        if (type === "minutes.finalized") push(meetingKeys.activity(payload.meeting_id));
+      }
+      break;
     case "profile.updated":
     case "department.created":
     case "department.updated":

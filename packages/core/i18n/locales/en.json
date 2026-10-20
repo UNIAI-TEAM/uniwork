@@ -3214,6 +3214,7 @@
     "activity_link_created": "created an invite link",
     "activity_link_revoked": "revoked an invite link",
     "activity_attendance_finalized": "finalized attendance",
+    "activity_minutes_finalized": "finalized the minutes",
     "activity_motion_opened": "opened voting",
     "activity_mic_locked": "locked a participant's mic",
     "activity_mic_unlocked": "unlocked a participant's mic",
@@ -3836,6 +3837,32 @@
       "kind_chat": "Message",
       "kind_other": "Source",
       "openRecording": "Open recording at {{time}}"
+    },
+    "minutes": {
+      "title": "Minutes",
+      "description": "The minutes are a UniNote: facts from the meeting, discussion from the summary.",
+      "empty": "No minutes yet.",
+      "emptyClerk": "No minutes yet. Make them from the meeting's data and the latest summary.",
+      "create": "Make minutes",
+      "open": "Open minutes",
+      "draft": "Draft",
+      "finalized": "Finalized",
+      "finalizedBy": "Finalized {{date}} · {{name}}",
+      "viewFinalized": "View finalized (version {{no}})",
+      "editedSince": "Edited after finalizing. Finalize again to record the new version.",
+      "finalize": "Finalize minutes",
+      "refinalize": "Finalize again",
+      "reopen": "Reopen",
+      "editRequired": "You need edit access to the minutes UniNote to finalize or reopen it",
+      "loadFailed": "Couldn't load the minutes.",
+      "createdToast": "Minutes made",
+      "finalizedToast": "Minutes finalized",
+      "reopenedToast": "Minutes reopened",
+      "errors": {
+        "minutes_exist": "This meeting already has minutes. Open them to edit.",
+        "minutes_missing": "This meeting's minutes are gone: the UniNote was deleted. Make them again.",
+        "minutes_edit_required": "You need edit access to the minutes UniNote to finalize or reopen it."
+      }
     },
     "carriedOver": {
       "title": "Carried over from earlier meetings",

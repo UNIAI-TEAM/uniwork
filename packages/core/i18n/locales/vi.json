@@ -3213,6 +3213,7 @@
     "activity_link_created": "đã tạo liên kết mời",
     "activity_link_revoked": "đã thu hồi liên kết mời",
     "activity_attendance_finalized": "đã chốt điểm danh",
+    "activity_minutes_finalized": "đã chốt biên bản",
     "activity_motion_opened": "đã mở biểu quyết",
     "activity_mic_locked": "đã khóa mic của một người tham gia",
     "activity_mic_unlocked": "đã mở khóa mic của một người tham gia",
@@ -3835,6 +3836,32 @@
       "kind_chat": "Tin nhắn",
       "kind_other": "Nguồn",
       "openRecording": "Mở bản ghi tại {{time}}"
+    },
+    "minutes": {
+      "title": "Biên bản",
+      "description": "Biên bản là một UniNote: số liệu lấy từ cuộc họp, nội dung lấy từ tóm tắt.",
+      "empty": "Chưa có biên bản.",
+      "emptyClerk": "Chưa có biên bản. Lập từ dữ liệu cuộc họp và bản tóm tắt mới nhất.",
+      "create": "Lập biên bản",
+      "open": "Mở biên bản",
+      "draft": "Nháp",
+      "finalized": "Đã chốt",
+      "finalizedBy": "Chốt ngày {{date}} · {{name}}",
+      "viewFinalized": "Xem bản đã chốt (phiên bản {{no}})",
+      "editedSince": "Đã sửa sau khi chốt. Chốt lại để ghi nhận bản mới.",
+      "finalize": "Chốt biên bản",
+      "refinalize": "Chốt lại",
+      "reopen": "Bỏ chốt",
+      "editRequired": "Cần quyền chỉnh sửa UniNote biên bản để chốt hoặc bỏ chốt",
+      "loadFailed": "Không tải được biên bản.",
+      "createdToast": "Đã lập biên bản",
+      "finalizedToast": "Đã chốt biên bản",
+      "reopenedToast": "Đã bỏ chốt biên bản",
+      "errors": {
+        "minutes_exist": "Cuộc họp đã có biên bản. Mở biên bản để sửa.",
+        "minutes_missing": "Cuộc họp không còn biên bản: UniNote đã bị xóa. Lập lại biên bản.",
+        "minutes_edit_required": "Cần quyền chỉnh sửa UniNote biên bản để chốt hoặc bỏ chốt."
+      }
     },
     "carriedOver": {
       "title": "Việc còn tồn từ các cuộc họp trước",

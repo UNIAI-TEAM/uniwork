@@ -55,6 +55,7 @@ export const meetingKeys = {
   actionItems: (meetingId: string) => [...ACTION_ITEMS_ROOT, meetingId] as const,
   carriedOverRoot: CARRIED_OVER_ROOT,
   carriedOver: (meetingId: string) => [...CARRIED_OVER_ROOT, meetingId] as const,
+  minutes: (meetingId: string) => ["meeting-minutes", meetingId] as const,
   recordings: (meetingId: string) => ["meeting-recordings", meetingId] as const,
   attendance: (meetingId: string) => ["meeting-attendance", meetingId] as const,
   motions: (meetingId: string) => ["meeting-motions", meetingId] as const,

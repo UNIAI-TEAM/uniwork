@@ -17,6 +17,7 @@ import {
 } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useMeetingScope } from "@uniwork/core/realtime";
 import { ApiError } from "@uniwork/core/api";
@@ -40,6 +41,7 @@ import { MeetingNotesSection } from "./meeting-notes-section";
 import { MeetingDetailPageSkeleton } from "./meeting-page-skeletons";
 import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action-items-section";
 import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
+import { MeetingMinutesSection } from "./meeting-minutes-section";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
 import { useMemberIndex } from "./use-member-index";
 import { useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
@@ -75,6 +77,7 @@ export function MeetingDetailView({
   const { canHost, canCancel } = useMeetingPermissions(meeting ?? null, workspaceId);
   // Host, secretary or workspace admin: the summary and the action items (spec D3).
   const { isClerk } = useMeetingClerk(meeting ?? null, workspaceId);
+  const minutesOn = useFlag("meeting_minutes", false);
   const start = useStartMeeting(workspaceId);
   const end = useEndMeeting(workspaceId);
   const cancel = useCancelMeeting(workspaceId);
@@ -269,6 +272,12 @@ export function MeetingDetailView({
                     projectId={meeting.project_id}
                     canClerk={isClerk}
                   />
+                </div>
+              ) : null}
+              {/* The minutes page, made once the meeting has ended (spec D12). */}
+              {minutesOn && meeting.status === "ENDED" ? (
+                <div className="order-3 min-w-0">
+                  <MeetingMinutesSection workspaceId={workspaceId} meetingId={meeting.id} canClerk={isClerk} />
                 </div>
               ) : null}
               {/* What earlier meetings of the project left open, for the one about to run (spec D8). */}

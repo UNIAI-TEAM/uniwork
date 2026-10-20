@@ -63,6 +63,8 @@ describe("meeting activity display", () => {
     expect(activityLabel("MOTION_OPENED")).toBe("meetings.activity_motion_opened");
     expect(activityLabel("MOTION_CLOSED")).toBe("meetings.activity_motion_closed");
     expect(activityLabel("ATTENDANCE_FINALIZED")).toBe("meetings.activity_attendance_finalized");
+    expect(activityKind("MINUTES_FINALIZED")).toBe("governance");
+    expect(activityLabel("MINUTES_FINALIZED")).toBe("meetings.activity_minutes_finalized");
     expect(activityStateChange(item({ event_type: "MOTION_CLOSED", from_state: "OPEN", to_state: "PASSED" }))).toBeNull();
   });
 
