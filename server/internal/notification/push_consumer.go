@@ -297,6 +297,24 @@ func documentResourceURL(ctx context.Context, q *db.Queries, origin string, n db
 		}
 		link += sep + "access=break_glass"
 	}
+	// A body mention opens the page scrolled to the reader's own mention
+	// (UNI-1968, W4 drops the param after use).
+	if n.Kind == KindDocumentBodyMentioned {
+		sep := "?"
+		if strings.Contains(link, "?") {
+			sep = "&"
+		}
+		link += sep + "mention=1"
+	}
+	// A manager's access request opens the share dialog at its requests
+	// section (DOC-07 §3.4, N-02).
+	if n.Kind == KindDocumentAccessRequested {
+		sep := "?"
+		if strings.Contains(link, "?") {
+			sep = "&"
+		}
+		link += sep + "access=requests"
+	}
 	return link, nil
 }
 

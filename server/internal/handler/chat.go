@@ -66,6 +66,9 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.PinnedAt != "" {
 		out.PinnedAt = m.PinnedAt
 	}
+	if m.CanShareAsDocument {
+		out.CanShareAsDocument = true
+	}
 	if m.Priority != "" {
 		out.Priority = m.Priority
 	}
@@ -130,6 +133,30 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			ThumbURL:     m.File.ThumbURL,
 			URLExpiresAt: formatURLExpiry(m.File.URLExpiresAt),
 		}
+	}
+	if m.Document != nil {
+		block := &sdo.DocumentMessageDTO{
+			DocumentID:      m.Document.DocumentID,
+			ViewerHasAccess: m.Document.HasAccess,
+		}
+		// Without access the block carries the id and the false flag and
+		// nothing else: no title, format or revision of a document the caller
+		// cannot read (UNI-1966 §5).
+		if m.Document.HasAccess {
+			block.ViewerLevel = m.Document.Level
+			block.ViewerCanManage = m.Document.CanManage
+			block.ViewerCanUploadVersion = m.Document.CanUploadVersion
+			block.Title = m.Document.Title
+			block.Format = m.Document.Format
+			block.VersionNumber = int(m.Document.VersionNumber)
+			block.Revision = strconv.FormatInt(m.Document.Revision, 10)
+			block.CanOpenInApp = m.Document.CanOpenInApp
+		}
+		if m.Document.HasRecipientCount {
+			count := m.Document.RecipientCount
+			block.RecipientCount = &count
+		}
+		out.Document = block
 	}
 	if m.Poll != nil {
 		options := make([]sdo.ChatPollOptionDTO, 0, len(m.Poll.Options))
@@ -206,7 +233,7 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
 		LastMessageCallOutcome: r.LastMessageCallOutcome, LastMessageDurationMS: r.LastMessageDurationMS,
 		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
-		NotificationsMuted: r.NotificationsMuted, AvatarURL: r.AvatarURL,
+		NotificationsMuted: r.NotificationsMuted, AvatarURL: r.AvatarURL, CanSendDocument: r.CanSendDocument,
 	}
 	if r.PeerLastReadAt != nil {
 		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
@@ -860,6 +887,31 @@ func (h *handlers) searchChatRoomMessages(w http.ResponseWriter, r *http.Request
 		middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"),
 		chi.URLParam(r, "roomID"),
+		in,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.ChatMessageDTO, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, toChatMessageDTO(m))
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"messages": out})
+}
+
+// searchChatMessages is the sidebar's search: every room of mine in one scope.
+func (h *handlers) searchChatMessages(w http.ResponseWriter, r *http.Request) {
+	in, err := parseChatSearchQuery(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "before must be RFC3339")
+		return
+	}
+	msgs, err := h.Chat.SearchMessages(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		strings.TrimSpace(r.URL.Query().Get("scope")),
 		in,
 	)
 	if err != nil {

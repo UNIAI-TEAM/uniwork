@@ -397,7 +397,7 @@ export async function apiCreateDocument(
     }),
   );
   const parsed = await parseApiResult(res, (raw) => raw.document as DocumentDTO | undefined);
-  if (parsed.ok && parsed.data && !input.parent_id && input.visibility !== "restricted") {
+  if (parsed.ok && parsed.data && !input.parent_id && input.kind !== "folder" && input.visibility !== "restricted") {
     return { ...parsed, data: await openRootDocumentToWorkspace(page, token, wsId, parsed.data.id) };
   }
   return parsed;
@@ -410,7 +410,8 @@ export async function apiCreateDocument(
  * pre-SH-S1 default. The workspace share writes the home row at edit; a
  * child created under it inherits both, so only roots need the call. The
  * share bumps the revision, so the returned document is read again: the
- * callers pass its revision to move and rename.
+ * callers pass its revision to move and rename. A folder is never opened this
+ * way: it cannot be shared (UNI-1974, 422 folder_not_shareable) and stays private.
  */
 async function openRootDocumentToWorkspace(
   page: Page,
@@ -441,11 +442,13 @@ export async function createFolder(
   parentId?: string | null,
   visibility?: "workspace" | "restricted",
 ): Promise<DocumentDTO> {
+  // A folder is never shared (UNI-1974): "workspace" would be refused with 422
+  // folder_not_shareable, so the visibility argument is accepted and not sent.
+  void visibility;
   const res = await apiCreateDocument(page, token, wsId, {
     title,
     kind: "folder",
     parent_id: parentId ?? undefined,
-    visibility,
   });
   expect(
     res.ok && res.data,
@@ -555,11 +558,12 @@ export async function createFolderChain(
 }
 
 /**
- * Seeds `count` child pages under `rootFolderId` in parallel with one token per
- * lane. The global limiter keys by bearer token (300/min per token,
- * `server/internal/handler/router/router.go:90`), so spreading the work over
- * several workspace members keeps every token far below its budget; a 429 is
- * still retried after its Retry-After. Returns the elapsed milliseconds.
+ * Seeds `count` child pages under `rootFolderId` in parallel, several lanes per
+ * token. The global limiter keys by user (300/min, `router.go` `bearerUser`),
+ * and a folder is never shared (UNI-1974), so only a user who may create in the
+ * folder (its owner) can seed it: 1000 pages take ~4 minutes, with a 429 retried
+ * after its Retry-After. Several tokens only help when each may write there.
+ * Returns the elapsed milliseconds.
  */
 export async function seedFolderSubtreeParallel(
   page: Page,

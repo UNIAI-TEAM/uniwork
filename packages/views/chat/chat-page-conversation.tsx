@@ -15,6 +15,7 @@ import {
 import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPinnedMessagesBar } from "./chat-pinned-messages-bar";
 import { senderLabelFor } from "./native-chat-message-mapping";
+import { ChatActiveCallBar } from "./chat-active-call-bar";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
 import type { useChatCatchUpUi } from "./use-chat-catch-up-ui";
 import { useChatInlineEdit } from "./use-chat-inline-edit";
@@ -87,6 +88,7 @@ export function ChatPageConversation({
 
   return (
     <>
+      <ChatActiveCallBar />
       <ChatPageConversationToolbar
         target={target}
         headerTitle={headerTitle}
@@ -182,6 +184,7 @@ export function ChatPageConversation({
             onFocusComposer={focusComposer}
             onEditMessage={edit.start}
             peerLastReadAt={props.peerLastReadAt}
+            desktopOpen={props.desktopOpen}
           />
         </ChatUnreadProvider>
       </div>
@@ -196,6 +199,8 @@ export function ChatPageConversation({
         onSendMedia={props.onSendMedia}
         onSendVoice={props.onSendVoice}
         onSendFile={props.onSendFile}
+        onSendDocument={props.onSendDocument}
+        canSendDocument={props.canSendDocument}
         disabled={props.showLoading || dmBlocked || chatSendRestricted}
         mentionCandidates={many ? props.mentionCandidates : undefined}
         memberAvatarByUserId={memberAvatarByUserId}

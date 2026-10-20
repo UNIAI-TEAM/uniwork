@@ -59,6 +59,7 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionMcpTokenFamilyRevoked:             "covered by mcp_tokens_test.go",
 	audit.ActionOrganizationMcpPolicyChanged:      "covered by mcp_grants_test.go",
 	audit.ActionOrganizationMcpWritePolicyChanged: "covered by mcp_grants_test.go",
+	audit.ActionOrganizationAskModelsChanged:      "covered by askuni_models_test.go",
 	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
 }
 
@@ -1133,6 +1134,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err := svc.RevokeDocumentShare(f.ctx, Human(f.owner.ID), docID, sh.ID); err != nil {
 				t.Fatal(err)
 			}
+			// UNI-1974: the folders-unshare clean-up revokes a legacy folder
+			// share through the same writer, as the system actor.
+			folder := f.legacySharedFolder(t)
+			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_id = 'folder-share-off'`,
+				audit.ActionDocumentShareRevoked, folder).Scan(&n); err != nil || n == 0 {
+				t.Fatalf("UnshareFolders wrote %d share_revoked rows (%v)", n, err)
+			}
 		},
 		audit.ActionDocumentBreakGlassGranted: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.breakGlassDocument(t)
@@ -1191,6 +1204,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				PrincipalType: DocumentPrincipalWorkspace, PrincipalID: f.workspace.ID, Level: DocumentLevelView,
 			}); err != nil {
 				t.Fatal(err)
+			}
+			// UNI-1974: the folders-unshare clean-up closes a legacy workspace
+			// folder through the same writer, as the system actor.
+			folder := f.legacySharedFolder(t)
+			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
+				t.Fatal(err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_id = 'folder-share-off'`,
+				audit.ActionDocumentWorkspaceAccessChanged, folder).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("UnshareFolders wrote %d workspace_access_changed rows (%v), want 1", n, err)
 			}
 		},
 		// G1-04a (UNI-678): a PATCH of the page; the audit row is metadata only.
@@ -1259,6 +1284,30 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionDocumentEditRequestCreated: func(t *testing.T, f *auditFixture) {
 			f.documentEditRequest(t)
+		},
+		audit.ActionDocumentAccessRequested: func(t *testing.T, f *auditFixture) {
+			f.documentAccessRequest(t)
+		},
+		audit.ActionDocumentAccessRequestApproved: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.ApproveDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID, "view"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentAccessRequestDeclined: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.DeclineDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentAccessRequestCancelled: func(t *testing.T, f *auditFixture) {
+			svc, docID, reqID := f.documentAccessRequest(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ApproveDocumentAccessRequest(f.ctx, Human(f.owner.ID), docID, reqID, "view"); !codedIs(err, "access_request_closed") {
+				t.Fatalf("want access_request_closed, got %v", err)
+			}
 		},
 		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
 			svc, docID, req := f.documentEditRequest(t)
@@ -1865,6 +1914,10 @@ func auditActions() []string {
 		audit.ActionDocumentEditRequestCreated,
 		audit.ActionDocumentEditRequestAnswered,
 		audit.ActionDocumentEditRequestCanceled,
+		audit.ActionDocumentAccessRequested,
+		audit.ActionDocumentAccessRequestApproved,
+		audit.ActionDocumentAccessRequestDeclined,
+		audit.ActionDocumentAccessRequestCancelled,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentCommitIntentRenewed,
@@ -1907,6 +1960,7 @@ func auditActions() []string {
 		audit.ActionMeetingSummaryCreated,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
+		audit.ActionOrganizationAskModelsChanged,
 	}
 }
 
@@ -2153,6 +2207,29 @@ func (f *auditFixture) documentEditHold(t *testing.T) (*DocumentService, string,
 	return svc, docID, l.Lock.ID, sid
 }
 
+// documentAccessRequest is a restricted document the member cannot read and
+// the request they sent its ACL owner (DOC-07). It answers the service, the
+// document id and the pending request id, so a case can decide the request.
+func (f *auditFixture) documentAccessRequest(t *testing.T) (*DocumentService, string, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	f.addMember(t)
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET visibility = 'restricted' WHERE id = $1", docID); err != nil {
+		t.Fatalf("make audit document restricted: %v", err)
+	}
+	if _, err := svc.CreateDocumentAccessRequest(f.ctx, Human(f.member.ID), docID, DocumentAccessRequestInput{
+		RequestedLevel: "view", Message: "kiểm tra theo yêu cầu kiểm toán",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var reqID string
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT id FROM document_access_requests WHERE document_id = $1 AND status = 'pending'`, docID).Scan(&reqID); err != nil {
+		t.Fatal(err)
+	}
+	return svc, docID, reqID
+}
+
 // documentEditRequest is a document the owner holds and the member asked
 // to edit (R8).
 func (f *auditFixture) documentEditRequest(t *testing.T) (*DocumentService, string, DocumentEditRequestView) {
@@ -2180,6 +2257,26 @@ func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
 		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
 	}))
 	return svc, id
+}
+
+// legacySharedFolder inserts a folder as the old create toggle left it:
+// open to the workspace, with a live organization share on top.
+func (f *auditFixture) legacySharedFolder(t *testing.T) string {
+	t.Helper()
+	wsID := f.workspace.ID
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": wsID, "kind": "folder",
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
+	if _, err := f.q.InsertDocumentShare(f.ctx, db.InsertDocumentShareParams{
+		ID: util.NewID(), OrganizationID: f.orgID, WorkspaceID: wsID, DocumentID: id,
+		PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: string(DocumentLevelView),
+		GrantedBy: f.owner.ID, GrantedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 // breakGlassDocument is document() made restricted with another member as its

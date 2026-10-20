@@ -7,6 +7,8 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatMessageRow } from "./chat-message-row";
 import { ChatFileMessageRow } from "./chat-file-message-row";
 import { ChatImageAlbumRow } from "./chat-image-album";
+import { ChatDocumentMessageRow, type ChatDocumentDesktopOpen } from "./chat-document-message-row";
+import { ChatDocumentVersionRow } from "./chat-document-version-row";
 import { ChatNoteMessageRow } from "./chat-note-message-row";
 import { ChatPostMessageRow } from "./chat-post-message-row";
 import { ChatPollMessageRow } from "./chat-poll-message-row";
@@ -53,6 +55,8 @@ export type NativeChatMessageContext = {
   /** Room moderator: may delete someone else's reminder (the server's isChatRoomModerator). */
   canModerate: boolean;
   actions: NativeChatMessageActions;
+  /** Host wiring for the document card's "Mở bằng UniWork Office"; absent → hidden. */
+  desktopOpen?: ChatDocumentDesktopOpen;
 };
 
 /** Per-row flags, worked out once for the whole timeline. */
@@ -186,6 +190,7 @@ function MessageBody({
     canPinMessages,
     canModerate,
     actions,
+    desktopOpen,
   } = context;
   const { compactTop, showAvatar, senderLabel, senderAvatarUrl } = layout;
   // Its photo is a tile of the album row above; the empty row keeps the virtual list's one-per-message count.
@@ -301,6 +306,28 @@ function MessageBody({
         replyToMessage={layout.replyTarget}
         replyToSenderLabel={layout.replySenderLabel}
         onJumpToMessage={actions.onJumpToMessage}
+        highlighted={highlighted}
+      />
+    );
+  }
+
+  if (message.kind === "document") {
+    return (
+      <ChatDocumentMessageRow
+        {...common}
+        desktopOpen={desktopOpen}
+        replyToMessage={layout.replyTarget}
+        onJumpToMessage={actions.onJumpToMessage}
+        highlighted={highlighted}
+      />
+    );
+  }
+  if (message.kind === "document_version") {
+    return (
+      <ChatDocumentVersionRow
+        message={message}
+        senderLabel={senderLabel}
+        compactTop={compactTop}
         highlighted={highlighted}
       />
     );

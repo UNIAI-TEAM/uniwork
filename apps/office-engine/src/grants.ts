@@ -14,7 +14,7 @@ import {
   officeFormats,
   type EngineOperation,
   type GrantableOperation,
-  type MeasuredInput,
+  type DeclaredInput,
   type OfficeFormat,
 } from "@uniwork/office-contracts";
 
@@ -169,7 +169,7 @@ export interface EnvelopeFacts {
   grantId?: string;
   baseRevision?: number;
   baseVersionId?: string;
-  inputs: MeasuredInput | null;
+  inputs: DeclaredInput | null;
 }
 
 /** Bind the validated envelope to the grant: every result-deciding field the

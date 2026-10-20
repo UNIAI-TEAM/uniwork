@@ -46,6 +46,9 @@ func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc d
 	if isMyFolder(doc) {
 		return db.Document{}, errMyFolderLocked()
 	}
+	if doc.Kind == DocumentKindFolder && move.Visibility == documentVisibilityWorkspace {
+		return db.Document{}, errFolderNotShareable()
+	}
 	legacy, err := homeWorkspaceShares(ctx, q, doc)
 	if err != nil {
 		return db.Document{}, err

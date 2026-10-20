@@ -21,7 +21,7 @@ import (
 func TestAIUniworkConcurrencyGlobalRefusalUnwinds(t *testing.T) {
 	rdb := uniworkRedis(t)
 	ctx := context.Background()
-	limiter := newUniworkConcurrency(rdb, 2, 4, 1, UniworkDeadline+10*time.Second)
+	limiter := newUniworkConcurrency(rdb, "ai:uniwork:", 2, 4, 1, UniworkDeadline+10*time.Second)
 	orgA, orgB := util.NewID(), util.NewID()
 	t.Cleanup(func() {
 		cctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -74,7 +74,7 @@ func TestAIUniworkConcurrencyGlobalRefusalUnwinds(t *testing.T) {
 // lease expires.
 func TestAIUniworkConcurrencyReleaseOnCancelledRequest(t *testing.T) {
 	rdb := uniworkRedis(t)
-	limiter := newUniworkConcurrency(rdb, 4, 1, 1, UniworkDeadline+10*time.Second)
+	limiter := newUniworkConcurrency(rdb, "ai:uniwork:", 4, 1, 1, UniworkDeadline+10*time.Second)
 	orgID := util.NewID()
 	t.Cleanup(func() {
 		cctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -104,4 +104,38 @@ func TestAIUniworkConcurrencyReleaseOnCancelledRequest(t *testing.T) {
 		t.Fatalf("Acquire after the cancelled request's release: %v", err)
 	}
 	again()
+}
+
+// Each limiter leases under its own prefix: Ask UNI's agent runs ("ai:ask:")
+// never count against UniWork AI's bounds, nor UniWork AI's against theirs.
+func TestAIUniworkConcurrencyKeysUnderItsPrefix(t *testing.T) {
+	rdb := uniworkRedis(t)
+	ctx := context.Background()
+	orgID := util.NewID()
+	ask := newUniworkConcurrency(rdb, "ai:ask:", 4, 1, 64, time.Minute)
+	uniwork := newUniworkConcurrency(rdb, "ai:uniwork:", 4, 1, 64, time.Minute)
+	t.Cleanup(func() {
+		cctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = rdb.Del(cctx, "ai:ask:org:"+orgID, "ai:ask:global", uniworkOrgLeasePrefix+orgID).Err()
+	})
+	release, err := ask.Acquire(ctx, orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, u := rdb.ZCard(ctx, "ai:ask:org:"+orgID).Val(), rdb.ZCard(ctx, uniworkOrgLeasePrefix+orgID).Val(); a != 1 || u != 0 {
+		t.Fatalf("organization leases: ask %d, uniwork %d; want 1 and 0", a, u)
+	}
+	if n := rdb.ZCard(ctx, "ai:ask:global").Val(); n != 1 {
+		t.Fatalf("ask global leases %d, want 1", n)
+	}
+	if _, err := ask.Acquire(ctx, orgID); err == nil {
+		t.Fatal("the organization is at its ask bound")
+	}
+	other, err := uniwork.Acquire(ctx, orgID)
+	if err != nil {
+		t.Fatalf("an ask lease counted against UniWork AI: %v", err)
+	}
+	other()
+	release()
 }

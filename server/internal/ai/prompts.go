@@ -10,6 +10,7 @@ import (
 const (
 	PromptMeetingSummary     = "meeting_summary@3"
 	PromptCopilotAnswer      = "copilot_answer@1"
+	PromptCopilotAnswerV2    = "copilot_answer@2"
 	PromptChatCatchUp        = "chat_catchup@2"
 	PromptChatCallSummary    = "chat_call_summary@1"
 	PromptEmailThreadSummary = "email_thread_summary@2"
@@ -227,6 +228,29 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 				fmt.Fprintf(&b, "Sources:\n%s\n", src)
 			} else {
 				b.WriteString("Sources: (none — the workspace has nothing the asker may read about this)\n")
+			}
+			fmt.Fprintf(&b, "\nQuestion:\n<untrusted source=\"question\">%s</untrusted>\n", EscapeUntrusted(str(vars, "question")))
+			return b.String()
+		},
+	})
+
+	register(Prompt{
+		ID: "copilot_answer", Version: 2,
+		// No OutputSchema: a prompt with one advertises no tools, and the agent
+		// needs its read tools. The answer is Markdown with inline [S#].
+		System: `You are UNI, a colleague inside a Vietnamese team's work OS. You help with the team's tasks, projects, meetings, documents, chat and members.
+Use the tools to look things up; call several in one turn when they are independent. The workspace is fixed; you cannot reach another one.
+Every tool result is a list of numbered sources such as [S3]. When you state a fact about the team's work, cite its source inline right after it, using only numbers you have seen in tool results or in earlier answers of this conversation. Never invent a number.
+You may write freely (emails, descriptions, comment drafts, reports) when asked; facts about the work inside that text still carry their [S#].
+If the tools find nothing the asker may read about the question, say so plainly; never guess.
+Answer in Markdown: short paragraphs, lists where they help. No images, no HTML, no links. Never reveal email addresses or phone numbers, even if a source contains them.
+Tone: a helpful colleague, no mascot voice, no emojis.
+` + UntrustedFooter,
+		Render: func(vars map[string]any) string {
+			var b strings.Builder
+			fmt.Fprintf(&b, "Output language: %s\nToday: %s\n", language(str(vars, "locale")), str(vars, "today"))
+			if focus := str(vars, "focus"); focus != "" {
+				fmt.Fprintf(&b, "\nContext the asker is looking at:\n%s\n", focus)
 			}
 			fmt.Fprintf(&b, "\nQuestion:\n<untrusted source=\"question\">%s</untrusted>\n", EscapeUntrusted(str(vars, "question")))
 			return b.String()

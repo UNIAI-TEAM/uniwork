@@ -82,8 +82,8 @@ describe("vi/en parity", () => {
   });
 
   it("DOC-05 break-glass và thông báo document_break_glass có đủ bản vi/en đúng chuẩn", () => {
-    expect(VI["documents.breakGlass.lockedTitle"]).toBe("Tài liệu này ở chế độ hạn chế");
-    expect(EN["documents.breakGlass.lockedTitle"]).toBe("This document is restricted");
+    expect(VI["documents.breakGlass.lockedTitle"]).toBe("Tài liệu này là riêng tư");
+    expect(EN["documents.breakGlass.lockedTitle"]).toBe("This document is private");
     expect(VI["documents.breakGlass.reasonTooShort"]).toBe("Hãy nhập lý do ít nhất 10 ký tự.");
     expect(EN["documents.breakGlass.reasonTooShort"]).toBe(
       "Enter a reason of at least 10 characters.",
@@ -110,6 +110,28 @@ describe("vi/en parity", () => {
     expect(EN["notifications.kindTitle.document_break_glass"]).toBe(
       "Emergency access to document",
     );
+  });
+
+  it("trạng thái tài liệu riêng tư đọc là \"Riêng tư\"/\"Private\" ở mọi bề mặt, không còn \"Hạn chế\"/\"Restricted\"", () => {
+    expect(VI["documents.home.access_filters.restricted"]).toBe("Riêng tư");
+    expect(EN["documents.home.access_filters.restricted"]).toBe("Private");
+    expect(VI["documents.share.visibility_restricted"]).toBe("Riêng tư");
+    expect(EN["documents.share.visibility_restricted"]).toBe("Private");
+    expect(VI["org.members.transfer_docs.skipped_self_other"]).toBe(
+      "{{count}} tài liệu riêng tư không thể chuyển cho chính bạn.",
+    );
+    expect(EN["org.members.transfer_docs.skipped_self_other"]).toBe(
+      "{{count}} private documents can't be transferred to yourself.",
+    );
+  });
+
+  it("số người được chia sẻ tài liệu trong chat: en có dạng số ít/số nhiều, vi cùng một câu cho cả hai", () => {
+    expect(EN["chat.document_shared_with_count_one"]).toBe("Shared with {{count}} person");
+    expect(EN["chat.document_shared_with_count_other"]).toBe("Shared with {{count}} people");
+    expect(EN["chat.document_shared_with_count"]).toBeUndefined();
+    expect(VI["chat.document_shared_with_count_one"]).toBe("Đã chia sẻ với {{count}} người");
+    expect(VI["chat.document_shared_with_count_other"]).toBe("Đã chia sẻ với {{count}} người");
+    expect(VI["chat.document_shared_with_count"]).toBeUndefined();
   });
 });
 

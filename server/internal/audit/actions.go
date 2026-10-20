@@ -218,6 +218,22 @@ const (
 	ActionDocumentShelved   = "document.shelved"
 	ActionDocumentUnshelved = "document.unshelved"
 
+	// Document access requests (DOC-07, UNI-1631): a person who cannot read a
+	// document asked its managers for access. The requester is the actor, the
+	// metadata carries the request id, the level and whether a message was
+	// sent - never the message text, which lives only in the request row.
+	// A manager's answer is its own row: approved carries the granted level and
+	// the share it created (absent when the requester was already at the
+	// level), declined carries nothing but the request id. The requester is
+	// never the actor of either.
+	ActionDocumentAccessRequested = "document.access_requested"
+	// The manager's answers (w2), plus the cancellation recorded when a pending
+	// request closes because the document was archived or the requester is no
+	// longer an active member.
+	ActionDocumentAccessRequestApproved  = "document.access_request_approved"
+	ActionDocumentAccessRequestDeclined  = "document.access_request_declined"
+	ActionDocumentAccessRequestCancelled = "document.access_request_cancelled"
+
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit
 	// trail for create, atomic redeem and explicit revoke.
@@ -281,6 +297,10 @@ const (
 	ActionMcpTokenFamilyRevoked             = "mcp_token.family_revoked"
 	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
 	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
+
+	// An organization owner/admin chose which Claude models Ask UNI offers
+	// (AskUNIService.SetAskModels).
+	ActionOrganizationAskModelsChanged = "organization.ask_models_changed"
 
 	// A cancelled meeting brought back (MeetingService.Restore).
 	ActionMeetingRestored = "meeting.restored"

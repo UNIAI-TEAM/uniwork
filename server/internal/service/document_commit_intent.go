@@ -219,6 +219,22 @@ func (s *DocumentService) syncWriteEnabled(ctx context.Context, actor Actor, org
 	return s.flags.IsEnabled(ctx, officeSyncWriteFlag, def)
 }
 
+const officeTxtOpenFlag = "office_txt_open"
+
+// txtOpenEnabled reads office_txt_open for the actor in the workspace and
+// organization, with the registry default (false) when no evaluator is wired.
+func (s *DocumentService) txtOpenEnabled(ctx context.Context, userID, workspaceID, organizationID string) bool {
+	def := false
+	if f, ok := featureflags.Lookup(officeTxtOpenFlag); ok {
+		def = f.Default
+	}
+	if s == nil || s.flags == nil {
+		return def
+	}
+	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, WorkspaceID: workspaceID, OrganizationID: organizationID})
+	return s.flags.IsEnabled(ctx, officeTxtOpenFlag, def)
+}
+
 // commitIntentClaim is the attempt that holds an intent.
 type commitIntentClaim struct {
 	ID      string

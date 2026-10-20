@@ -69,6 +69,7 @@ describe("ChatMessageRow", () => {
           senderLabel="Alice"
           isOwn={false}
           showReadReceipt={false}
+          showSenderName
           nameContext={[{ user_id: "@peer:localhost", display_name: "Alice", email: "alice@example.com" }]}
         />,
       ),
@@ -76,6 +77,11 @@ describe("ChatMessageRow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Xem thông tin của Alice" }));
     expect(await screen.findByRole("dialog", { name: "Alice" })).toBeInTheDocument();
     expect(screen.getByText("alice@example.com")).toBeInTheDocument();
+  });
+
+  it("draws no avatar beside a DM's bubbles, as Telegram", () => {
+    render(wrap(<ChatMessageRow message={message()} senderLabel="Alice" isOwn={false} showReadReceipt={false} />));
+    expect(screen.queryByRole("button", { name: "Xem thông tin của Alice" })).not.toBeInTheDocument();
   });
 
   it("renders own message with read receipt and reply preview", () => {
@@ -134,7 +140,7 @@ describe("ChatMessageRow", () => {
     );
 
     fireEvent.click(screen.getByLabelText("Thả 👍"));
-    fireEvent.click(screen.getByLabelText("Trả lời"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Trả lời" }));
     expect(onReact).toHaveBeenCalledWith(row);
     expect(onReply).toHaveBeenCalledWith(row);
   });

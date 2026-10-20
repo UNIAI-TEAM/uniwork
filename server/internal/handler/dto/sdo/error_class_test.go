@@ -29,6 +29,8 @@ func TestErrorClassTable(t *testing.T) {
 		"document_upload_invalid":      "conflict",
 		"folder_name_taken":            "conflict",
 		"my_folder_locked":             "conflict",
+		"access_request_pending":       "conflict",
+		"access_request_closed":        "conflict",
 		"document_deleted":             "gone",
 		"document_shelved":             "read_only",
 		"quota_exceeded":               "quota",
@@ -83,8 +85,8 @@ func TestErrorClassTable(t *testing.T) {
 		// wrong recovery path. commit_intent_unknown stays docs-only until
 		// G5-D2 fixes intent retention, so it is checked unclassified too.
 		"change_cursor_expired", "change_cursor_invalid", "run_limit_reached",
-		"run_expired", "ai_tool_result_too_large", "ai_uniwork_busy",
-		"ai_provider_timeout",
+		"run_expired", "conversation_expired", "ai_tool_result_too_large",
+		"ai_uniwork_busy", "ai_provider_timeout",
 		"office_capability_off", "commit_intent_unknown",
 		// The offline lease codes of G5-D1 row 15; offline_lease_expired is
 		// app-side only and stays unregistered.
@@ -125,6 +127,14 @@ func TestErrorClassTable(t *testing.T) {
 		// SH-S2 (UNI-1781): per-item semantic refusal on PUT /documents/{id}/access
 		// (422, fields.rejected[]); the dialog highlights the bad rows in place.
 		"document_access_rejected",
+		// DOC-07 (UNI-1631, §4.3): the requester's earlier request was declined
+		// less than an hour ago (429, fields.retry_after_seconds). Not a quota
+		// or permission denial - the locked card counts the wait down - so it
+		// is unclassified on purpose, like ai_rate_limited.
+		"access_request_cooldown",
+		// UNI-1974: a folder is never shared (422); a refusal of the request,
+		// neither a lost permission nor a conflict to reload.
+		"folder_not_shareable",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
@@ -152,6 +162,10 @@ func TestErrorClassTable(t *testing.T) {
 		"document_files.go", "document_commit.go",
 		"document_access_report.go", "document_access_report_export.go",
 		"document_access_batch.go",
+		// DOC-07's create path (UNI-1631): access_request_pending and
+		// access_request_cooldown are emitted here, so the table above and this
+		// scan stay in step.
+		"document_access_requests.go",
 	} {
 		src, err := os.ReadFile("../../../service/" + name)
 		if errors.Is(err, fs.ErrNotExist) && name == "document_break_glass.go" {

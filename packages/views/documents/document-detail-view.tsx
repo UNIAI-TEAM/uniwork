@@ -63,7 +63,7 @@ export interface DocumentDetailViewProps {
   ownerHref?: (ownerId: string) => string;
   /** Called when the caller should go back to the library. */
   onBackToList: () => void;
-  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean; officeFormat?: string | null }>;
 }
 
 /**
@@ -383,6 +383,7 @@ export function DocumentDetailView({
           source={requestSource}
           onRetryOpen={() => void query.refetch()}
           retrying={query.isFetching}
+          answeredAt={query.errorUpdatedAt}
           onBack={onBackToList}
         />
       );
@@ -435,6 +436,7 @@ export function DocumentDetailView({
             key={workspaceDoc.id}
             wsId={wsId}
             doc={workspaceDoc}
+            bodyRefreshing={query.isFetching}
             libraryHref={libraryHref}
             documentHref={documentHref}
             ownerHref={ownerHref}
@@ -451,7 +453,7 @@ export function DocumentDetailView({
           />
           <DocumentCommentsPanel />
         </div>
-        {!resolvedDoc.owner_kind && shareOpen ? (
+        {!resolvedDoc.owner_kind && resolvedDoc.kind !== "folder" && shareOpen ? (
           <ShareDialog
             open={shareOpen}
             onOpenChange={setShareOpen}

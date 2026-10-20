@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { documentCommentDraftKey, useDocumentCommentDraftStore } from "@uniwork/core/documents/comment-drafts";
 import type { DocumentCommentMentionWithoutAccess } from "@uniwork/core/types/document";
+import type { MentionCandidate } from "@uniwork/core/types/document-access";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +20,7 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { cn } from "@uniwork/ui/lib/utils";
+import { commentBodyToDisplay, commentDisplayToBody, mentionPeopleInBody } from "./document-comment-mention-draft";
 import { PostSendMentionNotice } from "./document-comment-mention-notice";
 import { MentionWarningDialog } from "./document-comment-mention-warning";
 import { NoAccessChips, PickerOption } from "./document-comment-picker-option";
@@ -98,10 +100,11 @@ export function DocumentCommentComposer({
   const { t, i18n } = useTranslation();
   const accountId = useAuthStore((s) => s.user?.id ?? "");
   const key = documentCommentDraftKey({ accountId, orgId, wsId, documentId, parentId });
+  // The store holds the body as it will be sent (mention tokens); the textarea shows "@Name".
   const value = useDocumentCommentDraftStore((s) => s.draftFor(key));
+  const display = useMemo(() => commentBodyToDisplay(value), [value]);
   const setDraft = useDocumentCommentDraftStore((s) => s.setDraft);
   const clearDraft = useDocumentCommentDraftStore((s) => s.clearDraft);
-  const setValue = useCallback((next: string) => setDraft(key, next), [key, setDraft]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<"failed" | "target_deleted" | null>(null);
@@ -112,14 +115,32 @@ export function DocumentCommentComposer({
   const hintId = useId();
   const problemId = useId();
   const sendingId = useId();
+  const pickedRef = useRef<ReadonlyMap<string, MentionCandidate>>(new Map());
+  // Edited text back to the stored body: people already in the body keep their ids, then the
+  // person just picked, then the other picks of this session.
+  const setValue = useCallback(
+    (next: string, picked?: MentionCandidate) =>
+      setDraft(
+        key,
+        commentDisplayToBody(next, [
+          ...mentionPeopleInBody(value),
+          ...(picked ? [picked] : []),
+          ...pickedRef.current.values(),
+        ]),
+      ),
+    [key, setDraft, value],
+  );
   const picker = useMentionPicker({
     wsId,
     documentId,
-    value,
+    value: display,
+    body: value,
     setValue,
     textarea: () => ref.current,
     canSeeMembers,
   });
+
+  pickedRef.current = picker.pickedCandidates;
 
   const blocked = !!blockedReasonId;
   const canSend = !sending && !blocked && value.trim() !== "";
@@ -241,7 +262,7 @@ export function DocumentCommentComposer({
           ref={ref}
           aria-label={placeholder}
           placeholder={placeholder}
-          value={value}
+          value={display}
           rows={2}
           autoFocus={autoFocus}
           aria-describedby={describedBy || undefined}
@@ -289,7 +310,7 @@ export function DocumentCommentComposer({
         <div id={problemId} role="alert" className="flex items-center gap-2 text-caption text-destructive" data-testid={`${testId}-problem`}>
           <span className="min-w-0 flex-1">{problemText}</span>
           {problem === "target_deleted" ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => void copyText(value)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void copyText(display)}>
               <Copy aria-hidden />
               {t(K.collabCopyText)}
             </Button>

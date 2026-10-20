@@ -19,7 +19,7 @@ import (
 // on release; without Redis the shared bounds are dropped and this one still
 // holds. The refusal carries the Retry-After the handler sets.
 func TestAIUniworkConcurrencyBound(t *testing.T) {
-	limiter := newUniworkConcurrency(nil, 1, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second)
+	limiter := newUniworkConcurrency(nil, "ai:uniwork:", 1, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second)
 	ctx := context.Background()
 	release, err := limiter.Acquire(ctx, "01HZZZZZZZZZZZZZZZZZZZZZZZ")
 	if err != nil {
@@ -100,7 +100,7 @@ func TestAIUniworkEveryFrameModuleReachesThePack(t *testing.T) {
 // organization, and another organization is not affected. Only the
 // whole-deployment bound is the one a Redis-less deployment drops.
 func TestAIUniworkOrgBoundWithoutRedis(t *testing.T) {
-	limiter := newUniworkConcurrency(nil, UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second)
+	limiter := newUniworkConcurrency(nil, "ai:uniwork:", UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second)
 	ctx := context.Background()
 	orgA, orgB := "01HZZZZZZZZZZZZZZZZZZZZZZA", "01HZZZZZZZZZZZZZZZZZZZZZZB"
 
@@ -137,6 +137,12 @@ func TestAIUniworkOrgBoundWithoutRedis(t *testing.T) {
 // package's test database (each helper flushes and uses its own).
 const uniworkRedisTestDB = 10
 
+// UniWork AI's lease keys: its limiter takes them under "ai:uniwork:".
+const (
+	uniworkOrgLeasePrefix    = "ai:uniwork:org:"
+	uniworkGlobalLeasePrefix = "ai:uniwork:global"
+)
+
 // uniworkRedis connects to REDIS_TEST_URL, skipping the test when it is
 // unset, on this package's own database.
 func uniworkRedis(t *testing.T) *redis.Client {
@@ -162,7 +168,7 @@ func uniworkRedis(t *testing.T) *redis.Client {
 func TestAIUniworkLeasesExpireIndependently(t *testing.T) {
 	rdb := uniworkRedis(t)
 	ttl := 2 * time.Second
-	limiter := newUniworkConcurrency(rdb, 100, 2, 100, ttl)
+	limiter := newUniworkConcurrency(rdb, "ai:uniwork:", 100, 2, 100, ttl)
 	ctx := context.Background()
 	orgID := util.NewID()
 	orgKey, globalKey := uniworkOrgLeasePrefix+orgID, uniworkGlobalLeasePrefix
@@ -216,7 +222,7 @@ func TestAIUniworkRedisErrorFailsOpen(t *testing.T) {
 	_ = l.Close()
 	rdb := redis.NewClient(&redis.Options{Addr: addr, MaxRetries: 0})
 	defer func() { _ = rdb.Close() }()
-	limiter := newUniworkConcurrency(rdb, 1, 1, 1, UniworkDeadline+10*time.Second)
+	limiter := newUniworkConcurrency(rdb, "ai:uniwork:", 1, 1, 1, UniworkDeadline+10*time.Second)
 	ctx := context.Background()
 	release, err := limiter.Acquire(ctx, "01HZZZZZZZZZZZZZZZZZZZZZZZ")
 	if err != nil {

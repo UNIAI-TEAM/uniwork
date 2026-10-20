@@ -3,9 +3,11 @@
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BellOff, BellRing, TriangleAlert } from "lucide-react";
+import { useChatDeviceNotificationStore, type ChatDeviceNotificationPrefs } from "@uniwork/core/chat/device-notification-store";
 import { usePushConfig } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
 import { getDesktopBridge, getWebNotificationPermission, requestWebNotificationPermission } from "@uniwork/core/platform";
+import { NOTIFICATION_KINDS } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { sendDesktopTestNotification } from "../../layout/desktop-notifications-prompt";
@@ -20,13 +22,34 @@ import {
   type SettingsSaveStatus,
 } from "./settings-layout";
 
+/** UniChat's matrix rows: only what chat sends. */
+const CHAT_KINDS = NOTIFICATION_KINDS.filter((kind) => kind.startsWith("chat_"));
+
+/** This device's chat cues, in the canvas order: sound, then text, then the icon count. */
+const CHAT_DEVICE_TOGGLES: readonly (keyof ChatDeviceNotificationPrefs)[] = ["sound", "preview", "badge"];
+
+/** A switch per chat cue, saved on this device only. */
+function ChatDeviceToggles() {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.unichat" });
+  const prefs = useChatDeviceNotificationStore();
+  return CHAT_DEVICE_TOGGLES.map((key) => (
+    <SettingsRow key={key} label={t(`device_${key}`)} description={t(`device_${key}_hint`)}>
+      <Switch aria-label={t(`device_${key}`)} checked={prefs[key]} onCheckedChange={(on) => prefs.setPref(key, on)} />
+    </SettingsRow>
+  ));
+}
+
 /**
  * The push switch for this browser, then the kind × channel matrix. The push
  * column exists only when the server can push and this browser can receive;
  * when it cannot, one quiet footnote under the matrix says which is missing.
+ * In UniChat (`scope="chat"`) the desktop card also holds this device's chat
+ * cues and the matrix keeps only the chat kinds.
  */
-export function NotificationsTab() {
+export function NotificationsTab({ scope }: { scope?: "chat" } = {}) {
+  const chat = scope === "chat";
   const { t } = useTranslation(undefined, { keyPrefix: "settings.notifications" });
+  const { t: tChat } = useTranslation(undefined, { keyPrefix: "settings.unichat" });
   const { t: tSave } = useTranslation(undefined, { keyPrefix: "settings.save" });
   const { t: tDesktop } = useTranslation(undefined, { keyPrefix: "notifications.desktop" });
   const desktop = getDesktopBridge();
@@ -103,7 +126,7 @@ export function NotificationsTab() {
   );
 
   return (
-    <SettingsTab title={t("title")} description={t("description")}>
+    <SettingsTab title={t("title")} description={chat ? tChat("notifications_description") : t("description")}>
       {push.available ? (
         <SettingsSection
           title={t("push_section")}
@@ -170,11 +193,12 @@ export function NotificationsTab() {
                 ) : null}
               </div>
             </SettingsRow>
+            {chat ? <ChatDeviceToggles /> : null}
           </SettingsCard>
         </SettingsSection>
       ) : null}
 
-      <NotificationsMatrix channels={channels} footnotes={footnotes} />
+      <NotificationsMatrix channels={channels} footnotes={footnotes} kinds={chat ? CHAT_KINDS : undefined} />
     </SettingsTab>
   );
 }

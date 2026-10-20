@@ -25,6 +25,7 @@ import (
 //	DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/members/{userID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/messages
 //	POST /api/v1/workspaces/{workspaceID}/chat/messages
+//	GET  /api/v1/workspaces/{workspaceID}/chat/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/search
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}
 //	GET  /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages
@@ -280,6 +281,15 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/chat/messages/search", h.SearchChatMessages, apiOp{
+		summary: "Search chat messages across my rooms",
+		description: "Tìm tin nhắn văn bản trong mọi phòng người gọi là thành viên, theo một phạm vi: scope=messages " +
+			"(tin riêng và nhóm của tổ chức) hoặc scope=workspace (phòng chung và kênh của workspace). Mới nhất trước; " +
+			"q từ 2 đến 100 ký tự, không phân biệt dấu; không đánh dấu đã đọc.",
+		tags: []string{"chat"},
+		sdo:  sdo.ChatMessageDTO{},
+		auth: true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/around/{messageID}", h.ListChatRoomMessagesAround, apiOp{
 		summary:     "List chat messages around message",
 		description: "Lấy tin nhắn quanh một tin cụ thể để nhảy tới vị trí tìm kiếm.",
@@ -301,6 +311,29 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		tags:        []string{"chat"},
 		sdi:         sdi.SendChatFileMessageSDI{},
 		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", h.SendChatDocumentMessage, apiOp{
+		summary:     "Send chat document message",
+		description: "Gửi tệp dạng tài liệu: tệp thành một tài liệu trong My Folder của người gửi và mọi thành viên trong phòng nhận được quyền chia sẻ (share_level, mặc định comment; tối đa 50 người). Định dạng: PDF, TXT, Markdown, HTML, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT.",
+		tags:        []string{"chat"},
+		sdi:         sdi.SendChatDocumentMessageSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document", h.ShareChatMessageAsDocument, apiOp{
+		summary:     "Share chat attachment as document",
+		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ trong My Folder và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2).",
+		tags:        []string{"chat"},
+		sdi:         sdi.ShareChatMessageAsDocumentSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}", h.GetChatRoomDetail, apiOp{
+		summary:     "Get chat room",
+		description: "Lấy một phòng chat kèm can_send_document: người gọi được gửi tài liệu và số người nhận được quyền chia sẻ không vượt 50 (L5).",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatRoomDTO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}", h.GetChatRoomMessage, apiOp{

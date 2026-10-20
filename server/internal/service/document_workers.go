@@ -26,10 +26,12 @@ import (
 //     snapshot covers the save, so a retry never writes the same version
 //     twice. now is injected in tests.
 //   - purge: hourly, PurgeExpired - archived documents past 30 days and
-//     orphaned assets past 7.
+//     orphaned assets past 7; then the RETENTION-02 sweeps of settled
+//     office_jobs and ended document_break_glass_grants.
 //   - compaction: daily, CompactVersions.
 //   - commit intents: every 10 minutes, SweepCommitIntents - intents past
-//     their resume window (G5-07), in batches.
+//     their resume window (G5-07), in batches; then the RETENTION-02 sweep of
+//     closed file_multipart_uploads, next to ExpireMultipartUploads.
 //
 // No bare goroutines: Run fans out to three loops and blocks until all
 // three return after ctx ends; every sweep's own per-row transaction bounds
@@ -126,6 +128,10 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 				err = w.purgeOfficeLaunch(ctx)
 			}
 			w.svc.recordDocumentSweep("purge", rep.Failed, err, started)
+			// Retention of closed rows (RETENTION-02): each reports under its
+			// own worker label and a failure of one never hides the other.
+			w.sweepOfficeJobs(ctx)
+			w.sweepBreakGlassGrants(ctx)
 			if w.swept != nil {
 				w.swept("purge", err)
 			}
@@ -145,6 +151,9 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 				_, err = w.svc.ExpireMultipartUploads(ctx, w.clock()())
 			}
 			w.svc.recordDocumentSweep("commit_intent", 0, err, started)
+			// Retention of closed multipart rows (RETENTION-02) rides this
+			// tick next to the expiry that closes them.
+			w.sweepMultipartRows(ctx)
 			if w.swept != nil {
 				w.swept("commit_intent", err)
 			}
@@ -191,6 +200,45 @@ func (w *DocumentWorkers) clock() func() time.Time {
 		return w.now
 	}
 	return w.svc.clock
+}
+
+// sweepOfficeJobs, sweepMultipartRows and sweepBreakGlassGrants run one
+// retention pass each (RETENTION-02). Every pass reports under its own worker
+// label, so a slow or failing table is visible on its own series, and a
+// failure never stops the other two: the next tick retries. Deleting a dead
+// row changes no business state, so no pass writes an audit row.
+func (w *DocumentWorkers) sweepOfficeJobs(ctx context.Context) {
+	w.recordRetentionSweep(ctx, "office_job", func(ctx context.Context) (int64, error) {
+		return w.svc.SweepOfficeJobs(ctx, w.clock()())
+	})
+}
+
+func (w *DocumentWorkers) sweepMultipartRows(ctx context.Context) {
+	w.recordRetentionSweep(ctx, "multipart_row", func(ctx context.Context) (int64, error) {
+		return w.svc.SweepFileMultipartUploads(ctx, w.clock()())
+	})
+}
+
+func (w *DocumentWorkers) sweepBreakGlassGrants(ctx context.Context) {
+	w.recordRetentionSweep(ctx, "break_glass", func(ctx context.Context) (int64, error) {
+		return w.svc.SweepDocumentBreakGlassGrants(ctx, w.clock()())
+	})
+}
+
+// recordRetentionSweep times one retention pass, records its outcome under the
+// worker label, and logs the rows it deleted when there were any - like
+// OfficeLeaseSweeper and EventRetention.
+func (w *DocumentWorkers) recordRetentionSweep(ctx context.Context, worker string, pass func(context.Context) (int64, error)) {
+	started := time.Now()
+	n, err := pass(ctx)
+	w.svc.recordDocumentSweep(worker, 0, err, started)
+	if err != nil {
+		slog.Warn("documents retention sweep", "worker", worker, "err", err)
+		return
+	}
+	if n > 0 {
+		slog.Info("documents retention sweep", "worker", worker, "deleted", n)
+	}
 }
 
 // wait sleeps d or until ctx ends; false means ctx ended.

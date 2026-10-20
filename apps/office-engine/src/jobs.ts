@@ -5,6 +5,9 @@
 // record, and after an engine restart Go reconciles from it and from the
 // FileService provider-output intent. A completed job here means "the output
 // object was written", never "a Document version exists".
+// A job holds its input as a file, never as bytes: the HTTP layer streams the
+// framed input into a fresh job dir before the job exists, and the input byte
+// budget counts every such file until its dir is removed.
 
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -15,7 +18,7 @@ import {
   type EngineErrorCode,
   type JobState,
 } from "@uniwork/office-contracts";
-import { createJobDir, INPUT_NAME, OPS_NAME, OUTPUT_NAME, removeJobDir } from "./cleanup.ts";
+import { createJobDir, INPUT_NAME, logCleanupFailure, OPS_NAME, OUTPUT_NAME, removeJobDir } from "./cleanup.ts";
 import type { EngineServiceConfig } from "./config.ts";
 import { checkLive, GrantLedger, type ServiceGrant } from "./grants.ts";
 import { LIMIT_OUTCOMES, resolveLimits, type EffectiveLimits } from "./limits.ts";
@@ -59,7 +62,10 @@ export interface Job {
   result?: unknown;
   limits: EffectiveLimits;
   grant: ServiceGrant;
-  input: Uint8Array | null;
+  /** Job dir already holding input.bin (null for a job without input); the
+      job owns the dir and its inputBytes of budget until the dir is gone. */
+  inputDir: string | null;
+  inputBytes: number;
   /** Validated envelope payload extras (edits[] for edit/open); serialized
       into ops.json inside the job dir so the worker IPC carries only paths. */
   payload: Record<string, unknown> | null;
@@ -71,7 +77,9 @@ export interface SubmitRequest {
   fingerprint: string;
   requestId: string;
   deadlineMs: number | null;
-  input: Uint8Array | null;
+  /** Job dir holding the verified input.bin, with the budget reserved for it. */
+  inputDir: string | null;
+  inputBytes: number;
   payload?: Record<string, unknown> | null;
 }
 
@@ -83,6 +91,7 @@ export class JobManager {
   private readonly inFlight = new Set<Promise<void>>();
   private active = 0;
   private draining = false;
+  private admittedInput = 0;
 
   constructor(
     private readonly config: EngineServiceConfig,
@@ -115,17 +124,35 @@ export class JobManager {
     return this.jobs.get(jobId);
   }
 
-  /** Accept a job or replay the one this grant already started. */
-  submit(req: SubmitRequest): { job: Job; replay: boolean } {
+  /** Input bytes on disk or on their way there: queued and running jobs'
+      input files plus uploads being received. */
+  get inputBytesAdmitted(): number {
+    return this.admittedInput;
+  }
+
+  /** Reserve budget for an upload before a byte of it is read. */
+  reserveInput(bytes: number): boolean {
+    if (bytes > 0 && this.admittedInput + bytes > this.config.inputBudgetBytes) return false;
+    this.admittedInput += bytes;
+    return true;
+  }
+
+  releaseInput(bytes: number): void {
+    this.admittedInput -= bytes;
+  }
+
+  /** The job this grant already started (a replay), or null when a new job
+      would be admitted right now. Throws every refusal submit would, so the
+      HTTP layer can answer before it streams an input to disk. */
+  admit(grant: ServiceGrant, fingerprint: string): Job | null {
     const now = this.now();
     this.prune(now);
-    const { grant } = req;
     const used = this.ledger.lookup(grant.grant_id);
     if (used) {
-      if (used.fingerprint !== req.fingerprint) throw new EngineBoundaryError("payload_fingerprint_mismatch", { job_id: used.jobId });
+      if (used.fingerprint !== fingerprint) throw new EngineBoundaryError("payload_fingerprint_mismatch", { job_id: used.jobId });
       const earlier = this.jobs.get(used.jobId);
       if (!earlier) throw new EngineBoundaryError("grant_consumed", { reason: "job_forgotten" });
-      return { job: earlier, replay: true };
+      return earlier;
     }
     if (this.jobs.has(grant.job_id)) throw new EngineBoundaryError("job_conflict", { reason: "job_id_taken" });
     checkLive(grant, now);
@@ -133,6 +160,17 @@ export class JobManager {
     if (this.active >= this.config.maxWorkers && this.queue.length >= this.config.maxQueue) {
       throw new EngineBoundaryError("engine_overloaded", { reason: "queue_full", queue_depth: this.queue.length });
     }
+    return null;
+  }
+
+  /** Accept a job or replay the one this grant already started. A new job
+      takes over req.inputDir and its budget; a replay or a refusal leaves
+      both with the caller. */
+  submit(req: SubmitRequest): { job: Job; replay: boolean } {
+    const { grant } = req;
+    const earlier = this.admit(grant, req.fingerprint);
+    if (earlier) return { job: earlier, replay: true };
+    const now = this.now();
     this.ledger.consume(grant, req.fingerprint, now);
     const job: Job = {
       jobId: grant.job_id,
@@ -147,7 +185,8 @@ export class JobManager {
       warnings: [],
       limits: resolveLimits(this.config.limits, grant, req.deadlineMs, now),
       grant,
-      input: req.input,
+      inputDir: req.inputDir,
+      inputBytes: req.inputBytes,
       payload: req.payload ?? null,
       controller: new AbortController(),
     };
@@ -192,10 +231,30 @@ export class JobManager {
       return true;
     }
     job.finishedAt = this.now();
-    job.input = null;
+    // A job that never started has no execute() to clean its dir up.
+    if (job.startedAt === undefined) this.dropInput(job);
     if (error) job.error = error;
     if (isTerminalJobState(to)) this.metrics.finished(job.operation, to, job.finishedAt - (job.startedAt ?? job.acceptedAt));
     return true;
+  }
+
+  private dropInput(job: Job): void {
+    const dir = job.inputDir;
+    if (!dir) return;
+    const done: Promise<void> = removeJobDir(dir)
+      .then(
+        () => {
+          if (job.inputDir === dir) job.inputDir = null;
+          this.releaseInput(job.inputBytes);
+        },
+        (error: unknown) => {
+          logCleanupFailure(error, job.jobId);
+        },
+      )
+      .finally(() => {
+        this.inFlight.delete(done);
+      });
+    this.inFlight.add(done);
   }
 
   private pump(): void {
@@ -222,14 +281,16 @@ export class JobManager {
     // whole service. Whatever the cause, one job's failure must never be able
     // to take the pool (or the process) down.
     let identity: WorkerIdentity | null = null;
+    // The input dir is this run's to remove (and its budget to release) from
+    // here on, whatever happens below.
+    dir = job.inputDir;
+    const inputBytes = dir ? job.inputBytes : 0;
     try {
       identity = this.sandbox.acquire();
-      dir = await createJobDir(this.config.tempRoot);
-      const inputPath = job.input ? join(dir, INPUT_NAME) : null;
-      if (inputPath && job.input) await writeFile(inputPath, job.input);
+      const inputPath = dir ? join(dir, INPUT_NAME) : null;
+      dir ??= await createJobDir(this.config.tempRoot);
       const payloadPath = job.payload ? join(dir, OPS_NAME) : null;
       if (payloadPath) await writeFile(payloadPath, JSON.stringify(job.payload));
-      job.input = null;
       job.payload = null;
       // Hand the dir to the slot uid before the worker spawns; from then on the
       // worker owns exactly this 0700 dir and nothing else on the filesystem.
@@ -294,7 +355,17 @@ export class JobManager {
         this.transition(job, "crashed", { code: "engine_crashed", reason: "internal_error" });
       }
     } finally {
-      if (dir) await removeJobDir(dir).catch(() => undefined);
+      if (dir) {
+        await removeJobDir(dir).then(
+          () => {
+            job.inputDir = null;
+            this.releaseInput(inputBytes);
+          },
+          (error: unknown) => {
+            logCleanupFailure(error, job.jobId);
+          },
+        );
+      }
       // The uid only goes back to the pool once nothing runs under it; a
       // descendant that outlives the sweep quarantines the slot instead. The
       // release itself must never reject: it is the last step of a job that
