@@ -1,3 +1,5 @@
+import { docListRungs, docListSpec, type DocListColumnId, type DocListScreen } from "./doclist/columns";
+
 /**
  * The width ladder of the Documents library table.
  *
@@ -53,8 +55,11 @@ export type LibraryColumnId =
   | "shelved_by"
   | "shelved_at";
 
-interface LibraryColumn {
-  id: LibraryColumnId;
+/** A column of either ladder: the legacy ones above, or one of the unified list's (doclist/columns.ts). */
+type AnyColumnId = LibraryColumnId | DocListColumnId;
+
+interface LibraryColumn<Id extends AnyColumnId = LibraryColumnId> {
+  id: Id;
   /** Classes of the `<col>`. */
   col: string;
   /** Visibility (and alignment) classes shared by the `<th>` and every `<td>` of the column. */
@@ -165,7 +170,7 @@ export function shelvedLadder(): LibraryLadder {
 }
 
 /** The visibility class of one column's cells, or null when this ladder has no such column. */
-export function libraryCell(ladder: LibraryLadder, id: LibraryColumnId): string | null {
+export function libraryCell(ladder: { columns: readonly LibraryColumn<AnyColumnId>[] }, id: AnyColumnId): string | null {
   return ladder.columns.find((column) => column.id === id)?.cell ?? null;
 }
 
@@ -175,7 +180,7 @@ export function libraryCell(ladder: LibraryLadder, id: LibraryColumnId): string 
  * so the spanner covers exactly the visible columns at every width (a wider
  * colSpan would add implicit columns that squeeze Name).
  */
-export function libraryGroupSpans(ladder: LibraryLadder): { cell: string; span: number }[] {
+export function libraryGroupSpans(ladder: { columns: readonly LibraryColumn<AnyColumnId>[] }): { cell: string; span: number }[] {
   const spans: { cell: string; span: number }[] = [];
   for (const column of ladder.columns) {
     if (!column.cell) continue;
@@ -184,4 +189,58 @@ export function libraryGroupSpans(ladder: LibraryLadder): { cell: string; span: 
     else spans.push({ cell: column.cell, span: 1 });
   }
   return spans;
+}
+
+// The ladder of the unified list (contract UNI-2045): driven from the column
+// spec in doclist/columns.ts, which owns the widths and derives the rungs. Name,
+// Select and Actions are always on; below the table rung the header, Updated and
+// the screen column are off and the row stacks under Name. Above it Truy cập,
+// Người sửa gần nhất and Dung lượng join in that order (they hide in the
+// reverse). Tailwind finds a class only as a literal, so every rung the specs
+// can produce is written out here; `doclist/ladder.test.ts` fails when a spec
+// derives a rung that has no entry.
+const RUNG_CLASSES: Record<number, { col: string; cell: string; head: string }> = {
+  32: { col: "hidden @min-[32rem]/library:table-column", cell: "hidden @min-[32rem]/library:table-cell", head: "hidden bg-muted/50 @min-[32rem]/library:table-header-group" },
+  43: { col: "hidden @min-[43rem]/library:table-column", cell: "hidden @min-[43rem]/library:table-cell", head: "hidden bg-muted/50 @min-[43rem]/library:table-header-group" },
+  54: { col: "hidden @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell", head: "hidden bg-muted/50 @min-[54rem]/library:table-header-group" },
+  56: { col: "hidden @min-[56rem]/library:table-column", cell: "hidden @min-[56rem]/library:table-cell", head: "hidden bg-muted/50 @min-[56rem]/library:table-header-group" },
+  62: { col: "hidden @min-[62rem]/library:table-column", cell: "hidden @min-[62rem]/library:table-cell", head: "hidden bg-muted/50 @min-[62rem]/library:table-header-group" },
+  67: { col: "hidden @min-[67rem]/library:table-column", cell: "hidden @min-[67rem]/library:table-cell", head: "hidden bg-muted/50 @min-[67rem]/library:table-header-group" },
+  73: { col: "hidden @min-[73rem]/library:table-column", cell: "hidden @min-[73rem]/library:table-cell", head: "hidden bg-muted/50 @min-[73rem]/library:table-header-group" },
+};
+
+/** The rung's literal classes; a spec that derives a rung without an entry throws (the ladder test names it). */
+function atRung(rung: number): { col: string; cell: string; head: string } {
+  const classes = RUNG_CLASSES[rung];
+  if (!classes) throw new Error(`library-columns: no container-query classes for the ${rung}rem rung`);
+  return classes;
+}
+
+/** The unified list's column ladder for one screen: the header class and the columns, in DOM order. */
+export function specLadder(screen: DocListScreen): { columns: LibraryColumn<DocListColumnId>[]; head: string } {
+  const spec = docListSpec(screen);
+  const rungs = docListRungs(spec);
+  const at = (column: keyof typeof rungs) => atRung(rungs[column]);
+  const columns: LibraryColumn<DocListColumnId>[] = spec.columns.map((column) => {
+    switch (column.id) {
+      case "select":
+        return { id: column.id, col: "w-10", cell: "" };
+      case "name":
+        return { id: column.id, col: "", cell: "" };
+      case "access":
+        return { id: column.id, col: `w-[190px] ${at("access").col}`, cell: at("access").cell };
+      case "editor":
+        return { id: column.id, col: `w-[200px] ${at("editor").col}`, cell: at("editor").cell };
+      case "updated":
+        return { id: column.id, col: `w-[140px] ${at("table").col}`, cell: at("table").cell };
+      case "size":
+        return { id: column.id, col: `w-[90px] ${at("size").col}`, cell: `${at("size").cell} text-right` };
+      case "actions":
+        return { id: column.id, col: "w-24 pointer-coarse:w-27", cell: "" };
+      default:
+        // The screen column: it holds the table layout's second slot, so it joins with Updated at the table rung.
+        return { id: column.id, col: `w-44 ${at("table").col}`, cell: at("table").cell };
+    }
+  });
+  return { columns, head: at("table").head };
 }

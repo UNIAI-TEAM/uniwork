@@ -297,7 +297,8 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
 
     const dateSizeEl = Array.from(metaGroup.querySelectorAll("span")).find((el) => el.textContent?.includes("2,4 KB")) as HTMLElement;
     expect(dateSizeEl).toBeTruthy();
-    expect(dateSizeEl.textContent).toMatch(/17\/10\/2(6|026)/);
+    // The shared list date drops the year inside the current year (today is not pinned here).
+    expect(dateSizeEl.textContent).toMatch(/^17\/10(\/2026)? · 2,4 KB$/);
     expect(dateSizeEl).toHaveClass("shrink-0");
     expect(dateSizeEl).not.toHaveClass("truncate");
 

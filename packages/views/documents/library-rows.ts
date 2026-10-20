@@ -279,17 +279,3 @@ export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<strin
   groups.delete("folders");
   return [folders, ...groups.values()];
 }
-
-/** Human-readable size: "318 KB", "1.2 MB" (locale decimal mark). */
-export function formatBytes(bytes: number | null | undefined, locale: string): string {
-  if (bytes === null || bytes === undefined || !Number.isFinite(bytes) || bytes < 0) return "";
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  const digits = unit === 0 || value >= 10 ? 0 : 1;
-  return `${new Intl.NumberFormat(locale || undefined, { maximumFractionDigits: digits }).format(value)} ${units[unit]}`;
-}

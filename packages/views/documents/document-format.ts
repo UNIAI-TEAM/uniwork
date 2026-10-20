@@ -1,5 +1,7 @@
 "use client";
 
+import { EMPTY_CELL, formatListDate } from "./doclist/format";
+
 // Small display helpers shared by the G1-08 sheets and dialogs. They are pure
 // and locale-driven: no token, no rounding rule lives anywhere else.
 
@@ -19,39 +21,9 @@ export function formatWhen(at: string | null | undefined, locale: string): strin
   ).format(date);
 }
 
-/** One short stamp for a table cell that cannot wrap: the clock today, else
- *  the day and month (`14/10`, `Oct 14`), with the year only outside this one. */
+/** The short stamp the trash and Lưu trữ rows still use: the shared list date (doclist/format.ts), "" for nothing to show.
+ *  Those two screens move onto formatListDate with their own slices; until then this keeps their empty-cell fallback. */
 export function formatShortWhen(at: string | null | undefined, locale: string, now: Date = new Date()): string {
-  if (!at) return "";
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === now.getFullYear();
-  if (sameYear && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()) {
-    return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(date);
-  }
-  if (locale.toLowerCase().startsWith("vi")) {
-    // Written out: ICU versions disagree on the separator of a numeric vi date.
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const day = `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
-    return sameYear ? day : `${day}/${date.getFullYear()}`;
-  }
-  return new Intl.DateTimeFormat(locale, {
-    day: "numeric",
-    month: "short",
-    ...(sameYear ? {} : { year: "numeric" }),
-  }).format(date);
-}
-
-/** "1,2 MB" in the reader's locale; a size is read, not parsed. */
-export function formatFileSize(bytes: number, locale: string): string {
-  const safe = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
-  if (safe < 1024) return `${safe.toLocaleString(locale)} B`;
-  const units = ["KB", "MB", "GB"];
-  let value = safe / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toLocaleString(locale, { maximumFractionDigits: 1 })} ${units[unit]}`;
+  const text = formatListDate(at, now, locale);
+  return text === EMPTY_CELL ? "" : text;
 }

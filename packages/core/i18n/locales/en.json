@@ -9562,6 +9562,51 @@
       "clear_filters": "Clear filters",
       "archived_badge": "In trash"
     },
+    "list": {
+      "column": {
+        "select": "Select",
+        "name": "Name",
+        "access": "Access",
+        "editor": "Last edited by",
+        "updated": "Updated",
+        "size": "Size",
+        "actions": "Actions"
+      },
+      "screen_column": {
+        "activity": "Last opened",
+        "starred": "Starred on",
+        "shared": "Shared by",
+        "shared_with": "Shared with",
+        "shelved": "Archived",
+        "deleted": "Deleted"
+      },
+      "date": {
+        "yesterday": "Yesterday"
+      },
+      "access": {
+        "restricted": "Restricted",
+        "workspace": "Workspace",
+        "shared": "Shared",
+        "owner": "Owner",
+        "you": "You: {{level}}",
+        "level": {
+          "view": "View",
+          "comment": "Comment",
+          "edit": "Edit",
+          "manage": "Manage"
+        }
+      },
+      "group": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "this_week": "This week",
+        "earlier": "Earlier",
+        "deleting_soon": "Deleting soon",
+        "more_than_7_days": "More than 7 days left"
+      },
+      "days_left_one": "{{count}} day left",
+      "days_left_other": "{{count}} days left"
+    },
     "tree": {
       "aria_label": "Document tree",
       "sheet_title": "Document tree",

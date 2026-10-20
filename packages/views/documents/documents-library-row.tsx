@@ -36,12 +36,12 @@ import {
 } from "./document-share-scope-badge";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
+import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
 import { libraryCell, type LibraryLadder } from "./library-columns";
 import { LibraryRowAccessCell } from "./library-row-access-cell";
 import { canArchiveRow, canMoveRow, canShareRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
 import {
-  formatBytes,
   isFolderRow,
   rowFormat,
   rowAccessLabelKey,
@@ -101,12 +101,6 @@ interface RowAction {
   run: () => void;
 }
 
-function formatDate(iso: string, locale: string): string {
-  const date = new Date(iso);
-  if (!iso || Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(locale || undefined, { dateStyle: "short" }).format(date);
-}
-
 /** The first letter of a name, for the editor's initial. */
 function initial(name: string): string {
   return name.trim().charAt(0).toUpperCase();
@@ -142,8 +136,10 @@ export function LibraryRowView({
       ? handlers.personName(doc.updated_by, doc.updated_by_kind)
       : null
     : source?.owner?.name || null;
+  // The shared list formats answer "—" for nothing to show; the narrow meta line
+  // below leaves such a part out instead of printing the dash.
   const size = formatBytes(rowSizeBytes(row), i18n.language);
-  const updated = formatDate(rowUpdatedAt(row), i18n.language);
+  const updated = formatListDate(rowUpdatedAt(row), new Date(), i18n.language, { yesterday: t("documents.list.date.yesterday") });
 
   // "Open in app" sits on every document file row (user decision 6); a viewer
   // gets a read-only session. Source files have no launch route yet
@@ -173,7 +169,7 @@ export function LibraryRowView({
   // (the badge's hidden span via scopeDescId) and the ⋯ menu label.
   const scopeInfo = showNarrowScope && scope ? shareScopeView(scope, t, resolvedWorkspaceName) : null;
   const starred = Boolean(doc && handlers.isStarred(doc.id));
-  const metaTail = [updated, size].filter(Boolean).join(" · ");
+  const metaTail = [updated, size].filter((part) => part !== EMPTY_CELL).join(" · ");
 
   // A row whose archive stamp survived into a live list is inert: the trash
   // view (its own rows) owns restore/purge, so here nothing runs on it.
@@ -401,8 +397,8 @@ export function LibraryRowView({
             <span className="text-muted-foreground">—</span>
           )}
         </td>
-        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>{updated || "—"}</td>
-        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>{size || "—"}</td>
+        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>{updated}</td>
+        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>{size}</td>
         <td className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (

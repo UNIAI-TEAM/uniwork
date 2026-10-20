@@ -9557,6 +9557,51 @@
       "clear_filters": "Bỏ bộ lọc",
       "archived_badge": "Trong thùng rác"
     },
+    "list": {
+      "column": {
+        "select": "Chọn",
+        "name": "Tên",
+        "access": "Truy cập",
+        "editor": "Người sửa gần nhất",
+        "updated": "Cập nhật",
+        "size": "Dung lượng",
+        "actions": "Thao tác"
+      },
+      "screen_column": {
+        "activity": "Lần mở gần nhất",
+        "starred": "Ngày gắn sao",
+        "shared": "Người chia sẻ",
+        "shared_with": "Chia sẻ với",
+        "shelved": "Lưu trữ",
+        "deleted": "Đã xóa"
+      },
+      "date": {
+        "yesterday": "Hôm qua"
+      },
+      "access": {
+        "restricted": "Hạn chế",
+        "workspace": "Workspace",
+        "shared": "Được chia sẻ",
+        "owner": "Chủ sở hữu",
+        "you": "Bạn: {{level}}",
+        "level": {
+          "view": "Xem",
+          "comment": "Bình luận",
+          "edit": "Sửa",
+          "manage": "Quản lý"
+        }
+      },
+      "group": {
+        "today": "Hôm nay",
+        "yesterday": "Hôm qua",
+        "this_week": "Tuần này",
+        "earlier": "Trước đó",
+        "deleting_soon": "Sắp xóa vĩnh viễn",
+        "more_than_7_days": "Còn trên 7 ngày"
+      },
+      "days_left_one": "Còn {{count}} ngày",
+      "days_left_other": "Còn {{count}} ngày"
+    },
     "tree": {
       "aria_label": "Cây tài liệu",
       "sheet_title": "Cây tài liệu",

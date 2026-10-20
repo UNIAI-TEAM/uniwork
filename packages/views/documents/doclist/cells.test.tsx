@@ -28,7 +28,7 @@ const scopeOf = (over: Partial<{ users: number; workspaces: number; organization
 describe("DocNameCell", () => {
   it("draws the icon of the file's extension, the title and the location line", () => {
     render(<DocNameCell kind="file" title="Báo giá tháng 10.docx" location="Kinh doanh › Báo giá" />);
-    expect(screen.getByRole("img", { name: /docx/i })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /word/i })).toBeInTheDocument();
     expect(screen.getByText("Báo giá tháng 10.docx")).toBeInTheDocument();
     expect(screen.getByText("Kinh doanh › Báo giá")).toBeInTheDocument();
   });

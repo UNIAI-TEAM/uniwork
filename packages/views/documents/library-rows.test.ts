@@ -4,7 +4,6 @@ import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import {
   documentRow,
   folderPath,
-  formatBytes,
   groupRows,
   indexTree,
   matchesAccess,
@@ -130,12 +129,6 @@ describe("library rows", () => {
     expect([upload, blank, page, older].map(rowOrigin)).toEqual(["upload", "created", "created", "documents"]);
     expect([upload, blank, page, older, src()].map(rowSizeBytes)).toEqual([2048, null, null, null, 1]);
     expect(groupRows([upload, page], "source", index).map((g) => g.key)).toEqual(["origin:upload", "origin:created"]);
-  });
-
-  it("formats sizes and says nothing for an unusable one", () => {
-    expect(formatBytes(318 * 1024, "en")).toBe("318 KB");
-    expect(formatBytes(1.2 * 1024 * 1024, "en")).toBe("1.2 MB");
-    expect(formatBytes(-1, "en")).toBe("");
   });
 
   it("maps each row kind and extension to its Type column translation key", () => {
