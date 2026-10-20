@@ -39,6 +39,7 @@ import { MeetingMotionsSection } from "./meeting-motions-section";
 import { MeetingNotesSection } from "./meeting-notes-section";
 import { MeetingDetailPageSkeleton } from "./meeting-page-skeletons";
 import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action-items-section";
+import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
 import { useMemberIndex } from "./use-member-index";
 import { useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
@@ -268,6 +269,12 @@ export function MeetingDetailView({
                     projectId={meeting.project_id}
                     canClerk={isClerk}
                   />
+                </div>
+              ) : null}
+              {/* What earlier meetings of the project left open, for the one about to run (spec D8). */}
+              {(scheduled || inProgress) && meeting.project_id ? (
+                <div className="order-3 min-w-0 empty:hidden">
+                  <MeetingCarriedOverSection workspaceId={workspaceId} meetingId={meeting.id} />
                 </div>
               ) : null}
               {/* The roll is working space while the meeting runs, so it gets the wide column. */}

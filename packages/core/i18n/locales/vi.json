@@ -3821,6 +3821,15 @@
       "assigning": "Đang giao việc…",
       "assignedStatus_one": "Đã giao {{count}} việc.",
       "assignedStatus_other": "Đã giao {{count}} việc."
+    },
+    "carriedOver": {
+      "title": "Việc còn tồn từ các cuộc họp trước",
+      "description_one": "{{count}} việc chưa xong, giao ở các cuộc họp đã kết thúc của cùng dự án.",
+      "description_other": "{{count}} việc chưa xong, giao ở các cuộc họp đã kết thúc của cùng dự án.",
+      "compactToggle_one": "Việc còn tồn ({{count}})",
+      "compactToggle_other": "Việc còn tồn ({{count}})",
+      "fromMeeting": "Từ cuộc họp {{title}}",
+      "untitledMeeting": "Cuộc họp không tên"
     }
   },
   "calendar": {

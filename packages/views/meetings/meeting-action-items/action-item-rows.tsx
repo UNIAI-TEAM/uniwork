@@ -123,7 +123,8 @@ export function ConvertedRow({
   taskHref,
   assigneeName,
 }: {
-  item: MeetingActionItem;
+  /** Only the title and the task are read, so a carried-over task fits too. */
+  item: Pick<MeetingActionItem, "title" | "task">;
   variant: ActionItemsVariant;
   taskHref: string | null;
   assigneeName?: string;

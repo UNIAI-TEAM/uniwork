@@ -593,6 +593,53 @@ describe("MeetingDetailView › attendance", () => {
   });
 });
 
+describe("MeetingDetailView › carried over", () => {
+  const carried = {
+    items: [
+      {
+        action_item_id: "a1",
+        meeting: { id: "m0", title: "Giao ban tuần trước", started_at: "2026-10-13T02:00:00Z" },
+        task: { id: "t1", title: "Gửi báo giá", status: "todo", done: false, overdue: false, assignee_id: null, due_date: null },
+      },
+    ],
+  };
+  function respondWith(extra: Record<string, unknown>) {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting: { ...meeting, ...extra } });
+      if (p.endsWith("/carried-over-items")) return Promise.resolve(carried);
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+  }
+  const carriedCalls = () => requestMock.mock.calls.filter((c) => String(c[0]).endsWith("/carried-over-items")).length;
+
+  it("shows what earlier meetings of the project left open before the meeting", async () => {
+    respondWith({ project_id: "p1" });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const section = await screen.findByRole("region", { name: "Việc còn tồn từ các cuộc họp trước" });
+    expect(await within(section).findByText("Gửi báo giá")).toBeInTheDocument();
+  });
+
+  it("asks nothing for a meeting without a project, or one that has ended", async () => {
+    respondWith({});
+    const { unmount } = render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    unmount();
+    respondWith({ project_id: "p1", status: "ENDED" });
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    expect(carriedCalls()).toBe(0);
+    expect(screen.queryByRole("region", { name: "Việc còn tồn từ các cuộc họp trước" })).not.toBeInTheDocument();
+  });
+});
+
 describe("MeetingsPageView", () => {
   it("shows status badges from the server list", async () => {
     requestMock.mockImplementation((path: unknown) => {

@@ -9,6 +9,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { MeetingCopilotFooter } from "./meeting-copilot/meeting-copilot-footer";
 import { MeetingCopilotHeader } from "./meeting-copilot/meeting-copilot-header";
 import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action-items-section";
+import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
 import { MeetingNotesCard } from "./meeting-copilot/meeting-notes-card";
 import {
   SummaryGenerateButton,
@@ -233,14 +234,19 @@ export function MeetingRoomCopilotTab({
           <section className="space-y-3">
             <h3 className="text-caption font-medium text-foreground">{t("meetings.actionItems")}</h3>
             {workspaceId ? (
-              <MeetingActionItemsSection
-                workspaceId={workspaceId}
-                meetingId={meetingId}
-                projectId={projectId}
-                canClerk={canClerk}
-                variant="compact"
-                selection={actionSelection}
-              />
+              <>
+                <MeetingActionItemsSection
+                  workspaceId={workspaceId}
+                  meetingId={meetingId}
+                  projectId={projectId}
+                  canClerk={canClerk}
+                  variant="compact"
+                  selection={actionSelection}
+                />
+                {projectId ? (
+                  <MeetingCarriedOverSection workspaceId={workspaceId} meetingId={meetingId} variant="compact" />
+                ) : null}
+              </>
             ) : (
               <p className="text-label text-muted-foreground">{t("meetings.actionItemsEmpty")}</p>
             )}

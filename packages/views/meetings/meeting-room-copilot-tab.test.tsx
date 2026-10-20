@@ -241,6 +241,16 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     result: { yes: 3, no: 1, abstain: 0, required: 3, outcome: "PASSED" },
   };
 
+  const carriedOver = {
+    items: [
+      {
+        action_item_id: "c1",
+        meeting: { id: "m0", title: "Giao ban tuần trước", started_at: "2026-10-13T02:00:00Z" },
+        task: { id: "t7", title: "Gửi báo giá", status: "todo", done: false, overdue: false, assignee_id: null, due_date: null },
+      },
+    ],
+  };
+
   function respond(opts: { summary?: unknown; motions?: unknown[] } = {}) {
     requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
       const p = String(path);
@@ -248,6 +258,7 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
         return Promise.resolve({ links: [{ action_item_id: "a0", task_id: "t1" }] });
       }
       if (p.endsWith("/action-items")) return Promise.resolve(actionItems);
+      if (p.endsWith("/carried-over-items")) return Promise.resolve(carriedOver);
       if (p.endsWith("/summary") && init?.method === "POST") return new Promise(() => {});
       if (p.endsWith("/summary")) return Promise.resolve({ summary: opts.summary === undefined ? summary : opts.summary });
       if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
@@ -303,6 +314,24 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     expect(posted()).toEqual({ items: [{ action_item_id: "a0", assignee_id: null, due_date: null, project_id: "p1" }] });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Giao 0 việc" })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("folds the tasks earlier meetings of the project left open into one group", async () => {
+    respond();
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" projectId="p1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
+    const toggle = await screen.findByRole("button", { name: "Việc còn tồn (1)" });
+    expect(screen.queryByText("Gửi báo giá")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
+  });
+
+  it("asks for no carried-over tasks when the meeting has no project", async () => {
+    respond();
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Việc cần làm" }));
+    expect(await screen.findByText("Viết ghi chú phát hành")).toBeInTheDocument();
+    expect(requestMock.mock.calls.some((c) => String(c[0]).endsWith("/carried-over-items"))).toBe(false);
   });
 
   it("keeps the host's ticks while they look at another section", async () => {

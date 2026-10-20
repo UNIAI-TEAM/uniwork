@@ -3822,6 +3822,15 @@
       "assigning": "Assigning tasks…",
       "assignedStatus_one": "Assigned {{count}} task.",
       "assignedStatus_other": "Assigned {{count}} tasks."
+    },
+    "carriedOver": {
+      "title": "Carried over from earlier meetings",
+      "description_one": "{{count}} open task assigned in ended meetings of the same project.",
+      "description_other": "{{count}} open tasks assigned in ended meetings of the same project.",
+      "compactToggle_one": "Carried over ({{count}})",
+      "compactToggle_other": "Carried over ({{count}})",
+      "fromMeeting": "From the meeting {{title}}",
+      "untitledMeeting": "Untitled meeting"
     }
   },
   "calendar": {
