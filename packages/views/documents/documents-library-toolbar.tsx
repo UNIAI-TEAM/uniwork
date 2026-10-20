@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowUpDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Label } from "@uniwork/ui/components/ui/label";
 import {
@@ -11,18 +10,19 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { cn } from "@uniwork/ui/lib/utils";
-import { ACCESS_FILTERS, FOLDER_SORT, GROUP_BY, TYPE_CHIPS, type AccessFilter, type FolderSort, type GroupBy, type TypeChip } from "./library-rows";
+import { ACCESS_FILTERS, GROUP_BY, TYPE_CHIPS, type AccessFilter, type GroupBy, type TypeChip } from "./library-rows";
 import { UPDATED_FILTERS, type EditorFilter, type UpdatedFilter } from "./use-documents-library";
 
 export interface LibraryToolbarProps {
   /**
    * Which of the boards' toolbars this is: `home` — the filter bar
-   * (Main.dc: Loại / Người sửa / Cập nhật), `folder` — the open folder's
-   * sort (Folder.dc), `list` — the table toolbar of the Recent / Starred /
-   * Shared / Elsewhere views (type chips + access pills + Group by; the old
-   * scope tabs are gone with TRASH-A3, the sidebar navigates).
+   * (Main.dc: Loại / Người sửa / Cập nhật), `list` — the table toolbar of the
+   * Recent / Starred / Shared / Elsewhere views (type chips + access pills +
+   * Group by; the old scope tabs are gone with TRASH-A3, the sidebar
+   * navigates). An open folder has no toolbar: sorting moved to the table
+   * headers (UNI-2038).
    */
-  variant: "home" | "folder" | "list";
+  variant: "home" | "list";
   chip: TypeChip;
   onChip: (chip: TypeChip) => void;
   access: AccessFilter;
@@ -33,9 +33,6 @@ export interface LibraryToolbarProps {
   accessOptions?: readonly AccessFilter[];
   groupBy: GroupBy;
   onGroupBy: (groupBy: GroupBy) => void;
-  /** `folder` variant only. */
-  sort?: FolderSort;
-  onSort?: (sort: FolderSort) => void;
   /** `home` variant only: the "Người sửa" filter and the workspace members behind it. */
   editor?: EditorFilter;
   onEditor?: (editor: EditorFilter) => void;
@@ -58,8 +55,6 @@ export function LibraryToolbar({
   accessOptions,
   groupBy,
   onGroupBy,
-  sort,
-  onSort,
   editor = "any",
   onEditor,
   members,
@@ -68,36 +63,6 @@ export function LibraryToolbar({
 }: LibraryToolbarProps) {
   const { t } = useTranslation();
   const groupItems = GROUP_BY.map((value) => ({ value, label: t(`documents.home.group_by.${value}`) }));
-  const sortItems = FOLDER_SORT.map((value) => ({ value, label: t(`documents.home.sort.${value}`) }));
-
-  if (variant === "folder") {
-    return (
-      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-        <Label htmlFor="documents-folder-sort" className="text-caption text-muted-foreground">
-          {t("documents.home.sort.label")}
-        </Label>
-        <Select
-          value={sort}
-          onValueChange={(next) => {
-            if (next && next !== sort) onSort?.(next as FolderSort);
-          }}
-          items={sortItems}
-        >
-          <SelectTrigger id="documents-folder-sort" size="sm" variant="subtle" className="w-fit min-w-44">
-            <ArrowUpDown aria-hidden className="size-3.5 text-muted-foreground" />
-            <SelectValue>{sortItems.find((item) => item.value === sort)?.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {sortItems.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    );
-  }
 
   if (variant === "home") {
     const typeItems = TYPE_CHIPS.map((value) => ({ value, label: t(`documents.home.chips.${value}`) }));
@@ -127,9 +92,9 @@ export function LibraryToolbar({
           items={updatedItems}
           onPick={(next) => onUpdated?.(next as UpdatedFilter)}
         />
-        {/* Pending: the boards also sketch a sort control and a list/grid
-            toggle at the home root; both are unspecified for a merged,
-            paged list, so neither renders until the design names them. */}
+        {/* The boards also sketch a list/grid toggle at the home root; it is
+            unspecified for a merged, paged list, so it does not render. Sorting
+            lives in the table headers (UNI-2038). */}
       </div>
     );
   }
