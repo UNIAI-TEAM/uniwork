@@ -210,7 +210,7 @@ func (q *Queries) GetDocumentSettings(ctx context.Context, organizationID string
 }
 
 const getDocumentShareByID = `-- name: GetDocumentShareByID :one
-SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, origin
 FROM document_shares
 WHERE id = $1
   AND organization_id = $2
@@ -251,6 +251,7 @@ func (q *Queries) GetDocumentShareByID(ctx context.Context, arg GetDocumentShare
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+		&i.Origin,
 	)
 	return i, err
 }
@@ -351,7 +352,7 @@ func (q *Queries) GetDocumentVersionByID(ctx context.Context, arg GetDocumentVer
 
 const getLiveDocumentShareByID = `-- name: GetLiveDocumentShareByID :one
 
-SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, origin
 FROM document_shares
 WHERE id = $1
   AND organization_id = $2
@@ -389,6 +390,7 @@ func (q *Queries) GetLiveDocumentShareByID(ctx context.Context, arg GetLiveDocum
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+		&i.Origin,
 	)
 	return i, err
 }
