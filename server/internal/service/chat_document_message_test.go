@@ -9,12 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -140,20 +142,19 @@ func TestSendDocumentMessageCreatesDocumentGrantsAndOneMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The document lands in the sender's My Folder, and nowhere else: the
-	// folder is a parent, never a grant target.
-	if !doc.ParentID.Valid {
-		t.Fatal("document has no parent; want the sender's My Folder")
+	// D1a: the document lands at the workspace root (parent_id NULL,
+	// visibility restricted, acl_owner = sender, owner_kind NULL), never in My Folder.
+	if doc.ParentID.Valid {
+		t.Fatalf("document parent_id = %q, want NULL (workspace root)", doc.ParentID.String)
 	}
-	folder, err := f.q.GetDocumentByID(ctx, doc.ParentID.String)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !isMyFolder(folder) {
-		t.Fatalf("parent = %+v, want the sender's My Folder", folder)
+	if doc.Visibility != "restricted" {
+		t.Fatalf("document visibility = %q, want restricted", doc.Visibility)
 	}
 	if doc.AclOwnerID.String != f.ua.ID {
 		t.Fatalf("acl owner = %q, want the sender", doc.AclOwnerID.String)
+	}
+	if doc.OwnerKind.Valid {
+		t.Fatalf("owner_kind = %q, want NULL", doc.OwnerKind.String)
 	}
 	if got := f.chatMessagesOfKind(t, room.ID, "document"); got != 1 {
 		t.Fatalf("document messages = %d, want 1", got)
@@ -173,17 +174,11 @@ func TestSendDocumentMessageCreatesDocumentGrantsAndOneMessage(t *testing.T) {
 	if !msg.Document.CanUploadVersion {
 		t.Fatalf("sender cannot upload a version: %+v", msg.Document)
 	}
-	// UNI-1974: only the document is shared. No share row may name the My
-	// Folder or any folder, now or after the read carries no parent_id.
-	// TODO(UNI-1974): the receiver's read of this card must carry no parent_id,
-	// so a later "folder share" cannot be inferred from the block.
+	// Only the document itself gets a share row.
 	for _, sh := range shares {
-		if sh.DocumentID == folder.ID {
-			t.Fatalf("the My Folder got a share row: %+v", sh)
+		if sh.DocumentID != doc.ID {
+			t.Fatalf("unexpected share target: %+v", sh)
 		}
-	}
-	if got := f.liveSharesOfDocument(t, folder.ID); len(got) != 0 {
-		t.Fatalf("My Folder shares = %+v, want none", got)
 	}
 }
 
@@ -649,6 +644,540 @@ func TestDeleteDocumentMessageKeepsAccess(t *testing.T) {
 	}
 	if shares := f.liveSharesOfDocument(t, sent.Document.DocumentID); len(shares) != 1 {
 		t.Fatalf("live shares after the delete = %+v, want 1", shares)
+	}
+}
+
+// TestSendDocumentMessageCrossWorkspacePlacementAndRecipients proves D1a, D1b
+// and R3: in a DM/group anchored in workspace A, a sender standing in
+// workspace B (who is not a member of workspace A) sends a document without a
+// 403; the document lives in workspace B at the root (parent_id NULL,
+// acl_owner = sender, owner_kind NULL) while the chat message keeps room
+// anchor workspace A; a cross-workspace member in workspace A receives the
+// grant and reads the card with access; a channel keeps the workspace-member
+// gate; and a user outside the organization never receives a grant.
+func TestSendDocumentMessageCrossWorkspacePlacementAndRecipients(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	orgs := NewOrganizationService(f.pool, f.q)
+	wsSvc := NewWorkspaceService(f.pool, f.q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+
+	// Workspace B in the same organization.
+	wsBView, err := wsSvc.CreateInOrg(ctx, f.ua.ID, f.orgID, "ChatDoc WS B", "chatdoc-ws-b")
+	if err != nil {
+		t.Fatalf("create ws B: %v", err)
+	}
+	wsB := wsBView.Workspace
+
+	// uA is a plain org member in workspace A only; uB is a plain org member in
+	// workspace B only (not in workspace A).
+	uA := registerVerified(t, f.q, as, "chatdoc-xw-a@example.com", "Cross A")
+	uB := registerVerified(t, f.q, as, "chatdoc-xw-b@example.com", "Cross B")
+	addOrgMember(t, f.q, f.orgID, uA.ID)
+	addWorkspaceMember(t, f.q, f.ws.ID, uA.ID)
+	addOrgMember(t, f.q, f.orgID, uB.ID)
+	addWorkspaceMember(t, f.q, wsB.ID, uB.ID)
+
+	// uA opens the DM from workspace A, so the room's anchor workspace is A.
+	dmSum, err := f.svc.ResolveDM(ctx, uA.ID, f.ws.ID, uB.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	dmRoom, err := f.q.GetChatRoomByID(ctx, dmSum.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dmRoom.WorkspaceID.String != f.ws.ID {
+		t.Fatalf("room anchor workspace = %q, want %q", dmRoom.WorkspaceID.String, f.ws.ID)
+	}
+
+	// Outsider in another organization inserted into chat_room_members must
+	// never receive a grant (R3).
+	outsider := registerVerified(t, f.q, as, "chatdoc-xw-out@example.com", "Outsider")
+	otherOrg, err := orgs.Create(ctx, outsider.ID, "Other Org", "other-org-chatdoc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addChatRoomMember(t, f.q, dmRoom, f.ws.ID, otherOrg.ID, outsider.ID)
+
+	// uB stands in workspace B and sends a document into the DM anchored in A.
+	sent, err := f.svc.SendDocumentMessage(ctx, uB.ID, wsB.ID, dmRoom.ID, documentMessageInput("doc-xw-dm-1"))
+	if err != nil {
+		t.Fatalf("cross-workspace sender in ws B failed to send into DM anchored in ws A: %v", err)
+	}
+	doc, err := f.q.GetDocumentByID(ctx, sent.Document.DocumentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.WorkspaceID != wsB.ID {
+		t.Fatalf("doc.WorkspaceID = %q, want sender's workspace %q", doc.WorkspaceID, wsB.ID)
+	}
+	if doc.ParentID.Valid {
+		t.Fatalf("doc.ParentID = %q, want NULL", doc.ParentID.String)
+	}
+	if doc.AclOwnerID.String != uB.ID {
+		t.Fatalf("doc.AclOwnerID = %q, want %q", doc.AclOwnerID.String, uB.ID)
+	}
+	if doc.OwnerKind.Valid {
+		t.Fatalf("doc.OwnerKind = %q, want NULL", doc.OwnerKind.String)
+	}
+	var msgWorkspaceID string
+	if err := f.pool.QueryRow(ctx, `SELECT workspace_id FROM chat_messages WHERE id = $1`, sent.ID).Scan(&msgWorkspaceID); err != nil {
+		t.Fatal(err)
+	}
+	if msgWorkspaceID != f.ws.ID {
+		t.Fatalf("chat_messages.workspace_id = %q, want room anchor %q", msgWorkspaceID, f.ws.ID)
+	}
+
+	// Shares on the document in wsB: uA (in wsA only) gets the grant; outsider does not.
+	shares, err := f.q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
+		OrganizationID: f.orgID, WorkspaceID: wsB.ID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(shares) != 1 || shares[0].PrincipalID != uA.ID || shares[0].Level != "comment" {
+		t.Fatalf("cross-workspace DM shares = %+v, want 1 share for uA at comment", shares)
+	}
+
+	// uA in workspace A reads the card with access.
+	rows, err := f.svc.ListRoomMessages(ctx, uA.ID, f.ws.ID, dmRoom.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatalf("uA list messages: %v", err)
+	}
+	block := documentBlockOf(t, rows, sent.ID)
+	if block == nil || !block.HasAccess || block.Level != "comment" {
+		t.Fatalf("uA card block = %+v, want HasAccess=true Level=comment", block)
+	}
+
+	// Channel room in workspace A: a room member who is only in workspace B
+	// (not a member of workspace A) is skipped by the workspace-member check.
+	ch, err := f.svc.CreateChannel(ctx, uA.ID, f.ws.ID, CreateChannelInput{
+		Name: "ws-a-only", Visibility: "public",
+	})
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	chRoom, err := f.q.GetChatRoomByID(ctx, ch.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	addChatRoomMember(t, f.q, chRoom, f.ws.ID, f.orgID, uB.ID)
+	chSent, err := f.svc.SendDocumentMessage(ctx, uA.ID, f.ws.ID, chRoom.ID, documentMessageInput("doc-xw-ch-1"))
+	if err != nil {
+		t.Fatalf("channel send: %v", err)
+	}
+	for _, sh := range f.liveSharesOfDocument(t, chSent.Document.DocumentID) {
+		if sh.PrincipalID == uB.ID {
+			t.Fatalf("non-workspace member uB got a channel share: %+v", sh)
+		}
+	}
+}
+
+// TestGrantDocumentToRoomMembersOnlyRaises proves deliverable 3: a recipient
+// who already holds edit keeps edit when a comment grant runs, and the sender
+// is never granted below manage.
+func TestGrantDocumentToRoomMembersOnlyRaises(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+	room := f.dm(t)
+
+	editIn := documentMessageInput("doc-raise-1")
+	editIn.ShareLevel = "edit"
+	sent, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, room.ID, editIn)
+	if err != nil {
+		t.Fatalf("send at edit: %v", err)
+	}
+	docID := sent.Document.DocumentID
+	doc, err := f.q.GetDocumentByID(ctx, docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access, err := f.docs.effectiveLevel(ctx, f.q, Human(f.ua.ID), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Attempting to grant comment (and including the sender in the recipient
+	// slice) must neither downgrade f.ub from edit to comment nor grant the
+	// sender below manage.
+	if err := f.svc.grantDocumentToRoomMembers(
+		ctx, f.q, Human(f.ua.ID), DocumentFileResult{Document: doc, Access: access},
+		[]string{f.ua.ID, f.ub.ID}, DocumentLevelComment, room.ID, sent.ID,
+	); err != nil {
+		t.Fatalf("grantDocumentToRoomMembers: %v", err)
+	}
+	shares := f.liveSharesOfDocument(t, docID)
+	if len(shares) != 1 || shares[0].PrincipalID != f.ub.ID || shares[0].Level != "edit" {
+		t.Fatalf("shares after lower grant = %+v, want f.ub kept at edit and no share for sender", shares)
+	}
+	senderAcc, err := f.docs.effectiveLevel(ctx, f.q, Human(f.ua.ID), doc)
+	if err != nil || senderAcc.Level != DocumentLevelManage {
+		t.Fatalf("sender effective level = %+v (%v), want manage", senderAcc, err)
+	}
+}
+
+// TestDocumentCardPageDisablesUploadVersion proves deliverable 4: a page
+// document card reports viewer_can_upload_version = false and format = "" even
+// when the viewer holds edit or manage.
+func TestDocumentCardPageDisablesUploadVersion(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+	room := f.dm(t)
+
+	page, err := f.docs.CreatePage(ctx, Human(f.ua.ID), f.ws.ID, CreatePageInput{
+		Title:      "Trang ghi chú",
+		Visibility: "restricted",
+	})
+	if err != nil {
+		t.Fatalf("create page: %v", err)
+	}
+	if _, err := f.docs.ShareDocument(ctx, Human(f.ua.ID), page.Document.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser,
+		PrincipalID:   f.ub.ID,
+		Level:         DocumentLevelEdit,
+	}); err != nil {
+		t.Fatalf("share page at edit: %v", err)
+	}
+	msg, err := f.q.CreateChatDocumentMessage(ctx, db.CreateChatDocumentMessageParams{
+		ID:             util.NewID(),
+		RoomID:         room.ID,
+		OrganizationID: room.OrganizationID,
+		WorkspaceID:    roomAnchorWorkspaceID(room),
+		SenderID:       f.ua.ID,
+		SenderKind:     "human",
+		Body:           page.Document.Title,
+		Metadata:       []byte(fmt.Sprintf(`{"document_id":%q}`, page.Document.ID)),
+	})
+	if err != nil {
+		t.Fatalf("insert document message for page: %v", err)
+	}
+
+	for _, viewer := range []struct {
+		name      string
+		userID    string
+		wantLevel string
+	}{
+		{"sender_manage", f.ua.ID, "manage"},
+		{"recipient_edit", f.ub.ID, "edit"},
+	} {
+		rows, err := f.svc.ListRoomMessages(ctx, viewer.userID, f.ws.ID, room.ID, ListChatMessagesInput{})
+		if err != nil {
+			t.Fatalf("%s list: %v", viewer.name, err)
+		}
+		block := documentBlockOf(t, rows, msg.ID)
+		if block == nil || !block.HasAccess {
+			t.Fatalf("%s block = %+v, want HasAccess=true", viewer.name, block)
+		}
+		if block.Level != viewer.wantLevel {
+			t.Fatalf("%s level = %q, want %q", viewer.name, block.Level, viewer.wantLevel)
+		}
+		if block.CanUploadVersion {
+			t.Fatalf("%s CanUploadVersion = true on a page document, want false", viewer.name)
+		}
+		if block.Format != "" || block.CanOpenInApp {
+			t.Fatalf("%s format=%q canOpenInApp=%v on a page document, want empty/false", viewer.name, block.Format, block.CanOpenInApp)
+		}
+	}
+}
+
+// TestChatDocumentCanUploadVersionByKind is a pure unit check for D5/R6: only
+// kind="file" with edit/manage allows uploading a version.
+func TestChatDocumentCanUploadVersionByKind(t *testing.T) {
+	fileDoc := db.Document{Kind: DocumentKindFile}
+	pageDoc := db.Document{Kind: DocumentKindPage}
+	folderDoc := db.Document{Kind: DocumentKindFolder}
+
+	for _, lvl := range []DocumentLevel{DocumentLevelNone, DocumentLevelView, DocumentLevelComment, DocumentLevelEdit, DocumentLevelManage} {
+		acc := DocumentAccess{Level: lvl}
+		wantFile := lvl == DocumentLevelEdit || lvl == DocumentLevelManage
+		if got := chatDocumentCanUploadVersion(fileDoc, acc); got != wantFile {
+			t.Fatalf("fileDoc at %s: got %v, want %v", lvl, got, wantFile)
+		}
+		if chatDocumentCanUploadVersion(pageDoc, acc) {
+			t.Fatalf("pageDoc at %s: got true, want false", lvl)
+		}
+		if chatDocumentCanUploadVersion(folderDoc, acc) {
+			t.Fatalf("folderDoc at %s: got true, want false", lvl)
+		}
+	}
+}
+
+// TestChatDocumentShareRevokerUnit checks the consumer's Topics, Name,
+// no-op behaviour on empty/unrelated outbox rows, and prior-manual-level
+// preservation rules without requiring a database connection.
+func TestChatDocumentShareRevokerUnit(t *testing.T) {
+	revoker := NewChatDocumentShareRevoker(nil)
+	if revoker.Name() != "chat_document_share_revoker" {
+		t.Fatalf("Name() = %q, want chat_document_share_revoker", revoker.Name())
+	}
+	topics := revoker.Topics()
+	if len(topics) != 2 || topics[0] != "chat.room.member_removed" || topics[1] != "member.removed" {
+		t.Fatalf("Topics() = %v, want [chat.room.member_removed member.removed]", topics)
+	}
+
+	// Manual share (no source_kind) raised by chat -> records prior manual level.
+	prevManual := db.DocumentShare{Level: "view"}
+	got := priorManualLevelForChatGrant(true, prevManual, DocumentShareSourceKindChat)
+	if !got.Valid || got.String != "view" {
+		t.Fatalf("priorManualLevel from manual view = %+v, want view", got)
+	}
+	// Chat share that already remembered manual view, raised again by chat -> keeps view.
+	prevChatWithManual := db.DocumentShare{
+		Level:            "comment",
+		SourceKind:       pgtype.Text{String: DocumentShareSourceKindChat, Valid: true},
+		PriorManualLevel: pgtype.Text{String: "view", Valid: true},
+	}
+	got = priorManualLevelForChatGrant(true, prevChatWithManual, DocumentShareSourceKindChat)
+	if !got.Valid || got.String != "view" {
+		t.Fatalf("priorManualLevel from chained chat raise = %+v, want view", got)
+	}
+	// Pure chat share (no prior manual level) raised by chat -> stays NULL.
+	prevPureChat := db.DocumentShare{
+		Level:      "comment",
+		SourceKind: pgtype.Text{String: DocumentShareSourceKindChat, Valid: true},
+	}
+	got = priorManualLevelForChatGrant(true, prevPureChat, DocumentShareSourceKindChat)
+	if got.Valid {
+		t.Fatalf("priorManualLevel from pure chat share = %+v, want NULL", got)
+	}
+	// Manual grant replacing anything -> clears priorManualLevel (it is manual now).
+	got = priorManualLevelForChatGrant(true, prevChatWithManual, "")
+	if got.Valid {
+		t.Fatalf("priorManualLevel for manual grant = %+v, want NULL", got)
+	}
+}
+
+// TestChatDocumentShareSourceMarkerAndRevokeOnLeave proves D2a end to end:
+//  1. Chat sends stamp source_kind='chat', source_room_id and source_message_id.
+//  2. Leaving or being removed from the room revokes chat-origin shares of that
+//     room for that user, writing document.share_revoked audit + outbox in the
+//     same transaction.
+//  3. A manual share (no marker) and a legacy chat share (no marker) are NEVER
+//     auto-revoked on leave.
+//  4. When a chat grant raises a lower manual share (e.g. view -> edit),
+//     leaving the room restores the manual view level instead of destroying it.
+//  5. When the user is still an active member of another room holding a live
+//     message of the same document, leaving room 1 re-points the share to
+//     room 2 and keeps access; leaving room 2 later revokes it.
+//  6. Re-sending the same document into the same room is idempotent.
+func TestChatDocumentShareSourceMarkerAndRevokeOnLeave(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	revoker := NewChatDocumentShareRevoker(f.docs)
+
+	uc := registerVerified(t, f.q, as, "chatdoc-d2a-c@example.com", "C")
+	ud := registerVerified(t, f.q, as, "chatdoc-d2a-d@example.com", "D")
+	addOrgMember(t, f.q, f.orgID, uc.ID)
+	addWorkspaceMember(t, f.q, f.ws.ID, uc.ID)
+	addOrgMember(t, f.q, f.orgID, ud.ID)
+	addWorkspaceMember(t, f.q, f.ws.ID, ud.ID)
+
+	group1, err := f.svc.CreateGroup(ctx, f.ua.ID, f.ws.ID, CreateGroupInput{
+		Name:          "d2a-room-1",
+		MemberUserIDs: []string{f.ub.ID, uc.ID, ud.ID},
+	})
+	if err != nil {
+		t.Fatalf("create group1: %v", err)
+	}
+
+	// 1. Send a document in group1 -> shares carry source_kind='chat', source_room_id=group1.ID, source_message_id=sent1.ID.
+	sent1, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, group1.ID, documentMessageInput("d2a-send-1"))
+	if err != nil {
+		t.Fatalf("send1: %v", err)
+	}
+	doc1ID := sent1.Document.DocumentID
+	for _, sh := range f.liveSharesOfDocument(t, doc1ID) {
+		if sh.SourceKind.String != DocumentShareSourceKindChat || sh.SourceRoomID.String != group1.ID || sh.SourceMessageID.String != sent1.ID {
+			t.Fatalf("share %+v missing chat source markers for room %s msg %s", sh, group1.ID, sent1.ID)
+		}
+	}
+
+	// 6. Re-sending the same document into the same room is idempotent.
+	doc1, err := f.q.GetDocumentByID(ctx, doc1ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc1, err := f.docs.effectiveLevel(ctx, f.q, Human(f.ua.ID), doc1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.grantDocumentToRoomMembers(
+		ctx, f.q, Human(f.ua.ID), DocumentFileResult{Document: doc1, Access: acc1},
+		[]string{f.ub.ID, uc.ID, ud.ID}, DocumentLevelComment, group1.ID, sent1.ID,
+	); err != nil {
+		t.Fatalf("idempotent re-grant: %v", err)
+	}
+	if got := len(f.liveSharesOfDocument(t, doc1ID)); got != 3 {
+		t.Fatalf("live shares after idempotent re-send = %d, want 3", got)
+	}
+
+	// 2. f.ub leaves group1 -> outbox event chat.room.member_removed -> revoker revokes f.ub's share on doc1 with audit + outbox.
+	if err := f.svc.LeaveChatRoom(ctx, f.ub.ID, f.ws.ID, group1.ID); err != nil {
+		t.Fatalf("ub leave group1: %v", err)
+	}
+	if err := revoker.Handle(ctx, outbox.Row{
+		ID:             util.NewID(),
+		Topic:          "chat.room.member_removed",
+		Payload:        fmt.Sprintf(`{"room_id":%q,"user_id":%q}`, group1.ID, f.ub.ID),
+		OrganizationID: pgtype.Text{String: f.orgID, Valid: true},
+	}); err != nil {
+		t.Fatalf("revoker handle ub leave: %v", err)
+	}
+	ubAcc, err := f.docs.effectiveLevel(ctx, f.q, Human(f.ub.ID), doc1)
+	if err != nil || ubAcc.Level != DocumentLevelNone {
+		t.Fatalf("ub level after leaving group1 = %+v (%v), want none", ubAcc, err)
+	}
+	var revokeAudits int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE action = 'document.share_revoked' AND resource_id = $1`,
+		doc1ID).Scan(&revokeAudits); err != nil || revokeAudits != 1 {
+		t.Fatalf("document.share_revoked audit rows = %d (%v), want 1", revokeAudits, err)
+	}
+
+	// 3 & 4. Manual share and raised manual share:
+	// Give uc a manual share on doc2 (at edit) and ud a manual share on doc2 (at view).
+	// Then a chat grant at comment in group1 leaves uc at manual edit (no marker)
+	// and raises ud from manual view to chat comment (prior_manual_level='view').
+	page2, err := f.docs.CreatePage(ctx, Human(f.ua.ID), f.ws.ID, CreatePageInput{
+		Title:      "Doc 2 manual + chat",
+		Visibility: "restricted",
+	})
+	if err != nil {
+		t.Fatalf("create doc2: %v", err)
+	}
+	doc2 := page2.Document
+	if _, err := f.docs.ShareDocument(ctx, Human(f.ua.ID), doc2.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: uc.ID, Level: DocumentLevelEdit,
+	}); err != nil {
+		t.Fatalf("manual edit share for uc: %v", err)
+	}
+	if _, err := f.docs.ShareDocument(ctx, Human(f.ua.ID), doc2.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: ud.ID, Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("manual view share for ud: %v", err)
+	}
+	acc2, err := f.docs.effectiveLevel(ctx, f.q, Human(f.ua.ID), doc2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg2ID := util.NewID()
+	if err := f.svc.grantDocumentToRoomMembers(
+		ctx, f.q, Human(f.ua.ID), DocumentFileResult{Document: doc2, Access: acc2},
+		[]string{uc.ID, ud.ID}, DocumentLevelComment, group1.ID, msg2ID,
+	); err != nil {
+		t.Fatalf("chat grant on doc2: %v", err)
+	}
+
+	// Kick uc and ud from group1 -> uc keeps manual edit; ud is restored to manual view!
+	for _, targetID := range []string{uc.ID, ud.ID} {
+		if err := f.svc.RemoveChatRoomMember(ctx, f.ua.ID, f.ws.ID, group1.ID, targetID); err != nil {
+			t.Fatalf("kick %s: %v", targetID, err)
+		}
+		if err := revoker.Handle(ctx, outbox.Row{
+			ID:             util.NewID(),
+			Topic:          "chat.room.member_removed",
+			Payload:        fmt.Sprintf(`{"room_id":%q,"user_id":%q}`, group1.ID, targetID),
+			OrganizationID: pgtype.Text{String: f.orgID, Valid: true},
+		}); err != nil {
+			t.Fatalf("revoker handle kick %s: %v", targetID, err)
+		}
+	}
+	ucAcc2, err := f.docs.effectiveLevel(ctx, f.q, Human(uc.ID), doc2)
+	if err != nil || ucAcc2.Level != DocumentLevelEdit {
+		t.Fatalf("uc level on doc2 after kick = %+v (%v), want manual edit preserved", ucAcc2, err)
+	}
+	udAcc2, err := f.docs.effectiveLevel(ctx, f.q, Human(ud.ID), doc2)
+	if err != nil || udAcc2.Level != DocumentLevelView {
+		t.Fatalf("ud level on doc2 after kick = %+v (%v), want manual view restored", udAcc2, err)
+	}
+	udShare2, err := f.q.GetDocumentShare(ctx, db.GetDocumentShareParams{
+		OrganizationID: f.orgID, WorkspaceID: f.ws.ID, DocumentID: doc2.ID,
+		PrincipalType: DocumentPrincipalUser, PrincipalID: ud.ID,
+	})
+	if err != nil || udShare2.SourceKind.Valid || udShare2.Level != "view" {
+		t.Fatalf("restored manual share for ud = %+v (%v), want manual level=view with NULL source_kind", udShare2, err)
+	}
+
+	// 5. Multi-room retention: f.ub is in groupA and groupB, both holding a
+	// live message of doc3. Leaving groupA re-points the share to groupB and
+	// keeps access; leaving groupB afterwards revokes it.
+	groupA, err := f.svc.CreateGroup(ctx, f.ua.ID, f.ws.ID, CreateGroupInput{
+		Name: "multi-a", MemberUserIDs: []string{f.ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupB, err := f.svc.CreateGroup(ctx, f.ua.ID, f.ws.ID, CreateGroupInput{
+		Name: "multi-b", MemberUserIDs: []string{f.ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sent3, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, groupA.ID, documentMessageInput("d2a-multi-1"))
+	if err != nil {
+		t.Fatalf("send3 in groupA: %v", err)
+	}
+	doc3ID := sent3.Document.DocumentID
+	doc3, err := f.q.GetDocumentByID(ctx, doc3ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// groupB also holds a live message of doc3.
+	msg3B, err := f.q.CreateChatDocumentMessage(ctx, db.CreateChatDocumentMessageParams{
+		ID:             util.NewID(),
+		RoomID:         groupB.ID,
+		OrganizationID: f.orgID,
+		WorkspaceID:    f.ws.ID,
+		SenderID:       f.ua.ID,
+		SenderKind:     "human",
+		Body:           doc3.Title,
+		Metadata:       []byte(fmt.Sprintf(`{"document_id":%q}`, doc3ID)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// f.ub leaves groupA -> still active in groupB with live msg3B -> keeps access, source_room_id re-pointed to groupB.
+	if err := f.svc.LeaveChatRoom(ctx, f.ub.ID, f.ws.ID, groupA.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := revoker.Handle(ctx, outbox.Row{
+		ID:             util.NewID(),
+		Topic:          "chat.room.member_removed",
+		Payload:        fmt.Sprintf(`{"room_id":%q,"user_id":%q}`, groupA.ID, f.ub.ID),
+		OrganizationID: pgtype.Text{String: f.orgID, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ubAcc3, err := f.docs.effectiveLevel(ctx, f.q, Human(f.ub.ID), doc3)
+	if err != nil || ubAcc3.Level != DocumentLevelComment {
+		t.Fatalf("ub level on doc3 after leaving groupA while still in groupB = %+v (%v), want comment", ubAcc3, err)
+	}
+	ubShare3, err := f.q.GetDocumentShare(ctx, db.GetDocumentShareParams{
+		OrganizationID: f.orgID, WorkspaceID: f.ws.ID, DocumentID: doc3ID,
+		PrincipalType: DocumentPrincipalUser, PrincipalID: f.ub.ID,
+	})
+	if err != nil || ubShare3.SourceRoomID.String != groupB.ID || ubShare3.SourceMessageID.String != msg3B.ID {
+		t.Fatalf("repointed share = %+v (%v), want room=%s msg=%s", ubShare3, err, groupB.ID, msg3B.ID)
+	}
+
+	// Now f.ub leaves groupB too -> no active room left -> share is revoked.
+	if err := f.svc.LeaveChatRoom(ctx, f.ub.ID, f.ws.ID, groupB.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := revoker.Handle(ctx, outbox.Row{
+		ID:             util.NewID(),
+		Topic:          "chat.room.member_removed",
+		Payload:        fmt.Sprintf(`{"room_id":%q,"user_id":%q}`, groupB.ID, f.ub.ID),
+		OrganizationID: pgtype.Text{String: f.orgID, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ubAcc3After, err := f.docs.effectiveLevel(ctx, f.q, Human(f.ub.ID), doc3)
+	if err != nil || ubAcc3After.Level != DocumentLevelNone {
+		t.Fatalf("ub level on doc3 after leaving groupB too = %+v (%v), want none", ubAcc3After, err)
 	}
 }
 
